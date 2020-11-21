@@ -1,0 +1,180 @@
+- docs, moar tests
+
+- extended attributes:
+  - number of blocks
+  - number of chunks
+  - number of times opened?
+
+- per-file "hotness" (how often was a file opened); dump to file upon umount
+
+- nanofsextract? ---> --unpack
+- readahead?
+- typedef -> using
+
+- start filename compression early
+
+- remove multiple blockhash window sizes, one is enough apparently?
+
+- window-increment-shift seems silly to configure?
+
+- identify blocks that contain mostly binary data and adjust compressor?
+
+- get rid of glog dependency
+
+- get rid of passing by shared/unique ptr where possible
+
+- weak_ptr, e.g. in inode implementation?
+
+- --repack and --unpack option
+
+- metadata stripping (i.e. re-write metadata without owner/time info)
+
+
+/*
+
+scanner:
+bhw= -   388.3s  13.07  GiB
+bhw= 8   812.9s   7.559 GiB
+bhw= 9   693.1s   7.565 GiB
+bhw=10   651.8s   7.617 GiB
+bhw=11   618.7s   7.313 GiB
+bhw=12   603.6s   7.625 GiB
+bhw=13   591.2s   7.858 GiB
+bhw=14   574.1s   8.306 GiB
+bhw=15   553.8s   8.869 GiB
+bhw=16   541.9s   9.529 GiB
+
+
+lz4:
+                          <----  1m29.535s / 9m31.212s
+
+lz4hc:
+ 1 -  20.94s - 2546 MiB
+ 2 -  21.67s - 2441 MiB
+ 3 -  24.19s - 2377 MiB
+ 4 -  27.29s - 2337 MiB
+ 5 -  31.49s - 2311 MiB
+ 6 -  36.39s - 2294 MiB
+ 7 -  42.04s - 2284 MiB
+ 8 -  48.67s - 2277 MiB
+ 9 -  56.94s - 2273 MiB  <----  1m27.979s / 9m20.637s
+10 -  68.03s - 2271 MiB
+11 -  79.54s - 2269 MiB
+12 -  94.84s - 2268 MiB
+
+zstd:
+ 1 -  11.42s - 1667 MiB
+ 2 -  12.95s - 1591 MiB  <----  2m8.351s / 15m25.752s
+ 3 -  22.03s - 1454 MiB
+ 4 -  25.64s - 1398 MiB
+ 5 -  32.34s - 1383 MiB
+ 6 -  41.45s - 1118 MiB  <----  2m4.258s / 14m28.627s
+ 7 -  46.26s - 1104 MiB
+ 8 -  53.34s - 1077 MiB
+ 9 -  59.99s - 1066 MiB
+10 -  63.3s  - 1066 MiB
+11 -  66.97s -  956 MiB  <----  2m3.496s / 14m17.862s
+12 -  79.89s -  953 MiB
+13 -  89.8s  -  943 MiB
+14 - 118.1s  -  941 MiB
+15 - 230s    -  951 MiB
+16 - 247.4s  -  863 MiB  <----  2m11.202s / 14m57.245s
+17 - 294.5s  -  854 MiB
+18 - 634s    -  806 MiB
+19 - 762.5s  -  780 MiB
+20 - 776.8s  -  718 MiB  <----  2m16.448s / 15m43.923s
+21 - 990.4s  -  716 MiB
+22 - 984.3s  -  715 MiB  <----  2m18.133s / 15m55.263s
+
+lzma:
+level=6:dict_size=21  921.9s  - 838.8 MiB  <----  5m11.219s / 37m36.002s
+
+*/
+
+
+
+
+
+Perl:
+542 versions of perl
+found/scanned: 152809/152809 dirs, 0/0 links, 1325098/1325098 files
+original size: 32.03 GiB, saved: 19.01 GiB by deduplication (1133032 duplicate files), 5.835 GiB by segmenting
+filesystem size: 7.183 GiB in 460 blocks (499389 chunks, 192066/192066 inodes), 460 blocks/662.3 MiB written
+
+                                                                                   bench
+                                                                         build   real  user
+-----------------------------------------------------------------------------------------------------
+-rw-r--r-- 1 mhx users  14G Jul 27 23:11 perl-install-0.dwarfs            8:05   0:38  0:45
+-rw-r--r-- 1 mhx users 4.8G Jul 27 23:18 perl-install-1.dwarfs            6:34   0:14  1:24
+-rw-r--r-- 1 mhx users 3.8G Jul 27 23:26 perl-install-2.dwarfs            7:31   0:17  1:11
+-rw-r--r-- 1 mhx users 3.2G Jul 27 23:36 perl-install-3.dwarfs           10:11   0:11  0:59
+-rw-r--r-- 1 mhx users 1.8G Jul 27 23:47 perl-install-4.dwarfs           11:05   0:14  1:24
+-rw-r--r-- 1 mhx users 1.2G Jul 27 23:59 perl-install-5.dwarfs           11:53   0:13  1:15
+-rw-r--r-- 1 mhx users 901M Jul 28 00:16 perl-install-6.dwarfs           17:42   0:14  1:25
+-rw-r--r-- 1 mhx users 704M Jul 28 00:37 perl-install-7.dwarfs           20:52   0:20  2:14
+-rw-r--r-- 1 mhx users 663M Jul 28 04:04 perl-install-8.dwarfs           24:13   0:50  6:02
+-rw-r--r-- 1 mhx users 615M Jul 28 02:50 perl-install-9.dwarfs           34:40   0:51  5:50
+
+-rw-r--r-- 1 mhx users 3.6G Jul 28 09:13 perl-install-defaults.squashfs  17:20
+-rw-r--r-- 1 mhx users 2.4G Jul 28 10:42 perl-install-opt.squashfs       71:49
+
+
+
+
+
+
+
+
+soak:
+
+-7  (cache=1g)
+
+Passed with 542 of 542 combinations.
+
+real    75m21.191s
+user    68m3.903s
+sys     6m21.020s
+
+-9  (cache=1g)
+
+Passed with 542 of 542 combinations.
+
+real    118m48.371s
+user    107m35.685s
+sys     7m16.438s
+
+squashfs-opt
+
+real    81m36.957s
+user    62m37.369s
+sys     20m52.367s
+
+
+-1  (cache=2g)
+mhx@gimli ~ $ time find tmp/mount/ -type f | xargs -n 1 -P 32 -d $'\n' -I {} dd of=/dev/null if={} bs=64K status=none
+
+real    2m19.927s
+user    0m16.813s
+sys     2m4.293s
+
+-7  (cache=2g)
+mhx@gimli ~ $ time find tmp/mount/ -type f | xargs -n 1 -P 32 -d $'\n' -I {} dd of=/dev/null if={} bs=64K status=none
+
+real    2m24.346s
+user    0m17.007s
+sys     1m59.823s
+
+squash-default
+mhx@gimli ~ $ time find tmp/mount/ -type f | xargs -n 1 -P 32 -d $'\n' -I {} dd of=/dev/null if={} bs=64K status=none
+
+real    8m41.594s
+user    1m25.346s
+sys     19m12.036s
+
+squash-opt
+mhx@gimli ~ $ time find tmp/mount/ -type f | xargs -n 1 -P 32 -d $'\n' -I {} dd of=/dev/null if={} bs=64K status=none
+
+real    141m41.092s
+user    1m12.650s
+sys     59m18.194s
+

@@ -1,0 +1,8 @@
+/@*
+/*.*fs
+/tmp/
+/build*/
+/man/*.1
+/man/*.1.html
+*.log
+/.gdb_history
