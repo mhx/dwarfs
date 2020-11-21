@@ -9,7 +9,7 @@ dwarfs(1) -- mount highly compressed read-only file system
 
 `dwarfs` is the FUSE driver for DwarFS, a highly compressed, read-only file
 system. As such, it's similar to file systems like SquashFS, cramfs or CromFS,
-but it has some distinct features. For a comparison, see [COMPARISON].
+but it has some distinct features.
 
 Other than that, it's pretty straightforward to use. Once you've created a
 file system image using mkdwarfs(1), you can mount it with:
