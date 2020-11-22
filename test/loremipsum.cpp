@@ -416,10 +416,11 @@ const std::string& loremipsum() { return s_loremipsum; }
 
 std::string loremipsum(size_t size) {
   std::string str;
-  while (str.size() < size) {
+  str.reserve(size);
+  while (str.size() + s_loremipsum.size() <= size) {
     str += s_loremipsum;
   }
-  str.resize(size);
+  str.append(s_loremipsum.data(), size - str.size());
   return str;
 }
 } // namespace test

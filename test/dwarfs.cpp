@@ -177,7 +177,7 @@ void basic_end_to_end_test(const std::string& compressor,
 
   std::ostringstream logss;
   stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<debug_logger_policy>();
+  lgr.set_policy<prod_logger_policy>();
 
   scanner s(lgr, wg, cfg,
             entry_factory::create(no_owner, no_time,
