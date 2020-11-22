@@ -18,7 +18,7 @@
 
 project(dwarfs)
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
 
@@ -43,10 +43,10 @@ find_package(PkgConfig REQUIRED)
 find_package(Boost 1.67 REQUIRED COMPONENTS date_time filesystem
                                             program_options system)
 
-pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.9.1)
-pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.2)
-pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
-pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.4.4)
+pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.4.1)
+pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
+pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
+pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.3.8)
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 

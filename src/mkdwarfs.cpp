@@ -38,7 +38,7 @@
 #include <folly/Format.h>
 #include <folly/gen/String.h>
 
-#if DWARFS_HAVE_LIBZSTD
+#ifdef DWARFS_HAVE_LIBZSTD
 #include <zstd.h>
 #endif
 
@@ -62,6 +62,15 @@ namespace po = boost::program_options;
 using namespace dwarfs;
 
 namespace {
+
+#ifdef DWARFS_HAVE_LIBZSTD
+#if ZSTD_VERSION_MAJOR > 1 ||                                                  \
+    (ZSTD_VERSION_MAJOR == 1 && ZSTD_VERSION_MINOR >= 4)
+#define ZSTD_MIN_LEVEL ZSTD_minCLevel()
+#else
+#define ZSTD_MIN_LEVEL 1
+#endif
+#endif
 
 #ifdef DWARFS_HAVE_LUA
 constexpr const char* script_name = "dwarfs.lua";
@@ -322,7 +331,7 @@ int mkdwarfs(int argc, char** argv) {
 #ifdef DWARFS_HAVE_LIBZSTD
                  "  zstd     ZSTD compression\n"
                  "               level=["
-              << ZSTD_minCLevel() << ".." << ZSTD_maxCLevel()
+              << ZSTD_MIN_LEVEL << ".." << ZSTD_maxCLevel()
               << "]\n"
 #endif
 #ifdef DWARFS_HAVE_LIBLZMA
