@@ -137,6 +137,15 @@ Most other options are concerned with compression tuning:
     Show program help, including defaults, compression level detail and
     supported compression algorithms.
 
+## TIPS & TRICKS
+
+If high compression ratio is your primary goal, definitely go for lzma
+compression. However, I've found that it's only about 10% better than
+zstd at the highest level. The big advantage of zstd over lzma is that
+its decompression speed is about an order of magnitude faster. So if
+you're extensively using the compressed file system, you'll probably
+find that it's much faster with zstd.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
@@ -147,4 +156,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfsck(1)
+dwarfs(1)
