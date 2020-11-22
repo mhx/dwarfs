@@ -91,7 +91,7 @@ and [liblzma](https://github.com/kobolabs/liblzma)).
 A good starting point for apt-based systems is probably:
 
     # apt install \
-        clang \
+        g++ \
         cmake \
         make \
         pkg-config \
@@ -113,9 +113,6 @@ A good starting point for apt-based systems is probably:
         libfuse3-dev \
         libsparsehash-dev \
         zlib1g-dev
-
-Building with `clang` is recommended for better optimization, but
-`g++` will work just fine, too.
 
 The dependency on [googletest](https://github.com/google/googletest)
 will be automatically resolved if you build with tests.
