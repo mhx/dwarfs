@@ -10,7 +10,8 @@ high compression ratios in particular for very redundant data.
 This probably doesn't sound very exciting, because if it's redundant,
 it *should* compress well. However, I found that other read-only,
 compressed file systems don't do a very good job at making use of
-this redundancy.
+this redundancy. See [here](#comparison) for a comparison with other
+compressed file systems.
 
 Distinct features of DwarFS are:
 
@@ -136,7 +137,7 @@ as well, but it's still work in progress.
 ### With SquashFS
 
 These tests were done on an Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz
-6-core CPU with 64 GiB of RAM. The system was mostly idle during
+6 core CPU with 64 GiB of RAM. The system was mostly idle during
 all of the tests.
 
 The source directory contained 863 different Perl installations from
@@ -297,3 +298,52 @@ worse:
 
 So you might want to consider preferring zstd over lzma if you'd
 like to optimize for file system performance.
+
+On a different system, Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz,
+with 4 cores, I repeated the test with both SquashFS and DwarFS
+(just because on the 6 core box my kernel didn't have support
+for zstd in SquashFS). For reference, here's DwarFS again:
+
+    $ time ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P12 sh -c '$0 -v >/dev/null'
+    
+    real    0m1.690s
+    user    0m1.143s
+    sys     0m1.657s
+    $ time ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P12 sh -c '$0 -v >/dev/null'
+    
+    real    0m0.414s
+    user    0m0.944s
+    sys     0m1.341s
+
+It's actually *faster* on the 4 core i7 than on the 6 core Xeon.
+
+Here's the same test with SquashFS:
+
+    $ time ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P12 sh -c '$0 -v >/dev/null'
+    
+    real    0m1.861s
+    user    0m1.102s
+    sys     0m9.241s
+    $ time ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P12 sh -c '$0 -v >/dev/null'
+    
+    real    0m0.395s
+    user    0m0.951s
+    sys     0m1.330s
+
+It's marginally slower on the first run and not much different on
+the second run. This actually came as a surprise given that SquashFS
+doesn't have to go through all the overhead of FUSE.
+
+What's also interesting: the total CPU time (summing up `user` and
+`sys` time over both runs) spent by SquashFS is 12.6 seconds. For
+DwarFS, it's only 10.5 seconds, and that's including the CPU time
+spent by the file system process:
+
+    $ time dwarfs perl.dwarfs /tmp/perl/install -o cachesize=1g -f -o workers=4
+    
+    real    0m19.236s
+    user    0m3.684s
+    sys     0m1.694s
+
+Ignre the real time here, that's just how long it took for me to
+unmount the file system again after performing the test.
