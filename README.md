@@ -345,5 +345,63 @@ spent by the file system process:
     user    0m3.684s
     sys     0m1.694s
 
-Ignre the real time here, that's just how long it took for me to
+Ignore the real time here, that's just how long it took for me to
 unmount the file system again after performing the test.
+
+Another real-life test was to build and test a Perl module with 468
+different Perl versions in the compressed file system. The module I've
+used, [Tie::Hash::Indexed](https://github.com/mhx/Tie-Hash-Indexed),
+has an XS component that requires a C compiler to build. So this really
+accesses a lot of different stuff in the file system:
+
+* The `perl` executables and its shared libraries
+
+* The Perl modules used for writing the Makefile
+
+* Perl's C header files used for building the module
+
+* More Perl modules used for running the tests
+
+I wrote a little script to be able to run multiple builds in parallel:
+
+```bash
+#!/bin/bash
+set -eu
+perl=$1
+dir=$(realpath $(mktemp -d -p .))
+rsync -a Tie-Hash-Indexed-0.08/ $dir/
+cd $dir
+$perl Makefile.PL >/dev/null 2>&1
+make test >/dev/null 2>&1
+cd ..
+rm -rf $dir
+echo $perl
+```
+
+The following command will run up to 8 builds in parallel on the 4 core
+i7 CPU, including debug, optimized and threaded versions of all Perl
+releases between 5.10.0 and 5.33.3, a total of 468 `perl` installations:
+
+    $ time ls -1 /tmp/perl/install/*/perl-5.??.?/bin/perl5* | sort -t / -k 8 | xargs -d $'\n' -P 8 -n 1 ./build.sh
+
+Tests were done with a cleanly mounted file system to make sure the caches
+were empty. With SquashFS, the timing was:
+
+    real    2m34.443s
+    user    16m23.703s
+    sys     3m20.921s
+
+And with DwarFS:
+
+    real    2m34.489s
+    user    15m47.030s
+    sys     2m16.427s
+
+So, frankly, not much of a difference. The `dwarfs` process itself used:
+
+    real    2m56.174s
+    user    0m21.171s
+    sys     0m24.251s
+
+So again, DwarFS used less raw CPU power, but in terms of wallclock time,
+there wasn't actually much of a difference.
