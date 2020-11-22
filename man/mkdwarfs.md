@@ -3,8 +3,8 @@ mkdwarfs(1) -- create highly compressed read-only file systems
 
 ## SYNOPSIS
 
-`mkdwarfs` -i <path> -o <file> [<options>...]<br>
-`mkdwarfs` -i <file> -o <file> --recompress [<options>...]
+`mkdwarfs` -i *path* -o *file* [*options*...]<br>
+`mkdwarfs` -i *file* -o *file* --recompress [*options*...]
 
 ## DESCRIPTION
 
@@ -26,17 +26,17 @@ After that, you can mount it with dwarfs(1):
 
 There two mandatory options for specifying the input and output:
 
-  * `-i`, `--input=`<path>|<file>:
+  * `-i`, `--input=`*path*|*file*:
     Path to the root directory containing the files from which you want to
     build a filesystem. If the `--recompress` option is given, this argument
     is the source filesystem.
 
-  * `-o`, `--output=`<file>:
+  * `-o`, `--output=`*file*:
     File name of the output filesystem.
 
 Most other options are concerned with compression tuning:
 
-  * `-l`, `--compress-level=`<value>:
+  * `-l`, `--compress-level=`*value*:
     Compression level to use for the filesystem. This is intended to provide
     some sensible defaults and will depend on which compression libraries
     were available at build time. This is meant to be the "easy" interface
@@ -45,7 +45,7 @@ Most other options are concerned with compression tuning:
     `--blockhash-window-sizes`. See the output of `mkdwarfs --help` for a
     table listing the exact defaults used for each compression level.
 
-  * `-S`, `--block-size-bits=`<value>:
+  * `-S`, `--block-size-bits=`*value*:
     The block size used for the compressed filesystem. The actual block size
     is two to the power of this value. The valid range of this option is from
     12 to 28, i.e. block sizes between 4kiB and 256MiB. Larger block sizes
@@ -54,12 +54,12 @@ Most other options are concerned with compression tuning:
     least partially decompressed into memory. Value between 20 and 24, i.e.
     between 1MiB and 16MiB, are usually a good compromise.
 
-  * `-N`, `--num-workers=`<value>:
+  * `-N`, `--num-workers=`*value*:
     Number of worker threads used for building the filesystem. This defaults
     to the number of processors available on your system. Use this option if
     you want to limit the resources used by `mkdwarfs`.
 
-  * `-L`, `--memory-limit=`<value>:
+  * `-L`, `--memory-limit=`*value*:
     Approximately how much memory you want `mkdwarfs` to use during filesystem
     creation. Note that currently this will only affect the block manager
     component, i.e. the number of filesystem blocks that are in flight but
@@ -68,7 +68,7 @@ Most other options are concerned with compression tuning:
     good option when building large filesystems with expensive compression
     algorithms.
 
-  * `-C`, `--compression=`<algorithm>[:<algopt>[=<value>]]...:
+  * `-C`, `--compression=`*algorithm*[:*algopt*[=*value*]]...:
     The compression algorithm and configuration used for creating the new
     filesystem. The value for this option is a colon-separated list. The
     first item is the compression algorithm, the remaining item are its
@@ -98,7 +98,7 @@ Most other options are concerned with compression tuning:
     as it will cause similar files to be located close to each other, which
     means compression will be better.
 
-  * `--blockhash-window-sizes=`<value>[,<value>]...:
+  * `--blockhash-window-sizes=`*value*[,*value*]...:
     Window sizes used for block hashing. These sizes, separated by commas,
     are again exponents to a base of two. These block hashes are used by
     `mkdwarfs` for finding identical segments in across multiple files.
@@ -117,7 +117,7 @@ Most other options are concerned with compression tuning:
     efficiency. However, multiple window sizes will also make `mkdwarfs`
     slower. It's all a tradeoff, so YMMV.
 
-  * `--window-increment-shift=`<value>:
+  * `--window-increment-shift=`*value*:
     This option specifies how many hash values are kept for lookup. It is
     specified in number of right shifts of the window size. To give an
     example, if `--block-hash-window-sizes=16` and `--window-increment-shift=1`,
@@ -127,7 +127,7 @@ Most other options are concerned with compression tuning:
     If you use a larger value for this option, the increments become *smaller*,
     and `mkdwarfs` will be slower and use more memory.
 
-  * `--log-level=`<name>:
+  * `--log-level=`*name*:
     Specifiy a logging level.
 
   * `--no-progress`:

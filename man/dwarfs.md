@@ -3,7 +3,7 @@ dwarfs(1) -- mount highly compressed read-only file system
 
 ## SYNOPSIS
 
-`dwarfs` image mountpoint [<options>...]
+`dwarfs` image mountpoint [*options*...]
 
 ## DESCRIPTION
 
@@ -21,7 +21,7 @@ file system image using mkdwarfs(1), you can mount it with:
 In addition to the regular FUSE options, `dwarfs` supports the following
 options:
 
-  * `-o cachesize=`<value>:
+  * `-o cachesize=`*value*:
     Size of the block cache, in bytes. You can append suffixes
     (`k`, `m`, `g`) to specify the size in KiB, MiB and GiB,
     respectively. Note that this is not the upper memory limit
@@ -31,12 +31,12 @@ options:
     with it, which can use a significant amount of additional
     memory. For more details, see mkdwarfs(1).
 
-  * `-o workers=`<value>:
+  * `-o workers=`*value*:
     Number of worker threads to use for decompressing blocks.
     If you have a lot of CPUs, increasing this number can help
     speed up access to files in the filesystem.
 
-  * `-o decratio=`<value>:
+  * `-o decratio=`*value*:
     The ratio over which a block is fully decompressed. Blocks
     are only decompressed partially, so each block has to carry
     the decompressor state with it until it is fully decompressed.
@@ -49,7 +49,7 @@ options:
     we keep the partially decompressed block, but if we've
     decompressed more then 80%, we'll fully decompress it.
 
-  * `-o debuglevel=`<name>:
+  * `-o debuglevel=`*name*:
     Use this for different levels of verbosity along with either
     the `-f` or `-d` FUSE options. This can give you some insight
     over what the file system driver is doing internally, but it's
