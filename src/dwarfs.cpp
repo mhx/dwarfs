@@ -360,73 +360,8 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
   fuse_reply_err(req, err);
 }
 
-#if 0
-void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
-  DEBUG_FUNC(ino << ", " << size)
-
-  int err = ENOENT;
-
-  try {
-    auto de = s_fs->find(ino);
-
-    // TODO
-  } catch (const dwarfs::error& e) {
-    std::cerr << "ERROR: " << e.what() << std::endl;
-    err = e.get_errno();
-  } catch (const std::exception& e) {
-    std::cerr << "ERROR: " << e.what() << std::endl;
-    err = EIO;
-  }
-
-  fuse_reply_err(req, err);
-
-  // char *buf;
-  // int ferr;
-
-  // buf = NULL;
-  // if (size && !(buf = malloc(size))) {
-  //   fuse_reply_err(req, ENOMEM);
-  //   return;
-  // }
-
-  // ferr = sqfs_listxattr(&lli.ll->fs, &lli.inode, buf, &size);
-  // if (ferr) {
-  //   fuse_reply_err(req, ferr);
-  // } else if (buf) {
-  //   fuse_reply_buf(req, buf, size);
-  // } else {
-  //   fuse_reply_xattr(req, size);
-  // }
-  // free(buf);
-}
-
-void op_getxattr(fuse_req_t req, fuse_ino_t ino,
-    const char *name, size_t size) {
-  // sqfs_ll_i lli;
-  // char *buf = NULL;
-  // size_t real = size;
-
-  // if (sqfs_ll_iget(req, &lli, ino))
-  //   return;
-
-  // if (!(buf = malloc(size)))
-  //   fuse_reply_err(req, ENOMEM);
-  // else if (sqfs_xattr_lookup(&lli.ll->fs, &lli.inode, name, buf, &real))
-  //   fuse_reply_err(req, EIO);
-  // else if (real == 0)
-  //   fuse_reply_err(req, sqfs_enoattr());
-  // else if (size == 0)
-  //   fuse_reply_xattr(req, real);
-  // else if (size < real)
-  //   fuse_reply_err(req, ERANGE);
-  // else
-  //   fuse_reply_buf(req, buf, real);
-  // free(buf);
-}
-#endif
-
 void usage(const char* progname) {
-  std::cerr << "dwarfs (c) 2013 Marcus Holland-Moritz\n\n"
+  std::cerr << "dwarfs (c) Marcus Holland-Moritz\n\n"
             << "usage: " << progname << " image mountpoint [options]\n\n"
             << "DWARFS options:\n"
             << "    -o cachesize=SIZE      set size of block cache (512M)\n"
