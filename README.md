@@ -249,7 +249,7 @@ system with the best possible compression (`lzma:level=9:extreme`):
     user    146m11.055s
     sys     2m3.924s
 
-    $ ls -l perl*.*fs
+    $ ls -l perl*.dwarfs
     -rw-r--r-- 1 mhx users 1021483264 Nov 22 01:10 perl-lzma.dwarfs
     -rw-r--r-- 1 mhx users 1140619512 Nov 22 00:52 perl.dwarfs
 
