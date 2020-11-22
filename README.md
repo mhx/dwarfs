@@ -135,8 +135,9 @@ as well, but it's still work in progress.
 
 ### With SquashFS
 
-These were done on an Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz 6-core
-CPU with 64 GiB of RAM.
+These tests were done on an Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz
+6-core CPU with 64 GiB of RAM. The system was mostly idle during
+all of the tests.
 
 The source directory contained 863 different Perl installations from
 284 distinct releases, a total of 40.73 GiB of data in 1453691 files
@@ -180,7 +181,7 @@ the default setting for DwarFS:
     sys     2m15.321s
 
 For DwarFS, I'm allowing the same amount of memory (16 GiB) to be
-that SquashFS is using.
+used during compression that SquashFS is using.
 
     $ time mkdwarfs -i /tmp/perl/install -o perl.dwarfs --no-owner -L 16g
     00:34:29.398178 scanning /tmp/perl/install
@@ -248,7 +249,7 @@ system with the best possible compression (`lzma:level=9:extreme`):
     user    146m11.055s
     sys     2m3.924s
 
-    $ ll perl*.*fs
+    $ ls -l perl*.*fs
     -rw-r--r-- 1 mhx users 1021483264 Nov 22 01:10 perl-lzma.dwarfs
     -rw-r--r-- 1 mhx users 1140619512 Nov 22 00:52 perl.dwarfs
 
