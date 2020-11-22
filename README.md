@@ -1,6 +1,6 @@
 # DwarFS
 
-A high compression read-only file system
+A fast high compression read-only file system
 
 ## Overview
 
@@ -12,6 +12,9 @@ it *should* compress well. However, I found that other read-only,
 compressed file systems don't do a very good job at making use of
 this redundancy. See [here](#comparison) for a comparison with other
 compressed file systems.
+
+DwarFS also doesn't compromise on speed and for my use cases I've
+found it to be on par with SquashFS.
 
 Distinct features of DwarFS are:
 
