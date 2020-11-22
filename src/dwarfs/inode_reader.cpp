@@ -22,7 +22,6 @@
 #include <cstring>
 #include <mutex>
 
-#include <folly/Utility.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_cache.h"
