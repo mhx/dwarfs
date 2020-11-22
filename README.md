@@ -88,6 +88,35 @@ of compression libraries that Folly already depends on (namely
 [lz4](https://github.com/lz4/lz4), [zstd](https://github.com/facebook/zstd)
 and [liblzma](https://github.com/kobolabs/liblzma)).
 
+A good starting point for apt-based systems is probably:
+
+    # apt install \
+        clang \
+        cmake \
+        make \
+        pkg-config \
+        binutils-dev \
+        libboost-all-dev \
+        libevent-dev \
+        libdouble-conversion-dev \
+        libgoogle-glog-dev \
+        libgflags-dev \
+        libiberty-dev \
+        liblz4-dev \
+        liblzma-dev \
+        libzstd-dev \
+        libsnappy-dev \
+        libjemalloc-dev \
+        libssl-dev \
+        libunwind-dev \
+        libfmt-dev \
+        libfuse3-dev \
+        libsparsehash-dev \
+        zlib1g-dev
+
+Building with `clang` is recommended for better optimization, but
+`g++` will work just fine, too.
+
 The dependency on [googletest](https://github.com/google/googletest)
 will be automatically resolved if you build with tests.
 
