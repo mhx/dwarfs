@@ -1,0 +1,41 @@
+language: cpp
+
+os: linux
+
+dist: focal
+
+addons:
+  apt:
+    packages:
+      - g++
+      - cmake
+      - make
+      - pkg-config
+      - binutils-dev
+      - libboost-all-dev
+      - libevent-dev
+      - libdouble-conversion-dev
+      - libgoogle-glog-dev
+      - libgflags-dev
+      - libiberty-dev
+      - liblz4-dev
+      - liblzma-dev
+      - libzstd-dev
+      - libsnappy-dev
+      - libjemalloc-dev
+      - libssl-dev
+      - libunwind-dev
+      - libfmt-dev
+      - libfuse3-dev
+      - libsparsehash-dev
+      - zlib1g-dev
+
+compiler:
+  - gcc
+
+before_script:
+  - mkdir build
+  - cd build
+  - cmake -DWITH_TESTS=1 ..
+
+script: make && make test
