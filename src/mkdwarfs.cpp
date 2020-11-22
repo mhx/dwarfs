@@ -63,7 +63,9 @@ using namespace dwarfs;
 
 namespace {
 
+#ifdef DWARFS_HAVE_LUA
 constexpr const char* script_name = "dwarfs.lua";
+#endif
 
 const std::map<std::string, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
