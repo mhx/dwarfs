@@ -47,7 +47,6 @@ pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.9.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.2)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
 pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.4.4)
-pkg_check_modules(LIBGLOG REQUIRED IMPORTED_TARGET libglog>=0.4.0)
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 
@@ -159,8 +158,7 @@ foreach(tgt ${BINARY_TARGETS})
     ${Boost_LIBRARIES}
     PkgConfig::LIBLZ4
     PkgConfig::LIBLZMA
-    PkgConfig::LIBZSTD
-    PkgConfig::LIBGLOG)
+    PkgConfig::LIBZSTD)
 endforeach()
 
 target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
