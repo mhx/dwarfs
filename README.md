@@ -88,15 +88,19 @@ will be automatically resolved if you build with tests.
 
 ### Building
 
-Firstly, either clone the repository:
+Firstly, either clone the repository...
 
     # git clone --recurse-submodules https://github.com/mhx/dwarfs
+    # cd dwarfs
 
+...or unpack the release archive:
+
+    # tar xvf dwarfs-0.1.0.tar.bz2
+    # cd dwarfs-0.1.0
 
 Once all dependencies have been installed, you can build DwarFS
 using:
 
-    # git clone --recurse-submodules https://github.com/mhx/dwarfs
     # mkdir build
     # cd build
     # cmake .. -DWITH_TESTS
