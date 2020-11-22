@@ -1,3 +1,5 @@
+ [![Build Status](https://travis-ci.com/mhx/dwarfs.svg?branch=main)](https://travis-ci.com/mhx/dwarfs)
+
 # DwarFS
 
 A fast high compression read-only file system
