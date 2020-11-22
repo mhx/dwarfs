@@ -32,7 +32,7 @@ Distinct features of DwarFS are:
 I started working on DwarFS in 2013 and my main use case and major
 motivation was that I had several hundred different versions of Perl
 that were taking up something around 30 gigabytes of disk space, and
-I was unwilling to spend more then 10% of my hard drive keeping them
+I was unwilling to spend more than 10% of my hard drive keeping them
 around for when I happened to need them.
 
 Up until then, I had been using [Cromfs](https://bisqwit.iki.fi/source/cromfs.html)
