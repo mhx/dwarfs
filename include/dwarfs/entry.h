@@ -24,11 +24,10 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <sys/stat.h>
-
-#include <folly/Range.h>
 
 #include "file_interface.h"
 #include "fstypes.h"
@@ -95,7 +94,7 @@ class file : public entry {
       , with_similarity_(with_similarity) {}
 
   type_t type() const override;
-  folly::StringPiece hash() const;
+  std::string_view hash() const;
   void set_inode(std::shared_ptr<inode> ino);
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;

@@ -34,7 +34,6 @@
 #include <boost/system/system_error.hpp>
 
 #include <folly/Conv.h>
-#include <folly/Range.h>
 #include <folly/String.h>
 #include <folly/small_vector.h>
 
@@ -46,6 +45,7 @@
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/hash_util.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata.h"
@@ -85,9 +85,9 @@ class scanner_ : public scanner::impl {
   // TODO: StringPiece?
   // TODO: Use dense/unordered maps/sets and sort later?
   using file_name_table_t =
-      fast_hash_map<size_t, fast_hash_set<folly::StringPiece, folly::Hash>>;
+      fast_hash_map<size_t, fast_hash_set<std::string_view, folly::Hash>>;
 
-  std::unordered_map<folly::StringPiece, size_t, folly::Hash>
+  std::unordered_map<std::string_view, size_t, folly::Hash>
   compress_names_table(metadata_writer& mw,
                        const file_name_table_t& file_name) const;
 
@@ -118,7 +118,7 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , log_(lgr) {}
 
 template <typename LoggerPolicy>
-std::unordered_map<folly::StringPiece, size_t, folly::Hash>
+std::unordered_map<std::string_view, size_t, folly::Hash>
 scanner_<LoggerPolicy>::compress_names_table(
     metadata_writer& mw, const file_name_table_t& file_name) const {
   log_.info() << "compressing names table...";
@@ -130,7 +130,7 @@ scanner_<LoggerPolicy>::compress_names_table(
   index.set_empty_key(0);
   uint32_t index_pos = 0;
 
-  std::unordered_map<folly::StringPiece, size_t, folly::Hash> offset;
+  std::unordered_map<std::string_view, size_t, folly::Hash> offset;
   size_t saved = 0;
   size_t orig_offset = mw.offset();
 
@@ -142,7 +142,7 @@ scanner_<LoggerPolicy>::compress_names_table(
   for (auto size : sizes) {
     auto nsi = file_name.find(size);
     assert(nsi != file_name.end());
-    std::vector<folly::StringPiece> names(nsi->second.size());
+    std::vector<std::string_view> names(nsi->second.size());
     std::copy(nsi->second.begin(), nsi->second.end(), names.begin());
     std::sort(names.begin(), names.end());
 
@@ -250,7 +250,7 @@ class save_links_visitor : public entry_visitor {
 
  private:
   metadata_writer& mw_;
-  std::unordered_map<folly::StringPiece, size_t, folly::Hash> offset_;
+  std::unordered_map<std::string_view, size_t, folly::Hash> offset_;
 };
 
 class save_directories_visitor : public entry_visitor {
@@ -374,7 +374,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   wg_.wait();
 
   size_t total{0};
-  std::unordered_map<folly::StringPiece, std::vector<file*>, folly::Hash>
+  std::unordered_map<std::string_view, std::vector<file*>, folly::Hash>
       file_hash;
   file_name_table_t file_name;
 

@@ -21,9 +21,8 @@
 
 #pragma once
 
+#include <string_view>
 #include <vector>
-
-#include <folly/Range.h>
 
 #include "fstypes.h"
 #include "logger.h"
@@ -82,7 +81,7 @@ class metadata_writer {
     }
   }
 
-  void write(folly::StringPiece str) {
+  void write(std::string_view str) {
     if (!str.empty()) {
       write(str.data(), str.size());
     }

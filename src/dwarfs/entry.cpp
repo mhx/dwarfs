@@ -158,8 +158,8 @@ void entry::pack(dir_entry_ug_time& de) const {
 
 entry::type_t file::type() const { return E_FILE; }
 
-folly::StringPiece file::hash() const {
-  return folly::StringPiece(hash_.begin(), hash_.end());
+std::string_view file::hash() const {
+  return std::string_view(&hash_[0], hash_.size());
 }
 
 void file::set_inode(std::shared_ptr<inode> ino) {
