@@ -76,7 +76,8 @@ It uses both [Boost](https://www.boost.org/) and
 [Folly](https://github.com/facebook/folly), though the latter is
 included as a submodule since very few distributions actually
 offer packages for it. Folly itself has a number of dependencies,
-so please check the link above for an up-to-date list.
+so please check [here](https://github.com/facebook/folly#dependencies)
+for an up-to-date list.
 
 Other than that, DwarFS really only depends on FUSE3 and on a set
 of compression libraries that Folly already depends on (namely
