@@ -321,7 +321,7 @@ int mkdwarfs(int argc, char** argv) {
         << std::endl;
 
     std::cout << "\nCompression algorithms:\n"
-                 "  none     no compression at all\n"
+                 "  null     no compression at all\n"
 #ifdef DWARFS_HAVE_LIBLZ4
                  "  lz4      LZ4 compression\n"
                  "               level=[0..9]\n"
