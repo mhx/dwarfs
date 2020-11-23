@@ -154,6 +154,7 @@ class script_mock : public script {
     // do nothing
   }
 };
+
 } // namespace test
 } // namespace dwarfs
 
@@ -212,32 +213,46 @@ void basic_end_to_end_test(const std::string& compressor,
   EXPECT_EQ(rv, st.st_size);
   EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.st_size));
 }
-} // namespace
 
-TEST(dwarfs, basic_test) {
-  std::vector<std::string> compressions{"null",
+std::vector<std::string> const compressions{"null",
 #ifdef DWARFS_HAVE_LIBLZ4
-                                        "lz4", "lz4hc:level=4",
+                                            "lz4", "lz4hc:level=4",
 #endif
 #ifdef DWARFS_HAVE_LIBZSTD
-                                        "zstd:level=1",
+                                            "zstd:level=1",
 #endif
 #ifdef DWARFS_HAVE_LIBLZMA
-                                        "lzma:level=1"
+                                            "lzma:level=1"
 #endif
-  };
-  std::vector<unsigned> block_sizes{12, 15, 20, 28};
-  std::vector<file_order_mode> file_orders{
-      file_order_mode::NONE, file_order_mode::PATH, file_order_mode::SCRIPT,
-      file_order_mode::SIMILARITY};
+};
 
-  for (const auto& comp : compressions) {
-    for (const auto& bs : block_sizes) {
-      for (const auto& order : file_orders) {
-        basic_end_to_end_test(comp, bs, order, false, false);
-        basic_end_to_end_test(comp, bs, order, false, true);
-        basic_end_to_end_test(comp, bs, order, true, true);
-      }
-    }
+} // namespace
+
+class basic : public testing::TestWithParam<
+                  std::tuple<std::string, unsigned, file_order_mode, int>> {};
+
+TEST_P(basic, end_to_end) {
+  bool no_owner = false, no_time = false;
+
+  switch (std::get<3>(GetParam())) {
+  case 1:
+    no_time = true;
+    break;
+  case 2:
+    no_owner = no_time = true;
+    break;
+  default:
+    break;
   }
+
+  basic_end_to_end_test(std::get<0>(GetParam()), std::get<1>(GetParam()),
+                        std::get<2>(GetParam()), no_owner, no_time);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, basic,
+    ::testing::Combine(
+        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
+        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
+                          file_order_mode::SCRIPT, file_order_mode::SIMILARITY),
+        ::testing::Values(0, 1, 2)));
