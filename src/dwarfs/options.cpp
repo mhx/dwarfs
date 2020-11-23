@@ -19,23 +19,31 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include <ostream>
+#include "dwarfs/options.h"
 
 namespace dwarfs {
 
-struct block_cache_options {
-  size_t max_bytes{0};
-  size_t num_workers{0};
-  double decompress_ratio{1.0};
-};
+std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
+  std::string modestr{"unknown"};
 
-enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
+  switch (mode) {
+  case file_order_mode::NONE:
+    modestr = "none";
+    break;
+  case file_order_mode::PATH:
+    modestr = "path";
+    break;
+  case file_order_mode::SCRIPT:
+    modestr = "script";
+    break;
+  case file_order_mode::SIMILARITY:
+    modestr = "similarity";
+    break;
+  default:
+    break;
+  }
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode);
+  return os << modestr;
+}
 
-struct scanner_options {
-  file_order_mode file_order;
-};
 } // namespace dwarfs

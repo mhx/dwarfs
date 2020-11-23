@@ -100,6 +100,7 @@ list(
   src/dwarfs/metadata.cpp
   src/dwarfs/metadata_writer.cpp
   src/dwarfs/mmap.cpp
+  src/dwarfs/options.cpp
   src/dwarfs/os_access_posix.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
