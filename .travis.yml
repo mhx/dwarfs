@@ -8,6 +8,7 @@ addons:
   apt:
     packages:
       - g++
+      - clang
       - cmake
       - make
       - pkg-config
@@ -32,6 +33,7 @@ addons:
 
 compiler:
   - gcc
+  - clang
 
 before_script:
   - mkdir build
