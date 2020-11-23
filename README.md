@@ -431,6 +431,49 @@ spent by the file system process:
 Ignore the real time here, that's just how long it took for me to
 unmount the file system again after performing the test.
 
+I've repeated these tests using [hyperfine](https://github.com/sharkdp/hyperfine)
+to make sure the measurements are consistent. Here are the results
+for the *initial* run:
+
+    Benchmark #1: dwarfs-zstd
+      Time (mean ± σ):      1.918 s ±  0.345 s    [User: 1.208 s, System: 2.050 s]
+      Range (min … max):    1.577 s …  2.344 s    10 runs
+     
+    Benchmark #2: dwarfs-lzma
+      Time (mean ± σ):     14.027 s ±  0.113 s    [User: 1.458 s, System: 2.544 s]
+      Range (min … max):   13.892 s … 14.234 s    10 runs
+     
+    Benchmark #3: squashfs-zstd
+      Time (mean ± σ):      2.671 s ±  0.018 s    [User: 1.506 s, System: 14.789 s]
+      Range (min … max):    2.640 s …  2.709 s    10 runs
+     
+    Summary
+      'dwarfs-zstd' ran
+        1.39 ± 0.25 times faster than 'squashfs-zstd'
+        7.31 ± 1.32 times faster than 'dwarfs-lzma'
+
+DwarFS is consistently faster here than SquashFS when using zstd
+compression.
+
+For *subsequent* runs, there is essentially no significant difference:
+
+    Benchmark #1: dwarfs-zstd
+      Time (mean ± σ):     671.5 ms ±  16.0 ms    [User: 1.448 s, System: 2.360 s]
+      Range (min … max):   656.2 ms … 712.9 ms    10 runs
+     
+    Benchmark #2: dwarfs-lzma
+      Time (mean ± σ):     653.0 ms ±  23.7 ms    [User: 1.429 s, System: 2.243 s]
+      Range (min … max):   587.9 ms … 668.4 ms    10 runs
+     
+    Benchmark #3: squashfs-zstd
+      Time (mean ± σ):     638.5 ms ±   7.4 ms    [User: 1.483 s, System: 2.415 s]
+      Range (min … max):   629.6 ms … 657.4 ms    10 runs
+     
+    Summary
+      'squashfs-zstd' ran
+        1.02 ± 0.04 times faster than 'dwarfs-lzma'
+        1.05 ± 0.03 times faster than 'dwarfs-zstd'
+
 Another real-life test was to build and test a Perl module with 468
 different Perl versions in the compressed file system. The module I've
 used, [Tie::Hash::Indexed](https://github.com/mhx/Tie-Hash-Indexed),
