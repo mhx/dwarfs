@@ -90,10 +90,14 @@ of compression libraries that Folly already depends on (namely
 [lz4](https://github.com/lz4/lz4), [zstd](https://github.com/facebook/zstd)
 and [liblzma](https://github.com/kobolabs/liblzma)).
 
+The dependency on [googletest](https://github.com/google/googletest)
+will be automatically resolved if you build with tests.
+
 A good starting point for apt-based systems is probably:
 
     # apt install \
         g++ \
+        clang \
         cmake \
         make \
         pkg-config \
@@ -116,8 +120,56 @@ A good starting point for apt-based systems is probably:
         libsparsehash-dev \
         zlib1g-dev
 
-The dependency on [googletest](https://github.com/google/googletest)
-will be automatically resolved if you build with tests.
+You can pick either `clang` or `g++`, but at least recent `clang`
+versions will produce substantially faster code:
+
+    $ hyperfine ./dwarfs_test-*
+    Benchmark #1: ./dwarfs_test-clang-O2
+      Time (mean ± σ):      9.425 s ±  0.049 s    [User: 15.724 s, System: 0.773 s]
+      Range (min … max):    9.373 s …  9.523 s    10 runs
+     
+    Benchmark #2: ./dwarfs_test-clang-O3
+      Time (mean ± σ):      9.328 s ±  0.045 s    [User: 15.593 s, System: 0.791 s]
+      Range (min … max):    9.277 s …  9.418 s    10 runs
+     
+    Benchmark #3: ./dwarfs_test-gcc-O2
+      Time (mean ± σ):     13.798 s ±  0.035 s    [User: 20.161 s, System: 0.767 s]
+      Range (min … max):   13.731 s … 13.852 s    10 runs
+     
+    Benchmark #4: ./dwarfs_test-gcc-O3
+      Time (mean ± σ):     13.223 s ±  0.034 s    [User: 19.576 s, System: 0.769 s]
+      Range (min … max):   13.176 s … 13.278 s    10 runs
+     
+    Summary
+      './dwarfs_test-clang-O3' ran
+        1.01 ± 0.01 times faster than './dwarfs_test-clang-O2'
+        1.42 ± 0.01 times faster than './dwarfs_test-gcc-O3'
+        1.48 ± 0.01 times faster than './dwarfs_test-gcc-O2'
+
+    $ hyperfine -L prog $(echo ./mkdwarfs-* | tr ' ' ,) '{prog} --no-progress --log-level warn -i tree -o /dev/null -C null'
+    Benchmark #1: ./mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
+      Time (mean ± σ):      4.358 s ±  0.033 s    [User: 6.364 s, System: 0.622 s]
+      Range (min … max):    4.321 s …  4.408 s    10 runs
+     
+    Benchmark #2: ./mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
+      Time (mean ± σ):      4.282 s ±  0.035 s    [User: 6.249 s, System: 0.623 s]
+      Range (min … max):    4.244 s …  4.349 s    10 runs
+     
+    Benchmark #3: ./mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
+      Time (mean ± σ):      6.212 s ±  0.031 s    [User: 8.185 s, System: 0.638 s]
+      Range (min … max):    6.159 s …  6.250 s    10 runs
+     
+    Benchmark #4: ./mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
+      Time (mean ± σ):      5.740 s ±  0.037 s    [User: 7.742 s, System: 0.645 s]
+      Range (min … max):    5.685 s …  5.796 s    10 runs
+     
+    Summary
+      './mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null' ran
+        1.02 ± 0.01 times faster than './mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
+        1.34 ± 0.01 times faster than './mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null'
+        1.45 ± 0.01 times faster than './mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
+
+These measurements were made with gcc-9.3.0 and clang-10.0.1.
 
 ### Building
 
