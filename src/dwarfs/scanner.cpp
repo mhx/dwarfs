@@ -301,6 +301,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     try {
       auto d = os_->opendir(path);
       std::string name;
+      std::vector<std::shared_ptr<entry>> subdirs;
 
       while (d->read(name)) {
         if (name == "." or name == "..") {
@@ -329,7 +330,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
               prog.current.store(pe.get());
               prog.dirs_found++;
               pe->scan(*os_, prog);
-              queue.push_back(pe);
+              subdirs.push_back(pe);
               break;
 
             case entry::E_FILE:
@@ -360,6 +361,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
           prog.errors++;
         }
       }
+
+      queue.insert(queue.begin(), subdirs.begin(), subdirs.end());
 
       prog.dirs_scanned++;
     } catch (const boost::system::system_error& e) {
