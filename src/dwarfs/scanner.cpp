@@ -335,10 +335,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
             case entry::E_FILE:
               prog.files_found++;
-              wg_.add_job([=, this, &prog] {
-                pe->scan(*os_, prog);
-                prog.files_scanned++;
-              });
               break;
 
             case entry::E_LINK:
@@ -373,6 +369,18 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
       prog.errors++;
     }
   }
+
+  // now scan all files
+  // TODO: automatically adjust # of worker threads based on load
+  root->walk([&](entry* ep) {
+    wg_.add_job([=, this, &prog] {
+      if (ep->type() == entry::E_FILE) {
+        prog.current.store(ep);
+        ep->scan(*os_, prog);
+        prog.files_scanned++;
+      }
+    });
+  });
 
   log_.info() << "waiting for background scanners...";
   wg_.wait();
