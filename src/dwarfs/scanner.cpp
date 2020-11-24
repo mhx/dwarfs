@@ -583,8 +583,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsw.write_metadata(std::move(metadata_vec));
   fsw.flush();
 
-  wg_.wait();
-
   log_.info() << "compressed " << size_with_unit(prog.original_size) << " to "
               << size_with_unit(prog.compressed_size) << " (ratio="
               << static_cast<double>(prog.compressed_size) / prog.original_size
