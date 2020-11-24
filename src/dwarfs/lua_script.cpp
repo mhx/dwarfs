@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "lua_script.h"
+#include "dwarfs/lua_script.h"
 
 #include <iostream>
 #include <unordered_map>
