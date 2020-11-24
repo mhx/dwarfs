@@ -32,11 +32,20 @@
 
 namespace dwarfs {
 
+class file_interface;
+
 class progress {
  public:
   progress(folly::Function<void(const progress&, bool)>&& func);
   ~progress() noexcept;
 
+  template <typename T>
+  void sync(T&& func) {
+    std::unique_lock<std::mutex> lock(mx_);
+    func();
+  }
+
+  std::atomic<file_interface const*> current{nullptr};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};

@@ -326,6 +326,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
             switch (pe->type()) {
             case entry::E_DIR:
+              prog.current.store(pe.get());
               prog.dirs_found++;
               pe->scan(*os_, prog);
               queue.push_back(pe);
@@ -488,9 +489,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   block_manager bm(lgr_, prog, cfg_, os_, fsw);
 
   im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
+    prog.current.store(ino.get());
     bm.add_inode(ino);
     prog.inodes_written++;
   });
+
+  prog.sync([&] { prog.current.store(nullptr); });
 
   log_.debug() << "waiting for block compression to finish...";
 

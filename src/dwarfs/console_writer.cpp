@@ -24,6 +24,8 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "dwarfs/console_writer.h"
+#include "dwarfs/entry.h"
+#include "dwarfs/inode.h"
 
 namespace dwarfs {
 
@@ -45,7 +47,7 @@ console_writer::console_writer(std::ostream& os, bool show_progress,
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {
-    os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+    os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
   }
 }
 
@@ -98,7 +100,36 @@ void console_writer::update(const progress& p, bool last) {
     oss << "\n";
   }
 
-  oss << "found/scanned: " << p.dirs_scanned << "/" << p.dirs_found << " dirs, "
+  auto cp = p.current.load();
+  std::string label, path;
+
+  if (cp) {
+    if (auto e = dynamic_cast<entry const*>(cp)) {
+      label = "scanning: ";
+      path = e->path();
+    } else if (auto i = dynamic_cast<inode const*>(cp)) {
+      label = "writing: ";
+      path = i->any()->path();
+    }
+    auto max_len = width_ - label.size();
+    auto len = path.size();
+    if (len > max_len) {
+      // TODO: get this correct for UTF8 multibyte chars :-)
+      size_t start = 0;
+      max_len -= 1;
+      while (start != std::string::npos && (len - start) > max_len) {
+        start = path.find('/', start + 1);
+      }
+      if (start == std::string::npos) {
+        start = max_len - len;
+      }
+      path.replace(0, start, "…");
+    }
+  }
+
+  oss << label << path << newline
+
+      << "scanned/found: " << p.dirs_scanned << "/" << p.dirs_found << " dirs, "
       << p.links_scanned << "/" << p.links_found << " links, "
       << p.files_scanned << "/" << p.files_found << " files" << newline
 
