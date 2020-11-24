@@ -218,7 +218,7 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_path,
       compression, log_level;
-  size_t num_workers;
+  size_t num_workers, num_scanner_workers;
   bool no_time = false, no_owner = false, recompress = false,
        no_progress = false;
   unsigned level;
@@ -245,7 +245,10 @@ int mkdwarfs(int argc, char** argv) {
         "block size bits (size = 2^bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
-        "number of worker threads")
+        "number of writer worker threads")
+    ("num-scanner-workers,M",
+        po::value<size_t>(&num_scanner_workers)->default_value(num_cpu),
+        "number of scanner worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
@@ -378,7 +381,8 @@ int mkdwarfs(int argc, char** argv) {
                    });
   }
 
-  worker_group wg("writer", num_workers);
+  worker_group wg_writer("writer", num_workers);
+  worker_group wg_scanner("scanner", num_scanner_workers);
 
   console_writer lgr(std::cerr, !no_progress && ::isatty(::fileno(stderr)),
                      get_term_width(), logger::parse_level(log_level));
@@ -402,15 +406,15 @@ int mkdwarfs(int argc, char** argv) {
 
   block_compressor bc(compression);
   std::ofstream ofs(output);
-  filesystem_writer fsw(ofs, lgr, wg, prog, bc, mem_limit);
+  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, mem_limit);
 
   if (recompress) {
     auto ti = log.timed_info();
     filesystem::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw);
-    wg.wait();
+    wg_writer.wait();
     ti << "filesystem rewritten";
   } else {
-    scanner s(lgr, wg, cfg,
+    scanner s(lgr, wg_scanner, cfg,
               entry_factory::create(no_owner, no_owner || no_time,
                                     options.file_order ==
                                         file_order_mode::SIMILARITY),
