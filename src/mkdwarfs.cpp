@@ -247,7 +247,7 @@ int mkdwarfs(int argc, char** argv) {
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of worker threads")
     ("memory-limit,L",
-        po::value<std::string>(&memory_limit)->default_value("256m"),
+        po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
     ("compression,C",
         po::value<std::string>(&compression),
