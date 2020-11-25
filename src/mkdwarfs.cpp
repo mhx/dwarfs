@@ -218,7 +218,7 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_path,
       compression, log_level;
-  size_t num_workers, num_scanner_workers;
+  size_t num_workers, max_scanner_workers;
   bool no_time = false, no_owner = false, recompress = false,
        no_progress = false;
   unsigned level;
@@ -246,8 +246,8 @@ int mkdwarfs(int argc, char** argv) {
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of writer worker threads")
-    ("num-scanner-workers,M",
-        po::value<size_t>(&num_scanner_workers)->default_value(num_cpu),
+    ("max-scanner-workers,M",
+        po::value<size_t>(&max_scanner_workers)->default_value(num_cpu),
         "number of scanner worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
@@ -382,7 +382,8 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   worker_group wg_writer("writer", num_workers);
-  worker_group wg_scanner("scanner", num_scanner_workers);
+  worker_group wg_scanner(worker_group::load_adaptive, "scanner",
+                          max_scanner_workers);
 
   console_writer lgr(std::cerr, !no_progress && ::isatty(::fileno(stderr)),
                      get_term_width(), logger::parse_level(log_level));

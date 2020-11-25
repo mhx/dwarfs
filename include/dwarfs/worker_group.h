@@ -21,16 +21,10 @@
 
 #pragma once
 
-#include <atomic>
-#include <condition_variable>
 #include <limits>
-#include <mutex>
-#include <queue>
-#include <thread>
+#include <memory>
 
-#include <folly/Conv.h>
 #include <folly/Function.h>
-#include <folly/system/ThreadName.h>
 
 namespace dwarfs {
 
@@ -45,173 +39,47 @@ class worker_group {
  public:
   using job_t = folly::Function<void()>;
 
+  static struct load_adaptive_tag {
+  } load_adaptive;
+
   /**
    * Create a worker group
    *
    * \param num_workers     Number of worker threads.
    */
-  explicit worker_group(
-      const char* group_name = nullptr, size_t num_workers = 1,
-      size_t max_queue_len = std::numeric_limits<size_t>::max())
-      : running_(true)
-      , pending_(0)
-      , max_queue_len_(max_queue_len) {
-    if (num_workers < 1) {
-      throw std::runtime_error("invalid number of worker threads");
-    }
-    if (!group_name) {
-      group_name = "worker";
-    }
-
-    for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([=, this] {
-        folly::setThreadName(folly::to<std::string>(group_name, i + 1));
-        do_work();
-      });
-    }
-  }
-
-  worker_group(const worker_group&) = delete;
-  worker_group& operator=(const worker_group&) = delete;
+  worker_group(const char* group_name = nullptr, size_t num_workers = 1,
+               size_t max_queue_len = std::numeric_limits<size_t>::max());
 
   /**
-   * Stop and destroy a worker group
-   */
-  ~worker_group() noexcept {
-    try {
-      stop();
-    } catch (...) {
-    }
-  }
-
-  /**
-   * Stop a worker group
-   */
-  void stop() {
-    if (running_) {
-      {
-        std::lock_guard<std::mutex> lock(mx_);
-        running_ = false;
-      }
-
-      cond_.notify_all();
-
-      for (auto& w : workers_) {
-        w.join();
-      }
-    }
-  }
-
-  /**
-   * Wait until all work has been done
-   */
-  void wait() {
-    if (running_) {
-      std::unique_lock<std::mutex> lock(mx_);
-      wait_.wait(lock, [&] { return pending_ == 0; });
-    }
-  }
-
-  /**
-   * Check whether the worker group is still running
-   */
-  bool running() const { return running_; }
-
-  /**
-   * Add a new job to the worker group
+   * Create a load adaptive worker group
    *
-   * The new job will be dispatched to the first available worker thread.
-   *
-   * \param job             The job to add to the dispatcher.
+   * \param num_workers     Number of worker threads.
    */
-  bool add_job(job_t&& job) {
-    if (running_) {
-      {
-        std::unique_lock<std::mutex> lock(mx_);
-        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
-        jobs_.emplace(std::move(job));
-        ++pending_;
-      }
+  worker_group(load_adaptive_tag, const char* group_name = nullptr,
+               size_t max_num_workers = 1,
+               size_t max_queue_len = std::numeric_limits<size_t>::max());
 
-      cond_.notify_one();
-    }
+  ~worker_group();
 
-    return false;
-  }
+  void stop() { impl_->stop(); }
+  void wait() { impl_->wait(); }
+  bool running() const { return impl_->running(); }
+  bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
+  size_t queue_size() const { return impl_->queue_size(); }
 
-  /**
-   * Return the number of worker threads
-   *
-   * \returns The number of worker threads.
-   */
-  size_t size() const { return workers_.size(); }
+  class impl {
+   public:
+    virtual ~impl() = default;
 
-  /**
-   * Return the number of worker threads
-   *
-   * \returns The number of worker threads.
-   */
-  size_t queue_size() const {
-    std::lock_guard<std::mutex> lock(mx_);
-    return jobs_.size();
-  }
-
-  /**
-   * Return the number of queued jobs
-   *
-   * \returns The number of queued jobs.
-   */
-  size_t queued_jobs() const {
-    std::lock_guard<std::mutex> lock(mx_);
-    return jobs_.size();
-  }
+    virtual void stop() = 0;
+    virtual void wait() = 0;
+    virtual bool running() const = 0;
+    virtual bool add_job(job_t&& job) = 0;
+    virtual size_t queue_size() const = 0;
+  };
 
  private:
-  using jobs_t = std::queue<job_t>;
-
-  void do_work() {
-    for (;;) {
-      job_t job;
-
-      {
-        std::unique_lock<std::mutex> lock(mx_);
-
-        while (jobs_.empty() && running_) {
-          cond_.wait(lock);
-        }
-
-        if (jobs_.empty()) {
-          if (running_)
-            continue;
-          else
-            break;
-        }
-
-        job = std::move(jobs_.front());
-
-        jobs_.pop();
-      }
-
-      job();
-
-      {
-        std::lock_guard<std::mutex> lock(mx_);
-        pending_--;
-      }
-
-      wait_.notify_one();
-      queue_.notify_one();
-    }
-  }
-
-  std::vector<std::thread> workers_;
-  jobs_t jobs_;
-  std::condition_variable cond_;
-  std::condition_variable queue_;
-  std::condition_variable wait_;
-  mutable std::mutex mx_;
-  std::atomic<bool> running_;
-  std::atomic<size_t> pending_;
-  const size_t max_queue_len_;
+  std::unique_ptr<impl> impl_;
 };
+
 } // namespace dwarfs

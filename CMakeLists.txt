@@ -107,7 +107,8 @@ list(
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/similarity.cpp
-  src/dwarfs/util.cpp)
+  src/dwarfs/util.cpp
+  src/dwarfs/worker_group.cpp)
 
 if(WITH_LUA)
   list(APPEND LIBDWARFS_SRC src/dwarfs/lua_script.cpp)
