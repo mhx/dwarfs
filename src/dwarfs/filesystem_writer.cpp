@@ -22,6 +22,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <thread>
