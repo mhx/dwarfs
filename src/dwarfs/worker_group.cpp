@@ -315,6 +315,4 @@ worker_group::worker_group(load_adaptive_tag, const char* group_name,
     : impl_{std::make_unique<basic_worker_group<load_adaptive_policy>>(
           group_name, max_num_workers, max_queue_len, max_num_workers)} {}
 
-worker_group::~worker_group() = default;
-
 } // namespace dwarfs

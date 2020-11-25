@@ -59,7 +59,7 @@ class worker_group {
                size_t max_num_workers = 1,
                size_t max_queue_len = std::numeric_limits<size_t>::max());
 
-  ~worker_group();
+  ~worker_group() = default;
 
   void stop() { impl_->stop(); }
   void wait() { impl_->wait(); }
