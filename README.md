@@ -16,11 +16,11 @@ this redundancy. See [here](#comparison) for a comparison with other
 compressed file systems.
 
 DwarFS also **doesn't compromise on speed** and for my use cases I've
-found it to be on par with or perform better than SquashFS. **For my
-primary use case, DwarFS compression is an order of magnitude better
-than SquashFS compression, it's 4 times faster to build the file
-system, it's typically faster to access files on DwarFS and it uses
-less CPU resources.**
+found it to be on par with or perform better than SquashFS. For my
+primary use case, **DwarFS compression is an order of magnitude better
+than SquashFS compression**, it's **4 times faster to build the file
+system**, it's typically faster to access files on DwarFS and it uses
+less CPU resources.
 
 Distinct features of DwarFS are:
 
@@ -235,14 +235,14 @@ These tests were done on an Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz
 6 core CPU with 64 GiB of RAM. The system was mostly idle during
 all of the tests.
 
-The source directory contained 1139 different Perl installations from
-284 distinct releases, a total of 47.65 GiB of data in 1927501 files
-and 330733 directories. The source directory was freshly unpacked
-from a tar archive to a 850 EVO 1TB SSD, so most of its contents
-were likely cached.
+The source directory contained **1139 different Perl installations**
+from 284 distinct releases, a total of 47.65 GiB of data in 1,927,501
+files and 330,733 directories. The source directory was freshly
+unpacked from a tar archive to a 850 EVO 1TB SSD, so most of its
+contents were likely cached.
 
-I'm using the same compression type and level with SquashFS that is
-the default setting for DwarFS:
+I'm using the same compression type and compression level for
+SquashFS that is the default setting for DwarFS:
 
     $ time mksquashfs install perl-install.squashfs -comp zstd -Xcompression-level 22
     Parallel mksquashfs: Using 12 processors
@@ -315,15 +315,15 @@ For DwarFS, I'm sticking to the defaults:
     sys     3m9.115s
 
 So in this comparison, `mkdwarfs` is more than 4 times faster than `mksquashfs`.
-In total CPU time, it's actually 7 times faster.
+In total CPU time, it's actually 7 times less CPU resources.
 
     $ ls -l perl-install.*fs
     -rw-r--r-- 1 mhx users  555118147 Nov 24 23:27 perl-install.dwarfs
     -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
 
-In terms of compression ratio, the DwarFS file system is more than 8 times
-smaller than the SquashFS file system. With DwarFS, the content has been
-compressed down to 1.1% (!) of its original size.
+In terms of compression ratio, the **DwarFS file system is more than 8 times
+smaller than the SquashFS file system**. With DwarFS, the content has been
+**compressed down to 1.1% (!) of its original size**.
 
 DwarFS also features an option to recompress an existing file system with
 a different compression algorithm. This can be useful as it allows relatively
@@ -451,9 +451,11 @@ shown above for DwarFS obviously don't include the time spent in the
     sys     0m2.117s
 
 So in total, DwarFS was using 10.5 seconds of CPU time, whereas
-SquashFS was using 23.5 seconds, more than twice as much.
+SquashFS was using 23.5 seconds, more than twice as much. Ignore
+the 'real' time, this is only how long it took me to unmount the
+file system again after mounting it.
 
-Another real-life test was to build and test a Perl module with 468
+Another real-life test was to build and test a Perl module with 624
 different Perl versions in the compressed file system. The module I've
 used, [Tie::Hash::Indexed](https://github.com/mhx/Tie-Hash-Indexed),
 has an XS component that requires a C compiler to build. So this really
@@ -490,7 +492,8 @@ releases between 5.10.0 and 5.33.3, a total of 624 `perl` installations:
     $ time ls -1 /tmp/perl/install/*/perl-5.??.?/bin/perl5* | sort -t / -k 8 | xargs -d $'\n' -P 8 -n 1 ./build.sh
 
 Tests were done with a cleanly mounted file system to make sure the caches
-were empty. With SquashFS, the timing was:
+were empty. `ccache` was primed to make sure all compiler runs could be
+satisfied from the cache. With SquashFS, the timing was:
 
     real    3m17.182s
     user    20m54.064s
