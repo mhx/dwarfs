@@ -291,11 +291,21 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "scanning " << path;
 
   auto root = entry_->create(*os_, path);
+
+  if (root->type() != entry::E_DIR) {
+    throw std::runtime_error(path + " must be a directory");
+  }
+
   std::deque<std::shared_ptr<entry>> queue({root});
   prog.dirs_found++;
 
   while (!queue.empty()) {
     auto parent = std::dynamic_pointer_cast<dir>(queue.front());
+
+    if (!parent) {
+      throw std::runtime_error("expected directory");
+    }
+
     queue.pop_front();
     const std::string& path = parent->path();
 
