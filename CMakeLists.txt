@@ -98,7 +98,6 @@ list(
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_reader.cpp
   src/dwarfs/logger.cpp
-  src/dwarfs/lua_script.cpp
   src/dwarfs/metadata.cpp
   src/dwarfs/metadata_writer.cpp
   src/dwarfs/mmap.cpp
