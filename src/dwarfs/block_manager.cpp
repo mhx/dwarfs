@@ -428,6 +428,7 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
                        << ", size: " << best.size();
 
           ino->add_chunk(block_no, best_offset, best.size());
+          prog_.chunk_count++;
           prog_.saved_by_segmentation += best.size();
           stats.saved_bytes += best.size();
           if (best.size() > stats.largest_block) {
