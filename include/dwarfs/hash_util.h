@@ -37,4 +37,4 @@ struct hasher<std::string_view> {
   }
 };
 
-}
+} // namespace folly
