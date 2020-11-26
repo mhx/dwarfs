@@ -89,7 +89,7 @@ class dir_ : public dir {
 
   void pack_entry(thrift::metadata::metadata& mv2,
                   global_entry_data const& data) const override {
-    mv2.inode_index.at(inode_num()) = mv2.entries.size();
+    mv2.entry_index.at(inode_num()) = mv2.entries.size();
     mv2.entries.emplace_back();
     entry::pack(mv2.entries.back(), data);
   }
@@ -121,7 +121,6 @@ class dir_ : public dir {
   void pack(thrift::metadata::metadata& mv2,
             global_entry_data const& data) const override {
     thrift::metadata::directory dir;
-    dir.self_inode = inode_num();
     dir.parent_inode =
         has_parent() ? std::dynamic_pointer_cast<dir_>(parent())->inode_num()
                      : 0;
@@ -129,7 +128,7 @@ class dir_ : public dir {
     dir.entry_count = entries_.size();
     mv2.directories.push_back(dir);
     for (entry_ptr const& e : entries_) {
-      mv2.inode_index.at(e->inode_num()) = mv2.entries.size();
+      mv2.entry_index.at(e->inode_num()) = mv2.entries.size();
       mv2.entries.emplace_back();
       e->pack(mv2.entries.back(), data);
     }

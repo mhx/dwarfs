@@ -39,6 +39,8 @@
 namespace dwarfs {
 
 struct global_entry_data {
+  global_entry_data(bool no_time) : no_time_(no_time) {}
+
   void add_uid(uint16_t uid) { add(uid, uids, next_uid_index); }
 
   void add_gid(uint16_t gid) { add(gid, gids, next_gid_index); }
@@ -84,7 +86,7 @@ struct global_entry_data {
   }
 
   uint64_t get_time_offset(uint64_t time) const {
-    return time - timestamp_base;
+    return no_time_ ? 0 : time - timestamp_base;
   }
 
   std::vector<uint16_t> get_uids() const;
@@ -110,6 +112,7 @@ struct global_entry_data {
   uint16_t next_gid_index{0};
   uint16_t next_mode_index{0};
   uint64_t timestamp_base{std::numeric_limits<uint64_t>::max()};
+  bool no_time_;
 };
 
 class file;

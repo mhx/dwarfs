@@ -242,13 +242,13 @@ scanner_<LoggerPolicy>::compress_names_table(
   return offset;
 }
 
-class set_inode_visitor : public entry_visitor {
+class dir_set_inode_visitor : public entry_visitor {
  public:
-  void visit(file*) override {
-    // nothing
-  }
+  dir_set_inode_visitor(uint32_t& inode_no) : inode_no_(inode_no) {};
 
-  void visit(link* p) override { p->set_inode(inode_no_++); }
+  void visit(file*) override {}
+
+  void visit(link*) override {}
 
   void visit(dir* p) override {
     p->sort();
@@ -258,7 +258,21 @@ class set_inode_visitor : public entry_visitor {
   uint32_t inode_no() const { return inode_no_; }
 
  private:
-  uint32_t inode_no_ = 0;
+  uint32_t& inode_no_;
+};
+
+class link_set_inode_visitor : public entry_visitor {
+ public:
+  link_set_inode_visitor(uint32_t& inode_no) : inode_no_(inode_no) {};
+
+  void visit(file*) override {}
+
+  void visit(link* p) override { p->set_inode(inode_no_++); }
+
+  void visit(dir*) override {}
+
+ private:
+  uint32_t& inode_no_;
 };
 
 class names_and_links_visitor : public entry_visitor {
@@ -299,10 +313,12 @@ class save_directories_visitor : public entry_visitor {
  public:
   save_directories_visitor(metadata_writer& mw, thrift::metadata::metadata& mv2,
                            global_entry_data const& ge_data,
+                           std::vector<uint32_t>& dir_index,
                            std::vector<uint32_t>& index)
       : mw_(mw)
       , mv2_(mv2)
       , ge_data_(ge_data)
+      , dir_index_(dir_index)
       , cb_([&](const entry* e, size_t offset) {
         index.at(e->inode_num()) = folly::to<uint32_t>(offset);
       }) {}
@@ -316,7 +332,7 @@ class save_directories_visitor : public entry_visitor {
   }
 
   void visit(dir* p) override {
-    mv2_.dir_link_index.at(p->inode_num()) = mv2_.directories.size();
+    dir_index_.at(p->inode_num()) = mv2_.directories.size();
     p->pack(mv2_, ge_data_);
 
     p->set_offset(mw_.offset());
@@ -333,6 +349,7 @@ class save_directories_visitor : public entry_visitor {
   metadata_writer& mw_;
   thrift::metadata::metadata& mv2_;
   global_entry_data const& ge_data_;
+  std::vector<uint32_t>& dir_index_;
   std::function<void(const entry* e, size_t offset)> cb_;
 };
 
@@ -464,8 +481,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   log_.info() << "finding duplicate files...";
 
-  set_inode_visitor siv;
-  root->accept(siv, true);
+  uint32_t first_link_inode = 0;
+  dir_set_inode_visitor dsiv(first_link_inode);
+  root->accept(dsiv, true);
+  uint32_t first_file_inode = first_link_inode;
+  link_set_inode_visitor lsiv(first_file_inode);
+  root->accept(lsiv, true);
 
   auto im = inode_manager::create(cfg_.block_size_bits);
 
@@ -525,14 +546,16 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   }
 
   log_.info() << "numbering file inodes...";
-  im->number_inodes(siv.inode_no());
+  im->number_inodes(first_file_inode);
 
   log_.info() << "building metadata...";
   std::vector<uint8_t> metadata_vec;
   metadata_writer mw(lgr_, metadata_vec);
-  global_entry_data ge_data;
+  global_entry_data ge_data(options_.no_time); // TODO: just pass options directly
   thrift::metadata::metadata mv2;
-  mv2.dir_link_index.resize(siv.inode_no());
+  std::vector<uint32_t> dir_index;
+  dir_index.resize(first_link_inode);
+  mv2.link_index.resize(first_file_inode - first_link_inode);
 
   wg_.add_job([&] {
     mw.start_section(section_type::META_TABLEDATA);
@@ -554,7 +577,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        mv2.dir_link_index.at(ep->inode_num()) =
+        mv2.link_index.at(ep->inode_num() - first_link_inode) =
             ge_data.get_link_index(lp->linkname());
       }
       if (ep->has_parent()) {
@@ -612,8 +635,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   //       submitted for compression
   mw.align(im->chunk_size());
   im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    index.at(ino->num() - siv.inode_no()) = folly::to<uint32_t>(mw.offset());
-    mv2.chunk_index.at(ino->num() - siv.inode_no()) = mv2.chunks.size();
+    index.at(ino->num() - first_file_inode) = folly::to<uint32_t>(mw.offset());
+    mv2.chunk_index.at(ino->num() - first_file_inode) = mv2.chunks.size();
     mw.write(ino->chunks());
     ino->append_chunks(mv2.chunks);
   });
@@ -635,10 +658,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mw.finish_section();
 
   log_.info() << "saving directories...";
-  index.resize(siv.inode_no() + im->count());
-  mv2.inode_index.resize(siv.inode_no() + im->count());
+  index.resize(first_file_inode + im->count());
+  mv2.entry_index.resize(first_file_inode + im->count());
   mw.start_section(section_type::META_DIRECTORIES);
-  save_directories_visitor sdv(mw, mv2, ge_data, index);
+  save_directories_visitor sdv(mw, mv2, ge_data, dir_index, index);
   root->accept(sdv);
   mw.finish_section();
 
@@ -653,14 +676,22 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mconf.block_size_bits = folly::to<uint8_t>(im->block_size_bits());
   mconf.de_type = entry_->de_type();
   mconf.unused = 0;
-  mconf.inode_count = siv.inode_no() + im->count();
+  mconf.inode_count = first_file_inode + im->count();
   mconf.orig_fs_size = prog.original_size;
-  mconf.chunk_index_offset = siv.inode_no();
+  mconf.chunk_index_offset = first_file_inode;
   mconf.inode_index_offset = 0;
   mw.write(mconf);
   mw.finish_section();
 
   fsw.write_metadata(std::move(metadata_vec));
+
+  {
+    std::vector<thrift::metadata::directory> tmp = std::move(mv2.directories);
+    mv2.directories.reserve(tmp.size());
+    for (auto i : dir_index) {
+      mv2.directories.push_back(std::move(tmp[i]));
+    }
+  }
 
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
@@ -668,7 +699,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.names = ge_data.get_names();
   mv2.links = ge_data.get_links();
   mv2.timestamp_base = ge_data.timestamp_base;
-  mv2.chunk_index_offset = siv.inode_no();
+  mv2.chunk_index_offset = first_file_inode;
   mv2.total_fs_size = prog.original_size;
 
   fsw.write_metadata_v2(freeze_to_buffer(mv2));

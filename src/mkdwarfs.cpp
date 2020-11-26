@@ -423,6 +423,8 @@ int mkdwarfs(int argc, char** argv) {
     wg_writer.wait();
     ti << "filesystem rewritten";
   } else {
+    options.no_time = no_time;
+
     scanner s(lgr, wg_scanner, cfg,
               entry_factory::create(no_owner, no_owner || no_time,
                                     options.file_order ==

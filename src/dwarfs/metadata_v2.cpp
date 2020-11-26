@@ -51,7 +51,7 @@ class metadata_v2_ : public metadata_v2::impl {
       : data_(std::move(meta))
       , meta_(::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(
             data_))
-      , root_(meta_.entries()[meta_.inode_index()[0]])
+      , root_(meta_.entries()[meta_.entry_index()[0]])
       , inode_offset_(meta_.chunk_index_offset())
       , log_(lgr) {
     // TODO: defaults?
@@ -122,7 +122,7 @@ class metadata_v2_ : public metadata_v2::impl {
     if (S_ISREG(mode)) {
       return reg_filesize(entry.inode());
     } else if (S_ISLNK(mode)) {
-      return meta_.links()[meta_.dir_link_index()[entry.inode()]].size();
+      return meta_.links()[meta_.link_index()[entry.inode() - meta_.link_index_offset()]].size();
     } else {
       return 0;
     }
@@ -206,13 +206,9 @@ void metadata_v2_<LoggerPolicy>::dump(
     // os << " " << filesize(entry, mode) << "\n";
     // icb(indent + "  ", de->inode);
   } else if (S_ISDIR(mode)) {
-    auto dir_index = meta_.dir_link_index()[inode];
-    os << " => "
-       << "<dir:" << dir_index << ">"
-       << "\n";
-    dump(os, indent + "  ", meta_.directories()[dir_index], std::move(icb));
+    dump(os, indent + "  ", meta_.directories()[inode], std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> " << meta_.links()[meta_.dir_link_index()[inode]] << "\n";
+    os << " -> " << meta_.links()[meta_.link_index()[inode] - meta_.link_index_offset()] << "\n";
   } else {
     os << " (unknown type)\n";
   }

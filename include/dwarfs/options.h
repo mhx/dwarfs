@@ -37,5 +37,6 @@ std::ostream& operator<<(std::ostream& os, file_order_mode mode);
 
 struct scanner_options {
   file_order_mode file_order;
+  bool no_time;
 };
 } // namespace dwarfs
