@@ -49,7 +49,12 @@ pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.3.8)
 
+set(compiler_only
+    ON
+    CACHE BOOL "only build thrift compiler")
+
 add_subdirectory(folly EXCLUDE_FROM_ALL)
+add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 
 if(WITH_TESTS)
   # Download and unpack googletest at configure time
@@ -99,6 +104,7 @@ list(
   src/dwarfs/inode_reader.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/metadata.cpp
+  src/dwarfs/metadata_v2.cpp
   src/dwarfs/metadata_writer.cpp
   src/dwarfs/mmap.cpp
   src/dwarfs/options.cpp
@@ -132,11 +138,92 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_test)
 endif()
 
+add_custom_command(
+  OUTPUT
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_constants.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_constants.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_for_each_field.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_metadata.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_metadata.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.tcc
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types_custom_protocol.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visit_union.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visitation.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.tcc
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_constants.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_constants.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_metadata.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_metadata.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_visitation.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_for_each_field.h
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_visit_union.h
+  COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
+  COMMAND
+    cp ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
+    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
+  COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+  COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
+          thrift/dwarfs/metadata.thrift
+  COMMAND
+    cd ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs &&
+    ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1 --gen mstch_cpp2:frozen2
+    metadata.thrift
+  COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift &&
+          ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1 --gen mstch_cpp2 frozen.thrift
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift)
+
+list(
+  APPEND
+  INCLUDE_DIRS
+  ${CMAKE_CURRENT_BINARY_DIR}/folly
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
+  ${CMAKE_CURRENT_BINARY_DIR})
+
+add_library(
+  thrift_light
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/CompactProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/BinaryProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/DebugProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocolCommon.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/protocol/TProtocolException.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/util/VarintUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/gen/module_types_cpp.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/Frozen.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/FrozenUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
+
+set_property(TARGET thrift_light PROPERTY CXX_STANDARD 17)
+
+target_include_directories(thrift_light PRIVATE ${INCLUDE_DIRS})
+
+add_library(
+  metadata_thrift
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp)
+
+set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 17)
+
+target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
+
 foreach(tgt dwarfs ${BINARY_TARGETS})
-  target_include_directories(
-    ${tgt} SYSTEM
-    PRIVATE ${Boost_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/folly
-            ${CMAKE_CURRENT_SOURCE_DIR}/folly)
+  target_include_directories(${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS}
+                                                   ${INCLUDE_DIRS})
 
   target_include_directories(${tgt} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -150,9 +237,11 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
 
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 17)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
+
+  add_dependencies(${tgt} metadata_thrift)
 endforeach()
 
 target_compile_definitions(dwarfs-bin PRIVATE FUSE_USE_VERSION=35
@@ -162,6 +251,8 @@ foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(
     ${tgt}
     dwarfs
+    metadata_thrift
+    thrift_light
     folly
     ${Boost_LIBRARIES}
     PkgConfig::LIBLZ4

@@ -86,26 +86,30 @@ class fsblock {
   };
 
  public:
-  fsblock(section_type type, std::vector<uint8_t>&& data)
+  fsblock(section_type type, const block_compressor& bc,
+          std::vector<uint8_t>&& data)
       : type_(type)
+      , bc_(bc)
       , uncompressed_size_(data.size())
       , state_(std::make_shared<state>(std::move(data))) {}
 
   template <typename LogProxy>
-  void compress(worker_group& wg, const block_compressor& bc, LogProxy& lp) {
+  void compress(worker_group& wg, LogProxy& lp) {
     lp.trace() << "block queued for compression";
 
     std::shared_ptr<state> s = state_;
 
-    wg.add_job([&, bc, s] {
+    wg.add_job([&, s] {
       lp.trace() << "block compression started";
-      s->compress(bc, lp);
+      s->compress(bc_, lp);
     });
   }
 
   void wait_until_compressed() { state_->wait(); }
 
   section_type type() const { return type_; }
+
+  compression_type compression() const { return bc_.type(); }
 
   const std::vector<uint8_t>& data() const {
     return state_->data();
@@ -118,6 +122,7 @@ class fsblock {
 
  private:
   const section_type type_;
+  block_compressor const& bc_;
   const size_t uncompressed_size_;
   std::shared_ptr<state> state_;
 };
@@ -127,17 +132,21 @@ class filesystem_writer_ : public filesystem_writer::impl {
  public:
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
                      progress& prog, const block_compressor& bc,
+                     const block_compressor& metadata_bc,
                      size_t max_queue_size);
   ~filesystem_writer_() noexcept;
 
   void write_block(std::vector<uint8_t>&& data) override;
   void write_metadata(std::vector<uint8_t>&& data) override;
+  void write_metadata_v2(std::vector<uint8_t>&& data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
 
  private:
-  void write_section(section_type type, std::vector<uint8_t>&& data);
-  void write(section_type type, const std::vector<uint8_t>& data);
+  void write_section(section_type type, std::vector<uint8_t>&& data,
+                     block_compressor const& bc);
+  void write(section_type type, compression_type compression,
+             const std::vector<uint8_t>& data);
   void write(const char* data, size_t size);
   template <typename T>
   void write(const T& obj);
@@ -150,6 +159,7 @@ class filesystem_writer_ : public filesystem_writer::impl {
   worker_group& wg_;
   progress& prog_;
   const block_compressor& bc_;
+  const block_compressor& metadata_bc_;
   const size_t max_queue_size_;
   log_proxy<LoggerPolicy> log_;
   std::deque<std::unique_ptr<fsblock>> queue_;
@@ -162,11 +172,13 @@ class filesystem_writer_ : public filesystem_writer::impl {
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
-    const block_compressor& bc, size_t max_queue_size)
+    const block_compressor& bc, const block_compressor& metadata_bc,
+    size_t max_queue_size)
     : os_(os)
     , wg_(wg)
     , prog_(prog)
     , bc_(bc)
+    , metadata_bc_(metadata_bc)
     , max_queue_size_(max_queue_size)
     , log_(lgr)
     , flush_(false)
@@ -219,7 +231,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
                  << size_with_unit(fsb->uncompressed_size()) << " to "
                  << size_with_unit(fsb->size());
 
-    write(fsb->type(), fsb->data());
+    write(fsb->type(), fsb->compression(), fsb->data());
   }
 }
 
@@ -263,10 +275,11 @@ void filesystem_writer_<LoggerPolicy>::write_file_header() {
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(section_type type,
+                                             compression_type compression,
                                              const std::vector<uint8_t>& data) {
   section_header sh;
   sh.type = type;
-  sh.compression = bc_.type();
+  sh.compression = compression;
   sh.unused = 0;
   sh.length = data.size();
   write(sh);
@@ -279,7 +292,8 @@ void filesystem_writer_<LoggerPolicy>::write(section_type type,
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_section(
-    section_type type, std::vector<uint8_t>&& data) {
+    section_type type, std::vector<uint8_t>&& data,
+    block_compressor const& bc) {
   {
     std::unique_lock<std::mutex> lock(mx_);
 
@@ -288,9 +302,9 @@ void filesystem_writer_<LoggerPolicy>::write_section(
     }
   }
 
-  auto fsb = std::make_unique<fsblock>(type, std::move(data));
+  auto fsb = std::make_unique<fsblock>(type, bc, std::move(data));
 
-  fsb->compress(wg_, bc_, log_);
+  fsb->compress(wg_, log_);
 
   {
     std::lock_guard<std::mutex> lock(mx_);
@@ -303,13 +317,19 @@ void filesystem_writer_<LoggerPolicy>::write_section(
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_block(
     std::vector<uint8_t>&& data) {
-  write_section(section_type::BLOCK, std::move(data));
+  write_section(section_type::BLOCK, std::move(data), bc_);
 }
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_metadata(
     std::vector<uint8_t>&& data) {
-  write_section(section_type::METADATA, std::move(data));
+  write_section(section_type::METADATA, std::move(data), metadata_bc_);
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_metadata_v2(
+    std::vector<uint8_t>&& data) {
+  write_section(section_type::METADATA_V2, std::move(data), metadata_bc_);
 }
 
 template <typename LoggerPolicy>
@@ -333,7 +353,15 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
                                      const block_compressor& bc,
                                      size_t max_queue_size)
+    : filesystem_writer(os, lgr, wg, prog, bc, bc, max_queue_size) {}
+
+filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
+                                     worker_group& wg, progress& prog,
+                                     const block_compressor& bc,
+                                     const block_compressor& metadata_bc,
+                                     size_t max_queue_size)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, bc, max_queue_size)) {}
+              lgr, os, wg, prog, bc, metadata_bc, max_queue_size)) {}
+
 } // namespace dwarfs

@@ -21,74 +21,47 @@
 
 #pragma once
 
-#include <exception>
+#include <cstdint>
 #include <functional>
 #include <memory>
-#include <ostream>
-#include <string>
+#include <vector>
 
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
 
+#include "fstypes.h"
 #include "logger.h"
-#include "mmif.h"
 
 namespace dwarfs {
 
-struct iovec_read_buf;
-
-class error : public std::exception {
+class metadata_v2 {
  public:
-  error(const std::string& str, int err_no) noexcept
-      : what_(str)
-      , errno_(err_no) {}
+  metadata_v2() = default;
 
-  error(const error& e) noexcept
-      : what_(e.what_)
-      , errno_(e.errno_) {}
+  metadata_v2(logger& lgr, std::vector<uint8_t>&& data,
+              const struct ::stat* defaults);
 
-  error& operator=(const error& e) noexcept {
-    if (&e != this) {
-      what_ = e.what_;
-      errno_ = e.errno_;
-    }
-    return *this;
+  metadata_v2& operator=(metadata_v2&&) = default;
+
+  void
+  dump(std::ostream& os,
+       std::function<void(const std::string&, uint32_t)> const& icb) const {
+    impl_->dump(os, icb);
   }
 
-  const char* what() const noexcept override { return what_.c_str(); }
+#if 0
+  static void get_stat_defaults(struct ::stat* defaults);
 
-  int get_errno() const { return errno_; }
+  size_t size() const { return impl_->size(); }
 
- private:
-  std::string what_;
-  int errno_;
-};
+  bool empty() const { return !impl_ || impl_->empty(); }
 
-struct block_cache_options;
-struct dir_entry;
-struct directory;
+  size_t block_size() const { return impl_->block_size(); }
 
-class filesystem_writer;
-class progress;
+  unsigned block_size_bits() const { return impl_->block_size_bits(); }
 
-class filesystem {
- public:
-  filesystem(logger& lgr, std::shared_ptr<mmif> mm,
-             const block_cache_options& bc_options,
-             const struct ::stat* stat_defaults = nullptr,
-             int inode_offset = 0);
-
-  static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
-                      filesystem_writer& writer);
-
-  static void identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os);
-
-  void dump(std::ostream& os) const { impl_->dump(os); }
-
-  void dump_v2(std::ostream& os) const { impl_->dump_v2(os); }
-
-  void walk(std::function<void(const dir_entry*)> const& func) {
+  void walk(std::function<void(const dir_entry*)> const& func) const {
     impl_->walk(func);
   }
 
@@ -131,21 +104,23 @@ class filesystem {
 
   int open(const dir_entry* de) const { return impl_->open(de); }
 
-  ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset) const {
-    return impl_->read(inode, buf, size, offset);
+  const chunk_type* get_chunks(int inode, size_t& num) const {
+    return impl_->get_chunks(inode, num);
   }
-
-  ssize_t
-  readv(uint32_t inode, iovec_read_buf& buf, size_t size, off_t offset) const {
-    return impl_->readv(inode, buf, size, offset);
-  }
+#endif
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual void dump(std::ostream& os) const = 0;
-    virtual void dump_v2(std::ostream& os) const = 0;
+    virtual void dump(
+        std::ostream& os,
+        std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
+#if 0
+    virtual size_t size() const = 0;
+    virtual bool empty() const = 0;
+    virtual size_t block_size() const = 0;
+    virtual unsigned block_size_bits() const = 0;
     virtual void
     walk(std::function<void(const dir_entry*)> const& func) const = 0;
     virtual const dir_entry* find(const char* path) const = 0;
@@ -162,10 +137,8 @@ class filesystem {
     virtual int readlink(const dir_entry* de, std::string* buf) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
     virtual int open(const dir_entry* de) const = 0;
-    virtual ssize_t
-    read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
-    virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                          off_t offset) const = 0;
+    virtual const chunk_type* get_chunks(int inode, size_t& num) const = 0;
+#endif
   };
 
  private:

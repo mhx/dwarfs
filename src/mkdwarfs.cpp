@@ -217,7 +217,7 @@ int mkdwarfs(int argc, char** argv) {
 
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_path,
-      compression, log_level;
+      compression, metadata_compression, log_level;
   size_t num_workers, max_scanner_workers;
   bool no_time = false, no_owner = false, recompress = false,
        no_progress = false;
@@ -255,6 +255,9 @@ int mkdwarfs(int argc, char** argv) {
     ("compression,C",
         po::value<std::string>(&compression),
         "block compression algorithm")
+    ("metadata-compression",
+        po::value<std::string>(&metadata_compression),
+        "metadata compression algorithm (default: same as block compression)")
     ("recompress",
         po::value<bool>(&recompress)->zero_tokens(),
         "recompress an existing filesystem")
@@ -363,6 +366,10 @@ int mkdwarfs(int argc, char** argv) {
     compression = defaults.compression;
   }
 
+  if (!vm.count("metadata-compression")) {
+    metadata_compression = compression;
+  }
+
   if (!vm.count("blockhash-window-sizes")) {
     window_sizes = defaults.window_sizes;
   }
@@ -406,8 +413,9 @@ int mkdwarfs(int argc, char** argv) {
   progress prog([&](const progress& p, bool last) { lgr.update(p, last); });
 
   block_compressor bc(compression);
+  block_compressor metadata_bc(metadata_compression);
   std::ofstream ofs(output);
-  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, mem_limit);
+  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, metadata_bc, mem_limit);
 
   if (recompress) {
     auto ti = log.timed_info();

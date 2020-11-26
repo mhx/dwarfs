@@ -23,16 +23,94 @@
 
 #include <array>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <sys/stat.h>
 
-#include "file_interface.h"
-#include "fstypes.h"
+#include "dwarfs/file_interface.h"
+#include "dwarfs/fstypes.h"
+
+#include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
+
+struct global_entry_data {
+  void add_uid(uint16_t uid) { add(uid, uids, next_uid_index); }
+
+  void add_gid(uint16_t gid) { add(gid, gids, next_gid_index); }
+
+  void add_mode(uint16_t mode) { add(mode, modes, next_mode_index); }
+
+  void add(uint16_t val, std::unordered_map<uint16_t, uint16_t>& map,
+           uint16_t& next_index) {
+    if (map.emplace(val, next_index).second) {
+      ++next_index;
+    }
+  }
+
+  void add_time(uint64_t time) {
+    if (time < timestamp_base) {
+      timestamp_base = time;
+    }
+  }
+
+  void add_name(std::string const& name) { names.emplace(name, 0); }
+
+  void add_link(std::string const& link) { links.emplace(link, 0); }
+
+  void index() {
+    index(names);
+    index(links);
+  }
+
+  void index(std::unordered_map<std::string, uint32_t>& map);
+
+  uint16_t get_uid_index(uint16_t uid) const { return uids.at(uid); }
+
+  uint16_t get_gid_index(uint16_t gid) const { return gids.at(gid); }
+
+  uint16_t get_mode_index(uint16_t mode) const { return modes.at(mode); }
+
+  uint32_t get_name_index(std::string const& name) const {
+    return names.at(name);
+  }
+
+  uint32_t get_link_index(std::string const& link) const {
+    return links.at(link);
+  }
+
+  uint64_t get_time_offset(uint64_t time) const {
+    return time - timestamp_base;
+  }
+
+  std::vector<uint16_t> get_uids() const;
+
+  std::vector<uint16_t> get_gids() const;
+
+  std::vector<uint16_t> get_modes() const;
+
+  std::vector<std::string> get_names() const;
+
+  std::vector<std::string> get_links() const;
+
+  // TODO: make private
+  template <typename T, typename U>
+  std::vector<T> get_vector(std::unordered_map<T, U> const& map) const;
+
+  std::unordered_map<uint16_t, uint16_t> uids;
+  std::unordered_map<uint16_t, uint16_t> gids;
+  std::unordered_map<uint16_t, uint16_t> modes;
+  std::unordered_map<std::string, uint32_t> names;
+  std::unordered_map<std::string, uint32_t> links;
+  uint16_t next_uid_index{0};
+  uint16_t next_gid_index{0};
+  uint16_t next_mode_index{0};
+  uint64_t timestamp_base{std::numeric_limits<uint64_t>::max()};
+};
 
 class file;
 class link;
@@ -72,6 +150,9 @@ class entry : public file_interface {
   void pack(dir_entry& de) const;
   void pack(dir_entry_ug& de) const;
   void pack(dir_entry_ug_time& de) const;
+  void
+  pack(thrift::metadata::entry& entry_v2, global_entry_data const& data) const;
+  void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual uint32_t inode_num() const = 0;
 
@@ -130,8 +211,12 @@ class dir : public entry {
   pack(uint8_t* buf,
        std::function<void(const entry* e, size_t offset)> const& offset_cb)
       const = 0;
+  virtual void pack(thrift::metadata::metadata& mv2,
+                    global_entry_data const& data) const = 0;
   virtual size_t packed_entry_size() const = 0;
   virtual void pack_entry(uint8_t* buf) const = 0;
+  virtual void pack_entry(thrift::metadata::metadata& mv2,
+                          global_entry_data const& data) const = 0;
   uint32_t inode_num() const override { return inode_; }
 
  protected:

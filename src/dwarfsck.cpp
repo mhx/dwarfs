@@ -29,7 +29,7 @@
 int main(int argc, char** argv) {
   if (argc == 2 || argc == 3) {
     try {
-      dwarfs::stream_logger lgr(std::cerr, dwarfs::logger::INFO);
+      dwarfs::stream_logger lgr(std::cerr, dwarfs::logger::DEBUG);
       dwarfs::filesystem fs(lgr, std::make_shared<dwarfs::mmap>(argv[1]),
                             dwarfs::block_cache_options());
 
@@ -48,7 +48,8 @@ int main(int argc, char** argv) {
         dwarfs::filesystem::identify(
             lgr, std::make_shared<dwarfs::mmap>(argv[1]), std::cout);
         // TODO:
-        // fs.dump(std::cout);
+        fs.dump(std::cout);
+        fs.dump_v2(std::cout);
       }
     } catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << std::endl;

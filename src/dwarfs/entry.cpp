@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include <folly/Conv.h>
+#include <folly/gen/Base.h>
 
 #include <openssl/sha.h>
 
@@ -39,6 +40,41 @@
 
 namespace dwarfs {
 
+template <typename T, typename U>
+std::vector<T>
+global_entry_data::get_vector(std::unordered_map<T, U> const& map) const {
+  using namespace folly::gen;
+  std::vector<std::pair<T, U>> pairs(map.begin(), map.end());
+  return from(pairs) | orderBy([](auto const& p) { return p.second; }) |
+         get<0>() | as<std::vector>();
+}
+
+std::vector<uint16_t> global_entry_data::get_uids() const {
+  return get_vector(uids);
+}
+
+std::vector<uint16_t> global_entry_data::get_gids() const {
+  return get_vector(gids);
+}
+
+std::vector<uint16_t> global_entry_data::get_modes() const {
+  return get_vector(modes);
+}
+
+std::vector<std::string> global_entry_data::get_names() const {
+  return get_vector(names);
+}
+
+std::vector<std::string> global_entry_data::get_links() const {
+  return get_vector(links);
+}
+
+void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
+  using namespace folly::gen;
+  uint32_t ix = 0;
+  from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
+}
+
 template <typename DirEntryType>
 class dir_ : public dir {
  public:
@@ -49,6 +85,13 @@ class dir_ : public dir {
   void pack_entry(uint8_t* buf) const override {
     DirEntryType* de = reinterpret_cast<DirEntryType*>(buf);
     entry::pack(*de);
+  }
+
+  void pack_entry(thrift::metadata::metadata& mv2,
+                  global_entry_data const& data) const override {
+    mv2.inode_index.at(inode_num()) = mv2.entries.size();
+    mv2.entries.emplace_back();
+    entry::pack(mv2.entries.back(), data);
   }
 
   size_t packed_size() const override {
@@ -72,6 +115,23 @@ class dir_ : public dir {
       e->pack(*de);
       offset_cb(e.get(), offset_ + (reinterpret_cast<uint8_t*>(de) - buf));
       ++de;
+    }
+  }
+
+  void pack(thrift::metadata::metadata& mv2,
+            global_entry_data const& data) const override {
+    thrift::metadata::directory dir;
+    dir.self_inode = inode_num();
+    dir.parent_inode =
+        has_parent() ? std::dynamic_pointer_cast<dir_>(parent())->inode_num()
+                     : 0;
+    dir.first_entry = mv2.entries.size();
+    dir.entry_count = entries_.size();
+    mv2.directories.push_back(dir);
+    for (entry_ptr const& e : entries_) {
+      mv2.inode_index.at(e->inode_num()) = mv2.entries.size();
+      mv2.entries.emplace_back();
+      e->pack(mv2.entries.back(), data);
     }
   }
 };
@@ -154,6 +214,27 @@ void entry::pack(dir_entry_ug_time& de) const {
   de.ctime = stat_.st_ctime;
 
   pack(de.ug);
+}
+
+void entry::update(global_entry_data& data) const {
+  data.add_uid(stat_.st_uid);
+  data.add_gid(stat_.st_gid);
+  data.add_mode(stat_.st_mode & 0xFFFF);
+  data.add_time(stat_.st_atime);
+  data.add_time(stat_.st_mtime);
+  data.add_time(stat_.st_ctime);
+}
+
+void entry::pack(thrift::metadata::entry& entry_v2,
+                 global_entry_data const& data) const {
+  entry_v2.name_index = has_parent() ? data.get_name_index(name_) : 0;
+  entry_v2.mode = data.get_mode_index(stat_.st_mode & 0xFFFF);
+  entry_v2.owner = data.get_uid_index(stat_.st_uid);
+  entry_v2.group = data.get_gid_index(stat_.st_gid);
+  entry_v2.atime = data.get_time_offset(stat_.st_atime);
+  entry_v2.mtime = data.get_time_offset(stat_.st_mtime);
+  entry_v2.ctime = data.get_time_offset(stat_.st_ctime);
+  entry_v2.inode = inode_num();
 }
 
 entry::type_t file::type() const { return E_FILE; }

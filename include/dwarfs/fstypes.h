@@ -106,6 +106,9 @@ enum class section_type : uint16_t {
   // the block size which is needed for working with the
   // chunk lists. Also defines inode offsets being used
   // and the total inode count (for out-of-bounds checks).
+
+  METADATA_V2 = 7,
+  // Frozen metadata.
 };
 
 enum class dir_entry_type : uint8_t {

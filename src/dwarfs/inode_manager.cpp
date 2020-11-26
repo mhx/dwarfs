@@ -28,6 +28,8 @@
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/script.h"
 
+#include "dwarfs/gen-cpp2/metadata_types.h"
+
 namespace dwarfs {
 
 template <unsigned BlockSizeBits = 24>
@@ -75,6 +77,17 @@ class inode_manager_ : public inode_manager {
     }
 
     const std::vector<chunk_type>& chunks() const override { return chunks_; }
+
+    void
+    append_chunks(std::vector<thrift::metadata::chunk>& vec) const override {
+      for (auto c : chunks_) {
+        thrift::metadata::chunk chnk;
+        chnk.block = access::block(c);
+        chnk.offset = access::offset(c);
+        chnk.size = access::size(c);
+        vec.push_back(chnk);
+      }
+    }
 
    private:
     uint32_t num_{std::numeric_limits<uint32_t>::max()};

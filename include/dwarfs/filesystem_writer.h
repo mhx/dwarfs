@@ -54,6 +54,10 @@ class filesystem_writer {
                     progress& prog, const block_compressor& bc,
                     size_t max_queue_size);
 
+  filesystem_writer(std::ostream& os, logger& lgr, worker_group& wg,
+                    progress& prog, const block_compressor& bc,
+                    const block_compressor& metadata_bc, size_t max_queue_size);
+
   // section create_block();
   // section create_metadata();
 
@@ -67,6 +71,10 @@ class filesystem_writer {
     impl_->write_metadata(std::move(data));
   }
 
+  void write_metadata_v2(std::vector<uint8_t>&& data) {
+    impl_->write_metadata_v2(std::move(data));
+  }
+
   void flush() { impl_->flush(); }
 
   size_t size() const { return impl_->size(); }
@@ -77,6 +85,7 @@ class filesystem_writer {
 
     virtual void write_block(std::vector<uint8_t>&& data) = 0;
     virtual void write_metadata(std::vector<uint8_t>&& data) = 0;
+    virtual void write_metadata_v2(std::vector<uint8_t>&& data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
   };

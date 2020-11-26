@@ -31,6 +31,7 @@
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader.h"
 #include "dwarfs/metadata.h"
+#include "dwarfs/metadata_v2.h"
 #include "dwarfs/progress.h"
 
 namespace dwarfs {
@@ -102,6 +103,7 @@ class filesystem_ : public filesystem::impl {
               const struct ::stat* stat_defaults, int inode_offset);
 
   void dump(std::ostream& os) const override;
+  void dump_v2(std::ostream& os) const override;
   void walk(std::function<void(const dir_entry*)> const& func) const override;
   const dir_entry* find(const char* path) const override;
   const dir_entry* find(int inode) const override;
@@ -126,6 +128,7 @@ class filesystem_ : public filesystem::impl {
   log_proxy<LoggerPolicy> log_;
   std::shared_ptr<mmif> mm_;
   metadata meta_;
+  metadata_v2 meta_v2_;
   inode_reader ir_;
 };
 
@@ -156,6 +159,15 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                        stat_defaults, inode_offset);
       break;
 
+    case section_type::METADATA_V2:
+      // TODO: handle in-place uncompressed metadata
+      meta_v2_ =
+          metadata_v2(lgr,
+                      block_decompressor::decompress(
+                          sh.compression, mm_->as<uint8_t>(start), sh.length),
+                      stat_defaults);
+      break;
+
     default:
       throw std::runtime_error("unknown section");
     }
@@ -178,6 +190,17 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os) const {
   meta_.dump(os, [&](const std::string& indent, uint32_t inode) {
     size_t num = 0;
     const chunk_type* chunk = meta_.get_chunks(inode, num);
+
+    os << indent << num << " chunks in inode " << inode << "\n";
+    ir_.dump(os, indent + "  ", chunk, num);
+  });
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::dump_v2(std::ostream& os) const {
+  meta_v2_.dump(os, [&](const std::string& indent, uint32_t inode) {
+    size_t num = 0;
+    const chunk_type* chunk = meta_.get_chunks(inode, num); // TODO
 
     os << indent << num << " chunks in inode " << inode << "\n";
     ir_.dump(os, indent + "  ", chunk, num);
@@ -323,6 +346,10 @@ void filesystem::rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
 
     case section_type::METADATA:
       writer.write_metadata(std::move(meta_raw));
+      break;
+
+    case section_type::METADATA_V2:
+      // TODO...
       break;
 
     default:

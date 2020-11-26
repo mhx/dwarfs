@@ -57,7 +57,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
     }
 
     for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([=, this] {
+      workers_.emplace_back([=] {
         folly::setThreadName(folly::to<std::string>(group_name, i + 1));
         do_work();
       });
