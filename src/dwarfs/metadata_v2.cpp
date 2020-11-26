@@ -110,8 +110,8 @@ class metadata_v2_ : public metadata_v2::impl {
 
   std::string modestring(uint16_t mode) const;
 
-  size_t reg_filesize(uint32_t inode) const {
-    inode -= chunk_index_offset_;
+  size_t reg_file_size(entry_view entry) const {
+    auto inode = entry.inode() - chunk_index_offset_;
     uint32_t cur = meta_.chunk_index()[inode];
     uint32_t end = meta_.chunk_index()[inode + 1];
     size_t size = 0;
@@ -121,14 +121,13 @@ class metadata_v2_ : public metadata_v2::impl {
     return size;
   }
 
-  size_t filesize(entry_view entry, uint16_t mode) const {
+  size_t link_size(entry_view entry) const { return link_name(entry).size(); }
+
+  size_t file_size(entry_view entry, uint16_t mode) const {
     if (S_ISREG(mode)) {
-      return reg_filesize(entry.inode());
+      return reg_file_size(entry);
     } else if (S_ISLNK(mode)) {
-      return meta_
-          .links()[meta_
-                       .link_index()[entry.inode() - meta_.link_index_offset()]]
-          .size();
+      return link_size(entry);
     } else {
       return 0;
     }
@@ -150,38 +149,21 @@ class metadata_v2_ : public metadata_v2::impl {
     return rv;
   }
 
+  std::string_view entry_name(entry_view entry) const {
+    return meta_.names()[entry.name_index()];
+  }
+
+  std::string_view link_name(entry_view entry) const {
+    return meta_
+        .links()[meta_.link_index()[entry.inode()] - meta_.link_index_offset()];
+  }
+
 #if 0
-  std::string name(entry_view entry) const {
-    return std::string(as<char>(entry->name_offset), entry->name_size);
-  }
-
-  size_t linksize(entry_view entry) const {
-    return *as<uint16_t>(entry->u.offset);
-  }
-
-  std::string linkname(entry_view entry) const {
-    size_t offs = entry->u.offset;
-    return std::string(as<char>(offs + sizeof(uint16_t)), *as<uint16_t>(offs));
-  }
-
   const char* linkptr(entry_view entry) const {
     return as<char>(entry->u.offset + sizeof(uint16_t));
   }
-
-  template <typename T>
-  const T* as(size_t offset = 0) const {
-    return reinterpret_cast<const T*>(
-        reinterpret_cast<const char*>(data_.data()) + offset);
-  }
-
-  void parse(const struct ::stat* defaults);
-
-  const uint32_t* chunk_index_ = nullptr;
-  const uint32_t* inode_index_ = nullptr;
-  entry_view root_ = nullptr;
-  const meta_config* cfg_ = nullptr;
-  std::shared_ptr<dir_reader> dir_reader_;
 #endif
+
   std::vector<uint8_t> data_;
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
@@ -200,21 +182,19 @@ void metadata_v2_<LoggerPolicy>::dump(
   os << indent << "<inode:" << inode << "> " << modestring(mode);
 
   if (inode > 0) {
-    os << " " << meta_.names()[entry.name_index()];
+    os << " " << entry_name(entry);
   }
 
   if (S_ISREG(mode)) {
     uint32_t beg = meta_.chunk_index()[inode - chunk_index_offset_];
     uint32_t end = meta_.chunk_index()[inode - chunk_index_offset_ + 1];
     os << " [" << beg << ", " << end << "]";
-    os << " " << filesize(entry, mode) << "\n";
+    os << " " << file_size(entry, mode) << "\n";
     icb(indent + "  ", inode);
   } else if (S_ISDIR(mode)) {
     dump(os, indent + "  ", meta_.directories()[inode], std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> "
-       << meta_.links()[meta_.link_index()[inode] - meta_.link_index_offset()]
-       << "\n";
+    os << " -> " << link_name(entry) << "\n";
   } else {
     os << " (unknown type)\n";
   }
@@ -290,7 +270,7 @@ metadata_v2_<LoggerPolicy>::find(directory_view dir,
 
   auto it = std::lower_bound(
       range.begin(), range.end(), name, [&](auto it, std::string_view name) {
-        return meta_.names()[meta_.entries()[it].name_index()].compare(name);
+        return entry_name(meta_.entries()[it]).compare(name);
       });
 
   std::optional<entry_view> rv;
@@ -298,7 +278,7 @@ metadata_v2_<LoggerPolicy>::find(directory_view dir,
   if (it != range.end()) {
     auto cand = meta_.entries()[*it];
 
-    if (meta_.names()[cand.name_index()] == name) {
+    if (entry_name(cand) == name) {
       rv = cand;
     }
   }
@@ -351,79 +331,10 @@ metadata_v2_<LoggerPolicy>::find(int inode,
 
 #if 0
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::parse(const struct ::stat* defaults) {
-  size_t offset = 0;
-
-  while (offset + sizeof(section_header) <= size()) {
-    const section_header* sh = as<section_header>(offset);
-
-    log_.debug() << "section_header@" << offset << " (" << sh->to_string()
-                 << ")";
-
-    offset += sizeof(section_header);
-
-    if (offset + sh->length > size()) {
-      throw std::runtime_error("truncated metadata");
-    }
-
-    if (sh->compression != compression_type::NONE) {
-      throw std::runtime_error("unsupported metadata compression type");
-    }
-
-    switch (sh->type) {
-    case section_type::META_TABLEDATA:
-    case section_type::META_DIRECTORIES:
-      // ok, ignore
-      break;
-
-    case section_type::META_CHUNK_INDEX:
-      chunk_index_ = as<uint32_t>(offset);
-      break;
-
-    case section_type::META_INODE_INDEX:
-      inode_index_ = as<uint32_t>(offset);
-      break;
-
-    case section_type::META_CONFIG:
-      cfg_ = as<meta_config>(offset);
-      break;
-
-    default:
-      throw std::runtime_error("unknown metadata section");
-    }
-
-    offset += sh->length;
-  }
-
-  // TODO: moar checkz
-
-  if (!cfg_) {
-    throw std::runtime_error("no metadata configuration found");
-  }
-
-  struct ::stat stat_defaults;
-
-  if (defaults) {
-    stat_defaults = *defaults;
-  } else {
-    metadata::get_stat_defaults(&stat_defaults);
-  }
-
-  chunk_index_ -= cfg_->chunk_index_offset;
-  inode_index_ -= cfg_->inode_index_offset;
-
-  root_ = as<dir_entry>(inode_index_[0]);
-
-  dir_reader_ = dir_reader::create(cfg_->de_type, stat_defaults,
-                                   reinterpret_cast<const char*>(data_.data()),
-                                   inode_offset_);
-}
-
-template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
                                      struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
-  dir_reader_->getattr(entry, stbuf, filesize(entry));
+  dir_reader_->getattr(entry, stbuf, file_size(entry));
   return 0;
 }
 
