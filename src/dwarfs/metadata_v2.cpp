@@ -38,6 +38,12 @@
 
 namespace dwarfs {
 
+namespace {
+
+const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
+
+}
+
 template <typename LoggerPolicy>
 class metadata_v2_ : public metadata_v2::impl {
  public:
@@ -76,6 +82,8 @@ class metadata_v2_ : public metadata_v2::impl {
   std::optional<entry_view> find(int inode) const override;
   std::optional<entry_view> find(int inode, const char* name) const override;
 
+  int getattr(entry_view entry, struct ::stat* stbuf) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -83,7 +91,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
 
-  int getattr(entry_view entry, struct ::stat* stbuf) const override;
   int access(entry_view entry, int mode, uid_t uid,
              gid_t gid) const override;
   directory_view opendir(entry_view entry) const override;
@@ -149,6 +156,10 @@ class metadata_v2_ : public metadata_v2::impl {
     return rv;
   }
 
+  uint16_t entry_mode(entry_view entry) const {
+    return meta_.modes()[entry.mode()];
+  }
+
   std::string_view entry_name(entry_view entry) const {
     return meta_.names()[entry.name_index()];
   }
@@ -176,7 +187,7 @@ template <typename LoggerPolicy>
 void metadata_v2_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, entry_view entry,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  auto mode = meta_.modes()[entry.mode()];
+  auto mode = entry_mode(entry);
   auto inode = entry.inode();
 
   os << indent << "<inode:" << inode << "> " << modestring(mode);
@@ -329,15 +340,27 @@ metadata_v2_<LoggerPolicy>::find(int inode,
   return entry;
 }
 
-#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
-                                     struct ::stat* stbuf) const {
+                                        struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
-  dir_reader_->getattr(entry, stbuf, file_size(entry));
+
+  auto mode = entry_mode(entry);
+
+  stbuf->st_mode = mode & READ_ONLY_MASK;
+  stbuf->st_size = file_size(entry, mode);
+  stbuf->st_ino = entry.inode() + inode_offset_;
+  stbuf->st_blocks = (stbuf->st_size + 511) / 512;
+  // stbuf->st_uid = getuid(de);    // TODO
+  // stbuf->st_gid = getgid(de);
+  // stbuf->st_atime = real_de->atime;
+  // stbuf->st_mtime = real_de->mtime;
+  // stbuf->st_ctime = real_de->ctime;
+
   return 0;
 }
 
+#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
                                     gid_t gid) const {

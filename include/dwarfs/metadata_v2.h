@@ -77,14 +77,14 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
+  int getattr(entry_view de, struct ::stat* stbuf) const {
+    return impl_->getattr(de, stbuf);
+  }
+
 #if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  int getattr(entry_view de, struct ::stat* stbuf) const {
-    return impl_->getattr(de, stbuf);
-  }
 
   int access(entry_view de, int mode, uid_t uid, gid_t gid) const {
     return impl_->access(de, mode, uid, gid);
@@ -135,10 +135,11 @@ class metadata_v2 {
     virtual std::optional<entry_view> find(int inode) const = 0;
     virtual std::optional<entry_view>
     find(int inode, const char* name) const = 0;
+
+    virtual int getattr(entry_view de, struct ::stat* stbuf) const = 0;
 #if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual int getattr(entry_view de, struct ::stat* stbuf) const = 0;
     virtual int
     access(entry_view de, int mode, uid_t uid, gid_t gid) const = 0;
     virtual directory_view opendir(entry_view de) const = 0;
