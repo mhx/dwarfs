@@ -39,7 +39,8 @@
 namespace dwarfs {
 
 struct global_entry_data {
-  global_entry_data(bool no_time) : no_time_(no_time) {}
+  global_entry_data(bool no_time)
+      : no_time_(no_time) {}
 
   void add_uid(uint16_t uid) { add(uid, uids, next_uid_index); }
 

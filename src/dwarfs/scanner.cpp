@@ -244,7 +244,8 @@ scanner_<LoggerPolicy>::compress_names_table(
 
 class dir_set_inode_visitor : public entry_visitor {
  public:
-  dir_set_inode_visitor(uint32_t& inode_no) : inode_no_(inode_no) {};
+  dir_set_inode_visitor(uint32_t& inode_no)
+      : inode_no_(inode_no){};
 
   void visit(file*) override {}
 
@@ -263,7 +264,8 @@ class dir_set_inode_visitor : public entry_visitor {
 
 class link_set_inode_visitor : public entry_visitor {
  public:
-  link_set_inode_visitor(uint32_t& inode_no) : inode_no_(inode_no) {};
+  link_set_inode_visitor(uint32_t& inode_no)
+      : inode_no_(inode_no){};
 
   void visit(file*) override {}
 
@@ -551,7 +553,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "building metadata...";
   std::vector<uint8_t> metadata_vec;
   metadata_writer mw(lgr_, metadata_vec);
-  global_entry_data ge_data(options_.no_time); // TODO: just pass options directly
+  global_entry_data ge_data(
+      options_.no_time); // TODO: just pass options directly
   thrift::metadata::metadata mv2;
   std::vector<uint32_t> dir_index;
   dir_index.resize(first_link_inode);

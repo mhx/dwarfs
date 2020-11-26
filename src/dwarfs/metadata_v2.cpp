@@ -25,6 +25,8 @@
 
 #include <unistd.h>
 
+#include <boost/range/irange.hpp>
+
 #include "dwarfs/metadata_v2.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
@@ -39,14 +41,16 @@ namespace dwarfs {
 template <typename LoggerPolicy>
 class metadata_v2_ : public metadata_v2::impl {
  public:
-  // TODO: pass folly::ByteRange instead of vector (so we can support memory mapping)
+  // TODO: pass folly::ByteRange instead of vector (so we can support memory
+  // mapping)
   metadata_v2_(logger& lgr, std::vector<uint8_t>&& meta,
-               const struct ::stat* /*defaults*/)
+               const struct ::stat* /*defaults*/, int inode_offset)
       : data_(std::move(meta))
       , meta_(::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(
             data_))
       , root_(meta_.entries()[meta_.entry_index()[0]])
-      , inode_offset_(meta_.chunk_index_offset())
+      , inode_offset_(inode_offset)
+      , chunk_index_offset_(meta_.chunk_index_offset())
       , log_(lgr) {
     // TODO: defaults?
     log_.debug() << ::apache::thrift::debugString(meta_.thaw());
@@ -68,6 +72,10 @@ class metadata_v2_ : public metadata_v2::impl {
 
   void walk(std::function<void(entry_view)> const& func) const override;
 
+  std::optional<entry_view> find(const char* path) const override;
+  std::optional<entry_view> find(int inode) const override;
+  std::optional<entry_view> find(int inode, const char* name) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -75,22 +83,19 @@ class metadata_v2_ : public metadata_v2::impl {
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
 
-  const dir_entry* find(const char* path) const override;
-  const dir_entry* find(int inode) const override;
-  const dir_entry* find(int inode, const char* name) const override;
-  int getattr(const dir_entry* de, struct ::stat* stbuf) const override;
-  int access(const dir_entry* de, int mode, uid_t uid,
+  int getattr(entry_view entry, struct ::stat* stbuf) const override;
+  int access(entry_view entry, int mode, uid_t uid,
              gid_t gid) const override;
-  const directory* opendir(const dir_entry* de) const override;
-  const dir_entry*
-  readdir(const directory* d, size_t offset, std::string* name) const override;
-  size_t dirsize(const directory* d) const override {
+  directory_view opendir(entry_view entry) const override;
+  entry_view
+  readdir(directory_view d, size_t offset, std::string* name) const override;
+  size_t dirsize(directory_view d) const override {
     return d->count + 2; // adds '.' and '..', which we fake in ;-)
   }
-  int readlink(const dir_entry* de, char* buf, size_t size) const override;
-  int readlink(const dir_entry* de, std::string* buf) const override;
+  int readlink(entry_view entry, char* buf, size_t size) const override;
+  int readlink(entry_view entry, std::string* buf) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
-  int open(const dir_entry* de) const override;
+  int open(entry_view entry) const override;
 
   const chunk_type* get_chunks(int inode, size_t& num) const override;
 #endif
@@ -101,9 +106,12 @@ class metadata_v2_ : public metadata_v2::impl {
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
+  std::optional<entry_view> find(directory_view d, std::string_view name) const;
+
   std::string modestring(uint16_t mode) const;
 
   size_t reg_filesize(uint32_t inode) const {
+    inode -= chunk_index_offset_;
     uint32_t cur = meta_.chunk_index()[inode];
     uint32_t end = meta_.chunk_index()[inode + 1];
     size_t size = 0;
@@ -117,7 +125,10 @@ class metadata_v2_ : public metadata_v2::impl {
     if (S_ISREG(mode)) {
       return reg_filesize(entry.inode());
     } else if (S_ISLNK(mode)) {
-      return meta_.links()[meta_.link_index()[entry.inode() - meta_.link_index_offset()]].size();
+      return meta_
+          .links()[meta_
+                       .link_index()[entry.inode() - meta_.link_index_offset()]]
+          .size();
     } else {
       return 0;
     }
@@ -127,25 +138,34 @@ class metadata_v2_ : public metadata_v2::impl {
     return meta_.directories()[entry.inode()];
   }
 
-  void walk(entry_view entry,
-            std::function<void(entry_view)> const& func) const;
+  void
+  walk(entry_view entry, std::function<void(entry_view)> const& func) const;
+
+  std::optional<entry_view> get_entry(int inode) const {
+    inode -= inode_offset_;
+    std::optional<entry_view> rv;
+    if (inode >= 0 && inode < int(meta_.entry_index().size())) {
+      rv = meta_.entries()[meta_.entry_index()[inode]];
+    }
+    return rv;
+  }
 
 #if 0
-  std::string name(const dir_entry* de) const {
-    return std::string(as<char>(de->name_offset), de->name_size);
+  std::string name(entry_view entry) const {
+    return std::string(as<char>(entry->name_offset), entry->name_size);
   }
 
-  size_t linksize(const dir_entry* de) const {
-    return *as<uint16_t>(de->u.offset);
+  size_t linksize(entry_view entry) const {
+    return *as<uint16_t>(entry->u.offset);
   }
 
-  std::string linkname(const dir_entry* de) const {
-    size_t offs = de->u.offset;
+  std::string linkname(entry_view entry) const {
+    size_t offs = entry->u.offset;
     return std::string(as<char>(offs + sizeof(uint16_t)), *as<uint16_t>(offs));
   }
 
-  const char* linkptr(const dir_entry* de) const {
-    return as<char>(de->u.offset + sizeof(uint16_t));
+  const char* linkptr(entry_view entry) const {
+    return as<char>(entry->u.offset + sizeof(uint16_t));
   }
 
   template <typename T>
@@ -154,18 +174,11 @@ class metadata_v2_ : public metadata_v2::impl {
         reinterpret_cast<const char*>(data_.data()) + offset);
   }
 
-  const dir_entry* get_entry(int inode) const {
-    inode -= inode_offset_;
-    return inode >= 0 && inode < static_cast<int>(cfg_->inode_count)
-               ? as<dir_entry>(inode_index_[inode])
-               : nullptr;
-  }
-
   void parse(const struct ::stat* defaults);
 
   const uint32_t* chunk_index_ = nullptr;
   const uint32_t* inode_index_ = nullptr;
-  const dir_entry* root_ = nullptr;
+  entry_view root_ = nullptr;
   const meta_config* cfg_ = nullptr;
   std::shared_ptr<dir_reader> dir_reader_;
 #endif
@@ -173,6 +186,7 @@ class metadata_v2_ : public metadata_v2::impl {
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
   const int inode_offset_;
+  const int chunk_index_offset_;
   log_proxy<LoggerPolicy> log_;
 };
 
@@ -190,20 +204,17 @@ void metadata_v2_<LoggerPolicy>::dump(
   }
 
   if (S_ISREG(mode)) {
-    uint32_t cur = meta_.chunk_index()[inode - inode_offset_];
-    uint32_t end = meta_.chunk_index()[inode - inode_offset_ + 1];
-    os << " [" << cur << ", " << end << "]";
-    size_t size = 0;
-    while (cur < end) {
-      size += meta_.chunks()[cur++].size();
-    }
-    os << " " << size << "\n";
-    // os << " " << filesize(entry, mode) << "\n";
-    // icb(indent + "  ", de->inode);
+    uint32_t beg = meta_.chunk_index()[inode - chunk_index_offset_];
+    uint32_t end = meta_.chunk_index()[inode - chunk_index_offset_ + 1];
+    os << " [" << beg << ", " << end << "]";
+    os << " " << filesize(entry, mode) << "\n";
+    icb(indent + "  ", inode);
   } else if (S_ISDIR(mode)) {
     dump(os, indent + "  ", meta_.directories()[inode], std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> " << meta_.links()[meta_.link_index()[inode] - meta_.link_index_offset()] << "\n";
+    os << " -> "
+       << meta_.links()[meta_.link_index()[inode] - meta_.link_index_offset()]
+       << "\n";
   } else {
     os << " (unknown type)\n";
   }
@@ -252,15 +263,14 @@ std::string metadata_v2_<LoggerPolicy>::modestring(uint16_t mode) const {
 
 template <typename LoggerPolicy>
 void metadata_v2_<LoggerPolicy>::walk(
-    entry_view entry,
-    std::function<void(entry_view)> const& func) const {
+    entry_view entry, std::function<void(entry_view)> const& func) const {
   func(entry);
   if (S_ISDIR(entry.mode())) {
     auto dir = getdir(entry);
-    auto curr = dir.first_entry();
-    auto last = curr + dir.entry_count();
-    while (curr < last) {
-      walk(meta_.entries()[curr++], func);
+    auto cur = dir.first_entry();
+    auto end = cur + dir.entry_count();
+    while (cur < end) {
+      walk(meta_.entries()[cur++], func);
     }
   }
 }
@@ -271,9 +281,77 @@ void metadata_v2_<LoggerPolicy>::walk(
   walk(root_, func);
 }
 
+template <typename LoggerPolicy>
+std::optional<entry_view>
+metadata_v2_<LoggerPolicy>::find(directory_view dir,
+                                 std::string_view name) const {
+  auto first = dir.first_entry();
+  auto range = boost::irange(first, first + dir.entry_count());
+
+  auto it = std::lower_bound(
+      range.begin(), range.end(), name, [&](auto it, std::string_view name) {
+        return meta_.names()[meta_.entries()[it].name_index()].compare(name);
+      });
+
+  std::optional<entry_view> rv;
+
+  if (it != range.end()) {
+    auto cand = meta_.entries()[*it];
+
+    if (meta_.names()[cand.name_index()] == name) {
+      rv = cand;
+    }
+  }
+
+  return rv;
+}
+
+template <typename LoggerPolicy>
+std::optional<entry_view>
+metadata_v2_<LoggerPolicy>::find(const char* path) const {
+  while (*path and *path == '/') {
+    ++path;
+  }
+
+  std::optional<entry_view> entry = root_;
+
+  while (*path) {
+    const char* next = ::strchr(path, '/');
+    size_t clen = next ? next - path : ::strlen(path);
+
+    entry = find(getdir(*entry), std::string_view(path, clen));
+
+    if (!entry) {
+      break;
+    }
+
+    path = next ? next + 1 : path + clen;
+  }
+
+  return entry;
+}
+
+template <typename LoggerPolicy>
+std::optional<entry_view> metadata_v2_<LoggerPolicy>::find(int inode) const {
+  return get_entry(inode);
+}
+
+template <typename LoggerPolicy>
+std::optional<entry_view>
+metadata_v2_<LoggerPolicy>::find(int inode,
+                                 const char* name) const { // TODO: string_view?
+  auto entry = get_entry(inode);
+
+  if (entry) {
+    entry = find(getdir(*entry), std::string_view(name)); // TODO
+  }
+
+  return entry;
+}
+
 #if 0
 template <typename LoggerPolicy>
-void metadata_<LoggerPolicy>::parse(const struct ::stat* defaults) {
+void metadata_v2_<LoggerPolicy>::parse(const struct ::stat* defaults) {
   size_t offset = 0;
 
   while (offset + sizeof(section_header) <= size()) {
@@ -342,87 +420,46 @@ void metadata_<LoggerPolicy>::parse(const struct ::stat* defaults) {
 }
 
 template <typename LoggerPolicy>
-const dir_entry* metadata_<LoggerPolicy>::find(const char* path) const {
-  while (*path and *path == '/') {
-    ++path;
-  }
-
-  const dir_entry* de = root_;
-
-  while (*path) {
-    const char* next = ::strchr(path, '/');
-    size_t clen = next ? next - path : ::strlen(path);
-
-    de = dir_reader_->find(getdir(de), path, clen);
-
-    if (!de) {
-      break;
-    }
-
-    path = next ? next + 1 : path + clen;
-  }
-
-  return de;
-}
-
-template <typename LoggerPolicy>
-const dir_entry* metadata_<LoggerPolicy>::find(int inode) const {
-  return get_entry(inode);
-}
-
-template <typename LoggerPolicy>
-const dir_entry*
-metadata_<LoggerPolicy>::find(int inode, const char* name) const {
-  auto de = get_entry(inode);
-
-  if (de) {
-    de = dir_reader_->find(getdir(de), name, ::strlen(name));
-  }
-
-  return de;
-}
-
-template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(const dir_entry* de,
+int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
                                      struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
-  dir_reader_->getattr(de, stbuf, filesize(de));
+  dir_reader_->getattr(entry, stbuf, filesize(entry));
   return 0;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::access(const dir_entry* de, int mode, uid_t uid,
+int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
                                     gid_t gid) const {
-  return dir_reader_->access(de, mode, uid, gid);
+  return dir_reader_->access(entry, mode, uid, gid);
 }
 
 template <typename LoggerPolicy>
-const directory* metadata_<LoggerPolicy>::opendir(const dir_entry* de) const {
-  if (S_ISDIR(de->mode)) {
-    return getdir(de);
+directory_view metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
+  if (S_ISDIR(entry->mode)) {
+    return getdir(entry);
   }
 
   return nullptr;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::open(const dir_entry* de) const {
-  if (S_ISREG(de->mode)) {
-    return de->inode;
+int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
+  if (S_ISREG(entry->mode)) {
+    return entry->inode;
   }
 
   return -1;
 }
 
 template <typename LoggerPolicy>
-const dir_entry*
-metadata_<LoggerPolicy>::readdir(const directory* d, size_t offset,
+entry_view
+metadata_v2_<LoggerPolicy>::readdir(directory_view d, size_t offset,
                                  std::string* name) const {
-  const dir_entry* de;
+  entry_view entry;
 
   switch (offset) {
   case 0:
-    de = as<dir_entry>(d->self);
+    entry = as<dir_entry>(d->self);
 
     if (name) {
       name->assign(".");
@@ -430,7 +467,7 @@ metadata_<LoggerPolicy>::readdir(const directory* d, size_t offset,
     break;
 
   case 1:
-    de = as<dir_entry>(d->parent);
+    entry = as<dir_entry>(d->parent);
 
     if (name) {
       name->assign("..");
@@ -441,7 +478,7 @@ metadata_<LoggerPolicy>::readdir(const directory* d, size_t offset,
     offset -= 2;
 
     if (offset < d->count) {
-      de = dir_reader_->readdir(d, offset, name);
+      entry = dir_reader_->readdir(d, offset, name);
     } else {
       return nullptr;
     }
@@ -449,16 +486,16 @@ metadata_<LoggerPolicy>::readdir(const directory* d, size_t offset,
     break;
   }
 
-  return de;
+  return entry;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(const dir_entry* de, char* buf,
+int metadata_v2_<LoggerPolicy>::readlink(entry_view entry, char* buf,
                                       size_t size) const {
-  if (S_ISLNK(de->mode)) {
-    size_t lsize = linksize(de);
+  if (S_ISLNK(entry->mode)) {
+    size_t lsize = linksize(entry);
 
-    ::memcpy(buf, linkptr(de), std::min(lsize, size));
+    ::memcpy(buf, linkptr(entry), std::min(lsize, size));
 
     if (size > lsize) {
       buf[lsize] = '\0';
@@ -471,12 +508,12 @@ int metadata_<LoggerPolicy>::readlink(const dir_entry* de, char* buf,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(const dir_entry* de,
+int metadata_v2_<LoggerPolicy>::readlink(entry_view entry,
                                       std::string* buf) const {
-  if (S_ISLNK(de->mode)) {
-    size_t lsize = linksize(de);
+  if (S_ISLNK(entry->mode)) {
+    size_t lsize = linksize(entry);
 
-    buf->assign(linkptr(de), lsize);
+    buf->assign(linkptr(entry), lsize);
 
     return 0;
   }
@@ -485,7 +522,7 @@ int metadata_<LoggerPolicy>::readlink(const dir_entry* de,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   stbuf->f_bsize = 1UL << cfg_->block_size_bits;
@@ -500,7 +537,7 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
 
 template <typename LoggerPolicy>
 const chunk_type*
-metadata_<LoggerPolicy>::get_chunks(int inode, size_t& num) const {
+metadata_v2_<LoggerPolicy>::get_chunks(int inode, size_t& num) const {
   inode -= inode_offset_;
   if (inode < static_cast<int>(cfg_->chunk_index_offset) ||
       inode >= static_cast<int>(cfg_->inode_count)) {
@@ -524,8 +561,8 @@ void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
 }
 
 metadata_v2::metadata_v2(logger& lgr, std::vector<uint8_t>&& data,
-                         const struct ::stat* defaults)
+                         const struct ::stat* defaults, int inode_offset)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_v2_,
-                                       logger_policies>(lgr, std::move(data),
-                                                        defaults)) {}
+                                       logger_policies>(
+          lgr, std::move(data), defaults, inode_offset)) {}
 } // namespace dwarfs

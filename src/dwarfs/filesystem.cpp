@@ -165,7 +165,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
           metadata_v2(lgr,
                       block_decompressor::decompress(
                           sh.compression, mm_->as<uint8_t>(start), sh.length),
-                      stat_defaults);
+                      stat_defaults, inode_offset);
       break;
 
     default:
