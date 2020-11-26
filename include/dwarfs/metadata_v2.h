@@ -33,7 +33,12 @@
 #include "fstypes.h"
 #include "logger.h"
 
+#include "dwarfs/gen-cpp2/metadata_layouts.h"
+
 namespace dwarfs {
+
+using entry_view = ::apache::thrift::frozen::View<thrift::metadata::entry>;
+using directory_view = ::apache::thrift::frozen::View<thrift::metadata::directory>;
 
 class metadata_v2 {
  public:
@@ -50,20 +55,20 @@ class metadata_v2 {
     impl_->dump(os, icb);
   }
 
-#if 0
   static void get_stat_defaults(struct ::stat* defaults);
 
   size_t size() const { return impl_->size(); }
 
   bool empty() const { return !impl_ || impl_->empty(); }
 
+  void walk(std::function<void(entry_view)> const& func) const {
+    impl_->walk(func);
+  }
+
+#if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  void walk(std::function<void(const dir_entry*)> const& func) const {
-    impl_->walk(func);
-  }
 
   const dir_entry* find(const char* path) const { return impl_->find(path); }
 
@@ -116,13 +121,15 @@ class metadata_v2 {
     virtual void dump(
         std::ostream& os,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
-#if 0
+
     virtual size_t size() const = 0;
     virtual bool empty() const = 0;
+
+    virtual void
+    walk(std::function<void(entry_view)> const& func) const = 0;
+#if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual void
-    walk(std::function<void(const dir_entry*)> const& func) const = 0;
     virtual const dir_entry* find(const char* path) const = 0;
     virtual const dir_entry* find(int inode) const = 0;
     virtual const dir_entry* find(int inode, const char* name) const = 0;

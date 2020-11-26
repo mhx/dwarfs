@@ -36,16 +36,10 @@
 
 namespace dwarfs {
 
-// TODO: merge this into the metadata implementation behind interface
-
 template <typename LoggerPolicy>
 class metadata_v2_ : public metadata_v2::impl {
  public:
-  template <typename T>
-  using view = typename ::apache::thrift::frozen::View<T>;
-  using entry_view = view<thrift::metadata::entry>;
-  using directory_view = view<thrift::metadata::directory>;
-
+  // TODO: pass folly::ByteRange instead of vector (so we can support memory mapping)
   metadata_v2_(logger& lgr, std::vector<uint8_t>&& meta,
                const struct ::stat* /*defaults*/)
       : data_(std::move(meta))
@@ -68,18 +62,19 @@ class metadata_v2_ : public metadata_v2::impl {
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
-#if 0
   size_t size() const override { return data_.size(); }
 
   bool empty() const override { return data_.empty(); }
 
+  void walk(std::function<void(entry_view)> const& func) const override;
+
+#if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
   }
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
 
-  void walk(std::function<void(const dir_entry*)> const& func) const override;
   const dir_entry* find(const char* path) const override;
   const dir_entry* find(int inode) const override;
   const dir_entry* find(int inode, const char* name) const override;
@@ -128,10 +123,14 @@ class metadata_v2_ : public metadata_v2::impl {
     }
   }
 
-#if 0
-  void walk(const dir_entry* de,
-            std::function<void(const dir_entry*)> const& func) const;
+  directory_view getdir(entry_view entry) const {
+    return meta_.directories()[entry.inode()];
+  }
 
+  void walk(entry_view entry,
+            std::function<void(entry_view)> const& func) const;
+
+#if 0
   std::string name(const dir_entry* de) const {
     return std::string(as<char>(de->name_offset), de->name_size);
   }
@@ -147,10 +146,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   const char* linkptr(const dir_entry* de) const {
     return as<char>(de->u.offset + sizeof(uint16_t));
-  }
-
-  const directory* getdir(const dir_entry* de) const {
-    return as<directory>(de->u.offset);
   }
 
   template <typename T>
@@ -255,6 +250,27 @@ std::string metadata_v2_<LoggerPolicy>::modestring(uint16_t mode) const {
   return oss.str();
 }
 
+template <typename LoggerPolicy>
+void metadata_v2_<LoggerPolicy>::walk(
+    entry_view entry,
+    std::function<void(entry_view)> const& func) const {
+  func(entry);
+  if (S_ISDIR(entry.mode())) {
+    auto dir = getdir(entry);
+    auto curr = dir.first_entry();
+    auto last = curr + dir.entry_count();
+    while (curr < last) {
+      walk(meta_.entries()[curr++], func);
+    }
+  }
+}
+
+template <typename LoggerPolicy>
+void metadata_v2_<LoggerPolicy>::walk(
+    std::function<void(entry_view)> const& func) const {
+  walk(root_, func);
+}
+
 #if 0
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::parse(const struct ::stat* defaults) {
@@ -323,25 +339,6 @@ void metadata_<LoggerPolicy>::parse(const struct ::stat* defaults) {
   dir_reader_ = dir_reader::create(cfg_->de_type, stat_defaults,
                                    reinterpret_cast<const char*>(data_.data()),
                                    inode_offset_);
-}
-
-template <typename LoggerPolicy>
-void metadata_<LoggerPolicy>::walk(
-    const dir_entry* de,
-    std::function<void(const dir_entry*)> const& func) const {
-  func(de);
-  if (S_ISDIR(de->mode)) {
-    auto dir = getdir(de);
-    for (size_t i = 0; i < dir->count; ++i) {
-      walk(dir_reader_->readdir(dir, i), func);
-    }
-  }
-}
-
-template <typename LoggerPolicy>
-void metadata_<LoggerPolicy>::walk(
-    std::function<void(const dir_entry*)> const& func) const {
-  walk(root_, func);
 }
 
 template <typename LoggerPolicy>
@@ -514,7 +511,9 @@ metadata_<LoggerPolicy>::get_chunks(int inode, size_t& num) const {
   return as<chunk_type>(off);
 }
 
-void metadata::get_stat_defaults(struct ::stat* defaults) {
+#endif
+
+void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   ::memset(defaults, 0, sizeof(struct ::stat));
   defaults->st_uid = ::geteuid();
   defaults->st_gid = ::getegid();
@@ -523,7 +522,6 @@ void metadata::get_stat_defaults(struct ::stat* defaults) {
   defaults->st_mtime = t;
   defaults->st_ctime = t;
 }
-#endif
 
 metadata_v2::metadata_v2(logger& lgr, std::vector<uint8_t>&& data,
                          const struct ::stat* defaults)
