@@ -683,6 +683,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsw.write_metadata_v2_schema(std::move(schema));
   fsw.write_metadata_v2(std::move(data));
 
+  log_.info() << "waiting for compression tasks to finish...";
+
   fsw.flush();
 
   log_.info() << "compressed " << size_with_unit(prog.original_size) << " to "
