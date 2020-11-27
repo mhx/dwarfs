@@ -21,7 +21,7 @@
 
 #include <algorithm>
 
-#include <cstring>
+#include <cassert>
 
 #include <unistd.h>
 
@@ -52,6 +52,17 @@ uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
 boost::integer_range<uint32_t> directory_view::entry_range() const {
   auto first = first_entry();
   return boost::irange(first, first + entry_count());
+}
+
+uint32_t directory_view::self_inode() {
+  auto pos = getPosition().bitOffset;
+  if (pos > 0) {
+    // XXX: this is evil trickery...
+    auto one = meta_->directories()[1].getPosition().bitOffset;
+    assert(pos % one == 0);
+    pos /= one;
+  }
+  return pos;
 }
 
 template <typename LoggerPolicy>
@@ -96,6 +107,9 @@ class metadata_v2_ : public metadata_v2::impl {
 
   std::optional<directory_view> opendir(entry_view entry) const override;
 
+  std::optional<std::pair<entry_view, std::string_view>>
+  readdir(directory_view dir, size_t offset) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -105,8 +119,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int access(entry_view entry, int mode, uid_t uid,
              gid_t gid) const override;
-  entry_view
-  readdir(directory_view d, size_t offset, std::string* name) const override;
   size_t dirsize(directory_view d) const override {
     return d->count + 2; // adds '.' and '..', which we fake in ;-)
   }
@@ -123,8 +135,12 @@ class metadata_v2_ : public metadata_v2::impl {
     return entry_view(meta_.entries()[index], &meta_);
   }
 
+  entry_view make_entry_view_from_inode(uint32_t inode) const {
+    return make_entry_view(meta_.entry_index()[inode]);
+  }
+
   directory_view make_directory_view(size_t index) const {
-    return directory_view(meta_.directories()[index]);
+    return directory_view(meta_.directories()[index], &meta_);
   }
 
   void dump(std::ostream& os, const std::string& indent, entry_view entry,
@@ -170,7 +186,7 @@ class metadata_v2_ : public metadata_v2::impl {
     inode -= inode_offset_;
     std::optional<entry_view> rv;
     if (inode >= 0 && inode < int(meta_.entry_index().size())) {
-      rv = make_entry_view(meta_.entry_index()[inode]);
+      rv = make_entry_view_from_inode(inode);
     }
     return rv;
   }
@@ -228,7 +244,9 @@ void metadata_v2_<LoggerPolicy>::dump(
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto count = dir.entry_count();
   auto first = dir.first_entry();
-  os << indent << "(" << count << ") entries\n";
+
+  os << indent << "(" << count << ") entries [" << dir.self_inode() << ":"
+     << dir.parent_inode() << "]\n";
 
   for (size_t i = 0; i < count; ++i) {
     dump(os, indent, make_entry_view(first + i), icb);
@@ -380,6 +398,31 @@ metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
   return rv;
 }
 
+template <typename LoggerPolicy>
+std::optional<std::pair<entry_view, std::string_view>>
+metadata_v2_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+  switch (offset) {
+  case 0:
+    return std::pair(make_entry_view_from_inode(dir.self_inode()), ".");
+
+  case 1:
+    return std::pair(make_entry_view_from_inode(dir.parent_inode()), "..");
+
+  default:
+    offset -= 2;
+
+    if (offset >= dir.entry_count()) {
+      break;
+    }
+
+    auto entry = make_entry_view(dir.first_entry() + offset);
+
+    return std::pair(entry, entry.name());
+  }
+
+  return std::nullopt;
+}
+
 #if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
@@ -394,44 +437,6 @@ int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
   }
 
   return -1;
-}
-
-template <typename LoggerPolicy>
-entry_view
-metadata_v2_<LoggerPolicy>::readdir(directory_view d, size_t offset,
-                                 std::string* name) const {
-  entry_view entry;
-
-  switch (offset) {
-  case 0:
-    entry = as<dir_entry>(d->self);
-
-    if (name) {
-      name->assign(".");
-    }
-    break;
-
-  case 1:
-    entry = as<dir_entry>(d->parent);
-
-    if (name) {
-      name->assign("..");
-    }
-    break;
-
-  default:
-    offset -= 2;
-
-    if (offset < d->count) {
-      entry = dir_reader_->readdir(d, offset, name);
-    } else {
-      return nullptr;
-    }
-
-    break;
-  }
-
-  return entry;
 }
 
 template <typename LoggerPolicy>
