@@ -55,7 +55,8 @@ class entry_view
 
   std::string_view name() const;
   uint16_t mode() const;
-  // size_t size() const;
+  uint16_t getuid() const;
+  uint16_t getgid() const;
 
  private:
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*

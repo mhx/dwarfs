@@ -45,6 +45,10 @@ std::string_view entry_view::name() const {
 
 uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
 
+uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
+
+uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
+
 boost::integer_range<uint32_t> directory_view::entry_range() const {
   auto first = first_entry();
   return boost::irange(first, first + entry_count());
@@ -332,12 +336,11 @@ std::optional<entry_view> metadata_v2_<LoggerPolicy>::find(int inode) const {
 
 template <typename LoggerPolicy>
 std::optional<entry_view>
-metadata_v2_<LoggerPolicy>::find(int inode,
-                                 const char* name) const { // TODO: string_view?
+metadata_v2_<LoggerPolicy>::find(int inode, const char* name) const {
   auto entry = get_entry(inode);
 
   if (entry) {
-    entry = find(getdir(*entry), std::string_view(name)); // TODO
+    entry = find(getdir(*entry), std::string_view(name));
   }
 
   return entry;
@@ -349,16 +352,17 @@ int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = entry.mode();
+  auto timebase = meta_.timestamp_base();
 
   stbuf->st_mode = mode & READ_ONLY_MASK;
   stbuf->st_size = file_size(entry, mode);
   stbuf->st_ino = entry.inode() + inode_offset_;
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
-  // stbuf->st_uid = getuid(de);    // TODO
-  // stbuf->st_gid = getgid(de);
-  // stbuf->st_atime = real_de->atime;
-  // stbuf->st_mtime = real_de->mtime;
-  // stbuf->st_ctime = real_de->ctime;
+  stbuf->st_uid = entry.getuid();
+  stbuf->st_gid = entry.getgid();
+  stbuf->st_atime = timebase + entry.atime_offset();
+  stbuf->st_mtime = timebase + entry.mtime_offset();
+  stbuf->st_ctime = timebase + entry.ctime_offset();
 
   return 0;
 }
