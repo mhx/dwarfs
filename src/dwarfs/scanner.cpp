@@ -36,7 +36,6 @@
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
-#include "dwarfs/metadata_writer.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"

@@ -108,7 +108,6 @@ list(
   src/dwarfs/metadata.cpp
   src/dwarfs/metadata_types.cpp
   src/dwarfs/metadata_v2.cpp
-  src/dwarfs/metadata_writer.cpp
   src/dwarfs/mmap.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_posix.cpp
