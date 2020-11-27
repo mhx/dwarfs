@@ -118,6 +118,11 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int open(entry_view entry) const override;
 
+  int readlink(entry_view entry, std::string* buf) const override;
+
+  folly::Expected<std::string_view, int>
+  readlink(entry_view entry) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -125,8 +130,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
 
-  int readlink(entry_view entry, char* buf, size_t size) const override;
-  int readlink(entry_view entry, std::string* buf) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
 
   const chunk_type* get_chunks(int inode, size_t& num) const override;
@@ -166,13 +169,11 @@ class metadata_v2_ : public metadata_v2::impl {
     return size;
   }
 
-  size_t link_size(entry_view entry) const { return link_name(entry).size(); }
-
   size_t file_size(entry_view entry, uint16_t mode) const {
     if (S_ISREG(mode)) {
       return reg_file_size(entry);
     } else if (S_ISLNK(mode)) {
-      return link_size(entry);
+      return link_value(entry).size();
     } else {
       return 0;
     }
@@ -194,7 +195,7 @@ class metadata_v2_ : public metadata_v2::impl {
     return rv;
   }
 
-  std::string_view link_name(entry_view entry) const {
+  std::string_view link_value(entry_view entry) const {
     return meta_
         .links()[meta_.link_index()[entry.inode()] - meta_.link_index_offset()];
   }
@@ -235,7 +236,7 @@ void metadata_v2_<LoggerPolicy>::dump(
   } else if (S_ISDIR(mode)) {
     dump(os, indent + "  ", make_directory_view(inode), std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> " << link_name(entry) << "\n";
+    os << " -> " << link_value(entry) << "\n";
   } else {
     os << " (unknown type)\n";
   }
@@ -469,38 +470,27 @@ int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
   return -1;
 }
 
-#if 0
-template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::readlink(entry_view entry, char* buf,
-                                      size_t size) const {
-  if (S_ISLNK(entry->mode)) {
-    size_t lsize = linksize(entry);
-
-    ::memcpy(buf, linkptr(entry), std::min(lsize, size));
-
-    if (size > lsize) {
-      buf[lsize] = '\0';
-    }
-
-    return 0;
-  }
-
-  return -EINVAL;
-}
-
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::readlink(entry_view entry,
-                                      std::string* buf) const {
-  if (S_ISLNK(entry->mode)) {
-    size_t lsize = linksize(entry);
-
-    buf->assign(linkptr(entry), lsize);
-
+                                         std::string* buf) const {
+  if (S_ISLNK(entry.mode())) {
+    buf->assign(link_value(entry));
     return 0;
   }
 
   return -EINVAL;
 }
+
+template <typename LoggerPolicy>
+folly::Expected<std::string_view, int>
+metadata_v2_<LoggerPolicy>::readlink(entry_view entry) const {
+  if (S_ISLNK(entry.mode())) {
+    return link_value(entry);
+  }
+
+  return folly::makeUnexpected(-EINVAL);
+}
+#if 0
 
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {

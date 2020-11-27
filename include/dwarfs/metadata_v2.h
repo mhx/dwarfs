@@ -34,6 +34,8 @@
 
 #include <boost/range/irange.hpp>
 
+#include <folly/Expected.h>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include "fstypes.h"
@@ -138,18 +140,18 @@ class metadata_v2 {
 
   int open(entry_view entry) const { return impl_->open(entry); }
 
+  int readlink(entry_view entry, std::string* buf) const {
+    return impl_->readlink(entry, buf);
+  }
+
+  folly::Expected<std::string_view, int> readlink(entry_view entry) const {
+    return impl_->readlink(entry);
+  }
+
 #if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  int readlink(entry_view entry, char* buf, size_t size) const {
-    return impl_->readlink(entry, buf, size);
-  }
-
-  int readlink(entry_view entry, std::string* buf) const {
-    return impl_->readlink(entry, buf);
-  }
 
   int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
 
@@ -190,11 +192,14 @@ class metadata_v2 {
 
     virtual int open(entry_view entry) const = 0;
 
+    virtual int readlink(entry_view entry, std::string* buf) const = 0;
+
+    virtual folly::Expected<std::string_view, int>
+    readlink(entry_view entry) const = 0;
+
 #if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual int readlink(entry_view entry, char* buf, size_t size) const = 0;
-    virtual int readlink(entry_view entry, std::string* buf) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
     virtual const chunk_type* get_chunks(int inode, size_t& num) const = 0;
 #endif
