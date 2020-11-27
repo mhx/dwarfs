@@ -183,16 +183,19 @@ class block_cache_ : public block_cache::impl {
     log_.info() << "stopping cache workers";
     wg_.stop();
     log_.debug() << "cached blocks:";
+
     for (const auto& cb : cache_) {
       log_.debug() << "  block " << cb.first << ", decompression ratio = "
                    << double(cb.second->range_end()) /
                           double(cb.second->uncompressed_size());
     }
+
     double fast_hit_rate =
         100.0 * (active_hits_fast_ + cache_hits_fast_) / range_requests_;
     double slow_hit_rate =
         100.0 * (active_hits_slow_ + cache_hits_slow_) / range_requests_;
     double miss_rate = 100.0 - (fast_hit_rate + slow_hit_rate);
+
     log_.info() << "blocks created: " << blocks_created_.load();
     log_.info() << "blocks evicted: " << blocks_evicted_.load();
     log_.info() << "request sets merged: " << sets_merged_.load();
@@ -201,9 +204,11 @@ class block_cache_ : public block_cache::impl {
     log_.info() << "active hits (slow): " << active_hits_slow_.load();
     log_.info() << "cache hits (fast): " << cache_hits_fast_.load();
     log_.info() << "cache hits (slow): " << cache_hits_slow_.load();
-    log_.info() << "fast hit rate:" << fast_hit_rate << "%";
-    log_.info() << "slow hit rate:" << slow_hit_rate << "%";
-    log_.info() << "miss rate:" << miss_rate << "%";
+
+    // TODO: use fmt::format
+    log_.info() << "fast hit rate: " << fast_hit_rate << "%";
+    log_.info() << "slow hit rate: " << slow_hit_rate << "%";
+    log_.info() << "miss rate: " << miss_rate << "%";
   }
 
   size_t block_count() const override { return block_.size(); }

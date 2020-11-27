@@ -657,7 +657,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mw.write(mconf);
   mw.finish_section();
 
-  fsw.write_metadata(std::move(metadata_vec));
+  // TODO: remove all metadata v1 code
+  // fsw.write_metadata(std::move(metadata_vec));
 
   {
     std::vector<thrift::metadata::directory> tmp = std::move(mv2.directories);
@@ -683,23 +684,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsw.write_metadata_v2(std::move(data));
 
   fsw.flush();
-
-  // ::apache::thrift::frozen::freezeToFile(mv2, folly::File("metadata.frozen",
-  // O_RDWR | O_CREAT));
-
-  // auto mapping = folly::MemoryMapping("metadata.frozen");
-
-  // ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
-  // ::apache::thrift::frozen::schema::Schema schema;
-  // auto range = mapping.range();
-  // apache::thrift::CompactSerializer::deserialize(range, schema);
-
-  // log_.info() << ::apache::thrift::debugString(schema);
-
-  // auto mapped =
-  // ::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(std::move(mapping));
-
-  // log_.info() << ::apache::thrift::debugString(mapped.thaw());
 
   log_.info() << "compressed " << size_with_unit(prog.original_size) << " to "
               << size_with_unit(prog.compressed_size) << " (ratio="
