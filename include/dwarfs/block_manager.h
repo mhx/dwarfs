@@ -24,7 +24,7 @@
 #include <memory>
 #include <vector>
 
-#include "logger.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 

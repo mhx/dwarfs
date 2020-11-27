@@ -30,8 +30,8 @@
 #include <sys/statvfs.h>
 #include <sys/types.h>
 
-#include "fstypes.h"
-#include "logger.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 

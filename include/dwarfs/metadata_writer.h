@@ -24,8 +24,8 @@
 #include <string_view>
 #include <vector>
 
-#include "fstypes.h"
-#include "logger.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 

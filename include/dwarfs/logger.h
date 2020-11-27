@@ -31,7 +31,7 @@
 #include <tuple>
 #include <type_traits>
 
-#include "util.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 

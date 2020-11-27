@@ -23,7 +23,7 @@
 
 #include <string>
 
-#include "mmif.h"
+#include "dwarfs/mmif.h"
 
 namespace dwarfs {
 

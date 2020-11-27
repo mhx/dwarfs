@@ -24,8 +24,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cyclic_hash.h"
-#include "logger.h"
+#include "dwarfs/cyclic_hash.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 

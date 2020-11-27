@@ -24,8 +24,8 @@
 #include <memory>
 #include <string>
 
-#include "block_manager.h"
-#include "worker_group.h"
+#include "dwarfs/block_manager.h"
+#include "dwarfs/worker_group.h"
 
 namespace dwarfs {
 

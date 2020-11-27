@@ -26,7 +26,7 @@
 
 #include <sys/stat.h>
 
-#include "mmif.h"
+#include "dwarfs/mmif.h"
 
 namespace dwarfs {
 

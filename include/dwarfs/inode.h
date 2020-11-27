@@ -22,7 +22,7 @@
 #include <ostream>
 #include <vector>
 
-#include "fstypes.h"
+#include "dwarfs/fstypes.h"
 
 namespace dwarfs {
 

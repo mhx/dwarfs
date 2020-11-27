@@ -23,7 +23,7 @@
 
 #include <memory>
 
-#include "script.h"
+#include "dwarfs/script.h"
 
 namespace dwarfs {
 

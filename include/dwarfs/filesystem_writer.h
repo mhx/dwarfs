@@ -24,8 +24,8 @@
 #include <ostream>
 #include <vector>
 
-#include "fstypes.h"
-#include "worker_group.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/worker_group.h"
 
 namespace dwarfs {
 

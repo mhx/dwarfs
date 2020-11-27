@@ -24,8 +24,8 @@
 #include <array>
 #include <ostream>
 
-#include "logger.h"
-#include "progress.h"
+#include "dwarfs/logger.h"
+#include "dwarfs/progress.h"
 
 namespace dwarfs {
 

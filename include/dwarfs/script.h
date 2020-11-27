@@ -25,8 +25,8 @@
 #include <memory>
 #include <vector>
 
-#include "file_interface.h"
-#include "file_vector.h"
+#include "dwarfs/file_interface.h"
+#include "dwarfs/file_vector.h"
 
 namespace dwarfs {
 

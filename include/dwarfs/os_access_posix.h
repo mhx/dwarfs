@@ -24,7 +24,7 @@
 #include <memory>
 #include <string>
 
-#include "os_access.h"
+#include "dwarfs/os_access.h"
 
 namespace dwarfs {
 

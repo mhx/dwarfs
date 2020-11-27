@@ -25,8 +25,8 @@
 #include <memory>
 #include <ostream>
 
-#include "file_interface.h"
-#include "inode.h"
+#include "dwarfs/file_interface.h"
+#include "dwarfs/inode.h"
 
 namespace dwarfs {
 
