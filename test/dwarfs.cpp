@@ -27,6 +27,7 @@
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem.h"
+#include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options.h"
@@ -162,6 +163,31 @@ using namespace dwarfs;
 
 namespace {
 
+dir_entry const* get_entry(dir_entry const* de) { return de; }
+
+entry_view get_entry(std::optional<entry_view> entry) { return *entry; }
+
+template <typename T>
+void test_created_filesystem(T const& fs) {
+  auto de = fs.find("/foo.pl");
+  struct ::stat st;
+
+  ASSERT_TRUE(de);
+
+  auto entry = get_entry(de);
+
+  EXPECT_EQ(fs.getattr(entry, &st), 0);
+  EXPECT_EQ(st.st_size, 23456);
+
+  int inode = fs.open(entry);
+  EXPECT_GE(inode, 0);
+
+  std::vector<char> buf(st.st_size);
+  ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
+  EXPECT_EQ(rv, st.st_size);
+  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.st_size));
+}
+
 void basic_end_to_end_test(const std::string& compressor,
                            unsigned block_size_bits, file_order_mode file_order,
                            bool no_owner, bool no_time) {
@@ -194,24 +220,16 @@ void basic_end_to_end_test(const std::string& compressor,
 
   s.scan(fsw, "/", prog);
 
+  auto mm = std::make_shared<test::mmap_mock>(oss.str());
+
   block_cache_options bco;
   bco.max_bytes = 1 << 20;
-  filesystem fs(lgr, std::make_shared<test::mmap_mock>(oss.str()), bco);
 
-  auto de = fs.find("/foo.pl");
-  struct ::stat st;
+  filesystem fs(lgr, mm, bco);
+  test_created_filesystem(fs);
 
-  ASSERT_NE(de, nullptr);
-  EXPECT_EQ(fs.getattr(de, &st), 0);
-  EXPECT_EQ(st.st_size, 23456);
-
-  int inode = fs.open(de);
-  EXPECT_GE(inode, 0);
-
-  std::vector<char> buf(st.st_size);
-  ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
-  EXPECT_EQ(rv, st.st_size);
-  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.st_size));
+  filesystem_v2 fs_v2(lgr, mm, bco);
+  test_created_filesystem(fs_v2);
 }
 
 std::vector<std::string> const compressions{"null",
