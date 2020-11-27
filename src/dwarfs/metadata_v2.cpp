@@ -110,6 +110,10 @@ class metadata_v2_ : public metadata_v2::impl {
   std::optional<std::pair<entry_view, std::string_view>>
   readdir(directory_view dir, size_t offset) const override;
 
+  size_t dirsize(directory_view dir) const override {
+    return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
+  }
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -119,9 +123,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int access(entry_view entry, int mode, uid_t uid,
              gid_t gid) const override;
-  size_t dirsize(directory_view d) const override {
-    return d->count + 2; // adds '.' and '..', which we fake in ;-)
-  }
   int readlink(entry_view entry, char* buf, size_t size) const override;
   int readlink(entry_view entry, std::string* buf) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
@@ -148,7 +149,8 @@ class metadata_v2_ : public metadata_v2::impl {
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
-  std::optional<entry_view> find(directory_view d, std::string_view name) const;
+  std::optional<entry_view>
+  find(directory_view dir, std::string_view name) const;
 
   std::string modestring(uint16_t mode) const;
 
