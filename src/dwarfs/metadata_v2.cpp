@@ -114,6 +114,8 @@ class metadata_v2_ : public metadata_v2::impl {
     return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
   }
 
+  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -121,8 +123,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
 
-  int access(entry_view entry, int mode, uid_t uid,
-             gid_t gid) const override;
   int readlink(entry_view entry, char* buf, size_t size) const override;
   int readlink(entry_view entry, std::string* buf) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
@@ -425,13 +425,41 @@ metadata_v2_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   return std::nullopt;
 }
 
-#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
-                                    gid_t gid) const {
-  return dir_reader_->access(entry, mode, uid, gid);
+                                       gid_t gid) const {
+  if (mode == F_OK) {
+    // easy; we're only interested in the file's existance
+    return 0;
+  }
+
+  int access_mode = 0;
+  int e_mode = entry.mode();
+
+  auto test = [e_mode, &access_mode](uint16_t r_bit, uint16_t x_bit) {
+    if (e_mode & r_bit) {
+      access_mode |= R_OK;
+    }
+    if (e_mode & x_bit) {
+      access_mode |= X_OK;
+    }
+  };
+
+  // Let's build the entry's access mask
+  test(S_IROTH, S_IXOTH);
+
+  if (entry.getgid() == gid) {
+    test(S_IRGRP, S_IXGRP);
+  }
+
+  if (entry.getuid() == uid) {
+    test(S_IRUSR, S_IXUSR);
+  }
+
+  return (access_mode & mode) == mode ? 0 : EACCES;
 }
 
+#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
   if (S_ISREG(entry->mode)) {

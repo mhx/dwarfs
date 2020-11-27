@@ -132,14 +132,14 @@ class metadata_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
+  int access(entry_view de, int mode, uid_t uid, gid_t gid) const {
+    return impl_->access(de, mode, uid, gid);
+  }
+
 #if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  int access(entry_view de, int mode, uid_t uid, gid_t gid) const {
-    return impl_->access(de, mode, uid, gid);
-  }
 
   int readlink(entry_view de, char* buf, size_t size) const {
     return impl_->readlink(de, buf, size);
@@ -185,11 +185,11 @@ class metadata_v2 {
 
     virtual size_t dirsize(directory_view dir) const = 0;
 
+    virtual int access(entry_view de, int mode, uid_t uid, gid_t gid) const = 0;
+
 #if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual int
-    access(entry_view de, int mode, uid_t uid, gid_t gid) const = 0;
     virtual int readlink(entry_view de, char* buf, size_t size) const = 0;
     virtual int readlink(entry_view de, std::string* buf) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
