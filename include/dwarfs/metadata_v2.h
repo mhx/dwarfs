@@ -32,6 +32,7 @@
 #include <sys/statvfs.h>
 #include <sys/types.h>
 
+#include <boost/iterator/iterator_facade.hpp>
 #include <boost/range/irange.hpp>
 
 #include <folly/Expected.h>
@@ -82,6 +83,77 @@ class directory_view
  private:
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
       meta_;
+};
+
+using chunk_view = ::apache::thrift::frozen::View<thrift::metadata::chunk>;
+
+class chunk_range {
+ public:
+  class iterator
+      : public boost::iterator_facade<iterator, chunk_view const,
+                                      boost::random_access_traversal_tag> {
+   public:
+    iterator() = default;
+
+    iterator(::apache::thrift::frozen::MappedFrozen<
+                 thrift::metadata::metadata> const* meta,
+             uint32_t it)
+        : meta_(meta)
+        , it_(it) {}
+
+    iterator(iterator const& other)
+        : meta_(other.meta_)
+        , it_(other.it_) {}
+
+   private:
+    friend class boost::iterator_core_access;
+
+    bool equal(iterator const& other) const {
+      return meta_ == other.meta_ && it_ == other.it_;
+    }
+
+    void increment() { ++it_; }
+
+    void decrement() { --it_; }
+
+    void advance(difference_type n) { it_ += n; }
+
+    difference_type distance_to(iterator const& other) const {
+      return static_cast<difference_type>(other.it_) -
+             static_cast<difference_type>(it_);
+    }
+
+    chunk_view const& dereference() const {
+      view_ = meta_->chunks()[it_];
+      return view_;
+    }
+
+    ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
+        meta_;
+    uint32_t it_{0};
+    mutable chunk_view view_;
+  };
+
+  chunk_range(::apache::thrift::frozen::MappedFrozen<
+                  thrift::metadata::metadata> const* meta,
+              uint32_t begin, uint32_t end)
+      : meta_(meta)
+      , begin_(begin)
+      , end_(end) {}
+
+  iterator begin() const { return iterator(meta_, begin_); }
+
+  iterator end() const { return iterator(meta_, end_); }
+
+  size_t size() const { return end_ - begin_; }
+
+  bool empty() const { return end_ == begin_; }
+
+ private:
+  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
+      meta_;
+  uint32_t begin_{0};
+  uint32_t end_{0};
 };
 
 class metadata_v2 {
@@ -150,15 +222,9 @@ class metadata_v2 {
 
   int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
 
-#if 0
-  size_t block_size() const { return impl_->block_size(); }
-
-  unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  const chunk_type* get_chunks(int inode, size_t& num) const {
-    return impl_->get_chunks(inode, num);
+  std::optional<chunk_range> get_chunks(int inode) const {
+    return impl_->get_chunks(inode);
   }
-#endif
 
   class impl {
    public:
@@ -199,11 +265,7 @@ class metadata_v2 {
 
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
 
-#if 0
-    virtual size_t block_size() const = 0;
-    virtual unsigned block_size_bits() const = 0;
-    virtual const chunk_type* get_chunks(int inode, size_t& num) const = 0;
-#endif
+    virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
   };
 
  private:

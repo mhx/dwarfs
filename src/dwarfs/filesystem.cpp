@@ -23,6 +23,7 @@
 #include <cstring>
 
 #include <folly/Format.h>
+#include <folly/container/Enumerate.h>
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/config.h"
@@ -199,11 +200,17 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os) const {
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump_v2(std::ostream& os) const {
   meta_v2_.dump(os, [&](const std::string& indent, uint32_t inode) {
-    size_t num = 0;
-    const chunk_type* chunk = meta_.get_chunks(inode, num); // TODO
+    auto chunks = meta_v2_.get_chunks(inode);
 
-    os << indent << num << " chunks in inode " << inode << "\n";
-    ir_.dump(os, indent + "  ", chunk, num);
+    if (chunks) {
+      os << indent << chunks->size() << " chunks in inode " << inode << "\n";
+      for (auto chunk : folly::enumerate(*chunks)) {
+        os << indent << "  [" << chunk.index << "] -> (" << chunk->block()
+           << ", " << chunk->offset() << ", " << chunk->size() << ")\n";
+      }
+    }
+
+    // ir_.dump(os, indent + "  ", chunk, num);  // TODO
   });
 }
 

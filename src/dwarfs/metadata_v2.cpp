@@ -125,15 +125,7 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int statvfs(struct ::statvfs* stbuf) const override;
 
-#if 0
-  size_t block_size() const override {
-    return static_cast<size_t>(1) << cfg_->block_size_bits;
-  }
-
-  unsigned block_size_bits() const override { return cfg_->block_size_bits; }
-
-  const chunk_type* get_chunks(int inode, size_t& num) const override;
-#endif
+  std::optional<chunk_range> get_chunks(int inode) const override;
 
  private:
   entry_view make_entry_view(size_t index) const {
@@ -189,7 +181,7 @@ class metadata_v2_ : public metadata_v2::impl {
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
     std::optional<entry_view> rv;
-    if (inode >= 0 && inode < int(meta_.entry_index().size())) {
+    if (inode >= 0 && inode < static_cast<int>(meta_.entry_index().size())) {
       rv = make_entry_view_from_inode(inode);
     }
     return rv;
@@ -199,12 +191,6 @@ class metadata_v2_ : public metadata_v2::impl {
     return meta_
         .links()[meta_.link_index()[entry.inode()] - meta_.link_index_offset()];
   }
-
-#if 0
-  const char* linkptr(entry_view entry) const {
-    return as<char>(entry->u.offset + sizeof(uint16_t));
-  }
-#endif
 
   std::vector<uint8_t> data_;
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> meta_;
@@ -249,7 +235,7 @@ void metadata_v2_<LoggerPolicy>::dump(
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
-  os << indent << "(" << count << ") entries [" << dir.self_inode() << ":"
+  os << "(" << count << " entries) [" << dir.self_inode() << ", "
      << dir.parent_inode() << "]\n";
 
   for (size_t i = 0; i < count; ++i) {
@@ -505,21 +491,19 @@ int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   return 0;
 }
 
-#if 0
 template <typename LoggerPolicy>
-const chunk_type*
-metadata_v2_<LoggerPolicy>::get_chunks(int inode, size_t& num) const {
-  inode -= inode_offset_;
-  if (inode < static_cast<int>(cfg_->chunk_index_offset) ||
-      inode >= static_cast<int>(cfg_->inode_count)) {
-    return nullptr;
+std::optional<chunk_range>
+metadata_v2_<LoggerPolicy>::get_chunks(int inode) const {
+  std::optional<chunk_range> rv;
+  inode -= inode_offset_ + meta_.chunk_index_offset();
+  if (inode >= 0 &&
+      inode < (static_cast<int>(meta_.chunk_index().size()) - 1)) {
+    uint32_t begin = meta_.chunk_index()[inode];
+    uint32_t end = meta_.chunk_index()[inode + 1];
+    rv = chunk_range(&meta_, begin, end);
   }
-  uint32_t off = chunk_index_[inode];
-  num = (chunk_index_[inode + 1] - off) / sizeof(chunk_type);
-  return as<chunk_type>(off);
+  return rv;
 }
-
-#endif
 
 void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   ::memset(defaults, 0, sizeof(struct ::stat));
