@@ -25,8 +25,6 @@
 #include <optional>
 #include <unordered_map>
 
-#include <folly/container/Enumerate.h>
-
 #include <fmt/core.h>
 
 #include "dwarfs/block_cache.h"
@@ -34,7 +32,7 @@
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
-#include "dwarfs/inode_reader.h"
+#include "dwarfs/inode_reader_v2.h"
 #include "dwarfs/progress.h"
 
 namespace dwarfs {
@@ -184,7 +182,7 @@ class filesystem_ : public filesystem_v2::impl {
   log_proxy<LoggerPolicy> log_;
   std::shared_ptr<mmif> mm_;
   metadata_v2 meta_;
-  inode_reader ir_;
+  inode_reader_v2 ir_;
   std::vector<uint8_t> meta_buffer_;
 };
 
@@ -222,24 +220,18 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   cache.set_block_size(meta_.block_size());
 
-  // TODO:
-  // ir_ = inode_reader(lgr, std::move(cache), meta_.block_size_bits());
+  ir_ = inode_reader_v2(lgr, std::move(cache));
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os) const {
   meta_.dump(os, [&](const std::string& indent, uint32_t inode) {
-    auto chunks = meta_.get_chunks(inode);
-
-    if (chunks) {
+    if (auto chunks = meta_.get_chunks(inode)) {
       os << indent << chunks->size() << " chunks in inode " << inode << "\n";
-      for (auto chunk : folly::enumerate(*chunks)) {
-        os << indent << "  [" << chunk.index << "] -> (" << chunk->block()
-           << ", " << chunk->offset() << ", " << chunk->size() << ")\n";
-      }
+      ir_.dump(os, indent + "  ", *chunks);
+    } else {
+      log_.error() << "error reading chunks for inode " << inode;
     }
-
-    // ir_.dump(os, indent + "  ", chunk, num);  // TODO
   });
 }
 

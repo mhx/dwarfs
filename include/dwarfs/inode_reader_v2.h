@@ -38,36 +38,30 @@ class inode_reader_v2 {
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
-#if 0
-  ssize_t read(char* buf, size_t size, off_t offset, const chunk_type* chunk,
-               size_t chunk_count) const {
-    return impl_->read(buf, size, offset, chunk, chunk_count);
+  ssize_t read(char* buf, size_t size, off_t offset, chunk_range chunks) const {
+    return impl_->read(buf, size, offset, chunks);
   }
 
   ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
-                const chunk_type* chunk, size_t chunk_count) const {
-    return impl_->readv(buf, size, offset, chunk, chunk_count);
+                chunk_range chunks) const {
+    return impl_->readv(buf, size, offset, chunks);
   }
 
-  void dump(std::ostream& os, const std::string& indent,
-            const chunk_type* chunk, size_t chunk_count) const {
-    impl_->dump(os, indent, chunk, chunk_count);
+  void
+  dump(std::ostream& os, const std::string& indent, chunk_range chunks) const {
+    impl_->dump(os, indent, chunks);
   }
-#endif
 
   class impl {
    public:
     virtual ~impl() = default;
 
-#if 0
-    virtual ssize_t read(char* buf, size_t size, off_t offset,
-                         const chunk_type* chunk, size_t chunk_count) const = 0;
     virtual ssize_t
-    readv(iovec_read_buf& buf, size_t size, off_t offset,
-          const chunk_type* chunk, size_t chunk_count) const = 0;
+    read(char* buf, size_t size, off_t offset, chunk_range chunks) const = 0;
+    virtual ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
+                          chunk_range chunks) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
-                      const chunk_type* chunk, size_t chunk_count) const = 0;
-#endif
+                      chunk_range chunks) const = 0;
   };
 
  private:

@@ -19,9 +19,11 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cassert>
 #include <cstring>
 #include <mutex>
 
+#include <folly/container/Enumerate.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_cache.h"
@@ -50,21 +52,17 @@ class inode_reader_ : public inode_reader_v2::impl {
                 << iovec_sizes_.getPercentileEstimate(0.99);
   }
 
-#if 0
-  ssize_t read(char* buf, size_t size, off_t offset, const chunk_type* chunk,
-               size_t chunk_count) const override;
+  ssize_t
+  read(char* buf, size_t size, off_t offset, chunk_range chunks) const override;
   ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
-                const chunk_type* chunk, size_t chunk_count) const override;
+                chunk_range chunks) const override;
   void dump(std::ostream& os, const std::string& indent,
-            const chunk_type* chunk, size_t chunk_count) const override;
-#endif
+            chunk_range chunks) const override;
 
  private:
-#if 0
   template <typename StoreFunc>
-  ssize_t read(size_t size, off_t offset, const chunk_type* chunk,
-               size_t chunk_count, const StoreFunc& store) const;
-#endif
+  ssize_t read(size_t size, off_t offset, chunk_range chunks,
+               const StoreFunc& store) const;
 
   block_cache cache_;
   log_proxy<LoggerPolicy> log_;
@@ -72,51 +70,45 @@ class inode_reader_ : public inode_reader_v2::impl {
   mutable std::mutex iovec_sizes_mutex_;
 };
 
-#if 0
 template <typename LoggerPolicy>
-void inode_reader_<LoggerPolicy>::dump(
-    std::ostream& os, const std::string& indent, const chunk_type* chunk,
-    size_t chunk_count) const {
-  for (size_t i = 0; i < chunk_count; ++i) {
-    os << indent << "[" << i << "] block=" << access::block(chunk[i])
-       << ", offset=" << access::offset(chunk[i])
-       << ", size=" << access::size(chunk[i]) << "\n";
+void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
+                                       const std::string& indent,
+                                       chunk_range chunks) const {
+  for (auto chunk : folly::enumerate(chunks)) {
+    os << indent << "  [" << chunk.index << "] -> (block=" << chunk->block()
+       << ", offset=" << chunk->offset() << ", size=" << chunk->size() << ")\n";
   }
 }
 
 template <typename LoggerPolicy>
 template <typename StoreFunc>
 ssize_t
-inode_reader_<LoggerPolicy>::read(size_t size, off_t offset,
-                                                 const chunk_type* chunk,
-                                                 size_t chunk_count,
-                                                 const StoreFunc& store) const {
+inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
+                                  const StoreFunc& store) const {
   if (offset < 0) {
     return -EINVAL;
   }
 
-  if (size == 0 || chunk_count == 0) {
+  if (size == 0 || chunks.empty()) {
     return 0;
   }
 
-  const chunk_type* first = chunk;
-  const chunk_type* last = first + chunk_count;
-  size_t num_read = 0;
+  auto it = chunks.begin();
+  auto end = chunks.end();
 
   // search for the first chunk that contains data from this request
-  while (first < last) {
-    size_t chunksize = access::size(*first);
+  while (it < end) {
+    size_t chunksize = it->size();
 
     if (static_cast<size_t>(offset) < chunksize) {
-      num_read = chunksize - offset;
       break;
     }
 
     offset -= chunksize;
-    ++first;
+    ++it;
   }
 
-  if (first == last) {
+  if (it == end) {
     // offset beyond EOF; TODO: check if this should rather be -EINVAL
     return 0;
   }
@@ -124,38 +116,37 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset,
   // request ranges from block cache
   std::vector<std::future<block_range>> ranges;
 
-  for (chunk = first, num_read = 0; chunk < last and num_read < size; ++chunk) {
-    size_t chunksize = access::size(*chunk) - offset;
-    size_t chunkoff = access::offset(*chunk) + offset;
+  for (size_t num_read = 0; it != end && num_read < size; ++it) {
+    size_t chunksize = it->size() - offset;
+    size_t chunkoff = it->offset() + offset;
 
     if (num_read + chunksize > size) {
       chunksize = size - num_read;
     }
 
-    ranges.emplace_back(cache_.get(access::block(*chunk), chunkoff, chunksize));
+    ranges.emplace_back(cache_.get(it->block(), chunkoff, chunksize));
 
     num_read += chunksize;
     offset = 0;
   }
 
   // now fill the buffer
-  num_read = 0;
+  size_t num_read = 0;
   for (auto& r : ranges) {
     auto br = r.get();
     store(num_read, br);
     num_read += br.size();
   }
 
+  assert(num_read == size);
+
   return num_read;
 }
 
 template <typename LoggerPolicy>
-ssize_t
-inode_reader_<LoggerPolicy>::read(char* buf, size_t size,
-                                                 off_t offset,
-                                                 const chunk_type* chunk,
-                                                 size_t chunk_count) const {
-  return read(size, offset, chunk, chunk_count,
+ssize_t inode_reader_<LoggerPolicy>::read(char* buf, size_t size, off_t offset,
+                                          chunk_range chunks) const {
+  return read(size, offset, chunks,
               [&](size_t num_read, const block_range& br) {
                 ::memcpy(buf + num_read, br.data(), br.size());
               });
@@ -163,24 +154,20 @@ inode_reader_<LoggerPolicy>::read(char* buf, size_t size,
 
 template <typename LoggerPolicy>
 ssize_t
-inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf,
-                                                  size_t size, off_t offset,
-                                                  const chunk_type* chunk,
-                                                  size_t chunk_count) const {
-  auto rv = read(size, offset, chunk, chunk_count,
-                 [&](size_t, const block_range& br) {
-                   buf.buf.resize(buf.buf.size() + 1);
-                   buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
-                   buf.buf.back().iov_len = br.size();
-                   buf.ranges.emplace_back(br);
-                 });
+inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, size_t size,
+                                   off_t offset, chunk_range chunks) const {
+  auto rv = read(size, offset, chunks, [&](size_t, const block_range& br) {
+    buf.buf.resize(buf.buf.size() + 1);
+    buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
+    buf.buf.back().iov_len = br.size();
+    buf.ranges.emplace_back(br);
+  });
   {
     std::lock_guard<std::mutex> lock(iovec_sizes_mutex_);
     iovec_sizes_.addValue(buf.buf.size());
   }
   return rv;
 }
-#endif
 
 } // namespace
 
