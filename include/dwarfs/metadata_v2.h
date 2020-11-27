@@ -162,7 +162,7 @@ class metadata_v2 {
   metadata_v2() = default;
 
   metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-              const struct ::stat* defaults, int inode_offset = 0);
+              const struct ::stat* defaults = nullptr, int inode_offset = 0);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 

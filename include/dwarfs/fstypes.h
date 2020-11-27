@@ -60,7 +60,7 @@ table :-)
 
  *************************/
 
-constexpr uint8_t MAJOR_VERSION = 0;
+constexpr uint8_t MAJOR_VERSION = 1;
 constexpr uint8_t MINOR_VERSION = 0;
 
 enum class section_type : uint16_t {
@@ -237,4 +237,7 @@ struct chunk_access {
 };
 
 std::string get_compression_name(compression_type type);
+
+std::string get_section_name(section_type type);
+
 } // namespace dwarfs

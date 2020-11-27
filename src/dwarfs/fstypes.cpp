@@ -45,6 +45,7 @@ const std::map<section_type, std::string> sections{
 #undef SECTION_TYPE_
 };
 
+// TODO: remove
 const std::map<dir_entry_type, std::string> dir_entries{
 #define DIR_ENTRY_TYPE_(x) {dir_entry_type::x, #x}
     DIR_ENTRY_TYPE_(DIR_ENTRY), DIR_ENTRY_TYPE_(DIR_ENTRY_UG),
@@ -74,6 +75,10 @@ get_default(const HT& ht, const typename HT::key_type& key) {
 
 std::string get_compression_name(compression_type type) {
   return get_default(compressions, type);
+}
+
+std::string get_section_name(section_type type) {
+  return get_default(sections, type);
 }
 
 void section_header::dump(std::ostream& os) const {

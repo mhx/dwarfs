@@ -22,6 +22,9 @@
 #include <cstddef>
 #include <cstring>
 
+#include <optional>
+#include <unordered_map>
+
 #include <folly/container/Enumerate.h>
 
 #include <fmt/core.h>
@@ -40,6 +43,11 @@ namespace {
 
 class filesystem_parser {
  public:
+  struct section {
+    size_t start{0};
+    section_header header;
+  };
+
   filesystem_parser(std::shared_ptr<mmif> mm)
       : mm_(mm)
       , offset_(sizeof(file_header)) {
@@ -49,8 +57,7 @@ class filesystem_parser {
 
     const file_header* fh = mm_->as<file_header>();
 
-    if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0 &&
-        ::memcmp(&fh->magic[0], "NANOFS", 6) != 0) { // keep for compatibility
+    if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
       throw std::runtime_error("magic not found");
     }
 
@@ -87,12 +94,61 @@ class filesystem_parser {
     return false;
   }
 
+  template <typename Logger>
+  std::optional<section> next_section(Logger& lgr) {
+    section rv;
+    if (next_section(rv.header, rv.start, lgr)) {
+      return rv;
+    }
+    return std::nullopt;
+  }
+
   void rewind() { offset_ = sizeof(file_header); }
 
  private:
   std::shared_ptr<mmif> mm_;
   size_t offset_;
 };
+
+using section_map =
+    std::unordered_map<section_type, filesystem_parser::section>;
+
+folly::ByteRange get_section_data(std::shared_ptr<mmif> mm,
+                                  filesystem_parser::section const& section,
+                                  std::vector<uint8_t>& buffer) {
+  if (section.header.compression == compression_type::NONE) {
+    return mm->range(section.start, section.header.length);
+  }
+
+  buffer = block_decompressor::decompress(section.header.compression,
+                                          mm->as<uint8_t>(section.start),
+                                          section.header.length);
+
+  return buffer;
+}
+
+metadata_v2
+make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
+              section_map const& sections, std::vector<uint8_t>& schema_buffer,
+              std::vector<uint8_t>& meta_buffer,
+              const struct ::stat* stat_defaults = nullptr,
+              int inode_offset = 0) {
+  auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
+  auto meta_it = sections.find(section_type::METADATA_V2);
+
+  if (schema_it == sections.end()) {
+    throw std::runtime_error("no metadata schema found");
+  }
+
+  if (meta_it == sections.end()) {
+    throw std::runtime_error("no metadata found");
+  }
+
+  return metadata_v2(lgr,
+                     get_section_data(mm, schema_it->second, schema_buffer),
+                     get_section_data(mm, meta_it->second, meta_buffer),
+                     stat_defaults, inode_offset);
+}
 
 template <typename LoggerPolicy>
 class filesystem_ : public filesystem_v2::impl {
@@ -142,72 +198,24 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
   filesystem_parser parser(mm_);
   block_cache cache(lgr, bc_options);
 
-  section_header sh;
-  section_header sh_schema;
-  section_header sh_data;
-  size_t start;
-  size_t start_schema = 0;
-  size_t start_data = 0;
+  section_map sections;
 
-  while (parser.next_section(sh, start, log_)) {
-    switch (sh.type) {
-    case section_type::BLOCK:
-      cache.insert(sh.compression, mm_->as<uint8_t>(start),
-                   static_cast<size_t>(sh.length));
-      break;
-
-    case section_type::METADATA:
-      // TODO: ignore for now, fail later
-      break;
-
-    case section_type::METADATA_V2_SCHEMA:
-      sh_schema = sh;
-      start_schema = start;
-      break;
-
-    case section_type::METADATA_V2:
-      sh_data = sh;
-      start_data = start;
-      break;
-
-    default:
-      throw std::runtime_error("unknown section");
+  while (auto s = parser.next_section(log_)) {
+    if (s->header.type == section_type::BLOCK) {
+      cache.insert(s->header.compression, mm_->as<uint8_t>(s->start),
+                   static_cast<size_t>(s->header.length));
+    } else {
+      if (!sections.emplace(s->header.type, *s).second) {
+        throw std::runtime_error("duplicate section: " +
+                                 get_section_name(s->header.type));
+      }
     }
   }
 
-  if (start_schema == 0 || sh_schema.length == 0) {
-    throw std::runtime_error("no metadata schema found");
-  }
+  std::vector<uint8_t> schema_buffer;
 
-  if (start_data == 0) {
-    throw std::runtime_error("no metadata found");
-  }
-
-  folly::ByteRange schema;
-  folly::ByteRange data;
-  std::vector<uint8_t> schema_buf;
-
-  if (sh_data.compression == compression_type::NONE) {
-    data = mm_->range(start_data, sh_data.length);
-  } else {
-    meta_buffer_ = block_decompressor::decompress(
-        sh_data.compression, mm_->as<uint8_t>(start_data), sh_data.length);
-    data = meta_buffer_;
-  }
-
-  if (sh_schema.compression == compression_type::NONE) {
-    schema = mm_->range(start_schema, sh_schema.length);
-  } else {
-    schema_buf = block_decompressor::decompress(sh_schema.compression,
-                                                mm_->as<uint8_t>(start_schema),
-                                                sh_schema.length);
-    schema = schema_buf;
-  }
-
-  log_.info() << "schema: " << schema.size() << " (" << sh_schema.length
-              << "), data: " << data.size() << " (" << sh_data.length << ")";
-
-  meta_ = metadata_v2(lgr, schema, data, stat_defaults, inode_offset);
+  meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
+                        stat_defaults, inode_offset);
 
   log_.debug() << "read " << cache.block_count() << " blocks and "
                << meta_.size() << " bytes of metadata";
@@ -344,23 +352,22 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   log_proxy<debug_logger_policy> log(lgr);
   filesystem_parser parser(mm);
 
-  section_header sh;
-  size_t start;
-  std::vector<uint8_t> meta_raw;
-  metadata_v2 meta;
+  section_map sections;
 
-  while (parser.next_section(sh, start, log)) {
-    if (sh.type == section_type::METADATA) {
-      // TODO: only decompress if needed
-      meta_raw = block_decompressor::decompress(
-          sh.compression, mm->as<uint8_t>(start), sh.length);
-      // TODO: FIXME:
-      // meta = metadata_v2(lgr, meta_raw, nullptr);
-      break;
-    } else {
+  while (auto s = parser.next_section(log)) {
+    if (s->header.type == section_type::BLOCK) {
       ++prog.block_count;
+    } else {
+      if (!sections.emplace(s->header.type, *s).second) {
+        throw std::runtime_error("duplicate section: " +
+                                 get_section_name(s->header.type));
+      }
     }
   }
+
+  std::vector<uint8_t> schema_raw;
+  std::vector<uint8_t> meta_raw;
+  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
 
   struct ::statvfs stbuf;
   meta.statvfs(&stbuf);
@@ -368,29 +375,18 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   parser.rewind();
 
-  while (parser.next_section(sh, start, log)) {
+  while (auto s = parser.next_section(log)) {
     // TODO: multi-thread this?
-    switch (sh.type) {
-    case section_type::BLOCK: {
+    if (s->header.type == section_type::BLOCK) {
       auto block = block_decompressor::decompress(
-          sh.compression, mm->as<uint8_t>(start), sh.length);
+          s->header.compression, mm->as<uint8_t>(s->start), s->header.length);
       prog.filesystem_size += block.size();
       writer.write_block(std::move(block));
-      break;
-    }
-
-    case section_type::METADATA:
-      writer.write_metadata(std::move(meta_raw));
-      break;
-
-    case section_type::METADATA_V2:
-      // TODO...
-      break;
-
-    default:
-      throw std::runtime_error("unknown section");
     }
   }
+
+  writer.write_metadata_v2_schema(std::move(schema_raw));
+  writer.write_metadata_v2(std::move(meta_raw));
 
   writer.flush();
 }
@@ -401,31 +397,37 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   log_proxy<debug_logger_policy> log(lgr);
   filesystem_parser parser(mm);
 
-  section_header sh;
-  size_t start;
+  section_map sections;
 
-  while (parser.next_section(sh, start, log)) {
+  while (auto s = parser.next_section(log)) {
     std::vector<uint8_t> tmp;
-    block_decompressor bd(sh.compression, mm->as<uint8_t>(start), sh.length,
-                          tmp);
-    float compression_ratio = float(sh.length) / bd.uncompressed_size();
+    block_decompressor bd(s->header.compression, mm->as<uint8_t>(s->start),
+                          s->header.length, tmp);
+    float compression_ratio = float(s->header.length) / bd.uncompressed_size();
 
-    os << "SECTION " << sh.to_string()
+    os << "SECTION " << s->header.to_string()
        << ", blocksize=" << bd.uncompressed_size()
-       << ", ratio=" << fmt::format("{:.2%}%", compression_ratio) << std::endl;
+       << ", ratio=" << fmt::format("{:.2f}%", compression_ratio) << std::endl;
 
-    // TODO: do we need this?
-    // if (sh.type == section_type::METADATA_V2) {
-    //   // TODO: only decompress if needed
-    //   bd.decompress_frame(bd.uncompressed_size());
-    //   metadata_v2 meta(lgr, tmp, nullptr);
-    //   struct ::statvfs stbuf;
-    //   meta.statvfs(&stbuf);
-    //   os << "block size: " << stbuf.f_bsize << std::endl;
-    //   os << "inode count: " << stbuf.f_files << std::endl;
-    //   os << "original filesystem size: " << stbuf.f_blocks << std::endl;
-    // }
+    if (s->header.type != section_type::BLOCK) {
+      if (!sections.emplace(s->header.type, *s).second) {
+        throw std::runtime_error("duplicate section: " +
+                                 get_section_name(s->header.type));
+      }
+    }
   }
+
+  std::vector<uint8_t> schema_raw;
+  std::vector<uint8_t> meta_raw;
+
+  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
+
+  struct ::statvfs stbuf;
+  meta.statvfs(&stbuf);
+
+  os << "block size: " << stbuf.f_bsize << std::endl;
+  os << "inode count: " << stbuf.f_files << std::endl;
+  os << "original filesystem size: " << stbuf.f_blocks << std::endl;
 }
 
 } // namespace dwarfs
