@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cassert>
 #include <cstring>
 #include <mutex>
 
@@ -137,8 +136,6 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
     store(num_read, br);
     num_read += br.size();
   }
-
-  assert(num_read == size);
 
   return num_read;
 }

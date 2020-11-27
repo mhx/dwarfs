@@ -244,7 +244,7 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         err = EACCES;
       } else {
 #ifdef USE_META_V2
-        fi->fh = de->inode();
+        fi->fh = FUSE_ROOT_ID + de->inode();
 #else
         fi->fh = reinterpret_cast<intptr_t>(de);
 #endif
