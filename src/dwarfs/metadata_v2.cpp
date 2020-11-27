@@ -87,12 +87,14 @@ class metadata_ : public metadata_v2::impl {
       , chunk_index_offset_(meta_.chunk_index_offset())
       , log_(lgr) {
     // TODO: defaults?, remove
-    log_.debug() << ::apache::thrift::debugString(meta_.thaw());
 
-    ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
-    ::apache::thrift::frozen::schema::Schema mem_schema;
-    ::apache::thrift::CompactSerializer::deserialize(schema, mem_schema);
-    log_.debug() << ::apache::thrift::debugString(mem_schema);
+    // TODO: move to separate function (e.g. dump?)
+    //       cannot be done easily with schema, though, as it's temporary
+    // log_.debug() << ::apache::thrift::debugString(meta_.thaw());
+    // ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
+    // ::apache::thrift::frozen::schema::Schema mem_schema;
+    // ::apache::thrift::CompactSerializer::deserialize(schema, mem_schema);
+    // log_.debug() << ::apache::thrift::debugString(mem_schema);
   }
 
   void dump(std::ostream& os,
