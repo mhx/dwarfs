@@ -32,14 +32,7 @@
 
 #include <fuse3/fuse_lowlevel.h>
 
-#define USE_META_V2
-
-#ifdef USE_META_V2
 #include "dwarfs/filesystem_v2.h"
-#else
-#include "dwarfs/filesystem.h"
-#endif
-
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -78,16 +71,9 @@ const struct fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("workers=%s", workers_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0), FUSE_OPT_END};
 
-#ifdef USE_META_V2
-using filesystem = filesystem_v2;
-#define ENTRY_V2(e) (*(e))
-#else
-#define ENTRY_V2(e) (e)
-#endif
-
 options opts;
 stream_logger s_lgr(std::cerr);
-std::shared_ptr<filesystem> s_fs;
+std::shared_ptr<filesystem_v2> s_fs;
 
 void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   DEBUG_FUNC("")
@@ -96,7 +82,7 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   bco.num_workers = opts.workers;
   bco.decompress_ratio = opts.decompress_ratio;
   s_fs =
-      std::make_shared<filesystem>(s_lgr, std::make_shared<mmap>(opts.fsimage),
+      std::make_shared<filesystem_v2>(s_lgr, std::make_shared<mmap>(opts.fsimage),
                                    bco, &opts.stat_defaults, FUSE_ROOT_ID);
 }
 
@@ -111,12 +97,12 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
   int err = ENOENT;
 
   try {
-    auto de = s_fs->find(parent, name);
+    auto entry = s_fs->find(parent, name);
 
-    if (de) {
+    if (entry) {
       struct ::fuse_entry_param e;
 
-      err = s_fs->getattr(ENTRY_V2(de), &e.attr);
+      err = s_fs->getattr(*entry, &e.attr);
 
       if (err == 0) {
         e.generation = 1;
@@ -147,12 +133,12 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 
   // TODO: merge with op_lookup
   try {
-    auto de = s_fs->find(ino);
+    auto entry = s_fs->find(ino);
 
-    if (de) {
+    if (entry) {
       struct ::stat stbuf;
 
-      err = s_fs->getattr(ENTRY_V2(de), &stbuf);
+      err = s_fs->getattr(*entry, &stbuf);
 
       if (err == 0) {
         fuse_reply_attr(req, &stbuf, std::numeric_limits<double>::max());
@@ -178,11 +164,11 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
 
   // TODO: merge with op_lookup
   try {
-    auto de = s_fs->find(ino);
+    auto entry = s_fs->find(ino);
 
-    if (de) {
+    if (entry) {
       auto ctx = fuse_req_ctx(req);
-      err = s_fs->access(ENTRY_V2(de), mode, ctx->uid, ctx->gid);
+      err = s_fs->access(*entry, mode, ctx->uid, ctx->gid);
     }
   } catch (const dwarfs::error& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
@@ -201,12 +187,12 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   int err = ENOENT;
 
   try {
-    auto de = s_fs->find(ino);
+    auto entry = s_fs->find(ino);
 
-    if (de) {
+    if (entry) {
       std::string str;
 
-      err = s_fs->readlink(ENTRY_V2(de), &str);
+      err = s_fs->readlink(*entry, &str);
 
       if (err == 0) {
         fuse_reply_readlink(req, str.c_str());
@@ -231,23 +217,15 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   int err = ENOENT;
 
   try {
-    auto de = s_fs->find(ino);
+    auto entry = s_fs->find(ino);
 
-    if (de) {
-#ifdef USE_META_V2
-      if (S_ISDIR(de->mode())) {
-#else
-      if (S_ISDIR(de->mode)) {
-#endif
+    if (entry) {
+      if (S_ISDIR(entry->mode())) {
         err = EISDIR;
       } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
         err = EACCES;
       } else {
-#ifdef USE_META_V2
-        fi->fh = FUSE_ROOT_ID + de->inode();
-#else
-        fi->fh = reinterpret_cast<intptr_t>(de);
-#endif
+        fi->fh = FUSE_ROOT_ID + entry->inode();
         fi->keep_cache = 1;
         fuse_reply_open(req, fi);
         return;
@@ -271,13 +249,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
   int err = ENOENT;
 
   try {
-#ifdef USE_META_V2
     assert(fi->fh == ino);
-#else
-    auto de = reinterpret_cast<const dir_entry*>(fi->fh);
-
-    if (de) {
-#endif
     iovec_read_buf buf;
     ssize_t rv = s_fs->readv(ino, buf, size, off);
 
@@ -291,9 +263,6 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     }
 
     err = -rv;
-#ifndef USE_META_V2
-  }
-#endif
 }
 catch (const dwarfs::error& e) {
   std::cerr << "ERROR: " << e.what() << std::endl;
@@ -314,33 +283,25 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
   int err = ENOENT;
 
   try {
-    auto de = s_fs->find(ino);
+    auto dirent = s_fs->find(ino);
 
-    if (de) {
-      auto d = s_fs->opendir(ENTRY_V2(de));
+    if (dirent) {
+      auto dir = s_fs->opendir(*dirent);
 
-      if (d) {
-        off_t lastoff = s_fs->dirsize(ENTRY_V2(d));
-#ifndef USE_META_V2
-        std::string name;
-#endif
+      if (dir) {
+        off_t lastoff = s_fs->dirsize(*dir);
         struct stat stbuf;
         std::vector<char> buf(size);
         size_t written = 0;
 
         while (off < lastoff) {
-#ifdef USE_META_V2
-          auto res = s_fs->readdir(*d, off);
+          auto res = s_fs->readdir(*dir, off);
           assert(res);
-          auto [de2, name_view] = *res;
-          std::string name(name_view);
-#else
-            auto de2 = s_fs->readdir(d, off, &name);
-#endif
-          s_fs->getattr(de2, &stbuf);
 
-          /// std::cerr << ">>> " << off << "/" << lastoff << " - " << name << "
-          /// - " << stbuf.st_ino << std::endl;
+          auto [entry, name_view] = *res;
+          std::string name(name_view);
+
+          s_fs->getattr(entry, &stbuf);
 
           size_t needed =
               fuse_add_direntry(req, &buf[written], buf.size() - written,

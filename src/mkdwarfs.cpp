@@ -47,7 +47,7 @@
 #include "dwarfs/block_manager.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
-#include "dwarfs/filesystem.h"
+#include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/lua_script.h"
@@ -458,7 +458,7 @@ int mkdwarfs(int argc, char** argv) {
 
   if (recompress) {
     auto ti = log.timed_info();
-    filesystem::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw);
+    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw);
     wg_writer.wait();
     ti << "filesystem rewritten";
   } else {

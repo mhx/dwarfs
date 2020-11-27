@@ -19,37 +19,22 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <atomic>
 #include <cstring>
 #include <deque>
 #include <functional>
-#include <iostream>
-#include <map>
-#include <mutex>
-#include <set>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <vector>
 
 #include <boost/system/system_error.hpp>
 
-#include <folly/Conv.h>
-#include <folly/String.h>
-#include <folly/small_vector.h>
-
-#include <sparsehash/dense_hash_map>
-#include <sparsehash/dense_hash_set>
-
 #include "dwarfs/config.h"
-#include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/hash_util.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
-#include "dwarfs/metadata.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/metadata_writer.h"
 #include "dwarfs/options.h"
@@ -58,12 +43,6 @@
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
 #include "dwarfs/util.h"
-
-#include "dwarfs/gen-cpp2/metadata_layouts.h"
-#include "dwarfs/gen-cpp2/metadata_types.h"
-#include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 namespace dwarfs {
 
@@ -77,28 +56,6 @@ class scanner_ : public scanner::impl {
   void scan(filesystem_writer& fsw, const std::string& path, progress& prog);
 
  private:
-  template <typename Key, typename Value, typename HashKey = std::hash<Key>>
-  class fast_hash_map : public google::dense_hash_map<Key, Value, HashKey> {
-   public:
-    fast_hash_map() { this->set_empty_key(Key()); }
-  };
-
-  template <typename T, typename HashT = std::hash<T>>
-  class fast_hash_set : public google::dense_hash_set<T, HashT> {
-   public:
-    fast_hash_set() { this->set_empty_key(T()); }
-  };
-
-  // We want these to be ordered
-  // TODO: StringPiece?
-  // TODO: Use dense/unordered maps/sets and sort later?
-  using file_name_table_t =
-      fast_hash_map<size_t, fast_hash_set<std::string_view, folly::Hash>>;
-
-  std::unordered_map<std::string_view, size_t, folly::Hash>
-  compress_names_table(metadata_writer& mw,
-                       const file_name_table_t& file_name) const;
-
   const block_manager::config& cfg_;
   const scanner_options& options_;
   std::shared_ptr<entry_factory> entry_;
@@ -124,94 +81,6 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , wg_(wg)
     , lgr_(lgr)
     , log_(lgr) {}
-
-template <typename LoggerPolicy>
-std::unordered_map<std::string_view, size_t, folly::Hash>
-scanner_<LoggerPolicy>::compress_names_table(
-    metadata_writer& mw, const file_name_table_t& file_name) const {
-  log_.info() << "compressing names table...";
-  auto ti = log_.timed_info();
-
-  google::dense_hash_map<uint32_t, uint32_t> index;
-  using position_vector = folly::small_vector<uint32_t, 4>;
-  std::vector<position_vector> positions;
-  index.set_empty_key(0);
-  uint32_t index_pos = 0;
-
-  std::unordered_map<std::string_view, size_t, folly::Hash> offset;
-  size_t saved = 0;
-  size_t orig_offset = mw.offset();
-
-  std::vector<size_t> sizes(file_name.size());
-  std::transform(file_name.begin(), file_name.end(), sizes.begin(),
-                 [](const auto& p) { return p.first; });
-  std::sort(sizes.begin(), sizes.end(), std::greater<size_t>());
-
-  for (auto size : sizes) {
-    auto nsi = file_name.find(size);
-    assert(nsi != file_name.end());
-    std::vector<std::string_view> names(nsi->second.size());
-    std::copy(nsi->second.begin(), nsi->second.end(), names.begin());
-    std::sort(names.begin(), names.end());
-
-    for (auto k : names) {
-      bool found = false;
-
-      if (!index.empty() && k.size() >= sizeof(uint32_t)) {
-        uint32_t key;
-        std::memcpy(&key, k.data(), sizeof(key));
-        auto it = index.find(key);
-        if (it != index.end()) {
-          for (uint32_t pos : positions[it->second]) {
-            if (std::memcmp(mw.section_data() + pos + sizeof(key),
-                            k.data() + sizeof(key),
-                            k.size() - sizeof(key)) == 0) {
-              offset[k] = mw.section_data_offset() + pos;
-              saved += k.size();
-              found = true;
-              break;
-            }
-          }
-        }
-      } else {
-        auto it = std::search(mw.section_begin(), mw.end(), k.begin(), k.end());
-
-        if (it != mw.end()) {
-          offset[k] = it - mw.begin();
-          saved += k.size();
-          found = true;
-        }
-      }
-
-      if (!found) {
-        offset[k] = mw.offset();
-        mw.write(k);
-
-        if (mw.section_data_size() >= sizeof(uint32_t)) {
-          uint32_t last = mw.section_data_size() - sizeof(uint32_t);
-          while (index_pos <= last) {
-            uint32_t key;
-            std::memcpy(&key, mw.section_data() + index_pos, sizeof(key));
-            auto r = index.insert(std::make_pair(key, positions.size()));
-            uint32_t pos_index;
-            if (r.second) {
-              pos_index = positions.size();
-              positions.resize(pos_index + 1);
-            } else {
-              pos_index = r.first->second;
-            }
-            positions[pos_index].push_back(index_pos++);
-          }
-        }
-      }
-    }
-  }
-
-  ti << "names table: " << size_with_unit(mw.offset() - orig_offset) << " ("
-     << size_with_unit(saved) << " saved)";
-
-  return offset;
-}
 
 class dir_set_inode_visitor : public entry_visitor {
  public:
@@ -250,24 +119,14 @@ class link_set_inode_visitor : public entry_visitor {
 
 class names_and_links_visitor : public entry_visitor {
  public:
-  names_and_links_visitor(metadata_writer& mw, global_entry_data& data)
-      : mw_(mw)
-      , data_(data) {}
+  names_and_links_visitor(global_entry_data& data)
+      : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
 
   void visit(link* p) override {
     data_.add_name(p->name());
     data_.add_link(p->linkname());
-
-    const auto& name = p->linkname();
-    auto r = offset_.emplace(name, mw_.offset());
-    if (r.second) {
-      uint16_t len = folly::to<uint16_t>(name.size());
-      mw_.write(len);
-      mw_.write(name);
-    }
-    p->set_offset(r.first->second);
   }
 
   void visit(dir* p) override {
@@ -277,24 +136,17 @@ class names_and_links_visitor : public entry_visitor {
   }
 
  private:
-  metadata_writer& mw_;
   global_entry_data& data_;
-  std::unordered_map<std::string_view, size_t, folly::Hash> offset_;
 };
 
 class save_directories_visitor : public entry_visitor {
  public:
-  save_directories_visitor(metadata_writer& mw, thrift::metadata::metadata& mv2,
+  save_directories_visitor(thrift::metadata::metadata& mv2,
                            global_entry_data const& ge_data,
-                           std::vector<uint32_t>& dir_index,
-                           std::vector<uint32_t>& index)
-      : mw_(mw)
-      , mv2_(mv2)
+                           std::vector<uint32_t>& dir_index)
+      : mv2_(mv2)
       , ge_data_(ge_data)
-      , dir_index_(dir_index)
-      , cb_([&](const entry* e, size_t offset) {
-        index.at(e->inode_num()) = folly::to<uint32_t>(offset);
-      }) {}
+      , dir_index_(dir_index) {}
 
   void visit(file*) override {
     // nothing
@@ -308,22 +160,15 @@ class save_directories_visitor : public entry_visitor {
     dir_index_.at(p->inode_num()) = mv2_.directories.size();
     p->pack(mv2_, ge_data_);
 
-    p->set_offset(mw_.offset());
-    p->pack(mw_.buffer(p->packed_size()), cb_);
-
     if (!p->has_parent()) {
-      cb_(p, mw_.offset());
-      p->pack_entry(mw_.buffer(p->packed_entry_size()));
       p->pack_entry(mv2_, ge_data_);
     }
   }
 
  private:
-  metadata_writer& mw_;
   thrift::metadata::metadata& mv2_;
   global_entry_data const& ge_data_;
   std::vector<uint32_t>& dir_index_;
-  std::function<void(const entry* e, size_t offset)> cb_;
 };
 
 template <typename LoggerPolicy>
@@ -436,19 +281,13 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "waiting for background scanners...";
   wg_.wait();
 
-  size_t total{0};
   std::unordered_map<std::string_view, std::vector<file*>, folly::Hash>
       file_hash;
-  file_name_table_t file_name;
 
+  // TODO: turn into visitor?
   root->walk([&](entry* ep) {
     if (auto fp = dynamic_cast<file*>(ep)) {
       file_hash[fp->hash()].push_back(fp);
-    }
-    if (ep->has_parent()) {
-      const std::string& name = ep->name();
-      file_name[name.size()].insert(name);
-      total += name.size();
     }
   });
 
@@ -522,30 +361,21 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   im->number_inodes(first_file_inode);
 
   log_.info() << "building metadata...";
-  std::vector<uint8_t> metadata_vec;
-  metadata_writer mw(lgr_, metadata_vec);
+
   global_entry_data ge_data(
       options_.no_time); // TODO: just pass options directly
+
   thrift::metadata::metadata mv2;
   std::vector<uint32_t> dir_index;
   dir_index.resize(first_link_inode);
   mv2.link_index.resize(first_file_inode - first_link_inode);
 
   wg_.add_job([&] {
-    mw.start_section(section_type::META_TABLEDATA);
-
     log_.info() << "saving links...";
-    names_and_links_visitor nlv(mw, ge_data);
+    names_and_links_visitor nlv(ge_data);
     root->accept(nlv);
 
     ge_data.index();
-
-    log_.debug() << "link data size = " << mw.section_data_size();
-
-    log_.info() << "saving names...";
-    auto name_offset = compress_names_table(mw, file_name);
-
-    log_.debug() << "name data size = " << mw.section_data_size();
 
     log_.info() << "updating name offsets...";
     root->walk([&](entry* ep) {
@@ -553,13 +383,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
       if (auto lp = dynamic_cast<link*>(ep)) {
         mv2.link_index.at(ep->inode_num() - first_link_inode) =
             ge_data.get_link_index(lp->linkname());
-      }
-      if (ep->has_parent()) {
-        auto i = name_offset.find(ep->name());
-        if (i == name_offset.end()) {
-          throw std::runtime_error("offset not found for entry name");
-        }
-        ep->set_name_offset(i->second);
       }
     });
   });
@@ -593,74 +416,32 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.debug() << "saved by segmenting: "
                << size_with_unit(prog.saved_by_segmentation);
 
-  // mv2.string_table = std::string(
-  //     reinterpret_cast<char const*>(mw.section_data()),
-  //     mw.section_data_size());
-
-  // TODO: not sure that's actually needed
+  // this is actually needed
   root->set_name(std::string());
 
   log_.info() << "saving chunks...";
-  std::vector<uint32_t> index;
-  index.resize(im->count() + 1);
   mv2.chunk_index.resize(im->count() + 1);
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
-  mw.align(im->chunk_size());
   im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    index.at(ino->num() - first_file_inode) = folly::to<uint32_t>(mw.offset());
     mv2.chunk_index.at(ino->num() - first_file_inode) = mv2.chunks.size();
-    mw.write(ino->chunks());
     ino->append_chunks(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
-  index.at(im->count()) = folly::to<uint32_t>(mw.offset());
   mv2.chunk_index.at(im->count()) = mv2.chunks.size();
 
-  mw.finish_section();
-
-  size_t num_chunks = (index.back() - index.front()) / sizeof(chunk_type);
-
   log_.debug() << "total number of file inodes: " << im->count();
-  log_.debug() << "total number of chunks: " << num_chunks;
-
-  log_.info() << "saving chunk index...";
-  mw.start_section(section_type::META_CHUNK_INDEX);
-  mw.write(index);
-  mw.finish_section();
+  log_.debug() << "total number of chunks: " << mv2.chunks.size();
 
   log_.info() << "saving directories...";
-  index.resize(first_file_inode + im->count());
   mv2.entry_index.resize(first_file_inode + im->count());
-  mw.start_section(section_type::META_DIRECTORIES);
-  save_directories_visitor sdv(mw, mv2, ge_data, dir_index, index);
+  save_directories_visitor sdv(mv2, ge_data, dir_index);
   root->accept(sdv);
-  mw.finish_section();
-
-  log_.info() << "saving inode index...";
-  mw.start_section(section_type::META_INODE_INDEX);
-  mw.write(index);
-  mw.finish_section();
-
-  log_.info() << "saving metadata config...";
-  mw.start_section(section_type::META_CONFIG);
-  meta_config mconf;
-  mconf.block_size_bits = folly::to<uint8_t>(im->block_size_bits());
-  mconf.de_type = entry_->de_type();
-  mconf.unused = 0;
-  mconf.inode_count = first_file_inode + im->count();
-  mconf.orig_fs_size = prog.original_size;
-  mconf.chunk_index_offset = first_file_inode;
-  mconf.inode_index_offset = 0;
-  mw.write(mconf);
-  mw.finish_section();
-
-  // TODO: remove all metadata v1 code
-  // fsw.write_metadata(std::move(metadata_vec));
 
   {
+    // order directories by inode number
     std::vector<thrift::metadata::directory> tmp = std::move(mv2.directories);
     mv2.directories.reserve(tmp.size());
     for (auto i : dir_index) {

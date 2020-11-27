@@ -22,7 +22,6 @@
 #include <iostream>
 #include <vector>
 
-#include "dwarfs/filesystem.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -32,26 +31,22 @@ int main(int argc, char** argv) {
     try {
       dwarfs::stream_logger lgr(std::cerr, dwarfs::logger::DEBUG);
       auto mm = std::make_shared<dwarfs::mmap>(argv[1]);
-      dwarfs::filesystem fs(lgr, mm, dwarfs::block_cache_options());
-      dwarfs::filesystem_v2 fs_v2(lgr, mm, dwarfs::block_cache_options());
+      dwarfs::filesystem_v2 fs(lgr, mm, dwarfs::block_cache_options());
 
       if (argc == 3) {
-        auto de = fs.find(argv[2]);
+        auto entry = fs.find(argv[2]);
 
-        if (de) {
+        if (entry) {
           struct ::stat stbuf;
-          fs.getattr(de, &stbuf);
+          fs.getattr(*entry, &stbuf);
           std::vector<char> data(stbuf.st_size);
           fs.read(stbuf.st_ino, &data[0], data.size(), 0);
           std::cout.write(&data[0], data.size());
         }
       } else {
         // TODO: add more usage options...
-        dwarfs::filesystem::identify(lgr, mm, std::cout);
-        fs.dump(std::cout);
-
         dwarfs::filesystem_v2::identify(lgr, mm, std::cout);
-        fs_v2.dump(std::cout);
+        fs.dump(std::cout);
       }
     } catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << std::endl;
