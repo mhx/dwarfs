@@ -288,7 +288,7 @@ metadata_v2_<LoggerPolicy>::find(directory_view dir,
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
                              [&](auto ix, std::string_view name) {
-                               return make_entry_view(ix).name().compare(name);
+                               return make_entry_view(ix).name() < name;
                              });
 
   std::optional<entry_view> rv;
