@@ -94,6 +94,8 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int getattr(entry_view entry, struct ::stat* stbuf) const override;
 
+  std::optional<directory_view> opendir(entry_view entry) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -103,7 +105,6 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int access(entry_view entry, int mode, uid_t uid,
              gid_t gid) const override;
-  directory_view opendir(entry_view entry) const override;
   entry_view
   readdir(directory_view d, size_t offset, std::string* name) const override;
   size_t dirsize(directory_view d) const override {
@@ -367,20 +368,23 @@ int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
   return 0;
 }
 
+template <typename LoggerPolicy>
+std::optional<directory_view>
+metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
+  std::optional<directory_view> rv;
+
+  if (S_ISDIR(entry.mode())) {
+    rv = getdir(entry);
+  }
+
+  return rv;
+}
+
 #if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
                                     gid_t gid) const {
   return dir_reader_->access(entry, mode, uid, gid);
-}
-
-template <typename LoggerPolicy>
-directory_view metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
-  if (S_ISDIR(entry->mode)) {
-    return getdir(entry);
-  }
-
-  return nullptr;
 }
 
 template <typename LoggerPolicy>
