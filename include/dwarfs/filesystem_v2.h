@@ -33,24 +33,23 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmif.h"
 
 namespace dwarfs {
 
 struct iovec_read_buf;
 struct block_cache_options;
-struct dir_entry;
-struct directory;
 
 class filesystem_writer;
 class progress;
 
-class filesystem {
+class filesystem_v2 {
  public:
-  filesystem(logger& lgr, std::shared_ptr<mmif> mm,
-             const block_cache_options& bc_options,
-             const struct ::stat* stat_defaults = nullptr,
-             int inode_offset = 0);
+  filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
+                const block_cache_options& bc_options,
+                const struct ::stat* stat_defaults = nullptr,
+                int inode_offset = 0);
 
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
                       filesystem_writer& writer);
@@ -59,10 +58,11 @@ class filesystem {
 
   void dump(std::ostream& os) const { impl_->dump(os); }
 
-  void walk(std::function<void(const dir_entry*)> const& func) {
+  void walk(std::function<void(entry_view)> const& func) const {
     impl_->walk(func);
   }
 
+#if 0
   const dir_entry* find(const char* path) const { return impl_->find(path); }
 
   const dir_entry* find(int inode) const { return impl_->find(inode); }
@@ -110,14 +110,15 @@ class filesystem {
   readv(uint32_t inode, iovec_read_buf& buf, size_t size, off_t offset) const {
     return impl_->readv(inode, buf, size, offset);
   }
+#endif
 
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual void dump(std::ostream& os) const = 0;
-    virtual void
-    walk(std::function<void(const dir_entry*)> const& func) const = 0;
+    virtual void walk(std::function<void(entry_view)> const& func) const = 0;
+#if 0
     virtual const dir_entry* find(const char* path) const = 0;
     virtual const dir_entry* find(int inode) const = 0;
     virtual const dir_entry* find(int inode, const char* name) const = 0;
@@ -136,6 +137,7 @@ class filesystem {
     read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                           off_t offset) const = 0;
+#endif
   };
 
  private:

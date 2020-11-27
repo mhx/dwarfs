@@ -27,11 +27,10 @@
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/config.h"
-#include "dwarfs/filesystem.h"
+#include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader.h"
-#include "dwarfs/metadata.h"
 #include "dwarfs/progress.h"
 
 namespace dwarfs {
@@ -93,17 +92,17 @@ class filesystem_parser {
   std::shared_ptr<mmif> mm_;
   size_t offset_;
 };
-} // namespace
 
 template <typename LoggerPolicy>
-class filesystem_ : public filesystem::impl {
+class filesystem_ : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr_, std::shared_ptr<mmif> mm,
               const block_cache_options& bc_options,
               const struct ::stat* stat_defaults, int inode_offset);
 
   void dump(std::ostream& os) const override;
-  void walk(std::function<void(const dir_entry*)> const& func) const override;
+  void walk(std::function<void(entry_view)> const& func) const override;
+#if 0
   const dir_entry* find(const char* path) const override;
   const dir_entry* find(int inode) const override;
   const dir_entry* find(int inode, const char* name) const override;
@@ -122,12 +121,14 @@ class filesystem_ : public filesystem::impl {
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                 off_t offset) const override;
+#endif
 
  private:
   log_proxy<LoggerPolicy> log_;
   std::shared_ptr<mmif> mm_;
-  metadata meta_;
+  metadata_v2 meta_;
   inode_reader ir_;
+  std::vector<uint8_t> meta_buffer_;
 };
 
 template <typename LoggerPolicy>
@@ -151,14 +152,22 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
       break;
 
     case section_type::METADATA:
-      meta_ = metadata(lgr,
-                       block_decompressor::decompress(
-                           sh.compression, mm_->as<uint8_t>(start), sh.length),
-                       stat_defaults, inode_offset);
+      // TODO: ignore for now, fail later
       break;
 
-    case section_type::METADATA_V2:
-      break;
+    case section_type::METADATA_V2: {
+      folly::ByteRange data;
+
+      if (sh.compression == compression_type::NONE) {
+        data = mm_->range(start, sh.length);
+      } else {
+        meta_buffer_ = block_decompressor::decompress(
+            sh.compression, mm_->as<uint8_t>(start), sh.length);
+        data = meta_buffer_;
+      }
+
+      meta_ = metadata_v2(lgr, data, stat_defaults, inode_offset);
+    } break;
 
     default:
       throw std::runtime_error("unknown section");
@@ -174,26 +183,34 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader(lgr, std::move(cache), meta_.block_size_bits());
+  // TODO:
+  // ir_ = inode_reader(lgr, std::move(cache), meta_.block_size_bits());
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os) const {
   meta_.dump(os, [&](const std::string& indent, uint32_t inode) {
-    size_t num = 0;
-    const chunk_type* chunk = meta_.get_chunks(inode, num);
+    auto chunks = meta_.get_chunks(inode);
 
-    os << indent << num << " chunks in inode " << inode << "\n";
-    ir_.dump(os, indent + "  ", chunk, num);
+    if (chunks) {
+      os << indent << chunks->size() << " chunks in inode " << inode << "\n";
+      for (auto chunk : folly::enumerate(*chunks)) {
+        os << indent << "  [" << chunk.index << "] -> (" << chunk->block()
+           << ", " << chunk->offset() << ", " << chunk->size() << ")\n";
+      }
+    }
+
+    // ir_.dump(os, indent + "  ", chunk, num);  // TODO
   });
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::walk(
-    std::function<void(const dir_entry*)> const& func) const {
+    std::function<void(entry_view)> const& func) const {
   meta_.walk(func);
 }
 
+#if 0
 template <typename LoggerPolicy>
 const dir_entry* filesystem_<LoggerPolicy>::find(const char* path) const {
   return meta_.find(path);
@@ -277,16 +294,21 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
   const chunk_type* chunk = meta_.get_chunks(inode, num);
   return ir_.readv(buf, size, offset, chunk, num);
 }
+#endif
 
-filesystem::filesystem(logger& lgr, std::shared_ptr<mmif> mm,
-                       const block_cache_options& bc_options,
-                       const struct ::stat* stat_defaults, int inode_offset)
-    : impl_(make_unique_logging_object<filesystem::impl, filesystem_,
+} // namespace
+
+filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
+                             const block_cache_options& bc_options,
+                             const struct ::stat* stat_defaults,
+                             int inode_offset)
+    : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
           lgr, mm, bc_options, stat_defaults, inode_offset)) {}
 
-void filesystem::rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
-                         filesystem_writer& writer) {
+void filesystem_v2::rewrite(logger& lgr, progress& prog,
+                            std::shared_ptr<mmif> mm,
+                            filesystem_writer& writer) {
   // TODO:
   log_proxy<debug_logger_policy> log(lgr);
   filesystem_parser parser(mm);
@@ -294,14 +316,14 @@ void filesystem::rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
   section_header sh;
   size_t start;
   std::vector<uint8_t> meta_raw;
-  metadata meta;
+  metadata_v2 meta;
 
   while (parser.next_section(sh, start, log)) {
     if (sh.type == section_type::METADATA) {
+      // TODO: only decompress if needed
       meta_raw = block_decompressor::decompress(
           sh.compression, mm->as<uint8_t>(start), sh.length);
-      auto tmp = meta_raw;
-      meta = metadata(lgr, std::move(tmp), nullptr);
+      meta = metadata_v2(lgr, meta_raw, nullptr);
       break;
     } else {
       ++prog.block_count;
@@ -341,8 +363,8 @@ void filesystem::rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
   writer.flush();
 }
 
-void filesystem::identify(logger& lgr, std::shared_ptr<mmif> mm,
-                          std::ostream& os) {
+void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
+                             std::ostream& os) {
   // TODO:
   log_proxy<debug_logger_policy> log(lgr);
   filesystem_parser parser(mm);
@@ -361,9 +383,10 @@ void filesystem::identify(logger& lgr, std::shared_ptr<mmif> mm,
        << ", ratio=" << folly::sformat("{:.2%}%", compression_ratio)
        << std::endl;
 
-    if (sh.type == section_type::METADATA) {
+    if (sh.type == section_type::METADATA_V2) {
+      // TODO: only decompress if needed
       bd.decompress_frame(bd.uncompressed_size());
-      metadata meta(lgr, std::move(tmp), nullptr);
+      metadata_v2 meta(lgr, tmp, nullptr);
       struct ::statvfs stbuf;
       meta.statvfs(&stbuf);
       os << "block size: " << stbuf.f_bsize << std::endl;

@@ -26,7 +26,6 @@
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <vector>
 
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -36,6 +35,7 @@
 #include <boost/range/irange.hpp>
 
 #include <folly/Expected.h>
+#include <folly/Range.h>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
@@ -160,8 +160,8 @@ class metadata_v2 {
  public:
   metadata_v2() = default;
 
-  metadata_v2(logger& lgr, std::vector<uint8_t>&& data,
-              const struct ::stat* defaults, int inode_offset);
+  metadata_v2(logger& lgr, folly::ByteRange data, const struct ::stat* defaults,
+              int inode_offset = 0);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 
@@ -226,6 +226,8 @@ class metadata_v2 {
     return impl_->get_chunks(inode);
   }
 
+  size_t block_size() const { return impl_->block_size(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -266,6 +268,8 @@ class metadata_v2 {
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
 
     virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
+
+    virtual size_t block_size() const = 0;
   };
 
  private:

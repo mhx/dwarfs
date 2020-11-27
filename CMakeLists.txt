@@ -98,6 +98,7 @@ list(
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/filesystem.cpp
+  src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/inode_manager.cpp

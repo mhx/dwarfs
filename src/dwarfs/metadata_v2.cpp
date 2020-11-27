@@ -37,54 +37,24 @@ namespace {
 
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
-}
-
-std::string_view entry_view::name() const {
-  return meta_->names()[name_index()];
-}
-
-uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
-
-uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
-
-uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
-
-boost::integer_range<uint32_t> directory_view::entry_range() const {
-  auto first = first_entry();
-  return boost::irange(first, first + entry_count());
-}
-
-uint32_t directory_view::self_inode() {
-  auto pos = getPosition().bitOffset;
-  if (pos > 0) {
-    // XXX: this is evil trickery...
-    auto one = meta_->directories()[1].getPosition().bitOffset;
-    assert(pos % one == 0);
-    pos /= one;
-  }
-  return pos;
-}
-
 template <typename LoggerPolicy>
-class metadata_v2_ : public metadata_v2::impl {
+class metadata_ : public metadata_v2::impl {
  public:
-  // TODO: pass folly::ByteRange instead of vector (so we can support memory
-  // mapping)
-  metadata_v2_(logger& lgr, std::vector<uint8_t>&& meta,
-               const struct ::stat* /*defaults*/, int inode_offset)
-      : data_(std::move(meta))
+  metadata_(logger& lgr, folly::ByteRange data,
+            const struct ::stat* /*defaults*/, int inode_offset)
+      : data_(data)
       , meta_(::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(
             data_))
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , inode_offset_(inode_offset)
       , chunk_index_offset_(meta_.chunk_index_offset())
       , log_(lgr) {
-    // TODO: defaults?
+    // TODO: defaults?, remove
     log_.debug() << ::apache::thrift::debugString(meta_.thaw());
 
     ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
     ::apache::thrift::frozen::schema::Schema schema;
-    folly::ByteRange range(data_);
+    auto range = data_;
     apache::thrift::CompactSerializer::deserialize(range, schema);
     log_.debug() << ::apache::thrift::debugString(schema);
   }
@@ -126,6 +96,8 @@ class metadata_v2_ : public metadata_v2::impl {
   int statvfs(struct ::statvfs* stbuf) const override;
 
   std::optional<chunk_range> get_chunks(int inode) const override;
+
+  size_t block_size() const override { return meta_.block_size(); }
 
  private:
   entry_view make_entry_view(size_t index) const {
@@ -192,7 +164,7 @@ class metadata_v2_ : public metadata_v2::impl {
         .links()[meta_.link_index()[entry.inode()] - meta_.link_index_offset()];
   }
 
-  std::vector<uint8_t> data_;
+  folly::ByteRange data_;
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
   const int inode_offset_;
@@ -201,7 +173,7 @@ class metadata_v2_ : public metadata_v2::impl {
 };
 
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::dump(
+void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, entry_view entry,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto mode = entry.mode();
@@ -229,7 +201,7 @@ void metadata_v2_<LoggerPolicy>::dump(
 }
 
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::dump(
+void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto count = dir.entry_count();
@@ -244,14 +216,14 @@ void metadata_v2_<LoggerPolicy>::dump(
 }
 
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::dump(
+void metadata_<LoggerPolicy>::dump(
     std::ostream& os,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   dump(os, "", root_, icb);
 }
 
 template <typename LoggerPolicy>
-std::string metadata_v2_<LoggerPolicy>::modestring(uint16_t mode) const {
+std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
   std::ostringstream oss;
 
   oss << (mode & S_ISUID ? 'U' : '-');
@@ -272,7 +244,7 @@ std::string metadata_v2_<LoggerPolicy>::modestring(uint16_t mode) const {
 }
 
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::walk(
+void metadata_<LoggerPolicy>::walk(
     entry_view entry, std::function<void(entry_view)> const& func) const {
   func(entry);
   if (S_ISDIR(entry.mode())) {
@@ -284,15 +256,14 @@ void metadata_v2_<LoggerPolicy>::walk(
 }
 
 template <typename LoggerPolicy>
-void metadata_v2_<LoggerPolicy>::walk(
+void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view)> const& func) const {
   walk(root_, func);
 }
 
 template <typename LoggerPolicy>
 std::optional<entry_view>
-metadata_v2_<LoggerPolicy>::find(directory_view dir,
-                                 std::string_view name) const {
+metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
   auto range = dir.entry_range();
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
@@ -315,7 +286,7 @@ metadata_v2_<LoggerPolicy>::find(directory_view dir,
 
 template <typename LoggerPolicy>
 std::optional<entry_view>
-metadata_v2_<LoggerPolicy>::find(const char* path) const {
+metadata_<LoggerPolicy>::find(const char* path) const {
   while (*path and *path == '/') {
     ++path;
   }
@@ -339,13 +310,13 @@ metadata_v2_<LoggerPolicy>::find(const char* path) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view> metadata_v2_<LoggerPolicy>::find(int inode) const {
+std::optional<entry_view> metadata_<LoggerPolicy>::find(int inode) const {
   return get_entry(inode);
 }
 
 template <typename LoggerPolicy>
 std::optional<entry_view>
-metadata_v2_<LoggerPolicy>::find(int inode, const char* name) const {
+metadata_<LoggerPolicy>::find(int inode, const char* name) const {
   auto entry = get_entry(inode);
 
   if (entry) {
@@ -356,8 +327,8 @@ metadata_v2_<LoggerPolicy>::find(int inode, const char* name) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
-                                        struct ::stat* stbuf) const {
+int metadata_<LoggerPolicy>::getattr(entry_view entry,
+                                     struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = entry.mode();
@@ -378,7 +349,7 @@ int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
-metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
+metadata_<LoggerPolicy>::opendir(entry_view entry) const {
   std::optional<directory_view> rv;
 
   if (S_ISDIR(entry.mode())) {
@@ -390,7 +361,7 @@ metadata_v2_<LoggerPolicy>::opendir(entry_view entry) const {
 
 template <typename LoggerPolicy>
 std::optional<std::pair<entry_view, std::string_view>>
-metadata_v2_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   switch (offset) {
   case 0:
     return std::pair(make_entry_view_from_inode(dir.self_inode()), ".");
@@ -414,8 +385,8 @@ metadata_v2_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
-                                       gid_t gid) const {
+int metadata_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
+                                    gid_t gid) const {
   if (mode == F_OK) {
     // easy; we're only interested in the file's existance
     return 0;
@@ -448,7 +419,7 @@ int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
 }
 
 template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
+int metadata_<LoggerPolicy>::open(entry_view entry) const {
   if (S_ISREG(entry.mode())) {
     return entry.inode();
   }
@@ -457,8 +428,8 @@ int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::readlink(entry_view entry,
-                                         std::string* buf) const {
+int metadata_<LoggerPolicy>::readlink(entry_view entry,
+                                      std::string* buf) const {
   if (S_ISLNK(entry.mode())) {
     buf->assign(link_value(entry));
     return 0;
@@ -469,7 +440,7 @@ int metadata_v2_<LoggerPolicy>::readlink(entry_view entry,
 
 template <typename LoggerPolicy>
 folly::Expected<std::string_view, int>
-metadata_v2_<LoggerPolicy>::readlink(entry_view entry) const {
+metadata_<LoggerPolicy>::readlink(entry_view entry) const {
   if (S_ISLNK(entry.mode())) {
     return link_value(entry);
   }
@@ -478,7 +449,7 @@ metadata_v2_<LoggerPolicy>::readlink(entry_view entry) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   stbuf->f_bsize = meta_.block_size();
@@ -493,7 +464,7 @@ int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
 
 template <typename LoggerPolicy>
 std::optional<chunk_range>
-metadata_v2_<LoggerPolicy>::get_chunks(int inode) const {
+metadata_<LoggerPolicy>::get_chunks(int inode) const {
   std::optional<chunk_range> rv;
   inode -= inode_offset_ + meta_.chunk_index_offset();
   if (inode >= 0 &&
@@ -503,6 +474,34 @@ metadata_v2_<LoggerPolicy>::get_chunks(int inode) const {
     rv = chunk_range(&meta_, begin, end);
   }
   return rv;
+}
+
+} // namespace
+
+std::string_view entry_view::name() const {
+  return meta_->names()[name_index()];
+}
+
+uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
+
+uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
+
+uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
+
+boost::integer_range<uint32_t> directory_view::entry_range() const {
+  auto first = first_entry();
+  return boost::irange(first, first + entry_count());
+}
+
+uint32_t directory_view::self_inode() {
+  auto pos = getPosition().bitOffset;
+  if (pos > 0) {
+    // XXX: this is evil trickery...
+    auto one = meta_->directories()[1].getPosition().bitOffset;
+    assert(pos % one == 0);
+    pos /= one;
+  }
+  return pos;
 }
 
 void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
@@ -515,9 +514,9 @@ void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   defaults->st_ctime = t;
 }
 
-metadata_v2::metadata_v2(logger& lgr, std::vector<uint8_t>&& data,
+metadata_v2::metadata_v2(logger& lgr, folly::ByteRange data,
                          const struct ::stat* defaults, int inode_offset)
-    : impl_(make_unique_logging_object<metadata_v2::impl, metadata_v2_,
+    : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
           lgr, std::move(data), defaults, inode_offset)) {}
 } // namespace dwarfs

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "dwarfs/filesystem.h"
+#include "dwarfs/filesystem_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 
@@ -30,8 +31,9 @@ int main(int argc, char** argv) {
   if (argc == 2 || argc == 3) {
     try {
       dwarfs::stream_logger lgr(std::cerr, dwarfs::logger::DEBUG);
-      dwarfs::filesystem fs(lgr, std::make_shared<dwarfs::mmap>(argv[1]),
-                            dwarfs::block_cache_options());
+      auto mm = std::make_shared<dwarfs::mmap>(argv[1]);
+      dwarfs::filesystem fs(lgr, mm, dwarfs::block_cache_options());
+      dwarfs::filesystem_v2 fs_v2(lgr, mm, dwarfs::block_cache_options());
 
       if (argc == 3) {
         auto de = fs.find(argv[2]);
@@ -45,11 +47,11 @@ int main(int argc, char** argv) {
         }
       } else {
         // TODO: add more usage options...
-        dwarfs::filesystem::identify(
-            lgr, std::make_shared<dwarfs::mmap>(argv[1]), std::cout);
-        // TODO:
+        dwarfs::filesystem::identify(lgr, mm, std::cout);
         fs.dump(std::cout);
-        fs.dump_v2(std::cout);
+
+        dwarfs::filesystem_v2::identify(lgr, mm, std::cout);
+        fs_v2.dump(std::cout);
       }
     } catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << std::endl;

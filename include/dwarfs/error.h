@@ -21,40 +21,35 @@
 
 #pragma once
 
-#include <string>
-
-#include <boost/noncopyable.hpp>
-
-#include <folly/Range.h>
+#include <exception>
 
 namespace dwarfs {
 
-class mmif : public boost::noncopyable {
+class error : public std::exception {
  public:
-  virtual ~mmif() = default;
+  error(const std::string& str, int err_no) noexcept
+      : what_(str)
+      , errno_(err_no) {}
 
-  const void* get() const { return addr_; }
+  error(const error& e) noexcept
+      : what_(e.what_)
+      , errno_(e.errno_) {}
 
-  template <typename T>
-  const T* as(size_t offset = 0) const {
-    return reinterpret_cast<const T*>(
-        reinterpret_cast<const char*>(const_cast<const void*>(addr_)) + offset);
+  error& operator=(const error& e) noexcept {
+    if (&e != this) {
+      what_ = e.what_;
+      errno_ = e.errno_;
+    }
+    return *this;
   }
 
-  size_t size() const { return size_; }
+  const char* what() const noexcept override { return what_.c_str(); }
 
-  folly::ByteRange range(size_t start, size_t size) const {
-    return folly::ByteRange(as<uint8_t>(start), size);
-  }
-
- protected:
-  void assign(const void* addr, size_t size) {
-    addr_ = addr;
-    size_ = size;
-  }
+  int get_errno() const { return errno_; }
 
  private:
-  const void* addr_;
-  size_t size_;
+  std::string what_;
+  int errno_;
 };
+
 } // namespace dwarfs
