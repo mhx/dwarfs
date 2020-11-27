@@ -25,11 +25,16 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+
+#include <boost/range/irange.hpp>
+
+#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include "fstypes.h"
 #include "logger.h"
@@ -38,9 +43,33 @@
 
 namespace dwarfs {
 
-using entry_view = ::apache::thrift::frozen::View<thrift::metadata::entry>;
-using directory_view =
-    ::apache::thrift::frozen::View<thrift::metadata::directory>;
+class entry_view
+    : public ::apache::thrift::frozen::View<thrift::metadata::entry> {
+ public:
+  entry_view(
+      ::apache::thrift::frozen::View<thrift::metadata::entry> ev,
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
+          meta)
+      : ::apache::thrift::frozen::View<thrift::metadata::entry>(ev)
+      , meta_(meta) {}
+
+  std::string_view name() const;
+  uint16_t mode() const;
+  // size_t size() const;
+
+ private:
+  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
+      meta_;
+};
+
+class directory_view
+    : public ::apache::thrift::frozen::View<thrift::metadata::directory> {
+ public:
+  directory_view(::apache::thrift::frozen::View<thrift::metadata::directory> dv)
+      : ::apache::thrift::frozen::View<thrift::metadata::directory>(dv) {}
+
+  boost::integer_range<uint32_t> entry_range() const;
+};
 
 class metadata_v2 {
  public:

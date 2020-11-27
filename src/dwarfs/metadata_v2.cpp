@@ -25,14 +25,9 @@
 
 #include <unistd.h>
 
-#include <boost/range/irange.hpp>
-
 #include "dwarfs/metadata_v2.h"
 
-#include "dwarfs/gen-cpp2/metadata_layouts.h"
-#include "dwarfs/gen-cpp2/metadata_types.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
-#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
@@ -42,6 +37,17 @@ namespace {
 
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
+}
+
+std::string_view entry_view::name() const {
+  return meta_->names()[name_index()];
+}
+
+uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
+
+boost::integer_range<uint32_t> directory_view::entry_range() const {
+  auto first = first_entry();
+  return boost::irange(first, first + entry_count());
 }
 
 template <typename LoggerPolicy>
@@ -54,7 +60,7 @@ class metadata_v2_ : public metadata_v2::impl {
       : data_(std::move(meta))
       , meta_(::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(
             data_))
-      , root_(meta_.entries()[meta_.entry_index()[0]])
+      , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , inode_offset_(inode_offset)
       , chunk_index_offset_(meta_.chunk_index_offset())
       , log_(lgr) {
@@ -108,6 +114,14 @@ class metadata_v2_ : public metadata_v2::impl {
 #endif
 
  private:
+  entry_view make_entry_view(size_t index) const {
+    return entry_view(meta_.entries()[index], &meta_);
+  }
+
+  directory_view make_directory_view(size_t index) const {
+    return directory_view(meta_.directories()[index]);
+  }
+
   void dump(std::ostream& os, const std::string& indent, entry_view entry,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
@@ -141,7 +155,7 @@ class metadata_v2_ : public metadata_v2::impl {
   }
 
   directory_view getdir(entry_view entry) const {
-    return meta_.directories()[entry.inode()];
+    return make_directory_view(entry.inode());
   }
 
   void
@@ -151,17 +165,9 @@ class metadata_v2_ : public metadata_v2::impl {
     inode -= inode_offset_;
     std::optional<entry_view> rv;
     if (inode >= 0 && inode < int(meta_.entry_index().size())) {
-      rv = meta_.entries()[meta_.entry_index()[inode]];
+      rv = make_entry_view(meta_.entry_index()[inode]);
     }
     return rv;
-  }
-
-  uint16_t entry_mode(entry_view entry) const {
-    return meta_.modes()[entry.mode()];
-  }
-
-  std::string_view entry_name(entry_view entry) const {
-    return meta_.names()[entry.name_index()];
   }
 
   std::string_view link_name(entry_view entry) const {
@@ -187,13 +193,13 @@ template <typename LoggerPolicy>
 void metadata_v2_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, entry_view entry,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  auto mode = entry_mode(entry);
+  auto mode = entry.mode();
   auto inode = entry.inode();
 
   os << indent << "<inode:" << inode << "> " << modestring(mode);
 
   if (inode > 0) {
-    os << " " << entry_name(entry);
+    os << " " << entry.name();
   }
 
   if (S_ISREG(mode)) {
@@ -203,7 +209,7 @@ void metadata_v2_<LoggerPolicy>::dump(
     os << " " << file_size(entry, mode) << "\n";
     icb(indent + "  ", inode);
   } else if (S_ISDIR(mode)) {
-    dump(os, indent + "  ", meta_.directories()[inode], std::move(icb));
+    dump(os, indent + "  ", make_directory_view(inode), std::move(icb));
   } else if (S_ISLNK(mode)) {
     os << " -> " << link_name(entry) << "\n";
   } else {
@@ -220,7 +226,7 @@ void metadata_v2_<LoggerPolicy>::dump(
   os << indent << "(" << count << ") entries\n";
 
   for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, meta_.entries()[first + i], icb);
+    dump(os, indent, make_entry_view(first + i), icb);
   }
 }
 
@@ -258,10 +264,8 @@ void metadata_v2_<LoggerPolicy>::walk(
   func(entry);
   if (S_ISDIR(entry.mode())) {
     auto dir = getdir(entry);
-    auto cur = dir.first_entry();
-    auto end = cur + dir.entry_count();
-    while (cur < end) {
-      walk(meta_.entries()[cur++], func);
+    for (auto cur : dir.entry_range()) {
+      walk(make_entry_view(cur), func);
     }
   }
 }
@@ -276,20 +280,19 @@ template <typename LoggerPolicy>
 std::optional<entry_view>
 metadata_v2_<LoggerPolicy>::find(directory_view dir,
                                  std::string_view name) const {
-  auto first = dir.first_entry();
-  auto range = boost::irange(first, first + dir.entry_count());
+  auto range = dir.entry_range();
 
-  auto it = std::lower_bound(
-      range.begin(), range.end(), name, [&](auto it, std::string_view name) {
-        return entry_name(meta_.entries()[it]).compare(name);
-      });
+  auto it = std::lower_bound(range.begin(), range.end(), name,
+                             [&](auto ix, std::string_view name) {
+                               return make_entry_view(ix).name().compare(name);
+                             });
 
   std::optional<entry_view> rv;
 
   if (it != range.end()) {
-    auto cand = meta_.entries()[*it];
+    auto cand = make_entry_view(*it);
 
-    if (entry_name(cand) == name) {
+    if (cand.name() == name) {
       rv = cand;
     }
   }
@@ -345,7 +348,7 @@ int metadata_v2_<LoggerPolicy>::getattr(entry_view entry,
                                         struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  auto mode = entry_mode(entry);
+  auto mode = entry.mode();
 
   stbuf->st_mode = mode & READ_ONLY_MASK;
   stbuf->st_size = file_size(entry, mode);

@@ -227,12 +227,12 @@ void entry::update(global_entry_data& data) const {
 void entry::pack(thrift::metadata::entry& entry_v2,
                  global_entry_data const& data) const {
   entry_v2.name_index = has_parent() ? data.get_name_index(name_) : 0;
-  entry_v2.mode = data.get_mode_index(stat_.st_mode & 0xFFFF);
-  entry_v2.owner = data.get_uid_index(stat_.st_uid);
-  entry_v2.group = data.get_gid_index(stat_.st_gid);
-  entry_v2.atime = data.get_time_offset(stat_.st_atime);
-  entry_v2.mtime = data.get_time_offset(stat_.st_mtime);
-  entry_v2.ctime = data.get_time_offset(stat_.st_ctime);
+  entry_v2.mode_index = data.get_mode_index(stat_.st_mode & 0xFFFF);
+  entry_v2.owner_index = data.get_uid_index(stat_.st_uid);
+  entry_v2.group_index = data.get_gid_index(stat_.st_gid);
+  entry_v2.atime_offset = data.get_time_offset(stat_.st_atime);
+  entry_v2.mtime_offset = data.get_time_offset(stat_.st_mtime);
+  entry_v2.ctime_offset = data.get_time_offset(stat_.st_ctime);
   entry_v2.inode = inode_num();
 }
 

@@ -57,7 +57,7 @@ struct entry {
    1: required UInt32 name_index,
 
    // index into metadata.modes
-   2: required UInt16 mode,
+   2: required UInt16 mode_index,
 
    /**
     * Inode number. Can be used in different ways:
@@ -72,19 +72,19 @@ struct entry {
    3: required UInt32 inode,
 
    // index into metadata.uids
-   4: required UInt16 owner,
+   4: required UInt16 owner_index,
 
    // index into metadata.gids
-   5: required UInt16 group,
+   5: required UInt16 group_index,
 
    // atime relative to metadata.timestamp_base
-   6: required UInt64 atime,
+   6: required UInt64 atime_offset,
 
    // mtime relative to metadata.timestamp_base
-   7: required UInt64 mtime,
+   7: required UInt64 mtime_offset,
 
    // ctime relative to metadata.timestamp_base
-   8: required UInt64 ctime,
+   8: required UInt64 ctime_offset,
 }
 
 struct metadata {
