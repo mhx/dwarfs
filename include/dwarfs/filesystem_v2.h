@@ -62,46 +62,48 @@ class filesystem_v2 {
     impl_->walk(func);
   }
 
-#if 0
-  const dir_entry* find(const char* path) const { return impl_->find(path); }
+  std::optional<entry_view> find(const char* path) const {
+    return impl_->find(path);
+  }
 
-  const dir_entry* find(int inode) const { return impl_->find(inode); }
+  std::optional<entry_view> find(int inode) const { return impl_->find(inode); }
 
-  const dir_entry* find(int inode, const char* name) const {
+  std::optional<entry_view> find(int inode, const char* name) const {
     return impl_->find(inode, name);
   }
 
-  int getattr(const dir_entry* de, struct ::stat* stbuf) const {
-    return impl_->getattr(de, stbuf);
+  int getattr(entry_view entry, struct ::stat* stbuf) const {
+    return impl_->getattr(entry, stbuf);
   }
 
-  int access(const dir_entry* de, int mode, uid_t uid, gid_t gid) const {
-    return impl_->access(de, mode, uid, gid);
+  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const {
+    return impl_->access(entry, mode, uid, gid);
   }
 
-  const directory* opendir(const dir_entry* de) const {
-    return impl_->opendir(de);
+  std::optional<directory_view> opendir(entry_view entry) const {
+    return impl_->opendir(entry);
   }
 
-  const dir_entry*
-  readdir(const directory* d, size_t offset, std::string* name) const {
-    return impl_->readdir(d, offset, name);
+  std::optional<std::pair<entry_view, std::string_view>>
+  readdir(directory_view dir, size_t offset) const {
+    return impl_->readdir(dir, offset);
   }
 
-  size_t dirsize(const directory* d) const { return impl_->dirsize(d); }
+  size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int readlink(const dir_entry* de, char* buf, size_t size) const {
-    return impl_->readlink(de, buf, size);
+  int readlink(entry_view entry, std::string* buf) const {
+    return impl_->readlink(entry, buf);
   }
 
-  int readlink(const dir_entry* de, std::string* buf) const {
-    return impl_->readlink(de, buf);
+  folly::Expected<std::string_view, int> readlink(entry_view entry) const {
+    return impl_->readlink(entry);
   }
 
   int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
 
-  int open(const dir_entry* de) const { return impl_->open(de); }
+  int open(entry_view entry) const { return impl_->open(entry); }
 
+#if 0
   ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset) const {
     return impl_->read(inode, buf, size, offset);
   }
@@ -118,21 +120,23 @@ class filesystem_v2 {
 
     virtual void dump(std::ostream& os) const = 0;
     virtual void walk(std::function<void(entry_view)> const& func) const = 0;
-#if 0
-    virtual const dir_entry* find(const char* path) const = 0;
-    virtual const dir_entry* find(int inode) const = 0;
-    virtual const dir_entry* find(int inode, const char* name) const = 0;
-    virtual int getattr(const dir_entry* de, struct ::stat* stbuf) const = 0;
+    virtual std::optional<entry_view> find(const char* path) const = 0;
+    virtual std::optional<entry_view> find(int inode) const = 0;
+    virtual std::optional<entry_view>
+    find(int inode, const char* name) const = 0;
+    virtual int getattr(entry_view entry, struct ::stat* stbuf) const = 0;
     virtual int
-    access(const dir_entry* de, int mode, uid_t uid, gid_t gid) const = 0;
-    virtual const directory* opendir(const dir_entry* de) const = 0;
-    virtual const dir_entry*
-    readdir(const directory* d, size_t offset, std::string* name) const = 0;
-    virtual size_t dirsize(const directory* d) const = 0;
-    virtual int readlink(const dir_entry* de, char* buf, size_t size) const = 0;
-    virtual int readlink(const dir_entry* de, std::string* buf) const = 0;
+    access(entry_view entry, int mode, uid_t uid, gid_t gid) const = 0;
+    virtual std::optional<directory_view> opendir(entry_view entry) const = 0;
+    virtual std::optional<std::pair<entry_view, std::string_view>>
+    readdir(directory_view dir, size_t offset) const = 0;
+    virtual size_t dirsize(directory_view dir) const = 0;
+    virtual int readlink(entry_view entry, std::string* buf) const = 0;
+    virtual folly::Expected<std::string_view, int>
+    readlink(entry_view entry) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
-    virtual int open(const dir_entry* de) const = 0;
+    virtual int open(entry_view entry) const = 0;
+#if 0
     virtual ssize_t
     read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,

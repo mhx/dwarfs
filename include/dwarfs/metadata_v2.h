@@ -174,8 +174,10 @@ class metadata_v2 {
 
   static void get_stat_defaults(struct ::stat* defaults);
 
+  // TODO: check if this is needed
   size_t size() const { return impl_->size(); }
 
+  // TODO: check if this is needed
   bool empty() const { return !impl_ || impl_->empty(); }
 
   void walk(std::function<void(entry_view)> const& func) const {

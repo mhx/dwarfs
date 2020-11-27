@@ -179,7 +179,7 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
   }
 
   for (const auto& sti : stats_) {
-    static char const* const percent = "{:.2%}%";
+    static char const* const percent = "{:.2}%";
     const auto& st = sti.second;
     log_.debug() << "blockhash window <" << sti.first << ">: " << st.collisions
                  << " collisions ("

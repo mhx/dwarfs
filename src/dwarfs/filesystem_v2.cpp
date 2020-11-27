@@ -159,21 +159,21 @@ class filesystem_ : public filesystem_v2::impl {
 
   void dump(std::ostream& os) const override;
   void walk(std::function<void(entry_view)> const& func) const override;
-#if 0
-  const dir_entry* find(const char* path) const override;
-  const dir_entry* find(int inode) const override;
-  const dir_entry* find(int inode, const char* name) const override;
-  int getattr(const dir_entry* de, struct ::stat* stbuf) const override;
-  int access(const dir_entry* de, int mode, uid_t uid,
-             gid_t gid) const override;
-  const directory* opendir(const dir_entry* de) const override;
-  const dir_entry*
-  readdir(const directory* d, size_t offset, std::string* name) const override;
-  size_t dirsize(const directory* d) const override;
-  int readlink(const dir_entry* de, char* buf, size_t size) const override;
-  int readlink(const dir_entry* de, std::string* buf) const override;
+  std::optional<entry_view> find(const char* path) const override;
+  std::optional<entry_view> find(int inode) const override;
+  std::optional<entry_view> find(int inode, const char* name) const override;
+  int getattr(entry_view entry, struct ::stat* stbuf) const override;
+  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const override;
+  std::optional<directory_view> opendir(entry_view entry) const override;
+  std::optional<std::pair<entry_view, std::string_view>>
+  readdir(directory_view dir, size_t offset) const override;
+  size_t dirsize(directory_view dir) const override;
+  int readlink(entry_view entry, std::string* buf) const override;
+  folly::Expected<std::string_view, int>
+  readlink(entry_view entry) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
-  int open(const dir_entry* de) const override;
+  int open(entry_view entry) const override;
+#if 0
   ssize_t
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
@@ -249,62 +249,62 @@ void filesystem_<LoggerPolicy>::walk(
   meta_.walk(func);
 }
 
-#if 0
 template <typename LoggerPolicy>
-const dir_entry* filesystem_<LoggerPolicy>::find(const char* path) const {
+std::optional<entry_view>
+filesystem_<LoggerPolicy>::find(const char* path) const {
   return meta_.find(path);
 }
 
 template <typename LoggerPolicy>
-const dir_entry* filesystem_<LoggerPolicy>::find(int inode) const {
+std::optional<entry_view> filesystem_<LoggerPolicy>::find(int inode) const {
   return meta_.find(inode);
 }
 
 template <typename LoggerPolicy>
-const dir_entry*
+std::optional<entry_view>
 filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
   return meta_.find(inode, name);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::getattr(const dir_entry* de,
+int filesystem_<LoggerPolicy>::getattr(entry_view entry,
                                        struct ::stat* stbuf) const {
-  return meta_.getattr(de, stbuf);
+  return meta_.getattr(entry, stbuf);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::access(const dir_entry* de, int mode, uid_t uid,
+int filesystem_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
                                       gid_t gid) const {
-  return meta_.access(de, mode, uid, gid);
+  return meta_.access(entry, mode, uid, gid);
 }
 
 template <typename LoggerPolicy>
-const directory* filesystem_<LoggerPolicy>::opendir(const dir_entry* de) const {
-  return meta_.opendir(de);
+std::optional<directory_view>
+filesystem_<LoggerPolicy>::opendir(entry_view entry) const {
+  return meta_.opendir(entry);
 }
 
 template <typename LoggerPolicy>
-const dir_entry*
-filesystem_<LoggerPolicy>::readdir(const directory* d, size_t offset,
-                                   std::string* name) const {
-  return meta_.readdir(d, offset, name);
+std::optional<std::pair<entry_view, std::string_view>>
+filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+  return meta_.readdir(dir, offset);
 }
 
 template <typename LoggerPolicy>
-size_t filesystem_<LoggerPolicy>::dirsize(const directory* d) const {
-  return meta_.dirsize(d);
+size_t filesystem_<LoggerPolicy>::dirsize(directory_view dir) const {
+  return meta_.dirsize(dir);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::readlink(const dir_entry* de, char* buf,
-                                        size_t size) const {
-  return meta_.readlink(de, buf, size);
-}
-
-template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::readlink(const dir_entry* de,
+int filesystem_<LoggerPolicy>::readlink(entry_view entry,
                                         std::string* buf) const {
-  return meta_.readlink(de, buf);
+  return meta_.readlink(entry, buf);
+}
+
+template <typename LoggerPolicy>
+folly::Expected<std::string_view, int>
+filesystem_<LoggerPolicy>::readlink(entry_view entry) const {
+  return meta_.readlink(entry);
 }
 
 template <typename LoggerPolicy>
@@ -314,10 +314,11 @@ int filesystem_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::open(const dir_entry* de) const {
-  return meta_.open(de);
+int filesystem_<LoggerPolicy>::open(entry_view entry) const {
+  return meta_.open(entry);
 }
 
+#if 0
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
                                         off_t offset) const {
