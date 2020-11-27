@@ -117,12 +117,12 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(entry_view de, struct ::stat* stbuf) const {
-    return impl_->getattr(de, stbuf);
+  int getattr(entry_view entry, struct ::stat* stbuf) const {
+    return impl_->getattr(entry, stbuf);
   }
 
-  std::optional<directory_view> opendir(entry_view de) const {
-    return impl_->opendir(de);
+  std::optional<directory_view> opendir(entry_view entry) const {
+    return impl_->opendir(entry);
   }
 
   std::optional<std::pair<entry_view, std::string_view>>
@@ -132,26 +132,26 @@ class metadata_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int access(entry_view de, int mode, uid_t uid, gid_t gid) const {
-    return impl_->access(de, mode, uid, gid);
+  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const {
+    return impl_->access(entry, mode, uid, gid);
   }
+
+  int open(entry_view entry) const { return impl_->open(entry); }
 
 #if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
 
-  int readlink(entry_view de, char* buf, size_t size) const {
-    return impl_->readlink(de, buf, size);
+  int readlink(entry_view entry, char* buf, size_t size) const {
+    return impl_->readlink(entry, buf, size);
   }
 
-  int readlink(entry_view de, std::string* buf) const {
-    return impl_->readlink(de, buf);
+  int readlink(entry_view entry, std::string* buf) const {
+    return impl_->readlink(entry, buf);
   }
 
   int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
-
-  int open(entry_view de) const { return impl_->open(de); }
 
   const chunk_type* get_chunks(int inode, size_t& num) const {
     return impl_->get_chunks(inode, num);
@@ -176,24 +176,26 @@ class metadata_v2 {
     virtual std::optional<entry_view>
     find(int inode, const char* name) const = 0;
 
-    virtual int getattr(entry_view de, struct ::stat* stbuf) const = 0;
+    virtual int getattr(entry_view entry, struct ::stat* stbuf) const = 0;
 
-    virtual std::optional<directory_view> opendir(entry_view de) const = 0;
+    virtual std::optional<directory_view> opendir(entry_view entry) const = 0;
 
     virtual std::optional<std::pair<entry_view, std::string_view>>
     readdir(directory_view dir, size_t offset) const = 0;
 
     virtual size_t dirsize(directory_view dir) const = 0;
 
-    virtual int access(entry_view de, int mode, uid_t uid, gid_t gid) const = 0;
+    virtual int
+    access(entry_view entry, int mode, uid_t uid, gid_t gid) const = 0;
+
+    virtual int open(entry_view entry) const = 0;
 
 #if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual int readlink(entry_view de, char* buf, size_t size) const = 0;
-    virtual int readlink(entry_view de, std::string* buf) const = 0;
+    virtual int readlink(entry_view entry, char* buf, size_t size) const = 0;
+    virtual int readlink(entry_view entry, std::string* buf) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
-    virtual int open(entry_view de) const = 0;
     virtual const chunk_type* get_chunks(int inode, size_t& num) const = 0;
 #endif
   };

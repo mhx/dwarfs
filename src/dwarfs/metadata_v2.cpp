@@ -116,6 +116,8 @@ class metadata_v2_ : public metadata_v2::impl {
 
   int access(entry_view entry, int mode, uid_t uid, gid_t gid) const override;
 
+  int open(entry_view entry) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
@@ -126,7 +128,6 @@ class metadata_v2_ : public metadata_v2::impl {
   int readlink(entry_view entry, char* buf, size_t size) const override;
   int readlink(entry_view entry, std::string* buf) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
-  int open(entry_view entry) const override;
 
   const chunk_type* get_chunks(int inode, size_t& num) const override;
 #endif
@@ -459,16 +460,16 @@ int metadata_v2_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
   return (access_mode & mode) == mode ? 0 : EACCES;
 }
 
-#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::open(entry_view entry) const {
-  if (S_ISREG(entry->mode)) {
-    return entry->inode;
+  if (S_ISREG(entry.mode())) {
+    return entry.inode();
   }
 
   return -1;
 }
 
+#if 0
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::readlink(entry_view entry, char* buf,
                                       size_t size) const {
