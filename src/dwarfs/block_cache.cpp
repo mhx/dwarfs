@@ -85,12 +85,6 @@ class cached_block {
   std::unique_ptr<block_decompressor> decompressor_;
 };
 
-block_range::block_range(std::shared_ptr<cached_block const> block,
-                         size_t offset, size_t size)
-    : begin_(block->data() + offset)
-    , end_(begin_ + size)
-    , block_(std::move(block)) {}
-
 class block_request {
  public:
   block_request() = default;
@@ -492,4 +486,12 @@ class block_cache_ : public block_cache::impl {
 block_cache::block_cache(logger& lgr, const block_cache_options& options)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
           lgr, options)) {}
+
+// TODO: clean up: this is defined in fstypes.h...
+block_range::block_range(std::shared_ptr<cached_block const> block,
+                         size_t offset, size_t size)
+    : begin_(block->data() + offset)
+    , end_(begin_ + size)
+    , block_(std::move(block)) {}
+
 } // namespace dwarfs

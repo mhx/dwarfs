@@ -514,32 +514,6 @@ metadata_<LoggerPolicy>::get_chunks(int inode) const {
 
 } // namespace
 
-std::string_view entry_view::name() const {
-  return meta_->names()[name_index()];
-}
-
-uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
-
-uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
-
-uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
-
-boost::integer_range<uint32_t> directory_view::entry_range() const {
-  auto first = first_entry();
-  return boost::irange(first, first + entry_count());
-}
-
-uint32_t directory_view::self_inode() {
-  auto pos = getPosition().bitOffset;
-  if (pos > 0) {
-    // XXX: this is evil trickery...
-    auto one = meta_->directories()[1].getPosition().bitOffset;
-    assert(pos % one == 0);
-    pos /= one;
-  }
-  return pos;
-}
-
 void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   ::memset(defaults, 0, sizeof(struct ::stat));
   defaults->st_uid = ::geteuid();
@@ -561,4 +535,5 @@ metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
           lgr, schema, data, defaults, inode_offset)) {}
+
 } // namespace dwarfs

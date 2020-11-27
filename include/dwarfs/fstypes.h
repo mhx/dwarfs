@@ -23,11 +23,43 @@
 
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 
-#include "block_compressor.h" // TODO: or the other way round?
+#include <sys/uio.h>
+
+#include <folly/small_vector.h>
+
+#include "dwarfs/block_compressor.h" // TODO: or the other way round?
 
 namespace dwarfs {
+
+class cached_block;
+
+// TODO: move elsewhere
+class block_range {
+ public:
+  block_range(std::shared_ptr<cached_block const> block, size_t offset,
+              size_t size);
+
+  const uint8_t* data() const { return begin_; }
+  const uint8_t* begin() const { return begin_; }
+  const uint8_t* end() const { return end_; }
+  size_t size() const { return end_ - begin_; }
+
+ private:
+  const uint8_t* const begin_;
+  const uint8_t* const end_;
+  std::shared_ptr<cached_block const> block_;
+};
+
+struct iovec_read_buf {
+  // This covers more than 95% of reads
+  static constexpr size_t inline_storage = 16;
+
+  folly::small_vector<struct ::iovec, inline_storage> buf;
+  folly::small_vector<block_range, inline_storage> ranges;
+};
 
 /*************************
 

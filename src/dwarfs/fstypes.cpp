@@ -92,4 +92,5 @@ std::string section_header::to_string() const {
   dump(oss);
   return oss.str();
 }
+
 } // namespace dwarfs

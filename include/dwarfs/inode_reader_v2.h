@@ -26,17 +26,19 @@
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/metadata_types.h"
 
 namespace dwarfs {
 
-class inode_reader {
+class inode_reader_v2 {
  public:
-  inode_reader() = default;
+  inode_reader_v2() = default;
 
-  inode_reader(logger& lgr, block_cache&& bc, unsigned block_size_bits);
+  inode_reader_v2(logger& lgr, block_cache&& bc);
 
-  inode_reader& operator=(inode_reader&&) = default;
+  inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
+#if 0
   ssize_t read(char* buf, size_t size, off_t offset, const chunk_type* chunk,
                size_t chunk_count) const {
     return impl_->read(buf, size, offset, chunk, chunk_count);
@@ -51,11 +53,13 @@ class inode_reader {
             const chunk_type* chunk, size_t chunk_count) const {
     impl_->dump(os, indent, chunk, chunk_count);
   }
+#endif
 
   class impl {
    public:
     virtual ~impl() = default;
 
+#if 0
     virtual ssize_t read(char* buf, size_t size, off_t offset,
                          const chunk_type* chunk, size_t chunk_count) const = 0;
     virtual ssize_t
@@ -63,6 +67,7 @@ class inode_reader {
           const chunk_type* chunk, size_t chunk_count) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       const chunk_type* chunk, size_t chunk_count) const = 0;
+#endif
   };
 
  private:

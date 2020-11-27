@@ -26,30 +26,14 @@
 #include <memory>
 #include <mutex>
 
-#include "fstypes.h"
-#include "logger.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 
 struct block_cache_options;
 
 class cached_block;
-
-class block_range {
- public:
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
-
-  const uint8_t* data() const { return begin_; }
-  const uint8_t* begin() const { return begin_; }
-  const uint8_t* end() const { return end_; }
-  size_t size() const { return end_ - begin_; }
-
- private:
-  const uint8_t* const begin_;
-  const uint8_t* const end_;
-  std::shared_ptr<cached_block const> block_;
-};
 
 class block_cache {
  public:
