@@ -398,7 +398,8 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
     os << "SECTION " << s->header.to_string()
        << ", blocksize=" << bd.uncompressed_size()
-       << ", ratio=" << fmt::format("{:.2f}%", 100.0*compression_ratio) << std::endl;
+       << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
+       << std::endl;
 
     if (s->header.type != section_type::BLOCK) {
       if (!sections.emplace(s->header.type, *s).second) {
