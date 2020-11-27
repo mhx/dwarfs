@@ -138,6 +138,9 @@ struct metadata {
    // inode offset for lookups into link_index
   14: required UInt32          link_index_offset;
 
+   // block size
+  15: required UInt32          block_size;
+
    // total file system size
-  15: required UInt64          total_fs_size;
+  16: required UInt64          total_fs_size;
 }

@@ -123,14 +123,14 @@ class metadata_v2_ : public metadata_v2::impl {
   folly::Expected<std::string_view, int>
   readlink(entry_view entry) const override;
 
+  int statvfs(struct ::statvfs* stbuf) const override;
+
 #if 0
   size_t block_size() const override {
     return static_cast<size_t>(1) << cfg_->block_size_bits;
   }
 
   unsigned block_size_bits() const override { return cfg_->block_size_bits; }
-
-  int statvfs(struct ::statvfs* stbuf) const override;
 
   const chunk_type* get_chunks(int inode, size_t& num) const override;
 #endif
@@ -490,22 +490,22 @@ metadata_v2_<LoggerPolicy>::readlink(entry_view entry) const {
 
   return folly::makeUnexpected(-EINVAL);
 }
-#if 0
 
 template <typename LoggerPolicy>
 int metadata_v2_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  stbuf->f_bsize = 1UL << cfg_->block_size_bits;
+  stbuf->f_bsize = meta_.block_size();
   stbuf->f_frsize = 1UL;
-  stbuf->f_blocks = cfg_->orig_fs_size;
-  stbuf->f_files = cfg_->inode_count;
+  stbuf->f_blocks = meta_.total_fs_size();
+  stbuf->f_files = meta_.entry_index().size();
   stbuf->f_flag = ST_RDONLY;
   stbuf->f_namemax = PATH_MAX;
 
   return 0;
 }
 
+#if 0
 template <typename LoggerPolicy>
 const chunk_type*
 metadata_v2_<LoggerPolicy>::get_chunks(int inode, size_t& num) const {

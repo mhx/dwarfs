@@ -148,12 +148,12 @@ class metadata_v2 {
     return impl_->readlink(entry);
   }
 
+  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
+
 #if 0
   size_t block_size() const { return impl_->block_size(); }
 
   unsigned block_size_bits() const { return impl_->block_size_bits(); }
-
-  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
 
   const chunk_type* get_chunks(int inode, size_t& num) const {
     return impl_->get_chunks(inode, num);
@@ -197,10 +197,11 @@ class metadata_v2 {
     virtual folly::Expected<std::string_view, int>
     readlink(entry_view entry) const = 0;
 
+    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
+
 #if 0
     virtual size_t block_size() const = 0;
     virtual unsigned block_size_bits() const = 0;
-    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
     virtual const chunk_type* get_chunks(int inode, size_t& num) const = 0;
 #endif
   };
