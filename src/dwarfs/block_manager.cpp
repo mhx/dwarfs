@@ -27,7 +27,7 @@
 
 #include <sparsehash/dense_hash_map>
 
-#include <folly/Format.h>
+#include <fmt/core.h>
 
 #include "dwarfs/block_manager.h"
 #include "dwarfs/file_interface.h"
@@ -183,13 +183,11 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
     const auto& st = sti.second;
     log_.debug() << "blockhash window <" << sti.first << ">: " << st.collisions
                  << " collisions ("
-                 << folly::sformat(percent,
-                                   float(st.collisions) / st.total_hashes)
+                 << fmt::format(percent, float(st.collisions) / st.total_hashes)
                  << "), " << st.real_matches << " real matches, "
                  << st.bad_matches << " bad matches, ("
-                 << folly::sformat(percent,
-                                   float(st.bad_matches) /
-                                       (st.real_matches + st.bad_matches))
+                 << fmt::format(percent, float(st.bad_matches) /
+                                             (st.real_matches + st.bad_matches))
                  << "), " << size_with_unit(st.saved_bytes)
                  << " saved (largest=" << size_with_unit(st.largest_block)
                  << ")";

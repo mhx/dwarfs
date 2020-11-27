@@ -50,6 +50,7 @@
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata.h"
+#include "dwarfs/metadata_v2.h"
 #include "dwarfs/metadata_writer.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
@@ -61,40 +62,10 @@
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
-#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 namespace dwarfs {
-
-namespace {
-
-template <class T>
-std::vector<uint8_t> freeze_to_buffer(const T& x) {
-  using namespace ::apache::thrift::frozen;
-
-  Layout<T> layout;
-  size_t content_size = LayoutRoot::layout(x, layout);
-
-  std::string schema;
-  serializeRootLayout(layout, schema);
-
-  size_t schema_size = schema.size();
-  auto schema_begin = reinterpret_cast<uint8_t const*>(schema.data());
-  std::vector<uint8_t> buffer(schema_begin, schema_begin + schema_size);
-
-  size_t buffer_size = schema_size + content_size;
-  buffer.resize(buffer_size, 0);
-
-  folly::MutableByteRange content_range(&buffer[schema_size], content_size);
-  ByteRangeFreezer::freeze(layout, x, content_range);
-
-  buffer.resize(buffer.size() - content_range.size());
-
-  return buffer;
-}
-
-} // namespace
 
 template <typename LoggerPolicy>
 class scanner_ : public scanner::impl {
@@ -706,7 +677,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.block_size = im->block_size();
   mv2.total_fs_size = prog.original_size;
 
-  fsw.write_metadata_v2(freeze_to_buffer(mv2));
+  auto [schema, data] = metadata_v2::freeze(mv2);
+
+  fsw.write_metadata_v2_schema(std::move(schema));
+  fsw.write_metadata_v2(std::move(data));
 
   fsw.flush();
 

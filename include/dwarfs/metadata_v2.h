@@ -26,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -160,8 +161,8 @@ class metadata_v2 {
  public:
   metadata_v2() = default;
 
-  metadata_v2(logger& lgr, folly::ByteRange data, const struct ::stat* defaults,
-              int inode_offset = 0);
+  metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
+              const struct ::stat* defaults, int inode_offset = 0);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 
@@ -227,6 +228,9 @@ class metadata_v2 {
   }
 
   size_t block_size() const { return impl_->block_size(); }
+
+  static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+  freeze(const thrift::metadata::metadata& data);
 
   class impl {
    public:

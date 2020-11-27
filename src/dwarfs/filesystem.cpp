@@ -157,6 +157,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                        stat_defaults, inode_offset);
       break;
 
+    case section_type::METADATA_V2_SCHEMA:
     case section_type::METADATA_V2:
       break;
 

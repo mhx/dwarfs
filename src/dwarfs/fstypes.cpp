@@ -40,6 +40,7 @@ const std::map<section_type, std::string> sections{
     SECTION_TYPE_(META_CHUNK_INDEX),
     SECTION_TYPE_(META_DIRECTORIES),
     SECTION_TYPE_(META_CONFIG),
+    SECTION_TYPE_(METADATA_V2_SCHEMA),
     SECTION_TYPE_(METADATA_V2),
 #undef SECTION_TYPE_
 };

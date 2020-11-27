@@ -35,8 +35,9 @@
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
-#include <folly/Format.h>
 #include <folly/gen/String.h>
+
+#include <fmt/core.h>
 
 #ifdef DWARFS_HAVE_LIBZSTD
 #include <zstd.h>
@@ -137,75 +138,97 @@ size_t get_term_width() {
 
 struct level_defaults {
   unsigned block_size_bits;
-  char const* compression;
+  char const* data_compression;
+  char const* schema_compression;
+  char const* metadata_compression;
   char const* window_sizes;
 };
 
 #if defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_LEVEL1 "lz4"
-#define ALG_LEVEL2 "lz4hc:level=9"
-#define ALG_LEVEL3 "lz4hc:level=9"
+#define ALG_DATA_LEVEL1 "lz4"
+#define ALG_DATA_LEVEL2 "lz4hc:level=9"
+#define ALG_DATA_LEVEL3 "lz4hc:level=9"
 #elif defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_LEVEL1 "zstd:level=1"
-#define ALG_LEVEL2 "zstd:level=4"
-#define ALG_LEVEL3 "zstd:level=7"
+#define ALG_DATA_LEVEL1 "zstd:level=1"
+#define ALG_DATA_LEVEL2 "zstd:level=4"
+#define ALG_DATA_LEVEL3 "zstd:level=7"
 #elif defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_LEVEL1 "lzma:level=1"
-#define ALG_LEVEL2 "lzma:level=2"
-#define ALG_LEVEL3 "lzma:level=3"
+#define ALG_DATA_LEVEL1 "lzma:level=1"
+#define ALG_DATA_LEVEL2 "lzma:level=2"
+#define ALG_DATA_LEVEL3 "lzma:level=3"
 #else
-#define ALG_LEVEL1 "null"
-#define ALG_LEVEL2 "null"
-#define ALG_LEVEL3 "null"
+#define ALG_DATA_LEVEL1 "null"
+#define ALG_DATA_LEVEL2 "null"
+#define ALG_DATA_LEVEL3 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_LEVEL4 "zstd:level=11"
-#define ALG_LEVEL5 "zstd:level=16"
-#define ALG_LEVEL6 "zstd:level=20"
-#define ALG_LEVEL7 "zstd:level=22"
+#define ALG_DATA_LEVEL4 "zstd:level=11"
+#define ALG_DATA_LEVEL5 "zstd:level=16"
+#define ALG_DATA_LEVEL6 "zstd:level=20"
+#define ALG_DATA_LEVEL7 "zstd:level=22"
 #elif defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_LEVEL4 "lzma:level=4"
-#define ALG_LEVEL5 "lzma:level=5"
-#define ALG_LEVEL6 "lzma:level=6"
-#define ALG_LEVEL7 "zstd:level=7"
+#define ALG_DATA_LEVEL4 "lzma:level=4"
+#define ALG_DATA_LEVEL5 "lzma:level=5"
+#define ALG_DATA_LEVEL6 "lzma:level=6"
+#define ALG_DATA_LEVEL7 "zstd:level=7"
 #elif defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_LEVEL4 "lz4hc:level=9"
-#define ALG_LEVEL5 "lz4hc:level=9"
-#define ALG_LEVEL6 "lz4hc:level=9"
-#define ALG_LEVEL7 "lz4hc:level=9"
+#define ALG_DATA_LEVEL4 "lz4hc:level=9"
+#define ALG_DATA_LEVEL5 "lz4hc:level=9"
+#define ALG_DATA_LEVEL6 "lz4hc:level=9"
+#define ALG_DATA_LEVEL7 "lz4hc:level=9"
 #else
-#define ALG_LEVEL4 "null"
-#define ALG_LEVEL5 "null"
-#define ALG_LEVEL6 "null"
-#define ALG_LEVEL7 "null"
+#define ALG_DATA_LEVEL4 "null"
+#define ALG_DATA_LEVEL5 "null"
+#define ALG_DATA_LEVEL6 "null"
+#define ALG_DATA_LEVEL7 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_LEVEL8 "lzma:level=8:dict_size=25"
-#define ALG_LEVEL9 "lzma:level=9:extreme"
+#define ALG_DATA_LEVEL8 "lzma:level=8:dict_size=25"
+#define ALG_DATA_LEVEL9 "lzma:level=9:extreme"
 #elif defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_LEVEL8 "zstd:level=22"
-#define ALG_LEVEL9 "zstd:level=22"
+#define ALG_DATA_LEVEL8 "zstd:level=22"
+#define ALG_DATA_LEVEL9 "zstd:level=22"
 #elif defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_LEVEL8 "lz4hc:level=9"
-#define ALG_LEVEL9 "lz4hc:level=9"
+#define ALG_DATA_LEVEL8 "lz4hc:level=9"
+#define ALG_DATA_LEVEL9 "lz4hc:level=9"
 #else
-#define ALG_LEVEL8 "null"
-#define ALG_LEVEL9 "null"
+#define ALG_DATA_LEVEL8 "null"
+#define ALG_DATA_LEVEL9 "null"
+#endif
+
+#if defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_SCHEMA "zstd:level=22"
+#elif defined(DWARFS_HAVE_LIBLZMA)
+#define ALG_SCHEMA "lzma:level=9"
+#elif defined(DWARFS_HAVE_LIBLZ4)
+#define ALG_SCHEMA "lz4hc:level=9"
+#else
+#define ALG_SCHEMA "null"
+#endif
+
+#if defined(DWARFS_HAVE_LIBLZMA)
+#define ALG_METADATA "lzma:level=9:extreme"
+#elif defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_METADATA "zstd:level=22"
+#elif defined(DWARFS_HAVE_LIBLZ4)
+#define ALG_METADATA "lz4hc:level=9"
+#else
+#define ALG_METADATA "null"
 #endif
 
 constexpr std::array<level_defaults, 10> levels{{
-    /* 0 */ {20, "null", "-"},
-    /* 1 */ {20, ALG_LEVEL1, "-"},
-    /* 2 */ {20, ALG_LEVEL2, "-"},
-    /* 3 */ {20, ALG_LEVEL3, "13"},
-    /* 4 */ {21, ALG_LEVEL4, "11"},
-    /* 5 */ {22, ALG_LEVEL5, "11"},
-    /* 6 */ {23, ALG_LEVEL6, "15,11"},
-    /* 7 */ {24, ALG_LEVEL7, "17,15,13,11"},
-    /* 8 */ {24, ALG_LEVEL8, "17,15,13,11"},
-    /* 9 */ {24, ALG_LEVEL9, "17,15,13,11"},
+    /* 0 */ {20, "null", "null", "null", "-"},
+    /* 1 */ {20, ALG_DATA_LEVEL1, ALG_SCHEMA, "null", "-"},
+    /* 2 */ {20, ALG_DATA_LEVEL2, ALG_SCHEMA, "null", "-"},
+    /* 3 */ {20, ALG_DATA_LEVEL3, ALG_SCHEMA, "null", "13"},
+    /* 4 */ {21, ALG_DATA_LEVEL4, ALG_SCHEMA, "null", "11"},
+    /* 5 */ {22, ALG_DATA_LEVEL5, ALG_SCHEMA, "null", "11"},
+    /* 6 */ {23, ALG_DATA_LEVEL6, ALG_SCHEMA, "null", "15,11"},
+    /* 7 */ {24, ALG_DATA_LEVEL7, ALG_SCHEMA, "null", "17,15,13,11"},
+    /* 8 */ {24, ALG_DATA_LEVEL8, ALG_SCHEMA, ALG_METADATA, "17,15,13,11"},
+    /* 9 */ {24, ALG_DATA_LEVEL9, ALG_SCHEMA, ALG_METADATA, "17,15,13,11"},
 }};
 
 constexpr unsigned default_level = 7;
@@ -217,7 +240,7 @@ int mkdwarfs(int argc, char** argv) {
 
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_path,
-      compression, metadata_compression, log_level;
+      compression, schema_compression, metadata_compression, log_level;
   size_t num_workers, max_scanner_workers;
   bool no_time = false, no_owner = false, recompress = false,
        no_progress = false;
@@ -255,9 +278,12 @@ int mkdwarfs(int argc, char** argv) {
     ("compression,C",
         po::value<std::string>(&compression),
         "block compression algorithm")
+    ("schema-compression",
+        po::value<std::string>(&schema_compression),
+        "metadata schema compression algorithm")
     ("metadata-compression",
         po::value<std::string>(&metadata_compression),
-        "metadata compression algorithm (default: same as block compression)")
+        "metadata compression algorithm")
     ("recompress",
         po::value<bool>(&recompress)->zero_tokens(),
         "recompress an existing filesystem")
@@ -300,31 +326,38 @@ int mkdwarfs(int argc, char** argv) {
   po::notify(vm);
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
+    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_ws = 0;
+    for (auto const& l : levels) {
+      l_dc = std::max(l_dc, ::strlen(l.data_compression));
+      l_sc = std::max(l_sc, ::strlen(l.schema_compression));
+      l_mc = std::max(l_mc, ::strlen(l.metadata_compression));
+      l_ws = std::max(l_ws, ::strlen(l.window_sizes));
+    }
+
+    std::string sep(21 + l_dc + l_sc + l_mc + l_ws, '-');
+
     std::cout << "mkdwarfs (" << DWARFS_VERSION << ")\n" << opts << std::endl;
-    std::cout
-        << "Compression level defaults:\n"
-           "  "
-           "------------------------------------------------------------------"
-           "\n"
-           "  Level   Block Size   Algorithm                        Window "
-           "Sizes\n"
-           "  "
-           "------------------------------------------------------------------"
-        << std::endl;
+    std::cout << "Compression level defaults:\n"
+              << "  " << sep << "\n"
+              << fmt::format("  Level  Block  {:{}s}  Window Sizes\n",
+                             "Compression Algorithm", 4 + l_dc + l_sc + l_mc)
+              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}\n",
+                             "Block Data", l_dc, "Schema", l_sc, "Metadata",
+                             l_mc)
+              << "  " << sep << std::endl;
 
     int level = 0;
     for (auto const& l : levels) {
-      std::cout << folly::format("  {:1d}       {:2d}           {:32s} {:10s}",
-                                 level, l.block_size_bits, l.compression,
-                                 l.window_sizes)
+      std::cout << fmt::format(
+                       "  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  {:{}s}",
+                       level, l.block_size_bits, l.data_compression, l_dc,
+                       l.schema_compression, l_sc, l.metadata_compression, l_mc,
+                       l.window_sizes, l_ws)
                 << std::endl;
       ++level;
     }
 
-    std::cout
-        << "  "
-           "------------------------------------------------------------------"
-        << std::endl;
+    std::cout << "  " << sep << std::endl;
 
     std::cout << "\nCompression algorithms:\n"
                  "  null     no compression at all\n"
@@ -363,11 +396,15 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (!vm.count("compression")) {
-    compression = defaults.compression;
+    compression = defaults.data_compression;
+  }
+
+  if (!vm.count("schema-compression")) {
+    schema_compression = defaults.schema_compression;
   }
 
   if (!vm.count("metadata-compression")) {
-    metadata_compression = compression;
+    metadata_compression = defaults.metadata_compression;
   }
 
   if (!vm.count("blockhash-window-sizes")) {
@@ -413,9 +450,11 @@ int mkdwarfs(int argc, char** argv) {
   progress prog([&](const progress& p, bool last) { lgr.update(p, last); });
 
   block_compressor bc(compression);
+  block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
   std::ofstream ofs(output);
-  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, metadata_bc, mem_limit);
+  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, schema_bc, metadata_bc,
+                        mem_limit);
 
   if (recompress) {
     auto ti = log.timed_info();

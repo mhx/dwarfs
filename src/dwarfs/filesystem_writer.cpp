@@ -132,12 +132,14 @@ class filesystem_writer_ : public filesystem_writer::impl {
  public:
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
                      progress& prog, const block_compressor& bc,
+                     const block_compressor& schema_bc,
                      const block_compressor& metadata_bc,
                      size_t max_queue_size);
   ~filesystem_writer_() noexcept;
 
   void write_block(std::vector<uint8_t>&& data) override;
   void write_metadata(std::vector<uint8_t>&& data) override;
+  void write_metadata_v2_schema(std::vector<uint8_t>&& data) override;
   void write_metadata_v2(std::vector<uint8_t>&& data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
@@ -159,6 +161,7 @@ class filesystem_writer_ : public filesystem_writer::impl {
   worker_group& wg_;
   progress& prog_;
   const block_compressor& bc_;
+  const block_compressor& schema_bc_;
   const block_compressor& metadata_bc_;
   const size_t max_queue_size_;
   log_proxy<LoggerPolicy> log_;
@@ -172,12 +175,13 @@ class filesystem_writer_ : public filesystem_writer::impl {
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
-    const block_compressor& bc, const block_compressor& metadata_bc,
-    size_t max_queue_size)
+    const block_compressor& bc, const block_compressor& schema_bc,
+    const block_compressor& metadata_bc, size_t max_queue_size)
     : os_(os)
     , wg_(wg)
     , prog_(prog)
     , bc_(bc)
+    , schema_bc_(schema_bc)
     , metadata_bc_(metadata_bc)
     , max_queue_size_(max_queue_size)
     , log_(lgr)
@@ -327,6 +331,12 @@ void filesystem_writer_<LoggerPolicy>::write_metadata(
 }
 
 template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_metadata_v2_schema(
+    std::vector<uint8_t>&& data) {
+  write_section(section_type::METADATA_V2_SCHEMA, std::move(data), schema_bc_);
+}
+
+template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_metadata_v2(
     std::vector<uint8_t>&& data) {
   write_section(section_type::METADATA_V2, std::move(data), metadata_bc_);
@@ -353,15 +363,16 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
                                      const block_compressor& bc,
                                      size_t max_queue_size)
-    : filesystem_writer(os, lgr, wg, prog, bc, bc, max_queue_size) {}
+    : filesystem_writer(os, lgr, wg, prog, bc, bc, bc, max_queue_size) {}
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
                                      const block_compressor& bc,
+                                     const block_compressor& schema_bc,
                                      const block_compressor& metadata_bc,
                                      size_t max_queue_size)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, bc, metadata_bc, max_queue_size)) {}
+              lgr, os, wg, prog, bc, schema_bc, metadata_bc, max_queue_size)) {}
 
 } // namespace dwarfs

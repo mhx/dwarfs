@@ -107,7 +107,10 @@ enum class section_type : uint16_t {
   // chunk lists. Also defines inode offsets being used
   // and the total inode count (for out-of-bounds checks).
 
-  METADATA_V2 = 7,
+  METADATA_V2_SCHEMA = 7,
+  // Frozen metadata schema.
+
+  METADATA_V2 = 8,
   // Frozen metadata.
 };
 

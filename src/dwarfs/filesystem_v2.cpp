@@ -22,8 +22,9 @@
 #include <cstddef>
 #include <cstring>
 
-#include <folly/Format.h>
 #include <folly/container/Enumerate.h>
+
+#include <fmt/core.h>
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/config.h"
@@ -142,7 +143,11 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
   block_cache cache(lgr, bc_options);
 
   section_header sh;
+  section_header sh_schema;
+  section_header sh_data;
   size_t start;
+  size_t start_schema = 0;
+  size_t start_data = 0;
 
   while (parser.next_section(sh, start, log_)) {
     switch (sh.type) {
@@ -155,28 +160,54 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
       // TODO: ignore for now, fail later
       break;
 
-    case section_type::METADATA_V2: {
-      folly::ByteRange data;
+    case section_type::METADATA_V2_SCHEMA:
+      sh_schema = sh;
+      start_schema = start;
+      break;
 
-      if (sh.compression == compression_type::NONE) {
-        data = mm_->range(start, sh.length);
-      } else {
-        meta_buffer_ = block_decompressor::decompress(
-            sh.compression, mm_->as<uint8_t>(start), sh.length);
-        data = meta_buffer_;
-      }
-
-      meta_ = metadata_v2(lgr, data, stat_defaults, inode_offset);
-    } break;
+    case section_type::METADATA_V2:
+      sh_data = sh;
+      start_data = start;
+      break;
 
     default:
       throw std::runtime_error("unknown section");
     }
   }
 
-  if (meta_.empty()) {
+  if (start_schema == 0 || sh_schema.length == 0) {
+    throw std::runtime_error("no metadata schema found");
+  }
+
+  if (start_data == 0) {
     throw std::runtime_error("no metadata found");
   }
+
+  folly::ByteRange schema;
+  folly::ByteRange data;
+  std::vector<uint8_t> schema_buf;
+
+  if (sh_data.compression == compression_type::NONE) {
+    data = mm_->range(start_data, sh_data.length);
+  } else {
+    meta_buffer_ = block_decompressor::decompress(
+        sh_data.compression, mm_->as<uint8_t>(start_data), sh_data.length);
+    data = meta_buffer_;
+  }
+
+  if (sh_schema.compression == compression_type::NONE) {
+    schema = mm_->range(start_schema, sh_schema.length);
+  } else {
+    schema_buf = block_decompressor::decompress(sh_schema.compression,
+                                                mm_->as<uint8_t>(start_schema),
+                                                sh_schema.length);
+    schema = schema_buf;
+  }
+
+  log_.info() << "schema: " << schema.size() << " (" << sh_schema.length
+              << "), data: " << data.size() << " (" << sh_data.length << ")";
+
+  meta_ = metadata_v2(lgr, schema, data, stat_defaults, inode_offset);
 
   log_.debug() << "read " << cache.block_count() << " blocks and "
                << meta_.size() << " bytes of metadata";
@@ -323,7 +354,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
       // TODO: only decompress if needed
       meta_raw = block_decompressor::decompress(
           sh.compression, mm->as<uint8_t>(start), sh.length);
-      meta = metadata_v2(lgr, meta_raw, nullptr);
+      // TODO: FIXME:
+      // meta = metadata_v2(lgr, meta_raw, nullptr);
       break;
     } else {
       ++prog.block_count;
@@ -380,19 +412,19 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
     os << "SECTION " << sh.to_string()
        << ", blocksize=" << bd.uncompressed_size()
-       << ", ratio=" << folly::sformat("{:.2%}%", compression_ratio)
-       << std::endl;
+       << ", ratio=" << fmt::format("{:.2%}%", compression_ratio) << std::endl;
 
-    if (sh.type == section_type::METADATA_V2) {
-      // TODO: only decompress if needed
-      bd.decompress_frame(bd.uncompressed_size());
-      metadata_v2 meta(lgr, tmp, nullptr);
-      struct ::statvfs stbuf;
-      meta.statvfs(&stbuf);
-      os << "block size: " << stbuf.f_bsize << std::endl;
-      os << "inode count: " << stbuf.f_files << std::endl;
-      os << "original filesystem size: " << stbuf.f_blocks << std::endl;
-    }
+    // TODO: do we need this?
+    // if (sh.type == section_type::METADATA_V2) {
+    //   // TODO: only decompress if needed
+    //   bd.decompress_frame(bd.uncompressed_size());
+    //   metadata_v2 meta(lgr, tmp, nullptr);
+    //   struct ::statvfs stbuf;
+    //   meta.statvfs(&stbuf);
+    //   os << "block size: " << stbuf.f_bsize << std::endl;
+    //   os << "inode count: " << stbuf.f_files << std::endl;
+    //   os << "original filesystem size: " << stbuf.f_blocks << std::endl;
+    // }
   }
 }
 

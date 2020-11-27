@@ -28,6 +28,7 @@
 #include "dwarfs/metadata_v2.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
+#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
@@ -35,16 +36,52 @@ namespace dwarfs {
 
 namespace {
 
+template <class T>
+std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+freeze_to_buffer(const T& x) {
+  using namespace ::apache::thrift::frozen;
+
+  Layout<T> layout;
+  size_t content_size = LayoutRoot::layout(x, layout);
+
+  std::string schema;
+  serializeRootLayout(layout, schema);
+
+  size_t schema_size = schema.size();
+  auto schema_begin = reinterpret_cast<uint8_t const*>(schema.data());
+  std::vector<uint8_t> schema_buffer(schema_begin, schema_begin + schema_size);
+
+  std::vector<uint8_t> data_buffer;
+  data_buffer.resize(content_size, 0);
+
+  folly::MutableByteRange content_range(data_buffer.data(), data_buffer.size());
+  ByteRangeFreezer::freeze(layout, x, content_range);
+
+  data_buffer.resize(data_buffer.size() - content_range.size());
+
+  return {schema_buffer, data_buffer};
+}
+
+template <class T>
+::apache::thrift::frozen::MappedFrozen<T>
+map_frozen(folly::ByteRange schema, folly::ByteRange data) {
+  using namespace ::apache::thrift::frozen;
+  auto layout = std::make_unique<Layout<T>>();
+  deserializeRootLayout(schema, *layout);
+  MappedFrozen<T> ret(layout->view({data.begin(), 0}));
+  ret.hold(std::move(layout));
+  return ret;
+}
+
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
 template <typename LoggerPolicy>
 class metadata_ : public metadata_v2::impl {
  public:
-  metadata_(logger& lgr, folly::ByteRange data,
+  metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
             const struct ::stat* /*defaults*/, int inode_offset)
       : data_(data)
-      , meta_(::apache::thrift::frozen::mapFrozen<thrift::metadata::metadata>(
-            data_))
+      , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , inode_offset_(inode_offset)
       , chunk_index_offset_(meta_.chunk_index_offset())
@@ -53,10 +90,9 @@ class metadata_ : public metadata_v2::impl {
     log_.debug() << ::apache::thrift::debugString(meta_.thaw());
 
     ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
-    ::apache::thrift::frozen::schema::Schema schema;
-    auto range = data_;
-    apache::thrift::CompactSerializer::deserialize(range, schema);
-    log_.debug() << ::apache::thrift::debugString(schema);
+    ::apache::thrift::frozen::schema::Schema mem_schema;
+    ::apache::thrift::CompactSerializer::deserialize(schema, mem_schema);
+    log_.debug() << ::apache::thrift::debugString(mem_schema);
   }
 
   void dump(std::ostream& os,
@@ -514,9 +550,15 @@ void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   defaults->st_ctime = t;
 }
 
-metadata_v2::metadata_v2(logger& lgr, folly::ByteRange data,
-                         const struct ::stat* defaults, int inode_offset)
+std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+metadata_v2::freeze(const thrift::metadata::metadata& data) {
+  return freeze_to_buffer(data);
+}
+
+metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
+                         folly::ByteRange data, const struct ::stat* defaults,
+                         int inode_offset)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, std::move(data), defaults, inode_offset)) {}
+          lgr, schema, data, defaults, inode_offset)) {}
 } // namespace dwarfs
