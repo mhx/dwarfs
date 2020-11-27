@@ -103,7 +103,6 @@ class filesystem_v2 {
 
   int open(entry_view entry) const { return impl_->open(entry); }
 
-#if 0
   ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset) const {
     return impl_->read(inode, buf, size, offset);
   }
@@ -112,7 +111,6 @@ class filesystem_v2 {
   readv(uint32_t inode, iovec_read_buf& buf, size_t size, off_t offset) const {
     return impl_->readv(inode, buf, size, offset);
   }
-#endif
 
   class impl {
    public:
@@ -136,12 +134,10 @@ class filesystem_v2 {
     readlink(entry_view entry) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
     virtual int open(entry_view entry) const = 0;
-#if 0
     virtual ssize_t
     read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                           off_t offset) const = 0;
-#endif
   };
 
  private:

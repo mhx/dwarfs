@@ -171,12 +171,10 @@ class filesystem_ : public filesystem_v2::impl {
   readlink(entry_view entry) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
   int open(entry_view entry) const override;
-#if 0
   ssize_t
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                 off_t offset) const override;
-#endif
 
  private:
   log_proxy<LoggerPolicy> log_;
@@ -310,23 +308,23 @@ int filesystem_<LoggerPolicy>::open(entry_view entry) const {
   return meta_.open(entry);
 }
 
-#if 0
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
                                         off_t offset) const {
-  size_t num = 0;
-  const chunk_type* chunk = meta_.get_chunks(inode, num);
-  return ir_.read(buf, size, offset, chunk, num);
+  if (auto chunks = meta_.get_chunks(inode)) {
+    return ir_.read(buf, size, offset, *chunks);
+  }
+  return -1;
 }
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                          size_t size, off_t offset) const {
-  size_t num = 0;
-  const chunk_type* chunk = meta_.get_chunks(inode, num);
-  return ir_.readv(buf, size, offset, chunk, num);
+  if (auto chunks = meta_.get_chunks(inode)) {
+    return ir_.readv(buf, size, offset, *chunks);
+  }
+  return -1;
 }
-#endif
 
 } // namespace
 
