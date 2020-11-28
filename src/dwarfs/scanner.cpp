@@ -32,6 +32,7 @@
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/global_entry_data.h"
 #include "dwarfs/hash_util.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"

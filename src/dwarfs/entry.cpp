@@ -27,12 +27,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <folly/Conv.h>
-#include <folly/gen/Base.h>
-
 #include <openssl/sha.h>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
@@ -40,47 +38,11 @@
 
 namespace dwarfs {
 
-template <typename T, typename U>
-std::vector<T>
-global_entry_data::get_vector(std::unordered_map<T, U> const& map) const {
-  using namespace folly::gen;
-  std::vector<std::pair<T, U>> pairs(map.begin(), map.end());
-  return from(pairs) | orderBy([](auto const& p) { return p.second; }) |
-         get<0>() | as<std::vector>();
-}
-
-std::vector<uint16_t> global_entry_data::get_uids() const {
-  return get_vector(uids);
-}
-
-std::vector<uint16_t> global_entry_data::get_gids() const {
-  return get_vector(gids);
-}
-
-std::vector<uint16_t> global_entry_data::get_modes() const {
-  return get_vector(modes);
-}
-
-std::vector<std::string> global_entry_data::get_names() const {
-  return get_vector(names);
-}
-
-std::vector<std::string> global_entry_data::get_links() const {
-  return get_vector(links);
-}
-
-void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
-  using namespace folly::gen;
-  uint32_t ix = 0;
-  from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
-}
-
 entry::entry(const std::string& name, std::shared_ptr<entry> parent,
              const struct ::stat& st)
     : name_(name)
     , parent_(std::move(parent))
-    , stat_(st)
-    , name_offset_(0) {}
+    , stat_(st) {}
 
 void entry::scan(os_access& os, progress& prog) {
   const std::string& p = path();
@@ -99,10 +61,6 @@ bool entry::has_parent() const {
 std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 
 void entry::set_name(const std::string& name) { name_ = name; }
-
-void entry::set_name_offset(size_t offset) {
-  name_offset_ = folly::to<uint32_t>(offset);
-}
 
 std::string entry::path() const {
   if (auto parent = parent_.lock()) {
@@ -243,8 +201,6 @@ void dir::sort() {
             });
 }
 
-void dir::set_offset(size_t offset) { offset_ = folly::to<uint32_t>(offset); }
-
 void dir::set_inode(uint32_t inode) { inode_ = inode; }
 
 void dir::scan(os_access&, const std::string&, progress&) {}
@@ -274,8 +230,6 @@ void dir::pack(thrift::metadata::metadata& mv2,
 entry::type_t link::type() const { return E_LINK; }
 
 const std::string& link::linkname() const { return link_; }
-
-void link::set_offset(size_t offset) { offset_ = folly::to<uint32_t>(offset); }
 
 void link::set_inode(uint32_t inode) { inode_ = inode; }
 

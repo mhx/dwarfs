@@ -100,6 +100,7 @@ list(
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
+  src/dwarfs/global_entry_data.cpp
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_reader_v2.cpp
   src/dwarfs/logger.cpp
