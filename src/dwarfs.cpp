@@ -249,20 +249,23 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
   int err = ENOENT;
 
   try {
-    assert(fi->fh == ino);
-    iovec_read_buf buf;
-    ssize_t rv = s_fs->readv(ino, buf, size, off);
+    if (fi->fh == ino) {
+      iovec_read_buf buf;
+      ssize_t rv = s_fs->readv(ino, buf, size, off);
 
-    // std::cerr << ">>> " << rv << std::endl;
+      // std::cerr << ">>> " << rv << std::endl;
 
-    if (rv >= 0) {
-      fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
-                     buf.buf.size());
+      if (rv >= 0) {
+        fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
+                       buf.buf.size());
 
-      return;
+        return;
+      }
+
+      err = -rv;
+    } else {
+      err = EIO;
     }
-
-    err = -rv;
   } catch (const dwarfs::error& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
