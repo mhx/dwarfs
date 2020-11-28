@@ -19,8 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iostream> // TODO: remove
-
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
