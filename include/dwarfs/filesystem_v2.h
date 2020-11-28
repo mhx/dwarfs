@@ -54,7 +54,8 @@ class filesystem_v2 {
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
                       filesystem_writer& writer);
 
-  static void identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os);
+  static void identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
+                       int detail_level = 0);
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);

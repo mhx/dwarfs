@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
         }
       } else {
         // TODO: add more usage options...
-        // dwarfs::filesystem_v2::identify(lgr, mm, std::cout);
-        fs.dump(std::cout, 1);
+        dwarfs::filesystem_v2::identify(lgr, mm, std::cout, 1);
+        // fs.dump(std::cout, 1);
       }
     } catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << std::endl;

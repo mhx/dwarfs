@@ -386,7 +386,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 }
 
 void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
-                             std::ostream& os) {
+                             std::ostream& os, int detail_level) {
   // TODO:
   log_proxy<debug_logger_policy> log(lgr);
   filesystem_parser parser(mm);
@@ -417,7 +417,7 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
   auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
 
-  meta.dump(os, 0, [](const std::string&, uint32_t) {});
+  meta.dump(os, detail_level, [](const std::string&, uint32_t) {});
 }
 
 } // namespace dwarfs

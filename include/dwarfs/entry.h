@@ -57,7 +57,6 @@ class entry : public file_interface {
   entry(const std::string& name, std::shared_ptr<entry> parent,
         const struct ::stat& st);
 
-  void scan(os_access& os, progress& prog);
   bool has_parent() const;
   std::shared_ptr<entry> parent() const;
   void set_name(const std::string& name);
@@ -73,9 +72,10 @@ class entry : public file_interface {
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual uint32_t inode_num() const = 0;
+  virtual void scan(os_access& os, progress& prog) = 0;
 
  protected:
-  virtual void scan(os_access& os, const std::string& p, progress& prog) = 0;
+  void scan_stat(os_access& os, std::string const& p);
 
  private:
   std::string name_;
@@ -97,14 +97,14 @@ class file : public entry {
   void accept(entry_visitor& v, bool preorder) override;
   uint32_t inode_num() const override;
   uint32_t similarity_hash() const { return similarity_hash_; }
-
- protected:
-  void scan(os_access& os, const std::string& p, progress& prog) override;
+  void scan(os_access& os, progress& prog) override;
 
  private:
+  using hash_type = std::array<char, 20>;
+
   uint32_t similarity_hash_{0};
   const bool with_similarity_;
-  std::array<char, 20> hash_{0};
+  hash_type hash_{0};
   std::shared_ptr<inode> inode_;
 };
 
@@ -124,10 +124,9 @@ class dir : public entry {
   void pack_entry(thrift::metadata::metadata& mv2,
                   global_entry_data const& data) const;
   uint32_t inode_num() const override { return inode_; }
+  void scan(os_access& os, progress& prog) override;
 
- protected:
-  void scan(os_access& os, const std::string& p, progress& prog) override;
-
+ private:
   using entry_ptr = std::shared_ptr<entry>;
 
   std::vector<std::shared_ptr<entry>> entries_;
@@ -143,9 +142,7 @@ class link : public entry {
   void set_inode(uint32_t inode);
   void accept(entry_visitor& v, bool preorder) override;
   uint32_t inode_num() const override { return inode_; }
-
- protected:
-  void scan(os_access& os, const std::string& p, progress& prog) override;
+  void scan(os_access& os, progress& prog) override;
 
  private:
   std::string link_;

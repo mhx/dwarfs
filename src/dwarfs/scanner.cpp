@@ -82,14 +82,73 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , lgr_(lgr)
     , log_(lgr) {}
 
-class dir_set_inode_visitor : public entry_visitor {
+class visitor_base : public entry_visitor {
+ public:
+  void visit(file*) override {}
+  void visit(link*) override {}
+  void visit(dir*) override {}
+};
+
+class scan_files_visitor : public visitor_base {
+ public:
+  scan_files_visitor(worker_group& wg, os_access& os, progress& prog)
+      : wg_(wg)
+      , os_(os)
+      , prog_(prog) {}
+
+  void visit(file* p) override {
+    wg_.add_job([=] {
+      prog_.current.store(p);
+      p->scan(os_, prog_);
+      prog_.files_scanned++;
+    });
+  }
+
+ private:
+  worker_group& wg_;
+  os_access& os_;
+  progress& prog_;
+};
+
+class file_deduplication_visitor : public visitor_base {
+ public:
+  void visit(file* p) override { hash_[p->hash()].push_back(p); }
+
+  void deduplicate_files(inode_manager& im, progress& prog) {
+    for (auto& p : hash_) {
+      auto& files = p.second;
+
+      if (files.size() > 1) {
+        std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
+          return a->path() < b->path();
+        });
+      }
+
+      auto first = files.front();
+      {
+        auto inode = im.create_inode();
+        first->set_inode(inode);
+        inode->set_file(first);
+      }
+
+      if (files.size() > 1) {
+        for (auto i = begin(files) + 1; i != end(files); ++i) {
+          (*i)->set_inode(first->get_inode());
+          prog.duplicate_files++;
+          prog.saved_by_deduplication += (*i)->size();
+        }
+      }
+    }
+  }
+
+ private:
+  std::unordered_map<std::string_view, std::vector<file*>, folly::Hash> hash_;
+};
+
+class dir_set_inode_visitor : public visitor_base {
  public:
   dir_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no){};
-
-  void visit(file*) override {}
-
-  void visit(link*) override {}
+      : inode_no_(inode_no) {}
 
   void visit(dir* p) override {
     p->sort();
@@ -102,16 +161,12 @@ class dir_set_inode_visitor : public entry_visitor {
   uint32_t& inode_no_;
 };
 
-class link_set_inode_visitor : public entry_visitor {
+class link_set_inode_visitor : public visitor_base {
  public:
   link_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no){};
-
-  void visit(file*) override {}
+      : inode_no_(inode_no) {}
 
   void visit(link* p) override { p->set_inode(inode_no_++); }
-
-  void visit(dir*) override {}
 
  private:
   uint32_t& inode_no_;
@@ -139,7 +194,7 @@ class names_and_links_visitor : public entry_visitor {
   global_entry_data& data_;
 };
 
-class save_directories_visitor : public entry_visitor {
+class save_directories_visitor : public visitor_base {
  public:
   save_directories_visitor(thrift::metadata::metadata& mv2,
                            global_entry_data const& ge_data,
@@ -147,14 +202,6 @@ class save_directories_visitor : public entry_visitor {
       : mv2_(mv2)
       , ge_data_(ge_data)
       , dir_index_(dir_index) {}
-
-  void visit(file*) override {
-    // nothing
-  }
-
-  void visit(link*) override {
-    // nothing
-  }
 
   void visit(dir* p) override {
     dir_index_.at(p->inode_num()) = mv2_.directories.size();
@@ -268,15 +315,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   }
 
   // now scan all files
-  root->walk([&](entry* ep) {
-    wg_.add_job([=, &prog] {
-      if (ep->type() == entry::E_FILE) {
-        prog.current.store(ep);
-        ep->scan(*os_, prog);
-        prog.files_scanned++;
-      }
-    });
-  });
+  scan_files_visitor sfv(wg_, *os_, prog);
+  root->accept(sfv);
 
   log_.info() << "waiting for background scanners...";
   wg_.wait();
@@ -284,46 +324,24 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   std::unordered_map<std::string_view, std::vector<file*>, folly::Hash>
       file_hash;
 
-  // TODO: turn into visitor?
-  root->walk([&](entry* ep) {
-    if (auto fp = dynamic_cast<file*>(ep)) {
-      file_hash[fp->hash()].push_back(fp);
-    }
-  });
-
-  log_.info() << "finding duplicate files...";
+  log_.info() << "assigning directory and link inodes...";
 
   uint32_t first_link_inode = 0;
   dir_set_inode_visitor dsiv(first_link_inode);
   root->accept(dsiv, true);
+
   uint32_t first_file_inode = first_link_inode;
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
 
+  log_.info() << "finding duplicate files...";
+
   auto im = inode_manager::create();
 
-  for (auto& p : file_hash) {
-    if (p.second.size() > 1) {
-      std::sort(
-          p.second.begin(), p.second.end(),
-          [](file const* a, file const* b) { return a->path() < b->path(); });
-    }
+  file_deduplication_visitor fdv;
+  root->accept(fdv);
 
-    auto first = p.second.front();
-    {
-      auto inode = im->create_inode();
-      first->set_inode(inode);
-      inode->set_file(first);
-    }
-
-    if (p.second.size() > 1) {
-      for (auto i = begin(p.second) + 1; i != end(p.second); ++i) {
-        (*i)->set_inode(first->get_inode());
-        prog.duplicate_files++;
-        prog.saved_by_deduplication += (*i)->size();
-      }
-    }
-  }
+  fdv.deduplicate_files(*im, prog);
 
   log_.info() << "saved " << size_with_unit(prog.saved_by_deduplication)
               << " / " << size_with_unit(prog.original_size) << " in "
@@ -357,7 +375,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   }
   }
 
-  log_.info() << "numbering file inodes...";
+  log_.info() << "assigning file inodes...";
   im->number_inodes(first_file_inode);
 
   log_.info() << "building metadata...";
