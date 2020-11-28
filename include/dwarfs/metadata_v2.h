@@ -53,9 +53,9 @@ class metadata_v2 {
   metadata_v2& operator=(metadata_v2&&) = default;
 
   void
-  dump(std::ostream& os,
+  dump(std::ostream& os, int detail_level,
        std::function<void(const std::string&, uint32_t)> const& icb) const {
-    impl_->dump(os, icb);
+    impl_->dump(os, detail_level, icb);
   }
 
   static void get_stat_defaults(struct ::stat* defaults);
@@ -125,7 +125,7 @@ class metadata_v2 {
     virtual ~impl() = default;
 
     virtual void dump(
-        std::ostream& os,
+        std::ostream& os, int detail_level,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
     virtual size_t size() const = 0;

@@ -56,7 +56,9 @@ class filesystem_v2 {
 
   static void identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os);
 
-  void dump(std::ostream& os) const { impl_->dump(os); }
+  void dump(std::ostream& os, int detail_level) const {
+    impl_->dump(os, detail_level);
+  }
 
   void walk(std::function<void(entry_view)> const& func) const {
     impl_->walk(func);
@@ -116,7 +118,7 @@ class filesystem_v2 {
    public:
     virtual ~impl() = default;
 
-    virtual void dump(std::ostream& os) const = 0;
+    virtual void dump(std::ostream& os, int detail_level) const = 0;
     virtual void walk(std::function<void(entry_view)> const& func) const = 0;
     virtual std::optional<entry_view> find(const char* path) const = 0;
     virtual std::optional<entry_view> find(int inode) const = 0;

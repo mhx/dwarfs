@@ -44,7 +44,7 @@ struct chunk {
 struct directory {
    1: required UInt32 parent_inode,
    2: required UInt32 first_entry,
-   3: required UInt32 entry_count,
+   3: required UInt32 entry_count,   // TODO: we can remove this if we sort entries by directory
 }
 
 /**

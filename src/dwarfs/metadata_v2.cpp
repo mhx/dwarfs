@@ -36,6 +36,8 @@ namespace dwarfs {
 
 namespace {
 
+using ::apache::thrift::frozen::MappedFrozen;
+
 template <class T>
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
 freeze_to_buffer(const T& x) {
@@ -62,9 +64,8 @@ freeze_to_buffer(const T& x) {
   return {schema_buffer, data_buffer};
 }
 
-template <class T>
-::apache::thrift::frozen::MappedFrozen<T>
-map_frozen(folly::ByteRange schema, folly::ByteRange data) {
+template <typename T>
+MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
   using namespace ::apache::thrift::frozen;
   auto layout = std::make_unique<Layout<T>>();
   deserializeRootLayout(schema, *layout);
@@ -73,11 +74,20 @@ map_frozen(folly::ByteRange schema, folly::ByteRange data) {
   return ret;
 }
 
+void analyze_frozen(std::ostream& os,
+                    MappedFrozen<thrift::metadata::metadata> const& meta) {
+  using namespace ::apache::thrift::frozen;
+  auto layout = meta.findFirstOfType<
+      std::unique_ptr<Layout<thrift::metadata::metadata>>>();
+  (*layout)->print(os, 0);
+}
+
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
 template <typename LoggerPolicy>
 class metadata_ : public metadata_v2::impl {
  public:
+  // TODO: defaults?, remove
   metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
             const struct ::stat* /*defaults*/, int inode_offset)
       : data_(data)
@@ -85,19 +95,9 @@ class metadata_ : public metadata_v2::impl {
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , inode_offset_(inode_offset)
       , chunk_index_offset_(meta_.chunk_index_offset())
-      , log_(lgr) {
-    // TODO: defaults?, remove
+      , log_(lgr) {}
 
-    // TODO: move to separate function (e.g. dump?)
-    //       cannot be done easily with schema, though, as it's temporary
-    // log_.debug() << ::apache::thrift::debugString(meta_.thaw());
-    // ::apache::thrift::frozen::Layout<thrift::metadata::metadata> layout;
-    // ::apache::thrift::frozen::schema::Schema mem_schema;
-    // ::apache::thrift::CompactSerializer::deserialize(schema, mem_schema);
-    // log_.debug() << ::apache::thrift::debugString(mem_schema);
-  }
-
-  void dump(std::ostream& os,
+  void dump(std::ostream& os, int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
@@ -203,7 +203,7 @@ class metadata_ : public metadata_v2::impl {
   }
 
   folly::ByteRange data_;
-  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> meta_;
+  MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
   const int inode_offset_;
   const int chunk_index_offset_;
@@ -255,9 +255,22 @@ void metadata_<LoggerPolicy>::dump(
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os,
+    std::ostream& os, int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  dump(os, "", root_, icb);
+  struct ::statvfs stbuf;
+  statvfs(&stbuf);
+
+  os << "block size: " << stbuf.f_bsize << std::endl;
+  os << "inode count: " << stbuf.f_files << std::endl;
+  os << "original filesystem size: " << stbuf.f_blocks << std::endl;
+
+  if (detail_level > 0) {
+    analyze_frozen(os, meta_);
+  }
+
+  if (detail_level > 1) {
+    dump(os, "", root_, icb);
+  }
 }
 
 template <typename LoggerPolicy>

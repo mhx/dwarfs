@@ -157,7 +157,7 @@ class filesystem_ : public filesystem_v2::impl {
               const block_cache_options& bc_options,
               const struct ::stat* stat_defaults, int inode_offset);
 
-  void dump(std::ostream& os) const override;
+  void dump(std::ostream& os, int detail_level) const override;
   void walk(std::function<void(entry_view)> const& func) const override;
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
@@ -224,8 +224,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::dump(std::ostream& os) const {
-  meta_.dump(os, [&](const std::string& indent, uint32_t inode) {
+void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
+  meta_.dump(os, detail_level, [&](const std::string& indent, uint32_t inode) {
     if (auto chunks = meta_.get_chunks(inode)) {
       os << indent << chunks->size() << " chunks in inode " << inode << "\n";
       ir_.dump(os, indent + "  ", *chunks);
@@ -417,12 +417,7 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
   auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
 
-  struct ::statvfs stbuf;
-  meta.statvfs(&stbuf);
-
-  os << "block size: " << stbuf.f_bsize << std::endl;
-  os << "inode count: " << stbuf.f_files << std::endl;
-  os << "original filesystem size: " << stbuf.f_blocks << std::endl;
+  meta.dump(os, 0, [](const std::string&, uint32_t) {});
 }
 
 } // namespace dwarfs

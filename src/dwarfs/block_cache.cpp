@@ -180,8 +180,13 @@ class block_cache_ : public block_cache::impl {
       , options_(options) {}
 
   ~block_cache_() noexcept override {
-    log_.info() << "stopping cache workers";
+    log_.debug() << "stopping cache workers";
     wg_.stop();
+
+    if (!blocks_created_.load()) {
+      return;
+    }
+
     log_.debug() << "cached blocks:";
 
     for (const auto& cb : cache_) {
