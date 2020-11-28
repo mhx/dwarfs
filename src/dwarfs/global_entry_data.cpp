@@ -35,23 +35,23 @@ global_entry_data::get_vector(std::unordered_map<T, U> const& map) const {
 }
 
 std::vector<uint16_t> global_entry_data::get_uids() const {
-  return get_vector(uids);
+  return get_vector(uids_);
 }
 
 std::vector<uint16_t> global_entry_data::get_gids() const {
-  return get_vector(gids);
+  return get_vector(gids_);
 }
 
 std::vector<uint16_t> global_entry_data::get_modes() const {
-  return get_vector(modes);
+  return get_vector(modes_);
 }
 
 std::vector<std::string> global_entry_data::get_names() const {
-  return get_vector(names);
+  return get_vector(names_);
 }
 
 std::vector<std::string> global_entry_data::get_links() const {
-  return get_vector(links);
+  return get_vector(links_);
 }
 
 void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
