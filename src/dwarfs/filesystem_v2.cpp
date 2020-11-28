@@ -111,10 +111,11 @@ class filesystem_parser {
 using section_map =
     std::unordered_map<section_type, filesystem_parser::section>;
 
-folly::ByteRange get_section_data(std::shared_ptr<mmif> mm,
-                                  filesystem_parser::section const& section,
-                                  std::vector<uint8_t>& buffer) {
-  if (section.header.compression == compression_type::NONE) {
+folly::ByteRange
+get_section_data(std::shared_ptr<mmif> mm,
+                 filesystem_parser::section const& section,
+                 std::vector<uint8_t>& buffer, bool force_buffer) {
+  if (!force_buffer && section.header.compression == compression_type::NONE) {
     return mm->range(section.start, section.header.length);
   }
 
@@ -130,7 +131,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
               const struct ::stat* stat_defaults = nullptr,
-              int inode_offset = 0) {
+              int inode_offset = 0, bool force_buffers = false) {
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
 
@@ -142,10 +143,11 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     throw std::runtime_error("no metadata found");
   }
 
-  return metadata_v2(lgr,
-                     get_section_data(mm, schema_it->second, schema_buffer),
-                     get_section_data(mm, meta_it->second, meta_buffer),
-                     stat_defaults, inode_offset);
+  return metadata_v2(
+      lgr,
+      get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
+      get_section_data(mm, meta_it->second, meta_buffer, force_buffers),
+      stat_defaults, inode_offset);
 }
 
 template <typename LoggerPolicy>
@@ -358,7 +360,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   std::vector<uint8_t> schema_raw;
   std::vector<uint8_t> meta_raw;
-  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
+  auto meta =
+      make_metadata(lgr, mm, sections, schema_raw, meta_raw, nullptr, 0, true);
 
   struct ::statvfs stbuf;
   meta.statvfs(&stbuf);
