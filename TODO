@@ -1,3 +1,11 @@
+- test recompression
+- make no_owner, no_time work again
+- make dwarfsck more usable
+- cleanup TODOs
+- progress indicator for recompression
+
+- frozen: ViewBase.getPosition() should be const
+
 - docs, moar tests
 
 - extended attributes:
@@ -9,9 +17,6 @@
 
 - nanofsextract? ---> --unpack
 - readahead?
-- typedef -> using
-
-- start filename compression early
 
 - remove multiple blockhash window sizes, one is enough apparently?
 
