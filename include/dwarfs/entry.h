@@ -130,7 +130,7 @@ class dir : public entry {
   using entry_ptr = std::shared_ptr<entry>;
 
   std::vector<std::shared_ptr<entry>> entries_;
-  uint32_t inode_ = 0;
+  uint32_t inode_{0};
 };
 
 class link : public entry {

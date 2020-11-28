@@ -46,42 +46,6 @@
 
 namespace dwarfs {
 
-template <typename LoggerPolicy>
-class scanner_ : public scanner::impl {
- public:
-  scanner_(logger& lgr, worker_group& wg, const block_manager::config& config,
-           std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
-           std::shared_ptr<script> scr, const scanner_options& options);
-
-  void scan(filesystem_writer& fsw, const std::string& path, progress& prog);
-
- private:
-  const block_manager::config& cfg_;
-  const scanner_options& options_;
-  std::shared_ptr<entry_factory> entry_;
-  std::shared_ptr<os_access> os_;
-  std::shared_ptr<script> script_;
-  worker_group& wg_;
-  logger& lgr_;
-  log_proxy<LoggerPolicy> log_;
-};
-
-template <typename LoggerPolicy>
-scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
-                                 const block_manager::config& cfg,
-                                 std::shared_ptr<entry_factory> ef,
-                                 std::shared_ptr<os_access> os,
-                                 std::shared_ptr<script> scr,
-                                 const scanner_options& options)
-    : cfg_(cfg)
-    , options_(options)
-    , entry_(std::move(ef))
-    , os_(std::move(os))
-    , script_(std::move(scr))
-    , wg_(wg)
-    , lgr_(lgr)
-    , log_(lgr) {}
-
 class visitor_base : public entry_visitor {
  public:
   void visit(file*) override {}
@@ -196,27 +160,61 @@ class names_and_links_visitor : public entry_visitor {
 
 class save_directories_visitor : public visitor_base {
  public:
-  save_directories_visitor(thrift::metadata::metadata& mv2,
-                           global_entry_data const& ge_data,
-                           std::vector<uint32_t>& dir_index)
-      : mv2_(mv2)
-      , ge_data_(ge_data)
-      , dir_index_(dir_index) {}
+  save_directories_visitor(size_t num_directories) {
+    directories_.resize(num_directories);
+  }
 
-  void visit(dir* p) override {
-    dir_index_.at(p->inode_num()) = mv2_.directories.size();
-    p->pack(mv2_, ge_data_);
+  void visit(dir* p) override { directories_[p->inode_num()] = p; }
 
-    if (!p->has_parent()) {
-      p->pack_entry(mv2_, ge_data_);
+  void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
+    for (auto p : directories_) {
+      p->pack(mv2, ge_data);
+
+      if (!p->has_parent()) {
+        p->pack_entry(mv2, ge_data);
+      }
     }
   }
 
  private:
-  thrift::metadata::metadata& mv2_;
-  global_entry_data const& ge_data_;
-  std::vector<uint32_t>& dir_index_;
+  std::vector<dir*> directories_;
 };
+
+template <typename LoggerPolicy>
+class scanner_ : public scanner::impl {
+ public:
+  scanner_(logger& lgr, worker_group& wg, const block_manager::config& config,
+           std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
+           std::shared_ptr<script> scr, const scanner_options& options);
+
+  void scan(filesystem_writer& fsw, const std::string& path, progress& prog);
+
+ private:
+  const block_manager::config& cfg_;
+  const scanner_options& options_;
+  std::shared_ptr<entry_factory> entry_;
+  std::shared_ptr<os_access> os_;
+  std::shared_ptr<script> script_;
+  worker_group& wg_;
+  logger& lgr_;
+  log_proxy<LoggerPolicy> log_;
+};
+
+template <typename LoggerPolicy>
+scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
+                                 const block_manager::config& cfg,
+                                 std::shared_ptr<entry_factory> ef,
+                                 std::shared_ptr<os_access> os,
+                                 std::shared_ptr<script> scr,
+                                 const scanner_options& options)
+    : cfg_(cfg)
+    , options_(options)
+    , entry_(std::move(ef))
+    , os_(std::move(os))
+    , script_(std::move(scr))
+    , wg_(wg)
+    , lgr_(lgr)
+    , log_(lgr) {}
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
@@ -384,18 +382,16 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
       options_.no_time); // TODO: just pass options directly
 
   thrift::metadata::metadata mv2;
-  std::vector<uint32_t> dir_index;
-  dir_index.resize(first_link_inode);
   mv2.link_index.resize(first_file_inode - first_link_inode);
 
   wg_.add_job([&] {
-    log_.info() << "saving links...";
+    log_.info() << "saving names and links...";
     names_and_links_visitor nlv(ge_data);
     root->accept(nlv);
 
     ge_data.index();
 
-    log_.info() << "updating name offsets...";
+    log_.info() << "updating name and link indices...";
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
@@ -455,17 +451,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   log_.info() << "saving directories...";
   mv2.entry_index.resize(first_file_inode + im->count());
-  save_directories_visitor sdv(mv2, ge_data, dir_index);
+  save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
-
-  {
-    // order directories by inode number
-    std::vector<thrift::metadata::directory> tmp = std::move(mv2.directories);
-    mv2.directories.reserve(tmp.size());
-    for (auto i : dir_index) {
-      mv2.directories.push_back(std::move(tmp[i]));
-    }
-  }
+  sdv.pack(mv2, ge_data);
 
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
