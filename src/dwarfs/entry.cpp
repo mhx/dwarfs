@@ -84,8 +84,6 @@ std::string entry::type_string() const {
   }
 }
 
-size_t entry::total_size() const { return size(); }
-
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
@@ -153,16 +151,6 @@ void file::scan(os_access& os, const std::string& p, progress& prog) {
 entry::type_t dir::type() const { return E_DIR; }
 
 void dir::add(std::shared_ptr<entry> e) { entries_.emplace_back(std::move(e)); }
-
-size_t dir::total_size() const {
-  size_t total = 0;
-
-  for (entry_ptr const& e : entries_) {
-    total += e->total_size();
-  }
-
-  return total;
-}
 
 void dir::walk(std::function<void(entry*)> const& f) {
   f(this);

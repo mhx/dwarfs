@@ -22,17 +22,13 @@
 #pragma once
 
 #include <array>
-#include <functional>
-#include <limits>
 #include <memory>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include <sys/stat.h>
 
 #include "dwarfs/file_interface.h"
-#include "dwarfs/fstypes.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
@@ -70,7 +66,6 @@ class entry : public file_interface {
   size_t size() const override { return stat_.st_size; }
   virtual type_t type() const = 0;
   std::string type_string() const override;
-  virtual size_t total_size() const;
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
   void
@@ -119,7 +114,6 @@ class dir : public entry {
 
   type_t type() const override;
   void add(std::shared_ptr<entry> e);
-  size_t total_size() const override;
   void walk(std::function<void(entry*)> const& f) override;
   void walk(std::function<void(const entry*)> const& f) const override;
   void accept(entry_visitor& v, bool preorder) override;
