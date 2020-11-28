@@ -299,7 +299,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
 
-  auto im = inode_manager::create(cfg_.block_size_bits);
+  auto im = inode_manager::create();
 
   for (auto& p : file_hash) {
     if (p.second.size() > 1) {
@@ -310,7 +310,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
     auto first = p.second.front();
     {
-      auto inode = im->create();
+      auto inode = im->create_inode();
       first->set_inode(inode);
       inode->set_file(first);
     }
@@ -395,12 +395,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     prog.inodes_written++;
   });
 
-  prog.sync([&] { prog.current.store(nullptr); });
-
-  log_.debug() << "waiting for block compression to finish...";
+  log_.info() << "waiting for block compression to finish...";
 
   bm.finish_blocks();
   wg_.wait();
+
+  prog.sync([&] { prog.current.store(nullptr); });
 
   // TODO: check this, doesn't seem to come out right in debug output
   //       seems to be out-of-line with block compression??
@@ -425,7 +425,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   //       submitted for compression
   im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
     mv2.chunk_index.at(ino->num() - first_file_inode) = mv2.chunks.size();
-    ino->append_chunks(mv2.chunks);
+    ino->append_chunks_to(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
@@ -455,7 +455,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.links = ge_data.get_links();
   mv2.timestamp_base = ge_data.timestamp_base;
   mv2.chunk_index_offset = first_file_inode;
-  mv2.block_size = im->block_size();
+  mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;
 
   auto [schema, data] = metadata_v2::freeze(mv2);
@@ -463,7 +463,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsw.write_metadata_v2_schema(std::move(schema));
   fsw.write_metadata_v2(std::move(data));
 
-  log_.info() << "waiting for compression tasks to finish...";
+  log_.info() << "waiting for compression to finish...";
 
   fsw.flush();
 

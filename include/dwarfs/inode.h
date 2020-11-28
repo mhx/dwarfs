@@ -41,8 +41,7 @@ class inode : public file_interface {
   virtual uint32_t similarity_hash() const = 0;
   virtual const file_interface* any() const = 0; // TODO
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
-  virtual const std::vector<chunk_type>& chunks() const = 0;
   virtual void
-  append_chunks(std::vector<thrift::metadata::chunk>& vec) const = 0;
+  append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
 };
 } // namespace dwarfs

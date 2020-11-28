@@ -32,12 +32,11 @@
 
 namespace dwarfs {
 
-template <unsigned BlockSizeBits = 24>
 class inode_manager_ : public inode_manager {
  private:
   class inode_ : public inode {
    public:
-    using access = chunk_access<BlockSizeBits>;
+    using chunk_type = thrift::metadata::chunk;
 
     void set_num(uint32_t num) override { num_ = num; }
     uint32_t num() const override { return num_; }
@@ -59,7 +58,9 @@ class inode_manager_ : public inode_manager {
 
     void add_chunk(size_t block, size_t offset, size_t size) override {
       chunk_type c;
-      access::set(c, block, offset, size);
+      c.block = block;
+      c.offset = offset;
+      c.size = size;
       chunks_.push_back(c);
     }
 
@@ -76,17 +77,9 @@ class inode_manager_ : public inode_manager {
       return file_;
     }
 
-    const std::vector<chunk_type>& chunks() const override { return chunks_; }
-
     void
-    append_chunks(std::vector<thrift::metadata::chunk>& vec) const override {
-      for (auto c : chunks_) {
-        thrift::metadata::chunk chnk;
-        chnk.block = access::block(c);
-        chnk.offset = access::offset(c);
-        chnk.size = access::size(c);
-        vec.push_back(chnk);
-      }
+    append_chunks_to(std::vector<chunk_type>& vec) const override {
+      vec.insert(vec.end(), chunks_.begin(), chunks_.end());
     }
 
    private:
@@ -96,24 +89,13 @@ class inode_manager_ : public inode_manager {
   };
 
  public:
-  std::shared_ptr<inode> create() override {
+  std::shared_ptr<inode> create_inode() override {
     auto ino = std::make_shared<inode_>();
     inodes_.push_back(ino);
     return ino;
   }
 
   size_t count() const override { return inodes_.size(); }
-
-  size_t block_size() const override {
-    return static_cast<size_t>(1) << BlockSizeBits;
-  }
-
-  unsigned block_size_bits() const override { return BlockSizeBits; }
-
-  size_t chunk_size() const override {
-    // TODO: not needed
-    return sizeof(chunk_type);
-  }
 
   void order_inodes(std::shared_ptr<script> scr) override {
     scr->order(inodes_);
@@ -175,23 +157,7 @@ class inode_manager_ : public inode_manager {
   std::vector<std::shared_ptr<inode>> inodes_;
 };
 
-template <unsigned BlockSizeBits>
-std::shared_ptr<inode_manager>
-inode_manager::create_(unsigned block_size_bits) {
-  if (block_size_bits == BlockSizeBits) {
-    return std::make_shared<inode_manager_<BlockSizeBits>>();
-  }
-
-  return create_<BlockSizeBits - 1>(block_size_bits);
-}
-
-template <>
-std::shared_ptr<inode_manager>
-inode_manager::create_<MIN_BLOCK_BITS_SIZE - 1>(unsigned) {
-  throw std::runtime_error("unsupported block_size_bits");
-}
-
-std::shared_ptr<inode_manager> inode_manager::create(unsigned block_size_bits) {
-  return create_<MAX_BLOCK_BITS_SIZE>(block_size_bits);
+std::unique_ptr<inode_manager> inode_manager::create() {
+  return std::make_unique<inode_manager_>();
 }
 } // namespace dwarfs

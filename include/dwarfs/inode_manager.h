@@ -34,23 +34,16 @@ class script;
 
 class inode_manager {
  public:
-  static std::shared_ptr<inode_manager> create(unsigned block_size_bits);
+  static std::unique_ptr<inode_manager> create();
 
   virtual ~inode_manager() = default;
-  virtual std::shared_ptr<inode> create() = 0;
+  virtual std::shared_ptr<inode> create_inode() = 0;
   virtual size_t count() const = 0;
-  virtual size_t block_size() const = 0;
-  virtual unsigned block_size_bits() const = 0;
-  virtual size_t chunk_size() const = 0;
   virtual void order_inodes() = 0;
   virtual void order_inodes(std::shared_ptr<script> scr) = 0;
   virtual void order_inodes_by_similarity() = 0;
   virtual void number_inodes(size_t first_no) = 0;
   virtual void for_each_inode(
       std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
-
- private:
-  template <unsigned BlockSizeBits>
-  static std::shared_ptr<inode_manager> create_(unsigned block_size_bits);
 };
 } // namespace dwarfs
