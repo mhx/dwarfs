@@ -44,7 +44,6 @@ struct chunk {
 struct directory {
    1: required UInt32 parent_inode,
    2: required UInt32 first_entry,
-   3: required UInt32 entry_count,   // TODO: we can remove this if we sort entries by directory
 }
 
 /**
@@ -97,15 +96,22 @@ struct metadata {
     */
    1: required list<chunk>     chunks,
 
-   // all directories, indexed by inode number
+   /**
+    * All directories, indexed by inode number. There's one extra
+    * dummy directory at the end whose `first_entry` point to the
+    * end of `entries`, so that directory entry lookup work the
+    * same for all directories.
+    */
    2: required list<directory> directories,
 
    // all entries, can be looked up by inode through entry_index
    3: required list<entry>     entries,
 
-   // chunk index, indexed by (inode - chunk_index_offset); this
-   // list has one extra item at the back that points to the end
-   // of `chunks`, so chunk lookups work the same for all inodes
+   /**
+    * Chunk index, indexed by (inode - chunk_index_offset).
+    * There's one extra dummy item at the end that points to the
+    * end of `chunks`, so chunk lookups work the same for all inodes.
+    */
    4: required list<UInt32>    chunk_index,
 
    // entry index, indexed by inode

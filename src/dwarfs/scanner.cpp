@@ -168,12 +168,18 @@ class save_directories_visitor : public visitor_base {
 
   void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
     for (auto p : directories_) {
-      p->pack(mv2, ge_data);
-
       if (!p->has_parent()) {
         p->pack_entry(mv2, ge_data);
       }
+
+      p->pack(mv2, ge_data);
     }
+
+    thrift::metadata::directory dummy;
+    dummy.parent_inode = 0;
+    dummy.first_entry = mv2.entries.size();
+    // dummy.entry_count = 0;
+    mv2.directories.push_back(dummy);
   }
 
  private:
@@ -451,6 +457,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   log_.info() << "saving directories...";
   mv2.entry_index.resize(first_file_inode + im->count());
+  mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
   sdv.pack(mv2, ge_data);

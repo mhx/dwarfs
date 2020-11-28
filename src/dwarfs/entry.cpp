@@ -205,7 +205,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
   d.parent_inode =
       has_parent() ? std::dynamic_pointer_cast<dir>(parent())->inode_num() : 0;
   d.first_entry = mv2.entries.size();
-  d.entry_count = entries_.size();
+  // d.entry_count = entries_.size();
   mv2.directories.push_back(d);
   for (entry_ptr const& e : entries_) {
     mv2.entry_index.at(e->inode_num()) = mv2.entries.size();

@@ -73,6 +73,8 @@ class directory_view
   ::apache::thrift::frozen::View<thrift::metadata::directory> getdir() const;
   ::apache::thrift::frozen::View<thrift::metadata::directory>
   getdir(uint32_t ino) const;
+  uint32_t entry_count(
+      ::apache::thrift::frozen::View<thrift::metadata::directory> self) const;
 
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
       meta_;

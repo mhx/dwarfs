@@ -48,12 +48,18 @@ directory_view::getdir(uint32_t ino) const {
   return meta_->directories()[ino];
 }
 
-uint32_t directory_view::entry_count() const { return getdir().entry_count(); }
+uint32_t directory_view::entry_count() const { return entry_count(getdir()); }
+
+uint32_t directory_view::entry_count(
+    ::apache::thrift::frozen::View<thrift::metadata::directory> self) const {
+  auto next = getdir(inode() + 1);
+  return next.first_entry() - self.first_entry();
+}
 
 boost::integer_range<uint32_t> directory_view::entry_range() const {
   auto d = getdir();
   auto first = d.first_entry();
-  return boost::irange(first, first + d.entry_count());
+  return boost::irange(first, first + entry_count(d));
 }
 
 uint32_t directory_view::first_entry() const { return getdir().first_entry(); }
