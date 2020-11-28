@@ -38,6 +38,7 @@
 
 namespace dwarfs {
 
+// TODO: clean up
 struct global_entry_data {
   global_entry_data(bool no_time)
       : no_time_(no_time) {}
@@ -151,9 +152,6 @@ class entry : public file_interface {
   virtual size_t total_size() const;
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
-  void pack(dir_entry& de) const;
-  void pack(dir_entry_ug& de) const;
-  void pack(dir_entry_ug_time& de) const;
   void
   pack(thrift::metadata::entry& entry_v2, global_entry_data const& data) const;
   void update(global_entry_data& data) const;
@@ -161,7 +159,6 @@ class entry : public file_interface {
   virtual uint32_t inode_num() const = 0;
 
  protected:
-  virtual void pack_specific(dir_entry& de) const = 0;
   virtual void scan(os_access& os, const std::string& p, progress& prog) = 0;
 
  private:
@@ -187,7 +184,6 @@ class file : public entry {
   uint32_t similarity_hash() const { return similarity_hash_; }
 
  protected:
-  void pack_specific(dir_entry& de) const override;
   void scan(os_access& os, const std::string& p, progress& prog) override;
 
  private:
@@ -210,21 +206,13 @@ class dir : public entry {
   void sort();
   void set_offset(size_t offset);
   void set_inode(uint32_t inode);
-  virtual size_t packed_size() const = 0;
-  virtual void
-  pack(uint8_t* buf,
-       std::function<void(const entry* e, size_t offset)> const& offset_cb)
-      const = 0;
-  virtual void pack(thrift::metadata::metadata& mv2,
-                    global_entry_data const& data) const = 0;
-  virtual size_t packed_entry_size() const = 0;
-  virtual void pack_entry(uint8_t* buf) const = 0;
-  virtual void pack_entry(thrift::metadata::metadata& mv2,
-                          global_entry_data const& data) const = 0;
+  void
+  pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
+  void pack_entry(thrift::metadata::metadata& mv2,
+                  global_entry_data const& data) const;
   uint32_t inode_num() const override { return inode_; }
 
  protected:
-  void pack_specific(dir_entry& de) const override;
   void scan(os_access& os, const std::string& p, progress& prog) override;
 
   using entry_ptr = std::shared_ptr<entry>;
@@ -246,7 +234,6 @@ class link : public entry {
   uint32_t inode_num() const override { return inode_; }
 
  protected:
-  void pack_specific(dir_entry& de) const override;
   void scan(os_access& os, const std::string& p, progress& prog) override;
 
  private:
@@ -257,15 +244,12 @@ class link : public entry {
 
 class entry_factory {
  public:
-  static std::shared_ptr<entry_factory>
-  create(bool no_owner = false, bool no_time = false,
-         bool with_similarity = false);
+  static std::unique_ptr<entry_factory> create(bool with_similarity = false);
 
   virtual ~entry_factory() = default;
 
   virtual std::shared_ptr<entry>
   create(os_access& os, const std::string& name,
          std::shared_ptr<entry> parent = std::shared_ptr<entry>()) = 0;
-  virtual dir_entry_type de_type() const = 0;
 };
 } // namespace dwarfs

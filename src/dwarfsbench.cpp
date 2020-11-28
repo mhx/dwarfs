@@ -85,7 +85,8 @@ int dwarfsbench(int argc, char** argv) {
   bco.num_workers = num_workers;
   bco.decompress_ratio = folly::to<double>(decompress_ratio_str);
 
-  dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem), bco);
+  dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
+                           bco);
 
   worker_group wg("reader", num_readers);
 

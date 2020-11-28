@@ -53,6 +53,7 @@ class block_range {
   std::shared_ptr<cached_block const> block_;
 };
 
+// TODO: move elsewhere
 struct iovec_read_buf {
   // This covers more than 95% of reads
   static constexpr size_t inline_storage = 16;
@@ -75,12 +76,6 @@ enum class section_type : uint16_t {
   // Frozen metadata.
 };
 
-enum class dir_entry_type : uint8_t {
-  DIR_ENTRY = 0,        // filesystem uses dir_entry
-  DIR_ENTRY_UG = 1,     // filesystem uses dir_entry_ug
-  DIR_ENTRY_UG_TIME = 2 // filesystem uses dir_entry_ug_time
-};
-
 struct file_header {
   char magic[6]; // "DWARFS"
   uint8_t major; // major version
@@ -95,41 +90,6 @@ struct section_header {
 
   std::string to_string() const;
   void dump(std::ostream& os) const;
-};
-
-struct dir_entry { // 128 bits (16 bytes) / entry
-  uint32_t name_offset;
-  uint16_t name_size;
-  uint16_t mode;
-  uint32_t inode; // dirs start at 1, then links, then files
-  union {
-    uint32_t file_size; // for files only
-    uint32_t offset;    // for dirs, offset to directory,
-  } u;                  // for links, offset to content in link table
-};
-
-struct dir_entry_ug { // 160 bits (20 bytes) / entry
-  dir_entry de;
-  uint16_t owner;
-  uint16_t group;
-};
-
-struct dir_entry_ug_time { // 256 bits (32 bytes) / entry
-  dir_entry_ug ug;
-  uint32_t atime; // yeah, I know... in a few years we can switch to 64 bits
-  uint32_t mtime;
-  uint32_t ctime;
-};
-
-struct directory {
-  uint32_t count;
-  uint32_t self;
-  uint32_t parent;
-  union {
-    dir_entry entries[1];
-    dir_entry_ug entries_ug[1];
-    dir_entry_ug_time entries_ug_time[1];
-  } u;
 };
 
 std::string get_compression_name(compression_type type);

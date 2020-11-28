@@ -75,66 +75,6 @@ void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
   from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
 }
 
-template <typename DirEntryType>
-class dir_ : public dir {
- public:
-  using dir::dir;
-
-  size_t packed_entry_size() const override { return sizeof(DirEntryType); }
-
-  void pack_entry(uint8_t* buf) const override {
-    DirEntryType* de = reinterpret_cast<DirEntryType*>(buf);
-    entry::pack(*de);
-  }
-
-  void pack_entry(thrift::metadata::metadata& mv2,
-                  global_entry_data const& data) const override {
-    mv2.entry_index.at(inode_num()) = mv2.entries.size();
-    mv2.entries.emplace_back();
-    entry::pack(mv2.entries.back(), data);
-  }
-
-  size_t packed_size() const override {
-    return offsetof(directory, u) + sizeof(DirEntryType) * entries_.size();
-  }
-
-  void pack(uint8_t* buf,
-            std::function<void(const entry* e, size_t offset)> const& offset_cb)
-      const override {
-    directory* p = reinterpret_cast<directory*>(buf);
-    DirEntryType* de = reinterpret_cast<DirEntryType*>(&p->u);
-
-    p->count = entries_.size();
-
-    p->self = offset_;
-    p->parent = has_parent()
-                    ? std::dynamic_pointer_cast<dir_>(parent())->offset_
-                    : offset_;
-
-    for (entry_ptr const& e : entries_) {
-      e->pack(*de);
-      offset_cb(e.get(), offset_ + (reinterpret_cast<uint8_t*>(de) - buf));
-      ++de;
-    }
-  }
-
-  void pack(thrift::metadata::metadata& mv2,
-            global_entry_data const& data) const override {
-    thrift::metadata::directory dir;
-    dir.parent_inode =
-        has_parent() ? std::dynamic_pointer_cast<dir_>(parent())->inode_num()
-                     : 0;
-    dir.first_entry = mv2.entries.size();
-    dir.entry_count = entries_.size();
-    mv2.directories.push_back(dir);
-    for (entry_ptr const& e : entries_) {
-      mv2.entry_index.at(e->inode_num()) = mv2.entries.size();
-      mv2.entries.emplace_back();
-      e->pack(mv2.entries.back(), data);
-    }
-  }
-};
-
 entry::entry(const std::string& name, std::shared_ptr<entry> parent,
              const struct ::stat& st)
     : name_(name)
@@ -192,29 +132,6 @@ void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
 
-void entry::pack(dir_entry& de) const {
-  de.name_offset = name_offset_;
-  de.name_size = folly::to<uint16_t>(name_.size());
-  de.mode = stat_.st_mode & 0xFFFF;
-
-  pack_specific(de);
-}
-
-void entry::pack(dir_entry_ug& de) const {
-  de.owner = stat_.st_uid;
-  de.group = stat_.st_gid;
-
-  pack(de.de);
-}
-
-void entry::pack(dir_entry_ug_time& de) const {
-  de.atime = stat_.st_atime;
-  de.mtime = stat_.st_mtime;
-  de.ctime = stat_.st_ctime;
-
-  pack(de.ug);
-}
-
 void entry::update(global_entry_data& data) const {
   data.add_uid(stat_.st_uid);
   data.add_gid(stat_.st_gid);
@@ -255,11 +172,6 @@ std::shared_ptr<inode> file::get_inode() const { return inode_; }
 uint32_t file::inode_num() const { return inode_->num(); }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
-
-void file::pack_specific(dir_entry& de) const {
-  de.inode = inode_->num();
-  de.u.file_size = folly::to<uint32_t>(inode_->size());
-}
 
 void file::scan(os_access& os, const std::string& p, progress& prog) {
   assert(SHA_DIGEST_LENGTH == hash_.size());
@@ -335,12 +247,29 @@ void dir::set_offset(size_t offset) { offset_ = folly::to<uint32_t>(offset); }
 
 void dir::set_inode(uint32_t inode) { inode_ = inode; }
 
-void dir::pack_specific(dir_entry& de) const {
-  de.inode = inode_;
-  de.u.offset = offset_;
+void dir::scan(os_access&, const std::string&, progress&) {}
+
+void dir::pack_entry(thrift::metadata::metadata& mv2,
+                     global_entry_data const& data) const {
+  mv2.entry_index.at(inode_num()) = mv2.entries.size();
+  mv2.entries.emplace_back();
+  entry::pack(mv2.entries.back(), data);
 }
 
-void dir::scan(os_access&, const std::string&, progress&) {}
+void dir::pack(thrift::metadata::metadata& mv2,
+               global_entry_data const& data) const {
+  thrift::metadata::directory d;
+  d.parent_inode =
+      has_parent() ? std::dynamic_pointer_cast<dir>(parent())->inode_num() : 0;
+  d.first_entry = mv2.entries.size();
+  d.entry_count = entries_.size();
+  mv2.directories.push_back(d);
+  for (entry_ptr const& e : entries_) {
+    mv2.entry_index.at(e->inode_num()) = mv2.entries.size();
+    mv2.entries.emplace_back();
+    e->pack(mv2.entries.back(), data);
+  }
+}
 
 entry::type_t link::type() const { return E_LINK; }
 
@@ -352,17 +281,11 @@ void link::set_inode(uint32_t inode) { inode_ = inode; }
 
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void link::pack_specific(dir_entry& de) const {
-  de.inode = inode_;
-  de.u.offset = offset_;
-}
-
 void link::scan(os_access& os, const std::string& p, progress& prog) {
   link_ = os.readlink(p, size());
   prog.original_size += size();
 }
 
-template <typename DirEntryType>
 class entry_factory_ : public entry_factory {
  public:
   entry_factory_(bool with_similarity)
@@ -379,7 +302,7 @@ class entry_factory_ : public entry_factory {
       return std::make_shared<file>(name, std::move(parent), st,
                                     with_similarity_);
     } else if (S_ISDIR(st.st_mode)) {
-      return std::make_shared<dir_<DirEntryType>>(name, std::move(parent), st);
+      return std::make_shared<dir>(name, std::move(parent), st);
     } else if (S_ISLNK(st.st_mode)) {
       return std::make_shared<link>(name, std::move(parent), st);
     } else {
@@ -389,42 +312,11 @@ class entry_factory_ : public entry_factory {
     return std::shared_ptr<entry>();
   }
 
-  dir_entry_type de_type() const override;
-
  private:
   const bool with_similarity_;
 };
 
-template <>
-dir_entry_type entry_factory_<dir_entry>::de_type() const {
-  return dir_entry_type::DIR_ENTRY;
-}
-
-template <>
-dir_entry_type entry_factory_<dir_entry_ug>::de_type() const {
-  return dir_entry_type::DIR_ENTRY_UG;
-}
-
-template <>
-dir_entry_type entry_factory_<dir_entry_ug_time>::de_type() const {
-  return dir_entry_type::DIR_ENTRY_UG_TIME;
-}
-
-std::shared_ptr<entry_factory>
-entry_factory::create(bool no_owner, bool no_time, bool with_similarity) {
-  if (no_owner) {
-    if (!no_time) {
-      throw std::runtime_error("no_owner implies no_time");
-    }
-
-    // no owner/time information
-    return std::make_shared<entry_factory_<dir_entry>>(with_similarity);
-  } else if (no_time) {
-    // no time information
-    return std::make_shared<entry_factory_<dir_entry_ug>>(with_similarity);
-  } else {
-    // the full monty
-    return std::make_shared<entry_factory_<dir_entry_ug_time>>(with_similarity);
-  }
+std::unique_ptr<entry_factory> entry_factory::create(bool with_similarity) {
+  return std::make_unique<entry_factory_>(with_similarity);
 }
 } // namespace dwarfs

@@ -81,9 +81,9 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   bco.max_bytes = opts.cachesize;
   bco.num_workers = opts.workers;
   bco.decompress_ratio = opts.decompress_ratio;
-  s_fs =
-      std::make_shared<filesystem_v2>(s_lgr, std::make_shared<mmap>(opts.fsimage),
-                                   bco, &opts.stat_defaults, FUSE_ROOT_ID);
+  s_fs = std::make_shared<filesystem_v2>(
+      s_lgr, std::make_shared<mmap>(opts.fsimage), bco, &opts.stat_defaults,
+      FUSE_ROOT_ID);
 }
 
 void op_destroy(void* /*userdata*/) {
@@ -263,17 +263,15 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     }
 
     err = -rv;
-}
-catch (const dwarfs::error& e) {
-  std::cerr << "ERROR: " << e.what() << std::endl;
-  err = e.get_errno();
-}
-catch (const std::exception& e) {
-  std::cerr << "ERROR: " << e.what() << std::endl;
-  err = EIO;
-}
+  } catch (const dwarfs::error& e) {
+    std::cerr << "ERROR: " << e.what() << std::endl;
+    err = e.get_errno();
+  } catch (const std::exception& e) {
+    std::cerr << "ERROR: " << e.what() << std::endl;
+    err = EIO;
+  }
 
-fuse_reply_err(req, err);
+  fuse_reply_err(req, err);
 } // namespace dwarfs
 
 void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,

@@ -163,8 +163,8 @@ using namespace dwarfs;
 namespace {
 
 void basic_end_to_end_test(const std::string& compressor,
-                           unsigned block_size_bits, file_order_mode file_order,
-                           bool no_owner, bool no_time) {
+                           unsigned block_size_bits,
+                           file_order_mode file_order) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -181,8 +181,7 @@ void basic_end_to_end_test(const std::string& compressor,
   lgr.set_policy<prod_logger_policy>();
 
   scanner s(lgr, wg, cfg,
-            entry_factory::create(no_owner, no_time,
-                                  file_order == file_order_mode::SIMILARITY),
+            entry_factory::create(file_order == file_order_mode::SIMILARITY),
             std::make_shared<test::os_access_mock>(),
             std::make_shared<test::script_mock>(), options);
 
@@ -233,30 +232,18 @@ std::vector<std::string> const compressions{"null",
 } // namespace
 
 class basic : public testing::TestWithParam<
-                  std::tuple<std::string, unsigned, file_order_mode, int>> {};
+                  std::tuple<std::string, unsigned, file_order_mode>> {};
 
 TEST_P(basic, end_to_end) {
-  bool no_owner = false, no_time = false;
-
-  switch (std::get<3>(GetParam())) {
-  case 1:
-    no_time = true;
-    break;
-  case 2:
-    no_owner = no_time = true;
-    break;
-  default:
-    break;
-  }
-
   basic_end_to_end_test(std::get<0>(GetParam()), std::get<1>(GetParam()),
-                        std::get<2>(GetParam()), no_owner, no_time);
+                        std::get<2>(GetParam()));
 }
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, basic,
-    ::testing::Combine(
-        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
-        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
-                          file_order_mode::SCRIPT, file_order_mode::SIMILARITY),
-        ::testing::Values(0, 1, 2)));
+    ::testing::Combine(::testing::ValuesIn(compressions),
+                       ::testing::Values(12, 15, 20, 28),
+                       ::testing::Values(file_order_mode::NONE,
+                                         file_order_mode::PATH,
+                                         file_order_mode::SCRIPT,
+                                         file_order_mode::SIMILARITY)));

@@ -77,8 +77,7 @@ class inode_manager_ : public inode_manager {
       return file_;
     }
 
-    void
-    append_chunks_to(std::vector<chunk_type>& vec) const override {
+    void append_chunks_to(std::vector<chunk_type>& vec) const override {
       vec.insert(vec.end(), chunks_.begin(), chunks_.end());
     }
 

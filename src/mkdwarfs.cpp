@@ -458,16 +458,16 @@ int mkdwarfs(int argc, char** argv) {
 
   if (recompress) {
     auto ti = log.timed_info();
-    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw);
+    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
+                           fsw);
     wg_writer.wait();
     ti << "filesystem rewritten";
   } else {
     options.no_time = no_time;
 
     scanner s(lgr, wg_scanner, cfg,
-              entry_factory::create(no_owner, no_owner || no_time,
-                                    options.file_order ==
-                                        file_order_mode::SIMILARITY),
+              entry_factory::create(options.file_order ==
+                                    file_order_mode::SIMILARITY),
               std::make_shared<os_access_posix>(), script, options);
 
     {

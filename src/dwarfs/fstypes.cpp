@@ -39,14 +39,6 @@ const std::map<section_type, std::string> sections{
 #undef SECTION_TYPE_
 };
 
-// TODO: remove
-const std::map<dir_entry_type, std::string> dir_entries{
-#define DIR_ENTRY_TYPE_(x) {dir_entry_type::x, #x}
-    DIR_ENTRY_TYPE_(DIR_ENTRY), DIR_ENTRY_TYPE_(DIR_ENTRY_UG),
-    DIR_ENTRY_TYPE_(DIR_ENTRY_UG_TIME)
-#undef DIR_ENTRY_TYPE_
-};
-
 const std::map<compression_type, std::string> compressions{
 #define COMPRESSION_TYPE_(x) {compression_type::x, #x}
     COMPRESSION_TYPE_(NONE), COMPRESSION_TYPE_(LZMA), COMPRESSION_TYPE_(ZSTD),
