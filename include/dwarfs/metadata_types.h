@@ -35,12 +35,13 @@ namespace dwarfs {
 
 class entry_view
     : public ::apache::thrift::frozen::View<thrift::metadata::entry> {
+  using EntryView = ::apache::thrift::frozen::View<thrift::metadata::entry>;
+  using Meta =
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+
  public:
-  entry_view(
-      ::apache::thrift::frozen::View<thrift::metadata::entry> ev,
-      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-          meta)
-      : ::apache::thrift::frozen::View<thrift::metadata::entry>(ev)
+  entry_view(EntryView ev, Meta const* meta)
+      : EntryView(ev)
       , meta_(meta) {}
 
   std::string_view name() const;
@@ -49,18 +50,19 @@ class entry_view
   uint16_t getgid() const;
 
  private:
-  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-      meta_;
+  Meta const* meta_;
 };
 
 class directory_view
     : public ::apache::thrift::frozen::View<thrift::metadata::entry> {
+  using EntryView = ::apache::thrift::frozen::View<thrift::metadata::entry>;
+  using DirView = ::apache::thrift::frozen::View<thrift::metadata::directory>;
+  using Meta =
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+
  public:
-  directory_view(
-      ::apache::thrift::frozen::View<thrift::metadata::entry> ev,
-      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-          meta)
-      : ::apache::thrift::frozen::View<thrift::metadata::entry>(ev)
+  directory_view(EntryView ev, Meta const* meta)
+      : EntryView(ev)
       , meta_(meta) {}
 
   uint32_t parent_inode() const;
@@ -70,19 +72,19 @@ class directory_view
   boost::integer_range<uint32_t> entry_range() const;
 
  private:
-  ::apache::thrift::frozen::View<thrift::metadata::directory> getdir() const;
-  ::apache::thrift::frozen::View<thrift::metadata::directory>
-  getdir(uint32_t ino) const;
-  uint32_t entry_count(
-      ::apache::thrift::frozen::View<thrift::metadata::directory> self) const;
+  DirView getdir() const;
+  DirView getdir(uint32_t ino) const;
+  uint32_t entry_count(DirView self) const;
 
-  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-      meta_;
+  Meta const* meta_;
 };
 
 using chunk_view = ::apache::thrift::frozen::View<thrift::metadata::chunk>;
 
 class chunk_range {
+  using Meta =
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+
  public:
   class iterator
       : public boost::iterator_facade<iterator, chunk_view const,
@@ -90,9 +92,7 @@ class chunk_range {
    public:
     iterator() = default;
 
-    iterator(::apache::thrift::frozen::MappedFrozen<
-                 thrift::metadata::metadata> const* meta,
-             uint32_t it)
+    iterator(Meta const* meta, uint32_t it)
         : meta_(meta)
         , it_(it) {}
 
@@ -123,15 +123,12 @@ class chunk_range {
       return view_;
     }
 
-    ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-        meta_;
+    Meta const* meta_;
     uint32_t it_{0};
     mutable chunk_view view_;
   };
 
-  chunk_range(::apache::thrift::frozen::MappedFrozen<
-                  thrift::metadata::metadata> const* meta,
-              uint32_t begin, uint32_t end)
+  chunk_range(Meta const* meta, uint32_t begin, uint32_t end)
       : meta_(meta)
       , begin_(begin)
       , end_(end) {}
@@ -145,8 +142,7 @@ class chunk_range {
   bool empty() const { return end_ == begin_; }
 
  private:
-  ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
-      meta_;
+  Meta const* meta_;
   uint32_t begin_{0};
   uint32_t end_{0};
 };
