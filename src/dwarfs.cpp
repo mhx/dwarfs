@@ -77,6 +77,11 @@ std::shared_ptr<filesystem_v2> s_fs;
 
 void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   DEBUG_FUNC("")
+
+  log_proxy<debug_logger_policy> log(s_lgr);
+
+  auto ti = log.timed_info();
+
   block_cache_options bco;
   bco.max_bytes = opts.cachesize;
   bco.num_workers = opts.workers;
@@ -84,6 +89,8 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   s_fs = std::make_shared<filesystem_v2>(
       s_lgr, std::make_shared<mmap>(opts.fsimage), bco, &opts.stat_defaults,
       FUSE_ROOT_ID);
+
+  ti << "file system initialized";
 }
 
 void op_destroy(void* /*userdata*/) {

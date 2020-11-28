@@ -33,6 +33,7 @@
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
+#include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 
 namespace dwarfs {
@@ -330,13 +331,16 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
 
 } // namespace
 
+filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
+    : filesystem_v2(lgr, std::move(mm), block_cache_options()) {}
+
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                              const block_cache_options& bc_options,
                              const struct ::stat* stat_defaults,
                              int inode_offset)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, mm, bc_options, stat_defaults, inode_offset)) {}
+          lgr, std::move(mm), bc_options, stat_defaults, inode_offset)) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm,
@@ -412,12 +416,9 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  std::vector<uint8_t> schema_raw;
-  std::vector<uint8_t> meta_raw;
-
-  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw);
-
-  meta.dump(os, detail_level, [](const std::string&, uint32_t) {});
+  if (detail_level > 0) {
+    filesystem_v2(lgr, mm).dump(os, detail_level);
+  }
 }
 
 } // namespace dwarfs

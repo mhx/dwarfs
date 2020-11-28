@@ -151,8 +151,10 @@ class metadata_ : public metadata_v2::impl {
   }
 
   void dump(std::ostream& os, const std::string& indent, entry_view entry,
+            int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
+            int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
   std::optional<entry_view>
@@ -209,6 +211,7 @@ class metadata_ : public metadata_v2::impl {
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, entry_view entry,
+    int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto mode = entry.mode();
   auto inode = entry.inode();
@@ -224,9 +227,12 @@ void metadata_<LoggerPolicy>::dump(
     uint32_t end = meta_.chunk_index()[inode - chunk_index_offset_ + 1];
     os << " [" << beg << ", " << end << "]";
     os << " " << file_size(entry, mode) << "\n";
-    icb(indent + "  ", inode);
+    if (detail_level > 3) {
+      icb(indent + "  ", inode);
+    }
   } else if (S_ISDIR(mode)) {
-    dump(os, indent + "  ", make_directory_view(entry), std::move(icb));
+    dump(os, indent + "  ", make_directory_view(entry), detail_level,
+         std::move(icb));
   } else if (S_ISLNK(mode)) {
     os << " -> " << link_value(entry) << "\n";
   } else {
@@ -237,6 +243,7 @@ void metadata_<LoggerPolicy>::dump(
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
+    int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto count = dir.entry_count();
   auto first = dir.first_entry();
@@ -245,7 +252,7 @@ void metadata_<LoggerPolicy>::dump(
      << dir.parent_inode() << "]\n";
 
   for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, make_entry_view(first + i), icb);
+    dump(os, indent, make_entry_view(first + i), detail_level, icb);
   }
 }
 
@@ -256,16 +263,22 @@ void metadata_<LoggerPolicy>::dump(
   struct ::statvfs stbuf;
   statvfs(&stbuf);
 
-  os << "block size: " << stbuf.f_bsize << std::endl;
-  os << "inode count: " << stbuf.f_files << std::endl;
-  os << "original filesystem size: " << stbuf.f_blocks << std::endl;
-
   if (detail_level > 0) {
-    analyze_frozen(os, meta_);
+    os << "block size: " << stbuf.f_bsize << std::endl;
+    os << "inode count: " << stbuf.f_files << std::endl;
+    os << "original filesystem size: " << stbuf.f_blocks << std::endl;
   }
 
   if (detail_level > 1) {
-    dump(os, "", root_, icb);
+    analyze_frozen(os, meta_);
+  }
+
+  if (detail_level > 2) {
+    dump(os, "", root_, detail_level, icb);
+  }
+
+  if (detail_level > 4) {
+    os << ::apache::thrift::debugString(meta_.thaw());
   }
 }
 

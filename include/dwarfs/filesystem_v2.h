@@ -46,6 +46,8 @@ class progress;
 
 class filesystem_v2 {
  public:
+  filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
+
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                 const block_cache_options& bc_options,
                 const struct ::stat* stat_defaults = nullptr,

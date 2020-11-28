@@ -22,39 +22,69 @@
 #include <iostream>
 #include <vector>
 
+#include <boost/program_options.hpp>
+
+#include <folly/String.h>
+
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 
-int main(int argc, char** argv) {
-  if (argc == 2 || argc == 3) {
-    try {
-      dwarfs::stream_logger lgr(std::cerr, dwarfs::logger::DEBUG);
-      auto mm = std::make_shared<dwarfs::mmap>(argv[1]);
-      dwarfs::filesystem_v2 fs(lgr, mm, dwarfs::block_cache_options());
+namespace dwarfs {
 
-      if (argc == 3) {
-        auto entry = fs.find(argv[2]);
+namespace po = boost::program_options;
 
-        if (entry) {
-          struct ::stat stbuf;
-          fs.getattr(*entry, &stbuf);
-          std::vector<char> data(stbuf.st_size);
-          fs.read(stbuf.st_ino, &data[0], data.size(), 0);
-          std::cout.write(&data[0], data.size());
-        }
-      } else {
-        // TODO: add more usage options...
-        dwarfs::filesystem_v2::identify(lgr, mm, std::cout, 1);
-        // fs.dump(std::cout, 1);
-      }
-    } catch (const std::exception& e) {
-      std::cerr << "Error: " << e.what() << std::endl;
-      return 1;
-    }
-  } else {
-    std::cerr << "Usage: " << argv[0] << " file" << std::endl;
+int dwarfsck(int argc, char** argv) {
+  std::string log_level, input;
+  int detail;
+
+  // clang-format off
+  po::options_description opts("Command line options");
+  opts.add_options()
+    ("input,i",
+        po::value<std::string>(&input),
+        "input filesystem")
+    ("detail,d",
+        po::value<int>(&detail)->default_value(1),
+        "detail level")
+    ("log-level",
+        po::value<std::string>(&log_level)->default_value("info"),
+        "log level (error, warn, info, debug, trace)")
+    ("help,h",
+        "output help message and exit");
+  // clang-format on
+
+  po::positional_options_description pos;
+  pos.add("input", -1);
+
+  po::variables_map vm;
+
+  po::store(
+      po::command_line_parser(argc, argv).options(opts).positional(pos).run(),
+      vm);
+  po::notify(vm);
+
+  if (vm.count("help") or !vm.count("input")) {
+    std::cout << "dwarfsck (" << DWARFS_VERSION << ")\n" << opts << std::endl;
+    return 0;
   }
 
+  dwarfs::stream_logger lgr(std::cerr, logger::parse_level(log_level));
+
+  auto mm = std::make_shared<dwarfs::mmap>(input);
+
+  dwarfs::filesystem_v2::identify(lgr, mm, std::cout, detail);
+
   return 0;
+}
+
+} // namespace dwarfs
+
+int main(int argc, char** argv) {
+  try {
+    return dwarfs::dwarfsck(argc, argv);
+  } catch (std::exception const& e) {
+    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
+    return 1;
+  }
 }
