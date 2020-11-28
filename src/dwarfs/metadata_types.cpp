@@ -40,7 +40,7 @@ uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
 
 ::apache::thrift::frozen::View<thrift::metadata::directory>
 directory_view::getdir() const {
-  return getdir(inode());
+  return getdir(entry_.inode());
 }
 
 ::apache::thrift::frozen::View<thrift::metadata::directory>
@@ -52,7 +52,7 @@ uint32_t directory_view::entry_count() const { return entry_count(getdir()); }
 
 uint32_t directory_view::entry_count(
     ::apache::thrift::frozen::View<thrift::metadata::directory> self) const {
-  auto next = getdir(inode() + 1);
+  auto next = getdir(entry_.inode() + 1);
   return next.first_entry() - self.first_entry();
 }
 

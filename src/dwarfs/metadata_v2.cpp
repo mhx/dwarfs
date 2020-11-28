@@ -84,6 +84,8 @@ void analyze_frozen(std::ostream& os,
 
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
+} // namespace
+
 template <typename LoggerPolicy>
 class metadata_ : public metadata_v2::impl {
  public:
@@ -535,8 +537,6 @@ metadata_<LoggerPolicy>::get_chunks(int inode) const {
   }
   return rv;
 }
-
-} // namespace
 
 void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
   ::memset(defaults, 0, sizeof(struct ::stat));
