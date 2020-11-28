@@ -68,10 +68,6 @@ class filesystem_writer {
     impl_->write_block(std::move(data));
   }
 
-  void write_metadata(std::vector<uint8_t>&& data) {
-    impl_->write_metadata(std::move(data));
-  }
-
   void write_metadata_v2_schema(std::vector<uint8_t>&& data) {
     impl_->write_metadata_v2_schema(std::move(data));
   }
@@ -89,7 +85,6 @@ class filesystem_writer {
     virtual ~impl() = default;
 
     virtual void write_block(std::vector<uint8_t>&& data) = 0;
-    virtual void write_metadata(std::vector<uint8_t>&& data) = 0;
     virtual void write_metadata_v2_schema(std::vector<uint8_t>&& data) = 0;
     virtual void write_metadata_v2(std::vector<uint8_t>&& data) = 0;
     virtual void flush() = 0;

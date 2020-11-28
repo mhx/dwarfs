@@ -61,83 +61,12 @@ struct iovec_read_buf {
   folly::small_vector<block_range, inline_storage> ranges;
 };
 
-/*************************
-
----------------------
-  file_header
----------------------
-  section_header [BLOCK]
-  block 0
----------------------
-  section_header [BLOCK]
-  block n
----------------------
-  section_header [METADATA]
-  metadata
----------------------
-
-
-TODO: better description ;-)
-
-metadata:
-
-  links_table  -> vector<uint8_t>    // links first, potential re-use for names
-table :-)
-  names_table  -> vector<uint8_t>
-  inode_table  -> vector<chunk>      // sizeof(chunk) aligned (64-bit)
-  directories...
-
-  inode_index: inode -> dir_entry offset
-  chunk_index: (inode - file_inode_offset) -> chunk offset
-
- *************************/
-
 constexpr uint8_t MAJOR_VERSION = 1;
 constexpr uint8_t MINOR_VERSION = 0;
 
 enum class section_type : uint16_t {
   BLOCK = 0,
   // Optionally compressed block data.
-
-  METADATA = 1,
-  // Optionally compressed metadata. This is just
-  // another section list.
-
-  META_TABLEDATA = 2,
-  // This is raw data that is indexed from the other
-  // sections by offset. It contains all names, link
-  // targets and chunk lists.
-  // Names are referenced by offset/length. Link targets
-  // are referenced by offset and actually start with a
-  // uint16_t storing the length of the remaining string.
-  // Names are free to share data with links targets.
-  // Chunk lists are just a vector of chunks, aligned to
-  // the size of a chunk for efficient access.
-
-  META_INODE_INDEX = 3,
-  // The inode index is a vector of offsets to all inodes
-  // (i.e. dir_entry* structs). The vector may be offset
-  // by inode_index_offset if inodes do not start at zero.
-
-  META_CHUNK_INDEX = 4,
-  // The chunk index is a vector of offsets to the start
-  // of the chunk list for file inodes. As all link and
-  // directory inodes precede all file inodes, this vector
-  // is offset by chunk_index_offset. There is one more
-  // element in the chunk index vector that holds an offset
-  // to the end of the chunk lists.
-
-  META_DIRECTORIES = 5,
-  // All directory structures, in top-down order. These
-  // are referenced from within the inode index. The root
-  // directory also has its dir_entry* struct stored here.
-
-  META_CONFIG = 6,
-  // Configuration data for this filesystem. Defines the
-  // type of dir_entry* structure being used as well as
-  // the block size which is needed for working with the
-  // chunk lists. Also defines inode offsets being used
-  // and the total inode count (for out-of-bounds checks).
 
   METADATA_V2_SCHEMA = 7,
   // Frozen metadata schema.

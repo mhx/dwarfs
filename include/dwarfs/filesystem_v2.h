@@ -103,7 +103,7 @@ class filesystem_v2 {
 
   int open(entry_view entry) const { return impl_->open(entry); }
 
-  ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset) const {
+  ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset = 0) const {
     return impl_->read(inode, buf, size, offset);
   }
 

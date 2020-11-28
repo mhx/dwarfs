@@ -138,7 +138,6 @@ class filesystem_writer_ : public filesystem_writer::impl {
   ~filesystem_writer_() noexcept;
 
   void write_block(std::vector<uint8_t>&& data) override;
-  void write_metadata(std::vector<uint8_t>&& data) override;
   void write_metadata_v2_schema(std::vector<uint8_t>&& data) override;
   void write_metadata_v2(std::vector<uint8_t>&& data) override;
   void flush() override;
@@ -229,8 +228,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
 
     fsb->wait_until_compressed();
 
-    log_.debug() << (fsb->type() == section_type::METADATA ? "metadata"
-                                                           : "block")
+    log_.debug() << get_section_name(fsb->type())
                  << " compressed from "
                  << size_with_unit(fsb->uncompressed_size()) << " to "
                  << size_with_unit(fsb->size());
@@ -322,12 +320,6 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_block(
     std::vector<uint8_t>&& data) {
   write_section(section_type::BLOCK, std::move(data), bc_);
-}
-
-template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_metadata(
-    std::vector<uint8_t>&& data) {
-  write_section(section_type::METADATA, std::move(data), metadata_bc_);
 }
 
 template <typename LoggerPolicy>

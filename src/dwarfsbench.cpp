@@ -24,7 +24,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 
-#include "dwarfs/filesystem.h"
+#include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -85,16 +85,19 @@ int dwarfsbench(int argc, char** argv) {
   bco.num_workers = num_workers;
   bco.decompress_ratio = folly::to<double>(decompress_ratio_str);
 
-  dwarfs::filesystem fs(lgr, std::make_shared<dwarfs::mmap>(filesystem), bco);
+  dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem), bco);
 
   worker_group wg("reader", num_readers);
 
-  fs.walk([&](const dir_entry* de) {
-    if (S_ISREG(de->mode)) {
-      wg.add_job([&fs, de] {
-        std::vector<char> buf(de->u.file_size);
-        int fh = fs.open(de);
-        fs.read(fh, buf.data(), buf.size(), 0);
+  fs.walk([&](auto entry) {
+    if (S_ISREG(entry.mode())) {
+      wg.add_job([&fs, entry] {
+        struct ::stat stbuf;
+        if (fs.getattr(entry, &stbuf) == 0) {
+          std::vector<char> buf(stbuf.st_size);
+          int fh = fs.open(entry);
+          fs.read(fh, buf.data(), buf.size());
+        }
       });
     }
   });

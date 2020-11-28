@@ -97,15 +97,12 @@ list(
   src/dwarfs/block_manager.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
-  src/dwarfs/filesystem.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/inode_manager.cpp
-  src/dwarfs/inode_reader.cpp
   src/dwarfs/inode_reader_v2.cpp
   src/dwarfs/logger.cpp
-  src/dwarfs/metadata.cpp
   src/dwarfs/metadata_types.cpp
   src/dwarfs/metadata_v2.cpp
   src/dwarfs/mmap.cpp
