@@ -54,20 +54,26 @@ class entry_view
 };
 
 class directory_view
-    : public ::apache::thrift::frozen::View<thrift::metadata::directory> {
+    : public ::apache::thrift::frozen::View<thrift::metadata::entry> {
  public:
   directory_view(
-      ::apache::thrift::frozen::View<thrift::metadata::directory> dv,
+      ::apache::thrift::frozen::View<thrift::metadata::entry> ev,
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
           meta)
-      : ::apache::thrift::frozen::View<thrift::metadata::directory>(dv)
+      : ::apache::thrift::frozen::View<thrift::metadata::entry>(ev)
       , meta_(meta) {}
+
+  uint32_t parent_inode() const;
+  uint32_t first_entry() const;
+  uint32_t entry_count() const;
 
   boost::integer_range<uint32_t> entry_range() const;
 
-  uint32_t self_inode();
-
  private:
+  ::apache::thrift::frozen::View<thrift::metadata::directory> getdir() const;
+  ::apache::thrift::frozen::View<thrift::metadata::directory>
+  getdir(uint32_t ino) const;
+
   ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata> const*
       meta_;
 };

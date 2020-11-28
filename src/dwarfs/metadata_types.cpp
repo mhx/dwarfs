@@ -38,20 +38,28 @@ uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
 
 uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
 
-boost::integer_range<uint32_t> directory_view::entry_range() const {
-  auto first = first_entry();
-  return boost::irange(first, first + entry_count());
+::apache::thrift::frozen::View<thrift::metadata::directory>
+directory_view::getdir() const {
+  return getdir(inode());
 }
 
-uint32_t directory_view::self_inode() {
-  auto pos = getPosition().bitOffset;
-  if (pos > 0) {
-    // XXX: this is evil trickery...
-    auto one = meta_->directories()[1].getPosition().bitOffset;
-    assert(pos % one == 0);
-    pos /= one;
-  }
-  return pos;
+::apache::thrift::frozen::View<thrift::metadata::directory>
+directory_view::getdir(uint32_t ino) const {
+  return meta_->directories()[ino];
+}
+
+uint32_t directory_view::entry_count() const { return getdir().entry_count(); }
+
+boost::integer_range<uint32_t> directory_view::entry_range() const {
+  auto d = getdir();
+  auto first = d.first_entry();
+  return boost::irange(first, first + d.entry_count());
+}
+
+uint32_t directory_view::first_entry() const { return getdir().first_entry(); }
+
+uint32_t directory_view::parent_inode() const {
+  return getdir().parent_inode();
 }
 
 } // namespace dwarfs

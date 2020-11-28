@@ -146,8 +146,8 @@ class metadata_ : public metadata_v2::impl {
     return make_entry_view(meta_.entry_index()[inode]);
   }
 
-  directory_view make_directory_view(size_t index) const {
-    return directory_view(meta_.directories()[index], &meta_);
+  directory_view make_directory_view(entry_view entry) const {
+    return directory_view(entry, &meta_);
   }
 
   void dump(std::ostream& os, const std::string& indent, entry_view entry,
@@ -179,10 +179,6 @@ class metadata_ : public metadata_v2::impl {
     } else {
       return 0;
     }
-  }
-
-  directory_view getdir(entry_view entry) const {
-    return make_directory_view(entry.inode());
   }
 
   void
@@ -230,7 +226,7 @@ void metadata_<LoggerPolicy>::dump(
     os << " " << file_size(entry, mode) << "\n";
     icb(indent + "  ", inode);
   } else if (S_ISDIR(mode)) {
-    dump(os, indent + "  ", make_directory_view(inode), std::move(icb));
+    dump(os, indent + "  ", make_directory_view(entry), std::move(icb));
   } else if (S_ISLNK(mode)) {
     os << " -> " << link_value(entry) << "\n";
   } else {
@@ -245,7 +241,7 @@ void metadata_<LoggerPolicy>::dump(
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
-  os << "(" << count << " entries) [" << dir.self_inode() << ", "
+  os << "(" << count << " entries) [" << dir.inode() << ", "
      << dir.parent_inode() << "]\n";
 
   for (size_t i = 0; i < count; ++i) {
@@ -299,7 +295,7 @@ void metadata_<LoggerPolicy>::walk(
     entry_view entry, std::function<void(entry_view)> const& func) const {
   func(entry);
   if (S_ISDIR(entry.mode())) {
-    auto dir = getdir(entry);
+    auto dir = make_directory_view(entry);
     for (auto cur : dir.entry_range()) {
       walk(make_entry_view(cur), func);
     }
@@ -348,7 +344,7 @@ metadata_<LoggerPolicy>::find(const char* path) const {
     const char* next = ::strchr(path, '/');
     size_t clen = next ? next - path : ::strlen(path);
 
-    entry = find(getdir(*entry), std::string_view(path, clen));
+    entry = find(make_directory_view(*entry), std::string_view(path, clen));
 
     if (!entry) {
       break;
@@ -371,7 +367,7 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
   auto entry = get_entry(inode);
 
   if (entry) {
-    entry = find(getdir(*entry), std::string_view(name));
+    entry = find(make_directory_view(*entry), std::string_view(name));
   }
 
   return entry;
@@ -404,7 +400,7 @@ metadata_<LoggerPolicy>::opendir(entry_view entry) const {
   std::optional<directory_view> rv;
 
   if (S_ISDIR(entry.mode())) {
-    rv = getdir(entry);
+    rv = make_directory_view(entry);
   }
 
   return rv;
@@ -415,7 +411,7 @@ std::optional<std::pair<entry_view, std::string_view>>
 metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   switch (offset) {
   case 0:
-    return std::pair(make_entry_view_from_inode(dir.self_inode()), ".");
+    return std::pair(make_entry_view_from_inode(dir.inode()), ".");
 
   case 1:
     return std::pair(make_entry_view_from_inode(dir.parent_inode()), "..");
