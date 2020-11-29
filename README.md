@@ -92,6 +92,12 @@ offer packages for it. Folly itself has a number of dependencies,
 so please check [here](https://github.com/facebook/folly#dependencies)
 for an up-to-date list.
 
+It also uses [Facebook Thrift](https://github.com/facebook/fbthrift),
+in particular the `frozen` library, for storing metadata in a highly
+space-efficient, memory-mappable and well defined format. It's also
+included as a submodule, and we only build the compiler and a very
+reduced library that contains just enough for DwarFS to work.
+
 Other than that, DwarFS really only depends on FUSE3 and on a set
 of compression libraries that Folly already depends on (namely
 [lz4](https://github.com/lz4/lz4), [zstd](https://github.com/facebook/zstd)
