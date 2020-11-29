@@ -443,7 +443,9 @@ int mkdwarfs(int argc, char** argv) {
                           max_scanner_workers);
 
   console_writer lgr(std::cerr, !no_progress && ::isatty(::fileno(stderr)),
-                     get_term_width(), logger::parse_level(log_level));
+                     get_term_width(), logger::parse_level(log_level),
+                     recompress ? console_writer::REWRITE
+                                : console_writer::NORMAL);
 
   std::shared_ptr<script> script;
 

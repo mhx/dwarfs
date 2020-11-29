@@ -24,6 +24,8 @@
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+#include <fmt/format.h>
+
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/file_interface.h"
@@ -34,12 +36,14 @@
 namespace dwarfs {
 
 console_writer::console_writer(std::ostream& os, bool show_progress,
-                               size_t width, level_type threshold)
+                               size_t width, level_type threshold,
+                               display_mode mode)
     : os_(os)
     , threshold_(threshold)
     , frac_(0.0)
     , show_progress_(show_progress)
-    , width_(width) {
+    , width_(width)
+    , mode_(mode) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   if (threshold > level_type::INFO) {
@@ -51,7 +55,14 @@ console_writer::console_writer(std::ostream& os, bool show_progress,
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {
-    os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+    switch (mode_) {
+    case NORMAL:
+      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+      break;
+    case REWRITE:
+      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A";
+      break;
+    }
   }
 }
 
@@ -99,57 +110,74 @@ void console_writer::update(const progress& p, bool last) {
 
   if (show_progress_) {
     for (size_t i = 0; i < width_; ++i) {
-      oss << '-';
+      oss << "⎯";
     }
     oss << "\n";
   }
 
-  oss << p.status(width_) << newline
+  switch (mode_) {
+  case NORMAL:
+    oss << p.status(width_) << newline
 
-      << "scanned/found: " << p.dirs_scanned << "/" << p.dirs_found << " dirs, "
-      << p.links_scanned << "/" << p.links_found << " links, "
-      << p.files_scanned << "/" << p.files_found << " files" << newline
+        << "scanned/found: " << p.dirs_scanned << "/" << p.dirs_found
+        << " dirs, " << p.links_scanned << "/" << p.links_found << " links, "
+        << p.files_scanned << "/" << p.files_found << " files" << newline
 
-      << "original size: " << size_with_unit(p.original_size)
-      << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
-      << p.duplicate_files
-      << " files), segment: " << size_with_unit(p.saved_by_segmentation)
-      << newline
+        << "original size: " << size_with_unit(p.original_size)
+        << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
+        << p.duplicate_files
+        << " files), segment: " << size_with_unit(p.saved_by_segmentation)
+        << newline
 
-      << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
-      << p.block_count << " blocks (" << p.chunk_count << " chunks, "
-      << p.inodes_written << "/" << p.files_found - p.duplicate_files
-      << " inodes)" << newline
+        << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
+        << p.block_count << " blocks (" << p.chunk_count << " chunks, "
+        << p.inodes_written << "/" << p.files_found - p.duplicate_files
+        << " inodes)" << newline
 
-      << "compressed filesystem: " << p.blocks_written << " blocks/"
-      << size_with_unit(p.compressed_size) << " written" << newline;
+        << "compressed filesystem: " << p.blocks_written << " blocks/"
+        << size_with_unit(p.compressed_size) << " written" << newline;
+    break;
+
+  case REWRITE:
+    oss << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
+        << p.block_count << " blocks (" << p.chunk_count << " chunks, "
+        << p.inodes_written << " inodes)" << newline
+
+        << "compressed filesystem: " << p.blocks_written << "/" << p.block_count
+        << " blocks/" << size_with_unit(p.compressed_size) << " written"
+        << newline;
+    break;
+  }
 
   if (show_progress_) {
-    // TODO: this can likely be improved
     size_t orig = p.original_size - p.saved_by_deduplication;
     double frac_fs =
         orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
                  : 0.0;
     double frac_comp =
         p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
-    double frac = (frac_fs + frac_comp) / 2.0;
+    double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
 
     if (frac > frac_) {
       frac_ = frac;
     }
 
-    size_t w = width_ * frac_;
+    size_t barlen = 8 * (width_ - 6) * frac_;
+    size_t w = barlen / 8;
+    size_t c = barlen % 8;
 
-    for (size_t i = 0; i < width_; ++i) {
-      if (i == 0 || i == (width_ - 1)) {
-        oss << "|";
+    static const char* bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+
+    for (size_t i = 0; i < width_ - 6; ++i) {
+      if (i == (width_ - 7)) {
+        oss << bar[0];
       } else if (i == w && !last) {
-        oss << "/-\\|"[counter_ % 4];
+        oss << bar[c];
       } else {
-        oss << (i < w ? "=" : " ");
+        oss << (i < w ? bar[7] : " ");
       }
     }
-    oss << "\n";
+    oss << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4] << '\n';
 
     ++counter_;
 

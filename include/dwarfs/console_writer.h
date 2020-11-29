@@ -35,8 +35,10 @@ class progress;
 
 class console_writer : public logger {
  public:
+  enum display_mode { NORMAL, REWRITE };
+
   console_writer(std::ostream& os, bool is_terminal, size_t width,
-                 level_type threshold);
+                 level_type threshold, display_mode mode = NORMAL);
 
   void write(level_type level, const std::string& output) override;
 
@@ -53,5 +55,6 @@ class console_writer : public logger {
   std::atomic<size_t> counter_{0};
   const bool show_progress_;
   const size_t width_;
+  const display_mode mode_;
 };
 } // namespace dwarfs
