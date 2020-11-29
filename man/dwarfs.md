@@ -49,6 +49,11 @@ options:
     we keep the partially decompressed block, but if we've
     decompressed more then 80%, we'll fully decompress it.
 
+  * `-o mlock=none`|`try`|`must`
+    Set this to `try` or `must` instead of the default `none` to
+    try or require `mlock()`ing of the file system metadata into
+    memory.
+
   * `-o debuglevel=`*name*:
     Use this for different levels of verbosity along with either
     the `-f` or `-d` FUSE options. This can give you some insight
