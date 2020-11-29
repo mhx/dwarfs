@@ -40,7 +40,7 @@ Distinct features of DwarFS are:
   many cores of your system.
 
 * Optional experimental Lua support to provide custom filtering and
-  ordering function.
+  ordering functionality.
 
 ## History
 
