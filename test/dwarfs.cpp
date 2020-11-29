@@ -196,10 +196,10 @@ void basic_end_to_end_test(const std::string& compressor,
 
   auto mm = std::make_shared<test::mmap_mock>(oss.str());
 
-  block_cache_options bco;
-  bco.max_bytes = 1 << 20;
+  filesystem_options opts;
+  opts.block_cache.max_bytes = 1 << 20;
 
-  filesystem_v2 fs(lgr, mm, bco);
+  filesystem_v2 fs(lgr, mm, opts);
 
   auto entry = fs.find("/foo.pl");
   struct ::stat st;

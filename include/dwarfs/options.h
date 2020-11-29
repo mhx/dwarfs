@@ -26,18 +26,28 @@
 
 namespace dwarfs {
 
+enum class mlock_mode { NONE, TRY, MUST };
+
 struct block_cache_options {
   size_t max_bytes{0};
   size_t num_workers{0};
   double decompress_ratio{1.0};
 };
 
-enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
+struct filesystem_options {
+  mlock_mode lock_mode{mlock_mode::NONE};
+  block_cache_options block_cache;
+};
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode);
+enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
 
 struct scanner_options {
   file_order_mode file_order;
   bool no_time;
 };
+
+std::ostream& operator<<(std::ostream& os, file_order_mode mode);
+
+mlock_mode parse_mlock_mode(std::string_view mode);
+
 } // namespace dwarfs

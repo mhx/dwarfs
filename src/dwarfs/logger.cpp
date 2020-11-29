@@ -29,6 +29,8 @@
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+#include <fmt/format.h>
+
 #include "dwarfs/logger.h"
 
 namespace dwarfs {
@@ -69,18 +71,23 @@ void backtrace(std::ostream& os) {
 }
 } // namespace
 
-logger::level_type logger::parse_level(const std::string& level) {
-  if (level == "error")
+logger::level_type logger::parse_level(std::string_view level) {
+  if (level == "error") {
     return ERROR;
-  if (level == "warn")
+  }
+  if (level == "warn") {
     return WARN;
-  if (level == "info")
+  }
+  if (level == "info") {
     return INFO;
-  if (level == "debug")
+  }
+  if (level == "debug") {
     return DEBUG;
-  if (level == "trace")
+  }
+  if (level == "trace") {
     return TRACE;
-  throw std::runtime_error("invalid logger level");
+  }
+  throw std::runtime_error(fmt::format("invalid logger level: {}", level));
 }
 
 stream_logger::stream_logger(std::ostream& os, level_type threshold)

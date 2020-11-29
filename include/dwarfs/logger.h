@@ -31,6 +31,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -60,7 +61,7 @@ class logger {
     policy_name_ = name;
   }
 
-  static level_type parse_level(const std::string& level);
+  static level_type parse_level(std::string_view level);
 
  private:
   std::string policy_name_; // TODO: const?
@@ -119,14 +120,17 @@ class timed_level_logger {
       : data_(std::move(ll.data_)) {}
 
   ~timed_level_logger() {
-    std::chrono::duration<double> sec =
-        std::chrono::high_resolution_clock::now() - data_->start_time;
-    data_->oss << " [" << time_with_unit(sec.count()) << "]";
-    data_->lgr.write(data_->level, data_->oss.str());
+    if (data_->output) {
+      std::chrono::duration<double> sec =
+          std::chrono::high_resolution_clock::now() - data_->start_time;
+      data_->oss << " [" << time_with_unit(sec.count()) << "]";
+      data_->lgr.write(data_->level, data_->oss.str());
+    }
   }
 
   template <typename T>
   timed_level_logger& operator<<(const T& val) {
+    data_->output = true;
     data_->oss << val;
     return *this;
   }
@@ -142,6 +146,7 @@ class timed_level_logger {
     std::ostringstream oss;
     const logger::level_type level;
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
+    bool output{false};
   };
 
   std::unique_ptr<data> data_;

@@ -39,7 +39,8 @@ using namespace dwarfs;
 namespace {
 
 int dwarfsbench(int argc, char** argv) {
-  std::string filesystem, cache_size_str, decompress_ratio_str, log_level;
+  std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str,
+      log_level;
   size_t num_workers;
   size_t num_readers;
 
@@ -58,6 +59,9 @@ int dwarfsbench(int argc, char** argv) {
     ("cache-size,s",
         po::value<std::string>(&cache_size_str)->default_value("256m"),
         "block cache size")
+    ("lock-mode,m",
+        po::value<std::string>(&cache_size_str)->default_value("none"),
+        "mlock mode (none, try, must)")
     ("decompress-ratio,r",
         po::value<std::string>(&decompress_ratio_str)->default_value("0.8"),
         "block cache size")
@@ -80,14 +84,15 @@ int dwarfsbench(int argc, char** argv) {
   }
 
   stream_logger lgr(std::cerr, logger::parse_level(log_level));
-  block_cache_options bco;
+  filesystem_options fsopts;
 
-  bco.max_bytes = parse_size_with_unit(cache_size_str);
-  bco.num_workers = num_workers;
-  bco.decompress_ratio = folly::to<double>(decompress_ratio_str);
+  fsopts.lock_mode = parse_mlock_mode(lock_mode_str);
+  fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
+  fsopts.block_cache.num_workers = num_workers;
+  fsopts.block_cache.decompress_ratio = folly::to<double>(decompress_ratio_str);
 
   dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
-                           bco);
+                           fsopts);
 
   worker_group wg("reader", num_readers);
 

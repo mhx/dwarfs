@@ -50,9 +50,11 @@ struct options {
   const char* cachesize_str;        // TODO: const?? -> use string?
   const char* debuglevel_str;       // TODO: const?? -> use string?
   const char* workers_str;          // TODO: const?? -> use string?
+  const char* mlock_str;            // TODO: const?? -> use string?
   const char* decompress_ratio_str; // TODO: const?? -> use string?
   size_t cachesize;
   size_t workers;
+  mlock_mode lock_mode;
   double decompress_ratio;
   logger::level_type debuglevel;
   struct ::stat stat_defaults;
@@ -68,32 +70,40 @@ struct options {
 
 const struct fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
-    //       second level cachesize
     DWARFS_OPT("cachesize=%s", cachesize_str, 0),
     DWARFS_OPT("debuglevel=%s", debuglevel_str, 0),
     DWARFS_OPT("workers=%s", workers_str, 0),
-    DWARFS_OPT("decratio=%s", decompress_ratio_str, 0), FUSE_OPT_END};
+    DWARFS_OPT("mlock=%s", mlock_str, 0),
+    DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
+    FUSE_OPT_END};
 
 options opts;
 stream_logger s_lgr(std::cerr);
 std::shared_ptr<filesystem_v2> s_fs;
+struct fuse_session* s_session;
 
 void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
   DEBUG_FUNC("")
 
   log_proxy<debug_logger_policy> log(s_lgr);
 
-  auto ti = log.timed_info();
+  try {
+    auto ti = log.timed_info();
 
-  block_cache_options bco;
-  bco.max_bytes = opts.cachesize;
-  bco.num_workers = opts.workers;
-  bco.decompress_ratio = opts.decompress_ratio;
-  s_fs = std::make_shared<filesystem_v2>(
-      s_lgr, std::make_shared<mmap>(opts.fsimage), bco, &opts.stat_defaults,
-      FUSE_ROOT_ID);
+    filesystem_options options;
+    options.lock_mode = opts.lock_mode;
+    options.block_cache.max_bytes = opts.cachesize;
+    options.block_cache.num_workers = opts.workers;
+    options.block_cache.decompress_ratio = opts.decompress_ratio;
+    s_fs = std::make_shared<filesystem_v2>(
+        s_lgr, std::make_shared<mmap>(opts.fsimage), options,
+        &opts.stat_defaults, FUSE_ROOT_ID);
 
-  ti << "file system initialized";
+    ti << "file system initialized";
+  } catch (const std::exception& e) {
+    log.error() << "error initializing file system: " << e.what();
+    fuse_session_exit(s_session);
+  }
 }
 
 void op_destroy(void* /*userdata*/) {
@@ -376,8 +386,9 @@ void usage(const char* progname) {
             << "DWARFS options:\n"
             << "    -o cachesize=SIZE      set size of block cache (512M)\n"
             << "    -o workers=NUM         number of worker threads (2)\n"
+            << "    -o mlock=NAME          mlock mode: (none), try, must\n"
             << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
-            << "    -o debuglevel=NAME     error, warn, info, debug, trace\n"
+            << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
             << std::endl;
 
   fuse_cmdline_help();
@@ -438,27 +449,27 @@ int run_fuse(struct fuse_args& args) {
   // fsops.getxattr = op_getxattr;
   // fsops.listxattr = op_listxattr;
 
-  auto se = fuse_session_new(&args, &fsops, sizeof(fsops), nullptr);
+  s_session = fuse_session_new(&args, &fsops, sizeof(fsops), nullptr);
   int err = 1;
 
-  if (se) {
-    if (fuse_set_signal_handlers(se) == 0) {
-      if (fuse_session_mount(se, fuse_opts.mountpoint) == 0) {
+  if (s_session) {
+    if (fuse_set_signal_handlers(s_session) == 0) {
+      if (fuse_session_mount(s_session, fuse_opts.mountpoint) == 0) {
         if (fuse_daemonize(fuse_opts.foreground) == 0) {
           if (fuse_opts.singlethread) {
-            err = fuse_session_loop(se);
+            err = fuse_session_loop(s_session);
           } else {
             struct fuse_loop_config config;
             config.clone_fd = fuse_opts.clone_fd;
             config.max_idle_threads = fuse_opts.max_idle_threads;
-            err = fuse_session_loop_mt(se, &config);
+            err = fuse_session_loop_mt(s_session, &config);
           }
         }
-        fuse_session_unmount(se);
+        fuse_session_unmount(s_session);
       }
-      fuse_remove_signal_handlers(se);
+      fuse_remove_signal_handlers(s_session);
     }
-    fuse_session_destroy(se);
+    fuse_session_destroy(s_session);
   }
 
   ::free(fuse_opts.mountpoint);
@@ -485,6 +496,8 @@ int main(int argc, char* argv[]) {
                         ? logger::parse_level(opts.debuglevel_str)
                         : logger::INFO;
   opts.workers = opts.workers_str ? folly::to<size_t>(opts.workers_str) : 2;
+  opts.lock_mode =
+      opts.mlock_str ? parse_mlock_mode(opts.mlock_str) : mlock_mode::NONE;
   opts.decompress_ratio = opts.decompress_ratio_str
                               ? folly::to<double>(opts.decompress_ratio_str)
                               : 0.8;

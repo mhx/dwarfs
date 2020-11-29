@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
 
 #include "dwarfs/mmap.h"

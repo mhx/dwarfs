@@ -22,6 +22,8 @@
 #include <ostream>
 #include <string>
 
+#include <fmt/format.h>
+
 #include "dwarfs/options.h"
 
 namespace dwarfs {
@@ -47,6 +49,19 @@ std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
   }
 
   return os << modestr;
+}
+
+mlock_mode parse_mlock_mode(std::string_view mode) {
+  if (mode == "none") {
+    return mlock_mode::NONE;
+  }
+  if (mode == "try") {
+    return mlock_mode::TRY;
+  }
+  if (mode == "must") {
+    return mlock_mode::MUST;
+  }
+  throw std::runtime_error(fmt::format("invalid lock mode: {}", mode));
 }
 
 } // namespace dwarfs

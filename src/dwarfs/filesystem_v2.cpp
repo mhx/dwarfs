@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <optional>
@@ -26,7 +27,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <sys/mman.h>
 #include <sys/statvfs.h>
+
+#include <boost/system/system_error.hpp>
 
 #include <folly/Range.h>
 
@@ -141,7 +145,9 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
               const struct ::stat* stat_defaults = nullptr,
-              int inode_offset = 0, bool force_buffers = false) {
+              int inode_offset = 0, bool force_buffers = false,
+              mlock_mode lock_mode = mlock_mode::NONE) {
+  log_proxy<debug_logger_policy> log(lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
 
@@ -153,18 +159,32 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     throw std::runtime_error("no metadata found");
   }
 
+  auto meta_section =
+      get_section_data(mm, meta_it->second, meta_buffer, force_buffers);
+
+  if (lock_mode != mlock_mode::NONE) {
+    int rv = ::mlock(meta_section.data(), meta_section.size());
+    if (rv != 0) {
+      boost::system::error_code ec(errno, boost::system::generic_category());
+      if (lock_mode == mlock_mode::MUST) {
+        throw boost::system::system_error(ec, "mlock");
+      } else {
+        log.warn() << "mlock() failed: " << ec.message();
+      }
+    }
+  }
+
   return metadata_v2(
       lgr,
       get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      get_section_data(mm, meta_it->second, meta_buffer, force_buffers),
-      stat_defaults, inode_offset);
+      meta_section, stat_defaults, inode_offset);
 }
 
 template <typename LoggerPolicy>
 class filesystem_ : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr_, std::shared_ptr<mmif> mm,
-              const block_cache_options& bc_options,
+              const filesystem_options& options,
               const struct ::stat* stat_defaults, int inode_offset);
 
   void dump(std::ostream& os, int detail_level) const override;
@@ -198,13 +218,13 @@ class filesystem_ : public filesystem_v2::impl {
 
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-                                       const block_cache_options& bc_options,
+                                       const filesystem_options& options,
                                        const struct ::stat* stat_defaults,
                                        int inode_offset)
     : log_(lgr)
     , mm_(mm) {
   filesystem_parser parser(mm_);
-  block_cache cache(lgr, bc_options);
+  block_cache cache(lgr, options.block_cache);
 
   section_map sections;
 
@@ -223,7 +243,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
   std::vector<uint8_t> schema_buffer;
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
-                        stat_defaults, inode_offset);
+                        stat_defaults, inode_offset, false, options.lock_mode);
 
   log_.debug() << "read " << cache.block_count() << " blocks and "
                << meta_.size() << " bytes of metadata";
@@ -341,15 +361,15 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
 } // namespace
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
-    : filesystem_v2(lgr, std::move(mm), block_cache_options()) {}
+    : filesystem_v2(lgr, std::move(mm), filesystem_options()) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                             const block_cache_options& bc_options,
+                             const filesystem_options& options,
                              const struct ::stat* stat_defaults,
                              int inode_offset)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), bc_options, stat_defaults, inode_offset)) {}
+          lgr, std::move(mm), options, stat_defaults, inode_offset)) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm,

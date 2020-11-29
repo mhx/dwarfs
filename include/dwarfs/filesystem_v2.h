@@ -42,7 +42,7 @@ struct statvfs;
 
 namespace dwarfs {
 
-struct block_cache_options;
+struct filesystem_options;
 struct iovec_read_buf;
 
 class filesystem_writer;
@@ -55,7 +55,7 @@ class filesystem_v2 {
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                const block_cache_options& bc_options,
+                const filesystem_options& options,
                 const struct ::stat* stat_defaults = nullptr,
                 int inode_offset = 0);
 
