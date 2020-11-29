@@ -107,6 +107,8 @@ A good starting point for apt-based systems is probably:
         clang \
         cmake \
         make \
+        bison \
+        flex \
         pkg-config \
         binutils-dev \
         libboost-all-dev \
@@ -281,44 +283,41 @@ SquashFS that is the default setting for DwarFS:
 For DwarFS, I'm sticking to the defaults:
 
     $ time ./mkdwarfs -i install -o perl-install.dwarfs
-    23:10:49.834964 scanning install
-    23:11:04.624000 waiting for background scanners...
-    23:12:41.876712 finding duplicate files...
-    23:12:53.441437 saved 28.2 GiB / 47.65 GiB in 1782826/1927501 duplicate files
-    23:12:53.441505 ordering 144675 inodes by similarity...
-    23:12:53.986472 144675 inodes ordered [544.9ms]
-    23:12:53.986562 numbering file inodes...
-    23:12:53.988970 building metadata...
-    23:12:53.989045 building blocks...
-    23:12:53.989118 saving links...
-    23:12:54.054908 saving names...
-    23:12:54.054999 compressing names table...
-    23:12:54.091963 names table: 111.4 KiB (9.979 KiB saved) [36.91ms]
-    23:12:54.092014 updating name offsets...
-    23:26:14.848604 saving chunks...
-    23:26:14.872847 saving chunk index...
-    23:26:14.873130 saving directories...
-    23:26:15.589713 saving inode index...
-    23:26:15.591260 saving metadata config...
-    23:27:13.313457 compressed 47.65 GiB to 529.4 MiB (ratio=0.0108502)
-    23:27:13.793889 filesystem created without errors [984s]
+    02:48:48.592349 scanning install
+    02:49:00.603961 waiting for background scanners...
+    02:50:18.391026 assigning directory and link inodes...
+    02:50:18.736203 finding duplicate files...
+    02:50:28.618659 saved 28.2 GiB / 47.65 GiB in 1782826/1927501 duplicate files
+    02:50:28.618742 ordering 144675 inodes by similarity...
+    02:50:29.196793 144675 inodes ordered [578ms]
+    02:50:29.196877 assigning file inodes...
+    02:50:29.199317 building metadata...
+    02:50:29.199403 building blocks...
+    02:50:29.199450 saving names and links...
+    02:50:29.702547 updating name and link indices...
+    03:03:45.892033 waiting for block compression to finish...
+    03:03:45.897608 saving chunks...
+    03:03:45.924720 saving directories...
+    03:03:49.809202 waiting for compression to finish...
+    03:04:31.251687 compressed 47.65 GiB to 555.7 MiB (ratio=0.0113884)
+    03:04:31.737918 filesystem created without errors [943.1s]
     -------------------------------------------------------------------------------
     
     scanned/found: 330733/330733 dirs, 0/0 links, 1927501/1927501 files
     original size: 47.65 GiB, dedupe: 28.2 GiB (1782826 files), segment: 12.42 GiB
-    filesystem: 7.027 GiB in 450 blocks (390195 chunks, 144675/144675 inodes)
-    compressed filesystem: 450 blocks/529.4 MiB written
+    filesystem: 7.027 GiB in 450 blocks (754024 chunks, 144675/144675 inodes)
+    compressed filesystem: 450 blocks/555.7 MiB written
     |=============================================================================|
     
-    real    16m24.108s
-    user    116m27.381s
-    sys     3m9.115s
+    real    15m43.302s
+    user    115m10.704s
+    sys     2m56.544s
 
 So in this comparison, `mkdwarfs` is more than 4 times faster than `mksquashfs`.
 In total CPU time, it's actually 7 times less CPU resources.
 
     $ ls -l perl-install.*fs
-    -rw-r--r-- 1 mhx users  555118147 Nov 24 23:27 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users  582654491 Nov 29 03:04 perl-install.dwarfs
     -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
 
 In terms of compression ratio, the **DwarFS file system is more than 8 times
@@ -329,27 +328,27 @@ DwarFS also features an option to recompress an existing file system with
 a different compression algorithm. This can be useful as it allows relatively
 fast experimentation with different algorithms and options without requiring
 a full rebuild of the file system. For example, recompressing the above file
-system with the best possible compression (`lzma:level=9:extreme`):
+system with the best possible compression (`-l 9`):
 
-    $ time mkdwarfs --recompress -i perl-install.dwarfs -o perl-lzma.dwarfs -C lzma:level=9:extreme
-    00:59:17.706321 filesystem rewritten [676.5s]
+    $ time ./mkdwarfs --recompress -i perl-install.dwarfs -o perl-lzma.dwarfs -l 9
+    03:18:44.670116 filesystem rewritten [659.4s]
     -------------------------------------------------------------------------------
     
     scanned/found: 0/0 dirs, 0/0 links, 0/0 files
     original size: 47.65 GiB, dedupe: 0 B (0 files), segment: 0 B
     filesystem: 7.027 GiB in 450 blocks (0 chunks, 0/0 inodes)
-    compressed filesystem: 450 blocks/456.7 MiB written
-    |====================================================                         |
+    compressed filesystem: 450 blocks/457.5 MiB written
+    |============================================================                 |
     
-    real    11m16.672s
-    user    121m44.054s
-    sys     1m45.250s
+    real    10m59.538s
+    user    120m51.326s
+    sys     1m43.097s
 
     $ ls -l perl-*.dwarfs
-    -rw-r--r-- 1 mhx users 555118147 Nov 24 23:27 perl-install.dwarfs
-    -rw-r--r-- 1 mhx users 478893736 Nov 25 00:59 perl-lzma.dwarfs
+    -rw-r--r-- 1 mhx users 582654491 Nov 29 03:04 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users 479756881 Nov 29 03:18 perl-lzma.dwarfs
 
-This reduces the file system size by another 15%, pushing the total
+This reduces the file system size by another 18%, pushing the total
 compression ratio below 1%.
 
 In terms of how fast the file system is when using it, a quick test
