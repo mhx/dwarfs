@@ -243,6 +243,9 @@ class scanner_ : public scanner::impl {
   void scan(filesystem_writer& fsw, const std::string& path, progress& prog);
 
  private:
+  std::shared_ptr<entry> scan_tree(const std::string& path, progress& prog);
+  void order_files(inode_manager& im);
+
   const block_manager::config& cfg_;
   const scanner_options& options_;
   std::shared_ptr<entry_factory> entry_;
@@ -270,12 +273,8 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , log_(lgr) {}
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
-                                  const std::string& path, progress& prog) {
-  log_.info() << "scanning " << path;
-
-  prog.set_status_function(status_string);
-
+std::shared_ptr<entry>
+scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   auto root = entry_->create(*os_, path);
 
   if (root->type() != entry::E_DIR) {
@@ -367,15 +366,54 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     }
   }
 
+  return root;
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::order_files(inode_manager& im) {
+  switch (options_.file_order) {
+  case file_order_mode::NONE:
+    log_.info() << "keeping inode order";
+    break;
+
+  case file_order_mode::PATH: {
+    log_.info() << "ordering " << im.count() << " inodes by path name...";
+    auto ti = log_.timed_info();
+    im.order_inodes();
+    ti << im.count() << " inodes ordered";
+    break;
+  }
+
+  case file_order_mode::SCRIPT:
+    log_.info() << "ordering " << im.count() << " inodes using script...";
+    im.order_inodes(script_);
+    break;
+
+  case file_order_mode::SIMILARITY: {
+    log_.info() << "ordering " << im.count() << " inodes by similarity...";
+    auto ti = log_.timed_info();
+    im.order_inodes_by_similarity();
+    ti << im.count() << " inodes ordered";
+    break;
+  }
+  }
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
+                                  const std::string& path, progress& prog) {
+  log_.info() << "scanning " << path;
+
+  prog.set_status_function(status_string);
+
+  auto root = scan_tree(path, prog);
+
   // now scan all files
   scan_files_visitor sfv(wg_, *os_, prog);
   root->accept(sfv);
 
   log_.info() << "waiting for background scanners...";
   wg_.wait();
-
-  std::unordered_map<std::string_view, std::vector<file*>, folly::Hash>
-      file_hash;
 
   log_.info() << "assigning directory and link inodes...";
 
@@ -401,32 +439,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
               << prog.duplicate_files << "/" << prog.files_found
               << " duplicate files";
 
-  switch (options_.file_order) {
-  case file_order_mode::NONE:
-    log_.info() << "keeping inode order";
-    break;
-
-  case file_order_mode::PATH: {
-    log_.info() << "ordering " << im->count() << " inodes by path name...";
-    auto ti = log_.timed_info();
-    im->order_inodes();
-    ti << im->count() << " inodes ordered";
-    break;
-  }
-
-  case file_order_mode::SCRIPT:
-    log_.info() << "ordering " << im->count() << " inodes using script...";
-    im->order_inodes(script_);
-    break;
-
-  case file_order_mode::SIMILARITY: {
-    log_.info() << "ordering " << im->count() << " inodes by similarity...";
-    auto ti = log_.timed_info();
-    im->order_inodes_by_similarity();
-    ti << im->count() << " inodes ordered";
-    break;
-  }
-  }
+  order_files(*im);
 
   log_.info() << "assigning file inodes...";
   im->number_inodes(first_file_inode);
