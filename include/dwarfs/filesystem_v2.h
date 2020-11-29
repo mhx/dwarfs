@@ -21,27 +21,33 @@
 
 #pragma once
 
-#include <exception>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <iosfwd>
 #include <memory>
-#include <ostream>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
-#include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/types.h>
 
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/metadata_v2.h"
-#include "dwarfs/mmif.h"
+#include <folly/Expected.h>
+
+#include "dwarfs/metadata_types.h"
+
+struct stat;
+struct statvfs;
 
 namespace dwarfs {
 
-struct iovec_read_buf;
 struct block_cache_options;
+struct iovec_read_buf;
 
 class filesystem_writer;
+class logger;
+class mmif;
 class progress;
 
 class filesystem_v2 {

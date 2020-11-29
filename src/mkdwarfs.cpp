@@ -20,24 +20,33 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <map>
+#include <memory>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/any.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
 #include <folly/gen/String.h>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 #ifdef DWARFS_HAVE_LIBZSTD
 #include <zstd.h>
@@ -50,13 +59,17 @@
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
-#include "dwarfs/lua_script.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access_posix.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
+#include "dwarfs/script.h"
 #include "dwarfs/util.h"
+
+#ifdef DWARFS_HAVE_LUA
+#include "dwarfs/lua_script.h"
+#endif
 
 namespace po = boost::program_options;
 

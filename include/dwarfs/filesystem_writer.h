@@ -21,7 +21,11 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <ostream>
+#include <utility>
 #include <vector>
 
 #include "dwarfs/fstypes.h"
@@ -32,6 +36,7 @@ namespace dwarfs {
 class block_compressor;
 class logger;
 class progress;
+class worker_group;
 
 class section {
  public:

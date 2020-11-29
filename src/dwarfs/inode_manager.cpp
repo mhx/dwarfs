@@ -20,11 +20,16 @@
  */
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <numeric>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
-#include "dwarfs/config.h"
 #include "dwarfs/entry.h"
+#include "dwarfs/file_interface.h"
+#include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/script.h"
 

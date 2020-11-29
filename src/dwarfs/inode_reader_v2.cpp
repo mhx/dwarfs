@@ -19,15 +19,22 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cerrno>
+#include <cstdint>
 #include <cstring>
+#include <future>
 #include <mutex>
+#include <ostream>
+#include <utility>
+#include <vector>
 
 #include <folly/container/Enumerate.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_cache.h"
-#include "dwarfs/config.h"
+#include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
+#include "dwarfs/logger.h"
 
 namespace dwarfs {
 

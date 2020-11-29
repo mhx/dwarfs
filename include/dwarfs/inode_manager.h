@@ -21,15 +21,13 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <memory>
-#include <ostream>
-
-#include "dwarfs/file_interface.h"
-#include "dwarfs/inode.h"
 
 namespace dwarfs {
 
+class inode;
 class script;
 
 class inode_manager {

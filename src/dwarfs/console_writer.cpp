@@ -19,13 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <locale>
 #include <sstream>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
+#include "dwarfs/file_interface.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/progress.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 

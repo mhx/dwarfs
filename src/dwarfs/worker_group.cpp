@@ -21,9 +21,13 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <queue>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include <sys/resource.h>
 #include <sys/time.h>

@@ -19,21 +19,29 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <deque>
-#include <functional>
+#include <iterator>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
+#include <unistd.h>
 
 #include <boost/system/system_error.hpp>
 
-#include "dwarfs/config.h"
+#include <folly/ExceptionString.h>
+
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
-#include "dwarfs/fstypes.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/hash_util.h"
+#include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
@@ -43,6 +51,9 @@
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
 #include "dwarfs/util.h"
+#include "dwarfs/worker_group.h"
+
+#include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
 

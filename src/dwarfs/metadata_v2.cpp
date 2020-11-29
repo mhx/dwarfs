@@ -20,17 +20,26 @@
  */
 
 #include <algorithm>
+#include <cerrno>
+#include <climits>
+#include <cstring>
+#include <ostream>
 
-#include <cassert>
-
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <time.h>
 #include <unistd.h>
 
-#include "dwarfs/metadata_v2.h"
-
-#include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
+// #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
+
+#include "dwarfs/logger.h"
+#include "dwarfs/metadata_v2.h"
+
+#include "dwarfs/gen-cpp2/metadata_layouts.h"
+#include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 
 namespace dwarfs {
 

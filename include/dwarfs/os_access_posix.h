@@ -21,12 +21,15 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
 #include "dwarfs/os_access.h"
 
 namespace dwarfs {
+
+class mmif;
 
 class os_access_posix : public os_access {
  public:

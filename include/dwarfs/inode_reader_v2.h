@@ -21,14 +21,20 @@
 
 #pragma once
 
+#include <cstddef>
+#include <iosfwd>
 #include <memory>
+#include <string>
 
-#include "dwarfs/block_cache.h"
-#include "dwarfs/fstypes.h"
-#include "dwarfs/logger.h"
+#include <sys/types.h>
+
 #include "dwarfs/metadata_types.h"
 
 namespace dwarfs {
+
+class block_cache;
+class logger;
+struct iovec_read_buf;
 
 class inode_reader_v2 {
  public:

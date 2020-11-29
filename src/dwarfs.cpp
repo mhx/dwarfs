@@ -32,7 +32,10 @@
 
 #include <fuse3/fuse_lowlevel.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"

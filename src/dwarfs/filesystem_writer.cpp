@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <cstring>
 #include <deque>
 #include <memory>
@@ -31,9 +32,11 @@
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/util.h"
+#include "dwarfs/worker_group.h"
 
 namespace dwarfs {
 

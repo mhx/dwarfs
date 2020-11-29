@@ -21,27 +21,34 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iosfwd>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
-#include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/types.h>
-
-#include <boost/iterator/iterator_facade.hpp>
 
 #include <folly/Expected.h>
 #include <folly/Range.h>
 
-#include "dwarfs/fstypes.h"
-#include "dwarfs/logger.h"
 #include "dwarfs/metadata_types.h"
 
+struct stat;
+struct statvfs;
+
 namespace dwarfs {
+
+class logger;
+
+namespace thrift::metadata {
+class metadata;
+}
 
 class metadata_v2 {
  public:

@@ -22,7 +22,11 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -30,9 +34,14 @@
 
 #include "dwarfs/file_interface.h"
 
-#include "dwarfs/gen-cpp2/metadata_types.h"
-
 namespace dwarfs {
+
+namespace thrift::metadata {
+
+class entry;
+class metadata;
+
+} // namespace thrift::metadata
 
 class file;
 class link;

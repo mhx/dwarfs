@@ -21,20 +21,20 @@
 
 #include <algorithm>
 #include <cstring>
-
-#include <dirent.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <stdexcept>
+#include <utility>
 
 #include <openssl/sha.h>
 
 #include "dwarfs/entry.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/similarity.h"
+
+#include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
 

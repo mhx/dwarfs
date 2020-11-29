@@ -25,16 +25,18 @@
 #include <string>
 
 #include "dwarfs/block_manager.h"
-#include "dwarfs/worker_group.h"
 
 namespace dwarfs {
 
+struct scanner_options;
+
 class entry_factory;
+class filesystem_writer;
 class logger;
 class os_access;
 class progress;
-struct scanner_options;
 class script;
+class worker_group;
 
 class scanner {
  public:

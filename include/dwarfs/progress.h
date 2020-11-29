@@ -23,9 +23,10 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
+#include <iosfwd>
 #include <mutex>
-#include <ostream>
 #include <thread>
 
 #include <folly/Function.h>

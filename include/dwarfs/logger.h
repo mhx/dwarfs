@@ -21,15 +21,19 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include "dwarfs/util.h"
 

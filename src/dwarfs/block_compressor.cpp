@@ -21,15 +21,23 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
+#include <cstdint>
 #include <cstring>
-#include <iostream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
 
-#include <boost/algorithm/string.hpp>
+#include <sys/types.h>
+
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include <folly/Conv.h>
+
+#include <fmt/format.h>
 
 #ifdef DWARFS_HAVE_LIBLZ4
 #include <lz4.h>
@@ -685,8 +693,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_ret ret = lzma_code(&s, LZMA_RUN);
   if (ret != LZMA_STREAM_END || s.avail_in != 0) {
-    std::cerr << ret << " - " << s.avail_in << std::endl;
-    throw std::runtime_error("lzma_code()");
+    throw std::runtime_error(
+        fmt::format("lzma_code(): {} (avail_in={})", ret, s.avail_in));
   }
 
   pos -= LZMA_STREAM_HEADER_SIZE;

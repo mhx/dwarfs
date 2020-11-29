@@ -22,9 +22,6 @@
 #include "dwarfs/metadata_types.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
-#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
-#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 namespace dwarfs {
 

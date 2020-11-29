@@ -19,21 +19,26 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <condition_variable>
-#include <map>
-#include <mutex>
-
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+#include <fmt/format.h>
 
 #include <sparsehash/dense_hash_map>
 
-#include <fmt/core.h>
-
 #include "dwarfs/block_manager.h"
+#include "dwarfs/cyclic_hash.h"
 #include "dwarfs/file_interface.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_hasher.h"
+#include "dwarfs/logger.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/util.h"

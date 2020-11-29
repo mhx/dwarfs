@@ -21,7 +21,8 @@
 
 #pragma once
 
-#include <ostream>
+#include <cstddef>
+#include <iosfwd>
 
 namespace dwarfs {
 

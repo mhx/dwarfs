@@ -21,18 +21,27 @@
 
 #include <cstddef>
 #include <cstring>
-
 #include <optional>
+#include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
-#include <fmt/core.h>
+#include <sys/statvfs.h>
+
+#include <folly/Range.h>
+
+#include <fmt/format.h>
 
 #include "dwarfs/block_cache.h"
+#include "dwarfs/block_compressor.h"
 #include "dwarfs/config.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
+#include "dwarfs/logger.h"
+#include "dwarfs/metadata_v2.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 

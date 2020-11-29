@@ -21,15 +21,15 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <vector>
-
-#include "dwarfs/logger.h"
 
 namespace dwarfs {
 
 class filesystem_writer;
 class inode;
+class logger;
 class os_access;
 class progress;
 

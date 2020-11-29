@@ -19,10 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cerrno>
 #include <stdexcept>
 #include <vector>
 
 #include <dirent.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <boost/system/system_error.hpp>

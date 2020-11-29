@@ -19,6 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ostream>
+#include <string>
+
 #include "dwarfs/options.h"
 
 namespace dwarfs {

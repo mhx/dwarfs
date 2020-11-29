@@ -19,9 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/progress.h"
+#include <chrono>
+#include <utility>
 
 #include <folly/system/ThreadName.h>
+
+#include "dwarfs/progress.h"
 
 namespace dwarfs {
 

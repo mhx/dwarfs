@@ -20,18 +20,24 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <deque>
 #include <exception>
 #include <future>
-#include <map>
-#include <queue>
+#include <iterator>
+#include <mutex>
+#include <new>
 #include <thread>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <folly/container/EvictingCacheMap.h>
 
 #include "dwarfs/block_cache.h"
+#include "dwarfs/fstypes.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/options.h"
 #include "dwarfs/worker_group.h"
 

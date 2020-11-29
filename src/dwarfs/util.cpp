@@ -19,7 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iomanip>
+#include <array>
+#include <climits>
+#include <stdexcept>
 #include <string>
 
 #include <unistd.h>
@@ -99,4 +101,5 @@ std::string get_program_path() {
 
   return std::string();
 }
+
 } // namespace dwarfs

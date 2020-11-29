@@ -19,6 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cstdlib>
+#include <iterator>
+#include <locale>
 #include <stdexcept>
 
 #include <cxxabi.h>

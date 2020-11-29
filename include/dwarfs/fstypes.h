@@ -21,12 +21,13 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
-#include <iostream>
+#include <iosfwd>
 #include <memory>
-#include <stdexcept>
+#include <string>
 
-#include <sys/uio.h>
+#include <bits/types/struct_iovec.h>
 
 #include <folly/small_vector.h>
 
@@ -62,7 +63,7 @@ struct iovec_read_buf {
   folly::small_vector<block_range, inline_storage> ranges;
 };
 
-constexpr uint8_t MAJOR_VERSION = 1;
+constexpr uint8_t MAJOR_VERSION = 2;
 constexpr uint8_t MINOR_VERSION = 0;
 
 enum class section_type : uint16_t {

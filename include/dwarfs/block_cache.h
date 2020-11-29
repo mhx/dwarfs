@@ -21,19 +21,20 @@
 
 #pragma once
 
-#include <future>
-#include <limits>
-#include <memory>
-#include <mutex>
+#include <cstddef>
+#include <cstdint>
 
-#include "dwarfs/fstypes.h"
-#include "dwarfs/logger.h"
+#include <future>
+#include <memory>
+
+#include "dwarfs/block_compressor.h"
 
 namespace dwarfs {
 
 struct block_cache_options;
 
-class cached_block;
+class block_range;
+class logger;
 
 class block_cache {
  public:

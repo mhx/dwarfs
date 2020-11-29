@@ -26,9 +26,9 @@
 
 #include <sys/stat.h>
 
-#include "dwarfs/mmif.h"
-
 namespace dwarfs {
+
+class mmif;
 
 class dir_reader {
  public:

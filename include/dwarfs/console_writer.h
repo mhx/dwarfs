@@ -21,13 +21,17 @@
 
 #pragma once
 
-#include <array>
-#include <ostream>
+#include <atomic>
+#include <cstddef>
+#include <iosfwd>
+#include <mutex>
+#include <string>
 
 #include "dwarfs/logger.h"
-#include "dwarfs/progress.h"
 
 namespace dwarfs {
+
+class progress;
 
 class console_writer : public logger {
  public:
