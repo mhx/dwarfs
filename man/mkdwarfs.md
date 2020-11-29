@@ -41,9 +41,10 @@ Most other options are concerned with compression tuning:
     some sensible defaults and will depend on which compression libraries
     were available at build time. This is meant to be the "easy" interface
     to configure compression, and it will actually pick the defaults for
-    three distinct options: `--block-size-bits`, `--compression` and
-    `--blockhash-window-sizes`. See the output of `mkdwarfs --help` for a
-    table listing the exact defaults used for each compression level.
+    five distinct options: `--block-size-bits`, `--compression`,
+    `--schema-compression`, `--metadata-compression` and
+    `--blockhash-window-sizes`. See the output of `mkdwarfs --help` for
+    a table listing the exact defaults used for each compression level.
 
   * `-S`, `--block-size-bits=`*value*:
     The block size used for the compressed filesystem. The actual block size
@@ -59,6 +60,13 @@ Most other options are concerned with compression tuning:
     to the number of processors available on your system. Use this option if
     you want to limit the resources used by `mkdwarfs`.
 
+  * `-M`, `--max-scanner-workers=`*value*:
+    Maximum number of worker threads used for building the filesystem. This
+    defaults to the number of processors available on your system, but the
+    number of active workers will be automatically adjusted based on load.
+    With fast SSDs, scanning multiple files is probably fine, but with older
+    spinning disks, having less concurrency can improve overall speed.
+
   * `-L`, `--memory-limit=`*value*:
     Approximately how much memory you want `mkdwarfs` to use during filesystem
     creation. Note that currently this will only affect the block manager
@@ -69,12 +77,26 @@ Most other options are concerned with compression tuning:
     algorithms.
 
   * `-C`, `--compression=`*algorithm*[:*algopt*[=*value*]]...:
-    The compression algorithm and configuration used for creating the new
-    filesystem. The value for this option is a colon-separated list. The
-    first item is the compression algorithm, the remaining item are its
-    options. Options can be either boolean or have a value. For details on
-    which algorithms and options are available, see the output of
-    `mkdwarfs --help`.
+    The compression algorithm and configuration used for file system data.
+    The value for this option is a colon-separated list. The first item is
+    the compression algorithm, the remaining item are its options. Options
+    can be either boolean or have a value. For details on which algorithms
+    and options are available, see the output of `mkdwarfs --help`.
+
+  * `--schema-compression=`*algorithm*[:*algopt*[=*value*]]...:
+    The compression algorithm and configuration used for the metadata schema.
+    Takes the same arguments as `--compression` above. The schema is *very*
+    small, in the hundreds of bytes, so this is only relevant for extremely
+    small file systems. The default (`zstd`) has shown to give considerably
+    better results than any other algorithms.
+
+  * `--metadata-compression=`*algorithm*[:*algopt*[=*value*]]...:
+    The compression algorithm and configuration used for the metadata.
+    Takes the same arguments as `--compression` above. The metadata has been
+    optimized for very little redundancy and leaving it uncompressed, the
+    default for all levels below 8, has the benefit that it can be mapped
+    to memory and used directly. This significantly improves mount time for
+    large file systems compared to e.g. an lzma compressed metadata block.
 
   * `--recompress`:
     Take an existing DwarFS filesystem and recompress it using a different
@@ -82,14 +104,22 @@ Most other options are concerned with compression tuning:
     the `--compression` option, has an impact on the new filesystem. Other
     options, e.g. `--block-size-bits`, have no impact.
 
-  * `--no-owner`:
-    Don't store user/group information in the filesystem. This will make
-    the resulting filesystem smaller. This option implies `--no-time`.
+  * `--set-owner=`*uid*:
+    Set the owner for all entities in the file system. This can reduce the
+    size of the file system. If the input only has a single owner already,
+    setting this won't make any difference.
 
-  * `--no-time`:
-    Don't store timestamp information in the filesystem.
+  * `--set-group=`*gid*:
+    Set the group for all entities in the file system. This can reduce the
+    size of the file system. If the input only has a single group already,
+    setting this won't make any difference.
 
-  * `--order`=`none`|`path`|`similarity`:
+  * `--set-time=`*time*|`now`:
+    Set the time stamps for all entities to this value. This can significantly
+    reduce the size of the file system. You can pass either a unix time stamp
+    or `now`.
+
+  * `--order=none`|`path`|`similarity`:
     The order in which files will be written to the filesystem. Currently,
     the choices are `none`, `path` and `similarity`. With `none`, the files
     will be stored in the order in which they are discovered. With `path`,
@@ -139,12 +169,29 @@ Most other options are concerned with compression tuning:
 
 ## TIPS & TRICKS
 
+### Compression Ratio vs Decompression Speed
+
 If high compression ratio is your primary goal, definitely go for lzma
 compression. However, I've found that it's only about 10% better than
 zstd at the highest level. The big advantage of zstd over lzma is that
 its decompression speed is about an order of magnitude faster. So if
 you're extensively using the compressed file system, you'll probably
 find that it's much faster with zstd.
+
+### Block, Schema and Metadata Compression
+
+DwarFS filesystems consist of three distinct parts of data. Many blocks,
+which store actual file data and are decompressed on demand, as well as
+one schema and one metadata section. The schema is tiny, typically less
+than 1000 bytes, and holds the details for how to interpret the metadata.
+The schema needs to be read into memory once and is subsequently never
+accessed again. The metadata itself is usually not compressed, although
+it can be if you want to squeeze a few more kilobytes out of the file
+system. If it is compressed, it will be fully decompressed into memory.
+Otherwise, the metadata part of the file will simply be mapped into memory.
+The main difference is that compressed metadata, which being smaller, will
+potentially consume more memory and it will definitely take longer to
+mount the filesystem initially.
 
 ## AUTHOR
 
