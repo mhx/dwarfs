@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <iosfwd>
+#include <optional>
 
 namespace dwarfs {
 
@@ -43,7 +44,9 @@ enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
 
 struct scanner_options {
   file_order_mode file_order;
-  bool no_time;
+  std::optional<uint16_t> uid;
+  std::optional<uint16_t> gid;
+  std::optional<uint64_t> timestamp;
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

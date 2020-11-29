@@ -22,6 +22,7 @@
 #include <folly/gen/Base.h>
 
 #include "dwarfs/global_entry_data.h"
+#include "dwarfs/options.h"
 
 namespace dwarfs {
 
@@ -58,6 +59,22 @@ void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
   using namespace folly::gen;
   uint32_t ix = 0;
   from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
+}
+
+uint64_t global_entry_data::get_time_offset(uint64_t time) const {
+  return options_.timestamp ? 0 : time - timestamp_base_;
+}
+
+uint64_t global_entry_data::get_timestamp_base() const {
+  return options_.timestamp ? *options_.timestamp : timestamp_base_;
+}
+
+void global_entry_data::add_uid(uint16_t uid) {
+  add(options_.uid ? *options_.uid : uid, uids_, next_uid_index_);
+}
+
+void global_entry_data::add_gid(uint16_t gid) {
+  add(options_.gid ? *options_.gid : gid, gids_, next_gid_index_);
 }
 
 } // namespace dwarfs

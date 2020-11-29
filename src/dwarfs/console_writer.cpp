@@ -177,7 +177,8 @@ void console_writer::update(const progress& p, bool last) {
         oss << (i < w ? bar[7] : " ");
       }
     }
-    oss << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4] << '\n';
+    oss << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
+        << '\n';
 
     ++counter_;
 

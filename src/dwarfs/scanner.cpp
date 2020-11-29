@@ -446,8 +446,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   log_.info() << "building metadata...";
 
-  global_entry_data ge_data(
-      options_.no_time); // TODO: just pass options directly
+  global_entry_data ge_data(options_);
 
   thrift::metadata::metadata mv2;
   mv2.link_index.resize(first_file_inode - first_link_inode);

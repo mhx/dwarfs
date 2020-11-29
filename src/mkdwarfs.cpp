@@ -23,6 +23,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -253,11 +254,12 @@ int mkdwarfs(int argc, char** argv) {
 
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_path,
-      compression, schema_compression, metadata_compression, log_level;
+      compression, schema_compression, metadata_compression, log_level,
+      timestamp;
   size_t num_workers, max_scanner_workers;
-  bool no_time = false, no_owner = false, recompress = false,
-       no_progress = false;
+  bool recompress = false, no_progress = false;
   unsigned level;
+  uint16_t uid, gid;
 
   scanner_options options;
 
@@ -300,12 +302,15 @@ int mkdwarfs(int argc, char** argv) {
     ("recompress",
         po::value<bool>(&recompress)->zero_tokens(),
         "recompress an existing filesystem")
-    ("no-owner",
-        po::value<bool>(&no_owner)->zero_tokens(),
-        "don't save user/group (implies --no-time)")
-    ("no-time",
-        po::value<bool>(&no_time)->zero_tokens(),
-        "don't save timestamps")
+    ("set-owner",
+        po::value<uint16_t>(&uid),
+        "set owner (uid) for whole file system")
+    ("set-group",
+        po::value<uint16_t>(&gid),
+        "set group (gid) for whole file system")
+    ("set-time",
+        po::value<std::string>(&timestamp),
+        "set timestamp for whole file system (unixtime or 'now')")
     ("order",
         po::value<file_order_mode>(&options.file_order)
             ->default_value(file_order_mode::SIMILARITY, "similarity"),
@@ -460,6 +465,19 @@ int mkdwarfs(int argc, char** argv) {
         "--order=script can only be used with a valid --script option");
   }
 
+  if (vm.count("set-owner")) {
+    options.uid = uid;
+  }
+
+  if (vm.count("set-group")) {
+    options.gid = gid;
+  }
+
+  if (vm.count("set-time")) {
+    options.timestamp = timestamp == "now" ? std::time(nullptr)
+                                           : folly::to<uint64_t>(timestamp);
+  }
+
   log_proxy<debug_logger_policy> log(lgr);
 
   progress prog([&](const progress& p, bool last) { lgr.update(p, last); });
@@ -478,8 +496,6 @@ int mkdwarfs(int argc, char** argv) {
     wg_writer.wait();
     ti << "filesystem rewritten";
   } else {
-    options.no_time = no_time;
-
     scanner s(lgr, wg_scanner, cfg,
               entry_factory::create(options.file_order ==
                                     file_order_mode::SIMILARITY),

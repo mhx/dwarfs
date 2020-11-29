@@ -29,13 +29,16 @@
 
 namespace dwarfs {
 
+struct scanner_options;
+
 class global_entry_data {
  public:
-  global_entry_data(bool no_time)
-      : no_time_(no_time) {}
+  global_entry_data(scanner_options const& options)
+      : options_(options) {}
 
-  void add_uid(uint16_t uid) { add(uid, uids_, next_uid_index_); }
-  void add_gid(uint16_t gid) { add(gid, gids_, next_gid_index_); }
+  void add_uid(uint16_t uid);
+  void add_gid(uint16_t gid);
+
   void add_mode(uint16_t mode) { add(mode, modes_, next_mode_index_); }
 
   void add_time(uint64_t time) {
@@ -64,9 +67,7 @@ class global_entry_data {
     return links_.at(link);
   }
 
-  uint64_t get_time_offset(uint64_t time) const {
-    return no_time_ ? 0 : time - timestamp_base_;
-  }
+  uint64_t get_time_offset(uint64_t time) const;
 
   std::vector<uint16_t> get_uids() const;
   std::vector<uint16_t> get_gids() const;
@@ -75,7 +76,7 @@ class global_entry_data {
   std::vector<std::string> get_names() const;
   std::vector<std::string> get_links() const;
 
-  uint64_t get_timestamp_base() const { return timestamp_base_; }
+  uint64_t get_timestamp_base() const;
 
  private:
   template <typename T, typename U>
@@ -99,7 +100,7 @@ class global_entry_data {
   uint16_t next_gid_index_{0};
   uint16_t next_mode_index_{0};
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
-  bool no_time_;
+  scanner_options const& options_;
 };
 
 } // namespace dwarfs
