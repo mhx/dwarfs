@@ -1,8 +1,5 @@
-- test recompression
-- make no_owner, no_time work again
 - make dwarfsck more usable
 - cleanup TODOs
-- progress indicator for recompression
 
 - frozen: ViewBase.getPosition() should be const
 
