@@ -11,6 +11,8 @@ addons:
       - clang
       - cmake
       - make
+      - bison
+      - flex
       - pkg-config
       - binutils-dev
       - libboost-all-dev
