@@ -57,6 +57,8 @@
 
 namespace dwarfs {
 
+namespace {
+
 class visitor_base : public entry_visitor {
  public:
   void visit(file*) override {}
@@ -197,6 +199,40 @@ class save_directories_visitor : public visitor_base {
   std::vector<dir*> directories_;
 };
 
+std::string status_string(progress const& p, size_t width) {
+  file_interface const* cp =
+      reinterpret_cast<file_interface const*>(p.current.load());
+  std::string label, path;
+
+  if (cp) {
+    if (auto e = dynamic_cast<entry const*>(cp)) {
+      label = "scanning: ";
+      path = e->path();
+    } else if (auto i = dynamic_cast<inode const*>(cp)) {
+      label = "writing: ";
+      path = i->any()->path();
+    }
+    auto max_len = width - label.size();
+    auto len = path.size();
+    if (len > max_len) {
+      // TODO: get this correct for UTF8 multibyte chars :-)
+      size_t start = 0;
+      max_len -= 1;
+      while (start != std::string::npos && (len - start) > max_len) {
+        start = path.find('/', start + 1);
+      }
+      if (start == std::string::npos) {
+        start = max_len - len;
+      }
+      path.replace(0, start, "…");
+    }
+  }
+
+  return label + path;
+}
+
+} // namespace
+
 template <typename LoggerPolicy>
 class scanner_ : public scanner::impl {
  public:
@@ -237,6 +273,8 @@ template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
   log_.info() << "scanning " << path;
+
+  prog.set_status_function(status_string);
 
   auto root = entry_->create(*os_, path);
 
@@ -432,6 +470,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   bm.finish_blocks();
   wg_.wait();
 
+  prog.set_status_function([](progress const&, size_t) {
+    return "waiting for block compression to finish";
+  });
   prog.sync([&] { prog.current.store(nullptr); });
 
   // TODO: check this, doesn't seem to come out right in debug output

@@ -48,4 +48,17 @@ progress::~progress() noexcept {
   } catch (...) {
   }
 }
+
+void progress::set_status_function(status_function_type status_fun) {
+  std::unique_lock<std::mutex> lock(mx_);
+  status_fun_ = std::move(status_fun);
+}
+
+std::string progress::status(size_t max_len) const {
+  if (status_fun_) {
+    return status_fun_(*this, max_len);
+  }
+  return std::string();
+}
+
 } // namespace dwarfs

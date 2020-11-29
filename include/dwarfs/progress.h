@@ -33,10 +33,11 @@
 
 namespace dwarfs {
 
-class file_interface;
-
 class progress {
  public:
+  using status_function_type =
+      folly::Function<std::string(progress const&, size_t) const>;
+
   progress(folly::Function<void(const progress&, bool)>&& func);
   ~progress() noexcept;
 
@@ -46,7 +47,11 @@ class progress {
     func();
   }
 
-  std::atomic<file_interface const*> current{nullptr};
+  void set_status_function(status_function_type status_fun);
+
+  std::string status(size_t max_len) const;
+
+  std::atomic<void*> current{nullptr};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};
@@ -67,8 +72,9 @@ class progress {
 
  private:
   std::atomic<bool> running_;
-  std::mutex mx_;
+  mutable std::mutex mx_;
   std::condition_variable cond_;
+  status_function_type status_fun_;
   std::thread thread_;
 };
 } // namespace dwarfs
