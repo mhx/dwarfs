@@ -145,7 +145,7 @@ foreach(man dwarfs mkdwarfs)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/man
-    COMMAND ${RONN_EXE} -r ${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md
+    COMMAND ${RONN_EXE} <${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md
             >${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md)
   list(APPEND MAN_PAGES ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1)
