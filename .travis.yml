@@ -48,7 +48,8 @@ script:
   - make -j$(nproc)
   - make test
   - make package_source
-  - tar xvf dwarfs-*.tar.bz2
+  - tar xf dwarfs-*.tar.bz2
+  - rm dwarfs-*.tar.bz2
   - cd dwarfs-*
   - mkdir build
   - cd build
