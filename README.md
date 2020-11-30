@@ -333,6 +333,29 @@ In terms of compression ratio, the **DwarFS file system is more than 8 times
 smaller than the SquashFS file system**. With DwarFS, the content has been
 **compressed down to 1.1% (!) of its original size**.
 
+When using identical block sizes for both file systems, the difference,
+quite expectedly, becomes a lot less dramatic:
+
+    $ time sudo mksquashfs install perl-install-1M.squashfs -comp zstd -Xcompression-level 22 -b 1M
+    
+    real    41m55.004s
+    user    340m30.012s
+    sys     1m47.945s
+
+    $ time mkdwarfs -i install -o perl-install-1M.dwarfs -S 20
+    
+    real    26m26.987s
+    user    245m11.438s
+    sys     2m29.048s
+
+    $ ll -h perl-install-1M.*
+    -rw-r--r-- 1 mhx  users 2.8G Nov 30 10:34 perl-install-1M.dwarfs
+    -rw-r--r-- 1 root root  4.0G Nov 30 10:05 perl-install-1M.squashfs
+
+But the point is that this is really where SquashFS tops out, as it doesn't
+support larger block sizes. And as you'll see below, the larger blocks don't
+necessarily negatively impact performance.
+
 DwarFS also features an option to recompress an existing file system with
 a different compression algorithm. This can be useful as it allows relatively
 fast experimentation with different algorithms and options without requiring
