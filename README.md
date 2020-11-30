@@ -117,6 +117,7 @@ A good starting point for apt-based systems is probably:
         make \
         bison \
         flex \
+        ronn \
         pkg-config \
         binutils-dev \
         libboost-all-dev \

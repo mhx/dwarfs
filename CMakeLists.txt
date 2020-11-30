@@ -50,6 +50,7 @@ pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.3.8)
 
 find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
+find_program(RONN_EXE ronn)
 
 set(compiler_only
     ON
@@ -139,6 +140,19 @@ if(WITH_TESTS)
 
   gtest_discover_tests(dwarfs_test)
 endif()
+
+foreach(man dwarfs mkdwarfs)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
+    COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/man
+    COMMAND ${RONN_EXE} -r ${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md
+            >${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md)
+  list(APPEND MAN_PAGES ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1)
+endforeach()
+
+add_custom_target(manpages DEPENDS ${MAN_PAGES})
+add_dependencies(mkdwarfs manpages)
 
 add_custom_command(
   OUTPUT
@@ -276,7 +290,7 @@ install(
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(FILES man/dwarfs.1 man/mkdwarfs.1 DESTINATION share/man/man1)
+install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 install(DIRECTORY include/dwarfs DESTINATION include)
 
 set(CPACK_SOURCE_GENERATOR "TBZ2")
