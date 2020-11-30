@@ -91,8 +91,6 @@ void analyze_frozen(std::ostream& os,
   (*layout)->print(os, 0);
 }
 
-const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
-
 } // namespace
 
 template <typename LoggerPolicy>
@@ -405,7 +403,7 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   auto mode = entry.mode();
   auto timebase = meta_.timestamp_base();
 
-  stbuf->st_mode = mode & READ_ONLY_MASK;
+  stbuf->st_mode = mode;
   stbuf->st_size = file_size(entry, mode);
   stbuf->st_ino = entry.inode() + inode_offset_;
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
