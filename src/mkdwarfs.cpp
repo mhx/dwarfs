@@ -339,9 +339,18 @@ int mkdwarfs(int argc, char** argv) {
   // clang-format on
 
   po::variables_map vm;
+  auto parsed = po::parse_command_line(argc, argv, opts);
 
-  po::store(po::parse_command_line(argc, argv, opts), vm);
+  po::store(parsed, vm);
   po::notify(vm);
+
+  auto unrecognized =
+      po::collect_unrecognized(parsed.options, po::include_positional);
+
+  if (!unrecognized.empty()) {
+    throw std::runtime_error(
+        "unrecognized argument(s): " + boost::join(unrecognized, " "));
+  }
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
     size_t l_dc = 0, l_sc = 0, l_mc = 0, l_ws = 0;
