@@ -35,8 +35,8 @@ Distinct features of DwarFS are:
   higher cache hit rates as more data can be kept in the cache.
 
 * Highly multi-threaded implementation. Both the file
-  [system creation tool](man/mkdwarfs.md) as well as the
-  [FUSE driver](man/dwarfs.md) are able to make good use of the
+  [system creation tool](doc/mkdwarfs.md) as well as the
+  [FUSE driver](doc/dwarfs.md) are able to make good use of the
   many cores of your system.
 
 * Optional experimental Lua support to provide custom filtering and
