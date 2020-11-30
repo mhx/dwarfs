@@ -49,6 +49,8 @@ pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.3.8)
 
+find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
+
 set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
@@ -191,7 +193,8 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift
   ${CMAKE_CURRENT_SOURCE_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-  ${CMAKE_CURRENT_BINARY_DIR})
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ${SPARSEHASH_INCLUDE_DIR})
 
 add_library(
   thrift_light
