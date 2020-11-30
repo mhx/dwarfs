@@ -13,6 +13,7 @@ addons:
       - make
       - bison
       - flex
+      - ronn
       - pkg-config
       - binutils-dev
       - libboost-all-dev
