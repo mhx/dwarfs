@@ -14,6 +14,7 @@ addons:
       - bison
       - flex
       - ronn
+      - bzip2
       - pkg-config
       - binutils-dev
       - libboost-all-dev
@@ -43,4 +44,14 @@ before_script:
   - cd build
   - cmake -DWITH_TESTS=1 ..
 
-script: make -j$(nproc) && make test
+script:
+  - make -j$(nproc)
+  - make test
+  - make package_source
+  - tar xvf dwarfs-*.tar.bz2
+  - cd dwarfs-*
+  - mkdir build
+  - cd build
+  - cmake -DWITH_TESTS=1 ..
+  - make -j$(nproc)
+  - make test
