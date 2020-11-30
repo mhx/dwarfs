@@ -1,5 +1,17 @@
 # Change Log
 
+## Version 0.2.2 - 2020-11-30
+
+- Remove read-only masking as it prevents writable overlays
+
+- Throw an error in `mkdwarfs` if unrecognized command line
+  arguments are encountered (github #5)
+
+- Various build fixes (github #2. #3)
+
+- More documentation
+
+
 ## Version 0.2.1 - 2020-11-29
 
 - Replace --no-owner and --no-time with more flexible --set-owner,
