@@ -33,7 +33,6 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
-// #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
