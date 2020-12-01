@@ -88,13 +88,6 @@ class mmap_mock : public mmif {
     assign(m_data.data(), m_data.size());
   }
 
-  boost::system::error_code lock(void const*, size_t) override {
-    return boost::system::error_code();
-  }
-  boost::system::error_code advise(void const*, size_t, int) override {
-    return boost::system::error_code();
-  }
-
  private:
   const std::string m_data;
 };
