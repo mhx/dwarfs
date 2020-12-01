@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.2.3 - 2020-12-01
+
+- Fix link handling. There were two bugs introduced with the
+  new metadata format, one in file system creation and another
+  in the fuse driver. You will have to re-create a file system
+  created with dwarfs < 0.2.3 if it contained links. If you
+  can absolutely not re-create the file system and the data
+  is precious, let me know, there's actually a way to recover
+  the missing data.
+
+
 ## Version 0.2.2 - 2020-11-30
 
 - Remove read-only masking as it prevents writable overlays
