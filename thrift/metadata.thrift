@@ -63,9 +63,9 @@ struct entry {
     *
     * - For directories, the inode can be used as an index into
     *   metadata.directories.
-    * - For links, (inode - metadata.link_index_offset) can be
+    * - For links, (inode - link_index_offset) can be
     *   used as an index into metadata.links.
-    * - For files, (inode - metadata.chunk_index_offset) can be
+    * - For files, (inode - chunk_index_offset) can be
     *   used as in index into metadata.chunk_index.
     */
    3: required UInt32 inode,
@@ -138,11 +138,16 @@ struct metadata {
    // timestamp base for all entry timestamps
   12: required UInt64          timestamp_base,
 
-   // inode offset for lookups into chunk_index
-  13: required UInt32          chunk_index_offset;
-
-   // inode offset for lookups into link_index
-  14: required UInt32          link_index_offset;
+  /************************ DEPRECATED **********************
+   *
+   * These are redundant and can be determined at run-time
+   * with a simple binary search. Compatibility is not
+   * affected.
+   *
+   *   13: required UInt32          chunk_index_offset;
+   *   14: required UInt32          link_index_offset;
+   *
+   *********************************************************/
 
    // block size
   15: required UInt32          block_size;

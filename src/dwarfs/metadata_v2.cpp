@@ -101,9 +101,14 @@ class metadata_ : public metadata_v2::impl {
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
+      , log_(lgr)
       , inode_offset_(inode_offset)
-      , chunk_index_offset_(meta_.chunk_index_offset())
-      , log_(lgr) {}
+      , chunk_index_offset_(
+            find_index_offset(meta_.entry_index().size(),
+                              [](uint16_t mode) { return S_ISREG(mode); }))
+      , link_index_offset_(find_index_offset(
+            chunk_index_offset_, [](uint16_t mode) { return S_ISLNK(mode); })) {
+  }
 
   void dump(std::ostream& os, int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb)
@@ -152,6 +157,19 @@ class metadata_ : public metadata_v2::impl {
 
   entry_view make_entry_view_from_inode(uint32_t inode) const {
     return make_entry_view(meta_.entry_index()[inode]);
+  }
+
+  template <typename Func>
+  size_t find_index_offset(size_t last, Func&& func) const {
+    auto range = boost::irange(size_t(0), last);
+
+    auto it =
+        std::upper_bound(range.begin(), range.end(), 0, [&](int, auto inode) {
+          auto e = make_entry_view_from_inode(inode);
+          return bool(func(e.mode()));
+        });
+
+    return *it;
   }
 
   directory_view make_directory_view(entry_view entry) const {
@@ -205,15 +223,16 @@ class metadata_ : public metadata_v2::impl {
 
   std::string_view link_value(entry_view entry) const {
     return meta_
-        .links()[meta_.link_index()[entry.inode() - meta_.link_index_offset()]];
+        .links()[meta_.link_index()[entry.inode() - link_index_offset_]];
   }
 
   folly::ByteRange data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
+  log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
   const int chunk_index_offset_;
-  log_proxy<LoggerPolicy> log_;
+  const int link_index_offset_;
 };
 
 template <typename LoggerPolicy>
@@ -534,7 +553,7 @@ template <typename LoggerPolicy>
 std::optional<chunk_range>
 metadata_<LoggerPolicy>::get_chunks(int inode) const {
   std::optional<chunk_range> rv;
-  inode -= inode_offset_ + meta_.chunk_index_offset();
+  inode -= inode_offset_ + chunk_index_offset_;
   if (inode >= 0 &&
       inode < (static_cast<int>(meta_.chunk_index().size()) - 1)) {
     uint32_t begin = meta_.chunk_index()[inode];
