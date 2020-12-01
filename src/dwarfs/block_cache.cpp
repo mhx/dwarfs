@@ -33,6 +33,8 @@
 #include <utility>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include <folly/container/EvictingCacheMap.h>
 
 #include "dwarfs/block_cache.h"
@@ -199,6 +201,7 @@ class block_cache_ : public block_cache::impl {
       log_.debug() << "  block " << cb.first << ", decompression ratio = "
                    << double(cb.second->range_end()) /
                           double(cb.second->uncompressed_size());
+      update_block_stats(*cb.second);
     }
 
     double fast_hit_rate =
@@ -206,6 +209,8 @@ class block_cache_ : public block_cache::impl {
     double slow_hit_rate =
         100.0 * (active_hits_slow_ + cache_hits_slow_) / range_requests_;
     double miss_rate = 100.0 - (fast_hit_rate + slow_hit_rate);
+    double avg_decompression =
+        100.0 * total_decompressed_bytes_ / total_block_bytes_;
 
     log_.info() << "blocks created: " << blocks_created_.load();
     log_.info() << "blocks evicted: " << blocks_evicted_.load();
@@ -216,10 +221,15 @@ class block_cache_ : public block_cache::impl {
     log_.info() << "cache hits (fast): " << cache_hits_fast_.load();
     log_.info() << "cache hits (slow): " << cache_hits_slow_.load();
 
-    // TODO: use fmt::format
-    log_.info() << "fast hit rate: " << fast_hit_rate << "%";
-    log_.info() << "slow hit rate: " << slow_hit_rate << "%";
-    log_.info() << "miss rate: " << miss_rate << "%";
+    log_.info() << "total bytes decompressed: " << total_decompressed_bytes_;
+    log_.info() << "average block decompression: "
+                << fmt::format("{:.1f}", avg_decompression) << "%";
+
+    log_.info() << "fast hit rate: " << fmt::format("{:.3f}", fast_hit_rate)
+                << "%";
+    log_.info() << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
+                << "%";
+    log_.info() << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
   }
 
   size_t block_count() const override { return block_.size(); }
@@ -243,6 +253,7 @@ class block_cache_ : public block_cache::impl {
                          << double(block->range_end()) /
                                 double(block->uncompressed_size());
             ++blocks_evicted_;
+            update_block_stats(*block);
           });
     }
   }
@@ -382,6 +393,14 @@ class block_cache_ : public block_cache::impl {
   }
 
  private:
+  void update_block_stats(cached_block const& cb) {
+    if (cb.range_end() < cb.uncompressed_size()) {
+      ++partially_decompressed_;
+    }
+    total_decompressed_bytes_ += cb.range_end();
+    total_block_bytes_ += cb.uncompressed_size();
+  }
+
   void enqueue_job(std::shared_ptr<block_request_set> brs) const {
     // Lambda needs to be mutable so we can actually move out of it
     wg_.add_job([this, brs = std::move(brs)]() mutable {
@@ -492,6 +511,9 @@ class block_cache_ : public block_cache::impl {
   mutable std::atomic<size_t> active_hits_slow_{0};
   mutable std::atomic<size_t> cache_hits_fast_{0};
   mutable std::atomic<size_t> cache_hits_slow_{0};
+  mutable std::atomic<size_t> partially_decompressed_{0};
+  mutable std::atomic<size_t> total_block_bytes_{0};
+  mutable std::atomic<size_t> total_decompressed_bytes_{0};
 
   mutable worker_group wg_;
   std::vector<block> block_;
