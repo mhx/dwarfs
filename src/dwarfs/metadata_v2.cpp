@@ -206,7 +206,7 @@ class metadata_ : public metadata_v2::impl {
 
   std::string_view link_value(entry_view entry) const {
     return meta_
-        .links()[meta_.link_index()[entry.inode()] - meta_.link_index_offset()];
+        .links()[meta_.link_index()[entry.inode() - meta_.link_index_offset()]];
   }
 
   folly::ByteRange data_;

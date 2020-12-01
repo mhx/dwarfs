@@ -533,6 +533,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.links = ge_data.get_links();
   mv2.timestamp_base = ge_data.get_timestamp_base();
   mv2.chunk_index_offset = first_file_inode;
+  mv2.link_index_offset = first_link_inode;
   mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;
 

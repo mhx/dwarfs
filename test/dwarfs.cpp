@@ -77,6 +77,7 @@ std::unordered_map<std::string, simplestat> statmap{
     {"//foo.pl", {S_IFREG | 0600, 1337, 0, 23456}},
     {"//ipsum.txt", {S_IFREG | 0644, 1000, 1000, 2000000}},
     {"//somedir/ipsum.py", {S_IFREG | 0644, 1000, 1000, 10000}},
+    {"//somedir/bad", {S_IFLNK | 0777, 1000, 1000, 6}},
 };
 } // namespace
 
@@ -85,6 +86,13 @@ class mmap_mock : public mmif {
   mmap_mock(const std::string& data)
       : m_data(data) {
     assign(m_data.data(), m_data.size());
+  }
+
+  boost::system::error_code lock(void const*, size_t) override {
+    return boost::system::error_code();
+  }
+  boost::system::error_code advise(void const*, size_t, int) override {
+    return boost::system::error_code();
   }
 
  private:
@@ -105,6 +113,7 @@ class os_access_mock : public os_access {
           ".",
           "..",
           "ipsum.py",
+          "bad",
       };
 
       return std::make_shared<dir_reader_mock>(std::move(files));
@@ -128,6 +137,8 @@ class os_access_mock : public os_access {
   std::string readlink(const std::string& path, size_t size) const override {
     if (path == "//somelink" && size == 16) {
       return "somedir/ipsum.py";
+    } else if (path == "//somedir/bad" && size == 6) {
+      return "../foo";
     }
 
     throw std::runtime_error("oops");
@@ -216,6 +227,23 @@ void basic_end_to_end_test(const std::string& compressor,
   ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
   EXPECT_EQ(rv, st.st_size);
   EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.st_size));
+
+  entry = fs.find("/somelink");
+
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  EXPECT_EQ(st.st_size, 16);
+
+  std::string link;
+  EXPECT_EQ(fs.readlink(*entry, &link), 0);
+  EXPECT_EQ(link, "somedir/ipsum.py");
+
+  entry = fs.find("/somedir/bad");
+
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  EXPECT_EQ(st.st_size, 6);
+
+  EXPECT_EQ(fs.readlink(*entry, &link), 0);
+  EXPECT_EQ(link, "../foo");
 }
 
 std::vector<std::string> const compressions{"null",
