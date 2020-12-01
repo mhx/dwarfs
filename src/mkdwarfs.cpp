@@ -348,8 +348,8 @@ int mkdwarfs(int argc, char** argv) {
       po::collect_unrecognized(parsed.options, po::include_positional);
 
   if (!unrecognized.empty()) {
-    throw std::runtime_error(
-        "unrecognized argument(s): " + boost::join(unrecognized, " "));
+    throw std::runtime_error("unrecognized argument(s): " +
+                             boost::join(unrecognized, " "));
   }
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
