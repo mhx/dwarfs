@@ -275,8 +275,7 @@ void metadata_<LoggerPolicy>::dump(
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
-  os << "(" << count << " entries) [" << dir.inode() << ", "
-     << dir.parent_inode() << "]\n";
+  os << " (" << count << " entries, parent=" << dir.parent_inode() << ")\n";
 
   for (size_t i = 0; i < count; ++i) {
     dump(os, indent, make_entry_view(first + i), detail_level, icb);

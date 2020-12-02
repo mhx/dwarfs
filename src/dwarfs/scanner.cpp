@@ -73,6 +73,7 @@ class scan_files_visitor : public visitor_base {
       , os_(os)
       , prog_(prog) {}
 
+  // TODO: avoid scanning hardlinks multiple times
   void visit(file* p) override {
     wg_.add_job([=] {
       prog_.current.store(p);
@@ -191,7 +192,6 @@ class save_directories_visitor : public visitor_base {
     thrift::metadata::directory dummy;
     dummy.parent_inode = 0;
     dummy.first_entry = mv2.entries.size();
-    // dummy.entry_count = 0;
     mv2.directories.push_back(dummy);
   }
 
