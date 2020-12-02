@@ -115,6 +115,43 @@ class metadata_ : public metadata_v2::impl {
     log_.debug() << "link index offset: " << link_index_offset_;
     log_.debug() << "chunk index offset: " << chunk_index_offset_;
     log_.debug() << "device index offset: " << dev_index_offset_;
+
+    if (int(meta_.directories().size() - 1) != link_index_offset_) {
+      throw std::runtime_error(
+          fmt::format("metadata inconsistency: number of directories ({}) does "
+                      "not match link index ({})",
+                      meta_.directories().size() - 1, link_index_offset_));
+    }
+
+    if (int(meta_.link_index().size()) !=
+        (chunk_index_offset_ - link_index_offset_)) {
+      throw std::runtime_error(fmt::format(
+          "metadata inconsistency: number of links ({}) does not match "
+          "chunk/link index delta ({} - {} = {})",
+          meta_.link_index().size(), chunk_index_offset_, link_index_offset_,
+          chunk_index_offset_ - link_index_offset_));
+    }
+
+    if (int(meta_.chunk_index().size() - 1) !=
+        (dev_index_offset_ - chunk_index_offset_)) {
+      throw std::runtime_error(fmt::format(
+          "metadata inconsistency: number of files ({}) does not match "
+          "device/chunk index delta ({} - {} = {})",
+          meta_.chunk_index().size() - 1, dev_index_offset_,
+          chunk_index_offset_, dev_index_offset_ - chunk_index_offset_));
+    }
+
+    if (auto devs = meta_.devices()) {
+      auto other_offset = find_index_offset(inode_rank::INO_OTH);
+
+      if (devs->size() != (other_offset - dev_index_offset_)) {
+        throw std::runtime_error(
+            fmt::format("metadata inconsistency: number of devices ({}) does "
+                        "not match other/device index delta ({} - {} = {})",
+                        devs->size(), other_offset, dev_index_offset_,
+                        other_offset - dev_index_offset_));
+      }
+    }
   }
 
   void dump(std::ostream& os, int detail_level,
