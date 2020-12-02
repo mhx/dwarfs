@@ -134,6 +134,8 @@ class dir : public entry {
                   global_entry_data const& data) const;
   uint32_t inode_num() const override { return inode_; }
   void scan(os_access& os, progress& prog) override;
+  bool empty() const { return entries_.empty(); }
+  void remove_empty_dirs(progress& prog);
 
  private:
   using entry_ptr = std::shared_ptr<entry>;

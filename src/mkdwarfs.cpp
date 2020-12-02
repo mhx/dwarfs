@@ -328,6 +328,9 @@ int mkdwarfs(int argc, char** argv) {
         po::value<unsigned>(&cfg.window_increment_shift)
             ->default_value(1),
         "window increment (as right shift of size)")
+    ("remove-empty-dirs",
+        po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
+        "remove empty directories in file system")
     ("log-level",
         po::value<std::string>(&log_level)->default_value("info"),
         "log level (error, warn, info, debug, trace)")

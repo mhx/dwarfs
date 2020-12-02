@@ -49,10 +49,11 @@ struct filesystem_options {
 enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
 
 struct scanner_options {
-  file_order_mode file_order;
+  file_order_mode file_order{file_order_mode::NONE};
   std::optional<uint16_t> uid;
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;
+  bool remove_empty_dirs{false};
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

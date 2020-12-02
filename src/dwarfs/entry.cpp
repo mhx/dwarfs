@@ -211,6 +211,24 @@ void dir::pack(thrift::metadata::metadata& mv2,
   }
 }
 
+void dir::remove_empty_dirs(progress& prog) {
+  auto last = std::remove_if(entries_.begin(), entries_.end(),
+                             [&](std::shared_ptr<entry> const& e) {
+                               if (auto d = dynamic_cast<dir*>(e.get())) {
+                                 d->remove_empty_dirs(prog);
+                                 return d->empty();
+                               }
+                               return false;
+                             });
+
+  if (last != entries_.end()) {
+    auto num = std::distance(last, entries_.end());
+    prog.dirs_scanned -= num;
+    prog.dirs_found -= num;
+    entries_.erase(last, entries_.end());
+  }
+}
+
 entry::type_t link::type() const { return E_LINK; }
 
 const std::string& link::linkname() const { return link_; }

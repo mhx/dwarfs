@@ -451,6 +451,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   auto root = scan_tree(path, prog);
 
+  if (options_.remove_empty_dirs) {
+    log_.info() << "removing empty directories...";
+    auto d = dynamic_cast<dir*>(root.get());
+    d->remove_empty_dirs(prog);
+  }
+
   // now scan all files
   scan_files_visitor sfv(wg_, *os_, prog);
   root->accept(sfv);
