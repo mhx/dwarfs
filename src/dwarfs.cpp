@@ -54,6 +54,7 @@ struct options {
   const char* decompress_ratio_str; // TODO: const?? -> use string?
   int enable_nlink;
   int no_image_madvise;
+  int direct_io;
   size_t cachesize;
   size_t workers;
   mlock_mode lock_mode;
@@ -79,6 +80,7 @@ const struct fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("no_image_madvise", no_image_madvise, 1),
+    DWARFS_OPT("direct_io", direct_io, 1),
     FUSE_OPT_END};
 
 options s_opts;
@@ -252,7 +254,8 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         err = EACCES;
       } else {
         fi->fh = FUSE_ROOT_ID + entry->inode();
-        fi->keep_cache = 1;
+        fi->direct_io = s_opts.direct_io;
+        fi->keep_cache = !s_opts.direct_io;
         fuse_reply_open(req, fi);
         return;
       }
@@ -396,6 +399,7 @@ void usage(const char* progname) {
             << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
             << "    -o enable_nlink        show correct hardlink numbers\n"
             << "    -o no_image_madvise    keep image in kernel cache\n"
+            << "    -o direct_io           don't keep files in kernel cache\n"
             << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
             << std::endl;
 

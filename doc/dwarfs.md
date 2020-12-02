@@ -74,6 +74,16 @@ options:
     this option to keep the compressed image data in the kernel
     cache.
 
+  * `-o direct_io`
+    By default, files in the mounted file system will be cached by
+    the kernel. This significantly improves performance when accessing
+    the same files over and over again, especially if the data from
+    these files has been (partially) evicted from the block cache of
+    `dwarfs`. By setting this option, you can force the fuse driver
+    to not use the kernel cache for file data. If you're short on
+    memory and only infrequently accessing files, this can be worth
+    trying.
+
   * `-o debuglevel=`*name*:
     Use this for different levels of verbosity along with either
     the `-f` or `-d` FUSE options. This can give you some insight
