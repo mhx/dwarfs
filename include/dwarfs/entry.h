@@ -82,9 +82,7 @@ class entry : public file_interface {
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual uint32_t inode_num() const = 0;
   virtual void scan(os_access& os, progress& prog) = 0;
-
- protected:
-  void scan_stat(os_access& os, std::string const& p);
+  const struct ::stat& status() const { return stat_; }
 
  private:
   std::string name_;
@@ -155,7 +153,7 @@ class link : public entry {
 
  private:
   std::string link_;
-  uint32_t inode_ = 0;
+  uint32_t inode_{0};
 };
 
 class entry_factory {

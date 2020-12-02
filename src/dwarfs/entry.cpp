@@ -44,10 +44,6 @@ entry::entry(const std::string& name, std::shared_ptr<entry> parent,
     , parent_(std::move(parent))
     , stat_(st) {}
 
-void entry::scan_stat(os_access& os, std::string const& p) {
-  os.lstat(p, &stat_);
-}
-
 bool entry::has_parent() const {
   if (parent_.lock()) {
     return true;
@@ -130,12 +126,9 @@ void file::accept(entry_visitor& v, bool) { v.visit(this); }
 void file::scan(os_access& os, progress& prog) {
   static_assert(SHA_DIGEST_LENGTH == sizeof(hash_type));
 
-  auto p = path();
-  scan_stat(os, p);
-
   if (size_t s = size(); s > 0) {
     prog.original_size += s;
-    auto mm = os.map_file(p, s);
+    auto mm = os.map_file(path(), s);
     ::SHA1(mm->as<unsigned char>(), s,
            reinterpret_cast<unsigned char*>(&hash_[0]));
 
@@ -190,7 +183,7 @@ void dir::sort() {
 
 void dir::set_inode(uint32_t inode) { inode_ = inode; }
 
-void dir::scan(os_access& os, progress&) { scan_stat(os, path()); }
+void dir::scan(os_access&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
@@ -223,9 +216,7 @@ void link::set_inode(uint32_t inode) { inode_ = inode; }
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access& os, progress& prog) {
-  auto p = path();
-  scan_stat(os, p);
-  link_ = os.readlink(p, size());
+  link_ = os.readlink(path(), size());
   prog.original_size += size();
 }
 
