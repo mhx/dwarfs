@@ -20,6 +20,7 @@
  */
 
 #include <cerrno>
+#include <cstdio> // TODO
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -67,19 +68,48 @@ void* safe_mmap(int fd, size_t size) {
 }
 } // namespace
 
-mmap::mmap(const std::string& path)
-    : fd_(safe_open(path)) {
-  size_t size = safe_size(fd_);
-  assign(safe_mmap(fd_, size), size);
+boost::system::error_code mmap::lock(off_t offset, size_t size) {
+  boost::system::error_code ec;
+  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
+  if (::mlock(addr, size) != 0) {
+    ec.assign(errno, boost::system::generic_category());
+  }
+  return ec;
 }
+
+boost::system::error_code mmap::release(off_t offset, size_t size) {
+  boost::system::error_code ec;
+  auto misalign = offset % page_size_;
+
+  offset -= misalign;
+  size += misalign;
+  size -= size % page_size_;
+
+  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
+  if (::madvise(addr, size, MADV_DONTNEED) != 0) {
+    ec.assign(errno, boost::system::generic_category());
+  }
+  return ec;
+}
+
+void const* mmap::addr() const { return addr_; }
+
+size_t mmap::size() const { return size_; }
+
+mmap::mmap(const std::string& path)
+    : fd_(safe_open(path))
+    , size_(safe_size(fd_))
+    , addr_(safe_mmap(fd_, size_))
+    , page_size_(::sysconf(_SC_PAGESIZE)) {}
 
 mmap::mmap(const std::string& path, size_t size)
-    : fd_(safe_open(path)) {
-  assign(safe_mmap(fd_, size), size);
-}
+    : fd_(safe_open(path))
+    , size_(size)
+    , addr_(safe_mmap(fd_, size_))
+    , page_size_(::sysconf(_SC_PAGESIZE)) {}
 
 mmap::~mmap() noexcept {
-  ::munmap(const_cast<void*>(get()), size());
+  ::munmap(addr_, size_);
   ::close(fd_);
 }
 } // namespace dwarfs

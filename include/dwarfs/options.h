@@ -33,6 +33,7 @@ struct block_cache_options {
   size_t max_bytes{0};
   size_t num_workers{0};
   double decompress_ratio{1.0};
+  bool mm_release{true};
 };
 
 struct metadata_options {

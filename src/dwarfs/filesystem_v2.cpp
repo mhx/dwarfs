@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <optional>
@@ -164,9 +163,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
       get_section_data(mm, meta_it->second, meta_buffer, force_buffers);
 
   if (lock_mode != mlock_mode::NONE) {
-    int rv = ::mlock(meta_section.data(), meta_section.size());
-    if (rv != 0) {
-      boost::system::error_code ec(errno, boost::system::generic_category());
+    if (auto ec = mm->lock(meta_it->second.start, meta_section.size())) {
       if (lock_mode == mlock_mode::MUST) {
         throw boost::system::system_error(ec, "mlock");
       } else {
@@ -225,13 +222,13 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
     : log_(lgr)
     , mm_(mm) {
   filesystem_parser parser(mm_);
-  block_cache cache(lgr, options.block_cache);
+  block_cache cache(lgr, mm, options.block_cache);
 
   section_map sections;
 
   while (auto s = parser.next_section(log_)) {
     if (s->header.type == section_type::BLOCK) {
-      cache.insert(s->header.compression, mm_->as<uint8_t>(s->start),
+      cache.insert(s->header.compression, s->start,
                    static_cast<size_t>(s->header.length));
     } else {
       if (!sections.emplace(s->header.type, *s).second) {

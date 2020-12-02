@@ -40,27 +40,39 @@
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
 
 struct block {
-  block(compression_type compression, const uint8_t* data, size_t size)
+  block(compression_type compression, off_t offset, size_t size)
       : compression(compression)
-      , data(data)
+      , offset(offset)
       , size(size) {}
 
   const compression_type compression;
-  const uint8_t* const data;
+  const off_t offset;
   const size_t size;
 };
 
 class cached_block {
  public:
-  explicit cached_block(const block& b)
+  cached_block(logger& lgr, block const& b, std::shared_ptr<mmif> mm,
+               bool release)
       : decompressor_(std::make_unique<block_decompressor>(
-            b.compression, b.data, b.size, data_)) {}
+            b.compression, mm->as<uint8_t>(b.offset), b.size, data_))
+      , mm_(std::move(mm))
+      , spec_(b)
+      , log_(lgr)
+      , release_(release) {}
+
+  ~cached_block() {
+    if (decompressor_) {
+      try_release();
+    }
+  }
 
   // once the block is fully decompressed, we can reset the decompressor_
 
@@ -76,6 +88,9 @@ class cached_block {
       if (decompressor_->decompress_frame()) {
         // We're done, free the memory
         decompressor_.reset();
+
+        // And release the memory from the mapping
+        try_release();
       }
 
       range_end_ = data_.size();
@@ -88,9 +103,21 @@ class cached_block {
   }
 
  private:
+  void try_release() {
+    if (release_) {
+      if (auto ec = mm_->release(spec_.offset, spec_.size)) {
+        log_.info() << "madvise() failed: " << ec.message();
+      }
+    }
+  }
+
   std::atomic<size_t> range_end_{0};
   std::vector<uint8_t> data_;
   std::unique_ptr<block_decompressor> decompressor_;
+  std::shared_ptr<mmif> mm_;
+  block const& spec_;
+  log_proxy<debug_logger_policy> log_;
+  bool const release_;
 };
 
 class block_request {
@@ -178,12 +205,14 @@ class block_request_set {
 template <typename LoggerPolicy>
 class block_cache_ : public block_cache::impl {
  public:
-  block_cache_(logger& lgr, const block_cache_options& options)
+  block_cache_(logger& lgr, std::shared_ptr<mmif> mm,
+               block_cache_options const& options)
       : cache_(0)
       , wg_("blkcache", std::max(options.num_workers > 0
                                      ? options.num_workers
                                      : std::thread::hardware_concurrency(),
                                  static_cast<size_t>(1)))
+      , mm_(std::move(mm))
       , log_(lgr)
       , options_(options) {}
 
@@ -234,9 +263,8 @@ class block_cache_ : public block_cache::impl {
 
   size_t block_count() const override { return block_.size(); }
 
-  void
-  insert(compression_type comp, const uint8_t* data, size_t size) override {
-    block_.emplace_back(comp, data, size);
+  void insert(compression_type comp, off_t offset, size_t size) override {
+    block_.emplace_back(comp, offset, size);
   }
 
   void set_block_size(size_t size) override {
@@ -377,7 +405,8 @@ class block_cache_ : public block_cache::impl {
 
     assert(block_no < block_.size());
 
-    auto block = std::make_shared<cached_block>(block_[block_no]);
+    auto block = std::make_shared<cached_block>(
+        log_.get_logger(), block_[block_no], mm_, options_.mm_release);
     ++blocks_created_;
 
     // Make a new set for the block
@@ -517,13 +546,15 @@ class block_cache_ : public block_cache::impl {
 
   mutable worker_group wg_;
   std::vector<block> block_;
+  std::shared_ptr<mmif> mm_;
   log_proxy<LoggerPolicy> log_;
   const block_cache_options options_;
 };
 
-block_cache::block_cache(logger& lgr, const block_cache_options& options)
+block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,
+                         const block_cache_options& options)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
-          lgr, options)) {}
+          lgr, std::move(mm), options)) {}
 
 // TODO: clean up: this is defined in fstypes.h...
 block_range::block_range(std::shared_ptr<cached_block const> block,

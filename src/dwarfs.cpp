@@ -53,6 +53,7 @@ struct options {
   const char* mlock_str;            // TODO: const?? -> use string?
   const char* decompress_ratio_str; // TODO: const?? -> use string?
   int enable_nlink;
+  int no_image_madvise;
   size_t cachesize;
   size_t workers;
   mlock_mode lock_mode;
@@ -77,6 +78,7 @@ const struct fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
+    DWARFS_OPT("no_image_madvise", no_image_madvise, 1),
     FUSE_OPT_END};
 
 options opts;
@@ -97,6 +99,7 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
     fsopts.block_cache.max_bytes = opts.cachesize;
     fsopts.block_cache.num_workers = opts.workers;
     fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
+    fsopts.block_cache.mm_release = !opts.no_image_madvise;
     fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
     s_fs = std::make_shared<filesystem_v2>(
         s_lgr, std::make_shared<mmap>(opts.fsimage), fsopts,
@@ -392,6 +395,7 @@ void usage(const char* progname) {
             << "    -o mlock=NAME          mlock mode: (none), try, must\n"
             << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
             << "    -o enable_nlink        show correct hardlink numbers\n"
+            << "    -o no_image_madvise    keep image in kernel cache\n"
             << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
             << std::endl;
 

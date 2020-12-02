@@ -64,6 +64,16 @@ options:
     will also consume more memory to hold the hardlink count table.
     This will be 4 bytes for every regular file inode.
 
+  * `-o no_image_madvise`
+    By default, `dwarfs` will issue `madvise` calls after reading
+    the compressed block data from the file system image. This
+    will reduce the memory consumption of the FUSE driver to
+    slightly more than the `cachesize`. This usually isn't a
+    problem, especially when the image is stored on an SSD, but if
+    you want to maximize performance it can be beneficial to use
+    this option to keep the compressed image data in the kernel
+    cache.
+
   * `-o debuglevel=`*name*:
     Use this for different levels of verbosity along with either
     the `-f` or `-d` FUSE options. This can give you some insight

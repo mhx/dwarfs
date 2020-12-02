@@ -240,6 +240,8 @@ class log_proxy {
         lgr_, logger::TRACE);
   }
 
+  logger& get_logger() const { return lgr_; }
+
  private:
   logger& lgr_;
 };

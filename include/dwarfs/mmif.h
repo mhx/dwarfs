@@ -24,6 +24,7 @@
 #include <string>
 
 #include <boost/noncopyable.hpp>
+#include <boost/system/system_error.hpp>
 
 #include <folly/Range.h>
 
@@ -33,28 +34,20 @@ class mmif : public boost::noncopyable {
  public:
   virtual ~mmif() = default;
 
-  const void* get() const { return addr_; }
-
   template <typename T>
-  const T* as(size_t offset = 0) const {
-    return reinterpret_cast<const T*>(
-        reinterpret_cast<const char*>(const_cast<const void*>(addr_)) + offset);
+  T const* as(off_t offset = 0) const {
+    return reinterpret_cast<T const*>(
+        reinterpret_cast<char const*>(this->addr()) + offset);
   }
 
-  size_t size() const { return size_; }
-
-  folly::ByteRange range(size_t start, size_t size) const {
-    return folly::ByteRange(as<uint8_t>(start), size);
+  folly::ByteRange range(off_t offset, size_t length) const {
+    return folly::ByteRange(this->as<uint8_t>(offset), length);
   }
 
- protected:
-  void assign(const void* addr, size_t size) {
-    addr_ = addr;
-    size_ = size;
-  }
+  virtual void const* addr() const = 0;
+  virtual size_t size() const = 0;
 
- private:
-  const void* addr_;
-  size_t size_;
+  virtual boost::system::error_code lock(off_t offset, size_t size) = 0;
+  virtual boost::system::error_code release(off_t offset, size_t size) = 0;
 };
 } // namespace dwarfs

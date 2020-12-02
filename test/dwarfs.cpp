@@ -88,8 +88,17 @@ std::map<std::string, simplestat> statmap{
 class mmap_mock : public mmif {
  public:
   mmap_mock(const std::string& data)
-      : m_data(data) {
-    assign(m_data.data(), m_data.size());
+      : m_data(data) {}
+
+  void const* addr() const override { return m_data.data(); }
+
+  size_t size() const override { return m_data.size(); }
+
+  boost::system::error_code lock(off_t, size_t) override {
+    return boost::system::error_code();
+  }
+  boost::system::error_code release(off_t, size_t) override {
+    return boost::system::error_code();
   }
 
  private:

@@ -35,15 +35,17 @@ struct block_cache_options;
 
 class block_range;
 class logger;
+class mmif;
 
 class block_cache {
  public:
-  block_cache(logger& lgr, const block_cache_options& options);
+  block_cache(logger& lgr, std::shared_ptr<mmif> mm,
+              const block_cache_options& options);
 
   size_t block_count() const { return impl_->block_count(); }
 
-  void insert(compression_type comp, const uint8_t* data, size_t size) {
-    impl_->insert(comp, data, size);
+  void insert(compression_type comp, off_t offset, size_t size) {
+    impl_->insert(comp, offset, size);
   }
 
   void set_block_size(size_t size) { impl_->set_block_size(size); }
@@ -58,8 +60,7 @@ class block_cache {
     virtual ~impl() = default;
 
     virtual size_t block_count() const = 0;
-    virtual void
-    insert(compression_type comp, const uint8_t* data, size_t size) = 0;
+    virtual void insert(compression_type comp, off_t offset, size_t size) = 0;
     virtual void set_block_size(size_t size) = 0;
     virtual std::future<block_range>
     get(size_t block_no, size_t offset, size_t length) const = 0;

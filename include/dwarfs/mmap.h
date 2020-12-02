@@ -30,12 +30,21 @@ namespace dwarfs {
 
 class mmap : public mmif {
  public:
-  mmap(const std::string& path);
+  explicit mmap(const std::string& path);
   mmap(const std::string& path, size_t size);
 
-  virtual ~mmap() noexcept;
+  ~mmap() noexcept override;
+
+  void const* addr() const override;
+  size_t size() const override;
+
+  boost::system::error_code lock(off_t offset, size_t size) override;
+  boost::system::error_code release(off_t offset, size_t size) override;
 
  private:
   int fd_;
+  size_t size_;
+  void* addr_;
+  off_t const page_size_;
 };
 } // namespace dwarfs
