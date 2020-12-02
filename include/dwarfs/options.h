@@ -35,9 +35,14 @@ struct block_cache_options {
   double decompress_ratio{1.0};
 };
 
+struct metadata_options {
+  bool enable_nlink{false};
+};
+
 struct filesystem_options {
   mlock_mode lock_mode{mlock_mode::NONE};
   block_cache_options block_cache;
+  metadata_options metadata;
 };
 
 enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };

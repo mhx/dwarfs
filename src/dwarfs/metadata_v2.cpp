@@ -38,6 +38,7 @@
 
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
+#include "dwarfs/options.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
@@ -99,7 +100,8 @@ class metadata_ : public metadata_v2::impl {
  public:
   // TODO: defaults?, remove
   metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-            const struct ::stat* /*defaults*/, int inode_offset)
+            metadata_options const& options, struct ::stat const* /*defaults*/,
+            int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
@@ -107,7 +109,9 @@ class metadata_ : public metadata_v2::impl {
       , inode_offset_(inode_offset)
       , link_index_offset_(find_index_offset(inode_rank::INO_LNK))
       , chunk_index_offset_(find_index_offset(inode_rank::INO_REG))
-      , dev_index_offset_(find_index_offset(inode_rank::INO_DEV)) {
+      , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
+      , nlinks_(build_nlinks(options))
+      , options_(options) {
     log_.debug() << "link index offset: " << link_index_offset_;
     log_.debug() << "chunk index offset: " << chunk_index_offset_;
     log_.debug() << "device index offset: " << dev_index_offset_;
@@ -285,6 +289,28 @@ class metadata_ : public metadata_v2::impl {
     return 0;
   }
 
+  std::vector<uint32_t> build_nlinks(metadata_options const& options) const {
+    std::vector<uint32_t> nlinks;
+
+    if (options.enable_nlink) {
+      auto ti = log_.timed_debug();
+
+      nlinks.resize(dev_index_offset_ - chunk_index_offset_);
+
+      for (auto e : meta_.entries()) {
+        auto index = int(e.inode()) - chunk_index_offset_;
+        if (index >= 0 && index < int(nlinks.size())) {
+          ++nlinks.at(index);
+        }
+      }
+
+      ti << "build hardlink table (" << sizeof(uint32_t) * nlinks.capacity()
+         << " bytes)";
+    }
+
+    return nlinks;
+  }
+
   folly::ByteRange data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
@@ -293,6 +319,8 @@ class metadata_ : public metadata_v2::impl {
   const int link_index_offset_;
   const int chunk_index_offset_;
   const int dev_index_offset_;
+  const std::vector<uint32_t> nlinks_;
+  const metadata_options options_;
 };
 
 template <typename LoggerPolicy>
@@ -488,7 +516,9 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   auto inode = entry.inode();
 
   stbuf->st_mode = mode;
-  stbuf->st_size = file_size(entry, mode);
+
+  stbuf->st_size = S_ISDIR(mode) ? make_directory_view(entry).entry_count()
+                                 : file_size(entry, mode);
   stbuf->st_ino = inode + inode_offset_;
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
   stbuf->st_uid = entry.getuid();
@@ -496,6 +526,9 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   stbuf->st_atime = timebase + entry.atime_offset();
   stbuf->st_mtime = timebase + entry.mtime_offset();
   stbuf->st_ctime = timebase + entry.ctime_offset();
+  stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
+                        ? nlinks_.at(inode - chunk_index_offset_)
+                        : 1;
 
   if (S_ISBLK(mode) || S_ISCHR(mode)) {
     stbuf->st_rdev = get_device_id(inode);
@@ -649,10 +682,10 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
 }
 
 metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
-                         folly::ByteRange data, const struct ::stat* defaults,
-                         int inode_offset)
+                         folly::ByteRange data, metadata_options const& options,
+                         struct ::stat const* defaults, int inode_offset)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, schema, data, defaults, inode_offset)) {}
+          lgr, schema, data, options, defaults, inode_offset)) {}
 
 } // namespace dwarfs

@@ -46,6 +46,8 @@ namespace dwarfs {
 
 class logger;
 
+struct metadata_options;
+
 namespace thrift::metadata {
 class metadata;
 }
@@ -55,7 +57,8 @@ class metadata_v2 {
   metadata_v2() = default;
 
   metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-              const struct ::stat* defaults = nullptr, int inode_offset = 0);
+              metadata_options const& options,
+              struct ::stat const* defaults = nullptr, int inode_offset = 0);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 

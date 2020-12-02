@@ -144,6 +144,7 @@ metadata_v2
 make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
+              const metadata_options& options,
               const struct ::stat* stat_defaults = nullptr,
               int inode_offset = 0, bool force_buffers = false,
               mlock_mode lock_mode = mlock_mode::NONE) {
@@ -177,7 +178,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   return metadata_v2(
       lgr,
       get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      meta_section, stat_defaults, inode_offset);
+      meta_section, options, stat_defaults, inode_offset);
 }
 
 template <typename LoggerPolicy>
@@ -243,7 +244,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
   std::vector<uint8_t> schema_buffer;
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
-                        stat_defaults, inode_offset, false, options.lock_mode);
+                        options.metadata, stat_defaults, inode_offset, false,
+                        options.lock_mode);
 
   log_.debug() << "read " << cache.block_count() << " blocks and "
                << meta_.size() << " bytes of metadata";
@@ -393,8 +395,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   std::vector<uint8_t> schema_raw;
   std::vector<uint8_t> meta_raw;
-  auto meta =
-      make_metadata(lgr, mm, sections, schema_raw, meta_raw, nullptr, 0, true);
+  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw,
+                            metadata_options(), nullptr, 0, true);
 
   struct ::statvfs stbuf;
   meta.statvfs(&stbuf);
