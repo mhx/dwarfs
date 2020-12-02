@@ -81,7 +81,7 @@ const struct fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("no_image_madvise", no_image_madvise, 1),
     FUSE_OPT_END};
 
-options opts;
+options s_opts;
 stream_logger s_lgr(std::cerr);
 std::shared_ptr<filesystem_v2> s_fs;
 struct fuse_session* s_session;
@@ -95,15 +95,15 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
     auto ti = log.timed_info();
 
     filesystem_options fsopts;
-    fsopts.lock_mode = opts.lock_mode;
-    fsopts.block_cache.max_bytes = opts.cachesize;
-    fsopts.block_cache.num_workers = opts.workers;
-    fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
-    fsopts.block_cache.mm_release = !opts.no_image_madvise;
-    fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
+    fsopts.lock_mode = s_opts.lock_mode;
+    fsopts.block_cache.max_bytes = s_opts.cachesize;
+    fsopts.block_cache.num_workers = s_opts.workers;
+    fsopts.block_cache.decompress_ratio = s_opts.decompress_ratio;
+    fsopts.block_cache.mm_release = !s_opts.no_image_madvise;
+    fsopts.metadata.enable_nlink = bool(s_opts.enable_nlink);
     s_fs = std::make_shared<filesystem_v2>(
-        s_lgr, std::make_shared<mmap>(opts.fsimage), fsopts,
-        &opts.stat_defaults, FUSE_ROOT_ID);
+        s_lgr, std::make_shared<mmap>(s_opts.fsimage), fsopts,
+        &s_opts.stat_defaults, FUSE_ROOT_ID);
 
     ti << "file system initialized";
   } catch (const std::exception& e) {
@@ -437,7 +437,7 @@ int run_fuse(struct fuse_args& args) {
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
-    usage(opts.progname);
+    usage(s_opts.progname);
   }
 
   struct fuse_lowlevel_ops fsops;
@@ -493,33 +493,33 @@ int main(int argc, char* argv[]) {
 
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-  opts.progname = argv[0];
+  s_opts.progname = argv[0];
 
-  fuse_opt_parse(&args, &opts, dwarfs_opts, option_hdl);
+  fuse_opt_parse(&args, &s_opts, dwarfs_opts, option_hdl);
 
-  opts.cachesize = opts.cachesize_str ? parse_size_with_unit(opts.cachesize_str)
+  s_opts.cachesize = s_opts.cachesize_str ? parse_size_with_unit(s_opts.cachesize_str)
                                       : (static_cast<size_t>(512) << 20);
   // TODO: foreground mode, stderr vs. syslog?
-  opts.debuglevel = opts.debuglevel_str
-                        ? logger::parse_level(opts.debuglevel_str)
+  s_opts.debuglevel = s_opts.debuglevel_str
+                        ? logger::parse_level(s_opts.debuglevel_str)
                         : logger::INFO;
-  opts.workers = opts.workers_str ? folly::to<size_t>(opts.workers_str) : 2;
-  opts.lock_mode =
-      opts.mlock_str ? parse_mlock_mode(opts.mlock_str) : mlock_mode::NONE;
-  opts.decompress_ratio = opts.decompress_ratio_str
-                              ? folly::to<double>(opts.decompress_ratio_str)
+  s_opts.workers = s_opts.workers_str ? folly::to<size_t>(s_opts.workers_str) : 2;
+  s_opts.lock_mode =
+      s_opts.mlock_str ? parse_mlock_mode(s_opts.mlock_str) : mlock_mode::NONE;
+  s_opts.decompress_ratio = s_opts.decompress_ratio_str
+                              ? folly::to<double>(s_opts.decompress_ratio_str)
                               : 0.8;
 
-  s_lgr.set_threshold(opts.debuglevel);
+  s_lgr.set_threshold(s_opts.debuglevel);
   log_proxy<debug_logger_policy> log(s_lgr);
 
   log.info() << "dwarfs (" << DWARFS_VERSION << ")";
 
-  if (!opts.seen_mountpoint) {
-    usage(opts.progname);
+  if (!s_opts.seen_mountpoint) {
+    usage(s_opts.progname);
   }
 
-  metadata_v2::get_stat_defaults(&opts.stat_defaults);
+  metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
   return run_fuse(args);
 }
