@@ -104,7 +104,11 @@ struct metadata {
     */
    2: required list<directory> directories,
 
-   // all entries, can be looked up by inode through entry_index
+   /**
+    * All entries, can be looked up by inode through entry_index, or by
+    * directory through `first_entry`, where the entries will be between
+    * `directories[n].first_entry` and `directories[n+1].first_entry`.
+    */
    3: required list<entry>     entries,
 
    /**
@@ -114,7 +118,17 @@ struct metadata {
     */
    4: required list<UInt32>    chunk_index,
 
-   // entry index, indexed by inode
+   /**
+    * Entry index, indexed by inode
+    *
+    * This list contains all inodes strictly in the following order:
+    *
+    *   - directories, starting with the root dir at inode 0
+    *   - symbolic links
+    *   - regular files
+    *   - character and block devices
+    *   - named pipes and sockets
+    */
    5: required list<UInt32>    entry_index,
 
    // link index, indexed by (inode - link_index_offset)
@@ -154,4 +168,7 @@ struct metadata {
 
    // total file system size
   16: required UInt64          total_fs_size,
+
+   // device ids, for lookup by (inode - device_index_offset)
+  17: optional list<UInt64>    devices,
 }

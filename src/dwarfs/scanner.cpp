@@ -64,6 +64,7 @@ class visitor_base : public entry_visitor {
   void visit(file*) override {}
   void visit(link*) override {}
   void visit(dir*) override {}
+  void visit(device*) override {}
 };
 
 class scan_files_visitor : public visitor_base {
@@ -150,12 +151,48 @@ class link_set_inode_visitor : public visitor_base {
   uint32_t& inode_no_;
 };
 
+class device_set_inode_visitor : public visitor_base {
+ public:
+  device_set_inode_visitor(uint32_t& inode_no)
+      : inode_no_(inode_no) {}
+
+  void visit(device* p) override {
+    if (p->type() == entry::E_DEVICE) {
+      p->set_inode(inode_no_++);
+      dev_ids_.push_back(p->device_id());
+    }
+  }
+
+  std::vector<uint64_t>& device_ids() { return dev_ids_; }
+
+ private:
+  std::vector<uint64_t> dev_ids_;
+  uint32_t& inode_no_;
+};
+
+class pipe_set_inode_visitor : public visitor_base {
+ public:
+  pipe_set_inode_visitor(uint32_t& inode_no)
+      : inode_no_(inode_no) {}
+
+  void visit(device* p) override {
+    if (p->type() != entry::E_DEVICE) {
+      p->set_inode(inode_no_++);
+    }
+  }
+
+ private:
+  uint32_t& inode_no_;
+};
+
 class names_and_links_visitor : public entry_visitor {
  public:
   names_and_links_visitor(global_entry_data& data)
       : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
+
+  void visit(device* p) override { data_.add_name(p->name()); }
 
   void visit(link* p) override {
     data_.add_name(p->name());
@@ -339,6 +376,12 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
               prog.links_scanned++;
               break;
 
+            case entry::E_DEVICE:
+            case entry::E_OTHER:
+              prog.specials_found++;
+              pe->scan(*os_, prog);
+              break;
+
             default:
               log_.error() << "unsupported entry type: " << int(pe->type());
               prog.errors++;
@@ -444,12 +487,23 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "assigning file inodes...";
   im->number_inodes(first_file_inode);
 
-  log_.info() << "building metadata...";
-
   global_entry_data ge_data(options_);
-
   thrift::metadata::metadata mv2;
+
   mv2.link_index.resize(first_file_inode - first_link_inode);
+
+  log_.info() << "assigning device inodes...";
+  uint32_t first_device_inode = first_file_inode + im->count();
+  device_set_inode_visitor devsiv(first_device_inode);
+  root->accept(devsiv);
+  mv2.devices_ref() = std::move(devsiv.device_ids());
+
+  log_.info() << "assigning pipe/socket inodes...";
+  uint32_t first_pipe_inode = first_device_inode;
+  pipe_set_inode_visitor pipsiv(first_pipe_inode);
+  root->accept(pipsiv);
+
+  log_.info() << "building metadata...";
 
   wg_.add_job([&] {
     log_.info() << "saving names and links...";
@@ -520,7 +574,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.debug() << "total number of chunks: " << mv2.chunks.size();
 
   log_.info() << "saving directories...";
-  mv2.entry_index.resize(first_file_inode + im->count());
+  mv2.entry_index.resize(first_pipe_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);

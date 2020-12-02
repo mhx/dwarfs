@@ -19,8 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <map>
 #include <sstream>
-#include <unordered_map>
 
 #include <gtest/gtest.h>
 
@@ -67,17 +67,21 @@ struct simplestat {
   ::uid_t st_uid;
   ::gid_t st_gid;
   ::off_t st_size;
+  ::dev_t st_rdev;
 };
 
-std::unordered_map<std::string, simplestat> statmap{
-    {"/", {S_IFDIR | 0777, 1000, 1000, 0}},
-    {"//test.pl", {S_IFREG | 0644, 1000, 1000, 0}},
-    {"//somelink", {S_IFLNK | 0777, 1000, 1000, 16}},
-    {"//somedir", {S_IFDIR | 0777, 1000, 1000, 0}},
-    {"//foo.pl", {S_IFREG | 0600, 1337, 0, 23456}},
-    {"//ipsum.txt", {S_IFREG | 0644, 1000, 1000, 2000000}},
-    {"//somedir/ipsum.py", {S_IFREG | 0644, 1000, 1000, 10000}},
-    {"//somedir/bad", {S_IFLNK | 0777, 1000, 1000, 6}},
+std::map<std::string, simplestat> statmap{
+    {"", {S_IFDIR | 0777, 1000, 100, 0, 0}},
+    {"/test.pl", {S_IFREG | 0644, 1000, 100, 0, 0}},
+    {"/somelink", {S_IFLNK | 0777, 1000, 100, 16, 0}},
+    {"/somedir", {S_IFDIR | 0777, 1000, 100, 0, 0}},
+    {"/foo.pl", {S_IFREG | 0600, 1337, 0, 23456, 0}},
+    {"/ipsum.txt", {S_IFREG | 0644, 1000, 100, 2000000, 0}},
+    {"/somedir/ipsum.py", {S_IFREG | 0644, 1000, 100, 10000, 0}},
+    {"/somedir/bad", {S_IFLNK | 0777, 1000, 100, 6, 0}},
+    {"/somedir/pipe", {S_IFIFO | 0644, 1000, 100, 0, 0}},
+    {"/somedir/null", {S_IFCHR | 0666, 0, 0, 0, 259}},
+    {"/somedir/zero", {S_IFCHR | 0666, 0, 0, 0, 261}},
 };
 } // namespace
 
@@ -95,18 +99,15 @@ class mmap_mock : public mmif {
 class os_access_mock : public os_access {
  public:
   std::shared_ptr<dir_reader> opendir(const std::string& path) const override {
-    if (path == "/") {
+    if (path.empty()) {
       std::vector<std::string> files{
           ".", "..", "test.pl", "somelink", "somedir", "foo.pl", "ipsum.txt",
       };
 
       return std::make_shared<dir_reader_mock>(std::move(files));
-    } else if (path == "//somedir") {
+    } else if (path == "/somedir") {
       std::vector<std::string> files{
-          ".",
-          "..",
-          "ipsum.py",
-          "bad",
+          ".", "..", "ipsum.py", "bad", "pipe", "null", "zero",
       };
 
       return std::make_shared<dir_reader_mock>(std::move(files));
@@ -125,12 +126,13 @@ class os_access_mock : public os_access {
     st->st_atime = 123;
     st->st_mtime = 234;
     st->st_ctime = 345;
+    st->st_rdev = sst.st_rdev;
   }
 
   std::string readlink(const std::string& path, size_t size) const override {
-    if (path == "//somelink" && size == 16) {
+    if (path == "/somelink" && size == 16) {
       return "somedir/ipsum.py";
-    } else if (path == "//somedir/bad" && size == 6) {
+    } else if (path == "/somedir/bad" && size == 6) {
       return "../foo";
     }
 
@@ -196,7 +198,7 @@ void basic_end_to_end_test(const std::string& compressor,
   block_compressor bc(compressor);
   filesystem_writer fsw(oss, lgr, wg, prog, bc, 64 << 20);
 
-  s.scan(fsw, "/", prog);
+  s.scan(fsw, "", prog);
 
   auto mm = std::make_shared<test::mmap_mock>(oss.str());
 
@@ -209,9 +211,10 @@ void basic_end_to_end_test(const std::string& compressor,
   struct ::stat st;
 
   ASSERT_TRUE(entry);
-
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
   EXPECT_EQ(st.st_size, 23456);
+  EXPECT_EQ(st.st_uid, 1337);
+  EXPECT_EQ(st.st_gid, 0);
 
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
@@ -223,20 +226,57 @@ void basic_end_to_end_test(const std::string& compressor,
 
   entry = fs.find("/somelink");
 
+  ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
   EXPECT_EQ(st.st_size, 16);
+  EXPECT_EQ(st.st_uid, 1000);
+  EXPECT_EQ(st.st_gid, 100);
+  EXPECT_EQ(st.st_rdev, 0);
 
   std::string link;
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
   EXPECT_EQ(link, "somedir/ipsum.py");
 
+  EXPECT_FALSE(fs.find("/somedir/nope"));
+
   entry = fs.find("/somedir/bad");
 
+  ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
   EXPECT_EQ(st.st_size, 6);
 
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
   EXPECT_EQ(link, "../foo");
+
+  entry = fs.find("/somedir/pipe");
+
+  ASSERT_TRUE(entry);
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  EXPECT_EQ(st.st_size, 0);
+  EXPECT_EQ(st.st_uid, 1000);
+  EXPECT_EQ(st.st_gid, 100);
+  EXPECT_TRUE(S_ISFIFO(st.st_mode));
+  EXPECT_EQ(st.st_rdev, 0);
+
+  entry = fs.find("/somedir/null");
+
+  ASSERT_TRUE(entry);
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  EXPECT_EQ(st.st_size, 0);
+  EXPECT_EQ(st.st_uid, 0);
+  EXPECT_EQ(st.st_gid, 0);
+  EXPECT_TRUE(S_ISCHR(st.st_mode));
+  EXPECT_EQ(st.st_rdev, 259);
+
+  entry = fs.find("/somedir/zero");
+
+  ASSERT_TRUE(entry);
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  EXPECT_EQ(st.st_size, 0);
+  EXPECT_EQ(st.st_uid, 0);
+  EXPECT_EQ(st.st_gid, 0);
+  EXPECT_TRUE(S_ISCHR(st.st_mode));
+  EXPECT_EQ(st.st_rdev, 261);
 }
 
 std::vector<std::string> const compressions{"null",

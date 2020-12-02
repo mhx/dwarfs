@@ -73,6 +73,10 @@ std::string entry::type_string() const {
     return "link";
   case E_DIR:
     return "dir";
+  case E_DEVICE:
+    return "device";
+  case E_OTHER:
+    return "pipe/socket";
   default:
     throw std::runtime_error("invalid file type");
   }
@@ -220,6 +224,19 @@ void link::scan(os_access& os, progress& prog) {
   prog.original_size += size();
 }
 
+entry::type_t device::type() const {
+  auto mode = status().st_mode;
+  return S_ISCHR(mode) || S_ISBLK(mode) ? E_DEVICE : E_OTHER;
+}
+
+void device::set_inode(uint32_t inode) { inode_ = inode; }
+
+void device::accept(entry_visitor& v, bool) { v.visit(this); }
+
+void device::scan(os_access&, progress&) {}
+
+uint64_t device::device_id() const { return status().st_rdev; }
+
 class entry_factory_ : public entry_factory {
  public:
   entry_factory_(bool with_similarity)
@@ -231,14 +248,18 @@ class entry_factory_ : public entry_factory {
     struct ::stat st;
 
     os.lstat(p, &st);
+    auto mode = st.st_mode;
 
-    if (S_ISREG(st.st_mode)) {
+    if (S_ISREG(mode)) {
       return std::make_shared<file>(name, std::move(parent), st,
                                     with_similarity_);
-    } else if (S_ISDIR(st.st_mode)) {
+    } else if (S_ISDIR(mode)) {
       return std::make_shared<dir>(name, std::move(parent), st);
-    } else if (S_ISLNK(st.st_mode)) {
+    } else if (S_ISLNK(mode)) {
       return std::make_shared<link>(name, std::move(parent), st);
+    } else if (S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode) ||
+               S_ISSOCK(mode)) {
+      return std::make_shared<device>(name, std::move(parent), st);
     } else {
       // TODO: warn
     }

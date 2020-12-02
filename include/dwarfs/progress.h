@@ -58,6 +58,7 @@ class progress {
   std::atomic<size_t> dirs_scanned{0};
   std::atomic<size_t> links_found{0};
   std::atomic<size_t> links_scanned{0};
+  std::atomic<size_t> specials_found{0};
   std::atomic<size_t> duplicate_files{0};
   std::atomic<size_t> block_count{0};
   std::atomic<size_t> chunk_count{0};

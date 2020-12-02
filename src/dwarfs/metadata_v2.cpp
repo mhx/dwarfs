@@ -34,6 +34,8 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 
@@ -103,11 +105,12 @@ class metadata_ : public metadata_v2::impl {
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , log_(lgr)
       , inode_offset_(inode_offset)
-      , chunk_index_offset_(
-            find_index_offset(meta_.entry_index().size(),
-                              [](uint16_t mode) { return S_ISREG(mode); }))
-      , link_index_offset_(find_index_offset(
-            chunk_index_offset_, [](uint16_t mode) { return S_ISLNK(mode); })) {
+      , link_index_offset_(find_index_offset(inode_rank::INO_LNK))
+      , chunk_index_offset_(find_index_offset(inode_rank::INO_REG))
+      , dev_index_offset_(find_index_offset(inode_rank::INO_DEV)) {
+    log_.debug() << "link index offset: " << link_index_offset_;
+    log_.debug() << "chunk index offset: " << chunk_index_offset_;
+    log_.debug() << "device index offset: " << dev_index_offset_;
   }
 
   void dump(std::ostream& os, int detail_level,
@@ -159,15 +162,63 @@ class metadata_ : public metadata_v2::impl {
     return make_entry_view(meta_.entry_index()[inode]);
   }
 
-  template <typename Func>
-  size_t find_index_offset(size_t last, Func&& func) const {
-    auto range = boost::irange(size_t(0), last);
+  // This represents the order in which inodes are stored in entry_index
+  enum class inode_rank {
+    INO_DIR,
+    INO_LNK,
+    INO_REG,
+    INO_DEV,
+    INO_OTH,
+  };
 
-    auto it =
-        std::upper_bound(range.begin(), range.end(), 0, [&](int, auto inode) {
-          auto e = make_entry_view_from_inode(inode);
-          return bool(func(e.mode()));
-        });
+  static inode_rank get_inode_rank(uint16_t mode) {
+    switch ((mode)&S_IFMT) {
+    case S_IFDIR:
+      return inode_rank::INO_DIR;
+    case S_IFLNK:
+      return inode_rank::INO_LNK;
+    case S_IFREG:
+      return inode_rank::INO_REG;
+    case S_IFBLK:
+    case S_IFCHR:
+      return inode_rank::INO_DEV;
+    case S_IFSOCK:
+    case S_IFIFO:
+      return inode_rank::INO_OTH;
+    default:
+      throw std::runtime_error(fmt::format("unknown file type: {:#06x}", mode));
+    }
+  }
+
+  static char get_filetype_label(uint16_t mode) {
+    switch ((mode)&S_IFMT) {
+    case S_IFDIR:
+      return 'd';
+    case S_IFLNK:
+      return 'l';
+    case S_IFREG:
+      return '-';
+    case S_IFBLK:
+      return 'b';
+    case S_IFCHR:
+      return 'c';
+    case S_IFSOCK:
+      return 's';
+    case S_IFIFO:
+      return 'p';
+    default:
+      throw std::runtime_error(fmt::format("unknown file type: {:#06x}", mode));
+    }
+  }
+
+  size_t find_index_offset(inode_rank rank) const {
+    auto range = boost::irange(size_t(0), meta_.entry_index().size());
+
+    auto it = std::lower_bound(range.begin(), range.end(), rank,
+                               [&](auto inode, inode_rank r) {
+                                 auto e = make_entry_view_from_inode(inode);
+                                 return get_inode_rank(e.mode()) < r;
+                               });
 
     return *it;
   }
@@ -226,13 +277,22 @@ class metadata_ : public metadata_v2::impl {
         .links()[meta_.link_index()[entry.inode() - link_index_offset_]];
   }
 
+  uint64_t get_device_id(int inode) const {
+    if (auto devs = meta_.devices()) {
+      return (*devs)[inode - dev_index_offset_];
+    }
+    log_.error() << "get_device_id() called, but no devices in file system";
+    return 0;
+  }
+
   folly::ByteRange data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   entry_view root_;
   log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
-  const int chunk_index_offset_;
   const int link_index_offset_;
+  const int chunk_index_offset_;
+  const int dev_index_offset_;
 };
 
 template <typename LoggerPolicy>
@@ -262,8 +322,14 @@ void metadata_<LoggerPolicy>::dump(
          std::move(icb));
   } else if (S_ISLNK(mode)) {
     os << " -> " << link_value(entry) << "\n";
-  } else {
-    os << " (unknown type)\n";
+  } else if (S_ISBLK(mode)) {
+    os << " (block device: " << get_device_id(inode) << ")\n";
+  } else if (S_ISCHR(mode)) {
+    os << " (char device: " << get_device_id(inode) << ")\n";
+  } else if (S_ISFIFO(mode)) {
+    os << " (named pipe)\n";
+  } else if (S_ISSOCK(mode)) {
+    os << " (socket)\n";
   }
 }
 
@@ -315,7 +381,7 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
   oss << (mode & S_ISUID ? 'U' : '-');
   oss << (mode & S_ISGID ? 'G' : '-');
   oss << (mode & S_ISVTX ? 'S' : '-');
-  oss << (S_ISDIR(mode) ? 'd' : S_ISLNK(mode) ? 'l' : '-');
+  oss << get_filetype_label(mode);
   oss << (mode & S_IRUSR ? 'r' : '-');
   oss << (mode & S_IWUSR ? 'w' : '-');
   oss << (mode & S_IXUSR ? 'x' : '-');
@@ -419,16 +485,21 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
 
   auto mode = entry.mode();
   auto timebase = meta_.timestamp_base();
+  auto inode = entry.inode();
 
   stbuf->st_mode = mode;
   stbuf->st_size = file_size(entry, mode);
-  stbuf->st_ino = entry.inode() + inode_offset_;
+  stbuf->st_ino = inode + inode_offset_;
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
   stbuf->st_uid = entry.getuid();
   stbuf->st_gid = entry.getgid();
   stbuf->st_atime = timebase + entry.atime_offset();
   stbuf->st_mtime = timebase + entry.mtime_offset();
   stbuf->st_ctime = timebase + entry.ctime_offset();
+
+  if (S_ISBLK(mode) || S_ISCHR(mode)) {
+    stbuf->st_rdev = get_device_id(inode);
+  }
 
   return 0;
 }

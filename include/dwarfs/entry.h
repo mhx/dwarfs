@@ -46,6 +46,7 @@ class metadata;
 class file;
 class link;
 class dir;
+class device;
 class inode;
 class os_access;
 class progress;
@@ -55,13 +56,14 @@ class entry_visitor {
  public:
   virtual ~entry_visitor() = default;
   virtual void visit(file* p) = 0;
+  virtual void visit(device* p) = 0;
   virtual void visit(link* p) = 0;
   virtual void visit(dir* p) = 0;
 };
 
 class entry : public file_interface {
  public:
-  enum type_t { E_FILE, E_DIR, E_LINK };
+  enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
   entry(const std::string& name, std::shared_ptr<entry> parent,
         const struct ::stat& st);
@@ -153,6 +155,25 @@ class link : public entry {
 
  private:
   std::string link_;
+  uint32_t inode_{0};
+};
+
+/**
+ * A `device` actually represents anything that's not a file,
+ * dir or link.
+ */
+class device : public entry {
+ public:
+  using entry::entry;
+
+  type_t type() const override;
+  void set_inode(uint32_t inode);
+  void accept(entry_visitor& v, bool preorder) override;
+  uint32_t inode_num() const override { return inode_; }
+  void scan(os_access& os, progress& prog) override;
+  uint64_t device_id() const;
+
+ private:
   uint32_t inode_{0};
 };
 
