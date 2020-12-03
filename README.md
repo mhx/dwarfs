@@ -130,7 +130,6 @@ A good starting point for apt-based systems is probably:
         liblzma-dev \
         libzstd-dev \
         libsnappy-dev \
-        libjemalloc-dev \
         libssl-dev \
         libunwind-dev \
         libfmt-dev \
