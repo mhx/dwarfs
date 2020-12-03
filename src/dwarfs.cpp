@@ -53,8 +53,8 @@ struct options {
   const char* mlock_str;            // TODO: const?? -> use string?
   const char* decompress_ratio_str; // TODO: const?? -> use string?
   int enable_nlink;
-  int no_image_madvise;
-  int direct_io;
+  int cache_image;
+  int cache_files;
   size_t cachesize;
   size_t workers;
   mlock_mode lock_mode;
@@ -79,8 +79,10 @@ const struct fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
-    DWARFS_OPT("no_image_madvise", no_image_madvise, 1),
-    DWARFS_OPT("direct_io", direct_io, 1),
+    DWARFS_OPT("cache_image", cache_image, 1),
+    DWARFS_OPT("no_cache_image", cache_image, 0),
+    DWARFS_OPT("cache_files", cache_files, 1),
+    DWARFS_OPT("no_cache_files", cache_files, 0),
     FUSE_OPT_END};
 
 options s_opts;
@@ -101,7 +103,7 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
     fsopts.block_cache.max_bytes = s_opts.cachesize;
     fsopts.block_cache.num_workers = s_opts.workers;
     fsopts.block_cache.decompress_ratio = s_opts.decompress_ratio;
-    fsopts.block_cache.mm_release = !s_opts.no_image_madvise;
+    fsopts.block_cache.mm_release = !s_opts.cache_image;
     fsopts.metadata.enable_nlink = bool(s_opts.enable_nlink);
     s_fs = std::make_shared<filesystem_v2>(
         s_lgr, std::make_shared<mmap>(s_opts.fsimage), fsopts,
@@ -254,8 +256,8 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         err = EACCES;
       } else {
         fi->fh = FUSE_ROOT_ID + entry->inode();
-        fi->direct_io = s_opts.direct_io;
-        fi->keep_cache = !s_opts.direct_io;
+        fi->direct_io = !s_opts.cache_files;
+        fi->keep_cache = s_opts.cache_files;
         fuse_reply_open(req, fi);
         return;
       }
@@ -398,8 +400,8 @@ void usage(const char* progname) {
             << "    -o mlock=NAME          mlock mode: (none), try, must\n"
             << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
             << "    -o enable_nlink        show correct hardlink numbers\n"
-            << "    -o no_image_madvise    keep image in kernel cache\n"
-            << "    -o direct_io           don't keep files in kernel cache\n"
+            << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
+            << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
             << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
             << std::endl;
 
@@ -498,6 +500,8 @@ int main(int argc, char* argv[]) {
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
   s_opts.progname = argv[0];
+  s_opts.cache_image = 0;
+  s_opts.cache_files = 1;
 
   fuse_opt_parse(&args, &s_opts, dwarfs_opts, option_hdl);
 

@@ -64,25 +64,28 @@ options:
     will also consume more memory to hold the hardlink count table.
     This will be 4 bytes for every regular file inode.
 
-  * `-o no_image_madvise`
-    By default, `dwarfs` will issue `madvise` calls after reading
-    the compressed block data from the file system image. This
-    will reduce the memory consumption of the FUSE driver to
-    slightly more than the `cachesize`. This usually isn't a
-    problem, especially when the image is stored on an SSD, but if
-    you want to maximize performance it can be beneficial to use
-    this option to keep the compressed image data in the kernel
+  * `-o (no_)cache_image`
+    By default, `dwarfs` tries to ensure that the compressed file
+    system image will not be cached by the kernel (i.e. the default
+    is `-o no_cache_image`). This will reduce the memory consumption
+    of the FUSE driver to slightly more than the `cachesize`, plus
+    the size of the metadata block. This usually isn't a problem,
+    especially when the image is stored on an SSD, but if you want
+    to maximize performance it can be beneficial to use
+    `-o cache_image` to keep the compressed image data in the kernel
     cache.
 
-  * `-o direct_io`
+  * `-o (no_)cache_files`
     By default, files in the mounted file system will be cached by
-    the kernel. This significantly improves performance when accessing
-    the same files over and over again, especially if the data from
-    these files has been (partially) evicted from the block cache of
-    `dwarfs`. By setting this option, you can force the fuse driver
-    to not use the kernel cache for file data. If you're short on
-    memory and only infrequently accessing files, this can be worth
-    trying.
+    the kernel (i.e. the default is `-o cache_files`). This will
+    significantly improve performance when accessing the same files
+    over and over again, especially if the data from these files has
+    been (partially) evicted from the block cache. By setting the
+    `-o no_cache_files` option, you can force the fuse driver to not
+    use the kernel cache for file data. If you're short on memory and
+    only infrequently accessing files, this can be worth trying, even
+    though it's likely that the kernel will already do the right thing
+    even when the cache is enabled.
 
   * `-o debuglevel=`*name*:
     Use this for different levels of verbosity along with either
