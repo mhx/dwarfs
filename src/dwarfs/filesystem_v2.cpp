@@ -159,11 +159,13 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     throw std::runtime_error("no metadata found");
   }
 
-  auto meta_section =
-      get_section_data(mm, meta_it->second, meta_buffer, force_buffers);
+  auto& meta_section = meta_it->second;
+
+  auto meta_section_range =
+      get_section_data(mm, meta_section, meta_buffer, force_buffers);
 
   if (lock_mode != mlock_mode::NONE) {
-    if (auto ec = mm->lock(meta_it->second.start, meta_section.size())) {
+    if (auto ec = mm->lock(meta_section.start, meta_section_range.size())) {
       if (lock_mode == mlock_mode::MUST) {
         throw boost::system::system_error(ec, "mlock");
       } else {
@@ -172,10 +174,17 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
+  // don't keep the compressed metadata in cache
+  if (meta_section.header.compression != compression_type::NONE) {
+    if (auto ec = mm->release(meta_section.start, meta_section.header.length)) {
+      log.info() << "madvise() failed: " << ec.message();
+    }
+  }
+
   return metadata_v2(
       lgr,
       get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      meta_section, options, stat_defaults, inode_offset);
+      meta_section_range, options, stat_defaults, inode_offset);
 }
 
 template <typename LoggerPolicy>
