@@ -21,54 +21,24 @@
 
 #pragma once
 
-#include <algorithm>
 #include <memory>
 #include <vector>
 
-#include "dwarfs/file_interface.h"
-#include "dwarfs/file_vector.h"
-
 namespace dwarfs {
 
-namespace detail {
-
-template <class T>
-class file_vector_ : public file_vector {
- public:
-  file_vector_(std::vector<std::shared_ptr<T>>& vec)
-      : vec_(vec) {}
-
-  const file_interface* operator[](size_t i) const override {
-    return vec_[i].get();
-  }
-
-  size_t size() const override { return vec_.size(); }
-
-  void
-  sort(std::function<bool(const file_interface*, const file_interface*)> const&
-           less) override {
-    std::sort(vec_.begin(), vec_.end(),
-              [&](const std::shared_ptr<T>& a, const std::shared_ptr<T>& b) {
-                return less(a.get(), b.get());
-              });
-  }
-
- private:
-  std::vector<std::shared_ptr<T>>& vec_;
-};
-} // namespace detail
+class entry_interface;
+class inode;
 
 class script {
  public:
+  using inode_ptr = std::shared_ptr<inode>;
+  using inode_vector = std::vector<inode_ptr>;
+
   virtual ~script() = default;
 
-  virtual bool filter(file_interface const& fi) const = 0;
-  virtual void order(file_vector& fvi) const = 0;
 
-  template <typename T>
-  void order(std::vector<std::shared_ptr<T>>& vec) const {
-    detail::file_vector_<T> fv(vec);
-    order(fv);
-  }
+  virtual bool filter(entry_interface const& ei) = 0;
+  virtual void transform(entry_interface& ei) = 0;
+  virtual void order(inode_vector& iv) = 0;
 };
 } // namespace dwarfs

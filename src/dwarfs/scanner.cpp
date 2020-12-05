@@ -103,25 +103,23 @@ class file_deduplication_visitor : public visitor_base {
         });
       }
 
-      auto first = files.front();
-      {
-        auto inode = im.create_inode();
-        first->set_inode(inode);
-        inode->set_file(first);
+      auto inode = im.create_inode();
+
+      for (auto fp : files) {
+        fp->set_inode(inode);
       }
 
-      if (files.size() > 1) {
-        for (auto i = begin(files) + 1; i != end(files); ++i) {
-          (*i)->set_inode(first->get_inode());
-          prog.duplicate_files++;
-          prog.saved_by_deduplication += (*i)->size();
-        }
+      if (auto dupes = files.size() - 1; dupes > 0) {
+        prog.duplicate_files += dupes;
+        prog.saved_by_deduplication += dupes * files.front()->size();
       }
+
+      inode->set_files(std::move(files));
     }
   }
 
  private:
-  std::unordered_map<std::string_view, std::vector<file*>, folly::Hash> hash_;
+  std::unordered_map<std::string_view, inode::files_vector, folly::Hash> hash_;
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -237,12 +235,11 @@ class save_directories_visitor : public visitor_base {
 };
 
 std::string status_string(progress const& p, size_t width) {
-  file_interface const* cp =
-      reinterpret_cast<file_interface const*>(p.current.load());
+  auto cp = p.current.load();
   std::string label, path;
 
   if (cp) {
-    if (auto e = dynamic_cast<entry const*>(cp)) {
+    if (auto e = dynamic_cast<entry_interface const*>(cp)) {
       label = "scanning: ";
       path = e->path();
     } else if (auto i = dynamic_cast<inode const*>(cp)) {

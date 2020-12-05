@@ -28,7 +28,7 @@
 
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
-#include "dwarfs/file_interface.h"
+#include "dwarfs/entry_interface.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/util.h"

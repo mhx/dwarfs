@@ -23,15 +23,28 @@
 
 #include <string>
 
+#include "dwarfs/object.h"
+
 namespace dwarfs {
 
-class file_interface {
+class entry_interface : public object {
  public:
-  virtual ~file_interface() = default;
-
   virtual std::string path() const = 0;
-  virtual const std::string& name() const = 0;
+  virtual std::string const& name() const = 0;
   virtual std::string type_string() const = 0;
   virtual size_t size() const = 0;
+
+  virtual uint16_t get_permissions() const = 0;
+  virtual void set_permissions(uint16_t perm) = 0;
+  virtual uint16_t get_uid() const = 0;
+  virtual void set_uid(uint16_t uid) = 0;
+  virtual uint16_t get_gid() const = 0;
+  virtual void set_gid(uint16_t gid) = 0;
+  virtual uint64_t get_atime() const = 0;
+  virtual void set_atime(uint64_t atime) = 0;
+  virtual uint64_t get_mtime() const = 0;
+  virtual void set_mtime(uint64_t mtime) = 0;
+  virtual uint64_t get_ctime() const = 0;
+  virtual void set_ctime(uint64_t ctime) = 0;
 };
 } // namespace dwarfs

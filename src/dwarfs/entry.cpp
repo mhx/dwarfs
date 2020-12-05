@@ -26,6 +26,8 @@
 
 #include <openssl/sha.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/entry.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
@@ -65,21 +67,25 @@ std::string entry::path() const {
 }
 
 std::string entry::type_string() const {
-  // TODO: this type stuff is a mess, see if we really need it
-  switch (type()) {
-  case E_FILE:
+  auto mode = stat_.st_mode;
+
+  if (S_ISREG(mode)) {
     return "file";
-  case E_LINK:
+  } else if (S_ISDIR(mode)) {
+    return "directory";
+  } else if (S_ISLNK(mode)) {
     return "link";
-  case E_DIR:
-    return "dir";
-  case E_DEVICE:
-    return "device";
-  case E_OTHER:
-    return "pipe/socket";
-  default:
-    throw std::runtime_error("invalid file type");
+  } else if (S_ISCHR(mode)) {
+    return "chardev";
+  } else if (S_ISBLK(mode)) {
+    return "blockdev";
+  } else if (S_ISFIFO(mode)) {
+    return "fifo";
+  } else if (S_ISSOCK(mode)) {
+    return "socket";
   }
+
+  throw std::runtime_error(fmt::format("unknown file type: {:#06x}", mode));
 }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
@@ -108,6 +114,33 @@ void entry::pack(thrift::metadata::entry& entry_v2,
 }
 
 entry::type_t file::type() const { return E_FILE; }
+
+uint16_t entry::get_permissions() const { return stat_.st_mode & 07777; }
+
+void entry::set_permissions(uint16_t perm) {
+  stat_.st_mode &= ~07777;
+  stat_.st_mode |= perm;
+}
+
+uint16_t entry::get_uid() const { return stat_.st_uid; }
+
+void entry::set_uid(uint16_t uid) { stat_.st_uid = uid; }
+
+uint16_t entry::get_gid() const { return stat_.st_gid; }
+
+void entry::set_gid(uint16_t gid) { stat_.st_gid = gid; }
+
+uint64_t entry::get_atime() const { return stat_.st_atime; }
+
+void entry::set_atime(uint64_t atime) { stat_.st_atime = atime; }
+
+uint64_t entry::get_mtime() const { return stat_.st_mtime; }
+
+void entry::set_mtime(uint64_t mtime) { stat_.st_atime = mtime; }
+
+uint64_t entry::get_ctime() const { return stat_.st_ctime; }
+
+void entry::set_ctime(uint64_t ctime) { stat_.st_atime = ctime; }
 
 std::string_view file::hash() const {
   return std::string_view(&hash_[0], hash_.size());

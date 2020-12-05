@@ -21,17 +21,11 @@
 
 #pragma once
 
-#include <functional>
-
 namespace dwarfs {
 
-class file_vector {
+class object {
  public:
-  virtual ~file_vector() = default;
-  virtual const file_interface* operator[](size_t i) const = 0;
-  virtual size_t size() const = 0;
-  virtual void
-  sort(std::function<bool(const file_interface* a,
-                          const file_interface* b)> const& less) = 0;
+  virtual ~object() = default;
 };
+
 } // namespace dwarfs

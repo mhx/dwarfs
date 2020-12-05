@@ -33,7 +33,7 @@
 
 #include "dwarfs/block_manager.h"
 #include "dwarfs/cyclic_hash.h"
-#include "dwarfs/file_interface.h"
+#include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_hasher.h"
@@ -320,7 +320,7 @@ void block_manager_<LoggerPolicy>::add_data(const std::shared_ptr<inode>& ino,
 
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
-  const file_interface* e = ino->any();
+  auto e = ino->any();
   size_t size = e->size();
 
   if (size > 0) {

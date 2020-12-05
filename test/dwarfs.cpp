@@ -164,9 +164,14 @@ class os_access_mock : public os_access {
 
 class script_mock : public script {
  public:
-  bool filter(file_interface const& /*fi*/) const override { return true; }
 
-  void order(file_vector& /*fvi*/) const override {
+  bool filter(entry_interface const& /*ei*/) override { return true; }
+
+  void transform(entry_interface& /*ei*/) override {
+    // do nothing
+  }
+
+  void order(inode_vector& /*iv*/) override {
     // do nothing
   }
 };

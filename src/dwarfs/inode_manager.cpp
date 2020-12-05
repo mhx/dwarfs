@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "dwarfs/entry.h"
-#include "dwarfs/file_interface.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/script.h"
@@ -46,19 +45,17 @@ class inode_manager_ : public inode_manager {
     void set_num(uint32_t num) override { num_ = num; }
     uint32_t num() const override { return num_; }
     uint32_t similarity_hash() const override {
-      if (!file_) {
+      if (files_.empty()) {
         throw std::runtime_error("inode has no file");
       }
-      return file_->similarity_hash();
+      return files_.front()->similarity_hash();
     }
 
-    size_t size() const override { return any()->size(); }
-
-    void set_file(const file* f) override {
-      if (file_) {
-        throw std::runtime_error("file already set for inode");
+    void set_files(files_vector&& fv) override {
+      if (!files_.empty()) {
+        throw std::runtime_error("files already set for inode");
       }
-      file_ = f;
+      files_ = std::move(fv);
     }
 
     void add_chunk(size_t block, size_t offset, size_t size) override {
@@ -69,17 +66,15 @@ class inode_manager_ : public inode_manager {
       chunks_.push_back(c);
     }
 
-    std::string path() const override { return any()->path(); }
+    size_t size() const override { return any()->size(); }
 
-    const std::string& name() const override { return any()->name(); }
+    files_vector const& files() const override { return files_; }
 
-    std::string type_string() const override { return any()->type_string(); }
-
-    const file_interface* any() const override {
-      if (!file_) {
+    file const* any() const override {
+      if (files_.empty()) {
         throw std::runtime_error("inode has no file");
       }
-      return file_;
+      return files_.front();
     }
 
     void append_chunks_to(std::vector<chunk_type>& vec) const override {
@@ -88,7 +83,7 @@ class inode_manager_ : public inode_manager {
 
    private:
     uint32_t num_{std::numeric_limits<uint32_t>::max()};
-    file const* file_{nullptr};
+    files_vector files_;
     std::vector<chunk_type> chunks_;
   };
 
@@ -137,9 +132,9 @@ class inode_manager_ : public inode_manager {
           auto ash = a->similarity_hash();
           auto bsh = b->similarity_hash();
           return ash < bsh ||
-                 (ash == bsh &&
-                  (a->size() > b->size() ||
-                   (a->size() == b->size() && a->path() < b->path())));
+                 (ash == bsh && (a->size() > b->size() ||
+                                 (a->size() == b->size() &&
+                                  a->any()->path() < b->any()->path())));
         });
   }
 

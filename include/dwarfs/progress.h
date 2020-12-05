@@ -33,6 +33,8 @@
 
 namespace dwarfs {
 
+class object;
+
 class progress {
  public:
   using status_function_type =
@@ -51,7 +53,7 @@ class progress {
 
   std::string status(size_t max_len) const;
 
-  std::atomic<void*> current{nullptr};
+  std::atomic<object const*> current{nullptr};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};

@@ -32,7 +32,7 @@
 
 #include <sys/stat.h>
 
-#include "dwarfs/file_interface.h"
+#include "dwarfs/entry_interface.h"
 
 namespace dwarfs {
 
@@ -61,7 +61,7 @@ class entry_visitor {
   virtual void visit(dir* p) = 0;
 };
 
-class entry : public file_interface {
+class entry : public entry_interface {
  public:
   enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
@@ -85,6 +85,20 @@ class entry : public file_interface {
   virtual uint32_t inode_num() const = 0;
   virtual void scan(os_access& os, progress& prog) = 0;
   const struct ::stat& status() const { return stat_; }
+
+  // more methods from entry_interface
+  uint16_t get_permissions() const override;
+  void set_permissions(uint16_t perm) override;
+  uint16_t get_uid() const override;
+  void set_uid(uint16_t uid) override;
+  uint16_t get_gid() const override;
+  void set_gid(uint16_t gid) override;
+  uint64_t get_atime() const override;
+  void set_atime(uint64_t atime) override;
+  uint64_t get_mtime() const override;
+  void set_mtime(uint64_t mtime) override;
+  uint64_t get_ctime() const override;
+  void set_ctime(uint64_t ctime) override;
 
  private:
   std::string name_;
