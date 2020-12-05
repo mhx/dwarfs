@@ -21,7 +21,6 @@ project(dwarfs)
 cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
-option(WITH_LUA "build with Lua scripting support" OFF)
 
 set(default_build_type "Release")
 
@@ -118,9 +117,6 @@ list(
   src/dwarfs/util.cpp
   src/dwarfs/worker_group.cpp)
 
-if(WITH_LUA)
-  list(APPEND LIBDWARFS_SRC src/dwarfs/lua_script.cpp)
-endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
 
@@ -265,8 +261,7 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     PRIVATE DWARFS_VERSION=\"${DWARFS_VERSION}\"
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
-            $<$<BOOL:${LIBZSTD_FOUND}>:DWARFS_HAVE_LIBZSTD>
-            $<$<BOOL:${WITH_LUA}>:DWARFS_HAVE_LUA>)
+            $<$<BOOL:${LIBZSTD_FOUND}>:DWARFS_HAVE_LIBZSTD>)
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
 
@@ -292,9 +287,6 @@ foreach(tgt ${BINARY_TARGETS})
     PkgConfig::LIBLZMA
     PkgConfig::LIBZSTD)
 
-  if(WITH_LUA)
-    target_link_libraries(${tgt} luabind lua)
-  endif()
 endforeach()
 
 target_link_libraries(dwarfs-bin PkgConfig::FUSE3)

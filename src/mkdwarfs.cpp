@@ -68,9 +68,6 @@
 #include "dwarfs/script.h"
 #include "dwarfs/util.h"
 
-#ifdef DWARFS_HAVE_LUA
-#include "dwarfs/lua_script.h"
-#endif
 
 namespace po = boost::program_options;
 
@@ -87,16 +84,9 @@ namespace {
 #endif
 #endif
 
-#ifdef DWARFS_HAVE_LUA
-constexpr const char* script_name = "dwarfs.lua";
-#endif
-
 const std::map<std::string, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
-#ifdef DWARFS_HAVE_LUA
-    {"script", file_order_mode::SCRIPT},
-#endif
     {"similarity", file_order_mode::SIMILARITY}};
 } // namespace
 
@@ -115,34 +105,10 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 
   v = boost::any(it->second);
 }
+
 } // namespace dwarfs
 
 namespace {
-
-#ifdef DWARFS_HAVE_LUA
-std::string find_default_script() {
-  using namespace boost::filesystem;
-
-  path program(get_program_path());
-  path dir(program.parent_path());
-
-  std::vector<path> candidates;
-  candidates.emplace_back(script_name);
-
-  if (!dir.empty()) {
-    candidates.emplace_back(dir / script_name);
-    candidates.emplace_back(dir / ".." / "share" / "dwarfs" / script_name);
-  }
-
-  for (const auto& cand : candidates) {
-    if (exists(cand)) {
-      return canonical(cand).string();
-    }
-  }
-
-  return std::string();
-}
-#endif
 
 size_t get_term_width() {
   struct ::winsize w;
@@ -315,12 +281,6 @@ int mkdwarfs(int argc, char** argv) {
         po::value<file_order_mode>(&options.file_order)
             ->default_value(file_order_mode::SIMILARITY, "similarity"),
         order_desc.c_str())
-#ifdef DWARFS_HAVE_LUA
-    ("script",
-        po::value<std::string>(&script_path)
-            ->default_value(find_default_script()),
-        "Lua script for file acceptance/ordering")
-#endif
     ("blockhash-window-sizes",
         po::value<std::string>(&window_sizes),
         "window sizes for block hashing")
@@ -466,11 +426,6 @@ int mkdwarfs(int argc, char** argv) {
 
   std::shared_ptr<script> script;
 
-#ifdef DWARFS_HAVE_LUA
-  if (!script_path.empty()) {
-    script = std::make_shared<lua_script>(lgr, script_path);
-  }
-#endif
 
   if (options.file_order == file_order_mode::SCRIPT && !script) {
     throw std::runtime_error(
@@ -535,6 +490,7 @@ int mkdwarfs(int argc, char** argv) {
 
   return prog.errors > 0;
 }
+
 } // namespace
 
 int main(int argc, char** argv) {
