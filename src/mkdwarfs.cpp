@@ -45,6 +45,7 @@
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
+#include <folly/FileUtil.h>
 #include <folly/gen/String.h>
 
 #include <fmt/format.h>
@@ -62,12 +63,16 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/options_interface.h"
 #include "dwarfs/os_access_posix.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
 #include "dwarfs/util.h"
 
+#ifdef DWARFS_HAVE_PYTHON
+#include "dwarfs/python_script.h"
+#endif
 
 namespace po = boost::program_options;
 
@@ -87,7 +92,11 @@ namespace {
 const std::map<std::string, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
+#ifdef DWARFS_HAVE_PYTHON
+    {"script", file_order_mode::SCRIPT},
+#endif
     {"similarity", file_order_mode::SIMILARITY}};
+
 } // namespace
 
 namespace dwarfs {
@@ -105,6 +114,57 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 
   v = boost::any(it->second);
 }
+
+class script_options : public options_interface {
+ public:
+  script_options(logger& lgr, po::variables_map& vm, scanner_options& opts,
+                 bool& force_similarity)
+      : log_(lgr)
+      , vm_(vm)
+      , opts_(opts)
+      , force_similarity_(force_similarity) {}
+
+  void set_order(file_order_mode order_mode, set_mode mode = DEFAULT) override {
+    set(opts_.file_order, order_mode, "order", mode);
+  }
+
+  void
+  set_remove_empty_dirs(bool remove_empty, set_mode mode = DEFAULT) override {
+    set(opts_.remove_empty_dirs, remove_empty, "remove-empty-dirs", mode);
+  }
+
+  void enable_similarity() override {
+    log_.debug() << "script is forcing similarity hash computation";
+    force_similarity_ = true;
+  }
+
+ private:
+  template <typename T>
+  void set(T& target, T const& value, std::string const& name, set_mode mode) {
+    switch (mode) {
+    case options_interface::DEFAULT:
+      if (!vm_.count(name) || vm_[name].defaulted()) {
+        log_.info() << "script is setting " << name << "=" << value;
+        target = value;
+      }
+      break;
+
+    case options_interface::OVERRIDE:
+      if (vm_.count(name) && !vm_[name].defaulted()) {
+        log_.warn() << "script is overriding " << name << "=" << value;
+      } else {
+        log_.info() << "script is setting " << name << "=" << value;
+      }
+      target = value;
+      break;
+    }
+  }
+
+  log_proxy<debug_logger_policy> log_;
+  po::variables_map& vm_;
+  scanner_options& opts_;
+  bool& force_similarity_;
+};
 
 } // namespace dwarfs
 
@@ -280,6 +340,11 @@ int mkdwarfs(int argc, char** argv) {
         po::value<file_order_mode>(&options.file_order)
             ->default_value(file_order_mode::SIMILARITY, "similarity"),
         order_desc.c_str())
+#ifdef DWARFS_HAVE_PYTHON
+    ("script",
+        po::value<std::string>(&script_arg),
+        "Python script for customization")
+#endif
     ("blockhash-window-sizes",
         po::value<std::string>(&window_sizes),
         "window sizes for block hashing")
@@ -425,6 +490,34 @@ int mkdwarfs(int argc, char** argv) {
 
   std::shared_ptr<script> script;
 
+#ifdef DWARFS_HAVE_PYTHON
+  if (!script_arg.empty()) {
+    std::string file, ctor;
+    if (auto pos = script_arg.find(':'); pos != std::string::npos) {
+      file = script_arg.substr(0, pos);
+      ctor = script_arg.substr(pos + 1);
+      if (ctor.find('(') == std::string::npos) {
+        ctor += "()";
+      }
+    } else {
+      file = script_arg;
+      ctor = "mkdwarfs()";
+    }
+    std::string code;
+    if (folly::readFile(file.c_str(), code)) {
+      script = std::make_shared<python_script>(lgr, code, ctor);
+    } else {
+      throw std::runtime_error("could not load script: " + file);
+    }
+  }
+#endif
+
+  bool force_similarity = false;
+
+  if (script && script->has_configure()) {
+    script_options script_opts(lgr, vm, options, force_similarity);
+    script->configure(script_opts);
+  }
 
   if (options.file_order == file_order_mode::SCRIPT && !script) {
     throw std::runtime_error(
@@ -463,9 +556,10 @@ int mkdwarfs(int argc, char** argv) {
     ti << "filesystem rewritten";
   } else {
     scanner s(lgr, wg_scanner, cfg,
-              entry_factory::create(options.file_order ==
-                                    file_order_mode::SIMILARITY),
-              std::make_shared<os_access_posix>(), script, options);
+              entry_factory::create(force_similarity ||
+                                    options.file_order ==
+                                        file_order_mode::SIMILARITY),
+              std::make_shared<os_access_posix>(), std::move(script), options);
 
     {
       auto ti = log.timed_info();

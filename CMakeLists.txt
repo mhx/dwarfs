@@ -21,6 +21,7 @@ project(dwarfs)
 cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
+option(WITH_PYTHON "build with Python scripting support" OFF)
 
 set(default_build_type "Release")
 
@@ -38,10 +39,25 @@ set(DWARFS_VERSION
     "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
 )
 
-find_package(PkgConfig REQUIRED)
+list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
 
-find_package(Boost 1.67 REQUIRED COMPONENTS date_time filesystem
-                                            program_options system)
+if(WITH_PYTHON)
+    # TODO: would be nicer to be able to support a range of python versions
+    find_package(Python3 ${WITH_PYTHON_VERSION} EXACT REQUIRED COMPONENTS Development)
+    list(APPEND DWARFS_BOOST_MODULES
+            "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
+    message(STATUS "Enabling support for Python ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}")
+endif()
+
+find_package(Boost 1.67 REQUIRED COMPONENTS ${DWARFS_BOOST_MODULES})
+
+if(WITH_PYTHON)
+    set(BOOST_PYTHON_LIBS ${Boost_LIBRARIES})
+    list(FILTER Boost_LIBRARIES EXCLUDE REGEX python)
+    list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
+endif()
+
+find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
@@ -117,6 +133,9 @@ list(
   src/dwarfs/util.cpp
   src/dwarfs/worker_group.cpp)
 
+if(WITH_PYTHON)
+  list(APPEND LIBDWARFS_SRC src/dwarfs/python_script.cpp)
+endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
 
@@ -251,7 +270,7 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 add_dependencies(metadata_thrift thrift_light)
 
 foreach(tgt dwarfs ${BINARY_TARGETS})
-  target_include_directories(${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS}
+  target_include_directories(${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS}
                                                    ${INCLUDE_DIRS})
 
   target_include_directories(${tgt} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -261,7 +280,8 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     PRIVATE DWARFS_VERSION=\"${DWARFS_VERSION}\"
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
-            $<$<BOOL:${LIBZSTD_FOUND}>:DWARFS_HAVE_LIBZSTD>)
+            $<$<BOOL:${LIBZSTD_FOUND}>:DWARFS_HAVE_LIBZSTD>
+            $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
 
@@ -287,6 +307,9 @@ foreach(tgt ${BINARY_TARGETS})
     PkgConfig::LIBLZMA
     PkgConfig::LIBZSTD)
 
+  if(WITH_PYTHON)
+    target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+  endif()
 endforeach()
 
 target_link_libraries(dwarfs-bin PkgConfig::FUSE3)

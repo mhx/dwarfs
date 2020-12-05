@@ -341,9 +341,15 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
         try {
           auto pe = entry_->create(*os_, name, parent);
 
-          if (script_ && !script_->filter(*pe)) {
-            log_.debug() << "skipping " << name;
-            continue;
+          if (script_) {
+            if (script_->has_filter() && !script_->filter(*pe)) {
+              log_.debug() << "skipping " << name;
+              continue;
+            }
+
+            if (script_->has_transform()) {
+              script_->transform(*pe);
+            }
           }
 
           if (pe) {
@@ -418,10 +424,16 @@ void scanner_<LoggerPolicy>::order_files(inode_manager& im) {
     break;
   }
 
-  case file_order_mode::SCRIPT:
+  case file_order_mode::SCRIPT: {
+    if (!script_->has_order()) {
+      throw std::runtime_error("script cannot order inodes");
+    }
     log_.info() << "ordering " << im.count() << " inodes using script...";
+    auto ti = log_.timed_info();
     im.order_inodes(script_);
+    ti << im.count() << " inodes ordered";
     break;
+  }
 
   case file_order_mode::SIMILARITY: {
     log_.info() << "ordering " << im.count() << " inodes by similarity...";
