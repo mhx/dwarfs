@@ -219,9 +219,8 @@ int mkdwarfs(int argc, char** argv) {
   const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
 
   block_manager::config cfg;
-  std::string path, output, window_sizes, memory_limit, script_path,
-      compression, schema_compression, metadata_compression, log_level,
-      timestamp;
+  std::string path, output, window_sizes, memory_limit, script_arg, compression,
+      schema_compression, metadata_compression, log_level, timestamp;
   size_t num_workers, max_scanner_workers;
   bool recompress = false, no_progress = false;
   unsigned level;
