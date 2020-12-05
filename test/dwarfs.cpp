@@ -164,6 +164,12 @@ class os_access_mock : public os_access {
 
 class script_mock : public script {
  public:
+  bool has_configure() const override { return true; }
+  bool has_filter() const override { return true; }
+  bool has_transform() const override { return true; }
+  bool has_order() const override { return true; }
+
+  void configure(options_interface const& /*oi*/) override {}
 
   bool filter(entry_interface const& /*ei*/) override { return true; }
 

@@ -21,31 +21,23 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <string>
+
+#include "dwarfs/options.h"
 
 namespace dwarfs {
 
-class entry_interface;
-class inode;
-class options_interface;
-
-class script {
+class options_interface {
  public:
-  using inode_ptr = std::shared_ptr<inode>;
-  using inode_vector = std::vector<inode_ptr>;
+  enum set_mode { DEFAULT, OVERRIDE };
 
-  virtual ~script() = default;
+  virtual ~options_interface() = default;
 
-  virtual bool has_configure() const = 0;
-  virtual bool has_filter() const = 0;
-  virtual bool has_transform() const = 0;
-  virtual bool has_order() const = 0;
-
-  virtual void configure(options_interface const& oi) = 0;
-  virtual bool filter(entry_interface const& ei) = 0;
-  virtual void transform(entry_interface& ei) = 0;
-  virtual void order(inode_vector& iv) = 0;
+  virtual void
+  set_order(file_order_mode order_mode, set_mode mode = DEFAULT) = 0;
+  virtual void
+  set_remove_empty_dirs(bool remove_empty, set_mode mode = DEFAULT) = 0;
+  virtual void enable_similarity() = 0;
 };
 
 } // namespace dwarfs
