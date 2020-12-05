@@ -339,7 +339,6 @@ set(CPACK_SOURCE_IGNORE_FILES
     "${CMAKE_SOURCE_DIR}/build.*"
     "${CMAKE_SOURCE_DIR}/tmp/"
     "${CMAKE_SOURCE_DIR}/@"
-    "${CMAKE_SOURCE_DIR}/.*\\.lua"
     "\\.dwarfs$"
     "/\\."
     ".*~$")
