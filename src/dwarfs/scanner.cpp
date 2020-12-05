@@ -388,9 +388,6 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
         } catch (const boost::system::system_error& e) {
           log_.error() << "error reading entry: " << e.what();
           prog.errors++;
-        } catch (const std::exception& e) {
-          log_.error() << folly::exceptionStr(e.what());
-          prog.errors++;
         }
       }
 
@@ -399,9 +396,6 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
       prog.dirs_scanned++;
     } catch (const boost::system::system_error& e) {
       log_.error() << "cannot open directory: " << e.what();
-      prog.errors++;
-    } catch (const std::exception& e) {
-      log_.error() << folly::exceptionStr(e.what());
       prog.errors++;
     }
   }
