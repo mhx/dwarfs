@@ -694,8 +694,8 @@ strength.
 [wimlib](https://wimlib.net/) is a really interesting project that is
 a lot more mature than DwarFS. While DwarFS at its core has a library
 component that could potentially be ported to other operating systems,
-wimlib already is available on mamny platforms. It also seems to have
-quite a rich set of features, so it's definitely worth taking a look.
+wimlib already is available on many platforms. It also seems to have
+quite a rich set of features, so it's definitely worth taking a look at.
 
 I first tried `wimcapture` on the perl dataset:
 
