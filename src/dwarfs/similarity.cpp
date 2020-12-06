@@ -29,6 +29,20 @@
 
 namespace dwarfs {
 
+/**
+ * Simple locality sensitive hashing function
+ *
+ * There are probably much better LSH algorithms available, but this
+ * one is fast and easy enough to understand.
+ *
+ * It builds histogram of `2**hist_bits` buckets. The buckets are
+ * indexed by the `hist_bits` LSBs of a rolling 32-bit hash, so we
+ * end up inserting a value for every 4-byte substring of the data.
+ *
+ * Assuming that the distribution of these substrings are going to
+ * be similar across similar files, the return value composed of the
+ * indices of the 4 most common buckets.
+ */
 uint32_t get_similarity_hash(const uint8_t* data, size_t size) {
   constexpr size_t hist_bits = 8;
   std::array<std::pair<uint32_t, uint32_t>, 1 << hist_bits> vec;
@@ -53,4 +67,5 @@ uint32_t get_similarity_hash(const uint8_t* data, size_t size) {
   return (vec[0].second << 24) | (vec[1].second << 16) | (vec[2].second << 8) |
          (vec[3].second << 0);
 }
+
 } // namespace dwarfs
