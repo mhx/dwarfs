@@ -212,7 +212,7 @@ If possible, try building with clang as your compiler, this will
 make DwarFS significantly faster. If you have both gcc and clang
 installed, use:
 
-    # cmake .. -DWITH_TESTS=1 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+    # CC=clang CXX=clang++ cmake .. -DWITH_TESTS=1
 
 To build with experimental Lua support, you need to install both
 `lua` and `luabind`. The latter isn't very well maintained and I
@@ -230,6 +230,23 @@ Installing is as easy as:
     # sudo make install
 
 Though you don't have to install the tools to play with them.
+
+### Experimental Python Scripting Support
+
+You can build `mkdwarfs` with experimental support for Python
+scripting:
+
+    # cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1
+
+This also requires Boost.Python. If you have multiple Python
+versions installed, you can explicitly specify the version to
+build against:
+
+    # cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1 -DWITH_PYTHON_VERSION=3.8
+
+Note that only Python 3 is supported. You can take a look at
+[scripts/example.py](scripts/example.py) to get an idea for
+what can currently be done with the interface.
 
 ## Usage
 

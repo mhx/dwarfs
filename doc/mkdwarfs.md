@@ -167,6 +167,14 @@ Most other options are concerned with compression tuning:
     Show program help, including defaults, compression level detail and
     supported compression algorithms.
 
+If experimental Python support was compiled into `mkdwarfs`, you can use the
+following option to enable customizations via the scripting interface:
+
+  * `--script=`*file*[`:`*class*[`(`arguments`...)`]]:
+    Specify the Python script to load. The class name is optional if there's
+    a class named `mkdwarfs` in the script. It is also possible to pass
+    arguments to the constuctor.
+
 ## TIPS & TRICKS
 
 ### Compression Ratio vs Decompression Speed
