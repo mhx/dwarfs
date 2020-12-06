@@ -688,3 +688,132 @@ system than to build the tarball. At the same time, SquashFS really
 isn't that much worse. It's really the cases where you *know* upfront
 that your data is highly redundant where DwarFS can play out its full
 strength.
+
+### With wimlib
+
+[wimlib](https://wimlib.net/) is a really interesting project that is
+a lot more mature than DwarFS. While DwarFS at its core has a library
+component that could potentially be ported to other operating systems,
+wimlib already is available on mamny platforms. It also seems to have
+quite a rich set of features, so it's definitely worth taking a look.
+
+I first tried `wimcapture` on the perl dataset:
+
+    $ time wimcapture --unix-data --solid --solid-chunk-size=16M install perl-install.wim
+    Scanning "install"
+    47 GiB scanned (1927501 files, 330733 directories)    
+    Using LZMS compression with 12 threads
+    Archiving file data: 19 GiB of 19 GiB (100%) done
+    
+    real    21m38.857s
+    user    191m53.452s
+    sys     1m2.743s
+
+    $ ll perl-install.*
+    -rw-r--r-- 1 mhx users  582654491 Nov 29 23:52 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users 1016971956 Dec  6 00:12 perl-install.wim
+    -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
+
+So wimlib is definitely much better than squashfs, in terms of both
+compression ratio and speed. DwarFS is still about 30% faster to create
+the file system and the DwarFS file system is more than 40% smaller.
+When switching to LZMA and metadata compression, the DwarFS file system
+is more than 50% smaller (wimlib uses LZMS compression by default).
+
+What's a bit surprising is that mounting a *wim* file takes quite a bit
+of time:
+
+    $ time wimmount perl-install.wim mnt
+    [WARNING] Mounting a WIM file containing solid-compressed data; file access may be slow.
+    
+    real    0m2.371s
+    user    0m2.034s
+    sys     0m0.335s
+
+Mounting the DwarFS image takes almost no time in comparison:
+
+    $ time ./dwarfs perl-install.dwarfs mnt
+    00:36:42.626580 dwarfs (0.2.3)
+    
+    real    0m0.010s
+    user    0m0.001s
+    sys     0m0.008s
+
+That's just because it immediately forks into background by default and
+initializes the file system in the background. However, even when
+running it in the foreground, initializing the file system takes only
+a few milliseconds:
+
+    $ ./dwarfs perl-install.dwarfs mnt -f
+    00:35:44.975437 dwarfs (0.2.3)
+    00:35:44.987450 file system initialized [5.064ms]
+
+I've tried running the benchmark where all 1139 `perl` executables
+print their version with the wimlib image, but after about 10 minutes,
+it still hadn't finished the first run (with the DwarFS image, one run
+took slightly more than 2 seconds). I then tried the following instead:
+
+    $ ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P1 sh -c 'time $0 -v >/dev/null' 2>&1 | grep ^real
+    real    0m0.802s
+    real    0m0.652s
+    real    0m1.677s
+    real    0m1.973s
+    real    0m1.435s
+    real    0m1.879s
+    real    0m2.003s
+    real    0m1.695s
+    real    0m2.343s
+    real    0m1.899s
+    real    0m1.809s
+    real    0m1.790s
+    real    0m2.115s
+
+Judging from that, it would have probably taken about half an hour
+for a single run, which makes at least the `--solid` wim image pretty
+much unusable for actually working with the file system.
+
+The `--solid` option was suggested to me because it resembles the way
+that DwarFS actually organizes data internally. However, judging by the
+warning when mounting a solid image, it's probably not ideal when using
+the image as a mounted file system. So I tried again without `--solid`:
+
+    $ time wimcapture --unix-data install perl-install-nonsolid.wim
+    Scanning "install"
+    47 GiB scanned (1927501 files, 330733 directories)
+    Using LZX compression with 12 threads
+    Archiving file data: 19 GiB of 19 GiB (100%) done
+    
+    real    12m14.515s
+    user    107m14.962s
+    sys     0m50.042s
+
+This is actually about 3 minutes faster than `mkdwarfs`. However, it
+yields an image that's almost 10 times the size of the DwarFS image
+and comparable in size to the SquashFS image:
+
+    $ ll perl-install-nonsolid.wim -h
+    -rw-r--r-- 1 mhx users 4.6G Dec  6 00:58 perl-install-nonsolid.wim
+
+This *still* takes surprisingly long to mount:
+
+    $ time wimmount perl-install-nonsolid.wim /tmp/perl/install
+    
+    real    0m2.029s
+    user    0m1.635s
+    sys     0m0.383s
+
+However, it's really usable as a file system, even though it's about
+4-5 times slower than the DwarFS image:
+
+    $ hyperfine -c 'umount /tmp/perl/install' -p 'umount /tmp/perl/install; ./dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'umount /tmp/perl/install; wimmount perl-install-nonsolid.wim /tmp/perl/install; sleep 1' -n wimlib "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
+    Benchmark #1: dwarfs
+      Time (mean ± σ):      2.295 s ±  0.362 s    [User: 1.823 s, System: 3.173 s]
+      Range (min … max):    1.813 s …  2.606 s    10 runs
+     
+    Benchmark #2: wimlib
+      Time (mean ± σ):     10.418 s ±  0.286 s    [User: 1.510 s, System: 2.208 s]
+      Range (min … max):   10.134 s … 10.854 s    10 runs
+     
+    Summary
+      'dwarfs' ran
+        4.54 ± 0.73 times faster than 'wimlib'
