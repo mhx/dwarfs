@@ -34,6 +34,7 @@
 
 #include <sys/types.h>
 
+#include <folly/dynamic.h>
 #include <folly/Expected.h>
 #include <folly/Range.h>
 
@@ -66,6 +67,10 @@ class metadata_v2 {
   dump(std::ostream& os, int detail_level,
        std::function<void(const std::string&, uint32_t)> const& icb) const {
     impl_->dump(os, detail_level, icb);
+  }
+
+  folly::dynamic as_dynamic() const {
+    return impl_->as_dynamic();
   }
 
   static void get_stat_defaults(struct ::stat* defaults);
@@ -137,6 +142,8 @@ class metadata_v2 {
     virtual void dump(
         std::ostream& os, int detail_level,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
+
+    virtual folly::dynamic as_dynamic() const = 0;
 
     virtual size_t size() const = 0;
     virtual bool empty() const = 0;

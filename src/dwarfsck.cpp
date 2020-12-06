@@ -24,6 +24,7 @@
 
 #include <boost/program_options.hpp>
 
+#include <folly/json.h>
 #include <folly/String.h>
 
 #include "dwarfs/filesystem_v2.h"
@@ -38,6 +39,7 @@ namespace po = boost::program_options;
 int dwarfsck(int argc, char** argv) {
   std::string log_level, input;
   int detail;
+  bool json;
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -48,6 +50,9 @@ int dwarfsck(int argc, char** argv) {
     ("detail,d",
         po::value<int>(&detail)->default_value(1),
         "detail level")
+    ("json",
+        po::value<bool>(&json)->zero_tokens(),
+        "print metadata in JSON format")
     ("log-level",
         po::value<std::string>(&log_level)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
@@ -74,7 +79,12 @@ int dwarfsck(int argc, char** argv) {
 
   auto mm = std::make_shared<dwarfs::mmap>(input);
 
-  dwarfs::filesystem_v2::identify(lgr, mm, std::cout, detail);
+  if (json) {
+    dwarfs::filesystem_v2 fs(lgr, mm);
+    std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
+  } else {
+    dwarfs::filesystem_v2::identify(lgr, mm, std::cout, detail);
+  }
 
   return 0;
 }

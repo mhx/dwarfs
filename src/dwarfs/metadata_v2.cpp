@@ -158,6 +158,8 @@ class metadata_ : public metadata_v2::impl {
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
+  folly::dynamic as_dynamic() const override;
+
   size_t size() const override { return data_.size(); }
 
   bool empty() const override { return data_.empty(); }
@@ -274,6 +276,9 @@ class metadata_ : public metadata_v2::impl {
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
             int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
+
+  folly::dynamic as_dynamic(entry_view entry) const;
+  folly::dynamic as_dynamic(directory_view dir) const;
 
   std::optional<entry_view>
   find(directory_view dir, std::string_view name) const;
@@ -437,6 +442,76 @@ void metadata_<LoggerPolicy>::dump(
   if (detail_level > 4) {
     os << ::apache::thrift::debugString(meta_.thaw());
   }
+}
+
+template <typename LoggerPolicy>
+folly::dynamic metadata_<LoggerPolicy>::as_dynamic(directory_view dir) const {
+  folly::dynamic obj = folly::dynamic::array;
+
+  auto count = dir.entry_count();
+  auto first = dir.first_entry();
+
+  for (size_t i = 0; i < count; ++i) {
+    obj.push_back(as_dynamic(make_entry_view(first + i)));
+  }
+
+  return obj;
+}
+
+template <typename LoggerPolicy>
+folly::dynamic metadata_<LoggerPolicy>::as_dynamic(entry_view entry) const {
+  folly::dynamic obj = folly::dynamic::object;
+
+  auto mode = entry.mode();
+  auto inode = entry.inode();
+
+  obj["mode"] = mode;
+  obj["modestring"] = modestring(mode);
+  obj["inode"] = inode;
+
+  if (inode > 0) {
+    obj["name"] = std::string(entry.name());
+  }
+
+  if (S_ISREG(mode)) {
+    obj["type"] = "file";
+    obj["size"] = file_size(entry, mode);
+  } else if (S_ISDIR(mode)) {
+    obj["type"] = "directory";
+    obj["entries"] = as_dynamic(make_directory_view(entry));
+  } else if (S_ISLNK(mode)) {
+    obj["type"] = "link";
+    obj["target"] = std::string(link_value(entry));
+  } else if (S_ISBLK(mode)) {
+    obj["type"] = "blockdev";
+    obj["device_id"] = get_device_id(inode);
+  } else if (S_ISCHR(mode)) {
+    obj["type"] = "chardev";
+    obj["device_id"] = get_device_id(inode);
+  } else if (S_ISFIFO(mode)) {
+    obj["type"] = "fifo";
+  } else if (S_ISSOCK(mode)) {
+    obj["type"] = "socket";
+  }
+
+  return obj;
+}
+
+template <typename LoggerPolicy>
+folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
+  folly::dynamic obj = folly::dynamic::object;
+
+  struct ::statvfs stbuf;
+  statvfs(&stbuf);
+
+  obj["statvfs"] = folly::dynamic::object
+    ("f_bsize", stbuf.f_bsize)
+    ("f_files", stbuf.f_files)
+    ("f_blocks", stbuf.f_blocks);
+
+  obj["root"] = as_dynamic(root_);
+
+  return obj;
 }
 
 template <typename LoggerPolicy>

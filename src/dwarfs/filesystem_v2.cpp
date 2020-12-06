@@ -195,6 +195,7 @@ class filesystem_ : public filesystem_v2::impl {
               const struct ::stat* stat_defaults, int inode_offset);
 
   void dump(std::ostream& os, int detail_level) const override;
+  folly::dynamic metadata_as_dynamic() const override;
   void walk(std::function<void(entry_view)> const& func) const override;
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
@@ -271,6 +272,11 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
       log_.error() << "error reading chunks for inode " << inode;
     }
   });
+}
+
+template <typename LoggerPolicy>
+folly::dynamic filesystem_<LoggerPolicy>::metadata_as_dynamic() const {
+  return meta_.as_dynamic();
 }
 
 template <typename LoggerPolicy>

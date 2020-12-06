@@ -33,6 +33,7 @@
 
 #include <sys/types.h>
 
+#include <folly/dynamic.h>
 #include <folly/Expected.h>
 
 #include "dwarfs/metadata_types.h"
@@ -67,6 +68,10 @@ class filesystem_v2 {
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);
+  }
+
+  folly::dynamic metadata_as_dynamic() const {
+    return impl_->metadata_as_dynamic();
   }
 
   void walk(std::function<void(entry_view)> const& func) const {
@@ -128,6 +133,7 @@ class filesystem_v2 {
     virtual ~impl() = default;
 
     virtual void dump(std::ostream& os, int detail_level) const = 0;
+    virtual folly::dynamic metadata_as_dynamic() const = 0;
     virtual void walk(std::function<void(entry_view)> const& func) const = 0;
     virtual std::optional<entry_view> find(const char* path) const = 0;
     virtual std::optional<entry_view> find(int inode) const = 0;
