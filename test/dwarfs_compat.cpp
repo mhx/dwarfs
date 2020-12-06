@@ -155,7 +155,7 @@ std::vector<std::string> versions {
   "0.2.3",
 };
 
-};
+}
 
 using namespace dwarfs;
 
