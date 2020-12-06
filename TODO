@@ -1,7 +1,6 @@
 - support hard links in mkdwarfs (and the fuse driver, but this is broken)
 - drop link_offset / inode_offset, as they can be inferred from a binary search over inode modes :-)
 - try to be more resilient to modifications of the input while creating fs
-- migrate to folly::system::MemoryMapping and support `advise` in block cache
 - support for device inodes?
 
 - dwarfsck:
@@ -11,6 +10,7 @@
 - make dwarfsck more usable
 - cleanup TODOs
 
+- folly: dynamic should support string_view
 - frozen: ViewBase.getPosition() should be const
 
 - docs, moar tests
