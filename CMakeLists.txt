@@ -148,12 +148,18 @@ list(APPEND BINARY_TARGETS mkdwarfs dwarfs-bin dwarfsck dwarfsbench)
 
 if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp test/loremipsum.cpp)
+  add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
 
   target_link_libraries(dwarfs_test gtest_main)
+  target_link_libraries(dwarfs_compat_test gtest_main)
 
-  list(APPEND BINARY_TARGETS dwarfs_test)
+  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test)
 
   gtest_discover_tests(dwarfs_test)
+  gtest_discover_tests(dwarfs_compat_test)
+
+  target_compile_definitions(dwarfs_compat_test PRIVATE
+          TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 endif()
 
 foreach(man dwarfs mkdwarfs)
