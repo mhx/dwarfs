@@ -234,11 +234,11 @@ Though you don't have to install the tools to play with them.
 
 ## Usage
 
-Please check out the man pages for [mkdwarfs](man/mkdwarfs.md)
-and [dwarfs](man/dwarfs.md). `dwarfsck` will be built and installed
+Please check out the man pages for [mkdwarfs](doc/mkdwarfs.md)
+and [dwarfs](doc/dwarfs.md). `dwarfsck` will be built and installed
 as well, but it's still work in progress.
 
-The [dwarfs](man/dwarfs.md) man page also shows an example for setting
+The [dwarfs](doc/dwarfs.md) man page also shows an example for setting
 up DwarFS with [overlayfs](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt)
 in order to create a writable file system mount on top a read-only
 DwarFS image.
