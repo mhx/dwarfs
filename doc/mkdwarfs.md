@@ -119,14 +119,18 @@ Most other options are concerned with compression tuning:
     reduce the size of the file system. You can pass either a unix time stamp
     or `now`.
 
-  * `--order=none`|`path`|`similarity`:
-    The order in which files will be written to the filesystem. Currently,
-    the choices are `none`, `path` and `similarity`. With `none`, the files
-    will be stored in the order in which they are discovered. With `path`,
-    they will be sorted asciibetically by path name. With `similarity`, they
-    will be ordered using a similarity hash function. This is the default,
-    as it will cause similar files to be located close to each other, which
-    means compression will be better.
+  * `--order=none`|`path`|`similarity`|`nilsimsa`|`script`:
+    The order in which files will be written to the filesystem. Choosing `none`,
+    the files will be stored in the order in which they are discovered. With
+    `path`, they will be sorted asciibetically by path name. With `similarity`,
+    they will be ordered using a simple, yet fast and efficient, similarity
+    hash function. This is the default, as it will cause similar files to be
+    located close to each other, which means compression will be better.
+    `nilsimsa` ordering uses a different similarity function that is *likely*
+    even better than `similarity`, but is comparatively slow to compute. It
+    *can* be very slow, though it shouldn't be for typical inputs. YMMV.
+    Last but not least, if scripting support is built into `mkdwarfs`, you
+    can choose `script` to let the script determine the order.
 
   * `--blockhash-window-sizes=`*value*[,*value*]...:
     Window sizes used for block hashing. These sizes, separated by commas,
