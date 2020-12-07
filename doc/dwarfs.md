@@ -109,6 +109,27 @@ a DwarFS image:
 
 ## TIPS & TRICKS
 
+### Adding a DwarFS image to /etc/fstab
+
+This should be relatively straightforward if you're already familiar
+with adding other FUSE file systems to `/etc/fstab`. An entry looks
+like this:
+
+    dwarfs#/path/to/image.dwarfs /mnt/mountpoint fuse noauto,defaults,user,cachesize=1g 0 0
+
+The first bit before the `#` tells `mount` to look for `mount.dwarfs`,
+which is installed as a symbolic link to the DwarFS FUSE driver. The
+part after the `#` looks pretty much like any other `fstab` entry.
+It starts with the path of the file system image to mount, followed
+by the mount point, followed by the file system type (`fuse`), and
+finally followed by a set of options.
+
+If you want to automatically mount a DwarFS file system, you'll also
+need the `allow_other` option to make sure non-privileged users will
+be able to access the data. If you want to work with overlays, you'll
+need either `allow_other` or `allow_root`. For any of these options
+to work, you will have to set `user_allow_other` in `/etc/fuse.conf`.
+
 ### Setting up a writable file system on top of a DwarFS image
 
 This will show you how to set up a read/write layer on top of a
