@@ -328,11 +328,16 @@ target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
 
 set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
 
+add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
+                                           dwarfs mount.dwarfs)
+
 install(
-  TARGETS mkdwarfs dwarfs-bin dwarfsck dwarfs dwarfsbench
+  TARGETS mkdwarfs dwarfsck dwarfs dwarfsbench
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
+install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 install(DIRECTORY include/dwarfs DESTINATION include)
 
