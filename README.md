@@ -4,6 +4,21 @@
 
 A fast high compression read-only file system
 
+## Table of contents
+
+* [Overview](#overview)
+* [History](#history)
+* [Building and Installing](#building-and-installing)
+   * [Dependencies](#dependencies)
+   * [Building](#building)
+   * [Installing](#installing)
+   * [Experimental Python Scripting Support](#experimental-python-scripting-support)
+* [Usage](#usage)
+* [Comparison](#comparison)
+   * [With SquashFS](#with-squashfs)
+   * [With SquashFS &amp; xz](#with-squashfs--xz)
+   * [With wimlib](#with-wimlib)
+
 ## Overview
 
 ![Alt text](doc/screenshot.png?raw=true "DwarFS Screenshot")
@@ -110,7 +125,7 @@ will be automatically resolved if you build with tests.
 
 A good starting point for apt-based systems is probably:
 
-    # apt install \
+    $ apt install \
         g++ \
         clang \
         cmake \
@@ -192,27 +207,27 @@ These measurements were made with gcc-9.3.0 and clang-10.0.1.
 
 Firstly, either clone the repository...
 
-    # git clone --recurse-submodules https://github.com/mhx/dwarfs
-    # cd dwarfs
+    $ git clone --recurse-submodules https://github.com/mhx/dwarfs
+    $ cd dwarfs
 
 ...or unpack the release archive:
 
-    # tar xvf dwarfs-x.y.z.tar.bz2
-    # cd dwarfs-x.y.z
+    $ tar xvf dwarfs-x.y.z.tar.bz2
+    $ cd dwarfs-x.y.z
 
 Once all dependencies have been installed, you can build DwarFS
 using:
 
-    # mkdir build
-    # cd build
-    # cmake .. -DWITH_TESTS=1
-    # make -j$(nproc)
+    $ mkdir build
+    $ cd build
+    $ cmake .. -DWITH_TESTS=1
+    $ make -j$(nproc)
 
 If possible, try building with clang as your compiler, this will
 make DwarFS significantly faster. If you have both gcc and clang
 installed, use:
 
-    # CC=clang CXX=clang++ cmake .. -DWITH_TESTS=1
+    $ CC=clang CXX=clang++ cmake .. -DWITH_TESTS=1
 
 To build with experimental Lua support, you need to install both
 `lua` and `luabind`. The latter isn't very well maintained and I
@@ -221,13 +236,13 @@ to the `cmake` command line to enable Lua support.
 
 You can then run tests with:
 
-    # make test
+    $ make test
 
 ### Installing
 
 Installing is as easy as:
 
-    # sudo make install
+    $ sudo make install
 
 Though you don't have to install the tools to play with them.
 
@@ -236,13 +251,13 @@ Though you don't have to install the tools to play with them.
 You can build `mkdwarfs` with experimental support for Python
 scripting:
 
-    # cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1
+    $ cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1
 
 This also requires Boost.Python. If you have multiple Python
 versions installed, you can explicitly specify the version to
 build against:
 
-    # cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1 -DWITH_PYTHON_VERSION=3.8
+    $ cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1 -DWITH_PYTHON_VERSION=3.8
 
 Note that only Python 3 is supported. You can take a look at
 [scripts/example.py](scripts/example.py) to get an idea for
