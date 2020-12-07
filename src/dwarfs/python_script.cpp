@@ -279,7 +279,7 @@ python_script::impl::impl(logger& lgr, const std::string& code,
     has_filter_ = has_callable(instance_, "filter");
     has_transform_ = has_callable(instance_, "transform");
     has_order_ = has_callable(instance_, "order");
-  } catch (py::error_already_set) {
+  } catch (py::error_already_set const&) {
     log_py_error();
     throw std::runtime_error("error initializing script");
   }
@@ -344,7 +344,7 @@ void python_script::impl::configure(options_interface const& oi) {
   timer tmr(configure_time_);
   try {
     instance_.attr("configure")(py::ptr(&oi));
-  } catch (py::error_already_set) {
+  } catch (py::error_already_set const&) {
     log_py_error();
     throw std::runtime_error("error in configure");
   }
@@ -355,7 +355,7 @@ bool python_script::impl::filter(entry_interface const& ei) {
   try {
     return py::extract<bool>(
         instance_.attr("filter")(std::make_shared<entry_wrapper>(ei)));
-  } catch (py::error_already_set) {
+  } catch (py::error_already_set const&) {
     log_py_error();
     throw std::runtime_error("error filtering entry");
   }
@@ -365,7 +365,7 @@ void python_script::impl::transform(entry_interface& ei) {
   timer tmr(transform_time_);
   try {
     instance_.attr("transform")(std::make_shared<mutable_entry_wrapper>(ei));
-  } catch (py::error_already_set) {
+  } catch (py::error_already_set const&) {
     log_py_error();
     throw std::runtime_error("error transforming entry");
   }
@@ -421,7 +421,7 @@ void python_script::impl::order(inode_vector& iv) {
               });
 
     td << "applied new inode order";
-  } catch (py::error_already_set) {
+  } catch (py::error_already_set const&) {
     log_py_error();
     throw std::runtime_error("error ordering inodes");
   }
