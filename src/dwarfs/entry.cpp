@@ -32,9 +32,10 @@
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/mmif.h"
+#include "dwarfs/nilsimsa.h"
+#include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
-#include "dwarfs/similarity.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
@@ -168,10 +169,6 @@ void file::scan(os_access& os, progress& prog) {
     auto mm = os.map_file(path(), s);
     ::SHA1(mm->as<unsigned char>(), s,
            reinterpret_cast<unsigned char*>(&hash_[0]));
-
-    if (with_similarity_) {
-      similarity_hash_ = get_similarity_hash(mm->as<uint8_t>(), s);
-    }
   } else {
     ::SHA1(nullptr, 0, reinterpret_cast<unsigned char*>(&hash_[0]));
   }
@@ -290,9 +287,6 @@ uint64_t device::device_id() const { return status().st_rdev; }
 
 class entry_factory_ : public entry_factory {
  public:
-  entry_factory_(bool with_similarity)
-      : with_similarity_(with_similarity) {}
-
   std::shared_ptr<entry> create(os_access& os, const std::string& name,
                                 std::shared_ptr<entry> parent) override {
     const std::string& p = parent ? parent->path() + "/" + name : name;
@@ -302,8 +296,7 @@ class entry_factory_ : public entry_factory {
     auto mode = st.st_mode;
 
     if (S_ISREG(mode)) {
-      return std::make_shared<file>(name, std::move(parent), st,
-                                    with_similarity_);
+      return std::make_shared<file>(name, std::move(parent), st);
     } else if (S_ISDIR(mode)) {
       return std::make_shared<dir>(name, std::move(parent), st);
     } else if (S_ISLNK(mode)) {
@@ -317,12 +310,9 @@ class entry_factory_ : public entry_factory {
 
     return std::shared_ptr<entry>();
   }
-
- private:
-  const bool with_similarity_;
 };
 
-std::unique_ptr<entry_factory> entry_factory::create(bool with_similarity) {
-  return std::make_unique<entry_factory_>(with_similarity);
+std::unique_ptr<entry_factory> entry_factory::create() {
+  return std::make_unique<entry_factory_>();
 }
 } // namespace dwarfs

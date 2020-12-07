@@ -46,7 +46,14 @@ struct filesystem_options {
   metadata_options metadata;
 };
 
-enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY };
+struct inode_options {
+  bool with_similarity{false};
+  bool with_nilsimsa{false};
+
+  bool needs_scan() const { return with_similarity || with_nilsimsa; }
+};
+
+enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
 
 struct scanner_options {
   file_order_mode file_order{file_order_mode::NONE};
@@ -54,6 +61,7 @@ struct scanner_options {
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;
   bool remove_empty_dirs{false};
+  inode_options inode;
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

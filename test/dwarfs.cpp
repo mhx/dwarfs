@@ -199,6 +199,8 @@ void basic_end_to_end_test(const std::string& compressor,
   cfg.block_size_bits = block_size_bits;
 
   options.file_order = file_order;
+  options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;
+  options.inode.with_nilsimsa = file_order == file_order_mode::NILSIMSA;
 
   // force multithreading
   worker_group wg("writer", 4);
@@ -207,8 +209,7 @@ void basic_end_to_end_test(const std::string& compressor,
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
 
-  scanner s(lgr, wg, cfg,
-            entry_factory::create(file_order == file_order_mode::SIMILARITY),
+  scanner s(lgr, wg, cfg, entry_factory::create(),
             std::make_shared<test::os_access_mock>(),
             std::make_shared<test::script_mock>(), options);
 
@@ -323,9 +324,8 @@ TEST_P(basic, end_to_end) {
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, basic,
-    ::testing::Combine(::testing::ValuesIn(compressions),
-                       ::testing::Values(12, 15, 20, 28),
-                       ::testing::Values(file_order_mode::NONE,
-                                         file_order_mode::PATH,
-                                         file_order_mode::SCRIPT,
-                                         file_order_mode::SIMILARITY)));
+    ::testing::Combine(
+        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
+        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
+                          file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
+                          file_order_mode::SIMILARITY)));

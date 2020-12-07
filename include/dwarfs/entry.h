@@ -109,9 +109,8 @@ class entry : public entry_interface {
 class file : public entry {
  public:
   file(const std::string& name, std::shared_ptr<entry> parent,
-       const struct ::stat& st, bool with_similarity)
-      : entry(name, parent, st)
-      , with_similarity_(with_similarity) {}
+       const struct ::stat& st)
+      : entry(name, parent, st) {}
 
   type_t type() const override;
   std::string_view hash() const;
@@ -119,14 +118,11 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   uint32_t inode_num() const override;
-  uint32_t similarity_hash() const { return similarity_hash_; }
   void scan(os_access& os, progress& prog) override;
 
  private:
   using hash_type = std::array<char, 20>;
 
-  uint32_t similarity_hash_{0};
-  const bool with_similarity_;
   hash_type hash_{0};
   std::shared_ptr<inode> inode_;
 };
@@ -195,7 +191,7 @@ class device : public entry {
 
 class entry_factory {
  public:
-  static std::unique_ptr<entry_factory> create(bool with_similarity = false);
+  static std::unique_ptr<entry_factory> create();
 
   virtual ~entry_factory() = default;
 

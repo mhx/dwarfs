@@ -95,7 +95,8 @@ const std::map<std::string, file_order_mode> order_choices{
 #ifdef DWARFS_HAVE_PYTHON
     {"script", file_order_mode::SCRIPT},
 #endif
-    {"similarity", file_order_mode::SIMILARITY}};
+    {"similarity", file_order_mode::SIMILARITY},
+    {"nilsimsa", file_order_mode::NILSIMSA}};
 
 } // namespace
 
@@ -555,10 +556,12 @@ int mkdwarfs(int argc, char** argv) {
     wg_writer.wait();
     ti << "filesystem rewritten";
   } else {
-    scanner s(lgr, wg_scanner, cfg,
-              entry_factory::create(force_similarity ||
-                                    options.file_order ==
-                                        file_order_mode::SIMILARITY),
+    options.inode.with_similarity =
+        force_similarity || options.file_order == file_order_mode::SIMILARITY;
+    options.inode.with_nilsimsa =
+        options.file_order == file_order_mode::NILSIMSA;
+
+    scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
               std::make_shared<os_access_posix>(), std::move(script), options);
 
     {

@@ -25,23 +25,45 @@
 #include <functional>
 #include <memory>
 
+#include "dwarfs/options.h"
+
 namespace dwarfs {
 
 class inode;
+class logger;
 class script;
 
 class inode_manager {
  public:
-  static std::unique_ptr<inode_manager> create();
+  using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
 
-  virtual ~inode_manager() = default;
-  virtual std::shared_ptr<inode> create_inode() = 0;
-  virtual size_t count() const = 0;
-  virtual void order_inodes() = 0;
-  virtual void order_inodes(std::shared_ptr<script> scr) = 0;
-  virtual void order_inodes_by_similarity() = 0;
-  virtual void number_inodes(size_t first_no) = 0;
-  virtual void for_each_inode(
-      std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
+  inode_manager(logger& lgr);
+
+  std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
+
+  size_t count() const { return impl_->count(); }
+
+  void order_inodes(std::shared_ptr<script> scr, file_order_mode file_order,
+                    uint32_t first_inode, inode_cb const& fn) {
+    impl_->order_inodes(std::move(scr), file_order, first_inode, fn);
+  }
+
+  void for_each_inode(inode_cb const& fn) const { impl_->for_each_inode(fn); }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual std::shared_ptr<inode> create_inode() = 0;
+    virtual size_t count() const = 0;
+    virtual void
+    order_inodes(std::shared_ptr<script> scr, file_order_mode file_order,
+                 uint32_t first_inode, inode_cb const& fn) = 0;
+    virtual void for_each_inode(
+        std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
 };
 } // namespace dwarfs

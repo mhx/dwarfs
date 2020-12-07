@@ -37,6 +37,8 @@
 
 #include <folly/ExceptionString.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/global_entry_data.h"
@@ -93,7 +95,8 @@ class file_deduplication_visitor : public visitor_base {
  public:
   void visit(file* p) override { hash_[p->hash()].push_back(p); }
 
-  void deduplicate_files(inode_manager& im, progress& prog) {
+  void deduplicate_files(worker_group& wg, os_access& os, inode_manager& im,
+                         inode_options const& ino_opts, progress& prog) {
     for (auto& p : hash_) {
       auto& files = p.second;
 
@@ -115,6 +118,10 @@ class file_deduplication_visitor : public visitor_base {
       }
 
       inode->set_files(std::move(files));
+
+      if (ino_opts.needs_scan()) {
+        wg.add_job([&, inode] { inode->scan(os, ino_opts); });
+      }
     }
   }
 
@@ -278,7 +285,6 @@ class scanner_ : public scanner::impl {
 
  private:
   std::shared_ptr<entry> scan_tree(const std::string& path, progress& prog);
-  void order_files(inode_manager& im);
 
   const block_manager::config& cfg_;
   const scanner_options& options_;
@@ -410,42 +416,6 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 }
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::order_files(inode_manager& im) {
-  switch (options_.file_order) {
-  case file_order_mode::NONE:
-    log_.info() << "keeping inode order";
-    break;
-
-  case file_order_mode::PATH: {
-    log_.info() << "ordering " << im.count() << " inodes by path name...";
-    auto ti = log_.timed_info();
-    im.order_inodes();
-    ti << im.count() << " inodes ordered";
-    break;
-  }
-
-  case file_order_mode::SCRIPT: {
-    if (!script_->has_order()) {
-      throw std::runtime_error("script cannot order inodes");
-    }
-    log_.info() << "ordering " << im.count() << " inodes using script...";
-    auto ti = log_.timed_info();
-    im.order_inodes(script_);
-    ti << im.count() << " inodes ordered";
-    break;
-  }
-
-  case file_order_mode::SIMILARITY: {
-    log_.info() << "ordering " << im.count() << " inodes by similarity...";
-    auto ti = log_.timed_info();
-    im.order_inodes_by_similarity();
-    ti << im.count() << " inodes ordered";
-    break;
-  }
-  }
-}
-
-template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
   log_.info() << "scanning " << path;
@@ -479,22 +449,22 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   log_.info() << "finding duplicate files...";
 
-  auto im = inode_manager::create();
+  inode_manager im(lgr_);
 
   file_deduplication_visitor fdv;
   root->accept(fdv);
 
-  fdv.deduplicate_files(*im, prog);
+  fdv.deduplicate_files(wg_, *os_, im, options_.inode, prog);
 
   log_.info() << "saved " << size_with_unit(prog.saved_by_deduplication)
               << " / " << size_with_unit(prog.original_size) << " in "
               << prog.duplicate_files << "/" << prog.files_found
               << " duplicate files";
 
-  order_files(*im);
-
-  log_.info() << "assigning file inodes...";
-  im->number_inodes(first_file_inode);
+  if (options_.inode.needs_scan()) {
+    log_.info() << "waiting for inode scanners...";
+    wg_.wait();
+  }
 
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
@@ -502,7 +472,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.link_index.resize(first_file_inode - first_link_inode);
 
   log_.info() << "assigning device inodes...";
-  uint32_t first_device_inode = first_file_inode + im->count();
+  uint32_t first_device_inode = first_file_inode + im.count();
   device_set_inode_visitor devsiv(first_device_inode);
   root->accept(devsiv);
   mv2.devices_ref() = std::move(devsiv.device_ids());
@@ -534,11 +504,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "building blocks...";
   block_manager bm(lgr_, prog, cfg_, os_, fsw);
 
-  im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    prog.current.store(ino.get());
-    bm.add_inode(ino);
-    prog.inodes_written++;
-  });
+  im.order_inodes(script_, options_.file_order, first_file_inode,
+                  [&](std::shared_ptr<inode> const& ino) {
+                    prog.current.store(ino.get());
+                    bm.add_inode(ino);
+                    prog.inodes_written++;
+                  });
 
   log_.info() << "waiting for block compression to finish...";
 
@@ -567,19 +538,19 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->set_name(std::string());
 
   log_.info() << "saving chunks...";
-  mv2.chunk_index.resize(im->count() + 1);
+  mv2.chunk_index.resize(im.count() + 1);
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
-  im->for_each_inode([&](std::shared_ptr<inode> const& ino) {
+  im.for_each_inode([&](std::shared_ptr<inode> const& ino) {
     mv2.chunk_index.at(ino->num() - first_file_inode) = mv2.chunks.size();
     ino->append_chunks_to(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
-  mv2.chunk_index.at(im->count()) = mv2.chunks.size();
+  mv2.chunk_index.at(im.count()) = mv2.chunks.size();
 
-  log_.debug() << "total number of file inodes: " << im->count();
+  log_.debug() << "total number of file inodes: " << im.count();
   log_.debug() << "total number of chunks: " << mv2.chunks.size();
 
   log_.info() << "saving directories...";
