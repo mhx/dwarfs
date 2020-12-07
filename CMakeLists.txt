@@ -42,19 +42,23 @@ set(DWARFS_VERSION
 list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
 
 if(WITH_PYTHON)
-    # TODO: would be nicer to be able to support a range of python versions
-    find_package(Python3 ${WITH_PYTHON_VERSION} EXACT REQUIRED COMPONENTS Development)
-    list(APPEND DWARFS_BOOST_MODULES
-            "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
-    message(STATUS "Enabling support for Python ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}")
+  # TODO: would be nicer to be able to support a range of python versions
+  find_package(Python3 ${WITH_PYTHON_VERSION} EXACT REQUIRED
+               COMPONENTS Development)
+  list(APPEND DWARFS_BOOST_MODULES
+       "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
+  message(
+    STATUS
+      "Enabling support for Python ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}"
+  )
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS ${DWARFS_BOOST_MODULES})
 
 if(WITH_PYTHON)
-    set(BOOST_PYTHON_LIBS ${Boost_LIBRARIES})
-    list(FILTER Boost_LIBRARIES EXCLUDE REGEX python)
-    list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
+  set(BOOST_PYTHON_LIBS ${Boost_LIBRARIES})
+  list(FILTER Boost_LIBRARIES EXCLUDE REGEX python)
+  list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
 endif()
 
 find_package(PkgConfig REQUIRED)
@@ -159,8 +163,8 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
 
-  target_compile_definitions(dwarfs_compat_test PRIVATE
-          TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+  target_compile_definitions(dwarfs_compat_test
+                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 endif()
 
 foreach(man dwarfs mkdwarfs)
@@ -277,8 +281,9 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 add_dependencies(metadata_thrift thrift_light)
 
 foreach(tgt dwarfs ${BINARY_TARGETS})
-  target_include_directories(${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS}
-                                                   ${INCLUDE_DIRS})
+  target_include_directories(
+    ${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS}
+                          ${INCLUDE_DIRS})
 
   target_include_directories(${tgt} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
