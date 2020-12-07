@@ -34,9 +34,9 @@
 
 #include <sys/types.h>
 
-#include <folly/dynamic.h>
 #include <folly/Expected.h>
 #include <folly/Range.h>
+#include <folly/dynamic.h>
 
 #include "dwarfs/metadata_types.h"
 
@@ -69,9 +69,7 @@ class metadata_v2 {
     impl_->dump(os, detail_level, icb);
   }
 
-  folly::dynamic as_dynamic() const {
-    return impl_->as_dynamic();
-  }
+  folly::dynamic as_dynamic() const { return impl_->as_dynamic(); }
 
   static void get_stat_defaults(struct ::stat* defaults);
 

@@ -33,8 +33,8 @@
 
 #include <sys/types.h>
 
-#include <folly/dynamic.h>
 #include <folly/Expected.h>
+#include <folly/dynamic.h>
 
 #include "dwarfs/metadata_types.h"
 

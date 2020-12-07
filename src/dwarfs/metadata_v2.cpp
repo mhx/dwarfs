@@ -504,10 +504,8 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
   struct ::statvfs stbuf;
   statvfs(&stbuf);
 
-  obj["statvfs"] = folly::dynamic::object
-    ("f_bsize", stbuf.f_bsize)
-    ("f_files", stbuf.f_files)
-    ("f_blocks", stbuf.f_blocks);
+  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.f_bsize)(
+      "f_files", stbuf.f_files)("f_blocks", stbuf.f_blocks);
 
   obj["root"] = as_dynamic(root_);
 

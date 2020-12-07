@@ -24,8 +24,8 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/json.h>
 #include <folly/String.h>
+#include <folly/json.h>
 
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/logger.h"

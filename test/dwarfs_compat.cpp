@@ -150,12 +150,12 @@ char const* reference = R"(
 }
 )";
 
-std::vector<std::string> versions {
-  "0.2.0",
-  "0.2.3",
+std::vector<std::string> versions{
+    "0.2.0",
+    "0.2.3",
 };
 
-}
+} // namespace
 
 using namespace dwarfs;
 
@@ -164,7 +164,8 @@ class compat : public testing::TestWithParam<std::string> {};
 TEST_P(compat, backwards_compatibility) {
   std::ostringstream oss;
   stream_logger lgr(oss);
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + GetParam() + ".dwarfs";
+  auto filename =
+      std::string(TEST_DATA_DIR "/compat-v") + GetParam() + ".dwarfs";
   filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
   auto meta = fs.metadata_as_dynamic();
   auto ref = folly::parseJson(reference);

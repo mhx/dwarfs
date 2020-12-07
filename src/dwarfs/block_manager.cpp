@@ -500,4 +500,5 @@ block_manager::block_manager(logger& lgr, progress& prog, const config& cfg,
                              filesystem_writer& fsw)
     : impl_(make_unique_logging_object<impl, block_manager_, logger_policies>(
           lgr, prog, cfg, os, fsw)) {}
+
 } // namespace dwarfs
