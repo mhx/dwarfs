@@ -125,7 +125,7 @@ class inode_wrapper {
     }
     return ps;
   }
-  size_t size() const { return ino_->any()->size(); }
+  size_t size() const { return ino_->size(); }
   inode const* get() const { return ino_; }
 
  private:
