@@ -209,7 +209,8 @@ python_script::impl::impl(logger& lgr, const std::string& code,
             .value("none", file_order_mode::NONE)
             .value("path", file_order_mode::PATH)
             .value("script", file_order_mode::SCRIPT)
-            .value("similarity", file_order_mode::SIMILARITY);
+            .value("similarity", file_order_mode::SIMILARITY)
+            .value("nilsimsa", file_order_mode::NILSIMSA);
 
     main_namespace_["set_mode"] =
         py::enum_<options_interface::set_mode>("set_mode")
