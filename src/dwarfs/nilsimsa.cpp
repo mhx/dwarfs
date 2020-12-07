@@ -56,20 +56,14 @@ uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
   return ((TT53[(a + n) & 0xFF] ^ TT53[b] * (n + n + 1)) + TT53[c ^ TT53[n]]);
 }
 
-// TODO: this will currently only work for gcc/clang,
-//       but should be easy to port
-#if defined(__has_builtin)
-#if __has_builtin(__builtin_popcountl)
+// TODO: this will currently only work for gcc/clang, but should be easy to port
 __attribute__((__unused__)) int popcount(unsigned long x) {
   return __builtin_popcountl(x);
 }
-#endif
-#if __has_builtin(__builtin_popcountll)
+
 __attribute__((__unused__)) int popcount(unsigned long long x) {
   return __builtin_popcountll(x);
 }
-#endif
-#endif
 
 } // namespace
 
