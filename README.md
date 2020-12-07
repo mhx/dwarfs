@@ -402,6 +402,22 @@ system with the best possible compression (`-l 9`):
 This reduces the file system size by another 18%, pushing the total
 compression ratio below 1%.
 
+You *may* be able to push things even further: there's the `nilsimsa`
+ordering option which enables a somewhat experimental LSH ordering
+scheme that's significantly slower than the default `similarity`
+scheme, but can deliver even better clustering of similar data. It
+also has the advantage that the ordering can be run while already
+compressing data, which counters the slowness of the algorithm. On
+the same Perl dataset, I was able to get these file system sizes
+without a significant change in file system build time:
+
+    $ ll perl-install-nilsimsa*.dwarfs
+    -rw-r--r-- 1 mhx users 546026189 Dec  7 21:50 perl-nilsimsa.dwarfs
+    -rw-r--r-- 1 mhx users 448614396 Dec  7 22:44 perl-nilsimsa-lzma.dwarfs
+
+That another 6-7% reduction in file system size for both the default
+ZSTD as well as the LZMA compression.
+
 In terms of how fast the file system is when using it, a quick test
 I've done is to freshly mount the filesystem created above and run
 each of the 1139 `perl` executables to print their version.
