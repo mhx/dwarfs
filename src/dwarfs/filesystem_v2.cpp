@@ -37,7 +37,6 @@
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/block_compressor.h"
-#include "dwarfs/config.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
