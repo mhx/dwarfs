@@ -64,6 +64,16 @@ options:
     will also consume more memory to hold the hardlink count table.
     This will be 4 bytes for every regular file inode.
 
+  * `-o readonly`
+    Show all file system entries as read-only. By default, DwarFS
+    will preserve the original writeability, which is obviously a
+    lie as it's a read-only file system. However, this is needed
+    for overlays to work correctly, as otherwise directories are
+    seen as read-only by the overlay and it'll be impossible to
+    create new files even in a writeable overlay. If you don't use
+    overlays and want the file system to reflect its read-only
+    state, you can set this option.
+
   * `-o (no_)cache_image`
     By default, `dwarfs` tries to ensure that the compressed file
     system image will not be cached by the kernel (i.e. the default

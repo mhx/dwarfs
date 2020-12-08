@@ -38,6 +38,7 @@ struct block_cache_options {
 
 struct metadata_options {
   bool enable_nlink{false};
+  bool readonly{false};
 };
 
 struct filesystem_options {

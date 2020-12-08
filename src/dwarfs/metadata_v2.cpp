@@ -95,6 +95,8 @@ void analyze_frozen(std::ostream& os,
   os << '\n';
 }
 
+const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -636,6 +638,10 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   }
 
   stbuf->st_mode = mode;
+
+  if (options_.readonly) {
+    stbuf->st_mode &= READ_ONLY_MASK;
+  }
 
   stbuf->st_size = S_ISDIR(mode) ? make_directory_view(entry).entry_count()
                                  : file_size(entry, mode);
