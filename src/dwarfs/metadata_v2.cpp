@@ -91,6 +91,7 @@ void analyze_frozen(std::ostream& os,
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();
   (*layout)->print(os, 0);
+  os << '\n';
 }
 
 } // namespace
