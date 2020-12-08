@@ -119,6 +119,13 @@ Most other options are concerned with compression tuning:
     reduce the size of the file system. You can pass either a unix time stamp
     or `now`.
 
+  * `--time-resolution=`*sec*|`sec`|`min`|`hour`|`day`:
+    Specify the resolution with which time stamps are stored. By default,
+    time stamps are stored with second resolution. You can specify "odd"
+    resolutions as well, e.g. something like 15 second resolution is
+    entirely possible. Moving from second to minute resolution, for example,
+    will save roughly 6 bits per file system entry in the metadata block.
+
   * `--keep-all-times`:
     As of release 0.3.0, by default, `mkdwarfs` will only save the contents of
     the `mtime` field in order to save metadata space. If you want to save

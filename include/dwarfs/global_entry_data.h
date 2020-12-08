@@ -93,6 +93,8 @@ class global_entry_data {
     }
   }
 
+  uint64_t get_time_offset(uint64_t time) const;
+
   std::unordered_map<uint16_t, uint16_t> uids_;
   std::unordered_map<uint16_t, uint16_t> gids_;
   std::unordered_map<uint16_t, uint16_t> modes_;

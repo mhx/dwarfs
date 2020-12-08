@@ -98,6 +98,13 @@ const std::map<std::string, file_order_mode> order_choices{
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA}};
 
+const std::map<std::string, uint32_t> time_resolutions{
+    {"sec", 1},
+    {"min", 60},
+    {"hour", 3600},
+    {"day", 86400},
+};
+
 } // namespace
 
 namespace dwarfs {
@@ -281,7 +288,8 @@ int mkdwarfs(int argc, char** argv) {
 
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_arg, compression,
-      schema_compression, metadata_compression, log_level, timestamp;
+      schema_compression, metadata_compression, log_level, timestamp,
+      time_resolution;
   size_t num_workers, max_scanner_workers;
   bool recompress = false, no_progress = false;
   unsigned level;
@@ -291,6 +299,10 @@ int mkdwarfs(int argc, char** argv) {
 
   auto order_desc =
       "file order (" + (from(order_choices) | get<0>() | unsplit(", ")) + ")";
+
+  auto resolution_desc = "time resolution in seconds or (" +
+                         (from(time_resolutions) | get<0>() | unsplit(", ")) +
+                         ")";
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -340,6 +352,9 @@ int mkdwarfs(int argc, char** argv) {
     ("keep-all-times",
         po::value<bool>(&options.keep_all_times)->zero_tokens(),
         "save atime and ctime in addition to mtime")
+    ("time-resolution",
+        po::value<std::string>(&time_resolution)->default_value("sec"),
+        resolution_desc.c_str())
     ("order",
         po::value<file_order_mode>(&options.file_order)
             ->default_value(file_order_mode::SIMILARITY, "similarity"),
@@ -539,6 +554,16 @@ int mkdwarfs(int argc, char** argv) {
   if (vm.count("set-time")) {
     options.timestamp = timestamp == "now" ? std::time(nullptr)
                                            : folly::to<uint64_t>(timestamp);
+  }
+
+  if (auto it = time_resolutions.find(time_resolution);
+      it != time_resolutions.end()) {
+    options.time_resolution_sec = it->second;
+  } else {
+    options.time_resolution_sec = folly::to<uint32_t>(time_resolution);
+    if (options.time_resolution_sec == 0) {
+      throw std::runtime_error("timestamp resolution cannot be 0");
+    }
   }
 
   log_proxy<debug_logger_policy> log(lgr);

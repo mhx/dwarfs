@@ -61,22 +61,27 @@ void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
   from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
 }
 
+uint64_t global_entry_data::get_time_offset(uint64_t time) const {
+  return (time - timestamp_base_) / options_.time_resolution_sec;
+}
+
 uint64_t global_entry_data::get_mtime_offset(uint64_t time) const {
-  return !options_.timestamp ? time - timestamp_base_ : UINT64_C(0);
+  return !options_.timestamp ? get_time_offset(time) : UINT64_C(0);
 }
 
 uint64_t global_entry_data::get_atime_offset(uint64_t time) const {
-  return !options_.timestamp && options_.keep_all_times ? time - timestamp_base_
+  return !options_.timestamp && options_.keep_all_times ? get_time_offset(time)
                                                         : UINT64_C(0);
 }
 
 uint64_t global_entry_data::get_ctime_offset(uint64_t time) const {
-  return !options_.timestamp && options_.keep_all_times ? time - timestamp_base_
+  return !options_.timestamp && options_.keep_all_times ? get_time_offset(time)
                                                         : UINT64_C(0);
 }
 
 uint64_t global_entry_data::get_timestamp_base() const {
-  return options_.timestamp ? *options_.timestamp : timestamp_base_;
+  return (options_.timestamp ? *options_.timestamp : timestamp_base_) /
+         options_.time_resolution_sec;
 }
 
 uint16_t global_entry_data::get_uid_index(uint16_t uid) const {

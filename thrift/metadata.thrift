@@ -89,6 +89,10 @@ struct entry {
 struct fs_options {
    // file system contains only mtime time stamps
    1: required bool   mtime_only,
+
+   // time base and offsets are stored with this resolution
+   // 1 = seconds, 60 = minutes, 3600 = hours, ...
+   2: optional UInt32 time_resolution_sec,
 }
 
 struct metadata {

@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <cerrno>
 #include <climits>
 #include <cstring>
@@ -626,6 +627,13 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   auto timebase = meta_.timestamp_base();
   auto inode = entry.inode();
   bool mtime_only = meta_.options() && meta_.options()->mtime_only();
+  uint32_t resolution = 1;
+  if (meta_.options()) {
+    if (auto res = meta_.options()->time_resolution_sec()) {
+      resolution = *res;
+      assert(resolution > 0);
+    }
+  }
 
   stbuf->st_mode = mode;
 
@@ -635,11 +643,11 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
   stbuf->st_uid = entry.getuid();
   stbuf->st_gid = entry.getgid();
-  stbuf->st_mtime = timebase + entry.mtime_offset();
-  stbuf->st_atime =
-      mtime_only ? stbuf->st_mtime : timebase + entry.atime_offset();
-  stbuf->st_ctime =
-      mtime_only ? stbuf->st_mtime : timebase + entry.ctime_offset();
+  stbuf->st_mtime = resolution * (timebase + entry.mtime_offset());
+  stbuf->st_atime = mtime_only ? stbuf->st_mtime
+                               : resolution * (timebase + entry.atime_offset());
+  stbuf->st_ctime = mtime_only ? stbuf->st_mtime
+                               : resolution * (timebase + entry.ctime_offset());
   stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
                         ? nlinks_.at(inode - chunk_index_offset_)
                         : 1;

@@ -562,6 +562,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;
+  if (options_.time_resolution_sec > 1) {
+    fsopts.time_resolution_sec_ref() = options_.time_resolution_sec;
+  }
 
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
