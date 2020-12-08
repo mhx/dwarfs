@@ -337,6 +337,9 @@ int mkdwarfs(int argc, char** argv) {
     ("set-time",
         po::value<std::string>(&timestamp),
         "set timestamp for whole file system (unixtime or 'now')")
+    ("keep-all-times",
+        po::value<bool>(&options.keep_all_times)->zero_tokens(),
+        "save atime and ctime in addition to mtime")
     ("order",
         po::value<file_order_mode>(&options.file_order)
             ->default_value(file_order_mode::SIMILARITY, "similarity"),

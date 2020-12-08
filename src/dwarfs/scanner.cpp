@@ -560,6 +560,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
 
+  thrift::metadata::fs_options fsopts;
+  fsopts.mtime_only = !options_.keep_all_times;
+
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
   mv2.modes = ge_data.get_modes();
@@ -568,6 +571,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.timestamp_base = ge_data.get_timestamp_base();
   mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;
+  mv2.options_ref() = fsopts;
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 

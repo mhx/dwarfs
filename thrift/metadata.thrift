@@ -86,6 +86,11 @@ struct entry {
    8: required UInt64 ctime_offset,
 }
 
+struct fs_options {
+   // file system contains only mtime time stamps
+   1: required bool   mtime_only,
+}
+
 struct metadata {
    /**
     * Ranges of chunks that make up regular files. Identical
@@ -169,6 +174,13 @@ struct metadata {
    // total file system size
   16: required UInt64          total_fs_size,
 
+  //=========================================================//
+  // fields added with dwarfs-0.3.0, file system version 2.1 //
+  //=========================================================//
+
    // device ids, for lookup by (inode - device_index_offset)
   17: optional list<UInt64>    devices,
+
+   // file system options
+  18: optional fs_options      options,
 }

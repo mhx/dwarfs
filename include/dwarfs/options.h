@@ -60,6 +60,7 @@ struct scanner_options {
   std::optional<uint16_t> uid;
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;
+  bool keep_all_times{false};
   bool remove_empty_dirs{false};
   inode_options inode;
 };

@@ -119,6 +119,11 @@ Most other options are concerned with compression tuning:
     reduce the size of the file system. You can pass either a unix time stamp
     or `now`.
 
+  * `--keep-all-times`:
+    As of release 0.3.0, by default, `mkdwarfs` will only save the contents of
+    the `mtime` field in order to save metadata space. If you want to save
+    `atime` and `ctime` as well, use this option.
+
   * `--order=none`|`path`|`similarity`|`nilsimsa`|`script`:
     The order in which files will be written to the filesystem. Choosing `none`,
     the files will be stored in the order in which they are discovered. With

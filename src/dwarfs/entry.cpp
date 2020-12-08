@@ -97,9 +97,9 @@ void entry::update(global_entry_data& data) const {
   data.add_uid(stat_.st_uid);
   data.add_gid(stat_.st_gid);
   data.add_mode(stat_.st_mode & 0xFFFF);
-  data.add_time(stat_.st_atime);
-  data.add_time(stat_.st_mtime);
-  data.add_time(stat_.st_ctime);
+  data.add_atime(stat_.st_atime);
+  data.add_mtime(stat_.st_mtime);
+  data.add_ctime(stat_.st_ctime);
 }
 
 void entry::pack(thrift::metadata::entry& entry_v2,
@@ -108,9 +108,9 @@ void entry::pack(thrift::metadata::entry& entry_v2,
   entry_v2.mode_index = data.get_mode_index(stat_.st_mode & 0xFFFF);
   entry_v2.owner_index = data.get_uid_index(stat_.st_uid);
   entry_v2.group_index = data.get_gid_index(stat_.st_gid);
-  entry_v2.atime_offset = data.get_time_offset(stat_.st_atime);
-  entry_v2.mtime_offset = data.get_time_offset(stat_.st_mtime);
-  entry_v2.ctime_offset = data.get_time_offset(stat_.st_ctime);
+  entry_v2.atime_offset = data.get_atime_offset(stat_.st_atime);
+  entry_v2.mtime_offset = data.get_mtime_offset(stat_.st_mtime);
+  entry_v2.ctime_offset = data.get_ctime_offset(stat_.st_ctime);
   entry_v2.inode = inode_num();
 }
 

@@ -33,6 +33,8 @@ struct scanner_options;
 
 class global_entry_data {
  public:
+  enum class timestamp_type { ATIME, MTIME, CTIME };
+
   global_entry_data(scanner_options const& options)
       : options_(options) {}
 
@@ -41,11 +43,9 @@ class global_entry_data {
 
   void add_mode(uint16_t mode) { add(mode, modes_, next_mode_index_); }
 
-  void add_time(uint64_t time) {
-    if (time < timestamp_base_) {
-      timestamp_base_ = time;
-    }
-  }
+  void add_mtime(uint64_t time);
+  void add_atime(uint64_t time);
+  void add_ctime(uint64_t time);
 
   void add_name(std::string const& name) { names_.emplace(name, 0); }
   void add_link(std::string const& link) { links_.emplace(link, 0); }
@@ -67,7 +67,9 @@ class global_entry_data {
     return links_.at(link);
   }
 
-  uint64_t get_time_offset(uint64_t time) const;
+  uint64_t get_mtime_offset(uint64_t time) const;
+  uint64_t get_atime_offset(uint64_t time) const;
+  uint64_t get_ctime_offset(uint64_t time) const;
 
   std::vector<uint16_t> get_uids() const;
   std::vector<uint16_t> get_gids() const;

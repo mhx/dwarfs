@@ -61,8 +61,18 @@ void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
   from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
 }
 
-uint64_t global_entry_data::get_time_offset(uint64_t time) const {
-  return options_.timestamp ? 0 : time - timestamp_base_;
+uint64_t global_entry_data::get_mtime_offset(uint64_t time) const {
+  return !options_.timestamp ? time - timestamp_base_ : UINT64_C(0);
+}
+
+uint64_t global_entry_data::get_atime_offset(uint64_t time) const {
+  return !options_.timestamp && options_.keep_all_times ? time - timestamp_base_
+                                                        : UINT64_C(0);
+}
+
+uint64_t global_entry_data::get_ctime_offset(uint64_t time) const {
+  return !options_.timestamp && options_.keep_all_times ? time - timestamp_base_
+                                                        : UINT64_C(0);
 }
 
 uint64_t global_entry_data::get_timestamp_base() const {
@@ -86,6 +96,24 @@ void global_entry_data::add_uid(uint16_t uid) {
 void global_entry_data::add_gid(uint16_t gid) {
   if (!options_.gid) {
     add(gid, gids_, next_gid_index_);
+  }
+}
+
+void global_entry_data::add_mtime(uint64_t time) {
+  if (time < timestamp_base_) {
+    timestamp_base_ = time;
+  }
+}
+
+void global_entry_data::add_atime(uint64_t time) {
+  if (options_.keep_all_times) {
+    add_mtime(time);
+  }
+}
+
+void global_entry_data::add_ctime(uint64_t time) {
+  if (options_.keep_all_times) {
+    add_mtime(time);
   }
 }
 
