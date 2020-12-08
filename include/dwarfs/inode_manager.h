@@ -66,4 +66,5 @@ class inode_manager {
  private:
   std::unique_ptr<impl> impl_;
 };
+
 } // namespace dwarfs
