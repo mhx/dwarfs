@@ -39,7 +39,7 @@ namespace po = boost::program_options;
 int dwarfsck(int argc, char** argv) {
   std::string log_level, input;
   int detail;
-  bool json;
+  bool json = false;
 
   // clang-format off
   po::options_description opts("Command line options");
