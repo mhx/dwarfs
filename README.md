@@ -18,6 +18,7 @@ A fast high compression read-only file system
    * [With SquashFS](#with-squashfs)
    * [With SquashFS &amp; xz](#with-squashfs--xz)
    * [With wimlib](#with-wimlib)
+   * [With Cromfs](#with-cromfs)
 
 ## Overview
 
@@ -865,3 +866,169 @@ However, it's really usable as a file system, even though it's about
     Summary
       'dwarfs' ran
         4.54 ± 0.73 times faster than 'wimlib'
+
+### With Cromfs
+
+I used [Cromfs](https://bisqwit.iki.fi/source/cromfs.html) in the past
+for compressed file systems and remember that it did a pretty good job
+in terms of compression ratio. But it was never fast. However, I didn't
+quite remember just *how* slow it was until I tried to set up a test.
+
+Here's a run on the Perl dataset, with the block size set to 16 MiB to
+match the default of DwarFS, and with additional options suggested to
+speed up compression:
+
+    $ time mkcromfs -f 16777216 -qq -e -r100000 install perl-install.cromfs
+    Writing perl-install.cromfs...
+    mkcromfs: Automatically enabling --24bitblocknums because it seems possible for this filesystem.
+    Root pseudo file is 108 bytes
+    Inotab spans 0x7f3a18259000..0x7f3a1bfffb9c
+    Root inode spans 0x7f3a205d2948..0x7f3a205d294c
+    Beginning task for Files and directories: Finding identical blocks
+    2163608 reuse opportunities found. 561362 unique blocks. Block table will be 79.4% smaller than without the index search.
+    Beginning task for Files and directories: Blockifying
+    Blockifying:  0.04% (140017/2724970) idx(siz=80423,del=0) rawin(20.97 MB)rawout(20.97 MB)diff(1956 bytes)
+    Termination signalled, cleaning up temporaries
+    
+    real    29m9.634s
+    user    201m37.816s
+    sys     2m15.005s
+
+So it processed 21 MiB out of 48 GiB in half an hour, using almost
+twice as much CPU resources as DwarFS for the *whole* file system.
+At this point I decided it's likely not worth waiting (presumably)
+another month (!) for `mkcromfs` to finish. I double checked that
+I didn't accidentally build a debugging version, `mkcromfs` was
+definitely built with `-O3`.
+
+I then tried once more with a smaller version of the Perl dataset.
+This only has 20 versions (instead of 1139) of Perl, and obviously
+a lot less redundancy:
+
+    $ time mkcromfs -f 16777216 -qq -e -r100000 install-small perl-install.cromfs
+    Writing perl-install.cromfs...
+    mkcromfs: Automatically enabling --16bitblocknums because it seems possible for this filesystem.
+    Root pseudo file is 108 bytes
+    Inotab spans 0x7f00e0774000..0x7f00e08410a8
+    Root inode spans 0x7f00b40048f8..0x7f00b40048fc
+    Beginning task for Files and directories: Finding identical blocks
+    25362 reuse opportunities found. 9815 unique blocks. Block table will be 72.1% smaller than without the index search.
+    Beginning task for Files and directories: Blockifying
+    Compressing raw rootdir inode (28 bytes)z=982370,del=2) rawin(641.56 MB)rawout(252.72 MB)diff(388.84 MB)
+     compressed into 35 bytes
+    INOTAB pseudo file is 839.85 kB
+    Inotab inode spans 0x7f00bc036ed8..0x7f00bc036ef4
+    Beginning task for INOTAB: Finding identical blocks
+    0 reuse opportunities found. 13 unique blocks. Block table will be 0.0% smaller than without the index search.
+    Beginning task for INOTAB: Blockifying
+    mkcromfs: Automatically enabling --packedblocks because it is possible for this filesystem.
+    Compressing raw inotab inode (52 bytes)
+     compressed into 58 bytes
+    Compressing 9828 block records (4 bytes each, total 39312 bytes)
+     compressed into 15890 bytes
+    Compressing and writing 16 fblocks...
+    
+    16 fblocks were written: 35.31 MB = 13.90 % of 254.01 MB
+    Filesystem size: 35.33 MB = 5.50 % of original 642.22 MB
+    End
+    
+    real    27m38.833s
+    user    277m36.208s
+    sys     11m36.945s
+
+And repeating the same task with `mkdwarfs`:
+
+    $ time mkdwarfs -i install-small -o perl-install-small.dwarfs
+    14:52:09.009618 scanning install-small
+    14:52:09.195087 waiting for background scanners...
+    14:52:09.612164 assigning directory and link inodes...
+    14:52:09.618281 finding duplicate files...
+    14:52:09.718756 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    14:52:09.718837 waiting for inode scanners...
+    14:52:09.926978 assigning device inodes...
+    14:52:09.927745 assigning pipe/socket inodes...
+    14:52:09.928211 building metadata...
+    14:52:09.928293 building blocks...
+    14:52:09.928302 saving names and links...
+    14:52:09.928382 ordering 3559 inodes by similarity...
+    14:52:09.930836 3559 inodes ordered [2.401ms]
+    14:52:09.930891 assigning file inodes...
+    14:52:09.933716 updating name and link indices...
+    14:52:27.051383 waiting for block compression to finish...
+    14:52:27.072944 saving chunks...
+    14:52:27.074108 saving directories...
+    14:52:27.154133 waiting for compression to finish...
+    14:52:40.508238 compressed 611.8 MiB to 25.76 MiB (ratio=0.0420963)
+    14:52:40.525452 filesystem created without errors [31.52s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    waiting for block compression to finish
+    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401 files
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 142.8 MiB
+    filesystem: 201.2 MiB in 13 blocks (9847 chunks, 3559/3559 inodes)
+    compressed filesystem: 13 blocks/25.76 MiB written
+    ██████████████████████████████████████████████████████████████████████▏100% |
+    
+    real    0m31.553s
+    user    3m21.854s
+    sys     0m3.726s
+
+So `mkdwarfs` is about 50 times faster than `mkcromfs` and uses 80 times
+less CPU resources. At the same time, the DwarFS file system is 25% smaller:
+
+    $ ls -l perl-install-small.*fs
+    -rw-r--r-- 1 mhx users 35328512 Dec  8 14:25 perl-install-small.cromfs
+    -rw-r--r-- 1 mhx users 27006735 Dec  8 14:52 perl-install-small.dwarfs
+
+I noticed that the `blockifying` step that took ages for the full dataset
+with `mkcromfs` ran substantially faster (in terms of MiB/second) on the
+smaller dataset, which makes me wonder if there's some quadratic complexity
+behaviour that's slowing down `mkcromfs`.
+
+In order to be completely fair, I also ran `mkdwarfs` with `-l 9` to enable
+LZMA compression (which is what `mkcromfs` uses by default):
+
+    $ time mkdwarfs -i install-small -o perl-install-small-l9.dwarfs -l 9
+    15:05:59.344501 scanning install-small
+    15:05:59.529269 waiting for background scanners...
+    15:05:59.933753 assigning directory and link inodes...
+    15:05:59.938668 finding duplicate files...
+    15:06:00.026974 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    15:06:00.027054 waiting for inode scanners...
+    15:06:00.240184 assigning device inodes...
+    15:06:00.241129 assigning pipe/socket inodes...
+    15:06:00.241723 building metadata...
+    15:06:00.241803 building blocks...
+    15:06:00.241840 saving names and links...
+    15:06:00.241992 ordering 3559 inodes by similarity...
+    15:06:00.246133 3559 inodes ordered [4.057ms]
+    15:06:00.246219 assigning file inodes...
+    15:06:00.248957 updating name and link indices...
+    15:06:19.132473 waiting for block compression to finish...
+    15:06:19.133229 saving chunks...
+    15:06:19.134430 saving directories...
+    15:06:19.192477 waiting for compression to finish...
+    15:06:33.125893 compressed 611.8 MiB to 21.06 MiB (ratio=0.0344202)
+    15:06:33.136930 filesystem created without errors [33.79s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    waiting for block compression to finish
+    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401 files
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 142.8 MiB
+    filesystem: 201.2 MiB in 13 blocks (9847 chunks, 3559/3559 inodes)
+    compressed filesystem: 13 blocks/21.06 MiB written
+    ██████████████████████████████████████████████████████████████████████▏100% \
+    
+    real    0m33.834s
+    user    3m56.922s
+    sys     0m4.328s
+
+    $ ls -l perl-install-small*.*fs
+    -rw-r--r-- 1 mhx users 22082143 Dec  8 15:06 perl-install-small-l9.dwarfs
+    -rw-r--r-- 1 mhx users 35328512 Dec  8 14:25 perl-install-small.cromfs
+    -rw-r--r-- 1 mhx users 26928161 Dec  8 15:05 perl-install-small.dwarfs
+
+It only takes 2 seconds longer to build the DwarFS file system with LZMA
+compression, but reduces the size even further to make it almost 40%
+smaller than the Cromfs file system.
+
+I would have added some benchmarks with the Cromfs FUSE driver, but sadly
+it crashed right upon trying to list the directory after mounting.
