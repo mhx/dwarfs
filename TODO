@@ -1,7 +1,7 @@
-- support hard links in mkdwarfs (and the fuse driver, but this is broken)
-- drop link_offset / inode_offset, as they can be inferred from a binary search over inode modes :-)
+- add --chmod, --chown
+- add some simple filter rules?
+- handle sparse files
 - try to be more resilient to modifications of the input while creating fs
-- support for device inodes?
 
 - dwarfsck:
   - show which entries a block references
@@ -22,7 +22,8 @@
 
 - per-file "hotness" (how often was a file opened); dump to file upon umount
 
-- nanofsextract? ---> --unpack
+- --unpack option
+
 - readahead?
 
 - remove multiple blockhash window sizes, one is enough apparently?
@@ -31,15 +32,9 @@
 
 - identify blocks that contain mostly binary data and adjust compressor?
 
-- get rid of glog dependency
-
-- get rid of passing by shared/unique ptr where possible
-
-- weak_ptr, e.g. in inode implementation?
-
-- --repack and --unpack option
-
 - metadata stripping (i.e. re-write metadata without owner/time info)
+
+- metadata repacking (e.g. just recompress/decompress the metadata block)
 
 
 /*
@@ -103,10 +98,6 @@ level=6:dict_size=21  921.9s  - 838.8 MiB  <----  5m11.219s / 37m36.002s
 
 */
 
-
-
-
-
 Perl:
 542 versions of perl
 found/scanned: 152809/152809 dirs, 0/0 links, 1325098/1325098 files
@@ -129,11 +120,6 @@ filesystem size: 7.183 GiB in 460 blocks (499389 chunks, 192066/192066 inodes), 
 
 -rw-r--r-- 1 mhx users 3.6G Jul 28 09:13 perl-install-defaults.squashfs  17:20
 -rw-r--r-- 1 mhx users 2.4G Jul 28 10:42 perl-install-opt.squashfs       71:49
-
-
-
-
-
 
 
 
