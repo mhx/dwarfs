@@ -442,7 +442,7 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 4) {
-    os << ::apache::thrift::debugString(meta_.thaw());
+    os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
   }
 }
 
