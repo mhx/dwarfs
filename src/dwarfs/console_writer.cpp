@@ -121,7 +121,8 @@ void console_writer::update(const progress& p, bool last) {
 
         << "scanned/found: " << p.dirs_scanned << "/" << p.dirs_found
         << " dirs, " << p.links_scanned << "/" << p.links_found << " links, "
-        << p.files_scanned << "/" << p.files_found << " files" << newline
+        << p.files_scanned << "/" << p.files_found << "(" << p.hardlinks
+        << ") files" << newline
 
         << "original size: " << size_with_unit(p.original_size)
         << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("

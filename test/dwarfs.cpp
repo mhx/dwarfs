@@ -136,6 +136,7 @@ class os_access_mock : public os_access {
     st->st_mtime = 234;
     st->st_ctime = 345;
     st->st_rdev = sst.st_rdev;
+    st->st_nlink = 1;
   }
 
   std::string readlink(const std::string& path, size_t size) const override {

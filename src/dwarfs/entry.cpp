@@ -144,7 +144,8 @@ uint64_t entry::get_ctime() const { return stat_.st_ctime; }
 void entry::set_ctime(uint64_t ctime) { stat_.st_atime = ctime; }
 
 std::string_view file::hash() const {
-  return std::string_view(&hash_[0], hash_.size());
+  auto& h = data_->hash;
+  return std::string_view(&h[0], h.size());
 }
 
 void file::set_inode(std::shared_ptr<inode> ino) {
@@ -162,16 +163,35 @@ uint32_t file::inode_num() const { return inode_->num(); }
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access& os, progress& prog) {
-  static_assert(SHA_DIGEST_LENGTH == sizeof(hash_type));
+  static_assert(SHA_DIGEST_LENGTH == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
     prog.original_size += s;
     auto mm = os.map_file(path(), s);
     ::SHA1(mm->as<unsigned char>(), s,
-           reinterpret_cast<unsigned char*>(&hash_[0]));
+           reinterpret_cast<unsigned char*>(&data_->hash[0]));
   } else {
-    ::SHA1(nullptr, 0, reinterpret_cast<unsigned char*>(&hash_[0]));
+    ::SHA1(nullptr, 0, reinterpret_cast<unsigned char*>(&data_->hash[0]));
   }
+}
+
+uint64_t file::raw_inode_num() const { return status().st_ino; }
+
+unsigned file::num_hard_links() const { return status().st_nlink; }
+
+void file::create_data() {
+  assert(!data_);
+  data_ = std::make_shared<data>();
+}
+
+void file::hardlink(file* other, progress& prog) {
+  assert(!data_);
+  assert(other->data_);
+  if (size_t s = size(); s > 0) {
+    prog.original_size += s;
+    prog.hardlink_size += s;
+  }
+  data_ = other->data_;
 }
 
 entry::type_t dir::type() const { return E_DIR; }

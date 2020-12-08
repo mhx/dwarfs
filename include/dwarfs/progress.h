@@ -62,12 +62,14 @@ class progress {
   std::atomic<size_t> links_scanned{0};
   std::atomic<size_t> specials_found{0};
   std::atomic<size_t> duplicate_files{0};
+  std::atomic<size_t> hardlinks{0};
   std::atomic<size_t> block_count{0};
   std::atomic<size_t> chunk_count{0};
   std::atomic<size_t> inodes_written{0};
   std::atomic<size_t> blocks_written{0};
   std::atomic<size_t> errors{0};
   std::atomic<uint64_t> original_size{0};
+  std::atomic<uint64_t> hardlink_size{0};
   std::atomic<uint64_t> saved_by_deduplication{0};
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};

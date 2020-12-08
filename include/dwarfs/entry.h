@@ -119,11 +119,18 @@ class file : public entry {
   void accept(entry_visitor& v, bool preorder) override;
   uint32_t inode_num() const override;
   void scan(os_access& os, progress& prog) override;
+  void create_data();
+  void hardlink(file* other, progress& prog);
+  uint64_t raw_inode_num() const;
+  unsigned num_hard_links() const;
 
  private:
-  using hash_type = std::array<char, 20>;
+  struct data {
+    using hash_type = std::array<char, 20>;
+    hash_type hash{0};
+  };
 
-  hash_type hash_{0};
+  std::shared_ptr<data> data_;
   std::shared_ptr<inode> inode_;
 };
 

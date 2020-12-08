@@ -76,8 +76,21 @@ class scan_files_visitor : public visitor_base {
       , os_(os)
       , prog_(prog) {}
 
-  // TODO: avoid scanning hardlinks multiple times
   void visit(file* p) override {
+    if (p->num_hard_links() > 1) {
+      auto ino = p->raw_inode_num();
+      auto [it, is_new] = cache_.emplace(ino, p);
+
+      if (!is_new) {
+        p->hardlink(it->second, prog_);
+        prog_.files_scanned++;
+        prog_.hardlinks++;
+        return;
+      }
+    }
+
+    p->create_data();
+
     wg_.add_job([=] {
       prog_.current.store(p);
       p->scan(os_, prog_);
@@ -89,6 +102,7 @@ class scan_files_visitor : public visitor_base {
   worker_group& wg_;
   os_access& os_;
   progress& prog_;
+  std::unordered_map<uint64_t, file*> cache_;
 };
 
 class file_deduplication_visitor : public visitor_base {
