@@ -62,6 +62,8 @@ struct scanner_options {
   std::optional<uint64_t> timestamp;
   bool keep_all_times{false};
   bool remove_empty_dirs{false};
+  bool with_devices{false};
+  bool with_specials{false};
   uint32_t time_resolution_sec{1};
   inode_options inode;
 };

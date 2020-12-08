@@ -173,6 +173,21 @@ Most other options are concerned with compression tuning:
     If you use a larger value for this option, the increments become *smaller*,
     and `mkdwarfs` will be slower and use more memory.
 
+  * `--remove-empty-dirs`:
+    Removes all empty directories from the output file system, recursively.
+    This is particularly useful when using scripts that filter out a lot of
+    file system entries.
+
+  * `--with-devices`:
+    Include character and block devices in the output file system. These are
+    not included by default, and due to security measures in FUSE, they will
+    never work in the mounted file system. However, they can still be copied
+    out of the mounted file system, for example using `rsync`.
+
+  * `--with-specials`:
+    Include named fifos and sockets in the output file system. These are not
+    included by default.
+
   * `--log-level=`*name*:
     Specifiy a logging level.
 

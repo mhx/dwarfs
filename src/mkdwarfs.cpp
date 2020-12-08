@@ -374,6 +374,12 @@ int mkdwarfs(int argc, char** argv) {
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
+    ("with-devices",
+        po::value<bool>(&options.with_devices)->zero_tokens(),
+        "include block and character devices")
+    ("with-specials",
+        po::value<bool>(&options.with_specials)->zero_tokens(),
+        "include named fifo and sockets")
     ("log-level",
         po::value<std::string>(&log_level)->default_value("info"),
         "log level (error, warn, info, debug, trace)")

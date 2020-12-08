@@ -190,9 +190,9 @@ using namespace dwarfs;
 
 namespace {
 
-void basic_end_to_end_test(const std::string& compressor,
-                           unsigned block_size_bits,
-                           file_order_mode file_order) {
+void basic_end_to_end_test(std::string const& compressor,
+                           unsigned block_size_bits, file_order_mode file_order,
+                           bool with_devices, bool with_specials) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -200,6 +200,8 @@ void basic_end_to_end_test(const std::string& compressor,
   cfg.block_size_bits = block_size_bits;
 
   options.file_order = file_order;
+  options.with_devices = with_devices;
+  options.with_specials = with_specials;
   options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;
   options.inode.with_nilsimsa = file_order == file_order_mode::NILSIMSA;
 
@@ -272,33 +274,45 @@ void basic_end_to_end_test(const std::string& compressor,
 
   entry = fs.find("/somedir/pipe");
 
-  ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 0);
-  EXPECT_EQ(st.st_uid, 1000);
-  EXPECT_EQ(st.st_gid, 100);
-  EXPECT_TRUE(S_ISFIFO(st.st_mode));
-  EXPECT_EQ(st.st_rdev, 0);
+  if (with_specials) {
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    EXPECT_EQ(st.st_size, 0);
+    EXPECT_EQ(st.st_uid, 1000);
+    EXPECT_EQ(st.st_gid, 100);
+    EXPECT_TRUE(S_ISFIFO(st.st_mode));
+    EXPECT_EQ(st.st_rdev, 0);
+  } else {
+    EXPECT_FALSE(entry);
+  }
 
   entry = fs.find("/somedir/null");
 
-  ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 0);
-  EXPECT_EQ(st.st_uid, 0);
-  EXPECT_EQ(st.st_gid, 0);
-  EXPECT_TRUE(S_ISCHR(st.st_mode));
-  EXPECT_EQ(st.st_rdev, 259);
+  if (with_devices) {
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    EXPECT_EQ(st.st_size, 0);
+    EXPECT_EQ(st.st_uid, 0);
+    EXPECT_EQ(st.st_gid, 0);
+    EXPECT_TRUE(S_ISCHR(st.st_mode));
+    EXPECT_EQ(st.st_rdev, 259);
+  } else {
+    EXPECT_FALSE(entry);
+  }
 
   entry = fs.find("/somedir/zero");
 
-  ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 0);
-  EXPECT_EQ(st.st_uid, 0);
-  EXPECT_EQ(st.st_gid, 0);
-  EXPECT_TRUE(S_ISCHR(st.st_mode));
-  EXPECT_EQ(st.st_rdev, 261);
+  if (with_devices) {
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    EXPECT_EQ(st.st_size, 0);
+    EXPECT_EQ(st.st_uid, 0);
+    EXPECT_EQ(st.st_gid, 0);
+    EXPECT_TRUE(S_ISCHR(st.st_mode));
+    EXPECT_EQ(st.st_rdev, 261);
+  } else {
+    EXPECT_FALSE(entry);
+  }
 }
 
 std::vector<std::string> const compressions{"null",
@@ -315,18 +329,33 @@ std::vector<std::string> const compressions{"null",
 
 } // namespace
 
-class basic : public testing::TestWithParam<
-                  std::tuple<std::string, unsigned, file_order_mode>> {};
+class compression_test
+    : public testing::TestWithParam<
+          std::tuple<std::string, unsigned, file_order_mode>> {};
 
-TEST_P(basic, end_to_end) {
-  basic_end_to_end_test(std::get<0>(GetParam()), std::get<1>(GetParam()),
-                        std::get<2>(GetParam()));
+class scanner_test : public testing::TestWithParam<std::tuple<bool, bool>> {};
+
+TEST_P(compression_test, end_to_end) {
+  auto [compressor, block_size_bits, file_order] = GetParam();
+
+  basic_end_to_end_test(compressor, block_size_bits, file_order, true, true);
+}
+
+TEST_P(scanner_test, end_to_end) {
+  auto [with_devices, with_specials] = GetParam();
+
+  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
+                        with_devices, with_specials);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    dwarfs, basic,
+    dwarfs, compression_test,
     ::testing::Combine(
         ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
         ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
                           file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
                           file_order_mode::SIMILARITY)));
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, scanner_test,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()));

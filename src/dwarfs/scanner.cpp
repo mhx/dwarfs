@@ -373,10 +373,29 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
           }
 
           if (pe) {
-            if (pe->type() == entry::E_FILE && os_->access(pe->path(), R_OK)) {
-              log_.error() << "cannot access: " << pe->path();
-              prog.errors++;
-              continue;
+            switch (pe->type()) {
+            case entry::E_FILE:
+              if (os_->access(pe->path(), R_OK)) {
+                log_.error() << "cannot access: " << pe->path();
+                prog.errors++;
+                continue;
+              }
+              break;
+
+            case entry::E_DEVICE:
+              if (!options_.with_devices) {
+                continue;
+              }
+              break;
+
+            case entry::E_OTHER:
+              if (!options_.with_specials) {
+                continue;
+              }
+              break;
+
+            default:
+              break;
             }
 
             parent->add(pe);
