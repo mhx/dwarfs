@@ -119,10 +119,9 @@ void console_writer::update(const progress& p, bool last) {
   case NORMAL:
     oss << p.status(width_) << newline
 
-        << "scanned/found: " << p.dirs_scanned << "/" << p.dirs_found
-        << " dirs, " << p.links_scanned << "/" << p.links_found << " links, "
-        << p.files_scanned << "/" << p.files_found << "(" << p.hardlinks
-        << ") files" << newline
+        << p.dirs_scanned << " dirs, " << p.links_scanned << "/" << p.hardlinks
+        << " soft/hard links, " << p.files_scanned << "/" << p.files_found
+        << " files, " << p.specials_found << " other" << newline
 
         << "original size: " << size_with_unit(p.original_size)
         << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
@@ -132,8 +131,8 @@ void console_writer::update(const progress& p, bool last) {
 
         << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
         << p.block_count << " blocks (" << p.chunk_count << " chunks, "
-        << p.inodes_written << "/" << p.files_found - p.duplicate_files
-        << " inodes)" << newline
+        << (p.inodes_written > 0 ? p.inodes_written : p.inodes_scanned) << "/"
+        << p.files_found - p.duplicate_files << " inodes)" << newline
 
         << "compressed filesystem: " << p.blocks_written << " blocks/"
         << size_with_unit(p.compressed_size) << " written" << newline;

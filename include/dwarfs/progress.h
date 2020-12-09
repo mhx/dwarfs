@@ -65,6 +65,7 @@ class progress {
   std::atomic<size_t> hardlinks{0};
   std::atomic<size_t> block_count{0};
   std::atomic<size_t> chunk_count{0};
+  std::atomic<size_t> inodes_scanned{0};
   std::atomic<size_t> inodes_written{0};
   std::atomic<size_t> blocks_written{0};
   std::atomic<size_t> errors{0};

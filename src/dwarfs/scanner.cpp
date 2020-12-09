@@ -134,7 +134,11 @@ class file_deduplication_visitor : public visitor_base {
       inode->set_files(std::move(files));
 
       if (ino_opts.needs_scan()) {
-        wg.add_job([&, inode] { inode->scan(os, ino_opts); });
+        wg.add_job([&, inode] {
+          prog.current = inode->any();
+          inode->scan(os, ino_opts);
+          ++prog.inodes_scanned;
+        });
       }
     }
   }
@@ -537,14 +541,20 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   log_.info() << "building blocks...";
   block_manager bm(lgr_, prog, cfg_, os_, fsw);
 
+  worker_group blockify("blockify");
+
   im.order_inodes(script_, options_.file_order, first_file_inode,
                   [&](std::shared_ptr<inode> const& ino) {
-                    prog.current.store(ino.get());
-                    bm.add_inode(ino);
-                    prog.inodes_written++;
+                    blockify.add_job([&] {
+                      prog.current.store(ino.get());
+                      bm.add_inode(ino);
+                      prog.inodes_written++;
+                    });
                   });
 
   log_.info() << "waiting for block compression to finish...";
+
+  blockify.wait();
 
   bm.finish_blocks();
   wg_.wait();

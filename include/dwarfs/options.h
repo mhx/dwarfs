@@ -65,8 +65,8 @@ enum class file_order_mode {
 
 struct file_order_options {
   file_order_mode mode{file_order_mode::NONE};
-  int nilsimsa_depth{10000};
-  int nilsimsa_limit{250};
+  int nilsimsa_depth{25000};
+  int nilsimsa_limit{255};
 };
 
 struct scanner_options {
