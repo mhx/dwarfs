@@ -211,6 +211,9 @@ class inode_manager_ : public inode_manager::impl {
         });
   }
 
+  void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
+                     std::vector<uint32_t>& index);
+
   void
   order_inodes_by_nilsimsa(inode_manager::inode_cb const& fn, uint32_t inode_no,
                            file_order_options const& file_order);
@@ -277,6 +280,47 @@ void inode_manager_<LoggerPolicy>::order_inodes(
 }
 
 template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::presort_index(
+    std::vector<std::shared_ptr<inode>>& inodes, std::vector<uint32_t>& index) {
+  auto ti = log_.timed_info();
+  size_t num_name = 0;
+  size_t num_path = 0;
+
+  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+    auto const& ia = *inodes[a];
+    auto const& ib = *inodes[b];
+    auto sa = ia.size();
+    auto sb = ib.size();
+
+    if (sa < sb) {
+      return true;
+    } else if (sa > sb) {
+      return false;
+    }
+
+    ++num_name;
+
+    auto fa = ia.any();
+    auto fb = ib.any();
+    auto& na = fa->name();
+    auto& nb = fb->name();
+
+    if (na < nb) {
+      return true;
+    } else if (na > nb) {
+      return false;
+    }
+
+    ++num_path;
+
+    return fa->path() < fb->path();
+  });
+
+  ti << "pre-sorted index (" << num_name << " name, " << num_path
+     << " path lookups)";
+}
+
+template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
     inode_manager::inode_cb const& fn, uint32_t inode_no,
     file_order_options const& file_order) {
@@ -310,36 +354,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
 
     log_.info() << "nilsimsa: depth=" << depth << ", limit=" << limit;
 
-    {
-      auto ti = log_.timed_info();
-      size_t num_name = 0;
-      size_t num_path = 0;
-
-      std::sort(index.begin(), index.end(), [&](auto a, auto b) {
-        auto const& ia = *inodes[a];
-        auto const& ib = *inodes[b];
-        auto sa = ia.size();
-        auto sb = ib.size();
-        if (sa < sb) {
-          return true;
-        } else if (sa > sb) {
-          return false;
-        }
-        ++num_name;
-        auto fa = ia.any();
-        auto fb = ib.any();
-        if (fa->name() < fb->name()) {
-          return true;
-        } else if (fa->name() > fb->name()) {
-          return false;
-        }
-        ++num_path;
-        return fa->path() < fb->path();
-      });
-
-      ti << "pre-sorted index (" << num_name << " name, " << num_path
-         << " path lookups)";
-    }
+    presort_index(inodes, index);
 
     finalize_inode();
 
