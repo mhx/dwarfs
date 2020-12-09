@@ -175,6 +175,7 @@ struct level_defaults {
   char const* schema_compression;
   char const* metadata_compression;
   char const* window_sizes;
+  char const* order;
 };
 
 #if defined(DWARFS_HAVE_LIBLZ4)
@@ -252,16 +253,18 @@ struct level_defaults {
 #endif
 
 constexpr std::array<level_defaults, 10> levels{{
-    /* 0 */ {20, "null", "null", "null", "-"},
-    /* 1 */ {20, ALG_DATA_LEVEL1, ALG_SCHEMA, "null", "-"},
-    /* 2 */ {20, ALG_DATA_LEVEL2, ALG_SCHEMA, "null", "-"},
-    /* 3 */ {20, ALG_DATA_LEVEL3, ALG_SCHEMA, "null", "13"},
-    /* 4 */ {21, ALG_DATA_LEVEL4, ALG_SCHEMA, "null", "11"},
-    /* 5 */ {22, ALG_DATA_LEVEL5, ALG_SCHEMA, "null", "11"},
-    /* 6 */ {23, ALG_DATA_LEVEL6, ALG_SCHEMA, "null", "15,11"},
-    /* 7 */ {24, ALG_DATA_LEVEL7, ALG_SCHEMA, "null", "17,15,13,11"},
-    /* 8 */ {24, ALG_DATA_LEVEL8, ALG_SCHEMA, ALG_METADATA, "17,15,13,11"},
-    /* 9 */ {24, ALG_DATA_LEVEL9, ALG_SCHEMA, ALG_METADATA, "17,15,13,11"},
+    // clang-format off
+    /* 0 */ {20, "null",          "null"    , "null",       "-",           "none"},
+    /* 1 */ {20, ALG_DATA_LEVEL1, ALG_SCHEMA, "null",       "-",           "path"},
+    /* 2 */ {20, ALG_DATA_LEVEL2, ALG_SCHEMA, "null",       "-",           "path"},
+    /* 3 */ {20, ALG_DATA_LEVEL3, ALG_SCHEMA, "null",       "13",          "similarity"},
+    /* 4 */ {21, ALG_DATA_LEVEL4, ALG_SCHEMA, "null",       "11",          "similarity"},
+    /* 5 */ {22, ALG_DATA_LEVEL5, ALG_SCHEMA, "null",       "11",          "similarity"},
+    /* 6 */ {23, ALG_DATA_LEVEL6, ALG_SCHEMA, "null",       "15,11",       "nilsimsa:250:10000"},
+    /* 7 */ {24, ALG_DATA_LEVEL7, ALG_SCHEMA, "null",       "17,15,13,11", "nilsimsa"},
+    /* 8 */ {24, ALG_DATA_LEVEL8, ALG_SCHEMA, ALG_METADATA, "17,15,13,11", "nilsimsa"},
+    /* 9 */ {24, ALG_DATA_LEVEL9, ALG_SCHEMA, ALG_METADATA, "17,15,13,11", "nilsimsa"},
+    // clang-format on
 }};
 
 constexpr unsigned default_level = 7;
@@ -283,7 +286,7 @@ int mkdwarfs(int argc, char** argv) {
   scanner_options options;
 
   auto order_desc =
-      "file order (" + (from(order_choices) | get<0>() | unsplit(", ")) + ")";
+      "inode order (" + (from(order_choices) | get<0>() | unsplit(", ")) + ")";
 
   auto resolution_desc = "time resolution in seconds or (" +
                          (from(time_resolutions) | get<0>() | unsplit(", ")) +
@@ -341,8 +344,7 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&time_resolution)->default_value("sec"),
         resolution_desc.c_str())
     ("order",
-        po::value<std::string>(&order)
-            ->default_value("similarity"),
+        po::value<std::string>(&order),
         order_desc.c_str())
 #ifdef DWARFS_HAVE_PYTHON
     ("script",
@@ -390,33 +392,36 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
-    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_ws = 0;
+    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_ws = 0, l_or = 0;
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, ::strlen(l.data_compression));
       l_sc = std::max(l_sc, ::strlen(l.schema_compression));
       l_mc = std::max(l_mc, ::strlen(l.metadata_compression));
       l_ws = std::max(l_ws, ::strlen(l.window_sizes));
+      l_or = std::max(l_or, ::strlen(l.order));
     }
 
-    std::string sep(21 + l_dc + l_sc + l_mc + l_ws, '-');
+    std::string sep(22 + l_dc + l_sc + l_mc + l_ws + l_or, '-');
 
     std::cout << "mkdwarfs (" << DWARFS_VERSION << ")\n" << opts << std::endl;
     std::cout << "Compression level defaults:\n"
               << "  " << sep << "\n"
-              << fmt::format("  Level  Block  {:{}s}  Window Sizes\n",
-                             "Compression Algorithm", 4 + l_dc + l_sc + l_mc)
-              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}\n",
+              << fmt::format("  Level  Block  {:{}s}  {:{}s}  Inode Order\n",
+                             "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
+                             "Window", l_ws)
+              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}  {:{}s}\n",
                              "Block Data", l_dc, "Schema", l_sc, "Metadata",
-                             l_mc)
+                             l_mc, "Sizes", l_ws)
               << "  " << sep << std::endl;
 
     int level = 0;
     for (auto const& l : levels) {
-      std::cout << fmt::format(
-                       "  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  {:{}s}",
-                       level, l.block_size_bits, l.data_compression, l_dc,
-                       l.schema_compression, l_sc, l.metadata_compression, l_mc,
-                       l.window_sizes, l_ws)
+      std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  "
+                               "{:{}s}  {:{}s}",
+                               level, l.block_size_bits, l.data_compression,
+                               l_dc, l.schema_compression, l_sc,
+                               l.metadata_compression, l_mc, l.window_sizes,
+                               l_ws, l.order, l_or)
                 << std::endl;
       ++level;
     }
@@ -475,6 +480,10 @@ int mkdwarfs(int argc, char** argv) {
     window_sizes = defaults.window_sizes;
   }
 
+  if (!vm.count("order")) {
+    order = defaults.order;
+  }
+
   std::vector<std::string> order_opts;
   boost::split(order_opts, order, boost::is_any_of(":"));
   if (auto it = order_choices.find(order_opts.front());
@@ -483,12 +492,12 @@ int mkdwarfs(int argc, char** argv) {
     if (order_opts.size() > 1) {
       if (options.file_order.mode != file_order_mode::NILSIMSA) {
         throw std::runtime_error(
-            fmt::format("file order mode '{}' does not support options",
+            fmt::format("inode order mode '{}' does not support options",
                         order_opts.front()));
       }
       if (order_opts.size() > 3) {
         throw std::runtime_error(fmt::format(
-            "too many options for file order mode '{}'", order_opts.front()));
+            "too many options for inode order mode '{}'", order_opts.front()));
       }
       options.file_order.nilsimsa_limit = folly::to<int>(order_opts[1]);
       if (options.file_order.nilsimsa_limit < 0 ||
@@ -506,7 +515,7 @@ int mkdwarfs(int argc, char** argv) {
       }
     }
   } else {
-    throw std::runtime_error("invalid file order mode: " + order);
+    throw std::runtime_error("invalid inode order mode: " + order);
   }
 
   size_t mem_limit = parse_size_with_unit(memory_limit);

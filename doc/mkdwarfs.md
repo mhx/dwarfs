@@ -131,18 +131,23 @@ Most other options are concerned with compression tuning:
     the `mtime` field in order to save metadata space. If you want to save
     `atime` and `ctime` as well, use this option.
 
-  * `--order=none`|`path`|`similarity`|`nilsimsa`|`script`:
-    The order in which files will be written to the filesystem. Choosing `none`,
-    the files will be stored in the order in which they are discovered. With
-    `path`, they will be sorted asciibetically by path name. With `similarity`,
-    they will be ordered using a simple, yet fast and efficient, similarity
-    hash function. This is the default, as it will cause similar files to be
-    located close to each other, which means compression will be better.
-    `nilsimsa` ordering uses a different similarity function that is *likely*
-    even better than `similarity`, but is comparatively slow to compute. It
-    *can* be very slow, though it shouldn't be for typical inputs. YMMV.
-    Last but not least, if scripting support is built into `mkdwarfs`, you
-    can choose `script` to let the script determine the order.
+  * `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*]]|`script`:
+    The order in which inodes will be written to the file system. Choosing `none`,
+    the inodes will be stored in the order in which they are discovered. With
+    `path`, they will be sorted asciibetically by path name of the first file
+    representing this inode. With `similarity`, they will be ordered using a
+    simple, yet fast and efficient, similarity hash function. `nilsimsa` ordering
+    uses a more sophisticated similarity function that is typically better than
+    `similarity`, but is significantly slower to compute. However, computation
+    can happen in the background while already building the file system.
+    `nilsimsa` ordering can be further tweaked by specifying a *limit* and
+    *depth*. The *limit* determines how soon an inode is considered similar
+    enough for adding. A *limit* of 255 means "essentially identical", whereas
+    a *limit* of 0 means "not similar at all". The *depth* determines up to
+    how many inodes can be checked at most while searching for a similar one.
+    The default if you omit these values is a *limit* of 255 and a *depth*
+    of 25000. Last but not least, if scripting support is built into `mkdwarfs`,
+    you can choose `script` to let the script determine the order.
 
   * `--blockhash-window-sizes=`*value*[,*value*]...:
     Window sizes used for block hashing. These sizes, separated by commas,
