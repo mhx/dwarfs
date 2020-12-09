@@ -552,7 +552,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                     });
                   });
 
-  log_.info() << "waiting for block compression to finish...";
+  log_.info() << "waiting for segmenting/blockifying to finish...";
 
   blockify.wait();
 
