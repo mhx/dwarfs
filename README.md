@@ -137,22 +137,24 @@ A good starting point for apt-based systems is probably:
         ronn \
         pkg-config \
         binutils-dev \
-        libboost-all-dev \
+        libboost-context-dev \
+        libboost-filesystem-dev \
+        libboost-program-options-dev \
+        libboost-python-dev \
+        libboost-regex-dev \
+        libboost-system-dev \
+        libboost-thread-dev \
         libevent-dev \
         libdouble-conversion-dev \
-        libgoogle-glog-dev \
-        libgflags-dev \
         libiberty-dev \
         liblz4-dev \
         liblzma-dev \
-        libzstd-dev \
-        libsnappy-dev \
         libssl-dev \
         libunwind-dev \
         libfmt-dev \
         libfuse3-dev \
-        libsparsehash-dev \
-        zlib1g-dev
+        libgoogle-glog-dev \
+        libsparsehash-dev
 
 You can pick either `clang` or `g++`, but at least recent `clang`
 versions will produce substantially faster code:
