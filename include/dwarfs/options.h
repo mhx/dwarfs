@@ -59,8 +59,7 @@ enum class file_order_mode {
   PATH,
   SCRIPT,
   SIMILARITY,
-  NILSIMSA,
-  NILSIMSA2
+  NILSIMSA
 };
 
 struct file_order_options {

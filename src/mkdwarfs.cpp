@@ -95,8 +95,7 @@ const std::map<std::string, file_order_mode> order_choices{
     {"script", file_order_mode::SCRIPT},
 #endif
     {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA},
-    {"nilsimsa2", file_order_mode::NILSIMSA2}};
+    {"nilsimsa", file_order_mode::NILSIMSA}};
 
 const std::map<std::string, uint32_t> time_resolutions{
     {"sec", 1},
@@ -482,7 +481,7 @@ int mkdwarfs(int argc, char** argv) {
       it != order_choices.end()) {
     options.file_order.mode = it->second;
     if (order_opts.size() > 1) {
-      if (options.file_order.mode != file_order_mode::NILSIMSA2) {
+      if (options.file_order.mode != file_order_mode::NILSIMSA) {
         throw std::runtime_error(
             fmt::format("file order mode '{}' does not support options",
                         order_opts.front()));
@@ -614,8 +613,7 @@ int mkdwarfs(int argc, char** argv) {
         force_similarity ||
         options.file_order.mode == file_order_mode::SIMILARITY;
     options.inode.with_nilsimsa =
-        options.file_order.mode == file_order_mode::NILSIMSA ||
-        options.file_order.mode == file_order_mode::NILSIMSA2;
+        options.file_order.mode == file_order_mode::NILSIMSA;
 
     scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
               std::make_shared<os_access_posix>(), std::move(script), options);
