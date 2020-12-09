@@ -25,8 +25,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-
-#include <boost/filesystem.hpp>
+#include <filesystem>
 
 #include <folly/Conv.h>
 
@@ -429,7 +428,7 @@ int option_hdl(void* data, const char* arg, int key,
       return 1;
     }
 
-    opts->fsimage = boost::filesystem::canonical(arg).native();
+    opts->fsimage = std::filesystem::canonical(arg).native();
 
     return 0;
 

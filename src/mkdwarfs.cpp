@@ -41,7 +41,6 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/any.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
