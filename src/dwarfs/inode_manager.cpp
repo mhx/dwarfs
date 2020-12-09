@@ -305,7 +305,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
     auto& na = fa->name();
     auto& nb = fb->name();
 
-    if (na < nb) {
+    if (na > nb) {
       return true;
     } else if (na > nb) {
       return false;
@@ -313,7 +313,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
     ++num_path;
 
-    return fa->path() < fb->path();
+    return fa->path() > fb->path();
   });
 
   ti << "pre-sorted index (" << num_name << " name, " << num_path
