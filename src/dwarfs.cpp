@@ -28,6 +28,7 @@
 #include <filesystem>
 
 #include <folly/Conv.h>
+#include <folly/experimental/symbolizer/SignalHandler.h>
 
 #include <fuse3/fuse_lowlevel.h>
 
@@ -447,6 +448,10 @@ int run_fuse(struct fuse_args& args) {
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
     usage(s_opts.progname);
+  }
+
+  if (fuse_opts.foreground) {
+    folly::symbolizer::installFatalSignalHandler();
   }
 
   struct fuse_lowlevel_ops fsops;

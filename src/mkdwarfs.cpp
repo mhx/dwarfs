@@ -45,6 +45,7 @@
 
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
+#include <folly/experimental/symbolizer/SignalHandler.h>
 #include <folly/gen/String.h>
 
 #include <fmt/format.h>
@@ -624,6 +625,7 @@ int mkdwarfs(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   try {
+    folly::symbolizer::installFatalSignalHandler();
     return mkdwarfs(argc, argv);
   } catch (std::exception const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
