@@ -445,12 +445,36 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(
 
     log_.info() << "nilsimsa: depth=" << depth << ", limit=" << limit;
 
-    std::sort(index.begin(), index.end(), [&](auto a, auto b) {
-      auto const& ia = *inodes[a];
-      auto const& ib = *inodes[b];
-      return (ia.size() < ib.size() ||
-              (ia.size() == ib.size() && ia.any()->path() < ib.any()->path()));
-    });
+    {
+      auto ti = log_.timed_info();
+      size_t num_name = 0;
+      size_t num_path = 0;
+
+      std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+        auto const& ia = *inodes[a];
+        auto const& ib = *inodes[b];
+        auto sa = ia.size();
+        auto sb = ib.size();
+        if (sa < sb) {
+          return true;
+        } else if (sa > sb) {
+          return false;
+        }
+        ++num_name;
+        auto fa = ia.any();
+        auto fb = ib.any();
+        if (fa->name() < fb->name()) {
+          return true;
+        } else if (fa->name() > fb->name()) {
+          return false;
+        }
+        ++num_path;
+        return fa->path() < fb->path();
+      });
+
+      ti << "pre-sorted index (" << num_name << " name, " << num_path
+         << " path lookups)";
+    }
 
     finalize_inode();
 
