@@ -182,28 +182,28 @@ versions will produce substantially faster code:
         1.42 ± 0.01 times faster than './dwarfs_test-gcc-O3'
         1.48 ± 0.01 times faster than './dwarfs_test-gcc-O2'
 
-    $ hyperfine -L prog $(echo ./mkdwarfs-* | tr ' ' ,) '{prog} --no-progress --log-level warn -i tree -o /dev/null -C null'
-    Benchmark #1: ./mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
+    $ hyperfine -L prog $(echo mkdwarfs-* | tr ' ' ,) '{prog} --no-progress --log-level warn -i tree -o /dev/null -C null'
+    Benchmark #1: mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
       Time (mean ± σ):      4.358 s ±  0.033 s    [User: 6.364 s, System: 0.622 s]
       Range (min … max):    4.321 s …  4.408 s    10 runs
      
-    Benchmark #2: ./mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
+    Benchmark #2: mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
       Time (mean ± σ):      4.282 s ±  0.035 s    [User: 6.249 s, System: 0.623 s]
       Range (min … max):    4.244 s …  4.349 s    10 runs
      
-    Benchmark #3: ./mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
+    Benchmark #3: mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null
       Time (mean ± σ):      6.212 s ±  0.031 s    [User: 8.185 s, System: 0.638 s]
       Range (min … max):    6.159 s …  6.250 s    10 runs
      
-    Benchmark #4: ./mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
+    Benchmark #4: mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null
       Time (mean ± σ):      5.740 s ±  0.037 s    [User: 7.742 s, System: 0.645 s]
       Range (min … max):    5.685 s …  5.796 s    10 runs
      
     Summary
-      './mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null' ran
-        1.02 ± 0.01 times faster than './mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
-        1.34 ± 0.01 times faster than './mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null'
-        1.45 ± 0.01 times faster than './mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
+      'mkdwarfs-clang-O3 --no-progress --log-level warn -i tree -o /dev/null -C null' ran
+        1.02 ± 0.01 times faster than 'mkdwarfs-clang-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
+        1.34 ± 0.01 times faster than 'mkdwarfs-gcc-O3 --no-progress --log-level warn -i tree -o /dev/null -C null'
+        1.45 ± 0.01 times faster than 'mkdwarfs-gcc-O2 --no-progress --log-level warn -i tree -o /dev/null -C null'
 
 These measurements were made with gcc-9.3.0 and clang-10.0.1.
 
@@ -332,54 +332,59 @@ SquashFS that is the default setting for DwarFS:
 For DwarFS, I'm sticking to the defaults:
 
     $ time mkdwarfs -i install -o perl-install.dwarfs
-    16:17:32.906738 scanning install
-    16:17:46.908065 waiting for background scanners...
-    16:18:17.922033 assigning directory and link inodes...
-    16:18:18.259412 finding duplicate files...
-    16:18:33.110617 saved 28.2 GiB / 47.65 GiB in 1782826/1927501 duplicate files
-    16:18:33.110713 waiting for inode scanners...
-    16:18:37.406764 assigning device inodes...
-    16:18:37.463228 assigning pipe/socket inodes...
-    16:18:37.518980 building metadata...
-    16:18:37.519079 building blocks...
-    16:18:37.519095 saving names and links...
-    16:18:37.519551 ordering 144675 inodes by similarity...
-    16:18:38.010929 updating name and link indices...
-    16:18:38.121606 144675 inodes ordered [602ms]
-    16:18:38.121690 assigning file inodes...
-    16:31:51.415939 waiting for block compression to finish...
-    16:31:51.416127 saving chunks...
-    16:31:51.444823 saving directories...
-    16:31:53.812482 waiting for compression to finish...
-    16:32:38.117797 compressed 47.65 GiB to 544.9 MiB (ratio=0.0111677)
-    16:32:38.786630 filesystem created without errors [905.9s]
+    19:35:38.104864 scanning install
+    19:35:50.481783 waiting for background scanners...
+    19:37:42.425217 assigning directory and link inodes...
+    19:37:42.832262 finding duplicate files...
+    19:37:59.513989 saved 28.2 GiB / 47.65 GiB in 1782826/1927501 duplicate files
+    19:37:59.514061 waiting for inode scanners...
+    19:38:33.911012 assigning device inodes...
+    19:38:33.967734 assigning pipe/socket inodes...
+    19:38:34.023778 building metadata...
+    19:38:34.023900 building blocks...
+    19:38:34.023935 saving names and links...
+    19:38:34.025091 ordering 144675 inodes using nilsimsa similarity...
+    19:38:34.033828 nilsimsa: depth=25000, limit=255
+    19:38:34.505456 updating name and link indices...
+    19:38:34.984478 pre-sorted index (1016186 name, 639519 path lookups) [950.6ms]
+    19:47:11.530656 144675 inodes ordered [517.5s]
+    19:47:11.530750 waiting for segmenting/blockifying to finish...
+    19:51:40.399851 saving chunks...
+    19:51:40.438092 saving directories...
+    19:51:45.202445 waiting for compression to finish...
+    19:52:47.077210 compressed 47.65 GiB to 486.8 MiB (ratio=0.00997673)
+    19:52:47.763533 filesystem created without errors [1030s]
     ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
     waiting for block compression to finish
-    scanned/found: 330733/330733 dirs, 0/0 links, 1927501/1927501(2440) files
-    original size: 47.65 GiB, dedupe: 28.2 GiB (1782826 files), segment: 12.42 GiB
-    filesystem: 7.027 GiB in 450 blocks (754024 chunks, 144675/144675 inodes)
-    compressed filesystem: 450 blocks/544.9 MiB written
-    ███████████████████████████████████████████████████████████████████████▏100% |
+    330733 dirs, 0/2440 soft/hard links, 1927501/1927501 files, 0 other
+    original size: 47.65 GiB, dedupe: 28.2 GiB (1782826 files), segment: 12.61 GiB
+    filesystem: 6.842 GiB in 438 blocks (757215 chunks, 144675/144675 inodes)
+    compressed filesystem: 438 blocks/486.8 MiB written
+    ████████████████████████████████████████████████████████████████████████▏100% -
     
-    real    15m5.982s
-    user    111m45.629s
-    sys     2m51.002s
+    real    17m9.873s
+    user    135m47.100s
+    sys     3m44.958s
 
 So in this comparison, `mkdwarfs` is more than 4 times faster than `mksquashfs`.
-In total CPU time, it's actually 7 times less CPU resources.
+In total CPU time, it actually uses 6 times less CPU resources.
 
     $ ls -l perl-install.*fs
-    -rw-r--r-- 1 mhx users  571363322 Dec  8 16:32 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users  510428994 Dec  9 19:52 perl-install.dwarfs
     -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
 
-In terms of compression ratio, the **DwarFS file system is more than 8 times
+In terms of compression ratio, the **DwarFS file system is more than 9 times
 smaller than the SquashFS file system**. With DwarFS, the content has been
-**compressed down to 1.1% (!) of its original size**.
+**compressed down to less than 1% (!) of its original size**. This compression
+ratio only considers the data stored in the individual files, not the actual
+disk space used. On the original EXT4 file system, according to `du`, the
+source folder uses 54 GiB, so **the DwarFS image actually only uses 0.88% of
+the original space**.
 
 When using identical block sizes for both file systems, the difference,
 quite expectedly, becomes a lot less dramatic:
 
-    $ time sudo mksquashfs install perl-install-1M.squashfs -comp zstd -Xcompression-level 22 -b 1M
+    $ time mksquashfs install perl-install-1M.squashfs -comp zstd -Xcompression-level 22 -b 1M
     
     real    41m55.004s
     user    340m30.012s
@@ -387,17 +392,17 @@ quite expectedly, becomes a lot less dramatic:
 
     $ time mkdwarfs -i install -o perl-install-1M.dwarfs -S 20
     
-    real    26m26.987s
-    user    245m11.438s
-    sys     2m29.048s
+    real    26m39.166s
+    user    266m15.018s
+    sys     2m15.315s
 
-    $ ll -h perl-install-1M.*
-    -rw-r--r-- 1 mhx  users 2.8G Nov 30 10:34 perl-install-1M.dwarfs
-    -rw-r--r-- 1 root root  4.0G Nov 30 10:05 perl-install-1M.squashfs
+    $ ls -l perl-install-1M.*
+    -rw-r--r-- 1 mhx users 2962199351 Dec  9 21:13 perl-install-1M.dwarfs
+    -rw-r--r-- 1 mhx users 4198944768 Nov 30 10:05 perl-install-1M.squashfs
 
 But the point is that this is really where SquashFS tops out, as it doesn't
-support larger block sizes. And as you'll see below, the larger blocks don't
-necessarily negatively impact performance.
+support larger block sizes. And as you'll see below, the larger blocks that
+DwarFS is using don't necessarily negatively impact performance.
 
 DwarFS also features an option to recompress an existing file system with
 a different compression algorithm. This can be useful as it allows relatively
@@ -407,44 +412,28 @@ system with the best possible compression (`-l 9`):
 
 
     $ time mkdwarfs --recompress -i perl-install.dwarfs -o perl-lzma.dwarfs -l 9
-    16:47:52.221803 filesystem rewritten [657.8s]
+    20:35:11.312517 filesystem rewritten [610s]
     ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-    filesystem: 7.027 GiB in 450 blocks (0 chunks, 0 inodes)
-    compressed filesystem: 450/450 blocks/458 MiB written
-    █████████████████████████████████████████████████████████████████████▏100% /
+    filesystem: 6.842 GiB in 438 blocks (0 chunks, 0 inodes)
+    compressed filesystem: 438/438 blocks/407.5 MiB written
+    █████████████████████████████████████████████████████████████████████▏100% -
     
-    real    10m57.942s
-    user    120m58.836s
-    sys     1m41.885s
+    real    10m10.098s
+    user    117m43.919s
+    sys     1m40.449s
 
     $ ls -l perl-*.dwarfs
-    -rw-r--r-- 1 mhx users 571363322 Dec  8 16:32 perl-install.dwarfs
-    -rw-r--r-- 1 mhx users 480277450 Dec  8 16:47 perl-lzma.dwarfs
+    -rw-r--r-- 1 mhx users 510428994 Dec  9 19:52 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users 427324302 Dec  9 20:35 perl-lzma.dwarfs
 
 This reduces the file system size by another 16%, pushing the total
-compression ratio below 1%.
-
-You *may* be able to push things even further: there's the `nilsimsa`
-ordering option which enables a somewhat experimental LSH ordering
-scheme that's significantly slower than the default `similarity`
-scheme, but can deliver even better clustering of similar data. It
-also has the advantage that the ordering can be run while already
-compressing data, which counters the slowness of the algorithm. On
-the same Perl dataset, I was able to get these file system sizes
-without a significant change in file system build time:
-
-    $ ll perl-install-nilsimsa*.dwarfs
-    -rw-r--r-- 1 mhx users 534735009 Dec  8 17:13 perl-nilsimsa.dwarfs
-    -rw-r--r-- 1 mhx users 449068734 Dec  8 17:25 perl-nilsimsa-lzma.dwarfs
-
-That another 6-7% reduction in file system size for both the default
-ZSTD as well as the LZMA compression.
+compression ratio to 0.84% (or 0.74% when considering disk usage).
 
 In terms of how fast the file system is when using it, a quick test
 I've done is to freshly mount the filesystem created above and run
 each of the 1139 `perl` executables to print their version.
 
-    $ hyperfine -c "umount mnt" -p "umount mnt; ./dwarfs perl-install.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1" -P procs 5 20 -D 5 "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P{procs} sh -c '\$0 -v >/dev/null'"
+    $ hyperfine -c "umount mnt" -p "umount mnt; dwarfs perl-install.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1" -P procs 5 20 -D 5 "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P{procs} sh -c '\$0 -v >/dev/null'"
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P5 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      4.092 s ±  0.031 s    [User: 2.183 s, System: 4.355 s]
       Range (min … max):    4.022 s …  4.122 s    10 runs
@@ -488,7 +477,7 @@ and the original EXT4 (at `install`). DwarFS is around 15% slower here:
 Using the lzma-compressed file system, the metrics for *initial* runs look
 considerably worse:
 
-    $ hyperfine -c "umount mnt" -p "umount mnt; ./dwarfs perl-lzma.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1" -P procs 5 20 -D 5 "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P{procs} sh -c '\$0 -v >/dev/null'"
+    $ hyperfine -c "umount mnt" -p "umount mnt; dwarfs perl-lzma.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1" -P procs 5 20 -D 5 "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P{procs} sh -c '\$0 -v >/dev/null'"
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P5 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     20.372 s ±  0.135 s    [User: 2.338 s, System: 4.511 s]
       Range (min … max):   20.208 s … 20.601 s    10 runs
@@ -514,7 +503,7 @@ with 4 cores, I did more tests with both SquashFS and DwarFS
 (just because on the 6 core box my kernel didn't have support
 for zstd in SquashFS):
 
-    hyperfine -c 'sudo umount /tmp/perl/install' -p 'umount /tmp/perl/install; ./dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs-zstd "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'sudo umount /tmp/perl/install; sudo mount -t squashfs perl-install.squashfs /tmp/perl/install; sleep 1' -n squashfs-zstd "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
+    hyperfine -c 'sudo umount /tmp/perl/install' -p 'umount /tmp/perl/install; dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs-zstd "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'sudo umount /tmp/perl/install; sudo mount -t squashfs perl-install.squashfs /tmp/perl/install; sleep 1' -n squashfs-zstd "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
     Benchmark #1: dwarfs-zstd
       Time (mean ± σ):      2.071 s ±  0.372 s    [User: 1.727 s, System: 2.866 s]
       Range (min … max):    1.711 s …  2.532 s    10 runs
@@ -532,7 +521,7 @@ SquashFS also uses significantly more CPU power. However, the numbers
 shown above for DwarFS obviously don't include the time spent in the
 `dwarfs` process, so I repeated the test outside of hyperfine:
 
-    $ time ./dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4 -f
+    $ time dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4 -f
     
     real    0m8.463s
     user    0m3.821s
@@ -605,48 +594,50 @@ the difference is really marginal.
 ### With SquashFS & xz
 
 This test uses slightly less pathological input data: the root filesystem of
-a recent Raspberry Pi OS release.
+a recent Raspberry Pi OS release. This file system also contains device inodes,
+so in order to preserve those, we pass `--with-devices` to `mkdwarfs`:
 
-    $ time mkdwarfs -i raspbian -o raspbian.dwarfs
-    17:42:39.027848 scanning raspbian
-    17:42:39.303335 waiting for background scanners...
-    17:42:39.898659 assigning directory and link inodes...
-    17:42:39.912519 finding duplicate files...
-    17:42:40.014950 saved 31.05 MiB / 1007 MiB in 1617/34582 duplicate files
-    17:42:40.015532 waiting for inode scanners...
-    17:42:40.793437 assigning device inodes...
-    17:42:40.794597 assigning pipe/socket inodes...
-    17:42:40.795254 building metadata...
-    17:42:40.795307 building blocks...
-    17:42:40.795315 saving names and links...
-    17:42:40.795396 ordering 32965 inodes by similarity...
-    17:42:40.820329 32965 inodes ordered [24.85ms]
-    17:42:40.820450 assigning file inodes...
-    17:42:40.837679 updating name and link indices...
-    17:43:58.270277 waiting for block compression to finish...
-    17:43:58.271058 saving chunks...
-    17:43:58.276149 saving directories...
-    17:43:58.414952 waiting for compression to finish...
-    17:44:16.324006 compressed 1007 MiB to 297 MiB (ratio=0.294999)
-    17:44:16.360627 filesystem created without errors [97.33s]
-    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    $ time sudo mkdwarfs -i raspbian -o raspbian.dwarfs --with-devices
+    20:38:27.027066 scanning raspbian
+    20:38:27.303344 waiting for background scanners...
+    20:38:27.897725 assigning directory and link inodes...
+    20:38:27.912619 finding duplicate files...
+    20:38:27.993716 saved 31.05 MiB / 1007 MiB in 1617/34582 duplicate files
+    20:38:27.993807 waiting for inode scanners...
+    20:38:30.347655 assigning device inodes...
+    20:38:30.348996 assigning pipe/socket inodes...
+    20:38:30.349817 building metadata...
+    20:38:30.349871 building blocks...
+    20:38:30.349928 saving names and links...
+    20:38:30.350001 ordering 32965 inodes using nilsimsa similarity...
+    20:38:30.351653 nilsimsa: depth=25000, limit=255
+    20:38:30.384726 updating name and link indices...
+    20:38:30.405993 pre-sorted index (55243 name, 26489 path lookups) [54.25ms]
+    20:39:45.269645 32965 inodes ordered [74.92s]
+    20:39:45.270350 waiting for segmenting/blockifying to finish...
+    20:39:58.430655 saving chunks...
+    20:39:58.434939 saving directories...
+    20:39:58.692174 waiting for compression to finish...
+    20:40:12.221693 compressed 1007 MiB to 287.3 MiB (ratio=0.285326)
+    20:40:12.253930 filesystem created without errors [105.2s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
     waiting for block compression to finish
-    scanned/found: 4435/4435 dirs, 5908/5908 links, 34582/34582(473) files
-    original size: 1007 MiB, dedupe: 31.05 MiB (1617 files), segment: 52.66 MiB
-    filesystem: 923 MiB in 58 blocks (46074 chunks, 32965/32965 inodes)
-    compressed filesystem: 58 blocks/297 MiB written
-    ███████████████████████████████████████████████████████████████████████▏100% /
+    4435 dirs, 5908/473 soft/hard links, 34582/34582 files, 7 other
+    original size: 1007 MiB, dedupe: 31.05 MiB (1617 files), segment: 52.83 MiB
+    filesystem: 922.8 MiB in 58 blocks (46518 chunks, 32965/32965 inodes)
+    compressed filesystem: 58 blocks/287.3 MiB written
+    ████████████████████████████████████████████████████████████████████▏100% /
     
-    real    1m37.384s
-    user    14m57.678s
-    sys     0m16.968s
+    real    1m45.393s
+    user    18m33.459s
+    sys     0m16.648s
 
 Again, SquashFS uses the same compression options:
 
-    $ time mksquashfs raspbian raspbian.squashfs -comp zstd -Xcompression-level 22
+    $ time sudo time mksquashfs raspbian raspbian.squashfs -comp zstd -Xcompression-level 22
     Parallel mksquashfs: Using 12 processors
     Creating 4.0 filesystem on raspbian.squashfs, block size 131072.
-    [===============================================================/] 38644/38644 100%
+    [====================================================================-] 38644/38644 100%
     
     Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
             compressed data, compressed metadata, compressed fragments,
@@ -690,40 +681,42 @@ Again, SquashFS uses the same compression options:
             nobody (65534)
             adm (4)
             mem (8)
+    1112.37user 2.61system 1:54.97elapsed 969%CPU (0avgtext+0avgdata 1736540maxresident)k
+    0inputs+743896outputs (0major+460065minor)pagefaults 0swaps
     
-    real    1m54.673s
-    user    18m32.152s
-    sys     0m2.501s
+    real    1m54.997s
+    user    18m32.386s
+    sys     0m2.627s
 
 The difference in speed is almost negligible. SquashFS is just a bit
 slower here. In terms of compression, the difference also isn't huge:
 
     $ ll raspbian.* *.xz -h
-    -rw-r--r-- 1 root root 297M Dec  8 17:44 raspbian.dwarfs
-    -rw-r--r-- 1 mhx users 364M Nov 29 23:31 raspbian.squashfs
+    -rw-r--r-- 1 root root 288M Dec  9 20:40 raspbian.dwarfs
+    -rw-r--r-- 1 root root 364M Dec  9 22:31 raspbian.squashfs
     -rw-r--r-- 1 mhx users 297M Aug 20 12:47 2020-08-20-raspios-buster-armhf-lite.img.xz
 
 Interestingly, `xz` actually can't compress the whole original image
-much better.
+better than DwarFS.
 
-We can again try to increase the DwarFS compression level:
+We can even again try to increase the DwarFS compression level:
 
     $ time mkdwarfs -i raspbian.dwarfs -o raspbian-9.dwarfs -l 9 --recompress
-    17:58:56.711149 filesystem rewritten [86.46s]
+    22:36:29.271336 filesystem rewritten [89.19s]
     ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-    filesystem: 923 MiB in 58 blocks (0 chunks, 0 inodes)
-    compressed filesystem: 58/58 blocks/266.5 MiB written
-    ██████████████████████████████████████████████████████████████████▏100% -
+    filesystem: 922.8 MiB in 58 blocks (0 chunks, 0 inodes)
+    compressed filesystem: 58/58 blocks/257.8 MiB written
+    ██████████████████████████████████████████████████████████████████▏100% |
     
-    real    1m26.496s
-    user    15m50.757s
-    sys     0m14.183s
+    real    1m29.259s
+    user    15m50.695s
+    sys     0m14.454s
 
 Now that actually gets the DwarFS image size well below that of the
 `xz` archive:
 
     $ ll -h raspbian-9.dwarfs *.xz
-    -rw-r--r-- 1 root root 267M Nov 29 23:54 raspbian-9.dwarfs
+    -rw-r--r-- 1 mhx users 258M Dec  9 22:40 raspbian-9.dwarfs
     -rw-r--r-- 1 mhx users 297M Aug 20 12:47 2020-08-20-raspios-buster-armhf-lite.img.xz
 
 However, if you actually build a tarball and compress that (instead of
@@ -768,15 +761,20 @@ I first tried `wimcapture` on the perl dataset:
     sys     1m2.743s
 
     $ ll perl-install.*
-    -rw-r--r-- 1 mhx users  582654491 Nov 29 23:52 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users  510428994 Dec  9 19:52 perl-install.dwarfs
     -rw-r--r-- 1 mhx users 1016971956 Dec  6 00:12 perl-install.wim
     -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
 
 So wimlib is definitely much better than squashfs, in terms of both
-compression ratio and speed. DwarFS is still about 30% faster to create
-the file system and the DwarFS file system is more than 40% smaller.
+compression ratio and speed. DwarFS is still about 20% faster to create
+the file system and the DwarFS file system is almost 50% smaller.
 When switching to LZMA and metadata compression, the DwarFS file system
-is more than 50% smaller (wimlib uses LZMS compression by default).
+is almost 60% smaller (wimlib uses LZMS compression by default). And
+when ultimately using the same block size as wimlib (64 MiB) for DwarFS,
+the file system image shrinks down to 1/3 the size of the *wim* file:
+
+    -rw-r--r-- 1 mhx users  335611507 Dec  9 23:11 perl-install-64M.dwarfs
+    -rw-r--r-- 1 mhx users 1016971956 Dec  6 00:12 perl-install.wim
 
 What's a bit surprising is that mounting a *wim* file takes quite a bit
 of time:
@@ -790,7 +788,7 @@ of time:
 
 Mounting the DwarFS image takes almost no time in comparison:
 
-    $ time ./dwarfs perl-install.dwarfs mnt
+    $ time dwarfs perl-install.dwarfs mnt
     00:36:42.626580 dwarfs (0.2.3)
     
     real    0m0.010s
@@ -802,7 +800,7 @@ initializes the file system in the background. However, even when
 running it in the foreground, initializing the file system takes only
 a few milliseconds:
 
-    $ ./dwarfs perl-install.dwarfs mnt -f
+    $ dwarfs perl-install.dwarfs mnt -f
     00:35:44.975437 dwarfs (0.2.3)
     00:35:44.987450 file system initialized [5.064ms]
 
@@ -863,7 +861,7 @@ This *still* takes surprisingly long to mount:
 However, it's really usable as a file system, even though it's about
 4-5 times slower than the DwarFS image:
 
-    $ hyperfine -c 'umount /tmp/perl/install' -p 'umount /tmp/perl/install; ./dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'umount /tmp/perl/install; wimmount perl-install-nonsolid.wim /tmp/perl/install; sleep 1' -n wimlib "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
+    $ hyperfine -c 'umount /tmp/perl/install' -p 'umount /tmp/perl/install; dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'umount /tmp/perl/install; wimmount perl-install-nonsolid.wim /tmp/perl/install; sleep 1' -n wimlib "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
     Benchmark #1: dwarfs
       Time (mean ± σ):      2.295 s ±  0.362 s    [User: 1.823 s, System: 3.173 s]
       Range (min … max):    1.813 s …  2.606 s    10 runs
@@ -948,45 +946,46 @@ a lot less redundancy:
 And repeating the same task with `mkdwarfs`:
 
     $ time mkdwarfs -i install-small -o perl-install-small.dwarfs
-    14:52:09.009618 scanning install-small
-    14:52:09.195087 waiting for background scanners...
-    14:52:09.612164 assigning directory and link inodes...
-    14:52:09.618281 finding duplicate files...
-    14:52:09.718756 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
-    14:52:09.718837 waiting for inode scanners...
-    14:52:09.926978 assigning device inodes...
-    14:52:09.927745 assigning pipe/socket inodes...
-    14:52:09.928211 building metadata...
-    14:52:09.928293 building blocks...
-    14:52:09.928302 saving names and links...
-    14:52:09.928382 ordering 3559 inodes by similarity...
-    14:52:09.930836 3559 inodes ordered [2.401ms]
-    14:52:09.930891 assigning file inodes...
-    14:52:09.933716 updating name and link indices...
-    14:52:27.051383 waiting for block compression to finish...
-    14:52:27.072944 saving chunks...
-    14:52:27.074108 saving directories...
-    14:52:27.154133 waiting for compression to finish...
-    14:52:40.508238 compressed 611.8 MiB to 25.76 MiB (ratio=0.0420963)
-    14:52:40.525452 filesystem created without errors [31.52s]
-    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    23:16:57.167629 scanning install-small
+    23:16:57.391819 waiting for background scanners...
+    23:16:57.796123 assigning directory and link inodes...
+    23:16:57.801648 finding duplicate files...
+    23:16:57.920016 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    23:16:57.920098 waiting for inode scanners...
+    23:16:58.715802 assigning device inodes...
+    23:16:58.716760 assigning pipe/socket inodes...
+    23:16:58.717360 building metadata...
+    23:16:58.717455 building blocks...
+    23:16:58.717495 saving names and links...
+    23:16:58.717663 ordering 3559 inodes using nilsimsa similarity...
+    23:16:58.718019 nilsimsa: depth=25000, limit=255
+    23:16:58.724538 updating name and link indices...
+    23:16:58.726197 pre-sorted index (3360 name, 2127 path lookups) [8.088ms]
+    23:16:58.870936 3559 inodes ordered [153.2ms]
+    23:16:58.871021 waiting for segmenting/blockifying to finish...
+    23:17:17.143687 saving chunks...
+    23:17:17.144423 saving directories...
+    23:17:17.198977 waiting for compression to finish...
+    23:17:29.321495 compressed 611.8 MiB to 24.18 MiB (ratio=0.039523)
+    23:17:29.337482 filesystem created without errors [32.17s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
     waiting for block compression to finish
-    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401 files
-    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 142.8 MiB
-    filesystem: 201.2 MiB in 13 blocks (9847 chunks, 3559/3559 inodes)
-    compressed filesystem: 13 blocks/25.76 MiB written
-    ██████████████████████████████████████████████████████████████████████▏100% |
+    3334 dirs, 0/0 soft/hard links, 26401/26401 files, 0 other
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 130 MiB
+    filesystem: 214.1 MiB in 14 blocks (10229 chunks, 3559/3559 inodes)
+    compressed filesystem: 14 blocks/24.18 MiB written
+    ████████████████████████████████████████████████████████████████████▏100% \
     
-    real    0m31.553s
-    user    3m21.854s
-    sys     0m3.726s
+    real    0m32.230s
+    user    3m37.366s
+    sys     0m3.950s
 
 So `mkdwarfs` is about 50 times faster than `mkcromfs` and uses 80 times
-less CPU resources. At the same time, the DwarFS file system is 25% smaller:
+less CPU resources. At the same time, the DwarFS file system is 30% smaller:
 
     $ ls -l perl-install-small.*fs
     -rw-r--r-- 1 mhx users 35328512 Dec  8 14:25 perl-install-small.cromfs
-    -rw-r--r-- 1 mhx users 27006735 Dec  8 14:52 perl-install-small.dwarfs
+    -rw-r--r-- 1 mhx users 25355862 Dec  9 23:17 perl-install-small.dwarfs
 
 I noticed that the `blockifying` step that took ages for the full dataset
 with `mkcromfs` ran substantially faster (in terms of MiB/second) on the
@@ -997,46 +996,47 @@ In order to be completely fair, I also ran `mkdwarfs` with `-l 9` to enable
 LZMA compression (which is what `mkcromfs` uses by default):
 
     $ time mkdwarfs -i install-small -o perl-install-small-l9.dwarfs -l 9
-    15:05:59.344501 scanning install-small
-    15:05:59.529269 waiting for background scanners...
-    15:05:59.933753 assigning directory and link inodes...
-    15:05:59.938668 finding duplicate files...
-    15:06:00.026974 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
-    15:06:00.027054 waiting for inode scanners...
-    15:06:00.240184 assigning device inodes...
-    15:06:00.241129 assigning pipe/socket inodes...
-    15:06:00.241723 building metadata...
-    15:06:00.241803 building blocks...
-    15:06:00.241840 saving names and links...
-    15:06:00.241992 ordering 3559 inodes by similarity...
-    15:06:00.246133 3559 inodes ordered [4.057ms]
-    15:06:00.246219 assigning file inodes...
-    15:06:00.248957 updating name and link indices...
-    15:06:19.132473 waiting for block compression to finish...
-    15:06:19.133229 saving chunks...
-    15:06:19.134430 saving directories...
-    15:06:19.192477 waiting for compression to finish...
-    15:06:33.125893 compressed 611.8 MiB to 21.06 MiB (ratio=0.0344202)
-    15:06:33.136930 filesystem created without errors [33.79s]
-    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    23:20:50.363882 scanning install-small
+    23:20:50.584318 waiting for background scanners...
+    23:20:50.970406 assigning directory and link inodes...
+    23:20:50.976176 finding duplicate files...
+    23:20:51.091204 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    23:20:51.091322 waiting for inode scanners...
+    23:20:51.877998 assigning device inodes...
+    23:20:51.878976 assigning pipe/socket inodes...
+    23:20:51.879486 building metadata...
+    23:20:51.879548 building blocks...
+    23:20:51.879587 saving names and links...
+    23:20:51.879786 ordering 3559 inodes using nilsimsa similarity...
+    23:20:51.880238 nilsimsa: depth=25000, limit=255
+    23:20:51.887597 updating name and link indices...
+    23:20:51.889207 pre-sorted index (3360 name, 2127 path lookups) [8.836ms]
+    23:20:52.007817 3559 inodes ordered [127.9ms]
+    23:20:52.007903 waiting for segmenting/blockifying to finish...
+    23:21:12.038054 saving chunks...
+    23:21:12.039631 saving directories...
+    23:21:12.134903 waiting for compression to finish...
+    23:21:26.166560 compressed 611.8 MiB to 19.62 MiB (ratio=0.0320689)
+    23:21:26.181937 filesystem created without errors [35.82s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
     waiting for block compression to finish
-    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401 files
-    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 142.8 MiB
-    filesystem: 201.2 MiB in 13 blocks (9847 chunks, 3559/3559 inodes)
-    compressed filesystem: 13 blocks/21.06 MiB written
-    ██████████████████████████████████████████████████████████████████████▏100% \
+    3334 dirs, 0/0 soft/hard links, 26401/26401 files, 0 other
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 130 MiB
+    filesystem: 214.1 MiB in 14 blocks (10229 chunks, 3559/3559 inodes)
+    compressed filesystem: 14 blocks/19.62 MiB written
+    ████████████████████████████████████████████████████████████████████▏100% /
     
-    real    0m33.834s
-    user    3m56.922s
-    sys     0m4.328s
+    real    0m35.876s
+    user    4m15.218s
+    sys     0m4.881s
 
     $ ls -l perl-install-small*.*fs
-    -rw-r--r-- 1 mhx users 22082143 Dec  8 15:06 perl-install-small-l9.dwarfs
+    -rw-r--r-- 1 mhx users 20573703 Dec  9 23:21 perl-install-small-l9.dwarfs
     -rw-r--r-- 1 mhx users 35328512 Dec  8 14:25 perl-install-small.cromfs
-    -rw-r--r-- 1 mhx users 26928161 Dec  8 15:05 perl-install-small.dwarfs
+    -rw-r--r-- 1 mhx users 25355862 Dec  9 23:17 perl-install-small.dwarfs
 
-It only takes 2 seconds longer to build the DwarFS file system with LZMA
-compression, but reduces the size even further to make it almost 40%
+It only takes 3 seconds longer to build the DwarFS file system with LZMA
+compression, but reduces the size even further to make it more than 40%
 smaller than the Cromfs file system.
 
 I would have added some benchmarks with the Cromfs FUSE driver, but sadly
@@ -1097,39 +1097,40 @@ Admittedly, this isn't a fair comparison. EROFS has a fixed block size
 of 4 KiB, and it uses LZ4 compression. If we tweak DwarFS to the same
 parameters, we get:
 
-    $ time mkdwarfs -i install-small/ -o perl-install-small-lz4.dwarfs -C lz4hc:level=9 -S 12
-    15:06:48.432260 scanning install-small/
-    15:06:48.646910 waiting for background scanners...
-    15:06:49.041670 assigning directory and link inodes...
-    15:06:49.047244 finding duplicate files...
-    15:06:49.155198 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
-    15:06:49.155279 waiting for inode scanners...
-    15:06:49.363318 assigning device inodes...
-    15:06:49.364154 assigning pipe/socket inodes...
-    15:06:49.364580 building metadata...
-    15:06:49.364649 building blocks...
-    15:06:49.364679 saving names and links...
-    15:06:49.364773 ordering 3559 inodes by similarity...
-    15:06:49.367529 3559 inodes ordered [2.678ms]
-    15:06:49.367601 assigning file inodes...
-    15:06:49.370936 updating name and link indices...
-    15:07:00.850769 waiting for block compression to finish...
-    15:07:00.850953 saving chunks...
-    15:07:00.852170 saving directories...
-    15:07:00.906353 waiting for compression to finish...
-    15:07:00.907786 compressed 611.8 MiB to 140.4 MiB (ratio=0.229396)
-    15:07:00.917665 filesystem created without errors [12.49s]
+    $ time mkdwarfs -i install-small -o perl-install-small-lz4.dwarfs -C lz4hc:level=9 -S 12
+    23:24:16.028616 scanning install-small
+    23:24:16.250673 waiting for background scanners...
+    23:24:16.644500 assigning directory and link inodes...
+    23:24:16.650032 finding duplicate files...
+    23:24:16.771272 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    23:24:16.771353 waiting for inode scanners...
+    23:24:17.542446 assigning device inodes...
+    23:24:17.543254 assigning pipe/socket inodes...
+    23:24:17.543557 building metadata...
+    23:24:17.543600 building blocks...
+    23:24:17.543618 saving names and links...
+    23:24:17.543737 ordering 3559 inodes using nilsimsa similarity...
+    23:24:17.544001 nilsimsa: depth=25000, limit=255
+    23:24:17.548094 pre-sorted index (3360 name, 2127 path lookups) [4.041ms]
+    23:24:17.553405 updating name and link indices...
+    23:24:17.668847 3559 inodes ordered [125ms]
+    23:24:17.668936 waiting for segmenting/blockifying to finish...
+    23:24:27.310633 saving chunks...
+    23:24:27.314192 saving directories...
+    23:24:27.367761 waiting for compression to finish...
+    23:24:27.368812 compressed 611.8 MiB to 140.3 MiB (ratio=0.229247)
+    23:24:27.382266 filesystem created without errors [11.35s]
     ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
     waiting for block compression to finish
-    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401(0) files
-    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 1.466 MiB
-    filesystem: 342.6 MiB in 87697 blocks (91884 chunks, 3559/3559 inodes)
-    compressed filesystem: 87697 blocks/140.4 MiB written
-    ██████████████████████████████████████████████████████████████████████▏100% -
+    3334 dirs, 0/0 soft/hard links, 26401/26401 files, 0 other
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 1.541 MiB
+    filesystem: 342.5 MiB in 87678 blocks (91908 chunks, 3559/3559 inodes)
+    compressed filesystem: 87678 blocks/140.3 MiB written
+    ██████████████████████████████████████████████████████████████████████▏100% \
     
-    real    0m12.690s
-    user    0m33.772s
-    sys     0m4.031s
+    real    0m11.383s
+    user    0m40.879s
+    sys     0m2.497s
 
 It finishes in less than half the time and produces an output image
 that's half the size of the EROFS image.
