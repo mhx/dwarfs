@@ -19,6 +19,7 @@ A fast high compression read-only file system
    * [With SquashFS &amp; xz](#with-squashfs--xz)
    * [With wimlib](#with-wimlib)
    * [With Cromfs](#with-cromfs)
+   * [With EROFS](#with-erofs)
 
 ## Overview
 
@@ -1038,3 +1039,101 @@ smaller than the Cromfs file system.
 
 I would have added some benchmarks with the Cromfs FUSE driver, but sadly
 it crashed right upon trying to list the directory after mounting.
+
+### With EROFS
+
+[EROFS](https://github.com/hsiangkao/erofs-utils) is a new read-only
+compressed file system that has recently been added to the Linux kernel.
+Its goals are quite different from those of DwarFS, though. It is
+designed to be lightweight (which DwarFS is definitely not) and to run
+on constrained hardware like embedded devices or smartphones. It only
+supports LZ4 compression.
+
+I was feeling lucky and decided to run it on the full Perl dataset:
+
+    $ time mkfs.erofs perl-install.erofs install -zlz4hc,9 -d2
+    mkfs.erofs 1.2
+            c_version:           [     1.2]
+            c_dbg_lvl:           [       2]
+            c_dry_run:           [       0]
+    ^C
+    
+    real    912m42.601s
+    user    903m2.777s
+    sys     1m52.812s
+
+As you can tell, after more than 15 hours I just gave up. In those
+15 hours, `mkfs.erofs` had produced a 13 GiB output file:
+
+    $ ll -h perl-install.erofs 
+    -rw-r--r-- 1 mhx users 13G Dec  9 14:42 perl-install.erofs
+
+I don't think this would have been very useful to compare with DwarFS.
+
+Just as for Cromfs, I re-ran with the smaller Perl dataset:
+
+    $ time mkfs.erofs perl-install-small.erofs install-small -zlz4hc,9 -d2
+    mkfs.erofs 1.2
+            c_version:           [     1.2]
+            c_dbg_lvl:           [       2]
+            c_dry_run:           [       0]
+    
+    real    0m27.844s
+    user    0m20.570s
+    sys     0m1.848s
+
+That was surprisingly quick, which makes me think that, again, there
+might be some accidentally quadratic complexity hiding in `mkfs.erofs`.
+The output file it produced is an order of magnitude larger than the
+DwarFS image:
+
+    $ ls -l perl-install-small.*fs
+    -rw-r--r-- 1 mhx users  26928161 Dec  8 15:05 perl-install-small.dwarfs
+    -rw-r--r-- 1 mhx users 296488960 Dec  9 14:45 perl-install-small.erofs
+
+Admittedly, this isn't a fair comparison. EROFS has a fixed block size
+of 4 KiB, and it uses LZ4 compression. If we tweak DwarFS to the same
+parameters, we get:
+
+    $ time mkdwarfs -i install-small/ -o perl-install-small-lz4.dwarfs -C lz4hc:level=9 -S 12
+    15:06:48.432260 scanning install-small/
+    15:06:48.646910 waiting for background scanners...
+    15:06:49.041670 assigning directory and link inodes...
+    15:06:49.047244 finding duplicate files...
+    15:06:49.155198 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
+    15:06:49.155279 waiting for inode scanners...
+    15:06:49.363318 assigning device inodes...
+    15:06:49.364154 assigning pipe/socket inodes...
+    15:06:49.364580 building metadata...
+    15:06:49.364649 building blocks...
+    15:06:49.364679 saving names and links...
+    15:06:49.364773 ordering 3559 inodes by similarity...
+    15:06:49.367529 3559 inodes ordered [2.678ms]
+    15:06:49.367601 assigning file inodes...
+    15:06:49.370936 updating name and link indices...
+    15:07:00.850769 waiting for block compression to finish...
+    15:07:00.850953 saving chunks...
+    15:07:00.852170 saving directories...
+    15:07:00.906353 waiting for compression to finish...
+    15:07:00.907786 compressed 611.8 MiB to 140.4 MiB (ratio=0.229396)
+    15:07:00.917665 filesystem created without errors [12.49s]
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+    waiting for block compression to finish
+    scanned/found: 3334/3334 dirs, 0/0 links, 26401/26401(0) files
+    original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 1.466 MiB
+    filesystem: 342.6 MiB in 87697 blocks (91884 chunks, 3559/3559 inodes)
+    compressed filesystem: 87697 blocks/140.4 MiB written
+    ██████████████████████████████████████████████████████████████████████▏100% -
+    
+    real    0m12.690s
+    user    0m33.772s
+    sys     0m4.031s
+
+It finishes in less than half the time and produces an output image
+that's half the size of the EROFS image.
+
+I'm going to stop the comparison here, as it's pretty obvious that the
+domains in which EROFS and DwarFS are being used have extremely little
+overlap. DwarFS will likely never be able to run on embedded devices
+and EROFS will likely never be able to achieve the compression ratios
+of DwarFS.
