@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -607,7 +608,14 @@ int mkdwarfs(int argc, char** argv) {
   block_compressor bc(compression);
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
-  std::ofstream ofs(output);
+
+  std::ofstream ofs(output, std::ios::binary);
+
+  if (ofs.bad() || !ofs.is_open()) {
+    throw std::runtime_error(
+        fmt::format("cannot open '{}': {}", output, strerror(errno)));
+  }
+
   filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, schema_bc, metadata_bc,
                         mem_limit);
 
@@ -645,6 +653,13 @@ int mkdwarfs(int argc, char** argv) {
 
       ti << "filesystem created " << err.str();
     }
+  }
+
+  ofs.close();
+
+  if (ofs.bad()) {
+    throw std::runtime_error(
+        fmt::format("failed to close '{}': {}", output, strerror(errno)));
   }
 
   return prog.errors > 0;
