@@ -66,7 +66,6 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
-pkg_check_modules(LIBZSTD IMPORTED_TARGET libzstd>=1.3.8)
 
 find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
 find_program(RONN_EXE ronn)
@@ -77,6 +76,7 @@ set(compiler_only
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
+add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 
 if(WITH_TESTS)
   # Download and unpack googletest at configure time
@@ -290,9 +290,9 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
   target_compile_definitions(
     ${tgt}
     PRIVATE DWARFS_VERSION=\"${DWARFS_VERSION}\"
+            DWARFS_HAVE_LIBZSTD
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
-            $<$<BOOL:${LIBZSTD_FOUND}>:DWARFS_HAVE_LIBZSTD>
             $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
@@ -315,9 +315,9 @@ foreach(tgt ${BINARY_TARGETS})
     thrift_light
     folly
     ${Boost_LIBRARIES}
+    libzstd_static
     PkgConfig::LIBLZ4
-    PkgConfig::LIBLZMA
-    PkgConfig::LIBZSTD)
+    PkgConfig::LIBLZMA)
 
   if(WITH_PYTHON)
     target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
