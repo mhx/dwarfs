@@ -70,6 +70,10 @@ pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
 find_program(RONN_EXE ronn)
 
+set(ZSTD_INCLUDE_DIR
+    ""
+    CACHE PATH "don't build folly with zstd" FORCE)
+
 set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
@@ -77,6 +81,13 @@ set(compiler_only
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
+
+set(ZSTD_LIBRARY_RELEASE
+    "ZSTD_LIBRARY_RELEASE-NOTFOUND"
+    CACHE FILEPATH "don't build folly with zstd" FORCE)
+set(ZSTD_LIBRARY_DEBUG
+    "ZSTD_LIBRARY_DEBUG-NOTFOUND"
+    CACHE FILEPATH "don't build folly with zstd" FORCE)
 
 if(WITH_TESTS)
   # Download and unpack googletest at configure time
@@ -307,22 +318,28 @@ endforeach()
 target_compile_definitions(dwarfs-bin PRIVATE FUSE_USE_VERSION=35
                                               _FILE_OFFSET_BITS=64)
 
-foreach(tgt ${BINARY_TARGETS})
-  target_link_libraries(
-    ${tgt}
-    dwarfs
-    metadata_thrift
-    thrift_light
-    folly
-    ${Boost_LIBRARIES}
-    libzstd_static
-    PkgConfig::LIBLZ4
-    PkgConfig::LIBLZMA)
+target_link_libraries(
+  ${tgt}
+  dwarfs
+  metadata_thrift
+  thrift_light
+  folly
+  ${Boost_LIBRARIES}
+  libzstd_static
+  PkgConfig::LIBLZ4
+  PkgConfig::LIBLZMA)
 
-  if(WITH_PYTHON)
-    target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
-  endif()
+target_link_libraries(dwarfs-bin dwarfs)
+
+foreach(tgt mkdwarfs dwarfsck dwarfsbench dwarfs_test dwarfs_compat_test)
+  target_link_libraries(${tgt} dwarfs)
 endforeach()
+
+if(WITH_PYTHON)
+  foreach(tgt mkdwarfs dwarfs_test dwarfs_compat_test)
+    target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+  endforeach()
+endif()
 
 target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
 
