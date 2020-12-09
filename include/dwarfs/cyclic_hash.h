@@ -31,8 +31,11 @@ template <typename T>
 class byte_hash {
  public:
   byte_hash() {
-    std::default_random_engine generator;
-    std::uniform_int_distribution<T> distribution(0, static_cast<T>(-1));
+    std::mt19937_64 generator;
+    std::uniform_int_distribution<T> distribution(
+        0, std::numeric_limits<T>::max());
+
+    generator.seed(42);
 
     for (size_t i = 0; i < hash_.size(); ++i) {
       hash_[i] = distribution(generator);

@@ -32,7 +32,6 @@
 #include <sparsehash/dense_hash_map>
 
 #include "dwarfs/block_manager.h"
-#include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/inode.h"
