@@ -211,9 +211,9 @@ class inode_manager_ : public inode_manager::impl {
         });
   }
 
-  void order_inodes_by_nilsimsa(inode_manager::inode_cb const& fn,
-                                 uint32_t inode_no,
-                                 file_order_options const& file_order);
+  void
+  order_inodes_by_nilsimsa(inode_manager::inode_cb const& fn, uint32_t inode_no,
+                           file_order_options const& file_order);
 
   void number_inodes(size_t first_no) {
     for (auto& i : inodes_) {

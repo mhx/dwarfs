@@ -54,13 +54,7 @@ struct inode_options {
   bool needs_scan() const { return with_similarity || with_nilsimsa; }
 };
 
-enum class file_order_mode {
-  NONE,
-  PATH,
-  SCRIPT,
-  SIMILARITY,
-  NILSIMSA
-};
+enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
 
 struct file_order_options {
   file_order_mode mode{file_order_mode::NONE};
