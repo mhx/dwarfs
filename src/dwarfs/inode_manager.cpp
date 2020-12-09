@@ -35,6 +35,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/nilsimsa.h"
+#include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
@@ -159,8 +160,8 @@ class inode_manager_ : public inode_manager::impl {
 
   size_t count() const override { return inodes_.size(); }
 
-  void order_inodes(std::shared_ptr<script> scr, file_order_mode file_order,
-                    uint32_t first_inode,
+  void order_inodes(std::shared_ptr<script> scr,
+                    file_order_options const& file_order, uint32_t first_inode,
                     inode_manager::inode_cb const& fn) override;
 
   void
@@ -213,6 +214,10 @@ class inode_manager_ : public inode_manager::impl {
   void order_inodes_by_nilsimsa(inode_manager::inode_cb const& fn,
                                 uint32_t inode_no);
 
+  void order_inodes_by_nilsimsa2(inode_manager::inode_cb const& fn,
+                                 uint32_t inode_no,
+                                 file_order_options const& file_order);
+
   void number_inodes(size_t first_no) {
     for (auto& i : inodes_) {
       i->set_num(first_no++);
@@ -225,9 +230,9 @@ class inode_manager_ : public inode_manager::impl {
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
-    std::shared_ptr<script> scr, file_order_mode file_order,
+    std::shared_ptr<script> scr, file_order_options const& file_order,
     uint32_t first_inode, inode_manager::inode_cb const& fn) {
-  switch (file_order) {
+  switch (file_order.mode) {
   case file_order_mode::NONE:
     log_.info() << "keeping inode order";
     break;
@@ -265,15 +270,22 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     auto ti = log_.timed_info();
     order_inodes_by_nilsimsa(fn, first_inode);
     ti << count() << " inodes ordered";
-    break;
+    return;
+  }
+
+  case file_order_mode::NILSIMSA2: {
+    log_.info() << "ordering " << count()
+                << " inodes using nilsimsa2 similarity...";
+    auto ti = log_.timed_info();
+    order_inodes_by_nilsimsa2(fn, first_inode, file_order);
+    ti << count() << " inodes ordered";
+    return;
   }
   }
 
-  if (file_order != file_order_mode::NILSIMSA) {
-    log_.info() << "assigning file inodes...";
-    number_inodes(first_inode);
-    for_each_inode(fn);
-  }
+  log_.info() << "assigning file inodes...";
+  number_inodes(first_inode);
+  for_each_inode(fn);
 }
 
 template <typename LoggerPolicy>
@@ -391,6 +403,85 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
         index.pop_front();
         --depth;
       }
+    }
+  }
+
+  if (count != inodes_.size()) {
+    throw std::runtime_error("internal error: nilsimsa ordering failed");
+  }
+}
+
+template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(
+    inode_manager::inode_cb const& fn, uint32_t inode_no,
+    file_order_options const& file_order) {
+  auto count = inodes_.size();
+
+  std::vector<std::shared_ptr<inode>> inodes;
+  inodes.swap(inodes_);
+  inodes_.reserve(count);
+  std::vector<uint32_t> index;
+  index.resize(count);
+  std::iota(index.begin(), index.end(), 0);
+
+  auto finalize_inode = [&]() {
+    inodes_.push_back(std::move(inodes[index.back()]));
+    index.pop_back();
+    inodes_.back()->set_num(inode_no++);
+    fn(inodes_.back());
+  };
+
+  auto empty = std::partition(index.begin(), index.end(),
+                              [&](auto i) { return inodes[i]->size() > 0; });
+
+  if (empty != index.end()) {
+    assert(empty + 1 == index.end());
+    finalize_inode();
+  }
+
+  if (!index.empty()) {
+    const int depth = file_order.nilsimsa_depth;
+    const int limit = file_order.nilsimsa_limit;
+
+    log_.info() << "nilsimsa: depth=" << depth << ", limit=" << limit;
+
+    std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+      auto const& ia = *inodes[a];
+      auto const& ib = *inodes[b];
+      return (ia.size() < ib.size() ||
+              (ia.size() == ib.size() && ia.any()->path() < ib.any()->path()));
+    });
+
+    finalize_inode();
+
+    while (!index.empty()) {
+      auto* ref_hash = inodes_.back()->nilsimsa_similarity_hash().data();
+
+      int max_sim = 0;
+      int max_sim_ix = 0;
+
+      int end = int(index.size()) > depth ? index.size() - depth : 0;
+
+      for (int i = index.size() - 1; i >= end; --i) {
+        auto sim = dwarfs::nilsimsa_similarity(
+            ref_hash, inodes[index[i]]->nilsimsa_similarity_hash().data());
+
+        if (sim > max_sim) {
+          max_sim = sim;
+          max_sim_ix = i;
+
+          if (max_sim >= limit) {
+            break;
+          }
+        }
+      }
+
+      log_.trace() << max_sim << " @ " << max_sim_ix << "/" << index.size();
+
+      std::rotate(index.begin() + max_sim_ix, index.begin() + max_sim_ix + 1,
+                  index.end());
+
+      finalize_inode();
     }
   }
 

@@ -54,10 +54,23 @@ struct inode_options {
   bool needs_scan() const { return with_similarity || with_nilsimsa; }
 };
 
-enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
+enum class file_order_mode {
+  NONE,
+  PATH,
+  SCRIPT,
+  SIMILARITY,
+  NILSIMSA,
+  NILSIMSA2
+};
+
+struct file_order_options {
+  file_order_mode mode{file_order_mode::NONE};
+  int nilsimsa_depth{10000};
+  int nilsimsa_limit{250};
+};
 
 struct scanner_options {
-  file_order_mode file_order{file_order_mode::NONE};
+  file_order_options file_order;
   std::optional<uint16_t> uid;
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;

@@ -199,7 +199,7 @@ void basic_end_to_end_test(std::string const& compressor,
   cfg.blockhash_window_size.push_back(1 << 10);
   cfg.block_size_bits = block_size_bits;
 
-  options.file_order = file_order;
+  options.file_order.mode = file_order;
   options.with_devices = with_devices;
   options.with_specials = with_specials;
   options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;

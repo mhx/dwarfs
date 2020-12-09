@@ -25,13 +25,13 @@
 #include <functional>
 #include <memory>
 
-#include "dwarfs/options.h"
-
 namespace dwarfs {
 
 class inode;
 class logger;
 class script;
+
+struct file_order_options;
 
 class inode_manager {
  public:
@@ -43,8 +43,9 @@ class inode_manager {
 
   size_t count() const { return impl_->count(); }
 
-  void order_inodes(std::shared_ptr<script> scr, file_order_mode file_order,
-                    uint32_t first_inode, inode_cb const& fn) {
+  void order_inodes(std::shared_ptr<script> scr,
+                    file_order_options const& file_order, uint32_t first_inode,
+                    inode_cb const& fn) {
     impl_->order_inodes(std::move(scr), file_order, first_inode, fn);
   }
 
@@ -56,9 +57,9 @@ class inode_manager {
 
     virtual std::shared_ptr<inode> create_inode() = 0;
     virtual size_t count() const = 0;
-    virtual void
-    order_inodes(std::shared_ptr<script> scr, file_order_mode file_order,
-                 uint32_t first_inode, inode_cb const& fn) = 0;
+    virtual void order_inodes(std::shared_ptr<script> scr,
+                              file_order_options const& file_order,
+                              uint32_t first_inode, inode_cb const& fn) = 0;
     virtual void for_each_inode(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
   };

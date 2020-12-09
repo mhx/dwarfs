@@ -40,7 +40,6 @@
 #include <unistd.h>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/any.hpp>
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
@@ -96,7 +95,8 @@ const std::map<std::string, file_order_mode> order_choices{
     {"script", file_order_mode::SCRIPT},
 #endif
     {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA}};
+    {"nilsimsa", file_order_mode::NILSIMSA},
+    {"nilsimsa2", file_order_mode::NILSIMSA2}};
 
 const std::map<std::string, uint32_t> time_resolutions{
     {"sec", 1},
@@ -109,20 +109,6 @@ const std::map<std::string, uint32_t> time_resolutions{
 
 namespace dwarfs {
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-              file_order_mode*, int) {
-  using namespace boost::program_options;
-
-  validators::check_first_occurrence(v);
-
-  auto it = order_choices.find(validators::get_single_string(values));
-  if (it == order_choices.end()) {
-    throw validation_error(validation_error::invalid_option_value);
-  }
-
-  v = boost::any(it->second);
-}
-
 class script_options : public options_interface {
  public:
   script_options(logger& lgr, po::variables_map& vm, scanner_options& opts,
@@ -133,7 +119,7 @@ class script_options : public options_interface {
       , force_similarity_(force_similarity) {}
 
   void set_order(file_order_mode order_mode, set_mode mode = DEFAULT) override {
-    set(opts_.file_order, order_mode, "order", mode);
+    set(opts_.file_order.mode, order_mode, "order", mode);
   }
 
   void
@@ -289,7 +275,7 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level, timestamp,
-      time_resolution;
+      time_resolution, order;
   size_t num_workers, max_scanner_workers;
   bool recompress = false, no_progress = false;
   unsigned level;
@@ -356,8 +342,8 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&time_resolution)->default_value("sec"),
         resolution_desc.c_str())
     ("order",
-        po::value<file_order_mode>(&options.file_order)
-            ->default_value(file_order_mode::SIMILARITY, "similarity"),
+        po::value<std::string>(&order)
+            ->default_value("similarity"),
         order_desc.c_str())
 #ifdef DWARFS_HAVE_PYTHON
     ("script",
@@ -490,6 +476,40 @@ int mkdwarfs(int argc, char** argv) {
     window_sizes = defaults.window_sizes;
   }
 
+  std::vector<std::string> order_opts;
+  boost::split(order_opts, order, boost::is_any_of(":"));
+  if (auto it = order_choices.find(order_opts.front());
+      it != order_choices.end()) {
+    options.file_order.mode = it->second;
+    if (order_opts.size() > 1) {
+      if (options.file_order.mode != file_order_mode::NILSIMSA2) {
+        throw std::runtime_error(
+            fmt::format("file order mode '{}' does not support options",
+                        order_opts.front()));
+      }
+      if (order_opts.size() > 3) {
+        throw std::runtime_error(fmt::format(
+            "too many options for file order mode '{}'", order_opts.front()));
+      }
+      options.file_order.nilsimsa_limit = folly::to<int>(order_opts[1]);
+      if (options.file_order.nilsimsa_limit < 0 ||
+          options.file_order.nilsimsa_limit > 255) {
+        throw std::runtime_error(
+            fmt::format("limit ({}) out of range for '{}' (0..255)",
+                        options.file_order.nilsimsa_limit, order_opts.front()));
+      }
+      if (order_opts.size() > 2) {
+        options.file_order.nilsimsa_depth = folly::to<int>(order_opts[2]);
+        if (options.file_order.nilsimsa_depth < 0) {
+          throw std::runtime_error(fmt::format(
+              "depth ({}) cannot be negative for '{}'", order_opts.front()));
+        }
+      }
+    }
+  } else {
+    throw std::runtime_error("invalid file order mode: " + order);
+  }
+
   size_t mem_limit = parse_size_with_unit(memory_limit);
 
   std::vector<std::string> wsv;
@@ -544,7 +564,7 @@ int mkdwarfs(int argc, char** argv) {
     script->configure(script_opts);
   }
 
-  if (options.file_order == file_order_mode::SCRIPT && !script) {
+  if (options.file_order.mode == file_order_mode::SCRIPT && !script) {
     throw std::runtime_error(
         "--order=script can only be used with a valid --script option");
   }
@@ -591,9 +611,11 @@ int mkdwarfs(int argc, char** argv) {
     ti << "filesystem rewritten";
   } else {
     options.inode.with_similarity =
-        force_similarity || options.file_order == file_order_mode::SIMILARITY;
+        force_similarity ||
+        options.file_order.mode == file_order_mode::SIMILARITY;
     options.inode.with_nilsimsa =
-        options.file_order == file_order_mode::NILSIMSA;
+        options.file_order.mode == file_order_mode::NILSIMSA ||
+        options.file_order.mode == file_order_mode::NILSIMSA2;
 
     scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
               std::make_shared<os_access_posix>(), std::move(script), options);
