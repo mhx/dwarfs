@@ -114,7 +114,7 @@ class block_manager_ : public block_manager::impl {
       , os_(os)
       , current_block_(0)
       , total_blocks_size_(0)
-      , hasher_(lgr, byte_hasher_, blockhash_window_size_)
+      , hasher_(lgr, blockhash_window_size_)
       , log_(lgr)
       , prog_(prog) {
     block_.reserve(block_size_);
@@ -164,7 +164,6 @@ class block_manager_ : public block_manager::impl {
   size_t total_blocks_size_;
   std::vector<uint8_t> block_;
   std::vector<block_hashes_t> block_hashes_;
-  byte_hash<cyclic_hash_t> byte_hasher_;
   hasher_type hasher_;
   log_proxy<LoggerPolicy> log_;
   progress& prog_;

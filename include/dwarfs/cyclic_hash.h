@@ -21,60 +21,33 @@
 
 #pragma once
 
-#include <array>
-#include <random>
+#include <cstdint>
 #include <stdexcept>
 
 namespace dwarfs {
 
-template <typename T>
-class byte_hash {
+class rsync_hash {
  public:
-  byte_hash() {
-    std::mt19937_64 generator;
-    std::uniform_int_distribution<T> distribution(
-        0, std::numeric_limits<T>::max());
+  rsync_hash() = default;
 
-    generator.seed(42);
+  uint32_t operator()() const { return a_ | (uint32_t(b_) << 16); }
 
-    for (size_t i = 0; i < hash_.size(); ++i) {
-      hash_[i] = distribution(generator);
-    }
+  void update(int8_t inbyte) {
+    a_ += inbyte;
+    b_ += a_;
+    ++len_;
   }
 
-  T operator()(uint8_t c) const { return hash_[c]; }
+  void update(int8_t outbyte, int8_t inbyte) {
+    a_ = a_ - outbyte + inbyte;
+    b_ -= len_ * outbyte;
+    b_ += a_;
+  }
 
  private:
-  std::array<T, std::numeric_limits<uint8_t>::max() + 1> hash_;
+  uint16_t a_{0};
+  uint16_t b_{0};
+  int32_t len_{0};
 };
 
-template <typename T>
-class cyclic_hash {
- public:
-  cyclic_hash(size_t window_size, const byte_hash<T>& ch)
-      : hash_(0)
-      , byte_hash_(ch) {
-    if (window_size % hash_bits) {
-      throw std::runtime_error("unsupported window size");
-    }
-  }
-
-  void reset() { hash_ = 0; }
-
-  void update(uint8_t outbyte, uint8_t inbyte) {
-    hash_ = rol(hash_) ^ byte_hash_(outbyte) ^ byte_hash_(inbyte);
-  }
-
-  void update(uint8_t inbyte) { hash_ = rol(hash_) ^ byte_hash_(inbyte); }
-
-  T operator()() const { return hash_; }
-
- private:
-  static const size_t hash_bits = 8 * sizeof(T);
-
-  inline T rol(T x) const { return (x << 1) | (x >> (hash_bits - 1)); }
-
-  T hash_;
-  const byte_hash<T>& byte_hash_;
-};
 } // namespace dwarfs

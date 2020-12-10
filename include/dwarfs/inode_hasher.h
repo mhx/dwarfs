@@ -35,10 +35,8 @@ class inode_hasher {
   using result_type =
       typename std::unordered_map<size_t, std::vector<HashType>>;
 
-  inode_hasher(logger& lgr, byte_hash<HashType>& byte_hasher,
-               const std::vector<size_t>& blockhash_window_size)
-      : byte_hasher_(byte_hasher)
-      , window_(blockhash_window_size)
+  inode_hasher(logger& lgr, const std::vector<size_t>& blockhash_window_size)
+      : window_(blockhash_window_size)
       , log_(lgr) {}
 
   void operator()(result_type& m, const uint8_t* data, size_t size) const {
@@ -56,7 +54,7 @@ class inode_hasher {
  private:
   void hashit(std::vector<HashType>& vec, size_t window, const uint8_t* data,
               size_t size) const {
-    cyclic_hash<HashType> hasher(window, byte_hasher_);
+    rsync_hash hasher;
 
     vec.clear();
     vec.reserve(size - window);
@@ -76,7 +74,6 @@ class inode_hasher {
     }
   }
 
-  byte_hash<HashType>& byte_hasher_;
   const std::vector<size_t> window_;
   log_proxy<LoggerPolicy> log_;
 };
