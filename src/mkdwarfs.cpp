@@ -323,7 +323,7 @@ int mkdwarfs(int argc, char** argv) {
         "number of writer worker threads")
     ("max-scanner-workers,M",
         po::value<size_t>(&max_scanner_workers)->default_value(num_cpu),
-        "number of scanner worker threads")
+        "max number of scanner worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
