@@ -37,14 +37,22 @@ There two mandatory options for specifying the input and output:
 Most other options are concerned with compression tuning:
 
   * `-l`, `--compress-level=`*value*:
-    Compression level to use for the filesystem. This is intended to provide
-    some sensible defaults and will depend on which compression libraries
-    were available at build time. This is meant to be the "easy" interface
-    to configure compression, and it will actually pick the defaults for
-    five distinct options: `--block-size-bits`, `--compression`,
-    `--schema-compression`, `--metadata-compression` and
-    `--blockhash-window-sizes`. See the output of `mkdwarfs --help` for
-    a table listing the exact defaults used for each compression level.
+    Compression level to use for the filesystem. **If you are unsure, please
+    stick to the default level of 7.** This is intended to provide some
+    sensible defaults and will depend on which compression libraries were
+    available at build time. **The default level has been chosen to provide
+    you with the best possible compression while still keeping the file
+    system very fast to access.** Levels 8 and 9 will switch to LZMA
+    compression (when available), which will likely reduce the file system
+    image size, but will make it about an order of magnitude slower to
+    access, so reserve these levels for cases where you only need to access
+    the data infrequently. This `-l` option is meant to be the "easy"
+    interface to configure `mkdwarfs`, and it will actually pick defaults
+    for six distinct options: `--block-size-bits`, `--compression`,
+    `--schema-compression`, `--metadata-compression`,
+    `--blockhash-window-sizes` and `--order`. See the output of
+    `mkdwarfs --help` for a table listing the exact defaults used for each
+    compression level.
 
   * `-S`, `--block-size-bits=`*value*:
     The block size used for the compressed filesystem. The actual block size
@@ -81,7 +89,10 @@ Most other options are concerned with compression tuning:
     The value for this option is a colon-separated list. The first item is
     the compression algorithm, the remaining item are its options. Options
     can be either boolean or have a value. For details on which algorithms
-    and options are available, see the output of `mkdwarfs --help`.
+    and options are available, see the output of `mkdwarfs --help`. `zstd`
+    will give you the best compression while still keeping decompression
+    *very* fast. `lzma` will compress even better, but decompression will
+    be around ten times slower.
 
   * `--schema-compression=`*algorithm*[:*algopt*[=*value*]]...:
     The compression algorithm and configuration used for the metadata schema.
@@ -96,7 +107,9 @@ Most other options are concerned with compression tuning:
     optimized for very little redundancy and leaving it uncompressed, the
     default for all levels below 7, has the benefit that it can be mapped
     to memory and used directly. This improves mount time for large file
-    systems compared to e.g. an lzma compressed metadata block.
+    systems compared to e.g. an lzma compressed metadata block. If you don't
+    care about mount time, you can safely choose `lzma` compression here, as
+    the data will only have to be decompressed once when mounting the image.
 
   * `--recompress`:
     Take an existing DwarFS filesystem and recompress it using a different
