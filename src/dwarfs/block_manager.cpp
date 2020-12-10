@@ -29,9 +29,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/small_vector.h>
-#include <folly/stats/Histogram.h>
-
 #include <sparsehash/dense_hash_map>
 
 #include "dwarfs/block_manager.h"
@@ -45,6 +42,13 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/util.h"
 
+#define ENABLE_COLLISION_VECTOR 0
+
+#if ENABLE_COLLISION_VECTOR
+#include <folly/small_vector.h>
+#include <folly/stats/Histogram.h>
+#endif
+
 namespace dwarfs {
 
 namespace {
@@ -53,36 +57,45 @@ namespace {
 const uint32_t blockhash_emtpy = 0;
 
 struct bm_stats {
+#if ENABLE_COLLISION_VECTOR
   bm_stats()
       : collision_vec_size(1, 0, 256) {}
 
+  folly::Histogram<uint16_t> collision_vec_size;
+  size_t collisions2{0};
+#endif
+
   size_t total_hashes{0};
   size_t collisions{0};
-  size_t collisions2{0};
   size_t real_matches{0};
   size_t bad_matches{0};
   size_t saved_bytes{0};
   size_t largest_block{0};
-  folly::Histogram<uint16_t> collision_vec_size;
 };
 } // namespace
 
 template <typename Key, typename T>
 struct block_hashes {
   static constexpr size_t max_coll_inline = 2;
-  using collision_vector = folly::small_vector<T, max_coll_inline>;
   using blockhash_t = google::dense_hash_map<Key, T>;
+#if ENABLE_COLLISION_VECTOR
+  using collision_vector = folly::small_vector<T, max_coll_inline>;
   using blockhash2_t = google::dense_hash_map<Key, collision_vector>;
+#endif
 
   block_hashes(size_t size)
       : size(size) {
     values.set_empty_key(blockhash_emtpy);
+#if ENABLE_COLLISION_VECTOR
     values2.set_empty_key(blockhash_emtpy);
+#endif
   }
 
   const size_t size;
   blockhash_t values;
+#if ENABLE_COLLISION_VECTOR
   blockhash2_t values2;
+#endif
 };
 
 template <typename LoggerPolicy>
@@ -204,7 +217,10 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
     static char const* const percent = "{:.2}%";
     const auto& st = sti.second;
     log_.debug() << "blockhash window <" << sti.first << ">: " << st.collisions
-                 << " (" << st.collisions2 << ") collisions ("
+#if ENABLE_COLLISION_VECTOR
+                 << " (" << st.collisions2 << ")"
+#endif
+                 << " collisions ("
                  << fmt::format(percent, float(st.collisions) / st.total_hashes)
                  << "), " << st.real_matches << " real matches, "
                  << st.bad_matches << " bad matches, ("
@@ -213,6 +229,7 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
                  << "), " << size_with_unit(st.saved_bytes)
                  << " saved (largest=" << size_with_unit(st.largest_block)
                  << ")";
+#if ENABLE_COLLISION_VECTOR
     if (st.collision_vec_size.computeTotalCount() > 0) {
       log_.debug()
           << "collision vector size p50: "
@@ -222,6 +239,7 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
           << ", p95: " << st.collision_vec_size.getPercentileEstimate(0.95)
           << ", p99: " << st.collision_vec_size.getPercentileEstimate(0.99);
     }
+#endif
   }
 }
 
@@ -232,12 +250,14 @@ void block_manager_<LoggerPolicy>::block_ready() {
   fsw_.write_block(std::move(tmp));
   block_.reserve(block_size_);
   for (auto& bh : block_hashes_) {
+#if ENABLE_COLLISION_VECTOR
     bm_stats& stats = stats_.at(bh.size);
     for (auto const& e : bh.values2) {
       stats.collision_vec_size.addValue(e.second.size());
     }
-    bh.values.clear();
     bh.values2.clear();
+#endif
+    bh.values.clear();
   }
   ++current_block_;
   ++prog_.block_count;
@@ -279,6 +299,7 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
               bhi->values.insert(std::make_pair(hval, block_offset + off));
 
           if (!success) {
+#if ENABLE_COLLISION_VECTOR
             auto [it2, success2] = bhi->values2.insert(
                 std::make_pair(hval, block_hashes_t::collision_vector()));
 
@@ -288,7 +309,7 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
             }
 
             it2->second.push_back(block_offset + off);
-
+#endif
             log_.trace() << "collision for hash=" << hval
                          << " (size=" << bhi->size << "): " << it->second
                          << " <-> " << block_offset + off;
