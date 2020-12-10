@@ -29,6 +29,9 @@
 
 #include <fmt/format.h>
 
+#include <folly/small_vector.h>
+#include <folly/stats/Histogram.h>
+
 #include <sparsehash/dense_hash_map>
 
 #include "dwarfs/block_manager.h"
@@ -50,26 +53,36 @@ namespace {
 const uint32_t blockhash_emtpy = 0;
 
 struct bm_stats {
+  bm_stats()
+      : collision_vec_size(1, 0, 256) {}
+
   size_t total_hashes{0};
   size_t collisions{0};
+  size_t collisions2{0};
   size_t real_matches{0};
   size_t bad_matches{0};
   size_t saved_bytes{0};
   size_t largest_block{0};
+  folly::Histogram<uint16_t> collision_vec_size;
 };
 } // namespace
 
 template <typename Key, typename T>
 struct block_hashes {
+  static constexpr size_t max_coll_inline = 2;
+  using collision_vector = folly::small_vector<T, max_coll_inline>;
   using blockhash_t = google::dense_hash_map<Key, T>;
+  using blockhash2_t = google::dense_hash_map<Key, collision_vector>;
 
   block_hashes(size_t size)
       : size(size) {
     values.set_empty_key(blockhash_emtpy);
+    values2.set_empty_key(blockhash_emtpy);
   }
 
   const size_t size;
   blockhash_t values;
+  blockhash2_t values2;
 };
 
 template <typename LoggerPolicy>
@@ -185,7 +198,7 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
     static char const* const percent = "{:.2}%";
     const auto& st = sti.second;
     log_.debug() << "blockhash window <" << sti.first << ">: " << st.collisions
-                 << " collisions ("
+                 << " (" << st.collisions2 << ") collisions ("
                  << fmt::format(percent, float(st.collisions) / st.total_hashes)
                  << "), " << st.real_matches << " real matches, "
                  << st.bad_matches << " bad matches, ("
@@ -194,6 +207,15 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
                  << "), " << size_with_unit(st.saved_bytes)
                  << " saved (largest=" << size_with_unit(st.largest_block)
                  << ")";
+    if (st.collision_vec_size.computeTotalCount() > 0) {
+      log_.debug()
+          << "collision vector size p50: "
+          << st.collision_vec_size.getPercentileEstimate(0.5)
+          << ", p75: " << st.collision_vec_size.getPercentileEstimate(0.75)
+          << ", p90: " << st.collision_vec_size.getPercentileEstimate(0.9)
+          << ", p95: " << st.collision_vec_size.getPercentileEstimate(0.95)
+          << ", p99: " << st.collision_vec_size.getPercentileEstimate(0.99);
+    }
   }
 }
 
@@ -204,7 +226,12 @@ void block_manager_<LoggerPolicy>::block_ready() {
   fsw_.write_block(std::move(tmp));
   block_.reserve(block_size_);
   for (auto& bh : block_hashes_) {
+    bm_stats& stats = stats_.at(bh.size);
+    for (auto const& e : bh.values2) {
+      stats.collision_vec_size.addValue(e.second.size());
+    }
     bh.values.clear();
+    bh.values2.clear();
   }
   ++current_block_;
   ++prog_.block_count;
@@ -246,9 +273,20 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
               bhi->values.insert(std::make_pair(hval, block_offset + off));
 
           if (!success) {
+            auto [it2, success2] = bhi->values2.insert(
+                std::make_pair(hval, block_hashes_t::collision_vector()));
+
+            if (!success2) {
+              log_.trace() << "2nd collision for hash=" << hval;
+              ++stats.collisions2;
+            }
+
+            it2->second.push_back(block_offset + off);
+
             log_.trace() << "collision for hash=" << hval
                          << " (size=" << bhi->size << "): " << it->second
                          << " <-> " << block_offset + off;
+
             ++stats.collisions;
           }
         }
