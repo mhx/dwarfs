@@ -168,6 +168,12 @@ class block_manager_ : public block_manager::impl {
                         size_t& block_offset, const uint8_t* data,
                         const match_window& search_win) const;
 
+  void
+  validate_match(const std::string& indent, const uint8_t* data,
+                 match_window& mw, const std::vector<cyclic_hash_t>& hashvec,
+                 bm_stats& stats, size_t block_size, size_t block_offset,
+                 size_t off, match_window& best, size_t& best_offset);
+
   const block_manager::config& cfg_;
   const size_t block_size_;
   std::vector<size_t> blockhash_window_size_;
@@ -388,6 +394,35 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
 }
 
 template <typename LoggerPolicy>
+void block_manager_<LoggerPolicy>::validate_match(
+    const std::string& indent, const uint8_t* data, match_window& mw,
+    const std::vector<cyclic_hash_t>& hashvec, bm_stats& stats,
+    size_t block_size, size_t block_offset, size_t off, match_window& best,
+    size_t& best_offset) {
+  log_.trace() << indent << "potentially matched " << block_size
+               << " bytes at offset " << off << ", hash=" << hashvec[off];
+
+  match_window win(off, off + block_size);
+
+  if (get_match_window(indent, win, block_offset, data, mw)) {
+    log_.trace() << indent << "definitely matched " << win.size()
+                 << " bytes at offset " << win.first;
+    ++stats.real_matches;
+
+    // fuck yeah, we've got a block...
+
+    if (win.size() > best.size()) {
+      best = win;
+      best_offset = block_offset;
+    }
+  } else {
+    log_.trace() << indent << "bad match: " << block_size << " bytes at offset "
+                 << off << ", hash=" << hashvec[off];
+    ++stats.bad_matches;
+  }
+}
+
+template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::segment_and_add_data(
     const std::string& indent, const hash_map_type& hm,
     const std::shared_ptr<inode>& ino, const uint8_t* data, match_window mw,
@@ -413,33 +448,10 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
         match_window best;
         size_t best_offset = 0;
 
-        auto bhi = bhcur->values.find(hashvec[off]);
-
-        if (bhi != bhcur->values.end()) {
-          log_.trace() << indent << "potentially matched " << bhcur->size
-                       << " bytes at offset " << off
-                       << ", hash=" << hashvec[off];
-
-          match_window win(off, off + bhcur->size);
-          size_t block_offset = bhi->second;
-
-          if (get_match_window(indent, win, block_offset, data, mw)) {
-            log_.trace() << indent << "definitely matched " << win.size()
-                         << " bytes at offset " << win.first;
-            ++stats.real_matches;
-
-            // fuck yeah, we've got a block...
-
-            if (win.size() > best.size()) {
-              best = win;
-              best_offset = block_offset;
-            }
-          } else {
-            log_.trace() << indent << "bad match: " << bhcur->size
-                         << " bytes at offset " << off
-                         << ", hash=" << hashvec[off];
-            ++stats.bad_matches;
-          }
+        if (auto bhi = bhcur->values.find(hashvec[off]);
+            bhi != bhcur->values.end()) {
+          validate_match(indent, data, mw, hashvec, stats, bhcur->size,
+                         bhi->second, off, best, best_offset);
         }
 
         if (best.size() > 0) {
