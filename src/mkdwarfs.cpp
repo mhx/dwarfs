@@ -180,91 +180,101 @@ struct level_defaults {
 };
 
 #if defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_DATA_LEVEL1 "lz4"
-#define ALG_DATA_LEVEL2 "lz4hc:level=9"
-#define ALG_DATA_LEVEL3 "lz4hc:level=9"
+#define ALG_DATA_1 "lz4"
+#define ALG_DATA_2 "lz4hc:level=9"
+#define ALG_DATA_3 "lz4hc:level=9"
 #elif defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_DATA_LEVEL1 "zstd:level=1"
-#define ALG_DATA_LEVEL2 "zstd:level=4"
-#define ALG_DATA_LEVEL3 "zstd:level=7"
+#define ALG_DATA_1 "zstd:level=1"
+#define ALG_DATA_2 "zstd:level=4"
+#define ALG_DATA_3 "zstd:level=7"
 #elif defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_DATA_LEVEL1 "lzma:level=1"
-#define ALG_DATA_LEVEL2 "lzma:level=2"
-#define ALG_DATA_LEVEL3 "lzma:level=3"
+#define ALG_DATA_1 "lzma:level=1"
+#define ALG_DATA_2 "lzma:level=2"
+#define ALG_DATA_3 "lzma:level=3"
 #else
-#define ALG_DATA_LEVEL1 "null"
-#define ALG_DATA_LEVEL2 "null"
-#define ALG_DATA_LEVEL3 "null"
+#define ALG_DATA_1 "null"
+#define ALG_DATA_2 "null"
+#define ALG_DATA_3 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_DATA_LEVEL4 "zstd:level=11"
-#define ALG_DATA_LEVEL5 "zstd:level=16"
-#define ALG_DATA_LEVEL6 "zstd:level=20"
-#define ALG_DATA_LEVEL7 "zstd:level=22"
+#define ALG_DATA_4 "zstd:level=11"
+#define ALG_DATA_5 "zstd:level=19"
+#define ALG_DATA_6 "zstd:level=22"
+#define ALG_DATA_7 "zstd:level=22"
 #elif defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_DATA_LEVEL4 "lzma:level=4"
-#define ALG_DATA_LEVEL5 "lzma:level=5"
-#define ALG_DATA_LEVEL6 "lzma:level=6"
-#define ALG_DATA_LEVEL7 "zstd:level=7"
+#define ALG_DATA_4 "lzma:level=3"
+#define ALG_DATA_5 "lzma:level=4"
+#define ALG_DATA_6 "lzma:level=5"
+#define ALG_DATA_7 "lzma:level=8"
 #elif defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_DATA_LEVEL4 "lz4hc:level=9"
-#define ALG_DATA_LEVEL5 "lz4hc:level=9"
-#define ALG_DATA_LEVEL6 "lz4hc:level=9"
-#define ALG_DATA_LEVEL7 "lz4hc:level=9"
+#define ALG_DATA_4 "lz4hc:level=9"
+#define ALG_DATA_5 "lz4hc:level=9"
+#define ALG_DATA_6 "lz4hc:level=9"
+#define ALG_DATA_7 "lz4hc:level=9"
 #else
-#define ALG_DATA_LEVEL4 "null"
-#define ALG_DATA_LEVEL5 "null"
-#define ALG_DATA_LEVEL6 "null"
-#define ALG_DATA_LEVEL7 "null"
+#define ALG_DATA_4 "null"
+#define ALG_DATA_5 "null"
+#define ALG_DATA_6 "null"
+#define ALG_DATA_7 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_DATA_LEVEL8 "lzma:level=8:dict_size=25"
-#define ALG_DATA_LEVEL9 "lzma:level=9:extreme"
+#define ALG_DATA_8 "lzma:level=9"
+#define ALG_DATA_9 "lzma:level=9"
 #elif defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_DATA_LEVEL8 "zstd:level=22"
-#define ALG_DATA_LEVEL9 "zstd:level=22"
+#define ALG_DATA_8 "zstd:level=22"
+#define ALG_DATA_9 "zstd:level=22"
 #elif defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_DATA_LEVEL8 "lz4hc:level=9"
-#define ALG_DATA_LEVEL9 "lz4hc:level=9"
+#define ALG_DATA_8 "lz4hc:level=9"
+#define ALG_DATA_9 "lz4hc:level=9"
 #else
-#define ALG_DATA_LEVEL8 "null"
-#define ALG_DATA_LEVEL9 "null"
+#define ALG_DATA_8 "null"
+#define ALG_DATA_9 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_SCHEMA "zstd:level=22"
+#define ALG_SCHEMA "zstd:level=12"
 #elif defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_SCHEMA "lzma:level=9"
+#define ALG_SCHEMA "lzma:level=4"
 #elif defined(DWARFS_HAVE_LIBLZ4)
 #define ALG_SCHEMA "lz4hc:level=9"
 #else
 #define ALG_SCHEMA "null"
 #endif
 
-#if defined(DWARFS_HAVE_LIBLZMA)
-#define ALG_METADATA "lzma:level=9:extreme"
-#elif defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_METADATA "zstd:level=22"
+#if defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_METADATA_7 "zstd:level=22"
+#elif defined(DWARFS_HAVE_LIBLZMA)
+#define ALG_METADATA_7 "lzma:level=9"
 #elif defined(DWARFS_HAVE_LIBLZ4)
-#define ALG_METADATA "lz4hc:level=9"
+#define ALG_METADATA_7 "lz4hc:level=9"
 #else
-#define ALG_METADATA "null"
+#define ALG_METADATA_7 "null"
+#endif
+
+#if defined(DWARFS_HAVE_LIBLZMA)
+#define ALG_METADATA_9 "lzma:level=9"
+#elif defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_METADATA_9 "zstd:level=22"
+#elif defined(DWARFS_HAVE_LIBLZ4)
+#define ALG_METADATA_9 "lz4hc:level=9"
+#else
+#define ALG_METADATA_9 "null"
 #endif
 
 constexpr std::array<level_defaults, 10> levels{{
     // clang-format off
-    /* 0 */ {20, "null",          "null"    , "null",       "-",           "none"},
-    /* 1 */ {20, ALG_DATA_LEVEL1, ALG_SCHEMA, "null",       "-",           "path"},
-    /* 2 */ {20, ALG_DATA_LEVEL2, ALG_SCHEMA, "null",       "-",           "path"},
-    /* 3 */ {20, ALG_DATA_LEVEL3, ALG_SCHEMA, "null",       "13",          "similarity"},
-    /* 4 */ {21, ALG_DATA_LEVEL4, ALG_SCHEMA, "null",       "11",          "similarity"},
-    /* 5 */ {22, ALG_DATA_LEVEL5, ALG_SCHEMA, "null",       "11",          "similarity"},
-    /* 6 */ {23, ALG_DATA_LEVEL6, ALG_SCHEMA, "null",       "15,11",       "nilsimsa:250:10000"},
-    /* 7 */ {24, ALG_DATA_LEVEL7, ALG_SCHEMA, "null",       "17,15,13,11", "nilsimsa"},
-    /* 8 */ {24, ALG_DATA_LEVEL8, ALG_SCHEMA, ALG_METADATA, "17,15,13,11", "nilsimsa"},
-    /* 9 */ {24, ALG_DATA_LEVEL9, ALG_SCHEMA, ALG_METADATA, "17,15,13,11", "nilsimsa"},
+    /* 0 */ {20, "null",     "null"    , "null",         "-",        "none"},
+    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",         "-",        "path"},
+    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",         "-",        "path"},
+    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         "13",       "similarity"},
+    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         "13",       "similarity"},
+    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         "15,13",    "similarity"},
+    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         "16,14,12", "nilsimsa"},
+    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, "16,14,12", "nilsimsa"},
+    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa"},
+    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa:255:50000"},
     // clang-format on
 }};
 
