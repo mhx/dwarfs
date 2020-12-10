@@ -466,11 +466,12 @@ block_compressor::block_compressor(const std::string& spec, size_t block_size) {
     impl_ = std::make_unique<lz4_block_compressor<lz4_compression_policy>>();
   } else if (om.choice() == "lz4hc") {
     impl_ = std::make_unique<lz4_block_compressor<lz4hc_compression_policy>>(
-        om.get<int>("level", 0));
+        om.get<int>("level", 9));
 #endif
 #ifdef DWARFS_HAVE_LIBZSTD
   } else if (om.choice() == "zstd") {
-    impl_ = std::make_unique<zstd_block_compressor>(om.get<int>("level", 1));
+    impl_ = std::make_unique<zstd_block_compressor>(
+        om.get<int>("level", ZSTD_maxCLevel()));
 #endif
   } else {
     throw std::runtime_error("unknown compression: " + om.choice());
