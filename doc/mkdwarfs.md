@@ -146,7 +146,7 @@ Most other options are concerned with compression tuning:
     a *limit* of 0 means "not similar at all". The *depth* determines up to
     how many inodes can be checked at most while searching for a similar one.
     The default if you omit these values is a *limit* of 255 and a *depth*
-    of 25000. Last but not least, if scripting support is built into `mkdwarfs`,
+    of 20000. Last but not least, if scripting support is built into `mkdwarfs`,
     you can choose `script` to let the script determine the order.
 
   * `--blockhash-window-sizes=`*value*[,*value*]...:

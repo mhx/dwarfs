@@ -58,7 +58,7 @@ enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
 
 struct file_order_options {
   file_order_mode mode{file_order_mode::NONE};
-  int nilsimsa_depth{25000};
+  int nilsimsa_depth{20000};
   int nilsimsa_limit{255};
 };
 
