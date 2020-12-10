@@ -314,7 +314,7 @@ int mkdwarfs(int argc, char** argv) {
         "filesystem output name")
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
-        "compression level (0=fast, 9=best)")
+        "compression level (0=fast, 9=best, please see man page for details)")
     ("block-size-bits,S",
         po::value<unsigned>(&cfg.block_size_bits),
         "block size bits (size = 2^bits)")
