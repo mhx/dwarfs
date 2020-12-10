@@ -94,9 +94,9 @@ Most other options are concerned with compression tuning:
     The compression algorithm and configuration used for the metadata.
     Takes the same arguments as `--compression` above. The metadata has been
     optimized for very little redundancy and leaving it uncompressed, the
-    default for all levels below 8, has the benefit that it can be mapped
-    to memory and used directly. This significantly improves mount time for
-    large file systems compared to e.g. an lzma compressed metadata block.
+    default for all levels below 7, has the benefit that it can be mapped
+    to memory and used directly. This improves mount time for large file
+    systems compared to e.g. an lzma compressed metadata block.
 
   * `--recompress`:
     Take an existing DwarFS filesystem and recompress it using a different
@@ -224,18 +224,17 @@ find that it's much faster with zstd.
 
 ### Block, Schema and Metadata Compression
 
-DwarFS filesystems consist of three distinct parts of data. Many blocks,
-which store actual file data and are decompressed on demand, as well as
-one schema and one metadata section. The schema is tiny, typically less
-than 1000 bytes, and holds the details for how to interpret the metadata.
-The schema needs to be read into memory once and is subsequently never
-accessed again. The metadata itself is usually not compressed, although
-it can be if you want to squeeze a few more kilobytes out of the file
-system. If it is compressed, it will be fully decompressed into memory.
-Otherwise, the metadata part of the file will simply be mapped into memory.
-The main difference is that compressed metadata, which being smaller, will
-potentially consume more memory and it will definitely take longer to
-mount the filesystem initially.
+DwarFS filesystems consist of three distinct parts of data: A potentially
+large number of blocks, which store actual file data and are decompressed
+on demand, as well as one schema and one metadata section. The schema is
+tiny, typically less than 1000 bytes, and holds the details for how to
+interpret the metadata. The schema needs to be read into memory once and
+is subsequently never accessed again. The metadata itself is compressed
+by default, but it doesn't have to be. Actually, if you drop the compression
+level from 7 (the default) to 6, the only difference is that the metadata
+is left uncompressed. This can be useful if mounting speed of the file
+system is important, as the uncompressed metadata part of the file can
+then simply be mapped into memory.
 
 ## AUTHOR
 
