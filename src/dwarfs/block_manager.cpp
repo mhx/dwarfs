@@ -242,16 +242,15 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
         ++stats.total_hashes;
 
         if (hval != blockhash_emtpy) {
-          auto i = bhi->values.find(hval);
+          auto [it, success] =
+              bhi->values.insert(std::make_pair(hval, block_offset + off));
 
-          if (i != bhi->values.end()) {
+          if (!success) {
             log_.trace() << "collision for hash=" << hval
-                         << " (size=" << bhi->size << "): " << i->second
+                         << " (size=" << bhi->size << "): " << it->second
                          << " <-> " << block_offset + off;
             ++stats.collisions;
           }
-
-          bhi->values[hval] = block_offset + off;
         }
       }
     }
