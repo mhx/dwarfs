@@ -98,6 +98,12 @@ const std::map<std::string, file_order_mode> order_choices{
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA}};
 
+const std::map<std::string, console_writer::progress_mode> progress_modes{
+    {"none", console_writer::NONE},
+    {"simple", console_writer::SIMPLE},
+    {"ascii", console_writer::ASCII},
+    {"unicode", console_writer::UNICODE}};
+
 const std::map<std::string, uint32_t> time_resolutions{
     {"sec", 1},
     {"min", 60},
@@ -288,7 +294,7 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level, timestamp,
-      time_resolution, order;
+      time_resolution, order, progress_mode;
   size_t num_workers, max_scanner_workers;
   bool recompress = false, no_progress = false;
   unsigned level;
@@ -298,6 +304,9 @@ int mkdwarfs(int argc, char** argv) {
 
   auto order_desc =
       "inode order (" + (from(order_choices) | get<0>() | unsplit(", ")) + ")";
+
+  auto progress_desc = "progress mode (" +
+                       (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
 
   auto resolution_desc = "time resolution in seconds or (" +
                          (from(time_resolutions) | get<0>() | unsplit(", ")) +
@@ -381,6 +390,9 @@ int mkdwarfs(int argc, char** argv) {
     ("log-level",
         po::value<std::string>(&log_level)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
+    ("progress",
+        po::value<std::string>(&progress_mode)->default_value("unicode"),
+        progress_desc.c_str())
     ("no-progress",
         po::value<bool>(&no_progress)->zero_tokens(),
         "don't show progress")
@@ -547,10 +559,21 @@ int mkdwarfs(int argc, char** argv) {
   worker_group wg_scanner(worker_group::load_adaptive, "scanner",
                           max_scanner_workers);
 
-  console_writer lgr(std::cerr, !no_progress && ::isatty(::fileno(stderr)),
-                     get_term_width(), logger::parse_level(log_level),
-                     recompress ? console_writer::REWRITE
-                                : console_writer::NORMAL);
+  if (no_progress) {
+    progress_mode = "none";
+  }
+  if (progress_mode != "none" && !::isatty(::fileno(stderr))) {
+    progress_mode = "simple";
+  }
+  if (!progress_modes.count(progress_mode)) {
+    throw std::runtime_error("invalid progress mode: " + progress_mode);
+  }
+
+  auto pg_mode = progress_modes.at(progress_mode);
+
+  console_writer lgr(
+      std::cerr, pg_mode, get_term_width(), logger::parse_level(log_level),
+      recompress ? console_writer::REWRITE : console_writer::NORMAL);
 
   std::shared_ptr<script> script;
 
@@ -611,9 +634,15 @@ int mkdwarfs(int argc, char** argv) {
     }
   }
 
+  unsigned interval_ms =
+      pg_mode == console_writer::NONE || pg_mode == console_writer::SIMPLE
+          ? 2000
+          : 200;
+
   log_proxy<debug_logger_policy> log(lgr);
 
-  progress prog([&](const progress& p, bool last) { lgr.update(p, last); });
+  progress prog([&](const progress& p, bool last) { lgr.update(p, last); },
+                interval_ms);
 
   block_compressor bc(compression);
   block_compressor schema_bc(schema_compression);

@@ -276,14 +276,14 @@ std::string status_string(progress const& p, size_t width) {
     if (len > max_len) {
       // TODO: get this correct for UTF8 multibyte chars :-)
       size_t start = 0;
-      max_len -= 1;
+      max_len -= 3;
       while (start != std::string::npos && (len - start) > max_len) {
         start = path.find('/', start + 1);
       }
       if (start == std::string::npos) {
         start = max_len - len;
       }
-      path.replace(0, start, "…");
+      path.replace(0, start, "...");
     }
   }
 

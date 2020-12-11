@@ -35,13 +35,20 @@
 
 namespace dwarfs {
 
-console_writer::console_writer(std::ostream& os, bool show_progress,
+namespace {
+
+char const* const asc_bar[8] = {"=", "=", "=", "=", "=", "=", "=", "="};
+char const* const uni_bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+
+} // namespace
+
+console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
                                size_t width, level_type threshold,
                                display_mode mode)
     : os_(os)
     , threshold_(threshold)
     , frac_(0.0)
-    , show_progress_(show_progress)
+    , pg_mode_(pg_mode)
     , width_(width)
     , mode_(mode) {
   os_.imbue(std::locale(os_.getloc(),
@@ -89,85 +96,119 @@ void console_writer::write(level_type level, const std::string& output) {
 
     std::lock_guard<std::mutex> lock(mx_);
 
-    if (show_progress_) {
+    switch (pg_mode_) {
+    case UNICODE:
+    case ASCII:
       rewind();
       os_ << prefix << t << " " << output << suffix << "\x1b[K\n";
       os_ << statebuf_;
-    } else {
+      break;
+
+    default:
       os_ << t << " " << output << "\n";
+      break;
     }
   }
 }
 
 void console_writer::update(const progress& p, bool last) {
-  if (!show_progress_ && !last) {
+  if (pg_mode_ == NONE && !last) {
     return;
   }
 
-  const char* newline = show_progress_ ? "\x1b[K\n" : "\n";
+  const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
   std::ostringstream oss;
 
-  if (show_progress_) {
-    for (size_t i = 0; i < width_; ++i) {
-      oss << "⎯";
-    }
-    oss << "\n";
-  }
+  bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
-  switch (mode_) {
-  case NORMAL:
-    oss << p.status(width_) << newline
-
-        << p.dirs_scanned << " dirs, " << p.links_scanned << "/" << p.hardlinks
-        << " soft/hard links, " << p.files_scanned << "/" << p.files_found
-        << " files, " << p.specials_found << " other" << newline
-
-        << "original size: " << size_with_unit(p.original_size)
-        << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
-        << p.duplicate_files
-        << " files), segment: " << size_with_unit(p.saved_by_segmentation)
-        << newline
-
-        << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
-        << p.block_count << " blocks (" << p.chunk_count << " chunks, "
-        << (p.inodes_written > 0 ? p.inodes_written : p.inodes_scanned) << "/"
-        << p.files_found - p.duplicate_files << " inodes)" << newline
-
-        << "compressed filesystem: " << p.blocks_written << " blocks/"
-        << size_with_unit(p.compressed_size) << " written" << newline;
-    break;
-
-  case REWRITE:
-    oss << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
-        << p.block_count << " blocks (" << p.chunk_count << " chunks, "
-        << p.inodes_written << " inodes)" << newline
-
-        << "compressed filesystem: " << p.blocks_written << "/" << p.block_count
-        << " blocks/" << size_with_unit(p.compressed_size) << " written"
-        << newline;
-    break;
-  }
-
-  if (show_progress_) {
-    size_t orig = p.original_size - p.saved_by_deduplication;
-    double frac_fs =
-        orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
-                 : 0.0;
-    double frac_comp =
-        p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
-    double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
-
-    if (frac > frac_) {
-      frac_ = frac;
+  if (last || fancy) {
+    if (fancy) {
+      for (size_t i = 0; i < width_; ++i) {
+        oss << (pg_mode_ == UNICODE ? "⎯" : "-");
+      }
+      oss << "\n";
     }
 
-    size_t barlen = 8 * (width_ - 6) * frac_;
-    size_t w = barlen / 8;
-    size_t c = barlen % 8;
+    switch (mode_) {
+    case NORMAL:
+      if (fancy) {
+        oss << p.status(width_) << newline;
+      }
 
-    static const char* bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+      oss << p.dirs_scanned << " dirs, " << p.links_scanned << "/"
+          << p.hardlinks << " soft/hard links, " << p.files_scanned << "/"
+          << p.files_found << " files, " << p.specials_found << " other"
+          << newline
 
+          << "original size: " << size_with_unit(p.original_size)
+          << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
+          << p.duplicate_files
+          << " files), segment: " << size_with_unit(p.saved_by_segmentation)
+          << newline
+
+          << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
+          << p.block_count << " blocks (" << p.chunk_count << " chunks, "
+          << (p.inodes_written > 0 ? p.inodes_written : p.inodes_scanned) << "/"
+          << p.files_found - p.duplicate_files << " inodes)" << newline
+
+          << "compressed filesystem: " << p.blocks_written << " blocks/"
+          << size_with_unit(p.compressed_size) << " written" << newline;
+      break;
+
+    case REWRITE:
+      oss << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
+          << p.block_count << " blocks (" << p.chunk_count << " chunks, "
+          << p.inodes_written << " inodes)" << newline
+
+          << "compressed filesystem: " << p.blocks_written << "/"
+          << p.block_count << " blocks/" << size_with_unit(p.compressed_size)
+          << " written" << newline;
+      break;
+    }
+  }
+
+  if (pg_mode_ == NONE) {
+    if (INFO <= threshold_) {
+      std::lock_guard<std::mutex> lock(mx_);
+      os_ << oss.str();
+    }
+    return;
+  }
+
+  size_t orig = p.original_size - p.saved_by_deduplication;
+  double frac_fs =
+      orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
+               : 0.0;
+  double frac_comp =
+      p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
+  double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
+
+  if (frac > frac_) {
+    frac_ = frac;
+  }
+
+  size_t barlen = 8 * (width_ - 6) * frac_;
+  size_t w = barlen / 8;
+  size_t c = barlen % 8;
+
+  char const* const* bar = pg_mode_ == UNICODE ? uni_bar : asc_bar;
+
+  if (pg_mode_ == SIMPLE) {
+    std::string tmp =
+        fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
+                    p.blocks_written, size_with_unit(p.compressed_size));
+    if (tmp != statebuf_) {
+      auto t = boost::posix_time::microsec_clock::local_time();
+      statebuf_ = tmp;
+      std::lock_guard<std::mutex> lock(mx_);
+      os_ << t << statebuf_ << "\n";
+    }
+    if (last) {
+      std::lock_guard<std::mutex> lock(mx_);
+      os_ << oss.str();
+    }
+  } else {
     for (size_t i = 0; i < width_ - 6; ++i) {
       if (i == (width_ - 7)) {
         oss << bar[0];
@@ -189,11 +230,7 @@ void console_writer::update(const progress& p, bool last) {
     statebuf_ = oss.str();
 
     os_ << statebuf_;
-  } else {
-    if (INFO <= threshold_) {
-      std::lock_guard<std::mutex> lock(mx_);
-      os_ << oss.str();
-    }
   }
 }
+
 } // namespace dwarfs

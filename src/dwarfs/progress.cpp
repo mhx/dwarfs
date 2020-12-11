@@ -28,14 +28,15 @@
 
 namespace dwarfs {
 
-progress::progress(folly::Function<void(const progress&, bool)>&& func)
+progress::progress(folly::Function<void(const progress&, bool)>&& func,
+                   unsigned interval_ms)
     : running_(true)
-    , thread_([this, func = std::move(func)]() mutable {
+    , thread_([this, interval_ms, func = std::move(func)]() mutable {
       folly::setThreadName("progress");
       std::unique_lock<std::mutex> lock(mx_);
       while (running_) {
         func(*this, false);
-        cond_.wait_for(lock, std::chrono::milliseconds(200));
+        cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
       }
       func(*this, true);
     }) {}

@@ -40,7 +40,8 @@ class progress {
   using status_function_type =
       folly::Function<std::string(progress const&, size_t) const>;
 
-  progress(folly::Function<void(const progress&, bool)>&& func);
+  progress(folly::Function<void(const progress&, bool)>&& func,
+           unsigned interval_ms);
   ~progress() noexcept;
 
   template <typename T>

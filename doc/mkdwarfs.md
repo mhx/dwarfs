@@ -212,6 +212,16 @@ Most other options are concerned with compression tuning:
   * `--no-progress`:
     Don't show progress output while building filesystem.
 
+  * `--progress=none`|`simple`|`ascii`|`unicode`:
+    Choosing `none` is equivalent to specifying `--no-progress`. `simple`
+    will print a single line of progress information whenever the progress
+    has significantly changed, but at most once every 2 seconds. This is
+    also the default when the output is not a tty. `unicode` is the default
+    behaviour, which shows a nice progress bar and lots of additional
+    information. If your terminal cannot deal with unicode characters,
+    you can switch to `ascii`, which is like `unicode`, but looks less
+    fancy.
+
   * `--help`:
     Show program help, including defaults, compression level detail and
     supported compression algorithms.

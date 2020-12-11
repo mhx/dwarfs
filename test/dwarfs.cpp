@@ -217,7 +217,7 @@ void basic_end_to_end_test(std::string const& compressor,
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
-  progress prog([](const progress&, bool) {});
+  progress prog([](const progress&, bool) {}, 1000);
 
   block_compressor bc(compressor);
   filesystem_writer fsw(oss, lgr, wg, prog, bc, 64 << 20);
