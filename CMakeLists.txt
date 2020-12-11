@@ -320,7 +320,6 @@ target_compile_definitions(dwarfs-bin PRIVATE FUSE_USE_VERSION=35
                                               _FILE_OFFSET_BITS=64)
 
 target_link_libraries(
-  ${tgt}
   dwarfs
   metadata_thrift
   thrift_light
