@@ -405,7 +405,8 @@ add_custom_target(
   realclean
   COMMAND
     rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
-    thrift zstd dwarfs* mkdwarfs mount.dwarfs lib*.a *.cmake googletest-*)
+    thrift zstd dwarfs* mkdwarfs mount.dwarfs lib*.a *.cmake googletest-*
+    _CPack_Packages install_manifest.txt share)
 
 install(
   TARGETS mkdwarfs dwarfsck dwarfsbench
