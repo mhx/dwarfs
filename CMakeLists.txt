@@ -332,14 +332,23 @@ target_link_libraries(
 
 target_link_libraries(dwarfs-bin dwarfs)
 
-foreach(tgt mkdwarfs dwarfsck dwarfsbench dwarfs_test dwarfs_compat_test)
+foreach(tgt mkdwarfs dwarfsck dwarfsbench)
   target_link_libraries(${tgt} dwarfs)
 endforeach()
 
 if(WITH_PYTHON)
-  foreach(tgt mkdwarfs dwarfs_test dwarfs_compat_test)
-    target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+  target_link_libraries(mkdwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+endif()
+
+if(WITH_TESTS)
+  foreach(tgt dwarfs_test dwarfs_compat_test)
+    target_link_libraries(${tgt} dwarfs)
   endforeach()
+  if(WITH_PYTHON)
+    foreach(tgt dwarfs_test dwarfs_compat_test)
+      target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+    endforeach()
+  endif()
 endif()
 
 target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
