@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
+option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
 
@@ -38,6 +39,27 @@ set(PROJECT_VERSION_PATCH "4")
 set(DWARFS_VERSION
     "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
 )
+
+if(STATIC_BUILD_DO_NOT_USE)
+  set(CMAKE_INSTALL_RPATH "../share/dwarfs/lib")
+  set(CMAKE_EXE_LINKER_FLAGS
+      "-Wl,-allow-multiple-definition -static-libstdc++ -static-libgcc")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES
+      ".a"
+      CACHE STRING "please look for static libs")
+  set(Boost_USE_STATIC_LIBS
+      ON
+      CACHE BOOL "only static boost libs")
+  set(BOOST_LINK_STATIC
+      "ON"
+      CACHE STRING "yes, really")
+  set(USE_STATIC_DEPS_ON_UNIX
+      ON
+      CACHE BOOL "yes")
+  set(GFLAGS_SHARED
+      OFF
+      CACHE BOOL "static")
+endif()
 
 list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
 
@@ -329,13 +351,15 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
-target_link_libraries(dwarfs-bin dwarfs)
-
-foreach(tgt mkdwarfs dwarfsck dwarfsbench)
+foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
   target_link_libraries(${tgt} dwarfs)
 endforeach()
 
 if(WITH_PYTHON)
+  if(STATIC_BUILD_DO_NOT_USE)
+    list(APPEND Python3_LIBRARIES libexpat.a libutil.a)
+  endif()
+
   target_link_libraries(mkdwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
 endif()
 
@@ -350,12 +374,32 @@ if(WITH_TESTS)
   endif()
 endif()
 
-target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
-
 set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
 
 add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                            dwarfs mount.dwarfs)
+
+if(STATIC_BUILD_DO_NOT_USE)
+  target_link_libraries(dwarfs-bin libfuse3.a)
+  foreach(dll libpthread.so.0 libm.so.6 libc.so.6 libdl.so.2 ld-2.31.so)
+    file(
+      COPY /usr/lib/x86_64-linux-gnu/${dll}
+      DESTINATION share/dwarfs/lib
+      USE_SOURCE_PERMISSIONS
+      FOLLOW_SYMLINK_CHAIN)
+  endforeach()
+  foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
+    get_target_property(binary_name ${tgt} OUTPUT_NAME)
+    if(NOT binary_name)
+      set(binary_name ${tgt})
+    endif()
+    add_custom_command(TARGET ${tgt} POST_BUILD
+      COMMAND patchelf --set-interpreter ../share/dwarfs/lib/ld-2.31.so ${binary_name}
+      COMMENT "Setting interpreter for ${binary_name}")
+  endforeach()
+else()
+  target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
+endif()
 
 add_custom_target(
   realclean
@@ -364,16 +408,27 @@ add_custom_target(
     thrift zstd dwarfs* mkdwarfs mount.dwarfs lib*.a *.cmake googletest-*)
 
 install(
-  TARGETS mkdwarfs dwarfsck dwarfs dwarfsbench
+  TARGETS mkdwarfs dwarfsck dwarfsbench
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
 install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
-install(DIRECTORY include/dwarfs DESTINATION include)
 
-set(CPACK_SOURCE_GENERATOR "TBZ2")
+if(STATIC_BUILD_DO_NOT_USE)
+  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/share/dwarfs/lib
+	  DESTINATION share/dwarfs USE_SOURCE_PERMISSIONS)
+else()
+  install(
+    TARGETS dwarfs
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib)
+  install(DIRECTORY include/dwarfs DESTINATION include)
+endif()
+
+set(CPACK_GENERATOR "TGZ;TBZ2;TXZ")
 set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
