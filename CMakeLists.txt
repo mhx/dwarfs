@@ -358,6 +358,12 @@ set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
 add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                            dwarfs mount.dwarfs)
 
+add_custom_target(
+  realclean
+  COMMAND
+    rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
+    thrift zstd dwarfs* mkdwarfs mount.dwarfs lib*.a *.cmake googletest-*)
+
 install(
   TARGETS mkdwarfs dwarfsck dwarfs dwarfsbench
   RUNTIME DESTINATION bin
