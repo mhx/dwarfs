@@ -385,16 +385,18 @@ if(STATIC_BUILD_DO_NOT_USE)
     file(
       COPY /usr/lib/x86_64-linux-gnu/${dll}
       DESTINATION share/dwarfs/lib
-      USE_SOURCE_PERMISSIONS
-      FOLLOW_SYMLINK_CHAIN)
+      USE_SOURCE_PERMISSIONS FOLLOW_SYMLINK_CHAIN)
   endforeach()
   foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
     get_target_property(binary_name ${tgt} OUTPUT_NAME)
     if(NOT binary_name)
       set(binary_name ${tgt})
     endif()
-    add_custom_command(TARGET ${tgt} POST_BUILD
-      COMMAND patchelf --set-interpreter ../share/dwarfs/lib/ld-2.31.so ${binary_name}
+    add_custom_command(
+      TARGET ${tgt}
+      POST_BUILD
+      COMMAND patchelf --set-interpreter ../share/dwarfs/lib/ld-2.31.so
+              ${binary_name}
       COMMENT "Setting interpreter for ${binary_name}")
   endforeach()
 else()
@@ -418,8 +420,10 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 
 if(STATIC_BUILD_DO_NOT_USE)
-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/share/dwarfs/lib
-	  DESTINATION share/dwarfs USE_SOURCE_PERMISSIONS)
+  install(
+    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/share/dwarfs/lib
+    DESTINATION share/dwarfs
+    USE_SOURCE_PERMISSIONS)
 else()
   install(
     TARGETS dwarfs
