@@ -1,3 +1,13 @@
+- use loggers instead of std::cerr in dwarfs.cpp
+- better error handling in (de)compressors
+- use streaming interface for zstd decompressor
+- exception tracing
+- static builds
+- block checksums
+- json metadata export/recovery
+- check FUSE driver behaviour for corrupted blocks
+
+
 - add --chmod, --chown
 - add some simple filter rules?
 - handle sparse files
