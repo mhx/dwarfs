@@ -135,6 +135,7 @@ A good starting point for apt-based systems is probably:
         bison \
         flex \
         ronn \
+        fuse3 \
         pkg-config \
         binutils-dev \
         libboost-context-dev \
