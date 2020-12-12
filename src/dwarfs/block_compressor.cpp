@@ -635,7 +635,11 @@ class zstd_block_decompressor : public block_decompressor::impl {
 
   bool decompress_frame(size_t /*frame_size*/) override {
     decompressed_.resize(uncompressed_size_);
-    ZSTD_decompress(decompressed_.data(), decompressed_.size(), data_, size_);
+    auto rv = ZSTD_decompress(decompressed_.data(), decompressed_.size(), data_,
+                              size_);
+    if (ZSTD_isError(rv)) {
+      throw std::runtime_error(fmt::format("ZSTD: {}", ZSTD_getErrorName(rv)));
+    }
     return true;
   }
 
