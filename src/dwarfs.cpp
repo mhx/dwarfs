@@ -113,7 +113,7 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
         &s_opts.stat_defaults, FUSE_ROOT_ID);
 
     ti << "file system initialized";
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     log.error() << "error initializing file system: " << e.what();
     fuse_session_exit(s_session);
   }
@@ -148,10 +148,10 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
         return;
       }
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -179,10 +179,10 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
         return;
       }
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -203,10 +203,10 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
       auto ctx = fuse_req_ctx(req);
       err = s_fs->access(*entry, mode, ctx->uid, ctx->gid);
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -233,10 +233,10 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
         return;
       }
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -265,10 +265,10 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         return;
       }
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -300,10 +300,10 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     } else {
       err = EIO;
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -357,10 +357,10 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
       err = ENOTDIR;
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }
@@ -383,10 +383,10 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 
       return;
     }
-  } catch (const dwarfs::error& e) {
+  } catch (dwarfs::system_error const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = e.get_errno();
-  } catch (const std::exception& e) {
+  } catch (std::exception const& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
     err = EIO;
   }

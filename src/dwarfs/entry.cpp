@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <stdexcept>
 #include <utility>
 
 #include <openssl/sha.h>
@@ -29,6 +28,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/error.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/mmif.h"
@@ -86,7 +86,7 @@ std::string entry::type_string() const {
     return "socket";
   }
 
-  throw std::runtime_error(fmt::format("unknown file type: {:#06x}", mode));
+  DWARFS_THROW(error, fmt::format("unknown file type: {:#06x}", mode));
 }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
@@ -150,7 +150,7 @@ std::string_view file::hash() const {
 
 void file::set_inode(std::shared_ptr<inode> ino) {
   if (inode_) {
-    throw std::runtime_error("inode already set for file");
+    DWARFS_THROW(error, "inode already set for file");
   }
 
   inode_ = std::move(ino);

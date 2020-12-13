@@ -22,7 +22,6 @@
 #include <cstddef>
 #include <cstring>
 #include <optional>
-#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -37,6 +36,7 @@
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
@@ -62,21 +62,21 @@ class filesystem_parser {
       : mm_(mm)
       , offset_(sizeof(file_header)) {
     if (mm_->size() < sizeof(file_header)) {
-      throw std::runtime_error("file too small");
+      DWARFS_THROW(error, "file too small");
     }
 
     const file_header* fh = mm_->as<file_header>();
 
     if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
-      throw std::runtime_error("magic not found");
+      DWARFS_THROW(error, "magic not found");
     }
 
     if (fh->major != MAJOR_VERSION) {
-      throw std::runtime_error("different major version");
+      DWARFS_THROW(error, "different major version");
     }
 
     if (fh->minor > MINOR_VERSION) {
-      throw std::runtime_error("newer minor version");
+      DWARFS_THROW(error, "newer minor version");
     }
   }
 
@@ -91,7 +91,7 @@ class filesystem_parser {
       offset_ += sizeof(section_header);
 
       if (offset_ + sh.length > mm_->size()) {
-        throw std::runtime_error("truncated file");
+        DWARFS_THROW(error, "truncated file");
       }
 
       start = offset_;
@@ -151,11 +151,11 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   auto meta_it = sections.find(section_type::METADATA_V2);
 
   if (schema_it == sections.end()) {
-    throw std::runtime_error("no metadata schema found");
+    DWARFS_THROW(error, "no metadata schema found");
   }
 
   if (meta_it == sections.end()) {
-    throw std::runtime_error("no metadata found");
+    DWARFS_THROW(error, "no metadata found");
   }
 
   auto& meta_section = meta_it->second;
@@ -166,7 +166,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   if (lock_mode != mlock_mode::NONE) {
     if (auto ec = mm->lock(meta_section.start, meta_section_range.size())) {
       if (lock_mode == mlock_mode::MUST) {
-        throw boost::system::system_error(ec, "mlock");
+        DWARFS_THROW(system_error, "mlock");
       } else {
         log.warn() << "mlock() failed: " << ec.message();
       }
@@ -241,8 +241,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                    static_cast<size_t>(s->header.length));
     } else {
       if (!sections.emplace(s->header.type, *s).second) {
-        throw std::runtime_error("duplicate section: " +
-                                 get_section_name(s->header.type));
+        DWARFS_THROW(error,
+                     "duplicate section: " + get_section_name(s->header.type));
       }
     }
   }
@@ -398,8 +398,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
       ++prog.block_count;
     } else {
       if (!sections.emplace(s->header.type, *s).second) {
-        throw std::runtime_error("duplicate section: " +
-                                 get_section_name(s->header.type));
+        DWARFS_THROW(error,
+                     "duplicate section: " + get_section_name(s->header.type));
       }
     }
   }
@@ -452,8 +452,8 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
     if (s->header.type != section_type::BLOCK) {
       if (!sections.emplace(s->header.type, *s).second) {
-        throw std::runtime_error("duplicate section: " +
-                                 get_section_name(s->header.type));
+        DWARFS_THROW(error,
+                     "duplicate section: " + get_section_name(s->header.type));
       }
     }
   }

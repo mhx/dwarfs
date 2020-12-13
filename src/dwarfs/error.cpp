@@ -1,0 +1,80 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
+ * This file is part of dwarfs.
+ *
+ * dwarfs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dwarfs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include <cerrno>
+#include <iostream>
+
+#include <folly/String.h>
+#include <folly/experimental/exception_tracer/ExceptionTracer.h>
+#include <folly/experimental/symbolizer/SignalHandler.h>
+
+#include "dwarfs/error.h"
+
+namespace dwarfs {
+
+system_error::system_error(char const* file, int line) noexcept
+    : system_error(errno, file, line) {}
+
+system_error::system_error(std::string const& s, char const* file,
+                           int line) noexcept
+    : system_error(s, errno, file, line) {}
+
+system_error::system_error(std::string const& s, int err, char const* file,
+                           int line) noexcept
+    : boost::system::system_error(err, boost::system::generic_category(),
+                                  s.c_str())
+    , file_(file)
+    , line_(line) {}
+
+system_error::system_error(int err, char const* file, int line) noexcept
+    : boost::system::system_error(err, boost::system::generic_category())
+    , file_(file)
+    , line_(line) {}
+
+void dump_exceptions() {
+  auto exceptions = ::folly::exception_tracer::getCurrentExceptions();
+  for (auto& exc : exceptions) {
+    std::cerr << exc << std::endl;
+  }
+}
+
+int safe_main(std::function<int(void)> fn) {
+  try {
+    folly::symbolizer::installFatalSignalHandler();
+    return fn();
+  } catch (system_error const& e) {
+    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
+              << e.line() << "]" << std::endl;
+    dump_exceptions();
+  } catch (error const& e) {
+    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
+              << e.line() << "]" << std::endl;
+    dump_exceptions();
+  } catch (std::exception const& e) {
+    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
+    dump_exceptions();
+  } catch (...) {
+    dump_exceptions();
+  }
+  return 1;
+}
+
+} // namespace dwarfs

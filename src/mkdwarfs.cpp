@@ -45,7 +45,6 @@
 
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
-#include <folly/experimental/symbolizer/SignalHandler.h>
 #include <folly/gen/String.h>
 
 #include <fmt/format.h>
@@ -58,6 +57,7 @@
 #include "dwarfs/block_manager.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
+#include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
@@ -401,17 +401,24 @@ int mkdwarfs(int argc, char** argv) {
   // clang-format on
 
   po::variables_map vm;
-  auto parsed = po::parse_command_line(argc, argv, opts);
 
-  po::store(parsed, vm);
-  po::notify(vm);
+  try {
+    auto parsed = po::parse_command_line(argc, argv, opts);
 
-  auto unrecognized =
-      po::collect_unrecognized(parsed.options, po::include_positional);
+    po::store(parsed, vm);
+    po::notify(vm);
 
-  if (!unrecognized.empty()) {
-    throw std::runtime_error("unrecognized argument(s): " +
-                             boost::join(unrecognized, " "));
+    auto unrecognized =
+        po::collect_unrecognized(parsed.options, po::include_positional);
+
+    if (!unrecognized.empty()) {
+      std::cerr << "error: unrecognized argument(s) '"
+                << boost::join(unrecognized, " ") << "'" << std::endl;
+      return 1;
+    }
+  } catch (po::error const& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
   }
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
@@ -478,7 +485,8 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (level >= levels.size()) {
-    throw std::runtime_error("invalid compression level");
+    std::cerr << "error: invalid compression level" << std::endl;
+    return 1;
   }
 
   auto const& defaults = levels[level];
@@ -509,36 +517,59 @@ int mkdwarfs(int argc, char** argv) {
 
   std::vector<std::string> order_opts;
   boost::split(order_opts, order, boost::is_any_of(":"));
+
   if (auto it = order_choices.find(order_opts.front());
       it != order_choices.end()) {
     options.file_order.mode = it->second;
+
     if (order_opts.size() > 1) {
       if (options.file_order.mode != file_order_mode::NILSIMSA) {
-        throw std::runtime_error(
-            fmt::format("inode order mode '{}' does not support options",
-                        order_opts.front()));
+        std::cerr << "error: inode order mode '" << order_opts.front()
+                  << "' does not support options" << std::endl;
+        return 1;
       }
+
       if (order_opts.size() > 3) {
-        throw std::runtime_error(fmt::format(
-            "too many options for inode order mode '{}'", order_opts.front()));
+        std::cerr << "error: too many options for inode order mode '"
+                  << order_opts[0] << "'" << std::endl;
+        return 1;
       }
-      options.file_order.nilsimsa_limit = folly::to<int>(order_opts[1]);
-      if (options.file_order.nilsimsa_limit < 0 ||
-          options.file_order.nilsimsa_limit > 255) {
-        throw std::runtime_error(
-            fmt::format("limit ({}) out of range for '{}' (0..255)",
-                        options.file_order.nilsimsa_limit, order_opts.front()));
+
+      if (auto val = folly::tryTo<int>(order_opts[1])) {
+        options.file_order.nilsimsa_limit = *val;
+        if (options.file_order.nilsimsa_limit < 0 ||
+            options.file_order.nilsimsa_limit > 255) {
+          std::cerr << "error: limit (" << order_opts[1]
+                    << ") out of range for order '" << order_opts[0]
+                    << "' (0..255)" << std::endl;
+          return 1;
+        }
+      } else {
+        std::cerr << "error: limit (" << order_opts[1]
+                  << ") is not numeric for order '" << order_opts[0] << "'"
+                  << std::endl;
+        return 1;
       }
+
       if (order_opts.size() > 2) {
-        options.file_order.nilsimsa_depth = folly::to<int>(order_opts[2]);
-        if (options.file_order.nilsimsa_depth < 0) {
-          throw std::runtime_error(fmt::format(
-              "depth ({}) cannot be negative for '{}'", order_opts.front()));
+        if (auto val = folly::tryTo<int>(order_opts[2])) {
+          options.file_order.nilsimsa_depth = *val;
+          if (options.file_order.nilsimsa_depth < 0) {
+            std::cerr << "error: depth (" << order_opts[2]
+                      << ") cannot be negative for order '" << order_opts[0]
+                      << "'" << std::endl;
+          }
+        } else {
+          std::cerr << "error: depth (" << order_opts[2]
+                    << ") is not numeric for order '" << order_opts[0] << "'"
+                    << std::endl;
+          return 1;
         }
       }
     }
   } else {
-    throw std::runtime_error("invalid inode order mode: " + order);
+    std::cerr << "error: invalid inode order mode: " << order << std::endl;
+    return 1;
   }
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
@@ -548,11 +579,17 @@ int mkdwarfs(int argc, char** argv) {
   if (window_sizes != "-") {
     boost::split(wsv, window_sizes, boost::is_any_of(","));
 
-    std::transform(wsv.begin(), wsv.end(),
-                   std::back_inserter(cfg.blockhash_window_size),
-                   [](const std::string& x) {
-                     return static_cast<size_t>(1) << folly::to<unsigned>(x);
-                   });
+    try {
+      std::transform(wsv.begin(), wsv.end(),
+                     std::back_inserter(cfg.blockhash_window_size),
+                     [](const std::string& x) {
+                       return static_cast<size_t>(1) << folly::to<unsigned>(x);
+                     });
+    } catch (folly::ConversionError const& e) {
+      std::cerr << "error: window size is not numeric (" << window_sizes << ")"
+                << std::endl;
+      return 1;
+    }
   }
 
   worker_group wg_writer("writer", num_workers);
@@ -566,7 +603,9 @@ int mkdwarfs(int argc, char** argv) {
     progress_mode = "simple";
   }
   if (!progress_modes.count(progress_mode)) {
-    throw std::runtime_error("invalid progress mode: " + progress_mode);
+    std::cerr << "error: invalid progress mode '" << progress_mode << "'"
+              << std::endl;
+    return 1;
   }
 
   auto pg_mode = progress_modes.at(progress_mode);
@@ -594,7 +633,8 @@ int mkdwarfs(int argc, char** argv) {
     if (folly::readFile(file.c_str(), code)) {
       script = std::make_shared<python_script>(lgr, code, ctor);
     } else {
-      throw std::runtime_error("could not load script: " + file);
+      std::cerr << "error: could not load script '" << file << "'" << std::endl;
+      return 1;
     }
   }
 #endif
@@ -607,8 +647,10 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (options.file_order.mode == file_order_mode::SCRIPT && !script) {
-    throw std::runtime_error(
-        "--order=script can only be used with a valid --script option");
+    std::cerr << "error: '--order=script' can only be used with a valid "
+                 "'--script' option"
+              << std::endl;
+    return 1;
   }
 
   if (vm.count("set-owner")) {
@@ -620,24 +662,46 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (vm.count("set-time")) {
-    options.timestamp = timestamp == "now" ? std::time(nullptr)
-                                           : folly::to<uint64_t>(timestamp);
+    if (timestamp == "now") {
+      options.timestamp = std::time(nullptr);
+    } else if (auto val = folly::tryTo<uint64_t>(timestamp)) {
+      options.timestamp = *val;
+    } else {
+      std::cerr
+          << "error: argument for option '--set-time' must be numeric or `now`"
+          << std::endl;
+      return 1;
+    }
   }
 
   if (auto it = time_resolutions.find(time_resolution);
       it != time_resolutions.end()) {
     options.time_resolution_sec = it->second;
-  } else {
-    options.time_resolution_sec = folly::to<uint32_t>(time_resolution);
+  } else if (auto val = folly::tryTo<uint32_t>(time_resolution)) {
+    options.time_resolution_sec = *val;
     if (options.time_resolution_sec == 0) {
-      throw std::runtime_error("timestamp resolution cannot be 0");
+      std::cerr << "error: the argument to '--time-resolution' must be nonzero"
+                << std::endl;
+      return 1;
     }
+  } else {
+    std::cerr << "error: the argument ('" << time_resolution
+              << "') to '--time-resolution' is invalid" << std::endl;
+    return 1;
   }
 
   unsigned interval_ms =
       pg_mode == console_writer::NONE || pg_mode == console_writer::SIMPLE
           ? 2000
           : 200;
+
+  std::ofstream ofs(output, std::ios::binary);
+
+  if (ofs.bad() || !ofs.is_open()) {
+    std::cerr << "error: cannot open output file '" << output
+              << "': " << strerror(errno) << std::endl;
+    return 1;
+  }
 
   log_proxy<debug_logger_policy> log(lgr);
 
@@ -648,22 +712,15 @@ int mkdwarfs(int argc, char** argv) {
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 
-  std::ofstream ofs(output, std::ios::binary);
-
-  if (ofs.bad() || !ofs.is_open()) {
-    throw std::runtime_error(
-        fmt::format("cannot open '{}': {}", output, strerror(errno)));
-  }
-
   filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, schema_bc, metadata_bc,
                         mem_limit);
 
+  auto ti = log.timed_info();
+
   if (recompress) {
-    auto ti = log.timed_info();
     filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
                            fsw);
     wg_writer.wait();
-    ti << "filesystem rewritten";
   } else {
     options.inode.with_similarity =
         force_similarity ||
@@ -674,32 +731,35 @@ int mkdwarfs(int argc, char** argv) {
     scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
               std::make_shared<os_access_posix>(), std::move(script), options);
 
-    {
-      auto ti = log.timed_info();
-
+    try {
       s.scan(fsw, path, prog);
-
-      std::ostringstream err;
-
-      if (prog.errors) {
-        err << "with " << prog.errors << " error";
-        if (prog.errors > 1) {
-          err << "s";
-        }
-      } else {
-        err << "without errors";
-      }
-
-      ti << "filesystem created " << err.str();
+    } catch (error const& e) {
+      log.error() << e.what();
+      prog.errors++;
+      return 1;
     }
   }
 
   ofs.close();
 
   if (ofs.bad()) {
-    throw std::runtime_error(
-        fmt::format("failed to close '{}': {}", output, strerror(errno)));
+    log.error() << "failed to close output file '" << output
+                << "': " << strerror(errno);
+    return 1;
   }
+
+  std::ostringstream err;
+
+  if (prog.errors) {
+    err << "with " << prog.errors << " error";
+    if (prog.errors > 1) {
+      err << "s";
+    }
+  } else {
+    err << "without errors";
+  }
+
+  ti << "filesystem " << (recompress ? "rewritten" : "created ") << err.str();
 
   return prog.errors > 0;
 }
@@ -707,11 +767,5 @@ int mkdwarfs(int argc, char** argv) {
 } // namespace
 
 int main(int argc, char** argv) {
-  try {
-    folly::symbolizer::installFatalSignalHandler();
-    return mkdwarfs(argc, argv);
-  } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
-    return 1;
-  }
+  return dwarfs::safe_main([&] { return mkdwarfs(argc, argv); });
 }

@@ -20,7 +20,6 @@
  */
 
 #include <cerrno>
-#include <cstdio> // TODO
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -28,8 +27,10 @@
 #include <unistd.h>
 
 #include <boost/system/error_code.hpp>
-#include <boost/system/system_error.hpp>
 
+#include <fmt/format.h>
+
+#include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
 
 namespace dwarfs {
@@ -40,8 +41,7 @@ int safe_open(const std::string& path) {
   int fd = ::open(path.c_str(), O_RDONLY);
 
   if (fd == -1) {
-    throw boost::system::system_error(errno, boost::system::generic_category(),
-                                      "open");
+    DWARFS_THROW(system_error, fmt::format("open('{}')", path));
   }
 
   return fd;
@@ -50,8 +50,7 @@ int safe_open(const std::string& path) {
 size_t safe_size(int fd) {
   struct stat st;
   if (::fstat(fd, &st) == -1) {
-    throw boost::system::system_error(errno, boost::system::generic_category(),
-                                      "fstat");
+    DWARFS_THROW(system_error, "fstat");
   }
   return st.st_size;
 }
@@ -60,8 +59,7 @@ void* safe_mmap(int fd, size_t size) {
   void* addr = ::mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 
   if (addr == MAP_FAILED) {
-    throw boost::system::system_error(errno, boost::system::generic_category(),
-                                      "mmap");
+    DWARFS_THROW(system_error, "mmap");
   }
 
   return addr;

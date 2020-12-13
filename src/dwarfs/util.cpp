@@ -21,13 +21,13 @@
 
 #include <array>
 #include <climits>
-#include <stdexcept>
 #include <string>
 
 #include <unistd.h>
 
 #include <folly/String.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/util.h"
 
 namespace dwarfs {
@@ -77,7 +77,7 @@ size_t parse_size_with_unit(const std::string& str) {
     }
   }
 
-  throw std::runtime_error("invalid size suffix");
+  DWARFS_THROW(error, "invalid size suffix");
 }
 
 std::string get_program_path() {

@@ -22,34 +22,56 @@
 #pragma once
 
 #include <exception>
+#include <functional>
+#include <string>
+
+#include <boost/system/error_code.hpp>
+#include <boost/system/system_error.hpp>
 
 namespace dwarfs {
 
 class error : public std::exception {
  public:
-  error(const std::string& str, int err_no) noexcept
-      : what_(str)
-      , errno_(err_no) {}
+  error(std::string const& s, char const* file, int line) noexcept
+      : what_(s)
+      , file_(file)
+      , line_(line) {}
 
-  error(const error& e) noexcept
-      : what_(e.what_)
-      , errno_(e.errno_) {}
+  char const* what() const noexcept override { return what_.c_str(); }
 
-  error& operator=(const error& e) noexcept {
-    if (&e != this) {
-      what_ = e.what_;
-      errno_ = e.errno_;
-    }
-    return *this;
-  }
+  char const* file() const { return file_; }
 
-  const char* what() const noexcept override { return what_.c_str(); }
-
-  int get_errno() const { return errno_; }
+  int line() const { return line_; }
 
  private:
   std::string what_;
-  int errno_;
+  char const* file_;
+  int line_;
 };
+
+class system_error : public boost::system::system_error {
+ public:
+  system_error(char const* file, int line) noexcept;
+  system_error(std::string const& s, char const* file, int line) noexcept;
+  system_error(std::string const& s, int err, char const* file,
+               int line) noexcept;
+  system_error(int err, char const* file, int line) noexcept;
+
+  int get_errno() const { return code().value(); }
+
+  char const* file() const { return file_; }
+
+  int line() const { return line_; }
+
+ private:
+  char const* file_;
+  int line_;
+};
+
+#define DWARFS_THROW(cls, ...) throw cls(__VA_ARGS__, __FILE__, __LINE__)
+
+void dump_exceptions();
+
+int safe_main(std::function<int(void)> fn);
 
 } // namespace dwarfs

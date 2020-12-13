@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cerrno>
 #include <stdexcept>
 #include <vector>
 
@@ -27,8 +26,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <boost/system/system_error.hpp>
+#include <fmt/format.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/os_access_posix.h"
 
@@ -39,8 +39,7 @@ class posix_dir_reader : public dir_reader {
   posix_dir_reader(const std::string& path)
       : dir_(::opendir(path.c_str())) {
     if (!dir_) {
-      throw boost::system::system_error(
-          errno, boost::system::generic_category(), "opendir: " + path);
+      DWARFS_THROW(system_error, fmt::format("opendir('{}')", path));
     }
   }
 
@@ -64,8 +63,7 @@ class posix_dir_reader : public dir_reader {
       return false;
     }
 
-    throw boost::system::system_error(errno, boost::system::generic_category(),
-                                      "readdir_r");
+    DWARFS_THROW(system_error, "readdir");
   }
 
  private:
@@ -79,8 +77,7 @@ os_access_posix::opendir(const std::string& path) const {
 
 void os_access_posix::lstat(const std::string& path, struct ::stat* st) const {
   if (::lstat(path.c_str(), st) == -1) {
-    throw boost::system::system_error(errno, boost::system::generic_category(),
-                                      "lstat");
+    DWARFS_THROW(system_error, fmt::format("lstat('{}')", path));
   }
 }
 
@@ -93,8 +90,7 @@ os_access_posix::readlink(const std::string& path, size_t size) const {
     return std::string(linkname.begin(), linkname.end());
   }
 
-  throw boost::system::system_error(errno, boost::system::generic_category(),
-                                    "readlink");
+  DWARFS_THROW(system_error, fmt::format("readlink('{}')", path));
 }
 
 std::shared_ptr<mmif>

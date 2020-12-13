@@ -24,6 +24,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/options.h"
 
 namespace dwarfs {
@@ -64,7 +65,7 @@ mlock_mode parse_mlock_mode(std::string_view mode) {
   if (mode == "must") {
     return mlock_mode::MUST;
   }
-  throw std::runtime_error(fmt::format("invalid lock mode: {}", mode));
+  DWARFS_THROW(error, fmt::format("invalid lock mode: {}", mode));
 }
 
 } // namespace dwarfs

@@ -152,6 +152,7 @@ list(
   src/dwarfs/block_manager.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
+  src/dwarfs/error.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
@@ -351,7 +352,7 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
-foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
+foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
   target_link_libraries(${tgt} -Wl,--whole-archive folly_exception_tracer_base
                         folly_exception_tracer -Wl,--no-whole-archive)
@@ -363,13 +364,8 @@ if(WITH_PYTHON)
   endif()
 
   target_link_libraries(mkdwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
-endif()
 
-if(WITH_TESTS)
-  foreach(tgt dwarfs_test dwarfs_compat_test)
-    target_link_libraries(${tgt} dwarfs)
-  endforeach()
-  if(WITH_PYTHON)
+  if(WITH_TESTS)
     foreach(tgt dwarfs_test dwarfs_compat_test)
       target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
     endforeach()

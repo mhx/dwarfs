@@ -36,6 +36,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "dwarfs/error.h"
 #include "dwarfs/util.h"
 
 namespace dwarfs {
@@ -302,7 +303,7 @@ template <template <class> class T, class CreatePolicy, class LoggerPolicyList>
 struct logging_class_factory<T, CreatePolicy, LoggerPolicyList, 0> {
   template <class... Args>
   static typename CreatePolicy::return_type create(logger& lgr, Args&&...) {
-    throw std::runtime_error("no such logger policy: " + lgr.policy_name());
+    DWARFS_THROW(error, "no such logger policy: " + lgr.policy_name());
   }
 };
 

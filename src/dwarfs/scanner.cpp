@@ -40,6 +40,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/error.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/hash_util.h"
@@ -336,7 +337,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   auto root = entry_->create(*os_, path);
 
   if (root->type() != entry::E_DIR) {
-    throw std::runtime_error(path + " must be a directory");
+    DWARFS_THROW(error, fmt::format("'{}' must be a directory", path));
   }
 
   std::deque<std::shared_ptr<entry>> queue({root});
@@ -346,7 +347,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
     auto parent = std::dynamic_pointer_cast<dir>(queue.front());
 
     if (!parent) {
-      throw std::runtime_error("expected directory");
+      DWARFS_THROW(error, "expected directory");
     }
 
     queue.pop_front();

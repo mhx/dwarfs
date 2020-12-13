@@ -27,6 +27,7 @@
 #include <folly/String.h>
 #include <folly/json.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
@@ -65,25 +66,39 @@ int dwarfsck(int argc, char** argv) {
 
   po::variables_map vm;
 
-  po::store(
-      po::command_line_parser(argc, argv).options(opts).positional(pos).run(),
-      vm);
-  po::notify(vm);
+  try {
+    po::store(
+        po::command_line_parser(argc, argv).options(opts).positional(pos).run(),
+        vm);
+    po::notify(vm);
+  } catch (po::error const& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
+  }
 
   if (vm.count("help") or !vm.count("input")) {
     std::cout << "dwarfsck (" << DWARFS_VERSION << ")\n" << opts << std::endl;
     return 0;
   }
 
-  dwarfs::stream_logger lgr(std::cerr, logger::parse_level(log_level));
+  stream_logger lgr(std::cerr, logger::parse_level(log_level));
+  log_proxy<debug_logger_policy> log(lgr);
 
-  auto mm = std::make_shared<dwarfs::mmap>(input);
+  try {
+    auto mm = std::make_shared<mmap>(input);
 
-  if (json) {
-    dwarfs::filesystem_v2 fs(lgr, mm);
-    std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
-  } else {
-    dwarfs::filesystem_v2::identify(lgr, mm, std::cout, detail);
+    if (json) {
+      filesystem_v2 fs(lgr, mm);
+      std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
+    } else {
+      filesystem_v2::identify(lgr, mm, std::cout, detail);
+    }
+  } catch (system_error const& e) {
+    log.error() << folly::exceptionStr(e);
+    return 1;
+  } catch (error const& e) {
+    log.error() << folly::exceptionStr(e);
+    return 1;
   }
 
   return 0;
@@ -92,10 +107,5 @@ int dwarfsck(int argc, char** argv) {
 } // namespace dwarfs
 
 int main(int argc, char** argv) {
-  try {
-    return dwarfs::dwarfsck(argc, argv);
-  } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
-    return 1;
-  }
+  return dwarfs::safe_main([&] { return dwarfs::dwarfsck(argc, argv); });
 }

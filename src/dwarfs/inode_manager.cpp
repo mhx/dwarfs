@@ -25,11 +25,11 @@
 #include <deque>
 #include <limits>
 #include <numeric>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/error.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
@@ -56,21 +56,21 @@ class inode_ : public inode {
 
   uint32_t similarity_hash() const override {
     if (files_.empty()) {
-      throw std::runtime_error("inode has no file");
+      DWARFS_THROW(error, "inode has no file");
     }
     return similarity_hash_;
   }
 
   std::vector<uint64_t> const& nilsimsa_similarity_hash() const override {
     if (files_.empty()) {
-      throw std::runtime_error("inode has no file");
+      DWARFS_THROW(error, "inode has no file");
     }
     return nilsimsa_similarity_hash_;
   }
 
   void set_files(files_vector&& fv) override {
     if (!files_.empty()) {
-      throw std::runtime_error("files already set for inode");
+      DWARFS_THROW(error, "files already set for inode");
     }
 
     files_ = std::move(fv);
@@ -110,7 +110,7 @@ class inode_ : public inode {
 
   file const* any() const override {
     if (files_.empty()) {
-      throw std::runtime_error("inode has no file");
+      DWARFS_THROW(error, "inode has no file");
     }
     return files_.front();
   }
@@ -247,7 +247,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
 
   case file_order_mode::SCRIPT: {
     if (!scr->has_order()) {
-      throw std::runtime_error("script cannot order inodes");
+      DWARFS_THROW(error, "script cannot order inodes");
     }
     log_.info() << "ordering " << count() << " inodes using script...";
     auto ti = log_.timed_info();
@@ -390,7 +390,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   }
 
   if (count != inodes_.size()) {
-    throw std::runtime_error("internal error: nilsimsa ordering failed");
+    DWARFS_THROW(error, "internal error: nilsimsa ordering failed");
   }
 }
 

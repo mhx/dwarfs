@@ -31,6 +31,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/error.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options_interface.h"
@@ -282,7 +283,7 @@ python_script::impl::impl(logger& lgr, const std::string& code,
     has_order_ = has_callable(instance_, "order");
   } catch (py::error_already_set const&) {
     log_py_error();
-    throw std::runtime_error("error initializing script");
+    DWARFS_THROW(error, "error initializing script");
   }
 }
 
@@ -347,7 +348,7 @@ void python_script::impl::configure(options_interface const& oi) {
     instance_.attr("configure")(py::ptr(&oi));
   } catch (py::error_already_set const&) {
     log_py_error();
-    throw std::runtime_error("error in configure");
+    DWARFS_THROW(error, "error in configure");
   }
 }
 
@@ -358,7 +359,7 @@ bool python_script::impl::filter(entry_interface const& ei) {
         instance_.attr("filter")(std::make_shared<entry_wrapper>(ei)));
   } catch (py::error_already_set const&) {
     log_py_error();
-    throw std::runtime_error("error filtering entry");
+    DWARFS_THROW(error, "error filtering entry");
   }
 }
 
@@ -368,7 +369,7 @@ void python_script::impl::transform(entry_interface& ei) {
     instance_.attr("transform")(std::make_shared<mutable_entry_wrapper>(ei));
   } catch (py::error_already_set const&) {
     log_py_error();
-    throw std::runtime_error("error transforming entry");
+    DWARFS_THROW(error, "error transforming entry");
   }
 }
 
@@ -407,24 +408,23 @@ void python_script::impl::order(inode_vector& iv) {
     }
 
     if (index != iv.size()) {
-      throw std::runtime_error("order() returned different number of files");
+      DWARFS_THROW(error, "order() returned different number of files");
     }
 
-    std::sort(iv.begin(), iv.end(),
-              [&](inode_ptr const& a, inode_ptr const& b) {
-                auto ia = priority.find(a.get());
-                auto ib = priority.find(b.get());
-                if (ia == priority.end() || ib == priority.end()) {
-                  throw std::runtime_error(
-                      "invalid inode pointer while ordering files");
-                }
-                return ia->second < ib->second;
-              });
+    std::sort(
+        iv.begin(), iv.end(), [&](inode_ptr const& a, inode_ptr const& b) {
+          auto ia = priority.find(a.get());
+          auto ib = priority.find(b.get());
+          if (ia == priority.end() || ib == priority.end()) {
+            DWARFS_THROW(error, "invalid inode pointer while ordering files");
+          }
+          return ia->second < ib->second;
+        });
 
     td << "applied new inode order";
   } catch (py::error_already_set const&) {
     log_py_error();
-    throw std::runtime_error("error ordering inodes");
+    DWARFS_THROW(error, "error ordering inodes");
   }
 }
 

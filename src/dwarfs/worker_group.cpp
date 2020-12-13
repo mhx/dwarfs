@@ -24,7 +24,6 @@
 #include <cstdint>
 #include <mutex>
 #include <queue>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +35,7 @@
 #include <folly/Conv.h>
 #include <folly/system/ThreadName.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/semaphore.h"
 #include "dwarfs/worker_group.h"
 
@@ -52,7 +52,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
       , pending_(0)
       , max_queue_len_(max_queue_len) {
     if (num_workers < 1) {
-      throw std::runtime_error("invalid number of worker threads");
+      DWARFS_THROW(error, "invalid number of worker threads");
     }
     if (!group_name) {
       group_name = "worker";
