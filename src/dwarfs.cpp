@@ -443,17 +443,8 @@ int option_hdl(void* data, const char* arg, int key,
   return 1;
 }
 
-int run_fuse(struct fuse_args& args) {
-  struct fuse_cmdline_opts fuse_opts;
-
-  if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
-    usage(s_opts.progname);
-  }
-
-  if (fuse_opts.foreground) {
-    folly::symbolizer::installFatalSignalHandler();
-  }
-
+int run_fuse(struct fuse_args& args,
+             struct fuse_cmdline_opts const& fuse_opts) {
   struct fuse_lowlevel_ops fsops;
 
   ::memset(&fsops, 0, sizeof(fsops));
@@ -513,13 +504,27 @@ int main(int argc, char* argv[]) {
 
   fuse_opt_parse(&args, &s_opts, dwarfs_opts, option_hdl);
 
-  s_opts.cachesize = s_opts.cachesize_str
-                         ? parse_size_with_unit(s_opts.cachesize_str)
-                         : (static_cast<size_t>(512) << 20);
+  struct fuse_cmdline_opts fuse_opts;
+
+  if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
+    usage(s_opts.progname);
+  }
+
+  if (fuse_opts.foreground) {
+    folly::symbolizer::installFatalSignalHandler();
+  }
+
   // TODO: foreground mode, stderr vs. syslog?
   s_opts.debuglevel = s_opts.debuglevel_str
                           ? logger::parse_level(s_opts.debuglevel_str)
                           : logger::INFO;
+
+  s_lgr.set_threshold(s_opts.debuglevel);
+  log_proxy<debug_logger_policy> log(s_lgr);
+
+  s_opts.cachesize = s_opts.cachesize_str
+                         ? parse_size_with_unit(s_opts.cachesize_str)
+                         : (static_cast<size_t>(512) << 20);
   s_opts.workers =
       s_opts.workers_str ? folly::to<size_t>(s_opts.workers_str) : 2;
   s_opts.lock_mode =
@@ -527,9 +532,6 @@ int main(int argc, char* argv[]) {
   s_opts.decompress_ratio = s_opts.decompress_ratio_str
                                 ? folly::to<double>(s_opts.decompress_ratio_str)
                                 : 0.8;
-
-  s_lgr.set_threshold(s_opts.debuglevel);
-  log_proxy<debug_logger_policy> log(s_lgr);
 
   log.info() << "dwarfs (" << DWARFS_VERSION << ")";
 
@@ -539,5 +541,5 @@ int main(int argc, char* argv[]) {
 
   metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
-  return run_fuse(args);
+  return run_fuse(args, fuse_opts);
 }
