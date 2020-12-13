@@ -353,6 +353,8 @@ target_link_libraries(
 
 foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
   target_link_libraries(${tgt} dwarfs)
+  target_link_libraries(${tgt} -Wl,--whole-archive folly_exception_tracer_base
+                        folly_exception_tracer -Wl,--no-whole-archive)
 endforeach()
 
 if(WITH_PYTHON)
