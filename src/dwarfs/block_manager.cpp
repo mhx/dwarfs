@@ -229,7 +229,8 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
       auto& stats = stats_[bhi->size];
 
       if (hmi == hm.end()) {
-        DWARFS_THROW(error, "internal error: no hash found for window size");
+        DWARFS_THROW(runtime_error,
+                     "internal error: no hash found for window size");
       }
 
       const auto& hashvec = hmi->second;
@@ -240,7 +241,7 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
         log_.error() << "bhi=" << bhi->size
                      << ", hashvec.size()=" << hashvec.size()
                      << ", offset=" << offset << ", last=" << last;
-        DWARFS_THROW(error, "internal error: hashvec too small");
+        DWARFS_THROW(runtime_error, "internal error: hashvec too small");
       }
 
       for (size_t off = 0; off < last; off += incr) {
@@ -409,7 +410,8 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
       auto& stats = stats_[bhcur->size];
 
       if (hmi == hm.end()) {
-        DWARFS_THROW(error, "internal error: no hash found for window size");
+        DWARFS_THROW(runtime_error,
+                     "internal error: no hash found for window size");
       }
 
       const auto& hashvec = hmi->second;

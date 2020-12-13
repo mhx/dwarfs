@@ -608,7 +608,7 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  auto pg_mode = progress_modes.at(progress_mode);
+  auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
 
   console_writer lgr(
       std::cerr, pg_mode, get_term_width(), logger::parse_level(log_level),
@@ -733,9 +733,8 @@ int mkdwarfs(int argc, char** argv) {
 
     try {
       s.scan(fsw, path, prog);
-    } catch (error const& e) {
+    } catch (runtime_error const& e) {
       log.error() << e.what();
-      prog.errors++;
       return 1;
     }
   }

@@ -52,7 +52,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
       , pending_(0)
       , max_queue_len_(max_queue_len) {
     if (num_workers < 1) {
-      DWARFS_THROW(error, "invalid number of worker threads");
+      DWARFS_THROW(runtime_error, "invalid number of worker threads");
     }
     if (!group_name) {
       group_name = "worker";

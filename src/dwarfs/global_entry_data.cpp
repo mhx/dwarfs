@@ -21,6 +21,7 @@
 
 #include <folly/gen/Base.h>
 
+#include "dwarfs/error.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/options.h"
 
@@ -85,11 +86,23 @@ uint64_t global_entry_data::get_timestamp_base() const {
 }
 
 uint16_t global_entry_data::get_uid_index(uint16_t uid) const {
-  return options_.uid ? *options_.uid : uids_.at(uid);
+  return options_.uid ? *options_.uid : DWARFS_NOTHROW(uids_.at(uid));
 }
 
 uint16_t global_entry_data::get_gid_index(uint16_t gid) const {
-  return options_.gid ? *options_.gid : gids_.at(gid);
+  return options_.gid ? *options_.gid : DWARFS_NOTHROW(gids_.at(gid));
+}
+
+uint16_t global_entry_data::get_mode_index(uint16_t mode) const {
+  return DWARFS_NOTHROW(modes_.at(mode));
+}
+
+uint32_t global_entry_data::get_name_index(std::string const& name) const {
+  return DWARFS_NOTHROW(names_.at(name));
+}
+
+uint32_t global_entry_data::get_link_index(std::string const& link) const {
+  return DWARFS_NOTHROW(links_.at(link));
 }
 
 void global_entry_data::add_uid(uint16_t uid) {

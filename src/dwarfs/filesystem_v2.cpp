@@ -62,21 +62,21 @@ class filesystem_parser {
       : mm_(mm)
       , offset_(sizeof(file_header)) {
     if (mm_->size() < sizeof(file_header)) {
-      DWARFS_THROW(error, "file too small");
+      DWARFS_THROW(runtime_error, "file too small");
     }
 
     const file_header* fh = mm_->as<file_header>();
 
     if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
-      DWARFS_THROW(error, "magic not found");
+      DWARFS_THROW(runtime_error, "magic not found");
     }
 
     if (fh->major != MAJOR_VERSION) {
-      DWARFS_THROW(error, "different major version");
+      DWARFS_THROW(runtime_error, "different major version");
     }
 
     if (fh->minor > MINOR_VERSION) {
-      DWARFS_THROW(error, "newer minor version");
+      DWARFS_THROW(runtime_error, "newer minor version");
     }
   }
 
@@ -91,7 +91,7 @@ class filesystem_parser {
       offset_ += sizeof(section_header);
 
       if (offset_ + sh.length > mm_->size()) {
-        DWARFS_THROW(error, "truncated file");
+        DWARFS_THROW(runtime_error, "truncated file");
       }
 
       start = offset_;
@@ -151,11 +151,11 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   auto meta_it = sections.find(section_type::METADATA_V2);
 
   if (schema_it == sections.end()) {
-    DWARFS_THROW(error, "no metadata schema found");
+    DWARFS_THROW(runtime_error, "no metadata schema found");
   }
 
   if (meta_it == sections.end()) {
-    DWARFS_THROW(error, "no metadata found");
+    DWARFS_THROW(runtime_error, "no metadata found");
   }
 
   auto& meta_section = meta_it->second;
@@ -241,7 +241,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                    static_cast<size_t>(s->header.length));
     } else {
       if (!sections.emplace(s->header.type, *s).second) {
-        DWARFS_THROW(error,
+        DWARFS_THROW(runtime_error,
                      "duplicate section: " + get_section_name(s->header.type));
       }
     }
@@ -398,7 +398,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
       ++prog.block_count;
     } else {
       if (!sections.emplace(s->header.type, *s).second) {
-        DWARFS_THROW(error,
+        DWARFS_THROW(runtime_error,
                      "duplicate section: " + get_section_name(s->header.type));
       }
     }
@@ -452,7 +452,7 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
     if (s->header.type != section_type::BLOCK) {
       if (!sections.emplace(s->header.type, *s).second) {
-        DWARFS_THROW(error,
+        DWARFS_THROW(runtime_error,
                      "duplicate section: " + get_section_name(s->header.type));
       }
     }

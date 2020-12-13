@@ -123,7 +123,7 @@ class metadata_ : public metadata_v2::impl {
 
     if (int(meta_.directories().size() - 1) != link_index_offset_) {
       DWARFS_THROW(
-          error,
+          runtime_error,
           fmt::format("metadata inconsistency: number of directories ({}) does "
                       "not match link index ({})",
                       meta_.directories().size() - 1, link_index_offset_));
@@ -132,7 +132,7 @@ class metadata_ : public metadata_v2::impl {
     if (int(meta_.link_index().size()) !=
         (chunk_index_offset_ - link_index_offset_)) {
       DWARFS_THROW(
-          error,
+          runtime_error,
           fmt::format(
               "metadata inconsistency: number of links ({}) does not match "
               "chunk/link index delta ({} - {} = {})",
@@ -143,7 +143,7 @@ class metadata_ : public metadata_v2::impl {
     if (int(meta_.chunk_index().size() - 1) !=
         (dev_index_offset_ - chunk_index_offset_)) {
       DWARFS_THROW(
-          error,
+          runtime_error,
           fmt::format(
               "metadata inconsistency: number of files ({}) does not match "
               "device/chunk index delta ({} - {} = {})",
@@ -156,7 +156,7 @@ class metadata_ : public metadata_v2::impl {
 
       if (devs->size() != (other_offset - dev_index_offset_)) {
         DWARFS_THROW(
-            error,
+            runtime_error,
             fmt::format("metadata inconsistency: number of devices ({}) does "
                         "not match other/device index delta ({} - {} = {})",
                         devs->size(), other_offset, dev_index_offset_,
@@ -240,7 +240,8 @@ class metadata_ : public metadata_v2::impl {
     case S_IFIFO:
       return inode_rank::INO_OTH;
     default:
-      DWARFS_THROW(error, fmt::format("unknown file type: {:#06x}", mode));
+      DWARFS_THROW(runtime_error,
+                   fmt::format("unknown file type: {:#06x}", mode));
     }
   }
 
@@ -261,7 +262,8 @@ class metadata_ : public metadata_v2::impl {
     case S_IFIFO:
       return 'p';
     default:
-      DWARFS_THROW(error, fmt::format("unknown file type: {:#06x}", mode));
+      DWARFS_THROW(runtime_error,
+                   fmt::format("unknown file type: {:#06x}", mode));
     }
   }
 
@@ -353,7 +355,7 @@ class metadata_ : public metadata_v2::impl {
       for (auto e : meta_.entries()) {
         auto index = int(e.inode()) - chunk_index_offset_;
         if (index >= 0 && index < int(nlinks.size())) {
-          ++nlinks.at(index);
+          DWARFS_NOTHROW(++nlinks.at(index));
         }
       }
 
@@ -661,9 +663,10 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
                                : resolution * (timebase + entry.atime_offset());
   stbuf->st_ctime = mtime_only ? stbuf->st_mtime
                                : resolution * (timebase + entry.ctime_offset());
-  stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
-                        ? nlinks_.at(inode - chunk_index_offset_)
-                        : 1;
+  stbuf->st_nlink =
+      options_.enable_nlink && S_ISREG(mode)
+          ? DWARFS_NOTHROW(nlinks_.at(inode - chunk_index_offset_))
+          : 1;
 
   if (S_ISBLK(mode) || S_ISCHR(mode)) {
     stbuf->st_rdev = get_device_id(inode);

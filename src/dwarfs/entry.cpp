@@ -86,7 +86,7 @@ std::string entry::type_string() const {
     return "socket";
   }
 
-  DWARFS_THROW(error, fmt::format("unknown file type: {:#06x}", mode));
+  DWARFS_THROW(runtime_error, fmt::format("unknown file type: {:#06x}", mode));
 }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
@@ -150,7 +150,7 @@ std::string_view file::hash() const {
 
 void file::set_inode(std::shared_ptr<inode> ino) {
   if (inode_) {
-    DWARFS_THROW(error, "inode already set for file");
+    DWARFS_THROW(runtime_error, "inode already set for file");
   }
 
   inode_ = std::move(ino);
@@ -241,7 +241,7 @@ void dir::scan(os_access&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
-  mv2.entry_index.at(inode_num()) = mv2.entries.size();
+  DWARFS_NOTHROW(mv2.entry_index.at(inode_num())) = mv2.entries.size();
   mv2.entries.emplace_back();
   entry::pack(mv2.entries.back(), data);
 }
@@ -255,7 +255,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
   // d.entry_count = entries_.size();
   mv2.directories.push_back(d);
   for (entry_ptr const& e : entries_) {
-    mv2.entry_index.at(e->inode_num()) = mv2.entries.size();
+    DWARFS_NOTHROW(mv2.entry_index.at(e->inode_num())) = mv2.entries.size();
     mv2.entries.emplace_back();
     e->pack(mv2.entries.back(), data);
   }

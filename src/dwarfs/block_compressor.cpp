@@ -72,8 +72,8 @@ class option_map {
       boost::split(kv, arg[i], boost::is_any_of("="));
 
       if (kv.size() > 2) {
-        DWARFS_THROW(error, "error parsing option " + kv[0] + " for choice " +
-                                choice_);
+        DWARFS_THROW(runtime_error, "error parsing option " + kv[0] +
+                                        " for choice " + choice_);
       }
 
       opt_[kv[0]] = kv.size() > 1 ? kv[1] : std::string("1");
@@ -101,8 +101,8 @@ class option_map {
       std::transform(
           opt_.begin(), opt_.end(), std::back_inserter(invalid),
           [](const std::pair<std::string, std::string>& p) { return p.first; });
-      DWARFS_THROW(error, "invalid option(s) for choice " + choice_ + ": " +
-                              boost::join(invalid, ", "));
+      DWARFS_THROW(runtime_error, "invalid option(s) for choice " + choice_ +
+                                      ": " + boost::join(invalid, ", "));
     }
   }
 
@@ -164,7 +164,7 @@ class lzma_block_compressor : public block_compressor::impl {
     auto i = vm.find(binary);
 
     if (i == vm.end()) {
-      DWARFS_THROW(error, "unsupported binary mode");
+      DWARFS_THROW(runtime_error, "unsupported binary mode");
     }
 
     return i->second;
@@ -215,7 +215,7 @@ lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
     : stream_(LZMA_STREAM_INIT)
     , data_(block_size > 0 ? lzma_stream_buffer_bound(block_size) : 0) {
   if (lzma_lzma_preset(&opt_lzma_, get_preset(level, extreme))) {
-    DWARFS_THROW(error, "unsupported preset, possibly a bug");
+    DWARFS_THROW(runtime_error, "unsupported preset, possibly a bug");
   }
 
   if (dict_size > 0) {
@@ -233,7 +233,7 @@ lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
     auto* filters = &filters_[filters_[0].id == LZMA_VLI_UNKNOWN];
 
     if (lzma_stream_encoder(&stream_, filters, LZMA_CHECK_CRC64)) {
-      DWARFS_THROW(error, "lzma_stream_encoder");
+      DWARFS_THROW(runtime_error, "lzma_stream_encoder");
     }
 
     stream_.next_out = data_.data();
@@ -253,18 +253,18 @@ void lzma_block_compressor::append(const uint8_t* data, size_t size,
   switch (ret) {
   case LZMA_STREAM_END:
     if (!last) {
-      DWARFS_THROW(error, "LZMA unexpected stream end");
+      DWARFS_THROW(runtime_error, "LZMA unexpected stream end");
     }
     break;
 
   case LZMA_MEM_ERROR:
-    DWARFS_THROW(error, "LZMA_MEM_ERROR");
+    DWARFS_THROW(runtime_error, "LZMA_MEM_ERROR");
 
   case LZMA_DATA_ERROR:
-    DWARFS_THROW(error, "LZMA_DATA_ERROR");
+    DWARFS_THROW(runtime_error, "LZMA_DATA_ERROR");
 
   default:
-    DWARFS_THROW(error, "unknown LZMA error");
+    DWARFS_THROW(runtime_error, "unknown LZMA error");
   }
 
   if (last) {
@@ -280,7 +280,7 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
   lzma_stream s = LZMA_STREAM_INIT;
 
   if (lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64)) {
-    DWARFS_THROW(error, "lzma_stream_encoder");
+    DWARFS_THROW(runtime_error, "lzma_stream_encoder");
   }
 
   lzma_action action = LZMA_FINISH;
@@ -304,13 +304,13 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
     break;
 
   case LZMA_MEM_ERROR:
-    DWARFS_THROW(error, "LZMA_MEM_ERROR");
+    DWARFS_THROW(runtime_error, "LZMA_MEM_ERROR");
 
   case LZMA_DATA_ERROR:
-    DWARFS_THROW(error, "LZMA_DATA_ERROR");
+    DWARFS_THROW(runtime_error, "LZMA_DATA_ERROR");
 
   default:
-    DWARFS_THROW(error, "unknown LZMA error");
+    DWARFS_THROW(runtime_error, "unknown LZMA error");
   }
 
   return compressed;
@@ -372,7 +372,7 @@ class lz4_block_compressor : public block_compressor::impl {
         Policy::compress(&data[0], &compressed[sizeof(uint32_t)], data.size(),
                          compressed.size() - sizeof(uint32_t), level_);
     if (csize == 0) {
-      DWARFS_THROW(error, "error during compression");
+      DWARFS_THROW(runtime_error, "error during compression");
     }
     compressed.resize(sizeof(uint32_t) + csize);
     return compressed;
@@ -474,7 +474,7 @@ block_compressor::block_compressor(const std::string& spec, size_t block_size) {
         om.get<int>("level", ZSTD_maxCLevel()));
 #endif
   } else {
-    DWARFS_THROW(error, "unknown compression: " + om.choice());
+    DWARFS_THROW(runtime_error, "unknown compression: " + om.choice());
   }
 
   om.report();
@@ -528,7 +528,7 @@ class lzma_block_decompressor : public block_decompressor::impl {
     stream_.avail_in = size;
     if (lzma_stream_decoder(&stream_, UINT64_MAX, LZMA_CONCATENATED) !=
         LZMA_OK) {
-      DWARFS_THROW(error, "lzma_stream_decoder");
+      DWARFS_THROW(runtime_error, "lzma_stream_decoder");
     }
     decompressed_.reserve(uncompressed_size_);
   }
@@ -561,7 +561,7 @@ class lzma_block_decompressor : public block_decompressor::impl {
 
     if (ret != (action == LZMA_RUN ? LZMA_OK : LZMA_STREAM_END) ||
         stream_.avail_out != 0) {
-      DWARFS_THROW(error,
+      DWARFS_THROW(runtime_error,
                    fmt::format("error while decompressing LZMA stream "
                                "(action={0}, ret={1}, stream_.avail_out={2})",
                                action, ret, stream_.avail_out));
@@ -639,7 +639,8 @@ class zstd_block_decompressor : public block_decompressor::impl {
     auto rv = ZSTD_decompress(decompressed_.data(), decompressed_.size(), data_,
                               size_);
     if (ZSTD_isError(rv)) {
-      DWARFS_THROW(error, fmt::format("ZSTD: {}", ZSTD_getErrorName(rv)));
+      DWARFS_THROW(runtime_error,
+                   fmt::format("ZSTD: {}", ZSTD_getErrorName(rv)));
     }
     return true;
   }
@@ -658,7 +659,7 @@ class zstd_block_decompressor : public block_decompressor::impl {
 size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
                                                       size_t size) {
   if (size < 2 * LZMA_STREAM_HEADER_SIZE) {
-    DWARFS_THROW(error, "lzma compressed block is too small");
+    DWARFS_THROW(runtime_error, "lzma compressed block is too small");
   }
 
   lzma_stream s = LZMA_STREAM_INIT;
@@ -672,26 +673,26 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
     --ptr;
 
     if (pos < 2 * LZMA_STREAM_HEADER_SIZE) {
-      DWARFS_THROW(error, "data error (stream padding)");
+      DWARFS_THROW(runtime_error, "data error (stream padding)");
     }
   }
 
   lzma_stream_flags footer_flags;
 
   if (lzma_stream_footer_decode(&footer_flags, data + pos) != LZMA_OK) {
-    DWARFS_THROW(error, "lzma_stream_footer_decode()");
+    DWARFS_THROW(runtime_error, "lzma_stream_footer_decode()");
   }
 
   lzma_vli index_size = footer_flags.backward_size;
   if (static_cast<lzma_vli>(pos) < index_size + LZMA_STREAM_HEADER_SIZE) {
-    DWARFS_THROW(error, "data error (index size)");
+    DWARFS_THROW(runtime_error, "data error (index size)");
   }
 
   pos -= index_size;
   lzma_index* index = NULL;
 
   if (lzma_index_decoder(&s, &index, UINT64_MAX) != LZMA_OK) {
-    DWARFS_THROW(error, "lzma_index_decoder()");
+    DWARFS_THROW(runtime_error, "lzma_index_decoder()");
   }
 
   s.avail_in = index_size;
@@ -699,13 +700,13 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_ret ret = lzma_code(&s, LZMA_RUN);
   if (ret != LZMA_STREAM_END || s.avail_in != 0) {
-    DWARFS_THROW(error,
+    DWARFS_THROW(runtime_error,
                  fmt::format("lzma_code(): {} (avail_in={})", ret, s.avail_in));
   }
 
   pos -= LZMA_STREAM_HEADER_SIZE;
   if (static_cast<lzma_vli>(pos) < lzma_index_total_size(index)) {
-    DWARFS_THROW(error, "data error (index total size)");
+    DWARFS_THROW(runtime_error, "data error (index total size)");
   }
 
   size_t usize = lzma_index_uncompressed_size(index);
@@ -746,7 +747,7 @@ block_decompressor::block_decompressor(compression_type type,
 #endif
 
   default:
-    DWARFS_THROW(error,
+    DWARFS_THROW(runtime_error,
                  "unsupported compression type: " + get_compression_name(type));
   }
 }

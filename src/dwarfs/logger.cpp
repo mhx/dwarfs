@@ -87,7 +87,7 @@ logger::level_type logger::parse_level(std::string_view level) {
   if (level == "trace") {
     return TRACE;
   }
-  DWARFS_THROW(error, fmt::format("invalid logger level: {}", level));
+  DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}", level));
 }
 
 stream_logger::stream_logger(std::ostream& os, level_type threshold)

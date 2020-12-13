@@ -32,21 +32,28 @@ namespace dwarfs {
 
 class error : public std::exception {
  public:
-  error(std::string const& s, char const* file, int line) noexcept
-      : what_(s)
-      , file_(file)
-      , line_(line) {}
-
   char const* what() const noexcept override { return what_.c_str(); }
 
   char const* file() const { return file_; }
 
   int line() const { return line_; }
 
+ protected:
+  error(std::string const& s, char const* file, int line) noexcept
+      : what_(s)
+      , file_(file)
+      , line_(line) {}
+
  private:
   std::string what_;
   char const* file_;
   int line_;
+};
+
+class runtime_error : public error {
+ public:
+  runtime_error(std::string const& s, char const* file, int line) noexcept
+      : error(s, file, line) {}
 };
 
 class system_error : public boost::system::system_error {
@@ -70,7 +77,28 @@ class system_error : public boost::system::system_error {
 
 #define DWARFS_THROW(cls, ...) throw cls(__VA_ARGS__, __FILE__, __LINE__)
 
+#define DWARFS_ASSERT(expr, message)                                           \
+  do {                                                                         \
+    if (!(expr)) {                                                             \
+      assertion_failed(#expr, message, __FILE__, __LINE__);                    \
+    }                                                                          \
+  } while (0)
+
+#define DWARFS_NOTHROW(expr)                                                   \
+  [&]() -> decltype(expr) {                                                    \
+    try {                                                                      \
+      return expr;                                                             \
+    } catch (...) {                                                            \
+      handle_nothrow(#expr, __FILE__, __LINE__);                               \
+    }                                                                          \
+  }()
+
 void dump_exceptions();
+
+[[noreturn]] void handle_nothrow(char const* expr, char const* file, int line);
+
+[[noreturn]] void assertion_failed(char const* expr, std::string const& msg,
+                                   char const* file, int line);
 
 int safe_main(std::function<int(void)> fn);
 

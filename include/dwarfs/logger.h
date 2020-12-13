@@ -303,7 +303,7 @@ template <template <class> class T, class CreatePolicy, class LoggerPolicyList>
 struct logging_class_factory<T, CreatePolicy, LoggerPolicyList, 0> {
   template <class... Args>
   static typename CreatePolicy::return_type create(logger& lgr, Args&&...) {
-    DWARFS_THROW(error, "no such logger policy: " + lgr.policy_name());
+    DWARFS_THROW(runtime_error, "no such logger policy: " + lgr.policy_name());
   }
 };
 

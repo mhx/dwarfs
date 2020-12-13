@@ -20,6 +20,7 @@
  */
 
 #include <cerrno>
+#include <cstdlib>
 #include <iostream>
 
 #include <folly/String.h>
@@ -54,6 +55,20 @@ void dump_exceptions() {
   for (auto& exc : exceptions) {
     std::cerr << exc << std::endl;
   }
+}
+
+void handle_nothrow(char const* expr, char const* file, int line) {
+  std::cerr << "Expression `" << expr << "` threw `"
+            << folly::exceptionStr(std::current_exception()) << "` in " << file
+            << "(" << line << ")" << std::endl;
+  ::abort();
+}
+
+void assertion_failed(char const* expr, std::string const& msg,
+                      char const* file, int line) {
+  std::cerr << "Assertion `" << expr << "` failed in " << file << "(" << line
+            << "): " << msg << std::endl;
+  ::abort();
 }
 
 int safe_main(std::function<int(void)> fn) {

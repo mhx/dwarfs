@@ -96,7 +96,7 @@ int dwarfsck(int argc, char** argv) {
   } catch (system_error const& e) {
     log.error() << folly::exceptionStr(e);
     return 1;
-  } catch (error const& e) {
+  } catch (runtime_error const& e) {
     log.error() << folly::exceptionStr(e);
     return 1;
   }

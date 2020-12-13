@@ -77,7 +77,7 @@ size_t parse_size_with_unit(const std::string& str) {
     }
   }
 
-  DWARFS_THROW(error, "invalid size suffix");
+  DWARFS_THROW(runtime_error, "invalid size suffix");
 }
 
 std::string get_program_path() {

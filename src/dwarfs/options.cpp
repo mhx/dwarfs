@@ -65,7 +65,7 @@ mlock_mode parse_mlock_mode(std::string_view mode) {
   if (mode == "must") {
     return mlock_mode::MUST;
   }
-  DWARFS_THROW(error, fmt::format("invalid lock mode: {}", mode));
+  DWARFS_THROW(runtime_error, fmt::format("invalid lock mode: {}", mode));
 }
 
 } // namespace dwarfs

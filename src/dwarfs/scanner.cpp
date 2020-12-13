@@ -337,7 +337,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   auto root = entry_->create(*os_, path);
 
   if (root->type() != entry::E_DIR) {
-    DWARFS_THROW(error, fmt::format("'{}' must be a directory", path));
+    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
   }
 
   std::deque<std::shared_ptr<entry>> queue({root});
@@ -346,9 +346,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   while (!queue.empty()) {
     auto parent = std::dynamic_pointer_cast<dir>(queue.front());
 
-    if (!parent) {
-      DWARFS_THROW(error, "expected directory");
-    }
+    DWARFS_ASSERT(parent, "expected directory");
 
     queue.pop_front();
     const std::string& path = parent->path();
@@ -533,7 +531,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        mv2.link_index.at(ep->inode_num() - first_link_inode) =
+        DWARFS_NOTHROW(mv2.link_index.at(ep->inode_num() - first_link_inode)) =
             ge_data.get_link_index(lp->linkname());
       }
     });
@@ -587,12 +585,13 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
   im.for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    mv2.chunk_index.at(ino->num() - first_file_inode) = mv2.chunks.size();
+    DWARFS_NOTHROW(mv2.chunk_index.at(ino->num() - first_file_inode)) =
+        mv2.chunks.size();
     ino->append_chunks_to(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
-  mv2.chunk_index.at(im.count()) = mv2.chunks.size();
+  DWARFS_NOTHROW(mv2.chunk_index.at(im.count())) = mv2.chunks.size();
 
   log_.debug() << "total number of file inodes: " << im.count();
   log_.debug() << "total number of chunks: " << mv2.chunks.size();
