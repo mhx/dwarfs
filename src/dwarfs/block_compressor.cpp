@@ -635,13 +635,20 @@ class zstd_block_decompressor : public block_decompressor::impl {
   compression_type type() const override { return compression_type::ZSTD; }
 
   bool decompress_frame(size_t /*frame_size*/) override {
+    if (!error_.empty()) {
+      DWARFS_THROW(runtime_error, error_);
+    }
+
     decompressed_.resize(uncompressed_size_);
     auto rv = ZSTD_decompress(decompressed_.data(), decompressed_.size(), data_,
                               size_);
+
     if (ZSTD_isError(rv)) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("ZSTD: {}", ZSTD_getErrorName(rv)));
+      decompressed_.clear();
+      error_ = fmt::format("ZSTD: {}", ZSTD_getErrorName(rv));
+      DWARFS_THROW(runtime_error, error_);
     }
+
     return true;
   }
 
@@ -652,6 +659,7 @@ class zstd_block_decompressor : public block_decompressor::impl {
   const uint8_t* const data_;
   const size_t size_;
   const size_t uncompressed_size_;
+  std::string error_;
 };
 #endif
 
