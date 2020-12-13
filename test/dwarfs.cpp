@@ -68,20 +68,25 @@ struct simplestat {
   ::gid_t st_gid;
   ::off_t st_size;
   ::dev_t st_rdev;
+  uint64_t atime;
+  uint64_t mtime;
+  uint64_t ctime;
 };
 
 std::map<std::string, simplestat> statmap{
-    {"", {S_IFDIR | 0777, 1000, 100, 0, 0}},
-    {"/test.pl", {S_IFREG | 0644, 1000, 100, 0, 0}},
-    {"/somelink", {S_IFLNK | 0777, 1000, 100, 16, 0}},
-    {"/somedir", {S_IFDIR | 0777, 1000, 100, 0, 0}},
-    {"/foo.pl", {S_IFREG | 0600, 1337, 0, 23456, 0}},
-    {"/ipsum.txt", {S_IFREG | 0644, 1000, 100, 2000000, 0}},
-    {"/somedir/ipsum.py", {S_IFREG | 0644, 1000, 100, 10000, 0}},
-    {"/somedir/bad", {S_IFLNK | 0777, 1000, 100, 6, 0}},
-    {"/somedir/pipe", {S_IFIFO | 0644, 1000, 100, 0, 0}},
-    {"/somedir/null", {S_IFCHR | 0666, 0, 0, 0, 259}},
-    {"/somedir/zero", {S_IFCHR | 0666, 0, 0, 0, 261}},
+    {"", {S_IFDIR | 0777, 1000, 100, 0, 0, 1, 2, 3}},
+    {"/test.pl", {S_IFREG | 0644, 1000, 100, 0, 0, 1001, 1002, 1003}},
+    {"/somelink", {S_IFLNK | 0777, 1000, 100, 16, 0, 2001, 2002, 2003}},
+    {"/somedir", {S_IFDIR | 0777, 1000, 100, 0, 0, 3001, 3002, 3003}},
+    {"/foo.pl", {S_IFREG | 0600, 1337, 0, 23456, 0, 4001, 4002, 4003}},
+    {"/ipsum.txt", {S_IFREG | 0644, 1000, 100, 2000000, 0, 5001, 5002, 5003}},
+    {"/somedir/ipsum.py",
+     {S_IFREG | 0644, 1000, 100, 10000, 0, 6001, 6002, 6003}},
+    {"/somedir/bad", {S_IFLNK | 0777, 1000, 100, 6, 0, 7001, 7002, 7003}},
+    {"/somedir/pipe", {S_IFIFO | 0644, 1000, 100, 0, 0, 8001, 8002, 8003}},
+    {"/somedir/null", {S_IFCHR | 0666, 0, 0, 0, 259, 9001, 9002, 9003}},
+    {"/somedir/zero",
+     {S_IFCHR | 0666, 0, 0, 0, 261, 4000010001, 4000020002, 4000030003}},
 };
 } // namespace
 
@@ -132,9 +137,9 @@ class os_access_mock : public os_access {
     st->st_uid = sst.st_uid;
     st->st_gid = sst.st_gid;
     st->st_size = sst.st_size;
-    st->st_atime = 123;
-    st->st_mtime = 234;
-    st->st_ctime = 345;
+    st->st_atime = sst.atime;
+    st->st_mtime = sst.mtime;
+    st->st_ctime = sst.ctime;
     st->st_rdev = sst.st_rdev;
     st->st_nlink = 1;
   }
@@ -192,7 +197,8 @@ namespace {
 
 void basic_end_to_end_test(std::string const& compressor,
                            unsigned block_size_bits, file_order_mode file_order,
-                           bool with_devices, bool with_specials) {
+                           bool with_devices, bool with_specials, bool set_uid,
+                           bool set_gid, bool set_time, bool keep_all_times) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -204,6 +210,19 @@ void basic_end_to_end_test(std::string const& compressor,
   options.with_specials = with_specials;
   options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;
   options.inode.with_nilsimsa = file_order == file_order_mode::NILSIMSA;
+  options.keep_all_times = keep_all_times;
+
+  if (set_uid) {
+    options.uid = 0;
+  }
+
+  if (set_gid) {
+    options.gid = 0;
+  }
+
+  if (set_time) {
+    options.timestamp = 4711;
+  }
 
   // force multithreading
   worker_group wg("writer", 4);
@@ -237,8 +256,11 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
   EXPECT_EQ(st.st_size, 23456);
-  EXPECT_EQ(st.st_uid, 1337);
+  EXPECT_EQ(st.st_uid, set_uid ? 0 : 1337);
   EXPECT_EQ(st.st_gid, 0);
+  EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 4001 : 4002);
+  EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 4002 : 4002);
+  EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 4003 : 4002);
 
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
@@ -253,9 +275,12 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
   EXPECT_EQ(st.st_size, 16);
-  EXPECT_EQ(st.st_uid, 1000);
-  EXPECT_EQ(st.st_gid, 100);
+  EXPECT_EQ(st.st_uid, set_uid ? 0 : 1000);
+  EXPECT_EQ(st.st_gid, set_gid ? 0 : 100);
   EXPECT_EQ(st.st_rdev, 0);
+  EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 2001 : 2002);
+  EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 2002 : 2002);
+  EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
   std::string link;
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
@@ -278,10 +303,13 @@ void basic_end_to_end_test(std::string const& compressor,
     ASSERT_TRUE(entry);
     EXPECT_EQ(fs.getattr(*entry, &st), 0);
     EXPECT_EQ(st.st_size, 0);
-    EXPECT_EQ(st.st_uid, 1000);
-    EXPECT_EQ(st.st_gid, 100);
+    EXPECT_EQ(st.st_uid, set_uid ? 0 : 1000);
+    EXPECT_EQ(st.st_gid, set_gid ? 0 : 100);
     EXPECT_TRUE(S_ISFIFO(st.st_mode));
     EXPECT_EQ(st.st_rdev, 0);
+    EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 8001 : 8002);
+    EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 8002 : 8002);
+    EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 8003 : 8002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -310,6 +338,12 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.st_gid, 0);
     EXPECT_TRUE(S_ISCHR(st.st_mode));
     EXPECT_EQ(st.st_rdev, 261);
+    EXPECT_EQ(st.st_atime,
+              set_time ? 4711 : keep_all_times ? 4000010001 : 4000020002);
+    EXPECT_EQ(st.st_mtime,
+              set_time ? 4711 : keep_all_times ? 4000020002 : 4000020002);
+    EXPECT_EQ(st.st_ctime,
+              set_time ? 4711 : keep_all_times ? 4000030003 : 4000020002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -333,19 +367,23 @@ class compression_test
     : public testing::TestWithParam<
           std::tuple<std::string, unsigned, file_order_mode>> {};
 
-class scanner_test : public testing::TestWithParam<std::tuple<bool, bool>> {};
+class scanner_test : public testing::TestWithParam<
+                         std::tuple<bool, bool, bool, bool, bool, bool>> {};
 
 TEST_P(compression_test, end_to_end) {
   auto [compressor, block_size_bits, file_order] = GetParam();
 
-  basic_end_to_end_test(compressor, block_size_bits, file_order, true, true);
+  basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
+                        false, false, false, false);
 }
 
 TEST_P(scanner_test, end_to_end) {
-  auto [with_devices, with_specials] = GetParam();
+  auto [with_devices, with_specials, set_uid, set_gid, set_time,
+        keep_all_times] = GetParam();
 
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
-                        with_devices, with_specials);
+                        with_devices, with_specials, set_uid, set_gid, set_time,
+                        keep_all_times);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -356,6 +394,8 @@ INSTANTIATE_TEST_SUITE_P(
                           file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
                           file_order_mode::SIMILARITY)));
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, scanner_test,
-                         ::testing::Combine(::testing::Bool(),
-                                            ::testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, scanner_test,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
+                       ::testing::Bool(), ::testing::Bool(),
+                       ::testing::Bool()));
