@@ -69,12 +69,24 @@ uint64_t global_entry_data::get_timestamp_base() const {
   return options_.timestamp ? *options_.timestamp : timestamp_base_;
 }
 
+uint16_t global_entry_data::get_uid_index(uint16_t uid) const {
+  return options_.uid ? *options_.uid : uids_.at(uid);
+}
+
+uint16_t global_entry_data::get_gid_index(uint16_t gid) const {
+  return options_.gid ? *options_.gid : gids_.at(gid);
+}
+
 void global_entry_data::add_uid(uint16_t uid) {
-  add(options_.uid ? *options_.uid : uid, uids_, next_uid_index_);
+  if (!options_.uid) {
+    add(uid, uids_, next_uid_index_);
+  }
 }
 
 void global_entry_data::add_gid(uint16_t gid) {
-  add(options_.gid ? *options_.gid : gid, gids_, next_gid_index_);
+  if (!options_.gid) {
+    add(gid, gids_, next_gid_index_);
+  }
 }
 
 } // namespace dwarfs

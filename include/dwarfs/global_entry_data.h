@@ -55,8 +55,8 @@ class global_entry_data {
     index(links_);
   }
 
-  uint16_t get_uid_index(uint16_t uid) const { return uids_.at(uid); }
-  uint16_t get_gid_index(uint16_t gid) const { return gids_.at(gid); }
+  uint16_t get_uid_index(uint16_t uid) const;
+  uint16_t get_gid_index(uint16_t gid) const;
   uint16_t get_mode_index(uint16_t mode) const { return modes_.at(mode); }
 
   uint32_t get_name_index(std::string const& name) const {
