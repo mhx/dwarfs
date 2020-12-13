@@ -1,5 +1,12 @@
 # Change Log
 
+## Version 0.2.4 - 2020-12-13
+
+- Fix `--set-owner` and `--set-group` options, which caused an
+  exception to be thrown at the end of creating a file system.
+  (fixes github #24)
+
+
 ## Version 0.2.3 - 2020-12-01
 
 - Fix link handling. There were two bugs introduced with the
@@ -8,7 +15,8 @@
   created with dwarfs < 0.2.3 if it contained links. If you
   can absolutely not re-create the file system and the data
   is precious, let me know, there's actually a way to recover
-  the missing data.
+  the missing data. EDIT: There will be a fix available in the
+  0.3.0 release, so you don't have to rebuild old file systems.
 
 
 ## Version 0.2.2 - 2020-11-30
