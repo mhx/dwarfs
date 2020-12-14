@@ -14,25 +14,29 @@ addons:
       - bison
       - flex
       - ronn
-      - bzip2
+      - fuse3
       - pkg-config
       - binutils-dev
-      - libboost-all-dev
+      - libboost-context-dev
+      - libboost-filesystem-dev
+      - libboost-program-options-dev
+      - libboost-python-dev
+      - libboost-regex-dev
+      - libboost-system-dev
+      - libboost-thread-dev
       - libevent-dev
       - libdouble-conversion-dev
-      - libgoogle-glog-dev
-      - libgflags-dev
       - libiberty-dev
       - liblz4-dev
       - liblzma-dev
-      - libzstd-dev
-      - libsnappy-dev
       - libssl-dev
       - libunwind-dev
+      - libdwarf-dev
+      - libelf-dev
       - libfmt-dev
       - libfuse3-dev
+      - libgoogle-glog-dev
       - libsparsehash-dev
-      - zlib1g-dev
 
 compiler:
   - gcc
@@ -44,14 +48,5 @@ before_script:
   - cmake -DWITH_TESTS=1 ..
 
 script:
-  - make -j$(nproc)
-  - make test
-  - make package_source
-  - tar xf dwarfs-*.tar.bz2
-  - rm dwarfs-*.tar.bz2
-  - cd dwarfs-*
-  - mkdir build
-  - cd build
-  - cmake -DWITH_TESTS=1 ..
   - make -j$(nproc)
   - make test
