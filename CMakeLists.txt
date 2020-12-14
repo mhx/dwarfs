@@ -41,9 +41,6 @@ set(DWARFS_VERSION
 )
 
 if(STATIC_BUILD_DO_NOT_USE)
-  set(CMAKE_INSTALL_RPATH "../share/dwarfs/lib")
-  set(CMAKE_EXE_LINKER_FLAGS
-      "-Wl,-allow-multiple-definition -static-libstdc++ -static-libgcc")
   set(CMAKE_FIND_LIBRARY_SUFFIXES
       ".a"
       CACHE STRING "please look for static libs")
