@@ -20,11 +20,14 @@
  */
 
 #include <cstdlib>
+#include <cstring>
 #include <iterator>
 #include <locale>
 #include <stdexcept>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+
+#include <folly/Conv.h>
 
 #ifndef NDEBUG
 #include <folly/experimental/symbolizer/Symbolizer.h>
@@ -56,15 +59,18 @@ logger::level_type logger::parse_level(std::string_view level) {
   DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}", level));
 }
 
-stream_logger::stream_logger(std::ostream& os, level_type threshold)
+stream_logger::stream_logger(std::ostream& os, level_type threshold,
+                             bool with_context)
     : os_(os)
-    , color_(stream_is_fancy_terminal(os)) {
+    , color_(stream_is_fancy_terminal(os))
+    , with_context_(with_context) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   set_threshold(threshold);
 }
 
-void stream_logger::write(level_type level, const std::string& output) {
+void stream_logger::write(level_type level, const std::string& output,
+                          char const* file, int line) {
   if (level <= threshold_) {
     auto t = boost::posix_time::microsec_clock::local_time();
     const char* prefix = "";
@@ -101,8 +107,21 @@ void stream_logger::write(level_type level, const std::string& output) {
     }
 #endif
 
+    char lchar = logger::level_char(level);
+    std::string context;
+
+    if (with_context_ && file) {
+      context = fmt::format("[{0}:{1}] ", ::strrchr(file, '/') + 1, line);
+      if (color_) {
+        context = folly::to<std::string>(
+            suffix, terminal_color(termcolor::MAGENTA), context,
+            terminal_color(termcolor::NORMAL), prefix);
+      }
+    }
+
     std::lock_guard<std::mutex> lock(mx_);
-    os_ << prefix << t << " " << output << suffix << "\n";
+    os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
+        << "\n";
 
 #ifndef NDEBUG
     if (threshold_ == TRACE) {

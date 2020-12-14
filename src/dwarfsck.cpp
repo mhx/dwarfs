@@ -82,7 +82,7 @@ int dwarfsck(int argc, char** argv) {
   }
 
   stream_logger lgr(std::cerr, logger::parse_level(log_level));
-  log_proxy<debug_logger_policy> log(lgr);
+  LOG_PROXY(debug_logger_policy, lgr);
 
   try {
     auto mm = std::make_shared<mmap>(input);
@@ -94,10 +94,10 @@ int dwarfsck(int argc, char** argv) {
       filesystem_v2::identify(lgr, mm, std::cout, detail);
     }
   } catch (system_error const& e) {
-    log.error() << folly::exceptionStr(e);
+    LOG_ERROR << folly::exceptionStr(e);
     return 1;
   } catch (runtime_error const& e) {
-    log.error() << folly::exceptionStr(e);
+    LOG_ERROR << folly::exceptionStr(e);
     return 1;
   }
 

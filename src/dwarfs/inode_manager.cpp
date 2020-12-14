@@ -234,12 +234,12 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     uint32_t first_inode, inode_manager::inode_cb const& fn) {
   switch (file_order.mode) {
   case file_order_mode::NONE:
-    log_.info() << "keeping inode order";
+    LOG_INFO << "keeping inode order";
     break;
 
   case file_order_mode::PATH: {
-    log_.info() << "ordering " << count() << " inodes by path name...";
-    auto ti = log_.timed_info();
+    LOG_INFO << "ordering " << count() << " inodes by path name...";
+    auto ti = LOG_TIMED_INFO;
     order_inodes_by_path();
     ti << count() << " inodes ordered";
     break;
@@ -249,32 +249,32 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     if (!scr->has_order()) {
       DWARFS_THROW(runtime_error, "script cannot order inodes");
     }
-    log_.info() << "ordering " << count() << " inodes using script...";
-    auto ti = log_.timed_info();
+    LOG_INFO << "ordering " << count() << " inodes using script...";
+    auto ti = LOG_TIMED_INFO;
     scr->order(inodes_);
     ti << count() << " inodes ordered";
     break;
   }
 
   case file_order_mode::SIMILARITY: {
-    log_.info() << "ordering " << count() << " inodes by similarity...";
-    auto ti = log_.timed_info();
+    LOG_INFO << "ordering " << count() << " inodes by similarity...";
+    auto ti = LOG_TIMED_INFO;
     order_inodes_by_similarity();
     ti << count() << " inodes ordered";
     break;
   }
 
   case file_order_mode::NILSIMSA: {
-    log_.info() << "ordering " << count()
-                << " inodes using nilsimsa similarity...";
-    auto ti = log_.timed_info();
+    LOG_INFO << "ordering " << count()
+             << " inodes using nilsimsa similarity...";
+    auto ti = LOG_TIMED_INFO;
     order_inodes_by_nilsimsa(fn, first_inode, file_order);
     ti << count() << " inodes ordered";
     return;
   }
   }
 
-  log_.info() << "assigning file inodes...";
+  LOG_INFO << "assigning file inodes...";
   number_inodes(first_inode);
   for_each_inode(fn);
 }
@@ -282,7 +282,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::presort_index(
     std::vector<std::shared_ptr<inode>>& inodes, std::vector<uint32_t>& index) {
-  auto ti = log_.timed_info();
+  auto ti = LOG_TIMED_INFO;
   size_t num_name = 0;
   size_t num_path = 0;
 
@@ -352,7 +352,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
     const int depth = file_order.nilsimsa_depth;
     const int limit = file_order.nilsimsa_limit;
 
-    log_.info() << "nilsimsa: depth=" << depth << ", limit=" << limit;
+    LOG_INFO << "nilsimsa: depth=" << depth << ", limit=" << limit;
 
     presort_index(inodes, index);
 
@@ -380,7 +380,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
         }
       }
 
-      log_.trace() << max_sim << " @ " << max_sim_ix << "/" << index.size();
+      LOG_TRACE << max_sim << " @ " << max_sim_ix << "/" << index.size();
 
       std::rotate(index.begin() + max_sim_ix, index.begin() + max_sim_ix + 1,
                   index.end());

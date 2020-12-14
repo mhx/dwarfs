@@ -45,9 +45,15 @@ class logger {
  public:
   enum level_type : unsigned { ERROR, WARN, INFO, DEBUG, TRACE };
 
+  static char level_char(level_type level) {
+    static std::array<char, 5> lchars = {{'E', 'W', 'I', 'D', 'T'}};
+    return lchars.at(level);
+  }
+
   virtual ~logger() = default;
 
-  virtual void write(level_type level, const std::string& output) = 0;
+  virtual void write(level_type level, const std::string& output,
+                     char const* file, int line) = 0;
 
   const std::string& policy_name() const { return policy_name_; }
 
@@ -70,93 +76,92 @@ class logger {
 
 class stream_logger : public logger {
  public:
-  stream_logger(std::ostream& os = std::cerr, level_type threshold = WARN);
+  stream_logger(std::ostream& os = std::cerr, level_type threshold = WARN,
+                bool with_context = false);
 
-  void write(level_type level, const std::string& output) override;
+  void write(level_type level, const std::string& output, char const* file,
+             int line) override;
 
   void set_threshold(level_type threshold);
+  void set_with_context(bool with_context) { with_context_ = with_context; }
 
  private:
   std::ostream& os_;
   std::mutex mx_;
   std::atomic<level_type> threshold_;
-  const bool color_;
+  bool const color_;
+  bool with_context_;
 };
 
 class level_logger {
  public:
-  level_logger(logger& lgr, logger::level_type level)
-      : data_(std::make_unique<data>(lgr, level)) {}
+  level_logger(logger& lgr, logger::level_type level,
+               char const* file = nullptr, int line = 0)
+      : lgr_(lgr)
+      , level_(level)
+      , file_(file)
+      , line_(line) {}
 
-  level_logger(level_logger&& ll)
-      : data_(std::move(ll.data_)) {}
+  level_logger(level_logger const&) = delete;
 
-  ~level_logger() { data_->lgr.write(data_->level, data_->oss.str()); }
+  ~level_logger() { lgr_.write(level_, oss_.str(), file_, line_); }
 
   template <typename T>
   level_logger& operator<<(const T& val) {
-    data_->oss << val;
+    oss_ << val;
     return *this;
   }
 
  private:
-  struct data {
-    data(logger& lgr, logger::level_type level)
-        : lgr(lgr)
-        , level(level) {}
-
-    logger& lgr;
-    std::ostringstream oss;
-    const logger::level_type level;
-  };
-
-  std::unique_ptr<data> data_;
+  logger& lgr_;
+  std::ostringstream oss_;
+  logger::level_type const level_;
+  char const* const file_;
+  int const line_;
 };
 
 class timed_level_logger {
  public:
-  timed_level_logger(logger& lgr, logger::level_type level)
-      : data_(std::make_unique<data>(lgr, level)) {}
+  timed_level_logger(logger& lgr, logger::level_type level,
+                     char const* file = nullptr, int line = 0)
+      : lgr_(lgr)
+      , level_(level)
+      , start_time_(std::chrono::high_resolution_clock::now())
+      , file_(file)
+      , line_(line) {}
 
-  timed_level_logger(timed_level_logger&& ll)
-      : data_(std::move(ll.data_)) {}
+  timed_level_logger(timed_level_logger const&) = delete;
 
   ~timed_level_logger() {
-    if (data_->output) {
+    if (output_) {
       std::chrono::duration<double> sec =
-          std::chrono::high_resolution_clock::now() - data_->start_time;
-      data_->oss << " [" << time_with_unit(sec.count()) << "]";
-      data_->lgr.write(data_->level, data_->oss.str());
+          std::chrono::high_resolution_clock::now() - start_time_;
+      oss_ << " [" << time_with_unit(sec.count()) << "]";
+      lgr_.write(level_, oss_.str(), file_, line_);
     }
   }
 
   template <typename T>
   timed_level_logger& operator<<(const T& val) {
-    data_->output = true;
-    data_->oss << val;
+    output_ = true;
+    oss_ << val;
     return *this;
   }
 
  private:
-  struct data {
-    data(logger& lgr, logger::level_type level)
-        : lgr(lgr)
-        , level(level)
-        , start_time(std::chrono::high_resolution_clock::now()) {}
-
-    logger& lgr;
-    std::ostringstream oss;
-    const logger::level_type level;
-    std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-    bool output{false};
-  };
-
-  std::unique_ptr<data> data_;
+  logger& lgr_;
+  std::ostringstream oss_;
+  logger::level_type const level_;
+  std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
+  bool output_{false};
+  char const* const file_;
+  int const line_;
 };
 
 class no_logger {
  public:
   no_logger(logger&, logger::level_type) {}
+  no_logger(logger&, logger::level_type, char const*, int) {}
 
   template <typename T>
   no_logger& operator<<(const T&) {
@@ -217,6 +222,31 @@ class log_proxy {
         typename LogPolicy::template logger<logger::TRACE>(lgr_, logger::TRACE);
   }
 
+  auto error(char const* file, int line) const {
+    return typename LogPolicy::template logger<logger::ERROR>(
+        lgr_, logger::ERROR, file, line);
+  }
+
+  auto warn(char const* file, int line) const {
+    return typename LogPolicy::template logger<logger::WARN>(lgr_, logger::WARN,
+                                                             file, line);
+  }
+
+  auto info(char const* file, int line) const {
+    return typename LogPolicy::template logger<logger::INFO>(lgr_, logger::INFO,
+                                                             file, line);
+  }
+
+  auto debug(char const* file, int line) const {
+    return typename LogPolicy::template logger<logger::DEBUG>(
+        lgr_, logger::DEBUG, file, line);
+  }
+
+  auto trace(char const* file, int line) const {
+    return typename LogPolicy::template logger<logger::TRACE>(
+        lgr_, logger::TRACE, file, line);
+  }
+
   auto timed_error() const {
     return typename LogPolicy::template timed_logger<logger::ERROR>(
         lgr_, logger::ERROR);
@@ -242,11 +272,51 @@ class log_proxy {
         lgr_, logger::TRACE);
   }
 
+  auto timed_error(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::ERROR>(
+        lgr_, logger::ERROR, file, line);
+  }
+
+  auto timed_warn(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::WARN>(
+        lgr_, logger::WARN, file, line);
+  }
+
+  auto timed_info(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::INFO>(
+        lgr_, logger::INFO, file, line);
+  }
+
+  auto timed_debug(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::DEBUG>(
+        lgr_, logger::DEBUG, file, line);
+  }
+
+  auto timed_trace(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::TRACE>(
+        lgr_, logger::TRACE, file, line);
+  }
+
   logger& get_logger() const { return lgr_; }
 
  private:
   logger& lgr_;
 };
+
+#define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
+#define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
+#define LOG_PROXY_INIT(lgr) log_(lgr)
+#define LOG_GET_LOGGER log_.get_logger()
+#define LOG_ERROR log_.error(__FILE__, __LINE__)
+#define LOG_WARN log_.warn(__FILE__, __LINE__)
+#define LOG_INFO log_.info(__FILE__, __LINE__)
+#define LOG_DEBUG log_.debug(__FILE__, __LINE__)
+#define LOG_TRACE log_.trace(__FILE__, __LINE__)
+#define LOG_TIMED_ERROR log_.timed_error(__FILE__, __LINE__)
+#define LOG_TIMED_WARN log_.timed_warn(__FILE__, __LINE__)
+#define LOG_TIMED_INFO log_.timed_info(__FILE__, __LINE__)
+#define LOG_TIMED_DEBUG log_.timed_debug(__FILE__, __LINE__)
+#define LOG_TIMED_TRACE log_.timed_trace(__FILE__, __LINE__)
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::INFO> {
  public:
@@ -327,4 +397,5 @@ std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
                                                         std::forward<Args>(
                                                             args)...);
 }
+
 } // namespace dwarfs

@@ -40,7 +40,7 @@ class inode_hasher {
       , log_(lgr) {}
 
   void operator()(result_type& m, const uint8_t* data, size_t size) const {
-    auto tt = log_.timed_trace();
+    auto tt = LOG_TIMED_TRACE;
 
     for (size_t wsize : window_) {
       if (size >= wsize) {

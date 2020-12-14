@@ -106,7 +106,7 @@ class cached_block {
   void try_release() {
     if (release_) {
       if (auto ec = mm_->release(spec_.offset, spec_.size)) {
-        log_.info() << "madvise() failed: " << ec.message();
+        LOG_INFO << "madvise() failed: " << ec.message();
       }
     }
   }
@@ -217,19 +217,19 @@ class block_cache_ : public block_cache::impl {
       , options_(options) {}
 
   ~block_cache_() noexcept override {
-    log_.debug() << "stopping cache workers";
+    LOG_DEBUG << "stopping cache workers";
     wg_.stop();
 
     if (!blocks_created_.load()) {
       return;
     }
 
-    log_.debug() << "cached blocks:";
+    LOG_DEBUG << "cached blocks:";
 
     for (const auto& cb : cache_) {
-      log_.debug() << "  block " << cb.first << ", decompression ratio = "
-                   << double(cb.second->range_end()) /
-                          double(cb.second->uncompressed_size());
+      LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
+                << double(cb.second->range_end()) /
+                       double(cb.second->uncompressed_size());
       update_block_stats(*cb.second);
     }
 
@@ -241,24 +241,24 @@ class block_cache_ : public block_cache::impl {
     double avg_decompression =
         100.0 * total_decompressed_bytes_ / total_block_bytes_;
 
-    log_.info() << "blocks created: " << blocks_created_.load();
-    log_.info() << "blocks evicted: " << blocks_evicted_.load();
-    log_.info() << "request sets merged: " << sets_merged_.load();
-    log_.info() << "total requests: " << range_requests_.load();
-    log_.info() << "active hits (fast): " << active_hits_fast_.load();
-    log_.info() << "active hits (slow): " << active_hits_slow_.load();
-    log_.info() << "cache hits (fast): " << cache_hits_fast_.load();
-    log_.info() << "cache hits (slow): " << cache_hits_slow_.load();
+    LOG_INFO << "blocks created: " << blocks_created_.load();
+    LOG_INFO << "blocks evicted: " << blocks_evicted_.load();
+    LOG_INFO << "request sets merged: " << sets_merged_.load();
+    LOG_INFO << "total requests: " << range_requests_.load();
+    LOG_INFO << "active hits (fast): " << active_hits_fast_.load();
+    LOG_INFO << "active hits (slow): " << active_hits_slow_.load();
+    LOG_INFO << "cache hits (fast): " << cache_hits_fast_.load();
+    LOG_INFO << "cache hits (slow): " << cache_hits_slow_.load();
 
-    log_.info() << "total bytes decompressed: " << total_decompressed_bytes_;
-    log_.info() << "average block decompression: "
-                << fmt::format("{:.1f}", avg_decompression) << "%";
+    LOG_INFO << "total bytes decompressed: " << total_decompressed_bytes_;
+    LOG_INFO << "average block decompression: "
+             << fmt::format("{:.1f}", avg_decompression) << "%";
 
-    log_.info() << "fast hit rate: " << fmt::format("{:.3f}", fast_hit_rate)
-                << "%";
-    log_.info() << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
-                << "%";
-    log_.info() << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
+    LOG_INFO << "fast hit rate: " << fmt::format("{:.3f}", fast_hit_rate)
+             << "%";
+    LOG_INFO << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
+             << "%";
+    LOG_INFO << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
   }
 
   size_t block_count() const override { return block_.size(); }
@@ -276,10 +276,10 @@ class block_cache_ : public block_cache::impl {
       new (&cache_) lru_type(max_blocks);
       cache_.setPruneHook(
           [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
-            log_.debug() << "evicting block " << block_no
-                         << " from cache, decompression ratio = "
-                         << double(block->range_end()) /
-                                double(block->uncompressed_size());
+            LOG_DEBUG << "evicting block " << block_no
+                      << " from cache, decompression ratio = "
+                      << double(block->range_end()) /
+                             double(block->uncompressed_size());
             ++blocks_evicted_;
             update_block_stats(*block);
           });
@@ -304,7 +304,7 @@ class block_cache_ : public block_cache::impl {
     std::shared_ptr<block_request_set> brs;
 
     if (ia != active_.end()) {
-      log_.debug() << "active sets found for block " << block_no;
+      LOG_DEBUG << "active sets found for block " << block_no;
 
       bool add_to_set = false;
 
@@ -339,7 +339,7 @@ class block_cache_ : public block_cache::impl {
         // promise immediately, otherwise add a new
         // request to the request set.
 
-        log_.debug() << "block " << block_no << " found in active set";
+        LOG_DEBUG << "block " << block_no << " found in active set";
 
         auto block = brs->block();
 
@@ -367,7 +367,7 @@ class block_cache_ : public block_cache::impl {
         return future;
       }
 
-      log_.debug() << "block " << block_no << " not found in active set";
+      LOG_DEBUG << "block " << block_no << " not found in active set";
     }
 
     // See if it's cached (fully or partially decompressed)
@@ -376,7 +376,7 @@ class block_cache_ : public block_cache::impl {
     if (ic != cache_.end()) {
       // Nice, at least the block is already there.
 
-      log_.debug() << "block " << block_no << " found in cache";
+      LOG_DEBUG << "block " << block_no << " found in cache";
 
       auto block = ic->second;
 
@@ -401,12 +401,12 @@ class block_cache_ : public block_cache::impl {
 
     // Bummer. We don't know anything about the block.
 
-    log_.debug() << "block " << block_no << " not found";
+    LOG_DEBUG << "block " << block_no << " not found";
 
     assert(block_no < block_.size());
 
     auto block = std::make_shared<cached_block>(
-        log_.get_logger(), block_[block_no], mm_, options_.mm_release);
+        LOG_GET_LOGGER, block_[block_no], mm_, options_.mm_release);
     ++blocks_created_;
 
     // Make a new set for the block
@@ -440,7 +440,7 @@ class block_cache_ : public block_cache::impl {
   void process_job(std::shared_ptr<block_request_set> brs) const {
     auto block_no = brs->block_no();
 
-    log_.debug() << "processing block " << block_no;
+    LOG_DEBUG << "processing block " << block_no;
 
     // Check if another worker is already processing this block
     {
@@ -452,7 +452,7 @@ class block_cache_ : public block_cache::impl {
         std::lock_guard<std::mutex> lock(mx_);
 
         if (auto other = di->second.lock()) {
-          log_.debug() << "merging sets for block " << block_no;
+          LOG_DEBUG << "merging sets for block " << block_no;
           other->merge(std::move(*brs));
           ++sets_merged_;
           brs.reset();
@@ -493,14 +493,14 @@ class block_cache_ : public block_cache::impl {
         auto max_end = block->uncompressed_size();
         double ratio = double(range_end) / double(max_end);
         if (ratio > options_.decompress_ratio) {
-          log_.debug() << "block " << block_no << " over ratio: " << ratio
-                       << " > " << options_.decompress_ratio;
+          LOG_DEBUG << "block " << block_no << " over ratio: " << ratio << " > "
+                    << options_.decompress_ratio;
           range_end = max_end;
         }
       }
 
-      log_.debug() << "decompressing block " << block_no << " until position "
-                   << req.end();
+      LOG_DEBUG << "decompressing block " << block_no << " until position "
+                << req.end();
 
       try {
         block->decompress_until(range_end);

@@ -80,13 +80,13 @@ class filesystem_parser {
     }
   }
 
-  template <typename Logger>
-  bool next_section(section_header& sh, size_t& start, Logger& lgr) {
+  template <typename LogProxy>
+  bool next_section(section_header& sh, size_t& start, LogProxy& log_) {
     if (offset_ + sizeof(section_header) <= mm_->size()) {
       ::memcpy(&sh, mm_->as<char>(offset_), sizeof(section_header));
 
-      lgr.trace() << "section_header@" << offset_ << " (" << sh.to_string()
-                  << ")";
+      LOG_TRACE << "section_header@" << offset_ << " (" << sh.to_string()
+                << ")";
 
       offset_ += sizeof(section_header);
 
@@ -104,10 +104,10 @@ class filesystem_parser {
     return false;
   }
 
-  template <typename Logger>
-  std::optional<section> next_section(Logger& lgr) {
+  template <typename LogProxy>
+  std::optional<section> next_section(LogProxy& log_) {
     section rv;
-    if (next_section(rv.header, rv.start, lgr)) {
+    if (next_section(rv.header, rv.start, log_)) {
       return rv;
     }
     return std::nullopt;
@@ -146,7 +146,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               const struct ::stat* stat_defaults = nullptr,
               int inode_offset = 0, bool force_buffers = false,
               mlock_mode lock_mode = mlock_mode::NONE) {
-  log_proxy<debug_logger_policy> log(lgr);
+  LOG_PROXY(debug_logger_policy, lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
 
@@ -168,7 +168,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
       } else {
-        log.warn() << "mlock() failed: " << ec.message();
+        LOG_WARN << "mlock() failed: " << ec.message();
       }
     }
   }
@@ -176,7 +176,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   // don't keep the compressed metadata in cache
   if (meta_section.header.compression != compression_type::NONE) {
     if (auto ec = mm->release(meta_section.start, meta_section.header.length)) {
-      log.info() << "madvise() failed: " << ec.message();
+      LOG_INFO << "madvise() failed: " << ec.message();
     }
   }
 
@@ -216,7 +216,7 @@ class filesystem_ : public filesystem_v2::impl {
                 off_t offset) const override;
 
  private:
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   std::shared_ptr<mmif> mm_;
   metadata_v2 meta_;
   inode_reader_v2 ir_;
@@ -228,7 +228,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                                        const filesystem_options& options,
                                        const struct ::stat* stat_defaults,
                                        int inode_offset)
-    : log_(lgr)
+    : LOG_PROXY_INIT(lgr)
     , mm_(mm) {
   filesystem_parser parser(mm_);
   block_cache cache(lgr, mm, options.block_cache);
@@ -253,8 +253,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                         options.metadata, stat_defaults, inode_offset, false,
                         options.lock_mode);
 
-  log_.debug() << "read " << cache.block_count() << " blocks and "
-               << meta_.size() << " bytes of metadata";
+  LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
+            << " bytes of metadata";
 
   cache.set_block_size(meta_.block_size());
 
@@ -268,7 +268,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
       os << indent << chunks->size() << " chunks in inode " << inode << "\n";
       ir_.dump(os, indent + "  ", *chunks);
     } else {
-      log_.error() << "error reading chunks for inode " << inode;
+      LOG_ERROR << "error reading chunks for inode " << inode;
     }
   });
 }
@@ -388,12 +388,12 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm,
                             filesystem_writer& writer) {
   // TODO:
-  log_proxy<debug_logger_policy> log(lgr);
+  LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
 
   section_map sections;
 
-  while (auto s = parser.next_section(log)) {
+  while (auto s = parser.next_section(log_)) {
     if (s->header.type == section_type::BLOCK) {
       ++prog.block_count;
     } else {
@@ -415,7 +415,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   parser.rewind();
 
-  while (auto s = parser.next_section(log)) {
+  while (auto s = parser.next_section(log_)) {
     // TODO: multi-thread this?
     if (s->header.type == section_type::BLOCK) {
       auto block = block_decompressor::decompress(
@@ -434,12 +434,12 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                              std::ostream& os, int detail_level) {
   // TODO:
-  log_proxy<debug_logger_policy> log(lgr);
+  LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
 
   section_map sections;
 
-  while (auto s = parser.next_section(log)) {
+  while (auto s = parser.next_section(log_)) {
     std::vector<uint8_t> tmp;
     block_decompressor bd(s->header.compression, mm->as<uint8_t>(s->start),
                           s->header.length, tmp);

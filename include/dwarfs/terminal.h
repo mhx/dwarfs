@@ -31,9 +31,10 @@ enum class termcolor {
   GREEN,
   YELLOW,
   BLUE,
+  MAGENTA,
   CYAN,
   WHITE,
-  MAGENTA,
+  GRAY,
   BOLD_RED,
   BOLD_GREEN,
   BOLD_YELLOW,
@@ -41,6 +42,7 @@ enum class termcolor {
   BOLD_MAGENTA,
   BOLD_CYAN,
   BOLD_WHITE,
+  BOLD_GRAY,
   NUM_COLORS
 };
 

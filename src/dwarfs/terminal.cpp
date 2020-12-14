@@ -55,6 +55,7 @@ char const* terminal_color(termcolor color) {
           "\033[35m",
           "\033[36m",
           "\033[37m",
+          "\033[90m",
           "\033[1;31m",
           "\033[1;32m",
           "\033[1;33m",
@@ -62,6 +63,7 @@ char const* terminal_color(termcolor color) {
           "\033[1;35m",
           "\033[1;36m",
           "\033[1;37m",
+          "\033[1;90m",
       }};
 
   return colors.at(static_cast<size_t>(color));

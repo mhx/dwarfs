@@ -19,10 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cstring>
 #include <locale>
 #include <sstream>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+
+#include <folly/Conv.h>
 
 #include <fmt/format.h>
 
@@ -45,14 +48,15 @@ char const* const uni_bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉",
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
                                size_t width, level_type threshold,
-                               display_mode mode)
+                               display_mode mode, bool with_context)
     : os_(os)
     , threshold_(threshold)
     , frac_(0.0)
     , pg_mode_(pg_mode)
     , width_(width)
     , mode_(mode)
-    , color_(stream_is_fancy_terminal(os)) {
+    , color_(stream_is_fancy_terminal(os))
+    , with_context_(with_context) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   if (threshold > level_type::INFO) {
@@ -75,7 +79,8 @@ void console_writer::rewind() {
   }
 }
 
-void console_writer::write(level_type level, const std::string& output) {
+void console_writer::write(level_type level, const std::string& output,
+                           char const* file, int line) {
   if (level <= threshold_) {
     auto t = boost::posix_time::microsec_clock::local_time();
     const char* prefix = "";
@@ -98,18 +103,31 @@ void console_writer::write(level_type level, const std::string& output) {
       }
     }
 
+    char lchar = logger::level_char(level);
+    std::string context;
+
+    if (with_context_ && file) {
+      context = fmt::format("[{0}:{1}] ", ::strrchr(file, '/') + 1, line);
+      if (color_) {
+        context = folly::to<std::string>(
+            suffix, terminal_color(termcolor::MAGENTA), context,
+            terminal_color(termcolor::NORMAL), prefix);
+      }
+    }
+
     std::lock_guard<std::mutex> lock(mx_);
 
     switch (pg_mode_) {
     case UNICODE:
     case ASCII:
       rewind();
-      os_ << prefix << t << " " << output << suffix << "\x1b[K\n";
+      os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
+          << "\x1b[K\n";
       os_ << statebuf_;
       break;
 
     default:
-      os_ << t << " " << output << "\n";
+      os_ << lchar << ' ' << t << ' ' << context << output << "\n";
       break;
     }
   }
@@ -206,7 +224,7 @@ void console_writer::update(const progress& p, bool last) {
       auto t = boost::posix_time::microsec_clock::local_time();
       statebuf_ = tmp;
       std::lock_guard<std::mutex> lock(mx_);
-      os_ << t << statebuf_ << "\n";
+      os_ << "- " << t << statebuf_ << "\n";
     }
     if (last) {
       std::lock_guard<std::mutex> lock(mx_);

@@ -69,11 +69,11 @@ class py_logger {
   py_logger(logger& lgr)
       : log_(lgr) {}
 
-  void error(std::string msg) { log_.error() << "[script] " << msg; }
-  void warn(std::string msg) { log_.warn() << "[script] " << msg; }
-  void info(std::string msg) { log_.info() << "[script] " << msg; }
-  void debug(std::string msg) { log_.debug() << "[script] " << msg; }
-  void trace(std::string msg) { log_.trace() << "[script] " << msg; }
+  void error(std::string msg) { LOG_ERROR << "[script] " << msg; }
+  void warn(std::string msg) { LOG_WARN << "[script] " << msg; }
+  void info(std::string msg) { LOG_INFO << "[script] " << msg; }
+  void debug(std::string msg) { LOG_DEBUG << "[script] " << msg; }
+  void trace(std::string msg) { LOG_TRACE << "[script] " << msg; }
 
  private:
   using log_proxy_t = log_proxy<debug_logger_policy>;
@@ -295,13 +295,13 @@ void python_script::impl::log_py_error() const {
   py::handle<> hexc(exc), hval(py::allow_null(val)), htb(py::allow_null(tb));
 
   if (!hval) {
-    log_.error() << std::string(py::extract<std::string>(py::str(hexc)));
+    LOG_ERROR << std::string(py::extract<std::string>(py::str(hexc)));
   } else {
     py::object traceback(py::import("traceback"));
     py::object format_exception(traceback.attr("format_exception"));
     py::list formatted_list(format_exception(hexc, hval, htb));
     for (int count = 0; count < len(formatted_list); ++count) {
-      log_.error() << std::string(
+      LOG_ERROR << std::string(
           py::extract<std::string>(formatted_list[count].slice(0, -1)));
     }
   }
@@ -315,7 +315,7 @@ void python_script::impl::check_instance_methods(py::object obj) const {
     if (!it->startswith("_") && callable(obj.attr(*it))) {
       std::string name{py::extract<char const*>(*it)};
       if (supported_methods.find(name) == supported_methods.end()) {
-        log_.warn() << "unknown method '" << name << "' found in Python class";
+        LOG_WARN << "unknown method '" << name << "' found in Python class";
       }
     }
   }
@@ -337,7 +337,7 @@ python_script::impl::~impl() {
   add_timing(has_transform_, "transform", transform_time_);
   add_timing(has_order_, "order", order_time_);
 
-  log_.info() << "script time: " << boost::join(timings, ", ");
+  LOG_INFO << "script time: " << boost::join(timings, ", ");
 
   // nothing else, really, as boost::python docs forbid using Py_Finalize
 }
@@ -379,7 +379,7 @@ void python_script::impl::order(inode_vector& iv) {
     py::list files;
 
     {
-      auto td = log_.timed_debug();
+      auto td = LOG_TIMED_DEBUG;
 
       for (size_t i = 0; i < iv.size(); ++i) {
         files.append(std::make_shared<inode_wrapper>(iv[i].get()));
@@ -391,7 +391,7 @@ void python_script::impl::order(inode_vector& iv) {
     py::object ordered;
 
     {
-      auto td = log_.timed_debug();
+      auto td = LOG_TIMED_DEBUG;
       ordered = instance_.attr("order")(files);
       td << "ordered files in script code";
     }
@@ -399,7 +399,7 @@ void python_script::impl::order(inode_vector& iv) {
     google::dense_hash_map<inode const*, size_t> priority(iv.size());
     priority.set_empty_key(nullptr);
 
-    auto td = log_.timed_debug();
+    auto td = LOG_TIMED_DEBUG;
     size_t index = 0;
 
     for (py::stl_input_iterator<py::object> it(ordered), end; it != end; ++it) {

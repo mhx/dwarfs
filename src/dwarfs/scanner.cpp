@@ -312,7 +312,7 @@ class scanner_ : public scanner::impl {
   std::shared_ptr<script> script_;
   worker_group& wg_;
   logger& lgr_;
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
 };
 
 template <typename LoggerPolicy>
@@ -329,7 +329,7 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , script_(std::move(scr))
     , wg_(wg)
     , lgr_(lgr)
-    , log_(lgr) {}
+    , LOG_PROXY_INIT(lgr_) {}
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
@@ -366,7 +366,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 
           if (script_) {
             if (script_->has_filter() && !script_->filter(*pe)) {
-              log_.debug() << "skipping " << name;
+              LOG_DEBUG << "skipping " << name;
               continue;
             }
 
@@ -379,7 +379,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
             switch (pe->type()) {
             case entry::E_FILE:
               if (os_->access(pe->path(), R_OK)) {
-                log_.error() << "cannot access: " << pe->path();
+                LOG_ERROR << "cannot access: " << pe->path();
                 prog.errors++;
                 continue;
               }
@@ -428,13 +428,13 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
               break;
 
             default:
-              log_.error() << "unsupported entry type: " << int(pe->type());
+              LOG_ERROR << "unsupported entry type: " << int(pe->type());
               prog.errors++;
               break;
             }
           }
         } catch (const boost::system::system_error& e) {
-          log_.error() << "error reading entry: " << e.what();
+          LOG_ERROR << "error reading entry: " << e.what();
           prog.errors++;
         }
       }
@@ -443,7 +443,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 
       prog.dirs_scanned++;
     } catch (const boost::system::system_error& e) {
-      log_.error() << "cannot open directory: " << e.what();
+      LOG_ERROR << "cannot open directory: " << e.what();
       prog.errors++;
     }
   }
@@ -454,14 +454,14 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
-  log_.info() << "scanning " << path;
+  LOG_INFO << "scanning " << path;
 
   prog.set_status_function(status_string);
 
   auto root = scan_tree(path, prog);
 
   if (options_.remove_empty_dirs) {
-    log_.info() << "removing empty directories...";
+    LOG_INFO << "removing empty directories...";
     auto d = dynamic_cast<dir*>(root.get());
     d->remove_empty_dirs(prog);
   }
@@ -470,10 +470,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   scan_files_visitor sfv(wg_, *os_, prog);
   root->accept(sfv);
 
-  log_.info() << "waiting for background scanners...";
+  LOG_INFO << "waiting for background scanners...";
   wg_.wait();
 
-  log_.info() << "assigning directory and link inodes...";
+  LOG_INFO << "assigning directory and link inodes...";
 
   uint32_t first_link_inode = 0;
   dir_set_inode_visitor dsiv(first_link_inode);
@@ -483,7 +483,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
 
-  log_.info() << "finding duplicate files...";
+  LOG_INFO << "finding duplicate files...";
 
   inode_manager im(lgr_);
 
@@ -492,13 +492,13 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   fdv.deduplicate_files(wg_, *os_, im, options_.inode, prog);
 
-  log_.info() << "saved " << size_with_unit(prog.saved_by_deduplication)
-              << " / " << size_with_unit(prog.original_size) << " in "
-              << prog.duplicate_files << "/" << prog.files_found
-              << " duplicate files";
+  LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
+           << size_with_unit(prog.original_size) << " in "
+           << prog.duplicate_files << "/" << prog.files_found
+           << " duplicate files";
 
   if (options_.inode.needs_scan()) {
-    log_.info() << "waiting for inode scanners...";
+    LOG_INFO << "waiting for inode scanners...";
     wg_.wait();
   }
 
@@ -507,27 +507,27 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   mv2.link_index.resize(first_file_inode - first_link_inode);
 
-  log_.info() << "assigning device inodes...";
+  LOG_INFO << "assigning device inodes...";
   uint32_t first_device_inode = first_file_inode + im.count();
   device_set_inode_visitor devsiv(first_device_inode);
   root->accept(devsiv);
   mv2.devices_ref() = std::move(devsiv.device_ids());
 
-  log_.info() << "assigning pipe/socket inodes...";
+  LOG_INFO << "assigning pipe/socket inodes...";
   uint32_t first_pipe_inode = first_device_inode;
   pipe_set_inode_visitor pipsiv(first_pipe_inode);
   root->accept(pipsiv);
 
-  log_.info() << "building metadata...";
+  LOG_INFO << "building metadata...";
 
   wg_.add_job([&] {
-    log_.info() << "saving names and links...";
+    LOG_INFO << "saving names and links...";
     names_and_links_visitor nlv(ge_data);
     root->accept(nlv);
 
     ge_data.index();
 
-    log_.info() << "updating name and link indices...";
+    LOG_INFO << "updating name and link indices...";
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
@@ -537,7 +537,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     });
   });
 
-  log_.info() << "building blocks...";
+  LOG_INFO << "building blocks...";
   block_manager bm(lgr_, prog, cfg_, os_, fsw);
 
   worker_group blockify("blockify");
@@ -551,7 +551,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                     });
                   });
 
-  log_.info() << "waiting for segmenting/blockifying to finish...";
+  LOG_INFO << "waiting for segmenting/blockifying to finish...";
 
   blockify.wait();
 
@@ -565,21 +565,21 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   // TODO: check this, doesn't seem to come out right in debug output
   //       seems to be out-of-line with block compression??
-  log_.debug() << "compressed " << size_with_unit(bm.total_size()) << " in "
-               << bm.total_blocks() << " blocks to "
-               << size_with_unit(prog.compressed_size) << " (ratio="
-               << (bm.total_size() ? static_cast<double>(prog.compressed_size) /
-                                         bm.total_size()
-                                   : 1.0)
-               << ")";
+  LOG_DEBUG << "compressed " << size_with_unit(bm.total_size()) << " in "
+            << bm.total_blocks() << " blocks to "
+            << size_with_unit(prog.compressed_size) << " (ratio="
+            << (bm.total_size() ? static_cast<double>(prog.compressed_size) /
+                                      bm.total_size()
+                                : 1.0)
+            << ")";
 
-  log_.debug() << "saved by segmenting: "
-               << size_with_unit(prog.saved_by_segmentation);
+  LOG_DEBUG << "saved by segmenting: "
+            << size_with_unit(prog.saved_by_segmentation);
 
   // this is actually needed
   root->set_name(std::string());
 
-  log_.info() << "saving chunks...";
+  LOG_INFO << "saving chunks...";
   mv2.chunk_index.resize(im.count() + 1);
 
   // TODO: we should be able to start this once all blocks have been
@@ -593,10 +593,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   // insert dummy inode to help determine number of chunks per inode
   DWARFS_NOTHROW(mv2.chunk_index.at(im.count())) = mv2.chunks.size();
 
-  log_.debug() << "total number of file inodes: " << im.count();
-  log_.debug() << "total number of chunks: " << mv2.chunks.size();
+  LOG_DEBUG << "total number of file inodes: " << im.count();
+  LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
 
-  log_.info() << "saving directories...";
+  LOG_INFO << "saving directories...";
   mv2.entry_index.resize(first_pipe_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
@@ -624,14 +624,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsw.write_metadata_v2_schema(std::move(schema));
   fsw.write_metadata_v2(std::move(data));
 
-  log_.info() << "waiting for compression to finish...";
+  LOG_INFO << "waiting for compression to finish...";
 
   fsw.flush();
 
-  log_.info() << "compressed " << size_with_unit(prog.original_size) << " to "
-              << size_with_unit(prog.compressed_size) << " (ratio="
-              << static_cast<double>(prog.compressed_size) / prog.original_size
-              << ")";
+  LOG_INFO << "compressed " << size_with_unit(prog.original_size) << " to "
+           << size_with_unit(prog.compressed_size) << " (ratio="
+           << static_cast<double>(prog.compressed_size) / prog.original_size
+           << ")";
 }
 
 scanner::scanner(logger& lgr, worker_group& wg,

@@ -117,9 +117,9 @@ class metadata_ : public metadata_v2::impl {
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
       , nlinks_(build_nlinks(options))
       , options_(options) {
-    log_.debug() << "link index offset: " << link_index_offset_;
-    log_.debug() << "chunk index offset: " << chunk_index_offset_;
-    log_.debug() << "device index offset: " << dev_index_offset_;
+    LOG_DEBUG << "link index offset: " << link_index_offset_;
+    LOG_DEBUG << "chunk index offset: " << chunk_index_offset_;
+    LOG_DEBUG << "device index offset: " << dev_index_offset_;
 
     if (int(meta_.directories().size() - 1) != link_index_offset_) {
       DWARFS_THROW(
@@ -340,7 +340,7 @@ class metadata_ : public metadata_v2::impl {
     if (auto devs = meta_.devices()) {
       return (*devs)[inode - dev_index_offset_];
     }
-    log_.error() << "get_device_id() called, but no devices in file system";
+    LOG_ERROR << "get_device_id() called, but no devices in file system";
     return 0;
   }
 
@@ -348,7 +348,7 @@ class metadata_ : public metadata_v2::impl {
     std::vector<uint32_t> nlinks;
 
     if (options.enable_nlink) {
-      auto ti = log_.timed_debug();
+      auto ti = LOG_TIMED_DEBUG;
 
       nlinks.resize(dev_index_offset_ - chunk_index_offset_);
 

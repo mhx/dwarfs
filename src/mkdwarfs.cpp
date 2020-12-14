@@ -135,7 +135,7 @@ class script_options : public options_interface {
   }
 
   void enable_similarity() override {
-    log_.debug() << "script is forcing similarity hash computation";
+    LOG_DEBUG << "script is forcing similarity hash computation";
     force_similarity_ = true;
   }
 
@@ -145,16 +145,16 @@ class script_options : public options_interface {
     switch (mode) {
     case options_interface::DEFAULT:
       if (!vm_.count(name) || vm_[name].defaulted()) {
-        log_.info() << "script is setting " << name << "=" << value;
+        LOG_INFO << "script is setting " << name << "=" << value;
         target = value;
       }
       break;
 
     case options_interface::OVERRIDE:
       if (vm_.count(name) && !vm_[name].defaulted()) {
-        log_.warn() << "script is overriding " << name << "=" << value;
+        LOG_WARN << "script is overriding " << name << "=" << value;
       } else {
-        log_.info() << "script is setting " << name << "=" << value;
+        LOG_INFO << "script is setting " << name << "=" << value;
       }
       target = value;
       break;
@@ -294,7 +294,7 @@ int mkdwarfs(int argc, char** argv) {
 
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_arg, compression,
-      schema_compression, metadata_compression, log_level, timestamp,
+      schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode;
   size_t num_workers, max_scanner_workers;
   bool recompress = false, no_progress = false;
@@ -389,7 +389,7 @@ int mkdwarfs(int argc, char** argv) {
         po::value<bool>(&options.with_specials)->zero_tokens(),
         "include named fifo and sockets")
     ("log-level",
-        po::value<std::string>(&log_level)->default_value("info"),
+        po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
     ("progress",
         po::value<std::string>(&progress_mode)->default_value("unicode"),
@@ -610,10 +610,12 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
+  auto log_level = logger::parse_level(log_level_str);
 
-  console_writer lgr(
-      std::cerr, pg_mode, get_term_width(), logger::parse_level(log_level),
-      recompress ? console_writer::REWRITE : console_writer::NORMAL);
+  console_writer lgr(std::cerr, pg_mode, get_term_width(), log_level,
+                     recompress ? console_writer::REWRITE
+                                : console_writer::NORMAL,
+                     log_level >= logger::DEBUG);
 
   std::shared_ptr<script> script;
 
@@ -704,7 +706,7 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  log_proxy<debug_logger_policy> log(lgr);
+  LOG_PROXY(debug_logger_policy, lgr);
 
   progress prog([&](const progress& p, bool last) { lgr.update(p, last); },
                 interval_ms);
@@ -716,7 +718,7 @@ int mkdwarfs(int argc, char** argv) {
   filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, schema_bc, metadata_bc,
                         mem_limit);
 
-  auto ti = log.timed_info();
+  auto ti = LOG_TIMED_INFO;
 
   if (recompress) {
     filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
@@ -735,7 +737,7 @@ int mkdwarfs(int argc, char** argv) {
     try {
       s.scan(fsw, path, prog);
     } catch (runtime_error const& e) {
-      log.error() << e.what();
+      LOG_ERROR << e.what();
       return 1;
     }
   }
@@ -743,8 +745,8 @@ int mkdwarfs(int argc, char** argv) {
   ofs.close();
 
   if (ofs.bad()) {
-    log.error() << "failed to close output file '" << output
-                << "': " << strerror(errno);
+    LOG_ERROR << "failed to close output file '" << output
+              << "': " << strerror(errno);
     return 1;
   }
 

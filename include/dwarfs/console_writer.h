@@ -39,9 +39,11 @@ class console_writer : public logger {
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
 
   console_writer(std::ostream& os, progress_mode pg_mode, size_t width,
-                 level_type threshold, display_mode mode = NORMAL);
+                 level_type threshold, display_mode mode = NORMAL,
+                 bool verbose = false);
 
-  void write(level_type level, const std::string& output) override;
+  void write(level_type level, const std::string& output, char const* file,
+             int line) override;
 
   void update(const progress& p, bool last);
 
@@ -54,9 +56,10 @@ class console_writer : public logger {
   std::string statebuf_;
   double frac_;
   std::atomic<size_t> counter_{0};
-  const progress_mode pg_mode_;
-  const size_t width_;
-  const display_mode mode_;
-  const bool color_;
+  progress_mode const pg_mode_;
+  size_t const width_;
+  display_mode const mode_;
+  bool const color_;
+  bool const with_context_;
 };
 } // namespace dwarfs

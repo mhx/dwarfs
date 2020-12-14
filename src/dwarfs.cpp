@@ -91,12 +91,12 @@ struct fuse_session* s_session;
 
 template <typename LoggerPolicy>
 void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   try {
-    auto ti = log.timed_info();
+    auto ti = LOG_TIMED_INFO;
 
     filesystem_options fsopts;
     fsopts.lock_mode = s_opts.lock_mode;
@@ -112,25 +112,25 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
 
     ti << "file system initialized";
   } catch (std::exception const& e) {
-    log.error() << "error initializing file system: " << e.what();
+    LOG_ERROR << "error initializing file system: " << e.what();
     fuse_session_exit(s_session);
   }
 }
 
 template <typename LoggerPolicy>
 void op_destroy(void* /*userdata*/) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   s_fs.reset();
 }
 
 template <typename LoggerPolicy>
 void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -154,10 +154,10 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
       }
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -166,9 +166,9 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
 
 template <typename LoggerPolicy>
 void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -188,10 +188,10 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
       }
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -200,9 +200,9 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 
 template <typename LoggerPolicy>
 void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -215,10 +215,10 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
       err = s_fs->access(*entry, mode, ctx->uid, ctx->gid);
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -227,9 +227,9 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
 
 template <typename LoggerPolicy>
 void op_readlink(fuse_req_t req, fuse_ino_t ino) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -248,10 +248,10 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
       }
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -260,9 +260,9 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
 
 template <typename LoggerPolicy>
 void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -283,10 +283,10 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
       }
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -296,9 +296,9 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 template <typename LoggerPolicy>
 void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
              struct fuse_file_info* fi) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -321,10 +321,10 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
       err = EIO;
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -334,9 +334,9 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 template <typename LoggerPolicy>
 void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
                 struct fuse_file_info* /*fi*/) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = ENOENT;
 
@@ -381,10 +381,10 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
       err = ENOTDIR;
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -393,9 +393,9 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
 template <typename LoggerPolicy>
 void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
-  log_proxy<LoggerPolicy> log(s_lgr);
+  LOG_PROXY(LoggerPolicy, s_lgr);
 
-  log.debug() << __func__;
+  LOG_DEBUG << __func__;
 
   int err = EIO;
 
@@ -410,10 +410,10 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
       return;
     }
   } catch (dwarfs::system_error const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = e.get_errno();
   } catch (std::exception const& e) {
-    log.error() << e.what();
+    LOG_ERROR << e.what();
     err = EIO;
   }
 
@@ -555,7 +555,8 @@ int main(int argc, char* argv[]) {
                           : logger::INFO;
 
   s_lgr.set_threshold(s_opts.debuglevel);
-  log_proxy<debug_logger_policy> log(s_lgr);
+  s_lgr.set_with_context(s_opts.debuglevel >= logger::DEBUG);
+  LOG_PROXY(debug_logger_policy, s_lgr);
 
   s_opts.cachesize = s_opts.cachesize_str
                          ? parse_size_with_unit(s_opts.cachesize_str)
@@ -568,7 +569,7 @@ int main(int argc, char* argv[]) {
                                 ? folly::to<double>(s_opts.decompress_ratio_str)
                                 : 0.8;
 
-  log.info() << "dwarfs (" << DWARFS_VERSION << ")";
+  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ")";
 
   if (!s_opts.seen_mountpoint) {
     usage(s_opts.progname);

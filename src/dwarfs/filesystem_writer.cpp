@@ -231,9 +231,9 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
 
     fsb->wait_until_compressed();
 
-    log_.debug() << get_section_name(fsb->type()) << " compressed from "
-                 << size_with_unit(fsb->uncompressed_size()) << " to "
-                 << size_with_unit(fsb->size());
+    LOG_DEBUG << get_section_name(fsb->type()) << " compressed from "
+              << size_with_unit(fsb->uncompressed_size()) << " to "
+              << size_with_unit(fsb->size());
 
     write(fsb->type(), fsb->compression(), fsb->data());
   }

@@ -192,16 +192,15 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
   for (const auto& sti : stats_) {
     static char const* const percent = "{:.2}%";
     const auto& st = sti.second;
-    log_.debug() << "blockhash window <" << sti.first << ">: " << st.collisions
-                 << " collisions ("
-                 << fmt::format(percent, float(st.collisions) / st.total_hashes)
-                 << "), " << st.real_matches << " real matches, "
-                 << st.bad_matches << " bad matches, ("
-                 << fmt::format(percent, float(st.bad_matches) /
-                                             (st.real_matches + st.bad_matches))
-                 << "), " << size_with_unit(st.saved_bytes)
-                 << " saved (largest=" << size_with_unit(st.largest_block)
-                 << ")";
+    LOG_DEBUG << "blockhash window <" << sti.first << ">: " << st.collisions
+              << " collisions ("
+              << fmt::format(percent, float(st.collisions) / st.total_hashes)
+              << "), " << st.real_matches << " real matches, " << st.bad_matches
+              << " bad matches, ("
+              << fmt::format(percent, float(st.bad_matches) /
+                                          (st.real_matches + st.bad_matches))
+              << "), " << size_with_unit(st.saved_bytes)
+              << " saved (largest=" << size_with_unit(st.largest_block) << ")";
   }
 }
 
@@ -238,9 +237,9 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
       size_t last = (size - bhi->size) + 1;
 
       if (hashvec.size() < offset + last) {
-        log_.error() << "bhi=" << bhi->size
-                     << ", hashvec.size()=" << hashvec.size()
-                     << ", offset=" << offset << ", last=" << last;
+        LOG_ERROR << "bhi=" << bhi->size
+                  << ", hashvec.size()=" << hashvec.size()
+                  << ", offset=" << offset << ", last=" << last;
         DWARFS_THROW(runtime_error, "internal error: hashvec too small");
       }
 
@@ -258,9 +257,9 @@ void block_manager_<LoggerPolicy>::update_hashes(const hash_map_type& hm,
                 bhi->values.insert(std::make_pair(hval, new_offest));
 
             if (!success) {
-              log_.trace() << "collision for hash=" << hval
-                           << " (size=" << bhi->size << "): " << it->second
-                           << " <-> " << new_offest;
+              LOG_TRACE << "collision for hash=" << hval
+                        << " (size=" << bhi->size << "): " << it->second
+                        << " <-> " << new_offest;
 
               ++stats.collisions;
 
@@ -278,8 +277,8 @@ void block_manager_<LoggerPolicy>::add_chunk(const std::shared_ptr<inode>& ino,
                                              const uint8_t* p, size_t offset,
                                              size_t size,
                                              const hash_map_type* hm) {
-  log_.trace() << "block " << current_block_ << " size: " << block_.size()
-               << " of " << block_size_;
+  LOG_TRACE << "block " << current_block_ << " size: " << block_.size()
+            << " of " << block_size_;
 
   if (hm) {
     update_hashes(*hm, offset, size);
@@ -287,9 +286,9 @@ void block_manager_<LoggerPolicy>::add_chunk(const std::shared_ptr<inode>& ino,
 
   size_t block_offset = cur_offset();
 
-  log_.trace() << "adding chunk for inode " << ino->num() << " ["
-               << ino->any()->name() << "] - block: " << current_block_
-               << " offset: " << block_offset << ", size: " << size;
+  LOG_TRACE << "adding chunk for inode " << ino->num() << " ["
+            << ino->any()->name() << "] - block: " << current_block_
+            << " offset: " << block_offset << ", size: " << size;
 
   block_.resize(block_offset + size);
 
@@ -339,8 +338,8 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
   if (size > 0) {
     auto mm = os_->map_file(e->path(), size);
 
-    log_.trace() << "adding inode " << ino->num() << " [" << ino->any()->name()
-                 << "] - size: " << size;
+    LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
+              << "] - size: " << size;
 
     if (blockhash_window_size_.empty() or
         size < blockhash_window_size_.front()) {
@@ -371,14 +370,14 @@ void block_manager_<LoggerPolicy>::validate_match(
     const std::vector<cyclic_hash_t>& hashvec, bm_stats& stats,
     size_t block_size, size_t block_offset, size_t off, match_window& best,
     size_t& best_offset) {
-  log_.trace() << indent << "potentially matched " << block_size
-               << " bytes at offset " << off << ", hash=" << hashvec[off];
+  LOG_TRACE << indent << "potentially matched " << block_size
+            << " bytes at offset " << off << ", hash=" << hashvec[off];
 
   match_window win(off, off + block_size);
 
   if (get_match_window(indent, win, block_offset, data, mw)) {
-    log_.trace() << indent << "definitely matched " << win.size()
-                 << " bytes at offset " << win.first;
+    LOG_TRACE << indent << "definitely matched " << win.size()
+              << " bytes at offset " << win.first;
     ++stats.real_matches;
 
     // fuck yeah, we've got a block...
@@ -388,8 +387,8 @@ void block_manager_<LoggerPolicy>::validate_match(
       best_offset = block_offset;
     }
   } else {
-    log_.trace() << indent << "bad match: " << block_size << " bytes at offset "
-                 << off << ", hash=" << hashvec[off];
+    LOG_TRACE << indent << "bad match: " << block_size << " bytes at offset "
+              << off << ", hash=" << hashvec[off];
     ++stats.bad_matches;
   }
 }
@@ -399,11 +398,11 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
     const std::string& indent, const hash_map_type& hm,
     const std::shared_ptr<inode>& ino, const uint8_t* data, match_window mw,
     bhv_ri bhcur, bhv_ri bhend) {
-  log_.trace() << indent << "segment_and_add_data([" << mw.first << ", "
-               << mw.last << "], " << (bhcur != bhend ? bhcur->size : 0) << ")";
+  LOG_TRACE << indent << "segment_and_add_data([" << mw.first << ", " << mw.last
+            << "], " << (bhcur != bhend ? bhcur->size : 0) << ")";
 
   while (bhcur != bhend) {
-    log_.trace() << indent << "   wsize=" << bhcur->size;
+    LOG_TRACE << indent << "   wsize=" << bhcur->size;
 
     if (bhcur->size <= mw.size()) {
       auto hmi = hm.find(bhcur->size);
@@ -427,13 +426,13 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
         }
 
         if (best.size() > 0) {
-          log_.trace() << indent << "mw=[" << mw.first << ", " << mw.last
-                       << "], best=[" << best.first << ", " << best.last << "]";
+          LOG_TRACE << indent << "mw=[" << mw.first << ", " << mw.last
+                    << "], best=[" << best.first << ", " << best.last << "]";
 
           // 1) search for smaller blocks on the left recursively
           match_window left(mw.first, best.first);
-          log_.trace() << indent << "left=[" << left.first << ", " << left.last
-                       << "]";
+          LOG_TRACE << indent << "left=[" << left.first << ", " << left.last
+                    << "]";
 
           // 2) save the block number before recursing, as current_block_
           //    may change before we add the chunk
@@ -444,10 +443,10 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
                                bhend);
 
           // 4) add the block we found
-          log_.trace() << "adding (existing) chunk for inode " << ino->num()
-                       << " [" << ino->any()->name()
-                       << "] - offset: " << best_offset
-                       << ", size: " << best.size();
+          LOG_TRACE << "adding (existing) chunk for inode " << ino->num()
+                    << " [" << ino->any()->name()
+                    << "] - offset: " << best_offset
+                    << ", size: " << best.size();
 
           ino->add_chunk(block_no, best_offset, best.size());
           prog_.chunk_count++;
@@ -461,8 +460,8 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(
           //    make sure that we never go back to the left again
           mw.first = best.last;
           off = mw.first;
-          log_.trace() << indent << "updated mw=[" << mw.first << ", "
-                       << mw.last << "]";
+          LOG_TRACE << indent << "updated mw=[" << mw.first << ", " << mw.last
+                    << "]";
         } else {
           ++off;
         }
@@ -481,18 +480,17 @@ bool block_manager_<LoggerPolicy>::get_match_window(
     const uint8_t* data, const match_window& search_win) const {
   const uint8_t* blockdata = &block_[0];
 
-  log_.trace() << indent << "match(block_offset=" << block_offset
-               << ", window=[" << win.first << ", " << win.last
-               << "], search_win=[" << search_win.first << ", "
-               << search_win.last << "])";
+  LOG_TRACE << indent << "match(block_offset=" << block_offset << ", window=["
+            << win.first << ", " << win.last << "], search_win=["
+            << search_win.first << ", " << search_win.last << "])";
 
   if (block_offset + win.size() > block_size_) {
-    log_.trace() << indent << "bad match size";
+    LOG_TRACE << indent << "bad match size";
     return false;
   }
 
   if (::memcmp(blockdata + block_offset, data + win.first, win.size()) != 0) {
-    log_.trace() << indent << "block data mismatch";
+    LOG_TRACE << indent << "block data mismatch";
     return false;
   }
 

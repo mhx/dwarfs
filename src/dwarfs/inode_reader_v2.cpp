@@ -51,12 +51,11 @@ class inode_reader_ : public inode_reader_v2::impl {
   ~inode_reader_() {
     std::lock_guard<std::mutex> lock(iovec_sizes_mutex_);
     if (iovec_sizes_.computeTotalCount() > 0) {
-      log_.info() << "iovec size p90: "
-                  << iovec_sizes_.getPercentileEstimate(0.9);
-      log_.info() << "iovec size p95: "
-                  << iovec_sizes_.getPercentileEstimate(0.95);
-      log_.info() << "iovec size p99: "
-                  << iovec_sizes_.getPercentileEstimate(0.99);
+      LOG_INFO << "iovec size p90: " << iovec_sizes_.getPercentileEstimate(0.9);
+      LOG_INFO << "iovec size p95: "
+               << iovec_sizes_.getPercentileEstimate(0.95);
+      LOG_INFO << "iovec size p99: "
+               << iovec_sizes_.getPercentileEstimate(0.99);
     }
   }
 
