@@ -205,7 +205,10 @@ if(FUSE3_FOUND)
                                                 FUSE_USE_VERSION=35)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
   target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
+  add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
+                                             dwarfs mount.dwarfs)
   install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
   list(APPEND BINARY_TARGETS dwarfs-bin)
 endif()
 
@@ -215,7 +218,11 @@ if(FUSE_FOUND)
                                                  FUSE_USE_VERSION=29)
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
   target_link_libraries(dwarfs2-bin PkgConfig::FUSE)
+  add_custom_target(
+    mount.dwarfs2 ALL COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2
+                              mount.dwarfs2)
   install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
   list(APPEND BINARY_TARGETS dwarfs2-bin)
 endif()
 
@@ -403,9 +410,6 @@ if(WITH_PYTHON)
   endif()
 endif()
 
-add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
-                                           dwarfs mount.dwarfs)
-
 if(STATIC_BUILD_DO_NOT_USE)
   # This is a proper mess, but it does work somehow...
   set(CMAKE_CXX_LINK_EXECUTABLE
@@ -417,15 +421,14 @@ add_custom_target(
   realclean
   COMMAND
     rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
-    thrift zstd dwarfs* mkdwarfs mount.dwarfs lib*.a *.cmake googletest-*
-    _CPack_Packages install_manifest.txt share)
+    thrift zstd dwarfs* mkdwarfs mount.dwarfs mount.dwarfs2 lib*.a *.cmake
+    googletest-* _CPack_Packages install_manifest.txt share)
 
 install(
   TARGETS mkdwarfs dwarfsck dwarfsbench
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
