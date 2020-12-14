@@ -40,7 +40,6 @@ bool stream_is_fancy_terminal(std::ostream& os) {
     return false;
   }
   auto term = ::getenv("TERM");
-  std::cerr << "term: " << term << std::endl;
   return term && term[0] && ::strcmp(term, "dumb");
 }
 
