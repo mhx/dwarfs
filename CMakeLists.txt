@@ -41,6 +41,9 @@ set(DWARFS_VERSION
 )
 
 if(STATIC_BUILD_DO_NOT_USE)
+  if(WITH_PYTHON)
+    message(FATAL_ERROR "python is not supported in static builds")
+  endif()
   set(CMAKE_FIND_LIBRARY_SUFFIXES
       ".a"
       CACHE STRING "please look for static libs")
@@ -370,10 +373,6 @@ foreach(tgt ${BINARY_TARGETS})
 endforeach()
 
 if(WITH_PYTHON)
-  if(STATIC_BUILD_DO_NOT_USE)
-    list(APPEND Python3_LIBRARIES libexpat.a libutil.a)
-  endif()
-
   target_link_libraries(mkdwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
 
   if(WITH_TESTS)
@@ -389,25 +388,10 @@ add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                            dwarfs mount.dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs-bin libfuse3.a)
-  foreach(dll libpthread.so.0 libm.so.6 libc.so.6 libdl.so.2 ld-2.31.so)
-    file(
-      COPY /usr/lib/x86_64-linux-gnu/${dll}
-      DESTINATION share/dwarfs/lib
-      USE_SOURCE_PERMISSIONS FOLLOW_SYMLINK_CHAIN)
-  endforeach()
-  foreach(tgt dwarfs-bin mkdwarfs dwarfsck dwarfsbench)
-    get_target_property(binary_name ${tgt} OUTPUT_NAME)
-    if(NOT binary_name)
-      set(binary_name ${tgt})
-    endif()
-    add_custom_command(
-      TARGET ${tgt}
-      POST_BUILD
-      COMMAND patchelf --set-interpreter ../share/dwarfs/lib/ld-2.31.so
-              ${binary_name}
-      COMMENT "Setting interpreter for ${binary_name}")
-  endforeach()
+  # This is a proper mess, but it does work somehow...
+  set(CMAKE_CXX_LINK_EXECUTABLE
+      "g++ -static -static-libgcc -static-libstdc++ <OBJECTS> -o <TARGET> -Wl,-allow-multiple-definition libdwarfs.a -Wl,-Bstatic /usr/lib/x86_64-linux-gnu/libfuse3.a libmetadata_thrift.a libthrift_light.a folly/libfolly.a /usr/lib/x86_64-linux-gnu/libfmt.a /usr/lib/x86_64-linux-gnu/libboost_context.a /usr/lib/x86_64-linux-gnu/libboost_regex.a /usr/lib/x86_64-linux-gnu/libboost_thread.a /usr/lib/x86_64-linux-gnu/libboost_atomic.a /usr/lib/x86_64-linux-gnu/libdouble-conversion.a /usr/lib/x86_64-linux-gnu/libgflags.a /usr/lib/x86_64-linux-gnu/libglog.a /usr/lib/x86_64-linux-gnu/libevent.a /usr/lib/x86_64-linux-gnu/libz.a /usr/lib/x86_64-linux-gnu/libssl.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libiberty.a /usr/lib/x86_64-linux-gnu/libiberty.a /usr/lib/x86_64-linux-gnu/libunwind.a /usr/lib/gcc/x86_64-linux-gnu/10/libatomic.a /usr/lib/x86_64-linux-gnu/libboost_date_time.a /usr/lib/x86_64-linux-gnu/libboost_filesystem.a /usr/lib/x86_64-linux-gnu/libboost_program_options.a /usr/lib/x86_64-linux-gnu/libboost_system.a zstd/build/cmake/lib/libzstd.a /usr/lib/x86_64-linux-gnu/liblz4.a /usr/lib/x86_64-linux-gnu/liblzma.a /usr/lib/x86_64-linux-gnu/libz.a /usr/lib/x86_64-linux-gnu/libpthread.a /usr/lib/x86_64-linux-gnu/libdl.a /usr/lib/x86_64-linux-gnu/libc.a /usr/lib/x86_64-linux-gnu/libm.a /usr/lib/x86_64-linux-gnu/librt.a"
+  )
 else()
   target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
 endif()
@@ -428,12 +412,7 @@ install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 
-if(STATIC_BUILD_DO_NOT_USE)
-  install(
-    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/share/dwarfs/lib
-    DESTINATION share/dwarfs
-    USE_SOURCE_PERMISSIONS)
-else()
+if(NOT STATIC_BUILD_DO_NOT_USE)
   install(
     TARGETS dwarfs
     RUNTIME DESTINATION bin
