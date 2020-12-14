@@ -34,6 +34,7 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
+#include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
 
@@ -170,6 +171,7 @@ class metadata_ : public metadata_v2::impl {
       const override;
 
   folly::dynamic as_dynamic() const override;
+  std::string serialize_as_json(bool simple) const override;
 
   size_t size() const override { return data_.size(); }
 
@@ -523,6 +525,19 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
   obj["root"] = as_dynamic(root_);
 
   return obj;
+}
+
+template <typename LoggerPolicy>
+std::string metadata_<LoggerPolicy>::serialize_as_json(bool simple) const {
+  std::string json;
+  if (simple) {
+    apache::thrift::SimpleJSONSerializer serializer;
+    serializer.serialize(meta_.thaw(), &json);
+  } else {
+    apache::thrift::JSONSerializer serializer;
+    serializer.serialize(meta_.thaw(), &json);
+  }
+  return json;
 }
 
 template <typename LoggerPolicy>

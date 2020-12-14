@@ -71,6 +71,10 @@ class metadata_v2 {
 
   folly::dynamic as_dynamic() const { return impl_->as_dynamic(); }
 
+  std::string serialize_as_json(bool simple) const {
+    return impl_->serialize_as_json(simple);
+  }
+
   static void get_stat_defaults(struct ::stat* defaults);
 
   // TODO: check if this is needed
@@ -142,6 +146,7 @@ class metadata_v2 {
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
     virtual folly::dynamic as_dynamic() const = 0;
+    virtual std::string serialize_as_json(bool simple) const = 0;
 
     virtual size_t size() const = 0;
     virtual bool empty() const = 0;

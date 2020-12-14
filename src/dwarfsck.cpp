@@ -24,6 +24,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <folly/File.h>
+#include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/json.h>
 
@@ -38,7 +40,7 @@ namespace dwarfs {
 namespace po = boost::program_options;
 
 int dwarfsck(int argc, char** argv) {
-  std::string log_level, input;
+  std::string log_level, input, export_metadata;
   int detail;
   bool json = false;
 
@@ -54,6 +56,9 @@ int dwarfsck(int argc, char** argv) {
     ("json",
         po::value<bool>(&json)->zero_tokens(),
         "print metadata in JSON format")
+    ("export-metadata",
+        po::value<std::string>(&export_metadata),
+        "export raw metadata as JSON to file")
     ("log-level",
         po::value<std::string>(&log_level)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
@@ -87,7 +92,15 @@ int dwarfsck(int argc, char** argv) {
   try {
     auto mm = std::make_shared<mmap>(input);
 
-    if (json) {
+    if (!export_metadata.empty()) {
+      auto of = folly::File(export_metadata, O_RDWR | O_CREAT);
+      filesystem_v2 fs(lgr, mm);
+      auto json = fs.serialize_metadata_as_json(true);
+      if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
+        LOG_ERROR << "failed to export metadata";
+      }
+      of.close();
+    } else if (json) {
       filesystem_v2 fs(lgr, mm);
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
     } else {
@@ -97,6 +110,9 @@ int dwarfsck(int argc, char** argv) {
     LOG_ERROR << folly::exceptionStr(e);
     return 1;
   } catch (runtime_error const& e) {
+    LOG_ERROR << folly::exceptionStr(e);
+    return 1;
+  } catch (std::system_error const& e) {
     LOG_ERROR << folly::exceptionStr(e);
     return 1;
   }

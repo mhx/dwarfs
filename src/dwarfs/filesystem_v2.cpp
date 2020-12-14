@@ -195,6 +195,7 @@ class filesystem_ : public filesystem_v2::impl {
 
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
+  std::string serialize_metadata_as_json(bool simple) const override;
   void walk(std::function<void(entry_view)> const& func) const override;
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
@@ -276,6 +277,12 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
 template <typename LoggerPolicy>
 folly::dynamic filesystem_<LoggerPolicy>::metadata_as_dynamic() const {
   return meta_.as_dynamic();
+}
+
+template <typename LoggerPolicy>
+std::string
+filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
+  return meta_.serialize_as_json(simple);
 }
 
 template <typename LoggerPolicy>
