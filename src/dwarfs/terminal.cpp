@@ -69,4 +69,10 @@ char const* terminal_color(termcolor color) {
   return colors.at(static_cast<size_t>(color));
 }
 
+std::string terminal_colored(std::string text, termcolor color, bool enable) {
+  return enable
+             ? terminal_color(color) + text + terminal_color(termcolor::NORMAL)
+             : text;
+}
+
 } // namespace dwarfs

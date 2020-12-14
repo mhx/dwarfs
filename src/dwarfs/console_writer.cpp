@@ -155,7 +155,8 @@ void console_writer::update(const progress& p, bool last) {
     switch (mode_) {
     case NORMAL:
       if (fancy) {
-        oss << p.status(width_) << newline;
+        oss << terminal_colored(p.status(width_), termcolor::BOLD_CYAN, color_)
+            << newline;
       }
 
       oss << p.dirs_scanned << " dirs, " << p.links_scanned << "/"

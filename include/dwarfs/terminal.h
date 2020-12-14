@@ -50,4 +50,7 @@ bool stream_is_fancy_terminal(std::ostream& os);
 
 char const* terminal_color(termcolor color);
 
+std::string
+terminal_colored(std::string text, termcolor color, bool enable = true);
+
 } // namespace dwarfs
