@@ -361,8 +361,11 @@ target_link_libraries(
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
-  target_link_libraries(${tgt} -Wl,--whole-archive folly_exception_tracer_base
-                        folly_exception_tracer -Wl,--no-whole-archive)
+  if(TARGET folly_exception_tracer)
+    target_link_libraries(
+      ${tgt} -Wl,--whole-archive folly_exception_tracer_base
+      folly_exception_tracer -Wl,--no-whole-archive)
+  endif()
 endforeach()
 
 if(WITH_PYTHON)
