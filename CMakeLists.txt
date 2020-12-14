@@ -85,14 +85,14 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 
-if(STATIC_BUILD_DO_NOT_USE)
-  pkg_check_modules(FUSE REQUIRED IMPORTED_TARGET fuse>=2.9.9)
-else()
-  pkg_check_modules(FUSE3 REQUIRED IMPORTED_TARGET fuse3>=3.4.1)
-endif()
-
+pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
+pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
+
+if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
+  message(FATAL_ERROR "No FUSE or FUSE3 library found")
+endif()
 
 find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
 find_program(RONN_EXE ronn)
@@ -194,11 +194,30 @@ endif()
 add_library(dwarfs ${LIBDWARFS_SRC})
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
-add_executable(dwarfs-bin src/dwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfs-bin dwarfsck dwarfsbench)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench)
+
+if(FUSE3_FOUND)
+  add_executable(dwarfs-bin src/dwarfs.cpp)
+  target_compile_definitions(dwarfs-bin PRIVATE _FILE_OFFSET_BITS=64
+                                                FUSE_USE_VERSION=35)
+  set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+  target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
+  install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
+  list(APPEND BINARY_TARGETS dwarfs-bin)
+endif()
+
+if(FUSE_FOUND)
+  add_executable(dwarfs2-bin src/dwarfs.cpp)
+  target_compile_definitions(dwarfs2-bin PRIVATE _FILE_OFFSET_BITS=64
+                                                 FUSE_USE_VERSION=29)
+  set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
+  target_link_libraries(dwarfs2-bin PkgConfig::FUSE)
+  install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
+  list(APPEND BINARY_TARGETS dwarfs2-bin)
+endif()
 
 if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp test/loremipsum.cpp)
@@ -355,14 +374,6 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
   add_dependencies(${tgt} metadata_thrift)
 endforeach()
 
-target_compile_definitions(dwarfs-bin PRIVATE _FILE_OFFSET_BITS=64)
-
-if(STATIC_BUILD_DO_NOT_USE)
-  target_compile_definitions(dwarfs-bin PRIVATE FUSE_USE_VERSION=29)
-else()
-  target_compile_definitions(dwarfs-bin PRIVATE FUSE_USE_VERSION=35)
-endif()
-
 target_link_libraries(
   dwarfs
   metadata_thrift
@@ -392,8 +403,6 @@ if(WITH_PYTHON)
   endif()
 endif()
 
-set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-
 add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                            dwarfs mount.dwarfs)
 
@@ -402,8 +411,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_CXX_LINK_EXECUTABLE
       "g++ -static -static-libgcc -static-libstdc++ <OBJECTS> -o <TARGET> -Wl,-allow-multiple-definition libdwarfs.a -Wl,-Bstatic /usr/lib/x86_64-linux-gnu/libfuse.a libmetadata_thrift.a libthrift_light.a folly/libfolly.a /usr/lib/x86_64-linux-gnu/libfmt.a /usr/lib/x86_64-linux-gnu/libboost_context.a /usr/lib/x86_64-linux-gnu/libboost_regex.a /usr/lib/x86_64-linux-gnu/libboost_thread.a /usr/lib/x86_64-linux-gnu/libboost_atomic.a /usr/lib/x86_64-linux-gnu/libdouble-conversion.a /usr/lib/x86_64-linux-gnu/libgflags.a /usr/lib/x86_64-linux-gnu/libglog.a /usr/lib/x86_64-linux-gnu/libevent.a /usr/lib/x86_64-linux-gnu/libz.a /usr/lib/x86_64-linux-gnu/libssl.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libiberty.a /usr/lib/x86_64-linux-gnu/libiberty.a /usr/lib/x86_64-linux-gnu/libunwind.a /usr/lib/gcc/x86_64-linux-gnu/10/libatomic.a /usr/lib/x86_64-linux-gnu/libboost_date_time.a /usr/lib/x86_64-linux-gnu/libboost_filesystem.a /usr/lib/x86_64-linux-gnu/libboost_program_options.a /usr/lib/x86_64-linux-gnu/libboost_system.a zstd/build/cmake/lib/libzstd.a /usr/lib/x86_64-linux-gnu/liblz4.a /usr/lib/x86_64-linux-gnu/liblzma.a /usr/lib/x86_64-linux-gnu/libz.a /usr/lib/x86_64-linux-gnu/libpthread.a /usr/lib/x86_64-linux-gnu/libdl.a /usr/lib/x86_64-linux-gnu/libc.a /usr/lib/x86_64-linux-gnu/libm.a /usr/lib/x86_64-linux-gnu/librt.a"
   )
-else()
-  target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
 endif()
 
 add_custom_target(
@@ -418,7 +425,6 @@ install(
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
 install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
 

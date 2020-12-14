@@ -30,10 +30,11 @@
 #include <folly/Conv.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
-#if DWARFS_STATIC_BUILD
-#include <fuse/fuse_lowlevel.h>
-#else
+#if FUSE_USE_VERSION >= 30
 #include <fuse3/fuse_lowlevel.h>
+#else
+#include <fuse.h>
+#include <fuse/fuse_lowlevel.h>
 #endif
 
 #include "dwarfs/error.h"
@@ -425,7 +426,8 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 }
 
 void usage(const char* progname) {
-  std::cerr << "dwarfs (c) Marcus Holland-Moritz\n\n"
+  std::cerr << "dwarfs (" << DWARFS_VERSION << ", fuse version "
+            << FUSE_USE_VERSION << ") (c) Marcus Holland-Moritz\n\n"
             << "usage: " << progname << " image mountpoint [options]\n\n"
             << "DWARFS options:\n"
             << "    -o cachesize=SIZE      set size of block cache (512M)\n"
@@ -439,7 +441,17 @@ void usage(const char* progname) {
             << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
             << std::endl;
 
+#if FUSE_USE_VERSION >= 30
   fuse_cmdline_help();
+#else
+  struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
+  fuse_opt_add_arg(&args, progname);
+  fuse_opt_add_arg(&args, "-ho");
+  struct fuse_operations fsops;
+  ::memset(&fsops, 0, sizeof(fsops));
+  fuse_main(args.argc, args.argv, &fsops, nullptr);
+  fuse_opt_free_args(&args);
+#endif
 
   ::exit(1);
 }
@@ -489,6 +501,8 @@ void init_lowlevel_ops(struct fuse_lowlevel_ops& ops) {
   // ops.listxattr = &op_listxattr<LoggerPolicy>;
 }
 
+#if FUSE_USE_VERSION > 30
+
 int run_fuse(struct fuse_args& args,
              struct fuse_cmdline_opts const& fuse_opts) {
   struct fuse_lowlevel_ops fsops;
@@ -530,6 +544,44 @@ int run_fuse(struct fuse_args& args,
   return err;
 }
 
+#else
+
+int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg) {
+  struct fuse_lowlevel_ops fsops;
+
+  ::memset(&fsops, 0, sizeof(fsops));
+
+  if (s_opts.debuglevel >= logger::DEBUG) {
+    init_lowlevel_ops<debug_logger_policy>(fsops);
+  } else {
+    init_lowlevel_ops<prod_logger_policy>(fsops);
+  }
+
+  int err = 1;
+
+  if (auto ch = fuse_mount(mountpoint, &args)) {
+    if (auto se = fuse_lowlevel_new(&args, &fsops, sizeof(fsops), nullptr)) {
+      if (fuse_daemonize(fg) != -1) {
+        if (fuse_set_signal_handlers(se) != -1) {
+          fuse_session_add_chan(se, ch);
+          err = mt ? fuse_session_loop_mt(se) : fuse_session_loop(se);
+          fuse_remove_signal_handlers(se);
+          fuse_session_remove_chan(ch);
+        }
+      }
+      fuse_session_destroy(se);
+    }
+    fuse_unmount(mountpoint, ch);
+  }
+
+  ::free(mountpoint);
+  fuse_opt_free_args(&args);
+
+  return err;
+}
+
+#endif
+
 } // namespace dwarfs
 
 int main(int argc, char* argv[]) {
@@ -543,6 +595,7 @@ int main(int argc, char* argv[]) {
 
   fuse_opt_parse(&args, &s_opts, dwarfs_opts, option_hdl);
 
+#if FUSE_USE_VERSION >= 30
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
@@ -552,6 +605,18 @@ int main(int argc, char* argv[]) {
   if (fuse_opts.foreground) {
     folly::symbolizer::installFatalSignalHandler();
   }
+#else
+  char* mountpoint = nullptr;
+  int mt, fg;
+
+  if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
+    usage(s_opts.progname);
+  }
+
+  if (fg) {
+    folly::symbolizer::installFatalSignalHandler();
+  }
+#endif
 
   // TODO: foreground mode, stderr vs. syslog?
   s_opts.debuglevel = s_opts.debuglevel_str
@@ -582,5 +647,9 @@ int main(int argc, char* argv[]) {
 
   metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
+#if FUSE_USE_VERSION >= 30
   return run_fuse(args, fuse_opts);
+#else
+  return run_fuse(args, mountpoint, mt, fg);
+#endif
 }
