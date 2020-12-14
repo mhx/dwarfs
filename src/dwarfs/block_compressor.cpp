@@ -110,6 +110,22 @@ class option_map {
   std::unordered_map<std::string, std::string> opt_;
   std::string choice_;
 };
+
+#ifdef DWARFS_HAVE_LIBLZMA
+std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
+    {LZMA_NO_CHECK, "input stream has no integrity check"},
+    {LZMA_UNSUPPORTED_CHECK, "cannot calculate the integrity check"},
+    {LZMA_GET_CHECK, "integrity check type is now available"},
+    {LZMA_MEM_ERROR, "cannot allocate memory"},
+    {LZMA_MEMLIMIT_ERROR, "memory usage limit was reached"},
+    {LZMA_FORMAT_ERROR, "file format not recognized"},
+    {LZMA_OPTIONS_ERROR, "invalid or unsupported options"},
+    {LZMA_DATA_ERROR, "data is corrupt"},
+    {LZMA_BUF_ERROR, "no progress is possible"},
+    {LZMA_PROG_ERROR, "programming error"},
+};
+#endif
+
 } // namespace
 
 #ifdef DWARFS_HAVE_LIBLZMA
@@ -250,21 +266,16 @@ void lzma_block_compressor::append(const uint8_t* data, size_t size,
 
   lzma_ret ret = lzma_code(&stream_, action);
 
-  switch (ret) {
-  case LZMA_STREAM_END:
+  if (ret == LZMA_STREAM_END) {
     if (!last) {
-      DWARFS_THROW(runtime_error, "LZMA unexpected stream end");
+      DWARFS_THROW(runtime_error, "LZMA: unexpected stream end");
     }
-    break;
-
-  case LZMA_MEM_ERROR:
-    DWARFS_THROW(runtime_error, "LZMA_MEM_ERROR");
-
-  case LZMA_DATA_ERROR:
-    DWARFS_THROW(runtime_error, "LZMA_DATA_ERROR");
-
-  default:
-    DWARFS_THROW(runtime_error, "unknown LZMA error");
+  } else {
+    if (auto it = lzma_error_desc.find(ret); it != lzma_error_desc.end()) {
+      DWARFS_THROW(runtime_error, fmt::format("LZMA error: {}", it->second));
+    } else {
+      DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}", ret));
+    }
   }
 
   if (last) {
@@ -298,19 +309,14 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 
   lzma_end(&s);
 
-  switch (ret) {
-  case LZMA_STREAM_END:
+  if (ret == LZMA_STREAM_END) {
     compressed.shrink_to_fit();
-    break;
-
-  case LZMA_MEM_ERROR:
-    DWARFS_THROW(runtime_error, "LZMA_MEM_ERROR");
-
-  case LZMA_DATA_ERROR:
-    DWARFS_THROW(runtime_error, "LZMA_DATA_ERROR");
-
-  default:
-    DWARFS_THROW(runtime_error, "unknown LZMA error");
+  } else {
+    if (auto it = lzma_error_desc.find(ret); it != lzma_error_desc.end()) {
+      DWARFS_THROW(runtime_error, fmt::format("LZMA error: {}", it->second));
+    } else {
+      DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}", ret));
+    }
   }
 
   return compressed;
@@ -538,6 +544,10 @@ class lzma_block_decompressor : public block_decompressor::impl {
   compression_type type() const override { return compression_type::LZMA; }
 
   bool decompress_frame(size_t frame_size) override {
+    if (!error_.empty()) {
+      DWARFS_THROW(runtime_error, error_);
+    }
+
     lzma_action action = LZMA_RUN;
 
     if (decompressed_.size() + frame_size > uncompressed_size_) {
@@ -561,10 +571,14 @@ class lzma_block_decompressor : public block_decompressor::impl {
 
     if (ret != (action == LZMA_RUN ? LZMA_OK : LZMA_STREAM_END) ||
         stream_.avail_out != 0) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("error while decompressing LZMA stream "
-                               "(action={0}, ret={1}, stream_.avail_out={2})",
-                               action, ret, stream_.avail_out));
+      decompressed_.clear();
+      auto it = lzma_error_desc.find(ret);
+      if (it != lzma_error_desc.end()) {
+        error_ = fmt::format("LZMA: decompression failed ({})", it->second);
+      } else {
+        error_ = fmt::format("LZMA: decompression failed (error {})", ret);
+      }
+      DWARFS_THROW(runtime_error, error_);
     }
 
     return ret == LZMA_STREAM_END;
@@ -578,6 +592,7 @@ class lzma_block_decompressor : public block_decompressor::impl {
   lzma_stream stream_;
   std::vector<uint8_t>& decompressed_;
   const size_t uncompressed_size_;
+  std::string error_;
 };
 #endif
 
@@ -596,11 +611,22 @@ class lz4_block_decompressor : public block_decompressor::impl {
   compression_type type() const override { return compression_type::LZ4; }
 
   bool decompress_frame(size_t) override {
+    if (!error_.empty()) {
+      DWARFS_THROW(runtime_error, error_);
+    }
+
     decompressed_.resize(uncompressed_size_);
-    LZ4_decompress_safe(reinterpret_cast<const char*>(data_),
-                        reinterpret_cast<char*>(&decompressed_[0]),
-                        static_cast<int>(input_size_),
-                        static_cast<int>(uncompressed_size_));
+    auto rv = LZ4_decompress_safe(reinterpret_cast<const char*>(data_),
+                                  reinterpret_cast<char*>(&decompressed_[0]),
+                                  static_cast<int>(input_size_),
+                                  static_cast<int>(uncompressed_size_));
+
+    if (rv < 0) {
+      decompressed_.clear();
+      error_ = fmt::format("LZ4: decompression failed (error: {})", rv);
+      DWARFS_THROW(runtime_error, error_);
+    }
+
     return true;
   }
 
@@ -617,6 +643,7 @@ class lz4_block_decompressor : public block_decompressor::impl {
   const uint8_t* const data_;
   const size_t input_size_;
   const size_t uncompressed_size_;
+  std::string error_;
 };
 #endif
 
