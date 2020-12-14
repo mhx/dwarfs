@@ -51,10 +51,14 @@ system_error::system_error(int err, char const* file, int line) noexcept
     , line_(line) {}
 
 void dump_exceptions() {
+#if FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF
   auto exceptions = ::folly::exception_tracer::getCurrentExceptions();
   for (auto& exc : exceptions) {
     std::cerr << exc << std::endl;
   }
+#else
+  std::cerr << "cannot dump exceptions" << std::endl;
+#endif
 }
 
 void handle_nothrow(char const* expr, char const* file, int line) {
