@@ -30,7 +30,11 @@
 #include <folly/Conv.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
+#if DWARFS_STATIC_BUILD
+#include <fuse/fuse_lowlevel.h>
+#else
 #include <fuse3/fuse_lowlevel.h>
+#endif
 
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
@@ -569,7 +573,8 @@ int main(int argc, char* argv[]) {
                                 ? folly::to<double>(s_opts.decompress_ratio_str)
                                 : 0.8;
 
-  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ")";
+  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
+           << FUSE_USE_VERSION << ")";
 
   if (!s_opts.seen_mountpoint) {
     usage(s_opts.progname);
