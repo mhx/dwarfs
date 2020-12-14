@@ -355,7 +355,7 @@ class metadata_ : public metadata_v2::impl {
       for (auto e : meta_.entries()) {
         auto index = int(e.inode()) - chunk_index_offset_;
         if (index >= 0 && index < int(nlinks.size())) {
-          DWARFS_NOTHROW(++nlinks.at(index));
+          ++DWARFS_NOTHROW(nlinks.at(index));
         }
       }
 
