@@ -31,6 +31,7 @@
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/terminal.h"
 #include "dwarfs/util.h"
 
 namespace dwarfs {
@@ -50,7 +51,8 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , frac_(0.0)
     , pg_mode_(pg_mode)
     , width_(width)
-    , mode_(mode) {
+    , mode_(mode)
+    , color_(stream_is_fancy_terminal(os)) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   if (threshold > level_type::INFO) {
@@ -79,19 +81,21 @@ void console_writer::write(level_type level, const std::string& output) {
     const char* prefix = "";
     const char* suffix = "";
 
-    switch (level) {
-    case ERROR:
-      prefix = "\033[1;31m";
-      suffix = "\033[0m";
-      break;
+    if (color_) {
+      switch (level) {
+      case ERROR:
+        prefix = terminal_color(termcolor::BOLD_RED);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
 
-    case WARN:
-      prefix = "\033[1;33m";
-      suffix = "\033[0m";
-      break;
+      case WARN:
+        prefix = terminal_color(termcolor::BOLD_YELLOW);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
 
-    default:
-      break;
+      default:
+        break;
+      }
     }
 
     std::lock_guard<std::mutex> lock(mx_);

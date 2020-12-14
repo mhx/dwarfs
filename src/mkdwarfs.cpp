@@ -68,6 +68,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
+#include "dwarfs/terminal.h"
 #include "dwarfs/util.h"
 
 #ifdef DWARFS_HAVE_PYTHON
@@ -599,7 +600,7 @@ int mkdwarfs(int argc, char** argv) {
   if (no_progress) {
     progress_mode = "none";
   }
-  if (progress_mode != "none" && !::isatty(::fileno(stderr))) {
+  if (progress_mode != "none" && !stream_is_fancy_terminal(std::cerr)) {
     progress_mode = "simple";
   }
   if (!progress_modes.count(progress_mode)) {

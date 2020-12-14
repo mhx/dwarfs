@@ -21,42 +21,31 @@
 
 #pragma once
 
-#include <atomic>
-#include <cstddef>
 #include <iosfwd>
-#include <mutex>
-#include <string>
-
-#include "dwarfs/logger.h"
 
 namespace dwarfs {
 
-class progress;
-
-class console_writer : public logger {
- public:
-  enum display_mode { NORMAL, REWRITE };
-  enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
-
-  console_writer(std::ostream& os, progress_mode pg_mode, size_t width,
-                 level_type threshold, display_mode mode = NORMAL);
-
-  void write(level_type level, const std::string& output) override;
-
-  void update(const progress& p, bool last);
-
- private:
-  void rewind();
-
-  std::ostream& os_;
-  std::mutex mx_;
-  std::atomic<level_type> threshold_;
-  std::string statebuf_;
-  double frac_;
-  std::atomic<size_t> counter_{0};
-  const progress_mode pg_mode_;
-  const size_t width_;
-  const display_mode mode_;
-  const bool color_;
+enum class termcolor {
+  NORMAL,
+  RED,
+  GREEN,
+  YELLOW,
+  BLUE,
+  CYAN,
+  WHITE,
+  MAGENTA,
+  BOLD_RED,
+  BOLD_GREEN,
+  BOLD_YELLOW,
+  BOLD_BLUE,
+  BOLD_MAGENTA,
+  BOLD_CYAN,
+  BOLD_WHITE,
+  NUM_COLORS
 };
+
+bool stream_is_fancy_terminal(std::ostream& os);
+
+char const* terminal_color(termcolor color);
+
 } // namespace dwarfs

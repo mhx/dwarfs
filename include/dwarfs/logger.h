@@ -80,6 +80,7 @@ class stream_logger : public logger {
   std::ostream& os_;
   std::mutex mx_;
   std::atomic<level_type> threshold_;
+  const bool color_;
 };
 
 class level_logger {

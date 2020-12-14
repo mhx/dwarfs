@@ -32,6 +32,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/logger.h"
+#include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
@@ -91,7 +92,8 @@ logger::level_type logger::parse_level(std::string_view level) {
 }
 
 stream_logger::stream_logger(std::ostream& os, level_type threshold)
-    : os_(os) {
+    : os_(os)
+    , color_(stream_is_fancy_terminal(os)) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   set_threshold(threshold);
@@ -100,9 +102,28 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold)
 void stream_logger::write(level_type level, const std::string& output) {
   if (level <= threshold_) {
     auto t = boost::posix_time::microsec_clock::local_time();
+    const char* prefix = "";
+    const char* suffix = "";
+
+    if (color_) {
+      switch (level) {
+      case ERROR:
+        prefix = terminal_color(termcolor::BOLD_RED);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
+
+      case WARN:
+        prefix = terminal_color(termcolor::BOLD_YELLOW);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
+
+      default:
+        break;
+      }
+    }
 
     std::lock_guard<std::mutex> lock(mx_);
-    os_ << t << " " << output << "\n";
+    os_ << prefix << t << " " << output << suffix << "\n";
 
     if (threshold_ == TRACE) {
       backtrace(os_);
