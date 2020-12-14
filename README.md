@@ -152,6 +152,8 @@ A good starting point for apt-based systems is probably:
         liblzma-dev \
         libssl-dev \
         libunwind-dev \
+        libdwarf-dev \
+        libelf-dev \
         libfmt-dev \
         libfuse3-dev \
         libgoogle-glog-dev \
