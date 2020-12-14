@@ -104,6 +104,15 @@ add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 
+# TODO: workaround until https://github.com/facebook/folly/pull/1497 lands...
+find_path(LIBUNWIND_INCLUDE_DIR NAMES libunwind.h)
+if(LIBUNWIND_INCLUDE_DIR)
+  set_property(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/folly"
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS "FOLLY_HAVE_LIBUNWIND=1")
+endif()
+
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
     CACHE FILEPATH "don't build folly with zstd" FORCE)
