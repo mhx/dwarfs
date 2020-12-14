@@ -24,10 +24,11 @@
 #include <locale>
 #include <stdexcept>
 
-#include <cxxabi.h>
-#include <execinfo.h>
-
 #include <boost/date_time/posix_time/posix_time.hpp>
+
+#ifndef NDEBUG
+#include <folly/experimental/symbolizer/Symbolizer.h>
+#endif
 
 #include <fmt/format.h>
 
@@ -35,42 +36,6 @@
 #include "dwarfs/terminal.h"
 
 namespace dwarfs {
-
-namespace {
-
-void backtrace(std::ostream& os) {
-  const int stack_size = 5;
-  const int stack_offset = 2;
-
-  void* array[stack_size + stack_offset];
-  size_t size;
-  char** strings;
-  size_t i;
-
-  size = ::backtrace(array, stack_size + stack_offset);
-  strings = ::backtrace_symbols(array, size);
-
-  for (i = stack_offset; i < size; i++) {
-    std::string frame(strings[i]);
-    size_t pos = frame.find_last_of('(');
-    if (pos != std::string::npos) {
-      ++pos;
-      size_t end = frame.find_first_of("+)", pos);
-      if (end != std::string::npos) {
-        std::string sym = std::string(begin(frame) + pos, begin(frame) + end);
-        int status;
-        char* realsym = ::abi::__cxa_demangle(sym.c_str(), 0, 0, &status);
-        frame.replace(pos, end - pos, realsym);
-        free(realsym);
-
-        os << "  <" << i - stack_offset << "> " << frame << "\n";
-      }
-    }
-  }
-
-  ::free(strings);
-}
-} // namespace
 
 logger::level_type logger::parse_level(std::string_view level) {
   if (level == "error") {
@@ -122,12 +87,28 @@ void stream_logger::write(level_type level, const std::string& output) {
       }
     }
 
+#ifndef NDEBUG
+    folly::symbolizer::StringSymbolizePrinter printer(
+        color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
+
+    if (threshold_ == TRACE) {
+      using namespace folly::symbolizer;
+      Symbolizer symbolizer(LocationInfoMode::FULL);
+      FrameArray<5> addresses;
+      getStackTraceSafe(addresses);
+      symbolizer.symbolize(addresses);
+      printer.println(addresses, 0);
+    }
+#endif
+
     std::lock_guard<std::mutex> lock(mx_);
     os_ << prefix << t << " " << output << suffix << "\n";
 
+#ifndef NDEBUG
     if (threshold_ == TRACE) {
-      backtrace(os_);
+      os_ << printer.str();
     }
+#endif
   }
 }
 
