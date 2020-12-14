@@ -1,8 +1,6 @@
-- better error handling in (de)compressors
 - use streaming interface for zstd decompressor
 - block checksums
 - json metadata export/recovery
-
 
 - add --chmod, --chown
 - add some simple filter rules?
