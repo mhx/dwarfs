@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <exception>
+
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
@@ -74,8 +76,13 @@ int dwarfsbench(int argc, char** argv) {
 
   po::variables_map vm;
 
-  po::store(po::parse_command_line(argc, argv, opts), vm);
-  po::notify(vm);
+  try {
+    po::store(po::parse_command_line(argc, argv, opts), vm);
+    po::notify(vm);
+  } catch (po::error const& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
+  }
 
   if (vm.count("help") or !vm.count("filesystem")) {
     std::cout << "dwarfsbench (" << DWARFS_VERSION << ")\n\n"
@@ -83,43 +90,54 @@ int dwarfsbench(int argc, char** argv) {
     return 0;
   }
 
-  stream_logger lgr(std::cerr, logger::parse_level(log_level));
-  filesystem_options fsopts;
+  try {
+    stream_logger lgr(std::cerr, logger::parse_level(log_level));
+    filesystem_options fsopts;
 
-  fsopts.lock_mode = parse_mlock_mode(lock_mode_str);
-  fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
-  fsopts.block_cache.num_workers = num_workers;
-  fsopts.block_cache.decompress_ratio = folly::to<double>(decompress_ratio_str);
+    fsopts.lock_mode = parse_mlock_mode(lock_mode_str);
+    fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
+    fsopts.block_cache.num_workers = num_workers;
+    fsopts.block_cache.decompress_ratio =
+        folly::to<double>(decompress_ratio_str);
 
-  dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
-                           fsopts);
+    dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
+                             fsopts);
 
-  worker_group wg("reader", num_readers);
+    worker_group wg("reader", num_readers);
 
-  fs.walk([&](auto entry) {
-    if (S_ISREG(entry.mode())) {
-      wg.add_job([&fs, entry] {
-        struct ::stat stbuf;
-        if (fs.getattr(entry, &stbuf) == 0) {
-          std::vector<char> buf(stbuf.st_size);
-          int fh = fs.open(entry);
-          fs.read(fh, buf.data(), buf.size());
-        }
-      });
-    }
-  });
+    fs.walk([&](auto entry) {
+      if (S_ISREG(entry.mode())) {
+        wg.add_job([&fs, entry] {
+          try {
+            struct ::stat stbuf;
+            if (fs.getattr(entry, &stbuf) == 0) {
+              std::vector<char> buf(stbuf.st_size);
+              int fh = fs.open(entry);
+              fs.read(fh, buf.data(), buf.size());
+            }
+          } catch (runtime_error const& e) {
+            std::cerr << "error: " << e.what() << std::endl;
+          } catch (...) {
+            std::cerr << "error: "
+                      << folly::exceptionStr(std::current_exception())
+                      << std::endl;
+            dump_exceptions();
+          }
+        });
+      }
+    });
 
-  wg.wait();
+    wg.wait();
+  } catch (runtime_error const& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
+  }
 
   return 0;
 }
+
 } // namespace
 
 int main(int argc, char** argv) {
-  try {
-    return dwarfsbench(argc, argv);
-  } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
-    return 1;
-  }
+  return dwarfs::safe_main([&] { return dwarfsbench(argc, argv); });
 }

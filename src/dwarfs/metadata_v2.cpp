@@ -25,6 +25,7 @@
 #include <climits>
 #include <cstring>
 #include <ostream>
+#include <unordered_set>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -304,6 +305,15 @@ class metadata_ : public metadata_v2::impl {
     auto inode = entry.inode() - chunk_index_offset_;
     uint32_t cur = meta_.chunk_index()[inode];
     uint32_t end = meta_.chunk_index()[inode + 1];
+    if (cur > end) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid chunk range: [{0}..{1}]", cur, end));
+    }
+    if (end > meta_.chunks().size()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("chunk index out of range: {0} > {1}", end,
+                               meta_.chunks().size()));
+    }
     size_t size = 0;
     while (cur < end) {
       size += meta_.chunks()[cur++].size();
@@ -321,8 +331,8 @@ class metadata_ : public metadata_v2::impl {
     }
   }
 
-  void
-  walk(entry_view entry, std::function<void(entry_view)> const& func) const;
+  void walk(entry_view entry, std::unordered_set<int>& seen,
+            std::function<void(entry_view)> const& func) const;
 
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -563,20 +573,27 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
-    entry_view entry, std::function<void(entry_view)> const& func) const {
+    entry_view entry, std::unordered_set<int>& seen,
+    std::function<void(entry_view)> const& func) const {
   func(entry);
   if (S_ISDIR(entry.mode())) {
+    auto inode = entry.inode();
+    if (!seen.emplace(inode).second) {
+      DWARFS_THROW(runtime_error, "cycle detected during directory walk");
+    }
     auto dir = make_directory_view(entry);
     for (auto cur : dir.entry_range()) {
-      walk(make_entry_view(cur), func);
+      walk(make_entry_view(cur), seen, func);
     }
+    seen.erase(inode);
   }
 }
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view)> const& func) const {
-  walk(root_, func);
+  std::unordered_set<int> seen;
+  walk(root_, seen, func);
 }
 
 template <typename LoggerPolicy>

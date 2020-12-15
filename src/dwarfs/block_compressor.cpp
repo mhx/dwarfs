@@ -493,7 +493,15 @@ class null_block_decompressor : public block_decompressor::impl {
       : decompressed_(target)
       , data_(data)
       , uncompressed_size_(size) {
-    decompressed_.reserve(uncompressed_size_);
+    // TODO: we shouldn't have to copy this to memory at all...
+    try {
+      decompressed_.reserve(uncompressed_size_);
+    } catch (std::bad_alloc const&) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not reserve {} bytes for decompressed block",
+                      uncompressed_size_));
+    }
   }
 
   compression_type type() const override { return compression_type::NONE; }
@@ -536,7 +544,14 @@ class lzma_block_decompressor : public block_decompressor::impl {
         LZMA_OK) {
       DWARFS_THROW(runtime_error, "lzma_stream_decoder");
     }
-    decompressed_.reserve(uncompressed_size_);
+    try {
+      decompressed_.reserve(uncompressed_size_);
+    } catch (std::bad_alloc const&) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not reserve {} bytes for decompressed block",
+                      uncompressed_size_));
+    }
   }
 
   ~lzma_block_decompressor() { lzma_end(&stream_); }
@@ -605,7 +620,14 @@ class lz4_block_decompressor : public block_decompressor::impl {
       , data_(data + sizeof(uint32_t))
       , input_size_(size - sizeof(uint32_t))
       , uncompressed_size_(get_uncompressed_size(data)) {
-    decompressed_.reserve(uncompressed_size_);
+    try {
+      decompressed_.reserve(uncompressed_size_);
+    } catch (std::bad_alloc const&) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not reserve {} bytes for decompressed block",
+                      uncompressed_size_));
+    }
   }
 
   compression_type type() const override { return compression_type::LZ4; }
@@ -656,7 +678,14 @@ class zstd_block_decompressor : public block_decompressor::impl {
       , data_(data)
       , size_(size)
       , uncompressed_size_(ZSTD_getDecompressedSize(data, size)) {
-    decompressed_.reserve(uncompressed_size_);
+    try {
+      decompressed_.reserve(uncompressed_size_);
+    } catch (std::bad_alloc const&) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not reserve {} bytes for decompressed block",
+                      uncompressed_size_));
+    }
   }
 
   compression_type type() const override { return compression_type::ZSTD; }

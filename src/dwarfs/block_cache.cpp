@@ -81,9 +81,13 @@ class cached_block {
 
   const uint8_t* data() const { return data_.data(); }
 
+  size_t size() const { return data_.size(); }
+
   void decompress_until(size_t end) {
     while (data_.size() < end) {
-      assert(decompressor_);
+      if (!decompressor_) {
+        DWARFS_THROW(runtime_error, "no decompressor for block");
+      }
 
       if (decompressor_->decompress_frame()) {
         // We're done, free the memory
@@ -128,7 +132,7 @@ class block_request {
       : begin_(begin)
       , end_(end)
       , promise_(std::move(promise)) {
-    assert(begin_ < end_);
+    DWARFS_ASSERT(begin_ < end_, "invalid block_request");
   }
 
   block_request(block_request&&) = default;
@@ -401,22 +405,31 @@ class block_cache_ : public block_cache::impl {
 
     // Bummer. We don't know anything about the block.
 
-    LOG_DEBUG << "block " << block_no << " not found";
+    try {
+      if (block_no >= block_.size()) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("block number out of range {0} >= {1}",
+                                 block_no, block_.size()));
+      }
 
-    assert(block_no < block_.size());
+      LOG_DEBUG << "block " << block_no << " not found";
 
-    auto block = std::make_shared<cached_block>(
-        LOG_GET_LOGGER, block_[block_no], mm_, options_.mm_release);
-    ++blocks_created_;
+      auto block = std::make_shared<cached_block>(
+          LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
+          options_.mm_release);
+      ++blocks_created_;
 
-    // Make a new set for the block
-    brs = std::make_shared<block_request_set>(std::move(block), block_no);
+      // Make a new set for the block
+      brs = std::make_shared<block_request_set>(std::move(block), block_no);
 
-    // Promise will be fulfilled asynchronously
-    brs->add(offset, range_end, std::move(promise));
+      // Promise will be fulfilled asynchronously
+      brs->add(offset, range_end, std::move(promise));
 
-    active_[block_no].emplace_back(brs);
-    enqueue_job(std::move(brs));
+      active_[block_no].emplace_back(brs);
+      enqueue_job(std::move(brs));
+    } catch (...) {
+      promise.set_exception(std::current_exception());
+    }
 
     return future;
   }
@@ -561,6 +574,15 @@ block_range::block_range(std::shared_ptr<cached_block const> block,
                          size_t offset, size_t size)
     : begin_(block->data() + offset)
     , end_(begin_ + size)
-    , block_(std::move(block)) {}
+    , block_(std::move(block)) {
+  if (!block_->data()) {
+    DWARFS_THROW(runtime_error, "block_range: block data is null");
+  }
+  if (size > block_->size()) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("block_range: size out of range ({0} > {1})", size,
+                             block_->size()));
+  }
+}
 
 } // namespace dwarfs

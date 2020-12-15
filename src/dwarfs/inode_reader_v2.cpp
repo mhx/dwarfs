@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include <folly/String.h>
 #include <folly/container/Enumerate.h>
 #include <folly/stats/Histogram.h>
 
@@ -127,6 +128,11 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
     size_t chunksize = it->size() - offset;
     size_t chunkoff = it->offset() + offset;
 
+    if (chunksize == 0) {
+      LOG_ERROR << "invalid zero-sized chunk";
+      return -EIO;
+    }
+
     if (num_read + chunksize > size) {
       chunksize = size - num_read;
     }
@@ -137,15 +143,22 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
     offset = 0;
   }
 
-  // now fill the buffer
-  size_t num_read = 0;
-  for (auto& r : ranges) {
-    auto br = r.get();
-    store(num_read, br);
-    num_read += br.size();
+  try {
+    // now fill the buffer
+    size_t num_read = 0;
+    for (auto& r : ranges) {
+      auto br = r.get();
+      store(num_read, br);
+      num_read += br.size();
+    }
+    return num_read;
+  } catch (runtime_error const& e) {
+    LOG_ERROR << e.what();
+  } catch (...) {
+    LOG_ERROR << folly::exceptionStr(std::current_exception());
   }
 
-  return num_read;
+  return -EIO;
 }
 
 template <typename LoggerPolicy>
