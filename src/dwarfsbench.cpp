@@ -60,7 +60,7 @@ int dwarfsbench(int argc, char** argv) {
         po::value<std::string>(&cache_size_str)->default_value("256m"),
         "block cache size")
     ("lock-mode,m",
-        po::value<std::string>(&cache_size_str)->default_value("none"),
+        po::value<std::string>(&lock_mode_str)->default_value("none"),
         "mlock mode (none, try, must)")
     ("decompress-ratio,r",
         po::value<std::string>(&decompress_ratio_str)->default_value("0.8"),
