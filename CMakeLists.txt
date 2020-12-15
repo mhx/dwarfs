@@ -207,7 +207,6 @@ if(FUSE3_FOUND)
                                                 FUSE_USE_VERSION=35)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
   target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
-  target_link_libraries(dwarfs-bin ${JEMALLOC_LIBRARIES})
   add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                              dwarfs mount.dwarfs)
   install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
@@ -221,7 +220,6 @@ if(FUSE_FOUND)
                                                  FUSE_USE_VERSION=29)
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
   target_link_libraries(dwarfs2-bin PkgConfig::FUSE)
-  target_link_libraries(dwarfs-bin ${JEMALLOC_LIBRARIES})
   add_custom_target(
     mount.dwarfs2 ALL COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2
                               mount.dwarfs2)
@@ -398,6 +396,7 @@ target_link_libraries(
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
+  target_link_libraries(${tgt} ${JEMALLOC_LIBRARIES})
   if(TARGET folly_exception_tracer)
     target_link_libraries(
       ${tgt} -Wl,--whole-archive folly_exception_tracer_base
