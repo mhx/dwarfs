@@ -482,20 +482,20 @@ considerably worse:
 
     $ hyperfine -c "umount mnt" -p "umount mnt; dwarfs perl-lzma.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1" -P procs 5 20 -D 5 "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P{procs} sh -c '\$0 -v >/dev/null'"
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P5 sh -c '$0 -v >/dev/null'
-      Time (mean ± σ):     20.372 s ±  0.135 s    [User: 2.338 s, System: 4.511 s]
-      Range (min … max):   20.208 s … 20.601 s    10 runs
+      Time (mean ± σ):     20.170 s ±  0.138 s    [User: 2.379 s, System: 4.713 s]
+      Range (min … max):   19.968 s … 20.390 s    10 runs
      
     Benchmark #2: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null'
-      Time (mean ± σ):     13.015 s ±  0.094 s    [User: 2.148 s, System: 4.120 s]
-      Range (min … max):   12.863 s … 13.144 s    10 runs
+      Time (mean ± σ):     12.960 s ±  0.105 s    [User: 2.130 s, System: 4.272 s]
+      Range (min … max):   12.807 s … 13.122 s    10 runs
      
     Benchmark #3: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P15 sh -c '$0 -v >/dev/null'
-      Time (mean ± σ):     11.533 s ±  0.058 s    [User: 2.013 s, System: 3.970 s]
-      Range (min … max):   11.469 s … 11.649 s    10 runs
+      Time (mean ± σ):     11.495 s ±  0.141 s    [User: 1.995 s, System: 4.100 s]
+      Range (min … max):   11.324 s … 11.782 s    10 runs
      
     Benchmark #4: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'
-      Time (mean ± σ):     11.402 s ±  0.095 s    [User: 1.906 s, System: 3.787 s]
-      Range (min … max):   11.297 s … 11.568 s    10 runs
+      Time (mean ± σ):     11.238 s ±  0.100 s    [User: 1.894 s, System: 3.855 s]
+      Range (min … max):   11.119 s … 11.371 s    10 runs
 
 So you might want to consider using zstd instead of lzma if you'd
 like to optimize for file system performance. It's also the default
