@@ -54,7 +54,11 @@ size_t parse_size_with_unit(const std::string& str) {
   size_t end = 0;
   size_t size = std::stoul(str, &end);
 
-  if (str[end] != '\0' && str[end + 1] == '\0') {
+  if (str[end] == '\0') {
+    return size;
+  }
+
+  if (str[end + 1] == '\0') {
     switch (str[end]) {
     case 't':
     case 'T':
