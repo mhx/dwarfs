@@ -373,6 +373,11 @@ class scanner_test : public testing::TestWithParam<
 TEST_P(compression_test, end_to_end) {
   auto [compressor, block_size_bits, file_order] = GetParam();
 
+  if (compressor.find("lzma") == 0 && block_size_bits < 16) {
+    // these are notoriously slow, so just skip them
+    return;
+  }
+
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false);
 }
