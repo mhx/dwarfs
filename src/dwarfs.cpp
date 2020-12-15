@@ -471,7 +471,7 @@ int option_hdl(void* data, const char* arg, int key,
       return 1;
     }
 
-    opts->fsimage = std::filesystem::canonical(arg).native();
+    opts->fsimage = arg;
 
     return 0;
 
@@ -616,13 +616,20 @@ int run_dwarfs(int argc, char* argv[]) {
 
   try {
     // TODO: foreground mode, stderr vs. syslog?
+
+    s_opts.fsimage = std::filesystem::canonical(s_opts.fsimage).native();
+
     s_opts.debuglevel = s_opts.debuglevel_str
                             ? logger::parse_level(s_opts.debuglevel_str)
                             : logger::INFO;
 
     s_lgr.set_threshold(s_opts.debuglevel);
     s_lgr.set_with_context(s_opts.debuglevel >= logger::DEBUG);
+
     LOG_PROXY(debug_logger_policy, s_lgr);
+
+    LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
+             << FUSE_USE_VERSION << ")";
 
     s_opts.cachesize = s_opts.cachesize_str
                            ? parse_size_with_unit(s_opts.cachesize_str)
@@ -635,11 +642,11 @@ int run_dwarfs(int argc, char* argv[]) {
         s_opts.decompress_ratio_str
             ? folly::to<double>(s_opts.decompress_ratio_str)
             : 0.8;
-
-    LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
-             << FUSE_USE_VERSION << ")";
   } catch (runtime_error const& e) {
     std::cerr << "error: " << e.what() << std::endl;
+    return 1;
+  } catch (std::filesystem::filesystem_error const& e) {
+    std::cerr << e.what() << std::endl;
     return 1;
   }
 
