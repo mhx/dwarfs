@@ -94,8 +94,10 @@ if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
 endif()
 
-find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map REQUIRED)
-find_program(RONN_EXE ronn)
+find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map
+          DOC "dense_hash_map header" REQUIRED)
+find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+find_library(JEMALLOC_LIBRARIES jemalloc DOC "jemalloc library" REQUIRED)
 
 set(ZSTD_INCLUDE_DIR
     ""
@@ -205,6 +207,7 @@ if(FUSE3_FOUND)
                                                 FUSE_USE_VERSION=35)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
   target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
+  target_link_libraries(dwarfs-bin ${JEMALLOC_LIBRARIES})
   add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
                                              dwarfs mount.dwarfs)
   install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
@@ -218,6 +221,7 @@ if(FUSE_FOUND)
                                                  FUSE_USE_VERSION=29)
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
   target_link_libraries(dwarfs2-bin PkgConfig::FUSE)
+  target_link_libraries(dwarfs-bin ${JEMALLOC_LIBRARIES})
   add_custom_target(
     mount.dwarfs2 ALL COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2
                               mount.dwarfs2)

@@ -5,10 +5,13 @@ target=$1
 shift
 
 fuse=""
+malloc=""
 if [[ "$target" == "dwarfs" ]]; then
 	fuse="/usr/lib/x86_64-linux-gnu/libfuse3.a"
+	malloc="/usr/lib/x86_64-linux-gnu/libjemalloc.a"
 elif [[ "$target" == "dwarfs2" ]]; then
 	fuse="/usr/lib/x86_64-linux-gnu/libfuse.a"
+	malloc="/usr/lib/x86_64-linux-gnu/libjemalloc.a"
 fi
 
 g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
@@ -36,12 +39,12 @@ g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
 	/usr/lib/x86_64-linux-gnu/libssl.a \
 	/usr/lib/x86_64-linux-gnu/libcrypto.a \
 	/usr/lib/x86_64-linux-gnu/libiberty.a \
-	/usr/lib/x86_64-linux-gnu/libiberty.a \
 	/usr/lib/x86_64-linux-gnu/libunwind.a \
 	/usr/lib/x86_64-linux-gnu/liblz4.a \
 	/usr/lib/x86_64-linux-gnu/liblzma.a \
 	/usr/lib/x86_64-linux-gnu/libz.a \
 	/usr/lib/gcc/x86_64-linux-gnu/10/libatomic.a \
+	$malloc \
 	/usr/lib/x86_64-linux-gnu/libpthread.a \
 	/usr/lib/x86_64-linux-gnu/libdl.a \
 	/usr/lib/x86_64-linux-gnu/libc.a \

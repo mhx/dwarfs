@@ -146,6 +146,7 @@ A good starting point for apt-based systems is probably:
         libboost-system-dev \
         libboost-thread-dev \
         libevent-dev \
+        libjemalloc-dev \
         libdouble-conversion-dev \
         libiberty-dev \
         liblz4-dev \
