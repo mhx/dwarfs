@@ -582,11 +582,7 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg) {
 
 #endif
 
-} // namespace dwarfs
-
-int main(int argc, char* argv[]) {
-  using namespace dwarfs;
-
+int run_dwarfs(int argc, char* argv[]) {
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
   s_opts.progname = argv[0];
@@ -618,28 +614,34 @@ int main(int argc, char* argv[]) {
   }
 #endif
 
-  // TODO: foreground mode, stderr vs. syslog?
-  s_opts.debuglevel = s_opts.debuglevel_str
-                          ? logger::parse_level(s_opts.debuglevel_str)
-                          : logger::INFO;
+  try {
+    // TODO: foreground mode, stderr vs. syslog?
+    s_opts.debuglevel = s_opts.debuglevel_str
+                            ? logger::parse_level(s_opts.debuglevel_str)
+                            : logger::INFO;
 
-  s_lgr.set_threshold(s_opts.debuglevel);
-  s_lgr.set_with_context(s_opts.debuglevel >= logger::DEBUG);
-  LOG_PROXY(debug_logger_policy, s_lgr);
+    s_lgr.set_threshold(s_opts.debuglevel);
+    s_lgr.set_with_context(s_opts.debuglevel >= logger::DEBUG);
+    LOG_PROXY(debug_logger_policy, s_lgr);
 
-  s_opts.cachesize = s_opts.cachesize_str
-                         ? parse_size_with_unit(s_opts.cachesize_str)
-                         : (static_cast<size_t>(512) << 20);
-  s_opts.workers =
-      s_opts.workers_str ? folly::to<size_t>(s_opts.workers_str) : 2;
-  s_opts.lock_mode =
-      s_opts.mlock_str ? parse_mlock_mode(s_opts.mlock_str) : mlock_mode::NONE;
-  s_opts.decompress_ratio = s_opts.decompress_ratio_str
-                                ? folly::to<double>(s_opts.decompress_ratio_str)
-                                : 0.8;
+    s_opts.cachesize = s_opts.cachesize_str
+                           ? parse_size_with_unit(s_opts.cachesize_str)
+                           : (static_cast<size_t>(512) << 20);
+    s_opts.workers =
+        s_opts.workers_str ? folly::to<size_t>(s_opts.workers_str) : 2;
+    s_opts.lock_mode = s_opts.mlock_str ? parse_mlock_mode(s_opts.mlock_str)
+                                        : mlock_mode::NONE;
+    s_opts.decompress_ratio =
+        s_opts.decompress_ratio_str
+            ? folly::to<double>(s_opts.decompress_ratio_str)
+            : 0.8;
 
-  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
-           << FUSE_USE_VERSION << ")";
+    LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
+             << FUSE_USE_VERSION << ")";
+  } catch (runtime_error const& e) {
+    std::cerr << "error: " << e.what() << std::endl;
+    return 1;
+  }
 
   if (!s_opts.seen_mountpoint) {
     usage(s_opts.progname);
@@ -652,4 +654,10 @@ int main(int argc, char* argv[]) {
 #else
   return run_fuse(args, mountpoint, mt, fg);
 #endif
+}
+
+} // namespace dwarfs
+
+int main(int argc, char* argv[]) {
+  return dwarfs::safe_main([&] { return dwarfs::run_dwarfs(argc, argv); });
 }
