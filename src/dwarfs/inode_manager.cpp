@@ -333,15 +333,15 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   index.resize(count);
   std::iota(index.begin(), index.end(), 0);
 
+  auto empty = std::partition(index.begin(), index.end(),
+                              [&](auto i) { return inodes[i]->size() > 0; });
+
   auto finalize_inode = [&]() {
     inodes_.push_back(std::move(inodes[index.back()]));
     index.pop_back();
     inodes_.back()->set_num(inode_no++);
     fn(inodes_.back());
   };
-
-  auto empty = std::partition(index.begin(), index.end(),
-                              [&](auto i) { return inodes[i]->size() > 0; });
 
   if (empty != index.end()) {
     assert(empty + 1 == index.end());
