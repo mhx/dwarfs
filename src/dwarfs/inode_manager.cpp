@@ -307,7 +307,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
     if (na > nb) {
       return true;
-    } else if (na > nb) {
+    } else if (na < nb) {
       return false;
     }
 
