@@ -132,7 +132,7 @@ class block_request {
       : begin_(begin)
       , end_(end)
       , promise_(std::move(promise)) {
-    DWARFS_ASSERT(begin_ < end_, "invalid block_request");
+    DWARFS_CHECK(begin_ < end_, "invalid block_request");
   }
 
   block_request(block_request&&) = default;

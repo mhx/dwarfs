@@ -77,7 +77,7 @@ class system_error : public boost::system::system_error {
 
 #define DWARFS_THROW(cls, ...) throw cls(__VA_ARGS__, __FILE__, __LINE__)
 
-#define DWARFS_ASSERT(expr, message)                                           \
+#define DWARFS_CHECK(expr, message)                                            \
   do {                                                                         \
     if (!(expr)) {                                                             \
       assertion_failed(#expr, message, __FILE__, __LINE__);                    \

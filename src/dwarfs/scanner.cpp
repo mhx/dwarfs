@@ -346,7 +346,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   while (!queue.empty()) {
     auto parent = std::dynamic_pointer_cast<dir>(queue.front());
 
-    DWARFS_ASSERT(parent, "expected directory");
+    DWARFS_CHECK(parent, "expected directory");
 
     queue.pop_front();
     const std::string& path = parent->path();
