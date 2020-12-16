@@ -22,31 +22,63 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
+
+#include "dwarfs/error.h"
 
 namespace dwarfs {
 
-enum class checksum_algorithm {
-  SHA1,
-  SHA2_512_256,
-  XXH3_64,
-};
+class checksum {
+ public:
+  enum class algorithm {
+    SHA1,
+    SHA2_512_256,
+    XXH3_64,
+  };
 
-constexpr size_t checksum_size(checksum_algorithm alg) {
-  switch (alg) {
-  case checksum_algorithm::SHA1:
-    return 20;
-  case checksum_algorithm::SHA2_512_256:
-    return 32;
-  case checksum_algorithm::XXH3_64:
-    return 8;
+  static constexpr size_t digest_size(algorithm alg) {
+    switch (alg) {
+    case algorithm::SHA1:
+      return 20;
+    case algorithm::SHA2_512_256:
+      return 32;
+    case algorithm::XXH3_64:
+      return 8;
+    }
+    DWARFS_CHECK(false, "unknown algorithm");
   }
-  throw std::logic_error("unknown algorithm");
-}
 
-bool compute_checksum(checksum_algorithm alg, void const* data, size_t size,
-                      void* result);
-bool verify_checksum(checksum_algorithm alg, void const* data, size_t size,
-                     const void* checksum);
+  static bool
+  compute(algorithm alg, void const* data, size_t size, void* digest);
+
+  static bool
+  verify(algorithm alg, void const* data, size_t size, void const* digest);
+
+  checksum(algorithm alg);
+
+  checksum& update(void const* data, size_t size) {
+    impl_->update(data, size);
+    return *this;
+  }
+
+  bool finalize(void* digest) const { return impl_->finalize(digest); }
+
+  bool verify(void const* digest) const;
+
+  algorithm type() const { return alg_; }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual void update(void const* data, size_t size) = 0;
+    virtual bool finalize(void* digest) = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
+  algorithm const alg_;
+};
 
 } // namespace dwarfs

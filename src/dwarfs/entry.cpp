@@ -162,16 +162,16 @@ uint32_t file::inode_num() const { return inode_->num(); }
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access& os, progress& prog) {
-  constexpr auto alg = checksum_algorithm::SHA1;
-  static_assert(checksum_size(alg) == sizeof(data::hash_type));
+  constexpr auto alg = checksum::algorithm::SHA1;
+  static_assert(checksum::digest_size(alg) == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
     prog.original_size += s;
     auto mm = os.map_file(path(), s);
-    DWARFS_CHECK(compute_checksum(alg, mm->as<void>(), s, &data_->hash[0]),
+    DWARFS_CHECK(checksum::compute(alg, mm->as<void>(), s, &data_->hash[0]),
                  "checksum computation failed");
   } else {
-    DWARFS_CHECK(compute_checksum(alg, nullptr, 0, &data_->hash[0]),
+    DWARFS_CHECK(checksum::compute(alg, nullptr, 0, &data_->hash[0]),
                  "checksum computation failed");
   }
 }
