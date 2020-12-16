@@ -25,20 +25,24 @@
 
 #include <xxhash.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/checksum.h"
+#include "dwarfs/error.h"
 
 namespace dwarfs {
 
 namespace {
 
 bool compute_evp(const EVP_MD* algorithm, void const* data, size_t size,
-                 void* result) {
+                 void* result, unsigned int* digest_size) {
   return EVP_Digest(data, size, reinterpret_cast<unsigned char*>(result),
-                    nullptr, algorithm, nullptr);
+                    digest_size, algorithm, nullptr);
 }
 
 bool compute_xxh3_64(void const* data, size_t size, void* result) {
   auto checksum = XXH3_64bits(data, size);
+  static_assert(checksum_size(checksum_algorithm::XXH3_64) == sizeof(checksum));
   ::memcpy(result, &checksum, sizeof(checksum));
   return true;
 }
@@ -47,15 +51,29 @@ bool compute_xxh3_64(void const* data, size_t size, void* result) {
 
 bool compute_checksum(checksum_algorithm alg, void const* data, size_t size,
                       void* result) {
+  bool rv = false;
+  unsigned int digest_size = 0;
+
   switch (alg) {
   case checksum_algorithm::SHA1:
-    return compute_evp(EVP_sha1(), data, size, result);
+    rv = compute_evp(EVP_sha1(), data, size, result, &digest_size);
+    break;
   case checksum_algorithm::SHA2_512_256:
-    return compute_evp(EVP_sha512_256(), data, size, result);
+    rv = compute_evp(EVP_sha512_256(), data, size, result, &digest_size);
+    break;
   case checksum_algorithm::XXH3_64:
-    return compute_xxh3_64(data, size, result);
+    rv = compute_xxh3_64(data, size, result);
+    break;
   }
-  return false;
+
+  if (rv && digest_size > 0) {
+    DWARFS_CHECK(checksum_size(alg) == digest_size,
+                 fmt::format("digest size mismatch: {0} != {1} [{2}]",
+                             checksum_size(alg), digest_size,
+                             static_cast<int>(alg)));
+  }
+
+  return rv;
 }
 
 bool verify_checksum(checksum_algorithm alg, void const* data, size_t size,
