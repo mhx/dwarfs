@@ -160,12 +160,23 @@ if(WITH_TESTS)
   include(GoogleTest)
 endif()
 
+add_library(xxhash
+        xxHash/xxhash.c
+        )
+
+target_compile_options(xxhash PRIVATE -Wall -Wextra -Wconversion -Wcast-qual -Wcast-align -Wshadow
+            -Wstrict-aliasing=1 -Wswitch-enum -Wdeclaration-after-statement
+            -Wstrict-prototypes -Wundef -Wpointer-arith -Wformat-security
+            -Wvla -Wformat=2 -Winit-self -Wfloat-equal -Wwrite-strings
+            -Wredundant-decls -Wstrict-overflow=2)
+
 list(
   APPEND
   LIBDWARFS_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_manager.cpp
+  src/dwarfs/checksum.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp
@@ -324,6 +335,7 @@ list(
   ${CMAKE_CURRENT_SOURCE_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
   ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/xxHash
   ${CMAKE_CURRENT_BINARY_DIR}
   ${SPARSEHASH_INCLUDE_DIR})
 
@@ -391,6 +403,7 @@ target_link_libraries(
   folly
   ${Boost_LIBRARIES}
   libzstd_static
+  xxhash
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 

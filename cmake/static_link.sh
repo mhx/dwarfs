@@ -13,9 +13,10 @@ fi
 
 g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
 	-Wl,-allow-multiple-definition -Wl,-Bstatic \
-        libdwarfs.a \
+	libdwarfs.a \
 	libmetadata_thrift.a \
 	libthrift_light.a \
+	libxxhash.a \
 	folly/libfolly.a \
 	zstd/build/cmake/lib/libzstd.a \
 	$fuse \

@@ -23,10 +23,9 @@
 #include <cstring>
 #include <utility>
 
-#include <openssl/sha.h>
-
 #include <fmt/format.h>
 
+#include "dwarfs/checksum.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/global_entry_data.h"
@@ -163,15 +162,17 @@ uint32_t file::inode_num() const { return inode_->num(); }
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access& os, progress& prog) {
-  static_assert(SHA_DIGEST_LENGTH == sizeof(data::hash_type));
+  constexpr auto alg = checksum_algorithm::SHA1;
+  static_assert(checksum_size(alg) == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
     prog.original_size += s;
     auto mm = os.map_file(path(), s);
-    ::SHA1(mm->as<unsigned char>(), s,
-           reinterpret_cast<unsigned char*>(&data_->hash[0]));
+    DWARFS_CHECK(compute_checksum(alg, mm->as<void>(), s, &data_->hash[0]),
+                 "checksum computation failed");
   } else {
-    ::SHA1(nullptr, 0, reinterpret_cast<unsigned char*>(&data_->hash[0]));
+    DWARFS_CHECK(compute_checksum(alg, nullptr, 0, &data_->hash[0]),
+                 "checksum computation failed");
   }
 }
 
