@@ -31,6 +31,7 @@
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/checksum.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
@@ -155,7 +156,6 @@ class filesystem_writer_ : public filesystem_writer::impl {
   template <typename T>
   void write(const T& obj);
   void write(const std::vector<uint8_t>& data);
-  void write_file_header();
   void writer_thread();
   size_t mem_used() const;
 
@@ -172,6 +172,7 @@ class filesystem_writer_ : public filesystem_writer::impl {
   std::condition_variable cond_;
   volatile bool flush_;
   std::thread writer_thread_;
+  uint32_t section_number_{0};
 };
 
 template <typename LoggerPolicy>
@@ -188,9 +189,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     , max_queue_size_(max_queue_size)
     , log_(lgr)
     , flush_(false)
-    , writer_thread_(&filesystem_writer_::writer_thread, this) {
-  write_file_header();
-}
+    , writer_thread_(&filesystem_writer_::writer_thread, this) {}
 
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::~filesystem_writer_() noexcept {
@@ -269,23 +268,30 @@ void filesystem_writer_<LoggerPolicy>::write(const std::vector<uint8_t>& data) {
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_file_header() {
-  file_header hdr;
-  ::memcpy(&hdr.magic[0], "DWARFS", 6);
-  hdr.major = MAJOR_VERSION;
-  hdr.minor = MINOR_VERSION;
-  write(hdr);
-}
-
-template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(section_type type,
                                              compression_type compression,
                                              const std::vector<uint8_t>& data) {
-  section_header sh;
-  sh.type = type;
-  sh.compression = compression;
-  sh.unused = 0;
+  section_header_v2 sh;
+  ::memcpy(&sh.magic[0], "DWARFS", 6);
+  sh.major = MAJOR_VERSION;
+  sh.minor = MINOR_VERSION;
+  sh.number = section_number_++;
+  sh.type = static_cast<uint16_t>(type);
+  sh.compression = static_cast<uint16_t>(compression);
   sh.length = data.size();
+
+  checksum xxh(checksum::algorithm::XXH3_64);
+  xxh.update(&sh.number,
+             sizeof(section_header_v2) - offsetof(section_header_v2, number));
+  xxh.update(data.data(), data.size());
+  DWARFS_CHECK(xxh.finalize(&sh.xxh3_64), "XXH3-64 checksum failed");
+
+  checksum sha(checksum::algorithm::SHA2_512_256);
+  sha.update(&sh.xxh3_64,
+             sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64));
+  sha.update(data.data(), data.size());
+  DWARFS_CHECK(sha.finalize(&sh.sha2_512_256), "SHA512/256 checksum failed");
+
   write(sh);
   write(data);
 

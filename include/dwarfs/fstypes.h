@@ -32,6 +32,7 @@
 #include <folly/small_vector.h>
 
 #include "dwarfs/block_compressor.h" // TODO: or the other way round?
+#include "dwarfs/checksum.h"
 
 namespace dwarfs {
 
@@ -64,7 +65,7 @@ struct iovec_read_buf {
 };
 
 constexpr uint8_t MAJOR_VERSION = 2;
-constexpr uint8_t MINOR_VERSION = 1;
+constexpr uint8_t MINOR_VERSION = 2;
 
 enum class section_type : uint16_t {
   BLOCK = 0,
@@ -88,6 +89,26 @@ struct section_header {
   compression_type compression;
   uint8_t unused;
   uint32_t length;
+
+  std::string to_string() const;
+  void dump(std::ostream& os) const;
+};
+
+struct section_header_v2 {
+  char magic[6];            //  [0] "DWARFS" / file_header no longer needed
+  uint8_t major;            //  [6] major version
+  uint8_t minor;            //  [7] minor version
+  uint8_t sha2_512_256[32]; //  [8] SHA2-512/256 starting from next field
+  uint64_t xxh3_64;         // [40] XXH3-64 starting from next field
+  uint32_t number;          // [48] section number
+  uint16_t type;            // [52] section type
+  uint16_t compression;     // [54] compression
+  uint64_t length;          // [56] length of section
+
+  static_assert(checksum::digest_size(checksum::algorithm::XXH3_64) ==
+                sizeof(xxh3_64));
+  static_assert(checksum::digest_size(checksum::algorithm::SHA2_512_256) ==
+                sizeof(sha2_512_256));
 
   std::string to_string() const;
   void dump(std::ostream& os) const;
