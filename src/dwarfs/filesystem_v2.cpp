@@ -39,6 +39,7 @@
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/fs_section.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
 #include "dwarfs/logger.h"
@@ -50,110 +51,6 @@
 namespace dwarfs {
 
 namespace {
-
-class fs_section {
- public:
-  fs_section(mmif& mm, size_t offset, int version);
-
-  size_t start() const { return impl_->start(); }
-  size_t length() const { return impl_->length(); }
-  compression_type compression() const { return impl_->compression(); }
-  section_type type() const { return impl_->type(); }
-  std::string description() const { return impl_->description(); }
-
-  size_t end() const { return start() + length(); }
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual size_t start() const = 0;
-    virtual size_t length() const = 0;
-    virtual compression_type compression() const = 0;
-    virtual section_type type() const = 0;
-    virtual std::string description() const = 0;
-  };
-
- private:
-  std::shared_ptr<impl const> impl_;
-};
-
-class fs_section_v1 : public fs_section::impl {
- public:
-  fs_section_v1(mmif& mm, size_t offset);
-
-  size_t start() const override { return start_; }
-  size_t length() const override { return hdr_.length; }
-  compression_type compression() const override { return hdr_.compression; }
-  section_type type() const override { return hdr_.type; }
-  std::string description() const override { return hdr_.to_string(); }
-
- private:
-  size_t start_;
-  section_header hdr_;
-};
-
-class fs_section_v2 : public fs_section::impl {
- public:
-  fs_section_v2(mmif& mm, size_t offset);
-
-  size_t start() const override { return start_; }
-  size_t length() const override { return hdr_.length; }
-  compression_type compression() const override {
-    return static_cast<compression_type>(hdr_.compression);
-  }
-  section_type type() const override {
-    return static_cast<section_type>(hdr_.type);
-  }
-  std::string description() const override { return hdr_.to_string(); }
-
- private:
-  size_t start_;
-  section_header_v2 hdr_;
-};
-
-fs_section::fs_section(mmif& mm, size_t offset, int version) {
-  switch (version) {
-  case 1:
-    impl_ = std::make_shared<fs_section_v1>(mm, offset);
-    break;
-
-  case 2:
-    impl_ = std::make_shared<fs_section_v2>(mm, offset);
-    break;
-
-  default:
-    DWARFS_THROW(runtime_error,
-                 fmt::format("unsupported section version {}", version));
-    break;
-  }
-}
-
-template <typename T>
-void read_section_header_common(T& header, size_t& start, mmif& mm,
-                                size_t offset) {
-  if (offset + sizeof(T) > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section header");
-  }
-
-  ::memcpy(&header, mm.as<void>(offset), sizeof(T));
-
-  offset += sizeof(T);
-
-  if (offset + header.length > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section data");
-  }
-
-  start = offset;
-}
-
-fs_section_v1::fs_section_v1(mmif& mm, size_t offset) {
-  read_section_header_common(hdr_, start_, mm, offset);
-}
-
-fs_section_v2::fs_section_v2(mmif& mm, size_t offset) {
-  read_section_header_common(hdr_, start_, mm, offset);
-}
 
 class filesystem_parser {
  public:
