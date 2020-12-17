@@ -223,6 +223,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
   section_map sections;
 
   while (auto s = parser.next_section()) {
+    LOG_DEBUG << "section " << s->description() << " @ " << s->start() << " ["
+              << s->length() << " bytes]";
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
     } else {
