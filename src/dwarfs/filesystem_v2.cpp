@@ -216,17 +216,21 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                                        const struct ::stat* stat_defaults,
                                        int inode_offset)
     : LOG_PROXY_INIT(lgr)
-    , mm_(mm) {
+    , mm_(std::move(mm)) {
   filesystem_parser parser(mm_);
-  block_cache cache(lgr, mm, options.block_cache);
+  block_cache cache(lgr, mm_, options.block_cache);
 
   section_map sections;
 
   while (auto s = parser.next_section()) {
     if (s->type() == section_type::BLOCK) {
-      cache.insert(s->compression(), s->start(),
-                   static_cast<size_t>(s->length()));
+      cache.insert(*s);
     } else {
+      if (!s->check_fast(*mm_)) {
+        DWARFS_THROW(runtime_error, "checksum error in section: " +
+                                        get_section_name(s->type()));
+      }
+
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error,
                      "duplicate section: " + get_section_name(s->type()));
@@ -387,6 +391,14 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   section_map sections;
 
   while (auto s = parser.next_section()) {
+    if (!s->check_fast(*mm)) {
+      DWARFS_THROW(runtime_error,
+                   "checksum error in section: " + get_section_name(s->type()));
+    }
+    if (!s->verify(*mm)) {
+      DWARFS_THROW(runtime_error, "integrity check error in section: " +
+                                      get_section_name(s->type()));
+    }
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
     } else {
@@ -445,6 +457,16 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
        << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
        << std::endl;
 
+    // TODO: don't throw if we're just checking the file system
+
+    if (!s->check_fast(*mm)) {
+      DWARFS_THROW(runtime_error,
+                   "checksum error in section: " + get_section_name(s->type()));
+    }
+    if (!s->verify(*mm)) {
+      DWARFS_THROW(runtime_error, "integrity check error in section: " +
+                                      get_section_name(s->type()));
+    }
     if (s->type() != section_type::BLOCK) {
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error,

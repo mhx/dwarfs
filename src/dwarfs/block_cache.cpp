@@ -38,6 +38,7 @@
 #include <folly/container/EvictingCacheMap.h>
 
 #include "dwarfs/block_cache.h"
+#include "dwarfs/fs_section.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
@@ -46,27 +47,20 @@
 
 namespace dwarfs {
 
-struct block {
-  block(compression_type compression, off_t offset, size_t size)
-      : compression(compression)
-      , offset(offset)
-      , size(size) {}
-
-  const compression_type compression;
-  const off_t offset;
-  const size_t size;
-};
-
 class cached_block {
  public:
-  cached_block(logger& lgr, block const& b, std::shared_ptr<mmif> mm,
+  cached_block(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
                bool release)
       : decompressor_(std::make_unique<block_decompressor>(
-            b.compression, mm->as<uint8_t>(b.offset), b.size, data_))
+            b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_))
       , mm_(std::move(mm))
-      , spec_(b)
+      , section_(b)
       , log_(lgr)
-      , release_(release) {}
+      , release_(release) {
+    if (!section_.check_fast(*mm_)) {
+      DWARFS_THROW(runtime_error, "block data integrity check failed");
+    }
+  }
 
   ~cached_block() {
     if (decompressor_) {
@@ -109,7 +103,7 @@ class cached_block {
  private:
   void try_release() {
     if (release_) {
-      if (auto ec = mm_->release(spec_.offset, spec_.size)) {
+      if (auto ec = mm_->release(section_.start(), section_.length())) {
         LOG_INFO << "madvise() failed: " << ec.message();
       }
     }
@@ -119,7 +113,7 @@ class cached_block {
   std::vector<uint8_t> data_;
   std::unique_ptr<block_decompressor> decompressor_;
   std::shared_ptr<mmif> mm_;
-  block const& spec_;
+  fs_section section_;
   log_proxy<debug_logger_policy> log_;
   bool const release_;
 };
@@ -267,8 +261,8 @@ class block_cache_ : public block_cache::impl {
 
   size_t block_count() const override { return block_.size(); }
 
-  void insert(compression_type comp, off_t offset, size_t size) override {
-    block_.emplace_back(comp, offset, size);
+  void insert(fs_section const& section) override {
+    block_.emplace_back(section);
   }
 
   void set_block_size(size_t size) override {
@@ -558,7 +552,7 @@ class block_cache_ : public block_cache::impl {
   mutable std::atomic<size_t> total_decompressed_bytes_{0};
 
   mutable worker_group wg_;
-  std::vector<block> block_;
+  std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
   log_proxy<LoggerPolicy> log_;
   const block_cache_options options_;

@@ -39,6 +39,8 @@ class fs_section {
   compression_type compression() const { return impl_->compression(); }
   section_type type() const { return impl_->type(); }
   std::string description() const { return impl_->description(); }
+  bool check_fast(mmif& mm) const { return impl_->check_fast(mm); }
+  bool verify(mmif& mm) const { return impl_->verify(mm); }
 
   size_t end() const { return start() + length(); }
 
@@ -51,6 +53,8 @@ class fs_section {
     virtual compression_type compression() const = 0;
     virtual section_type type() const = 0;
     virtual std::string description() const = 0;
+    virtual bool check_fast(mmif& mm) const = 0;
+    virtual bool verify(mmif& mm) const = 0;
   };
 
  private:

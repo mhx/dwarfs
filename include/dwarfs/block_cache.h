@@ -34,6 +34,7 @@ namespace dwarfs {
 struct block_cache_options;
 
 class block_range;
+class fs_section;
 class logger;
 class mmif;
 
@@ -44,9 +45,7 @@ class block_cache {
 
   size_t block_count() const { return impl_->block_count(); }
 
-  void insert(compression_type comp, off_t offset, size_t size) {
-    impl_->insert(comp, offset, size);
-  }
+  void insert(fs_section const& section) { impl_->insert(section); }
 
   void set_block_size(size_t size) { impl_->set_block_size(size); }
 
@@ -60,7 +59,7 @@ class block_cache {
     virtual ~impl() = default;
 
     virtual size_t block_count() const = 0;
-    virtual void insert(compression_type comp, off_t offset, size_t size) = 0;
+    virtual void insert(fs_section const& section) = 0;
     virtual void set_block_size(size_t size) = 0;
     virtual std::future<block_range>
     get(size_t block_no, size_t offset, size_t length) const = 0;
