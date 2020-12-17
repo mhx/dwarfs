@@ -156,8 +156,10 @@ checksum::checksum(algorithm alg)
   case algorithm::XXH3_64:
     impl_ = std::make_unique<checksum_xxh3_64>();
     break;
+  default:
+    DWARFS_CHECK(false, "unknown algorithm");
+    break;
   }
-  DWARFS_CHECK(false, "unknown algorithm");
 }
 
 bool checksum::verify(void const* digest) const {
