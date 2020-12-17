@@ -51,21 +51,119 @@ namespace dwarfs {
 
 namespace {
 
-class filesystem_parser {
+class fs_section {
  public:
-  struct section {
-    size_t start{0};
-    section_header header;
+  fs_section(mmif& mm, size_t offset, int version);
+
+  size_t start() const { return impl_->start(); }
+  size_t length() const { return impl_->length(); }
+  compression_type compression() const { return impl_->compression(); }
+  section_type type() const { return impl_->type(); }
+  std::string description() const { return impl_->description(); }
+
+  size_t end() const { return start() + length(); }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual size_t start() const = 0;
+    virtual size_t length() const = 0;
+    virtual compression_type compression() const = 0;
+    virtual section_type type() const = 0;
+    virtual std::string description() const = 0;
   };
 
+ private:
+  std::shared_ptr<impl const> impl_;
+};
+
+class fs_section_v1 : public fs_section::impl {
+ public:
+  fs_section_v1(mmif& mm, size_t offset);
+
+  size_t start() const override { return start_; }
+  size_t length() const override { return hdr_.length; }
+  compression_type compression() const override { return hdr_.compression; }
+  section_type type() const override { return hdr_.type; }
+  std::string description() const override { return hdr_.to_string(); }
+
+ private:
+  size_t start_;
+  section_header hdr_;
+};
+
+class fs_section_v2 : public fs_section::impl {
+ public:
+  fs_section_v2(mmif& mm, size_t offset);
+
+  size_t start() const override { return start_; }
+  size_t length() const override { return hdr_.length; }
+  compression_type compression() const override {
+    return static_cast<compression_type>(hdr_.compression);
+  }
+  section_type type() const override {
+    return static_cast<section_type>(hdr_.type);
+  }
+  std::string description() const override { return hdr_.to_string(); }
+
+ private:
+  size_t start_;
+  section_header_v2 hdr_;
+};
+
+fs_section::fs_section(mmif& mm, size_t offset, int version) {
+  switch (version) {
+  case 1:
+    impl_ = std::make_shared<fs_section_v1>(mm, offset);
+    break;
+
+  case 2:
+    impl_ = std::make_shared<fs_section_v2>(mm, offset);
+    break;
+
+  default:
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unsupported section version {}", version));
+    break;
+  }
+}
+
+template <typename T>
+void read_section_header_common(T& header, size_t& start, mmif& mm,
+                                size_t offset) {
+  if (offset + sizeof(T) > mm.size()) {
+    DWARFS_THROW(runtime_error, "truncated section header");
+  }
+
+  ::memcpy(&header, mm.as<void>(offset), sizeof(T));
+
+  offset += sizeof(T);
+
+  if (offset + header.length > mm.size()) {
+    DWARFS_THROW(runtime_error, "truncated section data");
+  }
+
+  start = offset;
+}
+
+fs_section_v1::fs_section_v1(mmif& mm, size_t offset) {
+  read_section_header_common(hdr_, start_, mm, offset);
+}
+
+fs_section_v2::fs_section_v2(mmif& mm, size_t offset) {
+  read_section_header_common(hdr_, start_, mm, offset);
+}
+
+class filesystem_parser {
+ public:
   filesystem_parser(std::shared_ptr<mmif> mm)
-      : mm_(mm)
-      , offset_(sizeof(file_header)) {
+      : mm_(mm) {
     if (mm_->size() < sizeof(file_header)) {
       DWARFS_THROW(runtime_error, "file too small");
     }
 
-    const file_header* fh = mm_->as<file_header>();
+    auto fh = mm_->as<file_header>();
 
     if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
       DWARFS_THROW(runtime_error, "magic not found");
@@ -78,62 +176,53 @@ class filesystem_parser {
     if (fh->minor > MINOR_VERSION) {
       DWARFS_THROW(runtime_error, "newer minor version");
     }
+
+    version_ = fh->minor >= 2 ? 2 : 1;
+    major_ = fh->major;
+    minor_ = fh->minor;
+
+    rewind();
   }
 
-  template <typename LogProxy>
-  bool next_section(section_header& sh, size_t& start, LogProxy& log_) {
-    if (offset_ + sizeof(section_header) <= mm_->size()) {
-      ::memcpy(&sh, mm_->as<char>(offset_), sizeof(section_header));
-
-      LOG_TRACE << "section_header@" << offset_ << " (" << sh.to_string()
-                << ")";
-
-      offset_ += sizeof(section_header);
-
-      if (offset_ + sh.length > mm_->size()) {
-        DWARFS_THROW(runtime_error, "truncated file");
-      }
-
-      start = offset_;
-
-      offset_ += sh.length;
-
-      return true;
+  std::optional<fs_section> next_section() {
+    if (offset_ < mm_->size()) {
+      auto section = fs_section(*mm_, offset_, version_);
+      offset_ = section.end();
+      return section;
     }
 
-    return false;
-  }
-
-  template <typename LogProxy>
-  std::optional<section> next_section(LogProxy& log_) {
-    section rv;
-    if (next_section(rv.header, rv.start, log_)) {
-      return rv;
-    }
     return std::nullopt;
   }
 
-  void rewind() { offset_ = sizeof(file_header); }
+  void rewind() { offset_ = version_ == 1 ? sizeof(file_header) : 0; }
+
+  std::string version() const {
+    return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
+  }
 
  private:
   std::shared_ptr<mmif> mm_;
-  size_t offset_;
+  size_t offset_{0};
+  int version_{0};
+  uint8_t major_{0};
+  uint8_t minor_{0};
 };
 
-using section_map =
-    std::unordered_map<section_type, filesystem_parser::section>;
+using section_map = std::unordered_map<section_type, fs_section>;
 
 folly::ByteRange
-get_section_data(std::shared_ptr<mmif> mm,
-                 filesystem_parser::section const& section,
+get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
-  if (!force_buffer && section.header.compression == compression_type::NONE) {
-    return mm->range(section.start, section.header.length);
+  auto compression = section.compression();
+  auto start = section.start();
+  auto length = section.length();
+
+  if (!force_buffer && compression == compression_type::NONE) {
+    return mm->range(start, length);
   }
 
-  buffer = block_decompressor::decompress(section.header.compression,
-                                          mm->as<uint8_t>(section.start),
-                                          section.header.length);
+  buffer = block_decompressor::decompress(compression, mm->as<uint8_t>(start),
+                                          length);
 
   return buffer;
 }
@@ -164,7 +253,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
       get_section_data(mm, meta_section, meta_buffer, force_buffers);
 
   if (lock_mode != mlock_mode::NONE) {
-    if (auto ec = mm->lock(meta_section.start, meta_section_range.size())) {
+    if (auto ec = mm->lock(meta_section.start(), meta_section_range.size())) {
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
       } else {
@@ -174,8 +263,8 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   }
 
   // don't keep the compressed metadata in cache
-  if (meta_section.header.compression != compression_type::NONE) {
-    if (auto ec = mm->release(meta_section.start, meta_section.header.length)) {
+  if (meta_section.compression() != compression_type::NONE) {
+    if (auto ec = mm->release(meta_section.start(), meta_section.length())) {
       LOG_INFO << "madvise() failed: " << ec.message();
     }
   }
@@ -236,14 +325,14 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   section_map sections;
 
-  while (auto s = parser.next_section(log_)) {
-    if (s->header.type == section_type::BLOCK) {
-      cache.insert(s->header.compression, s->start,
-                   static_cast<size_t>(s->header.length));
+  while (auto s = parser.next_section()) {
+    if (s->type() == section_type::BLOCK) {
+      cache.insert(s->compression(), s->start(),
+                   static_cast<size_t>(s->length()));
     } else {
-      if (!sections.emplace(s->header.type, *s).second) {
+      if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->header.type));
+                     "duplicate section: " + get_section_name(s->type()));
       }
     }
   }
@@ -400,13 +489,13 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   section_map sections;
 
-  while (auto s = parser.next_section(log_)) {
-    if (s->header.type == section_type::BLOCK) {
+  while (auto s = parser.next_section()) {
+    if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
     } else {
-      if (!sections.emplace(s->header.type, *s).second) {
+      if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->header.type));
+                     "duplicate section: " + get_section_name(s->type()));
       }
     }
   }
@@ -422,11 +511,11 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   parser.rewind();
 
-  while (auto s = parser.next_section(log_)) {
+  while (auto s = parser.next_section()) {
     // TODO: multi-thread this?
-    if (s->header.type == section_type::BLOCK) {
+    if (s->type() == section_type::BLOCK) {
       auto block = block_decompressor::decompress(
-          s->header.compression, mm->as<uint8_t>(s->start), s->header.length);
+          s->compression(), mm->as<uint8_t>(s->start()), s->length());
       prog.filesystem_size += block.size();
       writer.write_block(std::move(block));
     }
@@ -444,23 +533,25 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
 
+  os << "FILESYSTEM version " << parser.version() << std::endl;
+
   section_map sections;
 
-  while (auto s = parser.next_section(log_)) {
+  while (auto s = parser.next_section()) {
     std::vector<uint8_t> tmp;
-    block_decompressor bd(s->header.compression, mm->as<uint8_t>(s->start),
-                          s->header.length, tmp);
-    float compression_ratio = float(s->header.length) / bd.uncompressed_size();
+    block_decompressor bd(s->compression(), mm->as<uint8_t>(s->start()),
+                          s->length(), tmp);
+    float compression_ratio = float(s->length()) / bd.uncompressed_size();
 
-    os << "SECTION " << s->header.to_string()
+    os << "SECTION " << s->description()
        << ", blocksize=" << bd.uncompressed_size()
        << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
        << std::endl;
 
-    if (s->header.type != section_type::BLOCK) {
-      if (!sections.emplace(s->header.type, *s).second) {
+    if (s->type() != section_type::BLOCK) {
+      if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->header.type));
+                     "duplicate section: " + get_section_name(s->type()));
       }
     }
   }

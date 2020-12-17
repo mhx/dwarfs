@@ -25,6 +25,8 @@
 
 #include <folly/Conv.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/fstypes.h"
 
 namespace dwarfs {
@@ -74,6 +76,21 @@ void section_header::dump(std::ostream& os) const {
 }
 
 std::string section_header::to_string() const {
+  std::ostringstream oss;
+  dump(oss);
+  return oss.str();
+}
+
+void section_header_v2::dump(std::ostream& os) const {
+  os << "num=" << number
+     << ", type=" << get_default(sections, static_cast<section_type>(type))
+     << ", compression="
+     << get_default(compressions, static_cast<compression_type>(compression))
+     << ", length=" << length
+     << ", checksum=" << fmt::format("{:#018x}", xxh3_64);
+}
+
+std::string section_header_v2::to_string() const {
   std::ostringstream oss;
   dump(oss);
   return oss.str();
