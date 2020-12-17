@@ -268,20 +268,23 @@ class block_cache_ : public block_cache::impl {
   void set_block_size(size_t size) override {
     // XXX: This currently inevitably clears the cache
     auto max_blocks = std::max<size_t>(options_.max_bytes / size, 1);
-    {
-      std::lock_guard<std::mutex> lock(mx_);
-      cache_.~lru_type();
-      new (&cache_) lru_type(max_blocks);
-      cache_.setPruneHook(
-          [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
-            LOG_DEBUG << "evicting block " << block_no
-                      << " from cache, decompression ratio = "
-                      << double(block->range_end()) /
-                             double(block->uncompressed_size());
-            ++blocks_evicted_;
-            update_block_stats(*block);
-          });
+
+    if (!block_.empty() && max_blocks > block_.size()) {
+      max_blocks = block_.size();
     }
+
+    std::lock_guard<std::mutex> lock(mx_);
+    cache_.~lru_type();
+    new (&cache_) lru_type(max_blocks);
+    cache_.setPruneHook(
+        [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
+          LOG_DEBUG << "evicting block " << block_no
+                    << " from cache, decompression ratio = "
+                    << double(block->range_end()) /
+                           double(block->uncompressed_size());
+          ++blocks_evicted_;
+          update_block_stats(*block);
+        });
   }
 
   std::future<block_range>
