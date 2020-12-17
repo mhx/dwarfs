@@ -229,13 +229,11 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
       cache.insert(*s);
     } else {
       if (!s->check_fast(*mm_)) {
-        DWARFS_THROW(runtime_error, "checksum error in section: " +
-                                        get_section_name(s->type()));
+        DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
       }
 
       if (!sections.emplace(s->type(), *s).second) {
-        DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->type()));
+        DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
     }
   }
@@ -394,19 +392,17 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   while (auto s = parser.next_section()) {
     if (!s->check_fast(*mm)) {
-      DWARFS_THROW(runtime_error,
-                   "checksum error in section: " + get_section_name(s->type()));
+      DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
     }
     if (!s->verify(*mm)) {
-      DWARFS_THROW(runtime_error, "integrity check error in section: " +
-                                      get_section_name(s->type()));
+      DWARFS_THROW(runtime_error,
+                   "integrity check error in section: " + s->name());
     }
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
     } else {
       if (!sections.emplace(s->type(), *s).second) {
-        DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->type()));
+        DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
     }
   }
@@ -462,17 +458,15 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     // TODO: don't throw if we're just checking the file system
 
     if (!s->check_fast(*mm)) {
-      DWARFS_THROW(runtime_error,
-                   "checksum error in section: " + get_section_name(s->type()));
+      DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
     }
     if (!s->verify(*mm)) {
-      DWARFS_THROW(runtime_error, "integrity check error in section: " +
-                                      get_section_name(s->type()));
+      DWARFS_THROW(runtime_error,
+                   "integrity check error in section: " + s->name());
     }
     if (s->type() != section_type::BLOCK) {
       if (!sections.emplace(s->type(), *s).second) {
-        DWARFS_THROW(runtime_error,
-                     "duplicate section: " + get_section_name(s->type()));
+        DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
     }
   }

@@ -38,6 +38,7 @@ class fs_section_v1 : public fs_section::impl {
   size_t length() const override { return hdr_.length; }
   compression_type compression() const override { return hdr_.compression; }
   section_type type() const override { return hdr_.type; }
+  std::string name() const override { return get_section_name(hdr_.type); }
   std::string description() const override { return hdr_.to_string(); }
   bool check_fast(mmif&) const override { return true; }
   bool verify(mmif&) const override { return true; }
@@ -58,6 +59,9 @@ class fs_section_v2 : public fs_section::impl {
   }
   section_type type() const override {
     return static_cast<section_type>(hdr_.type);
+  }
+  std::string name() const override {
+    return get_section_name(static_cast<section_type>(hdr_.type));
   }
   std::string description() const override { return hdr_.to_string(); }
   bool check_fast(mmif& mm) const override {
