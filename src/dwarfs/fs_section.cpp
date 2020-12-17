@@ -108,7 +108,13 @@ void read_section_header_common(T& header, size_t& start, mmif& mm,
 
   offset += sizeof(T);
 
-  if (offset + header.length > mm.size()) {
+  auto end = offset + header.length;
+
+  if (end < offset) {
+    DWARFS_THROW(runtime_error, "offset/length overflow");
+  }
+
+  if (end > mm.size()) {
     DWARFS_THROW(runtime_error, "truncated section data");
   }
 
