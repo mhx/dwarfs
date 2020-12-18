@@ -36,6 +36,7 @@
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
 #include "loremipsum.h"
+#include "mmap_mock.h"
 
 namespace dwarfs {
 namespace test {
@@ -89,26 +90,6 @@ std::map<std::string, simplestat> statmap{
      {S_IFCHR | 0666, 0, 0, 0, 261, 4000010001, 4000020002, 4000030003}},
 };
 } // namespace
-
-class mmap_mock : public mmif {
- public:
-  mmap_mock(const std::string& data)
-      : m_data(data) {}
-
-  void const* addr() const override { return m_data.data(); }
-
-  size_t size() const override { return m_data.size(); }
-
-  boost::system::error_code lock(off_t, size_t) override {
-    return boost::system::error_code();
-  }
-  boost::system::error_code release(off_t, size_t) override {
-    return boost::system::error_code();
-  }
-
- private:
-  const std::string m_data;
-};
 
 class os_access_mock : public os_access {
  public:

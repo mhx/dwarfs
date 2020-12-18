@@ -382,13 +382,15 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
           lgr, std::move(mm), options, stat_defaults, inode_offset)) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
-                            std::shared_ptr<mmif> mm,
-                            filesystem_writer& writer) {
+                            std::shared_ptr<mmif> mm, filesystem_writer& writer,
+                            rewrite_options const& opts) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
 
+  std::vector<section_type> section_types;
   section_map sections;
+  size_t total_block_size = 0;
 
   while (auto s = parser.next_section()) {
     if (!s->check_fast(*mm)) {
@@ -400,36 +402,55 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     }
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
+      total_block_size += s->length();
     } else {
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
+      section_types.push_back(s->type());
     }
   }
 
   std::vector<uint8_t> schema_raw;
   std::vector<uint8_t> meta_raw;
-  auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw,
-                            metadata_options(), nullptr, 0, true);
 
-  struct ::statvfs stbuf;
-  meta.statvfs(&stbuf);
-  prog.original_size = stbuf.f_blocks * stbuf.f_frsize;
+  if (opts.recompress_metadata) {
+    auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw,
+                              metadata_options(), nullptr, 0, true);
+
+    struct ::statvfs stbuf;
+    meta.statvfs(&stbuf);
+    prog.original_size = stbuf.f_blocks * stbuf.f_frsize;
+  } else {
+    prog.original_size = total_block_size;
+  }
 
   parser.rewind();
 
   while (auto s = parser.next_section()) {
     // TODO: multi-thread this?
     if (s->type() == section_type::BLOCK) {
-      auto block = block_decompressor::decompress(
-          s->compression(), mm->as<uint8_t>(s->start()), s->length());
-      prog.filesystem_size += block.size();
-      writer.write_block(std::move(block));
+      if (opts.recompress_block) {
+        auto block = block_decompressor::decompress(
+            s->compression(), mm->as<uint8_t>(s->start()), s->length());
+        prog.filesystem_size += block.size();
+        writer.write_block(std::move(block));
+      } else {
+        writer.write_compressed_section(s->type(), s->compression(),
+                                        s->data(*mm));
+      }
     }
   }
 
-  writer.write_metadata_v2_schema(std::move(schema_raw));
-  writer.write_metadata_v2(std::move(meta_raw));
+  if (opts.recompress_metadata) {
+    writer.write_metadata_v2_schema(std::move(schema_raw));
+    writer.write_metadata_v2(std::move(meta_raw));
+  } else {
+    for (auto type : section_types) {
+      auto& sec = DWARFS_NOTHROW(sections.at(type));
+      writer.write_compressed_section(type, sec.compression(), sec.data(*mm));
+    }
+  }
 
   writer.flush();
 }

@@ -44,6 +44,7 @@ struct statvfs;
 namespace dwarfs {
 
 struct filesystem_options;
+struct rewrite_options;
 struct iovec_read_buf;
 
 class filesystem_writer;
@@ -61,7 +62,7 @@ class filesystem_v2 {
                 int inode_offset = 0);
 
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
-                      filesystem_writer& writer);
+                      filesystem_writer& writer, rewrite_options const& opts);
 
   static void identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
                        int detail_level = 0);

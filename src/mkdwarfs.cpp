@@ -295,9 +295,9 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, window_sizes, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level_str, timestamp,
-      time_resolution, order, progress_mode;
+      time_resolution, order, progress_mode, recompress_opts;
   size_t num_workers, max_scanner_workers;
-  bool recompress = false, no_progress = false;
+  bool no_progress = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -347,8 +347,8 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&metadata_compression),
         "metadata compression algorithm")
     ("recompress",
-        po::value<bool>(&recompress)->zero_tokens(),
-        "recompress an existing filesystem")
+        po::value<std::string>(&recompress_opts)->implicit_value("all"),
+        "recompress an existing filesystem (none, block, metadata, all)")
     ("set-owner",
         po::value<uint16_t>(&uid),
         "set owner (uid) for whole file system")
@@ -514,6 +514,24 @@ int mkdwarfs(int argc, char** argv) {
 
   if (!vm.count("order")) {
     order = defaults.order;
+  }
+
+  bool recompress = vm.count("recompress");
+  rewrite_options rw_opts;
+  if (recompress) {
+    std::unordered_map<std::string, unsigned> const modes{
+        {"all", 3},
+        {"metadata", 2},
+        {"block", 1},
+        {"none", 0},
+    };
+    if (auto it = modes.find(recompress_opts); it != modes.end()) {
+      rw_opts.recompress_block = it->second & 1;
+      rw_opts.recompress_metadata = it->second & 2;
+    } else {
+      std::cerr << "invalid recompress mode: " << recompress_opts << std::endl;
+      return 1;
+    }
   }
 
   std::vector<std::string> order_opts;
@@ -721,8 +739,8 @@ int mkdwarfs(int argc, char** argv) {
   auto ti = LOG_TIMED_INFO;
 
   if (recompress) {
-    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
-                           fsw);
+    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw,
+                           rw_opts);
     wg_writer.wait();
   } else {
     options.inode.with_similarity =

@@ -24,6 +24,8 @@
 #include <memory>
 #include <string>
 
+#include <folly/Range.h>
+
 #include "dwarfs/fstypes.h"
 
 namespace dwarfs {
@@ -42,6 +44,7 @@ class fs_section {
   std::string description() const { return impl_->description(); }
   bool check_fast(mmif& mm) const { return impl_->check_fast(mm); }
   bool verify(mmif& mm) const { return impl_->verify(mm); }
+  folly::ByteRange data(mmif& mm) const { return impl_->data(mm); }
 
   size_t end() const { return start() + length(); }
 
@@ -57,6 +60,7 @@ class fs_section {
     virtual std::string description() const = 0;
     virtual bool check_fast(mmif& mm) const = 0;
     virtual bool verify(mmif& mm) const = 0;
+    virtual folly::ByteRange data(mmif& mm) const = 0;
   };
 
  private:

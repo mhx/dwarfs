@@ -36,12 +36,19 @@ class fs_section_v1 : public fs_section::impl {
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
+
   compression_type compression() const override { return hdr_.compression; }
   section_type type() const override { return hdr_.type; }
+
   std::string name() const override { return get_section_name(hdr_.type); }
   std::string description() const override { return hdr_.to_string(); }
+
   bool check_fast(mmif&) const override { return true; }
   bool verify(mmif&) const override { return true; }
+
+  folly::ByteRange data(mmif& mm) const override {
+    return folly::ByteRange(mm.as<uint8_t>(start_), hdr_.length);
+  }
 
  private:
   size_t start_;
@@ -54,16 +61,21 @@ class fs_section_v2 : public fs_section::impl {
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
+
   compression_type compression() const override {
     return static_cast<compression_type>(hdr_.compression);
   }
+
   section_type type() const override {
     return static_cast<section_type>(hdr_.type);
   }
+
   std::string name() const override {
     return get_section_name(static_cast<section_type>(hdr_.type));
   }
+
   std::string description() const override { return hdr_.to_string(); }
+
   bool check_fast(mmif& mm) const override {
     auto hdr_cs_len =
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
@@ -71,12 +83,17 @@ class fs_section_v2 : public fs_section::impl {
                             mm.as<void>(start_ - hdr_cs_len),
                             hdr_.length + hdr_cs_len, &hdr_.xxh3_64);
   }
+
   bool verify(mmif& mm) const override {
     auto hdr_sha_len =
         sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
     return checksum::verify(checksum::algorithm::SHA2_512_256,
                             mm.as<void>(start_ - hdr_sha_len),
                             hdr_.length + hdr_sha_len, &hdr_.sha2_512_256);
+  }
+
+  folly::ByteRange data(mmif& mm) const override {
+    return folly::ByteRange(mm.as<uint8_t>(start_), hdr_.length);
   }
 
  private:

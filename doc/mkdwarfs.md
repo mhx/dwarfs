@@ -111,11 +111,21 @@ Most other options are concerned with compression tuning:
     care about mount time, you can safely choose `lzma` compression here, as
     the data will only have to be decompressed once when mounting the image.
 
-  * `--recompress`:
-    Take an existing DwarFS filesystem and recompress it using a different
-    compression algorithm. Note that *only* the compression algorithm, i.e.
-    the `--compression` option, has an impact on the new filesystem. Other
-    options, e.g. `--block-size-bits`, have no impact.
+  * `--recompress`[`=all|block|metadata|none`]:
+    Take an existing DwarFS file system and recompress it using different
+    compression algorithms. If no argument or `all` is given, all sections
+    in the file system image will be recompressed. Note that *only* the
+    compression algorithms, i.e. the `--compression`, `--schema-compression`
+    and `--metadata-compression` options, have an impact on how the new file
+    system is written. Other options, e.g. `--block-size-bits` or `--order`,
+    have no impact. If `none` is given as an argument, none of the sections
+    will be recompressed, but the file system is still rewritten in the
+    latest file system format. This is an easy way of upgrading an old file
+    system image to a new format. If `block` or `metadata` is given, only
+    the block sections (i.e. the actual file data) or the metadata sections
+    are recompressed. This can be useful if you want to switch from compressed
+    metadata to uncompressed metadata without having to rebuild or recompress
+    all the other data.
 
   * `--set-owner=`*uid*:
     Set the owner for all entities in the file system. This can reduce the

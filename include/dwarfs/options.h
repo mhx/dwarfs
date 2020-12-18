@@ -75,6 +75,11 @@ struct scanner_options {
   inode_options inode;
 };
 
+struct rewrite_options {
+  bool recompress_block{false};
+  bool recompress_metadata{false};
+};
+
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);
 
 mlock_mode parse_mlock_mode(std::string_view mode);

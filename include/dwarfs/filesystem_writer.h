@@ -28,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include <folly/Range.h>
+
 #include "dwarfs/fstypes.h"
 #include "dwarfs/worker_group.h"
 
@@ -64,11 +66,6 @@ class filesystem_writer {
                     const block_compressor& schema_bc,
                     const block_compressor& metadata_bc, size_t max_queue_size);
 
-  // section create_block();
-  // section create_metadata();
-
-  // void add_section(section&& section);
-
   void write_block(std::vector<uint8_t>&& data) {
     impl_->write_block(std::move(data));
   }
@@ -79,6 +76,11 @@ class filesystem_writer {
 
   void write_metadata_v2(std::vector<uint8_t>&& data) {
     impl_->write_metadata_v2(std::move(data));
+  }
+
+  void write_compressed_section(section_type type, compression_type compression,
+                                folly::ByteRange data) {
+    impl_->write_compressed_section(type, compression, data);
   }
 
   void flush() { impl_->flush(); }
@@ -92,6 +94,9 @@ class filesystem_writer {
     virtual void write_block(std::vector<uint8_t>&& data) = 0;
     virtual void write_metadata_v2_schema(std::vector<uint8_t>&& data) = 0;
     virtual void write_metadata_v2(std::vector<uint8_t>&& data) = 0;
+    virtual void
+    write_compressed_section(section_type type, compression_type compression,
+                             folly::ByteRange data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
   };

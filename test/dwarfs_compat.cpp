@@ -23,14 +23,21 @@
 
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <folly/json.h>
 
+#include "dwarfs/block_compressor.h"
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/progress.h"
+#include "dwarfs/worker_group.h"
+
+#include "mmap_mock.h"
 
 namespace {
 
@@ -153,6 +160,7 @@ char const* reference = R"(
 std::vector<std::string> versions{
     "0.2.0",
     "0.2.3",
+    "0.3.0",
 };
 
 } // namespace
@@ -173,3 +181,39 @@ TEST_P(compat, backwards_compatibility) {
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, compat, ::testing::ValuesIn(versions));
+
+class rewrite
+    : public testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+
+TEST_P(rewrite, filesystem_rewrite) {
+  auto [version, recompress_block, recompress_metadata] = GetParam();
+
+  std::ostringstream oss;
+  stream_logger lgr(oss);
+  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+
+  rewrite_options opts;
+  opts.recompress_block = recompress_block;
+  opts.recompress_metadata = recompress_metadata;
+
+  worker_group wg("rewriter", 2);
+  block_compressor bc("null");
+  progress prog([](const progress&, bool) {}, 1000);
+  std::ostringstream rewritten, idss;
+  filesystem_writer fsw(rewritten, lgr, wg, prog, bc, 64 << 20);
+  filesystem_v2::identify(lgr, std::make_shared<mmap>(filename), idss);
+  filesystem_v2::rewrite(lgr, prog, std::make_shared<mmap>(filename), fsw,
+                         opts);
+
+  filesystem_v2::identify(
+      lgr, std::make_shared<test::mmap_mock>(rewritten.str()), idss);
+  filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(rewritten.str()));
+  auto meta = fs.metadata_as_dynamic();
+  auto ref = folly::parseJson(reference);
+  EXPECT_EQ(ref, meta);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, rewrite,
+                         ::testing::Combine(::testing::ValuesIn(versions),
+                                            ::testing::Bool(),
+                                            ::testing::Bool()));

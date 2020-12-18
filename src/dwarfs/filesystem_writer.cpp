@@ -28,6 +28,7 @@
 #include <mutex>
 #include <thread>
 
+#include <folly/Range.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_compressor.h"
@@ -41,20 +42,56 @@
 
 namespace dwarfs {
 
+namespace {
+
 class fsblock {
+ public:
+  fsblock(logger& lgr, section_type type, const block_compressor& bc,
+          std::vector<uint8_t>&& data);
+
+  fsblock(section_type type, compression_type compression,
+          folly::ByteRange data);
+
+  void compress(worker_group& wg) { impl_->compress(wg); }
+  void wait_until_compressed() { impl_->wait_until_compressed(); }
+  section_type type() const { return impl_->type(); }
+  compression_type compression() const { return impl_->compression(); }
+  folly::ByteRange data() const { return impl_->data(); }
+  size_t uncompressed_size() const { return impl_->uncompressed_size(); }
+  size_t size() const { return impl_->size(); }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual void compress(worker_group& wg) = 0;
+    virtual void wait_until_compressed() = 0;
+    virtual section_type type() const = 0;
+    virtual compression_type compression() const = 0;
+    virtual folly::ByteRange data() const = 0;
+    virtual size_t uncompressed_size() const = 0;
+    virtual size_t size() const = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
+};
+
+template <typename LoggerPolicy>
+class raw_fsblock : public fsblock::impl {
  private:
   class state {
    public:
-    state(std::vector<uint8_t>&& data)
+    state(std::vector<uint8_t>&& data, logger& lgr)
         : compressed_(false)
-        , data_(std::move(data)) {}
+        , data_(std::move(data))
+        , LOG_PROXY_INIT(lgr) {}
 
-    template <typename LogProxy>
-    void compress(const block_compressor& bc, LogProxy& lp) {
+    void compress(const block_compressor& bc) {
       std::vector<uint8_t> tmp;
 
       {
-        auto td = lp.timed_trace();
+        auto td = LOG_TIMED_TRACE;
 
         tmp = bc.compress(data_);
 
@@ -87,49 +124,82 @@ class fsblock {
     std::condition_variable cond_;
     std::atomic<bool> compressed_;
     std::vector<uint8_t> data_;
+    LOG_PROXY_DECL(LoggerPolicy);
   };
 
  public:
-  fsblock(section_type type, const block_compressor& bc,
-          std::vector<uint8_t>&& data)
+  raw_fsblock(logger& lgr, section_type type, const block_compressor& bc,
+              std::vector<uint8_t>&& data)
       : type_(type)
       , bc_(bc)
       , uncompressed_size_(data.size())
-      , state_(std::make_shared<state>(std::move(data))) {}
+      , state_(std::make_shared<state>(std::move(data), lgr))
+      , LOG_PROXY_INIT(lgr) {}
 
-  template <typename LogProxy>
-  void compress(worker_group& wg, LogProxy& lp) {
-    lp.trace() << "block queued for compression";
+  void compress(worker_group& wg) override {
+    LOG_TRACE << "block queued for compression";
 
     std::shared_ptr<state> s = state_;
 
     wg.add_job([&, s] {
-      lp.trace() << "block compression started";
-      s->compress(bc_, lp);
+      LOG_TRACE << "block compression started";
+      s->compress(bc_);
     });
   }
 
-  void wait_until_compressed() { state_->wait(); }
+  void wait_until_compressed() override { state_->wait(); }
 
-  section_type type() const { return type_; }
+  section_type type() const override { return type_; }
 
-  compression_type compression() const { return bc_.type(); }
+  compression_type compression() const override { return bc_.type(); }
 
-  const std::vector<uint8_t>& data() const {
-    return state_->data();
-    ;
-  }
+  folly::ByteRange data() const override { return state_->data(); }
 
-  size_t uncompressed_size() const { return uncompressed_size_; }
+  size_t uncompressed_size() const override { return uncompressed_size_; }
 
-  size_t size() const { return state_->size(); }
+  size_t size() const override { return state_->size(); }
 
  private:
   const section_type type_;
   block_compressor const& bc_;
   const size_t uncompressed_size_;
   std::shared_ptr<state> state_;
+  LOG_PROXY_DECL(LoggerPolicy);
 };
+
+class compressed_fsblock : public fsblock::impl {
+ public:
+  compressed_fsblock(section_type type, compression_type compression,
+                     folly::ByteRange range)
+      : type_(type)
+      , compression_(compression)
+      , range_(range) {}
+
+  void compress(worker_group&) override {}
+  void wait_until_compressed() override {}
+
+  section_type type() const override { return type_; }
+  compression_type compression() const override { return compression_; }
+
+  folly::ByteRange data() const override { return range_; }
+
+  size_t uncompressed_size() const override { return range_.size(); }
+  size_t size() const override { return range_.size(); }
+
+ private:
+  const section_type type_;
+  const compression_type compression_;
+  folly::ByteRange range_;
+};
+
+fsblock::fsblock(logger& lgr, section_type type, const block_compressor& bc,
+                 std::vector<uint8_t>&& data)
+    : impl_(make_unique_logging_object<impl, raw_fsblock, logger_policies>(
+          lgr, type, bc, std::move(data))) {}
+
+fsblock::fsblock(section_type type, compression_type compression,
+                 folly::ByteRange data)
+    : impl_(std::make_unique<compressed_fsblock>(type, compression, data)) {}
 
 template <typename LoggerPolicy>
 class filesystem_writer_ : public filesystem_writer::impl {
@@ -144,6 +214,8 @@ class filesystem_writer_ : public filesystem_writer::impl {
   void write_block(std::vector<uint8_t>&& data) override;
   void write_metadata_v2_schema(std::vector<uint8_t>&& data) override;
   void write_metadata_v2(std::vector<uint8_t>&& data) override;
+  void write_compressed_section(section_type type, compression_type compression,
+                                folly::ByteRange data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
 
@@ -151,11 +223,11 @@ class filesystem_writer_ : public filesystem_writer::impl {
   void write_section(section_type type, std::vector<uint8_t>&& data,
                      block_compressor const& bc);
   void write(section_type type, compression_type compression,
-             const std::vector<uint8_t>& data);
+             folly::ByteRange range);
   void write(const char* data, size_t size);
   template <typename T>
   void write(const T& obj);
-  void write(const std::vector<uint8_t>& data);
+  void write(folly::ByteRange range);
   void writer_thread();
   size_t mem_used() const;
 
@@ -166,7 +238,7 @@ class filesystem_writer_ : public filesystem_writer::impl {
   const block_compressor& schema_bc_;
   const block_compressor& metadata_bc_;
   const size_t max_queue_size_;
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   std::deque<std::unique_ptr<fsblock>> queue_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
@@ -187,7 +259,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     , schema_bc_(schema_bc)
     , metadata_bc_(metadata_bc)
     , max_queue_size_(max_queue_size)
-    , log_(lgr)
+    , LOG_PROXY_INIT(lgr)
     , flush_(false)
     , writer_thread_(&filesystem_writer_::writer_thread, this) {}
 
@@ -263,14 +335,14 @@ void filesystem_writer_<LoggerPolicy>::write(const T& obj) {
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write(const std::vector<uint8_t>& data) {
-  write(reinterpret_cast<const char*>(&data[0]), data.size());
+void filesystem_writer_<LoggerPolicy>::write(folly::ByteRange range) {
+  write(reinterpret_cast<const char*>(range.data()), range.size());
 }
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(section_type type,
                                              compression_type compression,
-                                             const std::vector<uint8_t>& data) {
+                                             folly::ByteRange range) {
   section_header_v2 sh;
   ::memcpy(&sh.magic[0], "DWARFS", 6);
   sh.major = MAJOR_VERSION;
@@ -278,22 +350,22 @@ void filesystem_writer_<LoggerPolicy>::write(section_type type,
   sh.number = section_number_++;
   sh.type = static_cast<uint16_t>(type);
   sh.compression = static_cast<uint16_t>(compression);
-  sh.length = data.size();
+  sh.length = range.size();
 
   checksum xxh(checksum::algorithm::XXH3_64);
   xxh.update(&sh.number,
              sizeof(section_header_v2) - offsetof(section_header_v2, number));
-  xxh.update(data.data(), data.size());
+  xxh.update(range.data(), range.size());
   DWARFS_CHECK(xxh.finalize(&sh.xxh3_64), "XXH3-64 checksum failed");
 
   checksum sha(checksum::algorithm::SHA2_512_256);
   sha.update(&sh.xxh3_64,
              sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64));
-  sha.update(data.data(), data.size());
+  sha.update(range.data(), range.size());
   DWARFS_CHECK(sha.finalize(&sh.sha2_512_256), "SHA512/256 checksum failed");
 
   write(sh);
-  write(data);
+  write(range);
 
   if (type == section_type::BLOCK) {
     prog_.blocks_written++;
@@ -312,9 +384,23 @@ void filesystem_writer_<LoggerPolicy>::write_section(
     }
   }
 
-  auto fsb = std::make_unique<fsblock>(type, bc, std::move(data));
+  auto fsb =
+      std::make_unique<fsblock>(LOG_GET_LOGGER, type, bc, std::move(data));
 
-  fsb->compress(wg_, log_);
+  fsb->compress(wg_);
+
+  {
+    std::lock_guard<std::mutex> lock(mx_);
+    queue_.push_back(std::move(fsb));
+  }
+
+  cond_.notify_one();
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_compressed_section(
+    section_type type, compression_type compression, folly::ByteRange data) {
+  auto fsb = std::make_unique<fsblock>(type, compression, data);
 
   {
     std::lock_guard<std::mutex> lock(mx_);
@@ -358,6 +444,8 @@ void filesystem_writer_<LoggerPolicy>::flush() {
 
   writer_thread_.join();
 }
+
+} // namespace
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
