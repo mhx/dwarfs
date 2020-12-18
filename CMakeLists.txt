@@ -22,6 +22,9 @@ cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
+option(ENABLE_ASAN "enable address sanitizer" OFF)
+option(ENABLE_TSAN "enable thread sanitizer" OFF)
+option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
@@ -395,6 +398,21 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
   add_dependencies(${tgt} metadata_thrift)
+
+  if(ENABLE_ASAN)
+          target_compile_options(${tgt} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+          target_link_options(${tgt} PRIVATE -fsanitize=address)
+  endif()
+
+  if(ENABLE_TSAN)
+          target_compile_options(${tgt} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+          target_link_options(${tgt} PRIVATE -fsanitize=thread)
+  endif()
+
+  if(ENABLE_UBSAN)
+          target_compile_options(${tgt} PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+          target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+  endif()
 endforeach()
 
 target_link_libraries(
