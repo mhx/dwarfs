@@ -20,6 +20,13 @@
   avoid using features like unicode or color when terminals don't
   support them. Fixes github #20.
 
+- [fix] A number of checks has been added to make sure that corrupt
+  file system images will not crash the binaries. In order for this
+  to be most efficient, old images should be rewritten in the new
+  format using:
+
+    mkdwarfs -i old.dwarfs -o new.dwarfs --recompress none
+
 - [compat] The metadata format has changed and new file system
   images can no longer be read by old FUSE drivers.
 
@@ -34,6 +41,11 @@
 
 - [perf] `mkdwarfs` will now make use of hard link and inode data
   to avoid scanning the same inode multiple times.
+
+- [feature] New file system image format adds integrity checking
+  as well as features for easier recovery in case of corruption.
+  While currently there is no way to recover a corrupt file system,
+  it is important to have the data in place sooner rather than later.
 
 - [feature] New Python scripting support completely replaces Lua
   scripting. The new interface offers a lot more options and should
