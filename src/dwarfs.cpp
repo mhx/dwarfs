@@ -650,6 +650,11 @@ int run_dwarfs(int argc, char* argv[]) {
     return 1;
   }
 
+  if (s_opts.decompress_ratio < 0.0 || s_opts.decompress_ratio > 1.0) {
+    std::cerr << "error: decratio must be between 0.0 and 1.0" << std::endl;
+    return 1;
+  }
+
   if (!s_opts.seen_mountpoint) {
     usage(s_opts.progname);
   }
