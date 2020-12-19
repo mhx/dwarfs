@@ -1,10 +1,8 @@
 - use streaming interface for zstd decompressor
-- block checksums
-- json metadata export/recovery
-
+- json metadata recovery
 - add --chmod, --chown
 - add some simple filter rules?
-- handle sparse files
+- handle sparse files?
 - try to be more resilient to modifications of the input while creating fs
 
 - dwarfsck:
