@@ -626,11 +626,6 @@ int run_dwarfs(int argc, char* argv[]) {
     s_lgr.set_threshold(s_opts.debuglevel);
     s_lgr.set_with_context(s_opts.debuglevel >= logger::DEBUG);
 
-    LOG_PROXY(debug_logger_policy, s_lgr);
-
-    LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
-             << FUSE_USE_VERSION << ")";
-
     s_opts.cachesize = s_opts.cachesize_str
                            ? parse_size_with_unit(s_opts.cachesize_str)
                            : (static_cast<size_t>(512) << 20);
@@ -658,6 +653,11 @@ int run_dwarfs(int argc, char* argv[]) {
   if (!s_opts.seen_mountpoint) {
     usage(s_opts.progname);
   }
+
+  LOG_PROXY(debug_logger_policy, s_lgr);
+
+  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
+           << FUSE_USE_VERSION << ")";
 
   metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
