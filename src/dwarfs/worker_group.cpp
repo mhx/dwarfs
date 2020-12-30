@@ -166,10 +166,11 @@ class basic_worker_group : public worker_group::impl, private Policy {
         }
 
         if (jobs_.empty()) {
-          if (running_)
+          if (running_) {
             continue;
-          else
+          } else {
             break;
+          }
         }
 
         job = std::move(jobs_.front());
