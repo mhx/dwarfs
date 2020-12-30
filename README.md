@@ -237,14 +237,15 @@ installed, use:
 
     $ CC=clang CXX=clang++ cmake .. -DWITH_TESTS=1
 
-To build with experimental Lua support, you need to install both
-`lua` and `luabind`. The latter isn't very well maintained and I
-hope to get rid of the dependency in the future. Add `-DWITH_LUA=1`
-to the `cmake` command line to enable Lua support.
-
 You can then run tests with:
 
     $ make test
+
+All binaries use [jemalloc](https://github.com/jemalloc/jemalloc)
+as a memory allocator by default, as it is typically uses much less
+system memory compared to the `glibc` or `tcmalloc` allocators.
+To disable the use of `jemalloc`, pass `-DUSE_JEMALLOC=0` on the
+`cmake` command line.
 
 ### Installing
 
