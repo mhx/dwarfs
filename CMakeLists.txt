@@ -154,15 +154,30 @@ if(WITH_TESTS)
   include(GoogleTest)
 endif()
 
-add_library(xxhash
-        xxHash/xxhash.c
-        )
+add_library(xxhash xxHash/xxhash.c)
 
-target_compile_options(xxhash PRIVATE -Wall -Wextra -Wconversion -Wcast-qual -Wcast-align -Wshadow
-            -Wstrict-aliasing=1 -Wswitch-enum -Wdeclaration-after-statement
-            -Wstrict-prototypes -Wundef -Wpointer-arith -Wformat-security
-            -Wvla -Wformat=2 -Winit-self -Wfloat-equal -Wwrite-strings
-            -Wredundant-decls -Wstrict-overflow=2)
+target_compile_options(
+  xxhash
+  PRIVATE -Wall
+          -Wextra
+          -Wconversion
+          -Wcast-qual
+          -Wcast-align
+          -Wshadow
+          -Wstrict-aliasing=1
+          -Wswitch-enum
+          -Wdeclaration-after-statement
+          -Wstrict-prototypes
+          -Wundef
+          -Wpointer-arith
+          -Wformat-security
+          -Wvla
+          -Wformat=2
+          -Winit-self
+          -Wfloat-equal
+          -Wwrite-strings
+          -Wredundant-decls
+          -Wstrict-overflow=2)
 
 list(
   APPEND
@@ -391,18 +406,21 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
   add_dependencies(${tgt} metadata_thrift)
 
   if(ENABLE_ASAN)
-          target_compile_options(${tgt} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-          target_link_options(${tgt} PRIVATE -fsanitize=address)
+    target_compile_options(${tgt} PRIVATE -fsanitize=address
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=address)
   endif()
 
   if(ENABLE_TSAN)
-          target_compile_options(${tgt} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
-          target_link_options(${tgt} PRIVATE -fsanitize=thread)
+    target_compile_options(${tgt} PRIVATE -fsanitize=thread
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=thread)
   endif()
 
   if(ENABLE_UBSAN)
-          target_compile_options(${tgt} PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
-          target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+    target_compile_options(${tgt} PRIVATE -fsanitize=undefined
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=undefined)
   endif()
 endforeach()
 
