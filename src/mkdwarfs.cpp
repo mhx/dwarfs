@@ -71,6 +71,7 @@
 #include "dwarfs/script.h"
 #include "dwarfs/terminal.h"
 #include "dwarfs/util.h"
+#include "dwarfs/version.h"
 
 #ifdef DWARFS_HAVE_PYTHON
 #include "dwarfs/python_script.h"
@@ -469,7 +470,7 @@ int mkdwarfs(int argc, char** argv) {
 
     std::string sep(22 + l_dc + l_sc + l_mc + l_ws + l_or, '-');
 
-    std::cout << "mkdwarfs (" << DWARFS_VERSION << ")\n" << opts << std::endl;
+    std::cout << "mkdwarfs (" << PRJ_GIT_ID << ")\n\n" << opts << std::endl;
     std::cout << "Compression level defaults:\n"
               << "  " << sep << "\n"
               << fmt::format("  Level  Block  {:{}s}  {:{}s}  Inode Order\n",

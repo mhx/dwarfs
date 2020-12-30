@@ -34,6 +34,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/version.h"
 
 namespace dwarfs {
 
@@ -82,7 +83,7 @@ int dwarfsck(int argc, char** argv) {
   }
 
   if (vm.count("help") or !vm.count("input")) {
-    std::cout << "dwarfsck (" << DWARFS_VERSION << ")\n" << opts << std::endl;
+    std::cout << "dwarfsck (" << PRJ_GIT_ID << ")\n\n" << opts << std::endl;
     return 0;
   }
 

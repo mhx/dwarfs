@@ -37,12 +37,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
       CACHE STRING "Build Type" FORCE)
 endif()
 
-set(PROJECT_VERSION_MAJOR "0")
-set(PROJECT_VERSION_MINOR "3")
-set(PROJECT_VERSION_PATCH "0")
-set(DWARFS_VERSION
-    "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
-)
+include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
@@ -214,6 +209,7 @@ list(
   src/dwarfs/similarity.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
+  src/dwarfs/version.cpp
   src/dwarfs/worker_group.cpp)
 
 if(WITH_PYTHON)
@@ -498,24 +494,29 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   install(DIRECTORY include/dwarfs DESTINATION include)
 endif()
 
-set(CPACK_GENERATOR "TGZ;TBZ2;TXZ")
-set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
-set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
-set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
-set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${DWARFS_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-    "dwarfs - A high compression read-only file system")
-set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")
-set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-set(CPACK_SOURCE_IGNORE_FILES
-    "\\.git/"
-    "${CMAKE_SOURCE_DIR}/build.*"
-    "${CMAKE_SOURCE_DIR}/tmp/"
-    "${CMAKE_SOURCE_DIR}/@"
-    "\\.dwarfs$"
-    "/\\."
-    ".*~$")
-set(CPACK_VERBATIM_VARIABLES YES)
+if(NOT $PRJ_VERSION_FULL} STREQUAL "")
+  set(CPACK_GENERATOR "TGZ;TBZ2;TXZ")
+  set(CPACK_PACKAGE_VERSION_MAJOR "${PRJ_VERSION_MAJOR}")
+  set(CPACK_PACKAGE_VERSION_MINOR "${PRJ_VERSION_MINOR}")
+  set(CPACK_PACKAGE_VERSION_PATCH "${PRJ_VERSION_PATCH}")
+  set(CPACK_SOURCE_PACKAGE_FILE_NAME
+      "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}")
+  set(CPACK_PACKAGE_FILE_NAME
+      "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}")
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+      "dwarfs - A high compression read-only file system")
+  set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")
+  set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+  set(CPACK_SOURCE_IGNORE_FILES
+      "\\.git/"
+      "${CMAKE_SOURCE_DIR}/build.*"
+      "${CMAKE_SOURCE_DIR}/tmp/"
+      "${CMAKE_SOURCE_DIR}/@"
+      "\\.dwarfs$"
+      "/\\."
+      ".*~$")
+  set(CPACK_VERBATIM_VARIABLES YES)
 
-include(CPack)
+  include(CPack)
+endif()

@@ -45,6 +45,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/util.h"
+#include "dwarfs/version.h"
 
 namespace dwarfs {
 
@@ -426,8 +427,8 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 }
 
 void usage(const char* progname) {
-  std::cerr << "dwarfs (" << DWARFS_VERSION << ", fuse version "
-            << FUSE_USE_VERSION << ") (c) Marcus Holland-Moritz\n\n"
+  std::cerr << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
+            << ")\n\n"
             << "usage: " << progname << " image mountpoint [options]\n\n"
             << "DWARFS options:\n"
             << "    -o cachesize=SIZE      set size of block cache (512M)\n"
@@ -656,8 +657,8 @@ int run_dwarfs(int argc, char* argv[]) {
 
   LOG_PROXY(debug_logger_policy, s_lgr);
 
-  LOG_INFO << "dwarfs (" << DWARFS_VERSION << ", fuse version "
-           << FUSE_USE_VERSION << ")";
+  LOG_INFO << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
+           << ")";
 
   metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
