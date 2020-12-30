@@ -77,4 +77,5 @@ class inode_hasher {
   const std::vector<size_t> window_;
   log_proxy<LoggerPolicy> log_;
 };
+
 } // namespace dwarfs
