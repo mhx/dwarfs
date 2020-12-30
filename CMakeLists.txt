@@ -25,6 +25,7 @@ option(WITH_PYTHON "build with Python scripting support" OFF)
 option(ENABLE_ASAN "enable address sanitizer" OFF)
 option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
+option(USE_JEMALLOC "build with jemalloc" ON)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
@@ -42,6 +43,8 @@ set(PROJECT_VERSION_PATCH "0")
 set(DWARFS_VERSION
     "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
 )
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 if(STATIC_BUILD_DO_NOT_USE)
   if(WITH_PYTHON)
@@ -100,7 +103,10 @@ endif()
 find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map
           DOC "dense_hash_map header" REQUIRED)
 find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
-find_library(JEMALLOC_LIBRARIES jemalloc DOC "jemalloc library" REQUIRED)
+
+if(USE_JEMALLOC)
+  find_package(Jemalloc REQUIRED)
+endif()
 
 set(ZSTD_INCLUDE_DIR
     ""
@@ -349,6 +355,10 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}
   ${SPARSEHASH_INCLUDE_DIR})
 
+if(USE_JEMALLOC)
+  list(APPEND INCLUDE_DIRS ${Jemalloc_INCLUDE_DIRS})
+endif()
+
 add_library(
   thrift_light
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
@@ -393,6 +403,7 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     PRIVATE DWARFS_VERSION=\"${DWARFS_VERSION}\"
             DWARFS_HAVE_LIBZSTD
             DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
+            $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
@@ -437,7 +448,9 @@ target_link_libraries(
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
-  target_link_libraries(${tgt} ${JEMALLOC_LIBRARIES})
+  if(USE_JEMALLOC)
+    target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
+  endif()
   if(TARGET folly_exception_tracer)
     target_link_libraries(
       ${tgt} -Wl,--whole-archive folly_exception_tracer_base
