@@ -126,8 +126,6 @@ class block_manager_ : public block_manager::impl {
     }
   }
 
-  ~block_manager_() noexcept override {}
-
   void add_inode(std::shared_ptr<inode> ino) override;
   void finish_blocks() override;
 
