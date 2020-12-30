@@ -82,7 +82,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   /**
    * Stop a worker group
    */
-  void stop() {
+  void stop() override {
     if (running_) {
       {
         std::lock_guard<std::mutex> lock(mx_);
@@ -100,7 +100,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   /**
    * Wait until all work has been done
    */
-  void wait() {
+  void wait() override {
     if (running_) {
       std::unique_lock<std::mutex> lock(mx_);
       wait_.wait(lock, [&] { return pending_ == 0; });
@@ -119,7 +119,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
    *
    * \param job             The job to add to the dispatcher.
    */
-  bool add_job(worker_group::job_t&& job) {
+  bool add_job(worker_group::job_t&& job) override {
     if (running_) {
       {
         std::unique_lock<std::mutex> lock(mx_);
@@ -146,7 +146,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
    *
    * \returns The number of queued jobs.
    */
-  size_t queue_size() const {
+  size_t queue_size() const override {
     std::lock_guard<std::mutex> lock(mx_);
     return jobs_.size();
   }
