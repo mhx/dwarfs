@@ -154,7 +154,7 @@ Most other options are concerned with compression tuning:
     the `mtime` field in order to save metadata space. If you want to save
     `atime` and `ctime` as well, use this option.
 
-  * `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*]]|`script`:
+  * `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*[`:`*mindepth*]]]|`script`:
     The order in which inodes will be written to the file system. Choosing `none`,
     the inodes will be stored in the order in which they are discovered. With
     `path`, they will be sorted asciibetically by path name of the first file
@@ -168,9 +168,15 @@ Most other options are concerned with compression tuning:
     enough for adding. A *limit* of 255 means "essentially identical", whereas
     a *limit* of 0 means "not similar at all". The *depth* determines up to
     how many inodes can be checked at most while searching for a similar one.
-    The default if you omit these values is a *limit* of 255 and a *depth*
-    of 20000. Last but not least, if scripting support is built into `mkdwarfs`,
-    you can choose `script` to let the script determine the order.
+    To avoid nilsimsa ordering to become a bottleneck when ordering lots of
+    small files, the *depth* is adjusted dynamically to keep the input queue
+    to the segmentation/compression stages adequately filled. You can specify
+    how much the *depth* can be adjusted by also specifying *mindepth*.
+    The default if you omit these values is a *limit* of 255, a *depth*
+    of 20000 and a *mindepth* of 1000. Note that if you want reproducible
+    results, you need to set *depth* and *mindepth* to the same value.
+    Last but not least, if scripting support is built into `mkdwarfs`, you can
+    choose `script` to let the script determine the order.
 
   * `--blockhash-window-sizes=`*value*[,*value*]...:
     Window sizes used for block hashing. These sizes, separated by commas,

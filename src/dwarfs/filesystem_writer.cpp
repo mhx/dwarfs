@@ -218,6 +218,7 @@ class filesystem_writer_ : public filesystem_writer::impl {
                                 folly::ByteRange data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
+  int queue_fill() const override { return static_cast<int>(wg_.queue_size()); }
 
  private:
   void write_section(section_type type, std::vector<uint8_t>&& data,

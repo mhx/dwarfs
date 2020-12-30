@@ -30,6 +30,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -171,6 +172,40 @@ class script_options : public options_interface {
 
 namespace {
 
+int parse_order_option(std::string const& ordname, std::string const& opt,
+                       int& value, std::string_view name,
+                       std::optional<int> min = std::nullopt,
+                       std::optional<int> max = std::nullopt) {
+  if (!opt.empty()) {
+    if (auto val = folly::tryTo<int>(opt)) {
+      auto tmp = *val;
+      if (min && max && (tmp < *min || tmp > *max)) {
+        std::cerr << "error: " << name << " (" << opt
+                  << ") out of range for order '" << ordname << "' (" << *min
+                  << ".." << *max << ")" << std::endl;
+        return 1;
+      }
+      if (min && tmp < *min) {
+        std::cerr << "error: " << name << " (" << opt
+                  << ") cannot be less than " << *min << " for order '"
+                  << ordname << "'" << std::endl;
+      }
+      if (max && tmp > *max) {
+        std::cerr << "error: " << name << " (" << opt
+                  << ") cannot be greater than " << *max << " for order '"
+                  << ordname << "'" << std::endl;
+      }
+      value = tmp;
+    } else {
+      std::cerr << "error: " << name << " (" << opt
+                << ") is not numeric for order '" << ordname << "'"
+                << std::endl;
+      return 1;
+    }
+  }
+  return 0;
+}
+
 size_t get_term_width() {
   struct ::winsize w;
   ::ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -281,7 +316,7 @@ constexpr std::array<level_defaults, 10> levels{{
     /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         "16,14,12", "nilsimsa"},
     /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, "16,14,12", "nilsimsa"},
     /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa"},
-    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa:255:50000"},
+    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa::50000"},
     // clang-format on
 }};
 
@@ -548,40 +583,31 @@ int mkdwarfs(int argc, char** argv) {
         return 1;
       }
 
-      if (order_opts.size() > 3) {
+      if (order_opts.size() > 4) {
         std::cerr << "error: too many options for inode order mode '"
                   << order_opts[0] << "'" << std::endl;
         return 1;
       }
 
-      if (auto val = folly::tryTo<int>(order_opts[1])) {
-        options.file_order.nilsimsa_limit = *val;
-        if (options.file_order.nilsimsa_limit < 0 ||
-            options.file_order.nilsimsa_limit > 255) {
-          std::cerr << "error: limit (" << order_opts[1]
-                    << ") out of range for order '" << order_opts[0]
-                    << "' (0..255)" << std::endl;
-          return 1;
-        }
-      } else {
-        std::cerr << "error: limit (" << order_opts[1]
-                  << ") is not numeric for order '" << order_opts[0] << "'"
-                  << std::endl;
+      auto ordname = order_opts[0];
+
+      if (parse_order_option(ordname, order_opts[1],
+                             options.file_order.nilsimsa_limit, "limit", 0,
+                             255)) {
         return 1;
       }
 
       if (order_opts.size() > 2) {
-        if (auto val = folly::tryTo<int>(order_opts[2])) {
-          options.file_order.nilsimsa_depth = *val;
-          if (options.file_order.nilsimsa_depth < 0) {
-            std::cerr << "error: depth (" << order_opts[2]
-                      << ") cannot be negative for order '" << order_opts[0]
-                      << "'" << std::endl;
-          }
-        } else {
-          std::cerr << "error: depth (" << order_opts[2]
-                    << ") is not numeric for order '" << order_opts[0] << "'"
-                    << std::endl;
+        if (parse_order_option(ordname, order_opts[2],
+                               options.file_order.nilsimsa_depth, "depth", 0)) {
+          return 1;
+        }
+      }
+
+      if (order_opts.size() > 3) {
+        if (parse_order_option(ordname, order_opts[3],
+                               options.file_order.nilsimsa_min_depth,
+                               "min depth", 0)) {
           return 1;
         }
       }

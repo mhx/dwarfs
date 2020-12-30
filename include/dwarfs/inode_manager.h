@@ -29,6 +29,7 @@ namespace dwarfs {
 
 class inode;
 class logger;
+class progress;
 class script;
 
 struct file_order_options;
@@ -36,8 +37,9 @@ struct file_order_options;
 class inode_manager {
  public:
   using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
+  using order_cb = std::function<int64_t(std::shared_ptr<inode> const&)>;
 
-  inode_manager(logger& lgr);
+  inode_manager(logger& lgr, progress& prog);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
 
@@ -45,7 +47,7 @@ class inode_manager {
 
   void order_inodes(std::shared_ptr<script> scr,
                     file_order_options const& file_order, uint32_t first_inode,
-                    inode_cb const& fn) {
+                    order_cb const& fn) {
     impl_->order_inodes(std::move(scr), file_order, first_inode, fn);
   }
 
@@ -59,7 +61,7 @@ class inode_manager {
     virtual size_t count() const = 0;
     virtual void order_inodes(std::shared_ptr<script> scr,
                               file_order_options const& file_order,
-                              uint32_t first_inode, inode_cb const& fn) = 0;
+                              uint32_t first_inode, order_cb const& fn) = 0;
     virtual void for_each_inode(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
   };

@@ -70,6 +70,9 @@ class progress {
   std::atomic<size_t> inodes_written{0};
   std::atomic<size_t> blocks_written{0};
   std::atomic<size_t> errors{0};
+  std::atomic<size_t> nilsimsa_depth{0};
+  std::atomic<size_t> blockify_queue{0};
+  std::atomic<size_t> compress_queue{0};
   std::atomic<uint64_t> original_size{0};
   std::atomic<uint64_t> hardlink_size{0};
   std::atomic<uint64_t> saved_by_deduplication{0};

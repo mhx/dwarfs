@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cstdlib>
 #include <cstring>
 #include <locale>
 #include <sstream>
@@ -44,6 +45,15 @@ namespace {
 char const* const asc_bar[8] = {"=", "=", "=", "=", "=", "=", "=", "="};
 char const* const uni_bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
 
+bool is_debug_progress() {
+  if (auto var = ::getenv("DWARFS_DEBUG_PROGRESS")) {
+    if (auto val = folly::tryTo<bool>(var)) {
+      return *val;
+    }
+  }
+  return false;
+}
+
 } // namespace
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
@@ -56,7 +66,8 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , width_(width)
     , mode_(mode)
     , color_(stream_is_fancy_terminal(os))
-    , with_context_(with_context) {
+    , with_context_(with_context)
+    , debug_progress_(is_debug_progress()) {
   os_.imbue(std::locale(os_.getloc(),
                         new boost::posix_time::time_facet("%H:%M:%S.%f")));
   if (threshold > level_type::INFO) {
@@ -176,7 +187,18 @@ void console_writer::update(const progress& p, bool last) {
           << p.files_found - p.duplicate_files << " inodes)" << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written" << newline;
+          << size_with_unit(p.compressed_size) << " written";
+
+      if (debug_progress_) {
+        oss << " [" << p.nilsimsa_depth << "/" << p.blockify_queue << "/"
+            << p.compress_queue << "]";
+      } else {
+        if (p.nilsimsa_depth > 0) {
+          oss << " [depth: " << p.nilsimsa_depth << "]";
+        }
+      }
+
+      oss << newline;
       break;
 
     case REWRITE:

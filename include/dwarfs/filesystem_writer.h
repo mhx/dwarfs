@@ -87,6 +87,8 @@ class filesystem_writer {
 
   size_t size() const { return impl_->size(); }
 
+  int queue_fill() const { return impl_->queue_fill(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -99,6 +101,7 @@ class filesystem_writer {
                              folly::ByteRange data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
+    virtual int queue_fill() const = 0;
   };
 
  private:

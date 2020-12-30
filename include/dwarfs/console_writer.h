@@ -61,5 +61,6 @@ class console_writer : public logger {
   display_mode const mode_;
   bool const color_;
   bool const with_context_;
+  bool const debug_progress_;
 };
 } // namespace dwarfs
