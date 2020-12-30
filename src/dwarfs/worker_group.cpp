@@ -139,7 +139,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
    *
    * \returns The number of worker threads.
    */
-  size_t size() const { return workers_.size(); }
+  size_t size() const override { return workers_.size(); }
 
   /**
    * Return the number of queued jobs

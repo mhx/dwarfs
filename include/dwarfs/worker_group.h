@@ -67,6 +67,7 @@ class worker_group {
   void wait() { impl_->wait(); }
   bool running() const { return impl_->running(); }
   bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
+  size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
 
   class impl {
@@ -77,6 +78,7 @@ class worker_group {
     virtual void wait() = 0;
     virtual bool running() const = 0;
     virtual bool add_job(job_t&& job) = 0;
+    virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
   };
 
