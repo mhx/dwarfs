@@ -172,6 +172,7 @@ class block_manager_ : public block_manager::impl {
   std::vector<uint8_t> block_;
   std::vector<block_hashes_t> block_hashes_;
   hasher_type hasher_;
+  hash_map_type hm_;
   log_proxy<LoggerPolicy> log_;
   progress& prog_;
   std::map<size_t, bm_stats> stats_;
@@ -346,10 +347,10 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
       add_data(ino, mm->as<uint8_t>(), size);
     } else {
       const uint8_t* data = mm->as<uint8_t>();
-      hash_map_type hm;
 
-      hasher_(hm, data, size);
-      segment_and_add_data(hm, ino, data, size);
+      // XXX: hm_ is reused to avoid reallocations
+      hasher_(hm_, data, size);
+      segment_and_add_data(hm_, ino, data, size);
     }
   }
 }
