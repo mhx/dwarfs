@@ -1,6 +1,6 @@
 # Change Log
 
-## Version 0.3.0 - 2020-12-xx
+## Version 0.3.0 - 2020-12-30
 
 - [fix] File system images created with versions 0.2.2 and before
   did store symlinks incorrectly. While this was fixed in 0.2.3,
@@ -34,13 +34,16 @@
   better compression ratio while at the same time taking less time
   to build file system images. On the 48 GiB Perl dataset, for
   example, the compression improved from 555.7 MiB in 15m12s with
-  0.2.3 to 471.7 MiB in 14m15s with 0.3.0.
+  0.2.3 to 471.6 MiB in 13m59s with 0.3.0.
 
 - [perf] Replace the cyclic hash function with the one used by rsync.
   The rsync hash produces similar results, but it's faster.
 
 - [perf] `mkdwarfs` will now make use of hard link and inode data
   to avoid scanning the same inode multiple times.
+
+- [perf] Segmenting performance has been improved by re-using data
+  structures and thus avoiding extra memory allocations.
 
 - [feature] New file system image format adds integrity checking
   as well as features for easier recovery in case of corruption.
