@@ -112,7 +112,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   /**
    * Check whether the worker group is still running
    */
-  bool running() const { return running_; }
+  bool running() const override { return running_; }
 
   /**
    * Add a new job to the worker group
