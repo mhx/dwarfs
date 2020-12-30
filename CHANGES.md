@@ -45,6 +45,10 @@
 - [perf] Segmenting performance has been improved by re-using data
   structures and thus avoiding extra memory allocations.
 
+- [perf] All binaries now use `jemalloc` by default, which uses
+  significantly less memory than glibc or tcmalloc, especially
+  in the FUSE driver.
+
 - [feature] New file system image format adds integrity checking
   as well as features for easier recovery in case of corruption.
   While currently there is no way to recover a corrupt file system,
