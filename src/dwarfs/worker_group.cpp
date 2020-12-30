@@ -31,6 +31,7 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <folly/Conv.h>
 #include <folly/system/ThreadName.h>
@@ -46,7 +47,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
   basic_worker_group(const char* group_name, size_t num_workers,
-                     size_t max_queue_len, Args&&... args)
+                     size_t max_queue_len, int niceness, Args&&... args)
       : Policy(std::forward<Args>(args)...)
       , running_(true)
       , pending_(0)
@@ -61,6 +62,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
     for (size_t i = 0; i < num_workers; ++i) {
       workers_.emplace_back([=] {
         folly::setThreadName(folly::to<std::string>(group_name, i + 1));
+        ::nice(niceness);
         do_work();
       });
     }
@@ -309,13 +311,15 @@ void load_adaptive_policy::stop_task(uint64_t wall_ns, uint64_t cpu_ns) {
 }
 
 worker_group::worker_group(const char* group_name, size_t num_workers,
-                           size_t max_queue_len)
+                           size_t max_queue_len, int niceness)
     : impl_{std::make_unique<basic_worker_group<no_policy>>(
-          group_name, num_workers, max_queue_len)} {}
+          group_name, num_workers, max_queue_len, niceness)} {}
 
 worker_group::worker_group(load_adaptive_tag, const char* group_name,
-                           size_t max_num_workers, size_t max_queue_len)
+                           size_t max_num_workers, size_t max_queue_len,
+                           int niceness)
     : impl_{std::make_unique<basic_worker_group<load_adaptive_policy>>(
-          group_name, max_num_workers, max_queue_len, max_num_workers)} {}
+          group_name, max_num_workers, max_queue_len, niceness,
+          max_num_workers)} {}
 
 } // namespace dwarfs

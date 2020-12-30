@@ -50,7 +50,8 @@ class worker_group {
    * \param num_workers     Number of worker threads.
    */
   worker_group(const char* group_name = nullptr, size_t num_workers = 1,
-               size_t max_queue_len = std::numeric_limits<size_t>::max());
+               size_t max_queue_len = std::numeric_limits<size_t>::max(),
+               int niceness = 0);
 
   /**
    * Create a load adaptive worker group
@@ -59,7 +60,8 @@ class worker_group {
    */
   worker_group(load_adaptive_tag, const char* group_name = nullptr,
                size_t max_num_workers = 1,
-               size_t max_queue_len = std::numeric_limits<size_t>::max());
+               size_t max_queue_len = std::numeric_limits<size_t>::max(),
+               int niceness = 0);
 
   ~worker_group() = default;
 
