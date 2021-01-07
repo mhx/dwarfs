@@ -441,6 +441,10 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
+if(WITH_PYTHON)
+  target_link_libraries(dwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
+endif()
+
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
   if(USE_JEMALLOC)
@@ -452,16 +456,6 @@ foreach(tgt ${BINARY_TARGETS})
       folly_exception_tracer -Wl,--no-whole-archive)
   endif()
 endforeach()
-
-if(WITH_PYTHON)
-  target_link_libraries(mkdwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
-
-  if(WITH_TESTS)
-    foreach(tgt dwarfs_test dwarfs_compat_test)
-      target_link_libraries(${tgt} ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
-    endforeach()
-  endif()
-endif()
 
 if(STATIC_BUILD_DO_NOT_USE)
   # This is a proper mess, but it does work somehow...
