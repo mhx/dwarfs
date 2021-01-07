@@ -31,6 +31,9 @@
 
 #ifndef NDEBUG
 #include <folly/experimental/symbolizer/Symbolizer.h>
+#define DWARFS_SYMBOLIZE (FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF)
+#else
+#define DWARFS_SYMBOLIZE 0
 #endif
 
 #include <fmt/format.h>
@@ -93,11 +96,10 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
-#ifndef NDEBUG
+#if DWARFS_SYMBOLIZE
     folly::symbolizer::StringSymbolizePrinter printer(
         color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
 
-#if FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF
     if (threshold_ == TRACE) {
       using namespace folly::symbolizer;
       Symbolizer symbolizer(LocationInfoMode::FULL);
@@ -106,7 +108,6 @@ void stream_logger::write(level_type level, const std::string& output,
       symbolizer.symbolize(addresses);
       printer.println(addresses, 0);
     }
-#endif
 #endif
 
     char lchar = logger::level_char(level);
@@ -125,7 +126,7 @@ void stream_logger::write(level_type level, const std::string& output,
     os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
         << "\n";
 
-#ifndef NDEBUG
+#if DWARFS_SYMBOLIZE
     if (threshold_ == TRACE) {
       os_ << printer.str();
     }
