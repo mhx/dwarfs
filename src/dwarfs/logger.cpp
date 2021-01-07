@@ -97,6 +97,7 @@ void stream_logger::write(level_type level, const std::string& output,
     folly::symbolizer::StringSymbolizePrinter printer(
         color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
 
+#if FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF
     if (threshold_ == TRACE) {
       using namespace folly::symbolizer;
       Symbolizer symbolizer(LocationInfoMode::FULL);
@@ -105,6 +106,7 @@ void stream_logger::write(level_type level, const std::string& output,
       symbolizer.symbolize(addresses);
       printer.println(addresses, 0);
     }
+#endif
 #endif
 
     char lchar = logger::level_char(level);
