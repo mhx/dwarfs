@@ -31,7 +31,7 @@
 namespace dwarfs {
 
 namespace thrift::metadata {
-struct chunk;
+class chunk;
 }
 
 class file;
