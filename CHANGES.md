@@ -1,5 +1,15 @@
 # Change Log
 
+## Version 0.3.1 - 2021-01-07
+
+- [fix] Fix linking of Python libraries
+
+- [fix] Fix missing brace in version generator code
+
+- [fix] Ensure the code builds fine without libdwarf
+
+- [fix] Silence a warning and remove an unused definition
+
 ## Version 0.3.0 - 2020-12-30
 
 - [fix] File system images created with versions 0.2.2 and before
