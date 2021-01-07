@@ -396,8 +396,7 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
 
   target_compile_definitions(
     ${tgt}
-    PRIVATE DWARFS_VERSION=\"${DWARFS_VERSION}\"
-            DWARFS_HAVE_LIBZSTD
+    PRIVATE DWARFS_HAVE_LIBZSTD
             DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
