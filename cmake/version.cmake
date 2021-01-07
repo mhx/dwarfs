@@ -50,7 +50,7 @@ else()
 
   set(PRJ_GIT_ID ${PRJ_GIT_DESC})
   if(NOT PRJ_GIT_BRANCH STREQUAL "main")
-    set(PRJ_GIT_ID "${PRJ_GIT_ID} on branch ${PRJ_GIT_BRANCH")
+    set(PRJ_GIT_ID "${PRJ_GIT_ID} on branch ${PRJ_GIT_BRANCH}")
   endif()
 
   set(VERSION_SRC
