@@ -90,6 +90,7 @@ pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
 pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
+pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
 
 if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
@@ -221,8 +222,11 @@ add_library(dwarfs ${LIBDWARFS_SRC})
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
+add_executable(dwarfsextract src/dwarfsextract.cpp)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+
+target_link_libraries(dwarfsextract PkgConfig::LIBARCHIVE)
 
 if(FUSE3_FOUND)
   add_executable(dwarfs-bin src/dwarfs.cpp)
@@ -473,7 +477,7 @@ add_custom_target(
     googletest-* _CPack_Packages install_manifest.txt share)
 
 install(
-  TARGETS mkdwarfs dwarfsck dwarfsbench
+  TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
