@@ -83,6 +83,10 @@ class filesystem_v2 {
     impl_->walk(func);
   }
 
+  void walk(std::function<void(entry_view, directory_view)> const& func) const {
+    impl_->walk(func);
+  }
+
   std::optional<entry_view> find(const char* path) const {
     return impl_->find(path);
   }
@@ -141,6 +145,8 @@ class filesystem_v2 {
     virtual folly::dynamic metadata_as_dynamic() const = 0;
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;
     virtual void walk(std::function<void(entry_view)> const& func) const = 0;
+    virtual void
+    walk(std::function<void(entry_view, directory_view)> const& func) const = 0;
     virtual std::optional<entry_view> find(const char* path) const = 0;
     virtual std::optional<entry_view> find(int inode) const = 0;
     virtual std::optional<entry_view>

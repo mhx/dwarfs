@@ -179,6 +179,8 @@ class metadata_ : public metadata_v2::impl {
   bool empty() const override { return data_.empty(); }
 
   void walk(std::function<void(entry_view)> const& func) const override;
+  void walk(std::function<void(entry_view, directory_view)> const& func)
+      const override;
 
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
@@ -331,8 +333,21 @@ class metadata_ : public metadata_v2::impl {
     }
   }
 
-  void walk(entry_view entry, std::unordered_set<int>& seen,
-            std::function<void(entry_view)> const& func) const;
+  static void walk_call(std::function<void(entry_view)> const& func,
+                        entry_view entry, directory_view) {
+    func(entry);
+  }
+
+  static void
+  walk_call(std::function<void(entry_view, directory_view)> const& func,
+            entry_view entry, directory_view dir) {
+    func(entry, dir);
+  }
+
+  template <typename Signature>
+  void
+  walk(directory_view parent, entry_view entry, std::unordered_set<int>& seen,
+       std::function<Signature> const& func) const;
 
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -572,10 +587,11 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
 }
 
 template <typename LoggerPolicy>
-void metadata_<LoggerPolicy>::walk(
-    entry_view entry, std::unordered_set<int>& seen,
-    std::function<void(entry_view)> const& func) const {
-  func(entry);
+template <typename Signature>
+void metadata_<LoggerPolicy>::walk(directory_view parent, entry_view entry,
+                                   std::unordered_set<int>& seen,
+                                   std::function<Signature> const& func) const {
+  walk_call(func, entry, parent);
   if (S_ISDIR(entry.mode())) {
     auto inode = entry.inode();
     if (!seen.emplace(inode).second) {
@@ -583,7 +599,7 @@ void metadata_<LoggerPolicy>::walk(
     }
     auto dir = make_directory_view(entry);
     for (auto cur : dir.entry_range()) {
-      walk(make_entry_view(cur), seen, func);
+      walk(dir, make_entry_view(cur), seen, func);
     }
     seen.erase(inode);
   }
@@ -593,7 +609,14 @@ template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view)> const& func) const {
   std::unordered_set<int> seen;
-  walk(root_, seen, func);
+  walk(make_directory_view(root_), root_, seen, func);
+}
+
+template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::walk(
+    std::function<void(entry_view, directory_view)> const& func) const {
+  std::unordered_set<int> seen;
+  walk(make_directory_view(root_), root_, seen, func);
 }
 
 template <typename LoggerPolicy>
