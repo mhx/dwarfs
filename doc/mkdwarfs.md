@@ -285,4 +285,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-dwarfs(1)
+dwarfs(1), dwarfsextract(1)

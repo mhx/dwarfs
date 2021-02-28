@@ -271,7 +271,7 @@ if(WITH_TESTS)
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 endif()
 
-foreach(man dwarfs mkdwarfs)
+foreach(man dwarfs mkdwarfs dwarfsextract)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/man

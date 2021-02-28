@@ -201,4 +201,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1)
+mkdwarfs(1), dwarfsextract(1)

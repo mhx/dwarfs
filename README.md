@@ -138,6 +138,7 @@ A good starting point for apt-based systems is probably:
         fuse3 \
         pkg-config \
         binutils-dev \
+        libarchive-dev \
         libboost-context-dev \
         libboost-filesystem-dev \
         libboost-program-options-dev \
