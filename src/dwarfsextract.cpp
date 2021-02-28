@@ -150,10 +150,12 @@ int dwarfsextract(int argc, char** argv) {
     auto do_archive = [&](::archive_entry* ae, entry_view entry) {
       check_result(::archive_write_header(a, ae));
       if (auto size = ::archive_entry_size(ae); size > 0) {
-        std::vector<char> buf(size);
         int fh = fs.open(entry);
-        fs.read(fh, buf.data(), buf.size());
-        check_result(::archive_write_data(a, buf.data(), buf.size()));
+        iovec_read_buf irb;
+        fs.readv(fh, irb, size, 0);
+        for (auto const& iov : irb.buf) {
+          check_result(::archive_write_data(a, iov.iov_base, iov.iov_len));
+        }
       }
     };
 
