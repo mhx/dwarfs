@@ -65,4 +65,19 @@ uint32_t directory_view::parent_inode() const {
   return getdir().parent_inode();
 }
 
+directory_view::directory_view(uint32_t inode, Meta const* meta)
+    : entry_(meta->entries()[meta->entry_index()[inode]])
+    , meta_(meta) {}
+
+std::string directory_view::path() const {
+  std::string p;
+  if (auto ino = parent_inode(); ino != 0) {
+    p = directory_view(parent_inode(), meta_).path() + "/";
+  }
+  if (inode() != 0) {
+    p += meta_->names()[entry_.name_index()];
+  }
+  return p;
+}
+
 } // namespace dwarfs

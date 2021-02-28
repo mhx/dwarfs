@@ -77,10 +77,14 @@ class directory_view {
 
   boost::integer_range<uint32_t> entry_range() const;
 
+  std::string path() const;
+
  private:
   directory_view(EntryView ev, Meta const* meta)
       : entry_(ev)
       , meta_(meta) {}
+
+  directory_view(uint32_t inode, Meta const* meta);
 
   DirView getdir() const;
   DirView getdir(uint32_t ino) const;
