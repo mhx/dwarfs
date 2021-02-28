@@ -9,7 +9,7 @@ dwarfsextract(1) -- extract DwarFS image
 ## DESCRIPTION
 
 **dwarfsextract** allows you to extract a DwarFS image, either directly
-into another archive format file, or to a directory on disk.
+into another archive file, or to a directory on disk.
 
 To extract the filesystem image to a directory, you can use:
 
