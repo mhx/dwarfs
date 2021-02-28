@@ -78,6 +78,7 @@ class directory_view {
   boost::integer_range<uint32_t> entry_range() const;
 
   std::string path() const;
+  void append_path_to(std::string& s) const;
 
  private:
   directory_view(EntryView ev, Meta const* meta)

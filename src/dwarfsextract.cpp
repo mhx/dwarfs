@@ -171,7 +171,9 @@ int dwarfsextract(int argc, char** argv) {
         DWARFS_THROW(runtime_error, "getattr() failed");
       }
 
-      std::string path = parent.path();
+      std::string path;
+      path.reserve(256);
+      parent.append_path_to(path);
       if (!path.empty()) {
         path += '/';
       }

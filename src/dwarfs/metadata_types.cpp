@@ -71,13 +71,18 @@ directory_view::directory_view(uint32_t inode, Meta const* meta)
 
 std::string directory_view::path() const {
   std::string p;
+  append_path_to(p);
+  return p;
+}
+
+void directory_view::append_path_to(std::string& s) const {
   if (auto ino = parent_inode(); ino != 0) {
-    p = directory_view(parent_inode(), meta_).path() + "/";
+    directory_view(parent_inode(), meta_).append_path_to(s);
+    s += '/';
   }
   if (inode() != 0) {
-    p += meta_->names()[entry_.name_index()];
+    s += meta_->names()[entry_.name_index()];
   }
-  return p;
 }
 
 } // namespace dwarfs
