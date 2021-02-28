@@ -319,12 +319,15 @@ void basic_end_to_end_test(std::string const& compressor,
     EXPECT_EQ(st.st_gid, 0);
     EXPECT_TRUE(S_ISCHR(st.st_mode));
     EXPECT_EQ(st.st_rdev, 261);
-    EXPECT_EQ(st.st_atime,
-              set_time ? 4711 : keep_all_times ? 4000010001 : 4000020002);
-    EXPECT_EQ(st.st_mtime,
-              set_time ? 4711 : keep_all_times ? 4000020002 : 4000020002);
-    EXPECT_EQ(st.st_ctime,
-              set_time ? 4711 : keep_all_times ? 4000030003 : 4000020002);
+    EXPECT_EQ(st.st_atime, set_time         ? 4711
+                           : keep_all_times ? 4000010001
+                                            : 4000020002);
+    EXPECT_EQ(st.st_mtime, set_time         ? 4711
+                           : keep_all_times ? 4000020002
+                                            : 4000020002);
+    EXPECT_EQ(st.st_ctime, set_time         ? 4711
+                           : keep_all_times ? 4000030003
+                                            : 4000020002);
   } else {
     EXPECT_FALSE(entry);
   }
