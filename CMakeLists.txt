@@ -37,6 +37,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
       CACHE STRING "Build Type" FORCE)
 endif()
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    add_compile_options(-fdiagnostics-color=always)
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    add_compile_options(-fcolor-diagnostics)
+endif()
+
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
