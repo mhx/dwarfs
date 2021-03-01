@@ -48,7 +48,7 @@ class block_compressor {
   block_compressor(block_compressor&& bc) = default;
   block_compressor& operator=(block_compressor&& rhs) = default;
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data) const {
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data) const {
     return impl_->compress(data);
   }
 

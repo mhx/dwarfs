@@ -36,6 +36,7 @@
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/block_data.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -439,9 +440,10 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     // TODO: multi-thread this?
     if (s->type() == section_type::BLOCK) {
       if (opts.recompress_block) {
-        auto block = block_decompressor::decompress(
-            s->compression(), mm->as<uint8_t>(s->start()), s->length());
-        prog.filesystem_size += block.size();
+        auto block =
+            std::make_shared<block_data>(block_decompressor::decompress(
+                s->compression(), mm->as<uint8_t>(s->start()), s->length()));
+        prog.filesystem_size += block->size();
         writer.write_block(std::move(block));
       } else {
         writer.write_compressed_section(s->type(), s->compression(),
@@ -451,8 +453,9 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   }
 
   if (opts.recompress_metadata) {
-    writer.write_metadata_v2_schema(std::move(schema_raw));
-    writer.write_metadata_v2(std::move(meta_raw));
+    writer.write_metadata_v2_schema(
+        std::make_shared<block_data>(std::move(schema_raw)));
+    writer.write_metadata_v2(std::make_shared<block_data>(std::move(meta_raw)));
   } else {
     for (auto type : section_types) {
       auto& sec = DWARFS_NOTHROW(sections.at(type));

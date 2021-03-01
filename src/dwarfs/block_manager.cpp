@@ -32,6 +32,7 @@
 
 #include <sparsehash/dense_hash_map>
 
+#include "dwarfs/block_data.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -117,10 +118,11 @@ class block_manager_ : public block_manager::impl {
       , os_(os)
       , current_block_(0)
       , total_blocks_size_(0)
+      , block_{std::make_shared<block_data>()}
       , hasher_(lgr, blockhash_window_size_)
       , log_(lgr)
       , prog_(prog) {
-    block_.reserve(block_size_);
+    block_->vec().reserve(block_size_);
 
     for (auto size : blockhash_window_size_) {
       block_hashes_.emplace_back(size);
@@ -137,7 +139,7 @@ class block_manager_ : public block_manager::impl {
   }
 
  private:
-  size_t cur_offset() const { return block_.size(); }
+  size_t cur_offset() const { return block_->size(); }
 
   void block_ready();
   void update_hashes(const hash_map_type& hm, size_t offset, size_t size);
@@ -169,7 +171,7 @@ class block_manager_ : public block_manager::impl {
   std::shared_ptr<os_access> os_;
   size_t current_block_;
   size_t total_blocks_size_;
-  std::vector<uint8_t> block_;
+  std::shared_ptr<block_data> block_;
   std::vector<block_hashes_t> block_hashes_;
   hasher_type hasher_;
   hash_map_type hm_;
@@ -185,7 +187,7 @@ block_manager::config::config()
 
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::finish_blocks() {
-  if (!block_.empty()) {
+  if (!block_->empty()) {
     block_ready();
   }
 
@@ -206,10 +208,10 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
 
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::block_ready() {
-  std::vector<uint8_t> tmp;
+  auto tmp = std::make_shared<block_data>();
   block_.swap(tmp);
   fsw_.write_block(std::move(tmp));
-  block_.reserve(block_size_);
+  block_->vec().reserve(block_size_);
   for (auto& bh : block_hashes_) {
     bh.values.clear();
   }
@@ -277,7 +279,7 @@ void block_manager_<LoggerPolicy>::add_chunk(const std::shared_ptr<inode>& ino,
                                              const uint8_t* p, size_t offset,
                                              size_t size,
                                              const hash_map_type* hm) {
-  LOG_TRACE << "block " << current_block_ << " size: " << block_.size()
+  LOG_TRACE << "block " << current_block_ << " size: " << block_->size()
             << " of " << block_size_;
 
   if (hm) {
@@ -290,15 +292,15 @@ void block_manager_<LoggerPolicy>::add_chunk(const std::shared_ptr<inode>& ino,
             << ino->any()->name() << "] - block: " << current_block_
             << " offset: " << block_offset << ", size: " << size;
 
-  block_.resize(block_offset + size);
+  block_->vec().resize(block_offset + size);
 
-  ::memcpy(&block_[block_offset], p + offset, size);
+  ::memcpy(block_->data() + block_offset, p + offset, size);
 
   ino->add_chunk(current_block_, block_offset, size);
   prog_.chunk_count++;
   prog_.filesystem_size += size;
 
-  if (block_.size() == block_size_) {
+  if (block_->size() == block_size_) {
     block_ready();
   }
 }
@@ -344,6 +346,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
     if (blockhash_window_size_.empty() or
         size < blockhash_window_size_.front()) {
       // no point dealing with hashes, just write it out
+      // XXX: might be worth checking if the whole file has a match?
       add_data(ino, mm->as<uint8_t>(), size);
     } else {
       const uint8_t* data = mm->as<uint8_t>();
@@ -478,7 +481,7 @@ template <typename LoggerPolicy>
 bool block_manager_<LoggerPolicy>::get_match_window(
     const std::string& indent, match_window& win, size_t& block_offset,
     const uint8_t* data, const match_window& search_win) const {
-  const uint8_t* blockdata = &block_[0];
+  const uint8_t* blockdata = block_->data();
 
   LOG_TRACE << indent << "match(block_offset=" << block_offset << ", window=["
             << win.first << ", " << win.last << "], search_win=["
@@ -498,7 +501,7 @@ bool block_manager_<LoggerPolicy>::get_match_window(
 
   while (block_offset + win.size() < block_size_ and
          win.last < search_win.last and
-         block_offset + win.size() < block_.size() and
+         block_offset + win.size() < block_->size() and
          blockdata[block_offset + win.size()] == data[win.last]) {
     ++win.last;
   }

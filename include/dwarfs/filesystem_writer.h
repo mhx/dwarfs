@@ -26,7 +26,6 @@
 #include <memory>
 #include <ostream>
 #include <utility>
-#include <vector>
 
 #include <folly/Range.h>
 
@@ -36,6 +35,7 @@
 namespace dwarfs {
 
 class block_compressor;
+class block_data;
 class logger;
 class progress;
 class worker_group;
@@ -51,15 +51,15 @@ class filesystem_writer {
                     const block_compressor& schema_bc,
                     const block_compressor& metadata_bc, size_t max_queue_size);
 
-  void write_block(std::vector<uint8_t>&& data) {
+  void write_block(std::shared_ptr<block_data>&& data) {
     impl_->write_block(std::move(data));
   }
 
-  void write_metadata_v2_schema(std::vector<uint8_t>&& data) {
+  void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) {
     impl_->write_metadata_v2_schema(std::move(data));
   }
 
-  void write_metadata_v2(std::vector<uint8_t>&& data) {
+  void write_metadata_v2(std::shared_ptr<block_data>&& data) {
     impl_->write_metadata_v2(std::move(data));
   }
 
@@ -78,9 +78,10 @@ class filesystem_writer {
    public:
     virtual ~impl() = default;
 
-    virtual void write_block(std::vector<uint8_t>&& data) = 0;
-    virtual void write_metadata_v2_schema(std::vector<uint8_t>&& data) = 0;
-    virtual void write_metadata_v2(std::vector<uint8_t>&& data) = 0;
+    virtual void write_block(std::shared_ptr<block_data>&& data) = 0;
+    virtual void
+    write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
+    virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
     virtual void
     write_compressed_section(section_type type, compression_type compression,
                              folly::ByteRange data) = 0;

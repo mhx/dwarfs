@@ -39,6 +39,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/block_data.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_writer.h"
@@ -627,8 +628,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
-  fsw.write_metadata_v2_schema(std::move(schema));
-  fsw.write_metadata_v2(std::move(data));
+  fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
+  fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
 
   LOG_INFO << "waiting for compression to finish...";
 
