@@ -40,21 +40,6 @@ class logger;
 class progress;
 class worker_group;
 
-class section {
- public:
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    // TODO
-  };
-
-  section(std::unique_ptr<impl>&& i);
-
- private:
-  std::unique_ptr<impl> impl_;
-};
-
 class filesystem_writer {
  public:
   filesystem_writer(std::ostream& os, logger& lgr, worker_group& wg,
