@@ -90,6 +90,17 @@ boost::system::error_code mmap::release(off_t offset, size_t size) {
   return ec;
 }
 
+boost::system::error_code mmap::release_until(off_t offset) {
+  boost::system::error_code ec;
+
+  offset -= offset % page_size_;
+
+  if (::madvise(addr_, offset, MADV_DONTNEED) != 0) {
+    ec.assign(errno, boost::system::generic_category());
+  }
+  return ec;
+}
+
 void const* mmap::addr() const { return addr_; }
 
 size_t mmap::size() const { return size_; }

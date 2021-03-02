@@ -27,4 +27,5 @@
 namespace dwarfs {
 
 uint32_t get_similarity_hash(const uint8_t* data, size_t size);
+
 }

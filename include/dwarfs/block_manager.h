@@ -36,12 +36,12 @@ class progress;
 class block_manager {
  public:
   struct config {
-    config();
-
+    // TODO: remove vector and use single window size
     std::vector<size_t> blockhash_window_size;
-    unsigned window_increment_shift;
-    size_t memory_limit;
-    unsigned block_size_bits;
+    unsigned window_increment_shift{1};
+    size_t max_active_blocks{1};
+    size_t memory_limit{256 << 20};
+    unsigned block_size_bits{22};
   };
 
   block_manager(logger& lgr, progress& prog, const config& cfg,

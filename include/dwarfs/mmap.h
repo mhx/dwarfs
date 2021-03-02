@@ -40,6 +40,7 @@ class mmap : public mmif {
 
   boost::system::error_code lock(off_t offset, size_t size) override;
   boost::system::error_code release(off_t offset, size_t size) override;
+  boost::system::error_code release_until(off_t offset) override;
 
  private:
   int fd_;

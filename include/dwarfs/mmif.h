@@ -49,5 +49,6 @@ class mmif : public boost::noncopyable {
 
   virtual boost::system::error_code lock(off_t offset, size_t size) = 0;
   virtual boost::system::error_code release(off_t offset, size_t size) = 0;
+  virtual boost::system::error_code release_until(off_t offset) = 0;
 };
 } // namespace dwarfs

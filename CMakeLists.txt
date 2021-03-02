@@ -192,7 +192,7 @@ list(
   LIBDWARFS_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
-  src/dwarfs/block_manager.cpp
+  src/dwarfs/block_manager_v2.cpp
   src/dwarfs/checksum.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp

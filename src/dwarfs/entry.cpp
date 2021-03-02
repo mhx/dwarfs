@@ -166,10 +166,22 @@ void file::scan(os_access& os, progress& prog) {
   static_assert(checksum::digest_size(alg) == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
+    constexpr size_t chunk_size = 16 << 20;
     prog.original_size += s;
     auto mm = os.map_file(path(), s);
-    DWARFS_CHECK(checksum::compute(alg, mm->as<void>(), s, &data_->hash[0]),
-                 "checksum computation failed");
+    checksum cs(alg);
+    size_t offset = 0;
+
+    while (s >= chunk_size) {
+      cs.update(mm->as<void>(offset), chunk_size);
+      mm->release_until(offset);
+      offset += chunk_size;
+      s -= chunk_size;
+    }
+
+    cs.update(mm->as<void>(offset), s);
+
+    DWARFS_CHECK(cs.finalize(&data_->hash[0]), "checksum computation failed");
   } else {
     DWARFS_CHECK(checksum::compute(alg, nullptr, 0, &data_->hash[0]),
                  "checksum computation failed");

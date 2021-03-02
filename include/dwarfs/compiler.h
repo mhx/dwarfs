@@ -21,39 +21,10 @@
 
 #pragma once
 
-#include <cstdint>
-#include <stdexcept>
-
-namespace dwarfs {
-
-class rsync_hash {
- public:
-  rsync_hash() = default;
-
-  uint32_t operator()() const { return a_ | (uint32_t(b_) << 16); }
-
-  void update(int8_t inbyte) {
-    a_ += inbyte;
-    b_ += a_;
-    ++len_;
-  }
-
-  void update(int8_t outbyte, int8_t inbyte) {
-    a_ = a_ - outbyte + inbyte;
-    b_ -= len_ * outbyte;
-    b_ += a_;
-  }
-
-  void clear() {
-    a_ = 0;
-    b_ = 0;
-    len_ = 0;
-  }
-
- private:
-  uint16_t a_{0};
-  uint16_t b_{0};
-  int32_t len_{0};
-};
-
-} // namespace dwarfs
+#if defined(__GNUC__)
+#define DWARFS_LIKELY(x) __builtin_expect((x), 1)
+#define DWARFS_UNLIKELY(x) __builtin_expect((x), 0)
+#else
+#define DWARFS_LIKELY(x) (x)
+#define DWARFS_UNLIKELY(x) (x)
+#endif

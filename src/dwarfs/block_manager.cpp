@@ -180,11 +180,6 @@ class block_manager_ : public block_manager::impl {
   std::map<size_t, bm_stats> stats_;
 };
 
-block_manager::config::config()
-    : window_increment_shift(1)
-    , memory_limit(256 << 20)
-    , block_size_bits(22) {}
-
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::finish_blocks() {
   if (!block_->empty()) {
