@@ -43,29 +43,54 @@ namespace dwarfs {
  * be similar across similar files, the return value composed of the
  * indices of the 4 most common buckets.
  */
-uint32_t get_similarity_hash(const uint8_t* data, size_t size) {
-  constexpr size_t hist_bits = 8;
-  std::array<std::pair<uint32_t, uint32_t>, 1 << hist_bits> vec;
-  for (size_t i = 0; i < vec.size(); ++i) {
-    vec[i].first = 0;
-    vec[i].second = i;
-  }
-  uint32_t val = 0;
-  constexpr uint32_t mask = (1 << hist_bits) - 1;
-  for (size_t off = 0; off < size; ++off) {
-    val = (val << 8) | data[off];
-    if (off >= 3) {
-      auto hv = folly::hash::jenkins_rev_mix32(val);
-      ++vec[hv & mask].first;
+
+class similarity::impl {
+  static constexpr size_t hist_bits = 8;
+  static constexpr uint32_t mask = (1 << hist_bits) - 1;
+
+ public:
+  impl() {
+    for (size_t i = 0; i < vec_.size(); ++i) {
+      vec_[i].first = 0;
+      vec_[i].second = i;
     }
   }
-  std::partial_sort(vec.begin(), vec.begin() + 4, vec.end(),
-                    [](const auto& a, const auto& b) {
-                      return a.first > b.first ||
-                             (a.first == b.first && a.second < b.second);
-                    });
-  return (vec[0].second << 24) | (vec[1].second << 16) | (vec[2].second << 8) |
-         (vec[3].second << 0);
+
+  void update(uint8_t const* data, size_t size) {
+    for (size_t off = 0; off < size; ++off) {
+      val_ = (val_ << 8) | data[off];
+      if (size_ + off >= 3) {
+        auto hv = folly::hash::jenkins_rev_mix32(val_);
+        ++vec_[hv & mask].first;
+      }
+    }
+    size_ += size;
+  }
+
+  uint32_t finalize() {
+    std::partial_sort(vec_.begin(), vec_.begin() + 4, vec_.end(),
+                      [](const auto& a, const auto& b) {
+                        return a.first > b.first ||
+                               (a.first == b.first && a.second < b.second);
+                      });
+    return (vec_[0].second << 24) | (vec_[1].second << 16) |
+           (vec_[2].second << 8) | (vec_[3].second << 0);
+  }
+
+ private:
+  std::array<std::pair<uint32_t, uint32_t>, 1 << hist_bits> vec_;
+  uint32_t val_{0};
+  size_t size_{0};
+};
+
+similarity::similarity()
+    : impl_{std::make_unique<impl>()} {}
+similarity::~similarity() = default;
+
+void similarity::update(uint8_t const* data, size_t size) {
+  impl_->update(data, size);
 }
+
+uint32_t similarity::finalize() const { return impl_->finalize(); }
 
 } // namespace dwarfs

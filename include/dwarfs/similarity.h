@@ -26,6 +26,18 @@
 
 namespace dwarfs {
 
-uint32_t get_similarity_hash(const uint8_t* data, size_t size);
+class similarity {
+ public:
+  similarity();
+  ~similarity();
 
-}
+  void update(uint8_t const* data, size_t size);
+  uint32_t finalize() const;
+
+ private:
+  class impl;
+
+  std::unique_ptr<impl> impl_;
+};
+
+} // namespace dwarfs

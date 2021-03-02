@@ -21,6 +21,7 @@
 
 #include <array>
 
+#include "dwarfs/compiler.h"
 #include "dwarfs/nilsimsa.h"
 
 namespace dwarfs {
@@ -67,54 +68,137 @@ __attribute__((__unused__)) int popcount(unsigned long long x) {
 
 } // namespace
 
-std::vector<uint64_t> nilsimsa_compute_hash(uint8_t const* data, size_t size) {
-  std::array<size_t, 256> acc;
-  acc.fill(0);
+class nilsimsa::impl {
+ public:
+  impl() { acc_.fill(0); }
 
-  for (size_t i = 0; i < size; ++i) {
-    if (i > 1) {
-      ++acc[tran3(data[i], data[i - 1], data[i - 2], 0)];
-
-      if (i > 2) {
-        ++acc[tran3(data[i], data[i - 1], data[i - 3], 1)];
-        ++acc[tran3(data[i], data[i - 2], data[i - 3], 2)];
-
-        if (i > 3) {
-          ++acc[tran3(data[i], data[i - 1], data[i - 4], 3)];
-          ++acc[tran3(data[i], data[i - 2], data[i - 4], 4)];
-          ++acc[tran3(data[i], data[i - 3], data[i - 4], 5)];
-          ++acc[tran3(data[i - 4], data[i - 1], data[i], 6)];
-          ++acc[tran3(data[i - 4], data[i - 3], data[i], 7)];
-        }
+  void update(uint8_t const* data, size_t size) {
+    if (DWARFS_UNLIKELY(size_ < 4)) {
+      size_t n = std::min(size, 4 - size_);
+      update_slow(data, n);
+      data += n;
+      size -= n;
+      if (size == 0) {
+        return;
       }
     }
+    update_fast(data, size);
   }
 
-  size_t total = 0;
+  std::vector<uint64_t> finalize() const {
+    size_t total = 0;
 
-  if (size == 3) {
-    total = 1;
-  } else if (size == 4) {
-    total = 4;
-  } else if (size > 4) {
-    total = 8 * size - 28;
-  }
-
-  size_t threshold = total / acc.size();
-
-  std::vector<uint64_t> hash;
-  hash.resize(4);
-
-  for (size_t i = 0; i < acc.size(); i++) {
-    if (acc[i] > threshold) {
-      hash[i >> 6] |= UINT64_C(1) << (i & 0x3F);
+    if (size_ == 3) {
+      total = 1;
+    } else if (size_ == 4) {
+      total = 4;
+    } else if (size_ > 4) {
+      total = 8 * size_ - 28;
     }
+
+    size_t threshold = total / acc_.size();
+
+    std::vector<uint64_t> hash;
+    hash.resize(4);
+
+    for (size_t i = 0; i < acc_.size(); i++) {
+      if (acc_[i] > threshold) {
+        hash[i >> 6] |= UINT64_C(1) << (i & 0x3F);
+      }
+    }
+
+    return hash;
   }
 
-  return hash;
+ private:
+  void update_slow(uint8_t const* data, size_t size) {
+    uint_fast8_t w1 = w_[0];
+    uint_fast8_t w2 = w_[1];
+    uint_fast8_t w3 = w_[2];
+    uint_fast8_t w4 = w_[3];
+
+    for (size_t i = 0; i < size; ++i) {
+      uint_fast8_t w0 = data[i];
+
+      if (size_ + i > 1) {
+        ++acc_[tran3(w0, w1, w2, 0)];
+
+        if (size_ + i > 2) {
+          ++acc_[tran3(w0, w1, w3, 1)];
+          ++acc_[tran3(w0, w2, w3, 2)];
+
+          if (size_ + i > 3) {
+            ++acc_[tran3(w0, w1, w4, 3)];
+            ++acc_[tran3(w0, w2, w4, 4)];
+            ++acc_[tran3(w0, w3, w4, 5)];
+            ++acc_[tran3(w4, w1, w0, 6)];
+            ++acc_[tran3(w4, w3, w0, 7)];
+          }
+        }
+      }
+
+      w4 = w3;
+      w3 = w2;
+      w2 = w1;
+      w1 = w0;
+    }
+
+    w_[0] = w1;
+    w_[1] = w2;
+    w_[2] = w3;
+    w_[3] = w4;
+
+    size_ += size;
+  }
+
+  void update_fast(uint8_t const* data, size_t size) {
+    uint_fast8_t w1 = w_[0];
+    uint_fast8_t w2 = w_[1];
+    uint_fast8_t w3 = w_[2];
+    uint_fast8_t w4 = w_[3];
+
+    for (size_t i = 0; i < size; ++i) {
+      uint_fast8_t w0 = data[i];
+
+      ++acc_[tran3(w0, w1, w2, 0)];
+      ++acc_[tran3(w0, w1, w3, 1)];
+      ++acc_[tran3(w0, w2, w3, 2)];
+      ++acc_[tran3(w0, w1, w4, 3)];
+      ++acc_[tran3(w0, w2, w4, 4)];
+      ++acc_[tran3(w0, w3, w4, 5)];
+      ++acc_[tran3(w4, w1, w0, 6)];
+      ++acc_[tran3(w4, w3, w0, 7)];
+
+      w4 = w3;
+      w3 = w2;
+      w2 = w1;
+      w1 = w0;
+    }
+
+    w_[0] = w1;
+    w_[1] = w2;
+    w_[2] = w3;
+    w_[3] = w4;
+
+    size_ += size;
+  }
+
+  std::array<size_t, 256> acc_;
+  std::array<uint_fast8_t, 4> w_;
+  size_t size_{0};
+};
+
+nilsimsa::nilsimsa()
+    : impl_{std::make_unique<impl>()} {}
+nilsimsa::~nilsimsa() = default;
+
+void nilsimsa::update(uint8_t const* data, size_t size) {
+  impl_->update(data, size);
 }
 
-int nilsimsa_similarity(uint64_t const* a, uint64_t const* b) {
+std::vector<uint64_t> nilsimsa::finalize() const { return impl_->finalize(); }
+
+int nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
   int bits = 0;
 
   for (int i = 0; i < 4; ++i) {

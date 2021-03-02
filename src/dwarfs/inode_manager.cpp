@@ -83,15 +83,38 @@ class inode_ : public inode {
       auto size = file->size();
 
       if (size > 0) {
+        similarity sc;
+        nilsimsa nc;
+
+        auto update_hashes = [&](uint8_t const* data, size_t size) {
+          if (opts.with_similarity) {
+            sc.update(data, size);
+          }
+
+          if (opts.with_nilsimsa) {
+            nc.update(data, size);
+          }
+        };
+
+        constexpr size_t chunk_size = 16 << 20;
         auto mm = os.map_file(file->path(), size);
-        auto data = mm->as<uint8_t>();
+        size_t offset = 0;
+
+        while (size >= chunk_size) {
+          update_hashes(mm->as<uint8_t>(offset), chunk_size);
+          mm->release_until(offset);
+          offset += chunk_size;
+          size -= chunk_size;
+        }
+
+        update_hashes(mm->as<uint8_t>(offset), size);
 
         if (opts.with_similarity) {
-          similarity_hash_ = get_similarity_hash(data, size);
+          similarity_hash_ = sc.finalize();
         }
 
         if (opts.with_nilsimsa) {
-          nilsimsa_similarity_hash_ = nilsimsa_compute_hash(data, size);
+          nilsimsa_similarity_hash_ = nc.finalize();
         }
       }
     }
@@ -377,7 +400,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
       int_fast32_t end = int(index.size()) > depth ? index.size() - depth : 0;
 
       for (int_fast32_t i = index.size() - 1; i >= end; --i) {
-        auto sim = dwarfs::nilsimsa_similarity(
+        auto sim = nilsimsa::similarity(
             ref_hash, inodes[index[i]]->nilsimsa_similarity_hash().data());
 
         if (sim > max_sim) {

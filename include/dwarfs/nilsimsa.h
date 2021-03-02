@@ -22,11 +22,25 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace dwarfs {
 
-std::vector<uint64_t> nilsimsa_compute_hash(uint8_t const* data, size_t size);
-int nilsimsa_similarity(uint64_t const* a, uint64_t const* b);
+class nilsimsa {
+ public:
+  nilsimsa();
+  ~nilsimsa();
+
+  void update(uint8_t const* data, size_t size);
+  std::vector<uint64_t> finalize() const;
+
+  static int similarity(uint64_t const* a, uint64_t const* b);
+
+ private:
+  class impl;
+
+  std::unique_ptr<impl> impl_;
+};
 
 } // namespace dwarfs
