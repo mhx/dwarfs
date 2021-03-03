@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 3.13.4)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
+option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
 option(ENABLE_ASAN "enable address sanitizer" OFF)
 option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
@@ -245,7 +246,7 @@ if(FUSE3_FOUND)
   list(APPEND BINARY_TARGETS dwarfs-bin)
 endif()
 
-if(FUSE_FOUND)
+if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   add_executable(dwarfs2-bin src/dwarfs.cpp)
   target_compile_definitions(dwarfs2-bin PRIVATE _FILE_OFFSET_BITS=64
                                                  FUSE_USE_VERSION=29)
