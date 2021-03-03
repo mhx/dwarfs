@@ -158,8 +158,7 @@ A good starting point for apt-based systems is probably:
         libelf-dev \
         libfmt-dev \
         libfuse3-dev \
-        libgoogle-glog-dev \
-        libsparsehash-dev
+        libgoogle-glog-dev
 
 You can pick either `clang` or `g++`, but at least recent `clang`
 versions will produce substantially faster code:

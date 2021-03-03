@@ -31,8 +31,7 @@
 
 #include <fmt/format.h>
 
-#include <sparsehash/dense_hash_map>
-
+#include <folly/container/F14Map.h>
 #include <folly/small_vector.h>
 #include <folly/stats/Histogram.h>
 
@@ -87,19 +86,16 @@ struct bm_stats {
   folly::Histogram<size_t> l2_collision_vec_size;
 };
 
-template <typename KeyT, typename ValT, KeyT EmptyKey = KeyT{},
-          size_t MaxCollInline = 2>
+template <typename KeyT, typename ValT, size_t MaxCollInline = 2>
 class fast_multimap {
  private:
   using collision_vector = folly::small_vector<ValT, MaxCollInline>;
-  using blockhash_t = google::dense_hash_map<KeyT, ValT>;
-  using collision_t = std::unordered_map<KeyT, collision_vector>;
+  using blockhash_t = folly::F14ValueMap<KeyT, ValT>;
+  using collision_t = folly::F14FastMap<KeyT, collision_vector>;
 
  public:
-  fast_multimap() { values_.set_empty_key(EmptyKey); }
-
   void insert(KeyT const& key, ValT const& val) {
-    if (key == EmptyKey or !values_.insert(std::make_pair(key, val)).second) {
+    if (!values_.insert(std::make_pair(key, val)).second) {
       collisions_[key].emplace_back(val);
     }
   }

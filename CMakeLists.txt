@@ -102,8 +102,6 @@ if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
 endif()
 
-find_path(SPARSEHASH_INCLUDE_DIR sparsehash/dense_hash_map
-          DOC "dense_hash_map header" REQUIRED)
 find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
 
 if(USE_JEMALLOC)
@@ -358,8 +356,7 @@ list(
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
   ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib
   ${CMAKE_CURRENT_SOURCE_DIR}/xxHash
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ${SPARSEHASH_INCLUDE_DIR})
+  ${CMAKE_CURRENT_BINARY_DIR})
 
 if(USE_JEMALLOC)
   list(APPEND INCLUDE_DIRS ${Jemalloc_INCLUDE_DIRS})

@@ -26,9 +26,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/python.hpp>
 
-#include <sparsehash/dense_hash_map>
-
 #include <fmt/format.h>
+
+#include <folly/container/F14Map.h>
 
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -396,8 +396,7 @@ void python_script::impl::order(inode_vector& iv) {
       td << "ordered files in script code";
     }
 
-    google::dense_hash_map<inode const*, size_t> priority(iv.size());
-    priority.set_empty_key(nullptr);
+    folly::F14FastMap<inode const*, size_t> priority(iv.size());
 
     auto td = LOG_TIMED_DEBUG;
     size_t index = 0;
