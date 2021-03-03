@@ -20,6 +20,8 @@ project(dwarfs)
 
 cmake_minimum_required(VERSION 3.13.4)
 
+include(CheckCXXSourceCompiles)
+
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
 option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
@@ -101,7 +103,20 @@ pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
 pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.4.5)
-pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.0)
+pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash)
+
+if(XXHASH_FOUND)
+  list(APPEND CMAKE_REQUIRED_LIBRARIES PkgConfig::XXHASH)
+  check_cxx_source_compiles(
+    "#include <xxhash.h>
+    #if XXH_VERSION_NUMBER < 800
+    #error XXH_VERSION_NUMBER < 800
+    #endif
+    int main() {
+      return 0;
+    }"
+    XXHASH_VERSION_OK)
+endif()
 
 if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
@@ -167,7 +182,10 @@ if(WITH_TESTS)
   include(GoogleTest)
 endif()
 
-if(NOT (XXHASH_FOUND AND PREFER_SYSTEM_XXHASH))
+if(NOT
+   (XXHASH_FOUND
+    AND XXHASH_VERSION_OK
+    AND PREFER_SYSTEM_XXHASH))
   add_library(xxhash xxHash/xxhash.c)
 
   target_compile_options(
@@ -369,7 +387,10 @@ if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib)
 endif()
 
-if(NOT (XXHASH_FOUND AND PREFER_SYSTEM_XXHASH))
+if(NOT
+   (XXHASH_FOUND
+    AND XXHASH_VERSION_OK
+    AND PREFER_SYSTEM_XXHASH))
   list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/xxHash)
 endif()
 
@@ -468,7 +489,9 @@ else()
   target_link_libraries(dwarfs libzstd_static)
 endif()
 
-if(XXHASH_FOUND AND PREFER_SYSTEM_XXHASH)
+if(XXHASH_FOUND
+   AND XXHASH_VERSION_OK
+   AND PREFER_SYSTEM_XXHASH)
   target_link_libraries(dwarfs PkgConfig::XXHASH)
 else()
   target_link_libraries(dwarfs xxhash)
