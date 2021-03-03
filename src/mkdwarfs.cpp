@@ -370,6 +370,16 @@ int mkdwarfs(int argc, char** argv) {
     ("max-scanner-workers,M",
         po::value<size_t>(&max_scanner_workers)->default_value(num_cpu),
         "max number of scanner worker threads")
+    ("max-lookback-blocks,B",
+        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
+        "how many blocks to scan for segments")
+    ("blockhash-window-size,W",
+        po::value<unsigned>(&cfg.blockhash_window_size),
+        "window sizes for block hashing")
+    ("window-increment-shift",
+        po::value<unsigned>(&cfg.window_increment_shift)
+            ->default_value(1),
+        "window increment (as right shift of size)")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
@@ -408,16 +418,6 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&script_arg),
         "Python script for customization")
 #endif
-    ("blockhash-window-size",
-        po::value<unsigned>(&cfg.blockhash_window_size),
-        "window sizes for block hashing")
-    ("window-increment-shift",
-        po::value<unsigned>(&cfg.window_increment_shift)
-            ->default_value(1),
-        "window increment (as right shift of size)")
-    ("max-lookback-blocks",
-        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
-        "how many blocks to scan for segments")
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
