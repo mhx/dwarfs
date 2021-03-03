@@ -25,7 +25,6 @@
 #include <climits>
 #include <cstring>
 #include <ostream>
-#include <unordered_set>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -38,6 +37,8 @@
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
+
+#include <folly/container/F14Set.h>
 
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
@@ -213,6 +214,9 @@ class metadata_ : public metadata_v2::impl {
   size_t block_size() const override { return meta_.block_size(); }
 
  private:
+  template <typename K>
+  using set_type = folly::F14ValueSet<K>;
+
   entry_view make_entry_view(size_t index) const {
     return entry_view(meta_.entries()[index], &meta_);
   }
@@ -345,9 +349,8 @@ class metadata_ : public metadata_v2::impl {
   }
 
   template <typename Signature>
-  void
-  walk(directory_view parent, entry_view entry, std::unordered_set<int>& seen,
-       std::function<Signature> const& func) const;
+  void walk(directory_view parent, entry_view entry, set_type<int>& seen,
+            std::function<Signature> const& func) const;
 
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -589,7 +592,7 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
 template <typename LoggerPolicy>
 template <typename Signature>
 void metadata_<LoggerPolicy>::walk(directory_view parent, entry_view entry,
-                                   std::unordered_set<int>& seen,
+                                   set_type<int>& seen,
                                    std::function<Signature> const& func) const {
   walk_call(func, entry, parent);
   if (S_ISDIR(entry.mode())) {
@@ -608,14 +611,14 @@ void metadata_<LoggerPolicy>::walk(directory_view parent, entry_view entry,
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view)> const& func) const {
-  std::unordered_set<int> seen;
+  set_type<int> seen;
   walk(make_directory_view(root_), root_, seen, func);
 }
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view, directory_view)> const& func) const {
-  std::unordered_set<int> seen;
+  set_type<int> seen;
   walk(make_directory_view(root_), root_, seen, func);
 }
 
