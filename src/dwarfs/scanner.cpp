@@ -570,19 +570,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   });
   prog.sync([&] { prog.current.store(nullptr); });
 
-  // TODO: check this, doesn't seem to come out right in debug output
-  //       seems to be out-of-line with block compression??
-  LOG_DEBUG << "compressed " << size_with_unit(bm.total_size()) << " in "
-            << bm.total_blocks() << " blocks to "
-            << size_with_unit(prog.compressed_size) << " (ratio="
-            << (bm.total_size() ? static_cast<double>(prog.compressed_size) /
-                                      bm.total_size()
-                                : 1.0)
-            << ")";
-
-  LOG_DEBUG << "saved by segmenting: "
-            << size_with_unit(prog.saved_by_segmentation);
-
   // this is actually needed
   root->set_name(std::string());
 

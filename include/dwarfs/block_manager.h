@@ -50,18 +50,12 @@ class block_manager {
 
   void finish_blocks() { impl_->finish_blocks(); }
 
-  size_t total_size() const { return impl_->total_size(); }
-
-  size_t total_blocks() const { return impl_->total_blocks(); }
-
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual void add_inode(std::shared_ptr<inode> ino) = 0;
     virtual void finish_blocks() = 0;
-    virtual size_t total_size() const = 0;
-    virtual size_t total_blocks() const = 0;
   };
 
  private:

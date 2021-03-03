@@ -33,6 +33,8 @@
 
 #include <sparsehash/dense_hash_map>
 
+#include <folly/stats/Histogram.h>
+
 #include "dwarfs/block_data.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/compiler.h"
@@ -72,6 +74,18 @@ namespace dwarfs {
  * configurable.
  */
 
+struct bm_stats {
+  bm_stats()
+      : l2_collision_vec_size(1, 0, 128) {}
+
+  size_t total_hashes{0};
+  size_t l2_collisions{0};
+  size_t total_matches{0};
+  size_t good_matches{0};
+  size_t bad_matches{0};
+  folly::Histogram<size_t> l2_collision_vec_size;
+};
+
 template <typename KeyT, typename ValT, KeyT EmptyKey = KeyT{},
           size_t MaxCollInline = 2>
 class fast_multimap {
@@ -105,6 +119,9 @@ class fast_multimap {
     values_.clear();
     collisions_.clear();
   }
+
+  blockhash_t const& values() const { return values_; };
+  collision_t const& collisions() const { return collisions_; };
 
  private:
   blockhash_t values_;
@@ -145,10 +162,21 @@ class active_block {
     offsets_.for_each_value(key, std::forward<F>(func));
   }
 
+  void finalize(bm_stats& stats) {
+    stats.total_hashes += offsets_.values().size();
+    for (auto& c : offsets_.collisions()) {
+      stats.total_hashes += c.second.size();
+      stats.l2_collisions += c.second.size() - 1;
+      stats.l2_collision_vec_size.addValue(c.second.size());
+    }
+  }
+
  private:
+  static constexpr size_t num_inline_offsets = 4;
+
   size_t num_, capacity_, window_size_, window_step_mask_;
   rsync_hash hasher_;
-  fast_multimap<hash_t, offset_t> offsets_;
+  fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   std::shared_ptr<block_data> data_;
 };
 
@@ -170,9 +198,6 @@ class block_manager_ : public block_manager::impl {
 
   void add_inode(std::shared_ptr<inode> ino) override;
   void finish_blocks() override;
-
-  size_t total_size() const override { return 0; }   // TODO
-  size_t total_blocks() const override { return 0; } // TODO
 
  private:
   struct chunk_state {
@@ -198,6 +223,8 @@ class block_manager_ : public block_manager::impl {
   size_t block_count_{0};
 
   chunk_state chunk_;
+
+  bm_stats stats_;
 
   // Active blocks are blocks that can still be referenced from new chunks.
   // Up to N blocks (configurable) can be active and are kept in this queue.
@@ -293,7 +320,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
               << "] - size: " << size;
 
     if (window_size_ == 0 or size < window_size_) {
-      // no point dealing with hashes, just write it out
+      // no point dealing with hashing, just write it out
       add_data(*ino, *mm, 0, size);
       finish_chunk(*ino);
     } else {
@@ -307,11 +334,36 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
   if (!blocks_.empty()) {
     block_ready();
   }
+
+  auto l1_collisions = stats_.l2_collision_vec_size.computeTotalCount();
+
+  LOG_INFO << "segmentation matches: good=" << stats_.good_matches
+           << ", bad=" << stats_.bad_matches
+           << ", total=" << stats_.total_matches;
+  LOG_INFO << "segmentation collisions: L1="
+           << fmt::format("{:.3f}%",
+                          100.0 * (l1_collisions + stats_.l2_collisions) /
+                              stats_.total_hashes)
+           << ", L2="
+           << fmt::format("{:.3f}%",
+                          100.0 * stats_.l2_collisions / stats_.total_hashes)
+           << " [" << stats_.total_hashes << " hashes]";
+
+  if (l1_collisions > 0) {
+    auto pct = [&](double p) {
+      return stats_.l2_collision_vec_size.getPercentileEstimate(p);
+    };
+    LOG_DEBUG << "collision vector size p50: " << pct(0.5)
+              << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
+              << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+  }
 }
 
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::block_ready() {
-  fsw_.write_block(blocks_.back().data());
+  auto& block = blocks_.back();
+  block.finalize(stats_);
+  fsw_.write_block(block.data());
   ++prog_.block_count;
 }
 
@@ -399,22 +451,26 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
     }
 
     if (!matches.empty()) {
-      // TODO: verify & extend matches, find longest match
-
       LOG_TRACE << "found " << matches.size() << " matches (hash=" << hasher()
                 << ", window size=" << window_size_ << ")";
 
       for (auto& m : matches) {
-        LOG_TRACE << "  @" << m.offset();
+        LOG_TRACE << "  block " << m.block_num() << " @ " << m.offset();
         m.verify_and_extend(p + offset - window_size_, window_size_,
                             p + written, p + size);
       }
+
+      stats_.total_matches += matches.size();
+      stats_.bad_matches +=
+          std::count_if(matches.begin(), matches.end(),
+                        [](auto const& m) { return m.size() == 0; });
 
       auto best = std::max_element(matches.begin(), matches.end());
       auto match_len = best->size();
 
       if (match_len > 0) {
-        LOG_DEBUG << "successful match of length " << match_len << " @ "
+        ++stats_.good_matches;
+        LOG_TRACE << "successful match of length " << match_len << " @ "
                   << best->offset();
 
         auto block_num = best->block_num();
