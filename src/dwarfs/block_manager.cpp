@@ -33,6 +33,7 @@
 
 #include <sparsehash/dense_hash_map>
 
+#include <folly/small_vector.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_data.h"
