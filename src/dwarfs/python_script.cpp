@@ -20,7 +20,6 @@
  */
 
 #include <chrono>
-#include <unordered_map>
 #include <unordered_set>
 
 #include <boost/algorithm/string.hpp>
