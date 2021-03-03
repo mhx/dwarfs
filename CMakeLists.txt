@@ -27,6 +27,8 @@ option(ENABLE_ASAN "enable address sanitizer" OFF)
 option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
 option(USE_JEMALLOC "build with jemalloc" ON)
+option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
+option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
@@ -98,6 +100,8 @@ pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
 pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
+pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.4.5)
+pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.0)
 
 if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
@@ -119,7 +123,9 @@ set(compiler_only
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
-add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
+if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
+  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
+endif()
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
@@ -161,30 +167,32 @@ if(WITH_TESTS)
   include(GoogleTest)
 endif()
 
-add_library(xxhash xxHash/xxhash.c)
+if(NOT (XXHASH_FOUND AND PREFER_SYSTEM_XXHASH))
+  add_library(xxhash xxHash/xxhash.c)
 
-target_compile_options(
-  xxhash
-  PRIVATE -Wall
-          -Wextra
-          -Wconversion
-          -Wcast-qual
-          -Wcast-align
-          -Wshadow
-          -Wstrict-aliasing=1
-          -Wswitch-enum
-          -Wdeclaration-after-statement
-          -Wstrict-prototypes
-          -Wundef
-          -Wpointer-arith
-          -Wformat-security
-          -Wvla
-          -Wformat=2
-          -Winit-self
-          -Wfloat-equal
-          -Wwrite-strings
-          -Wredundant-decls
-          -Wstrict-overflow=2)
+  target_compile_options(
+    xxhash
+    PRIVATE -Wall
+            -Wextra
+            -Wconversion
+            -Wcast-qual
+            -Wcast-align
+            -Wshadow
+            -Wstrict-aliasing=1
+            -Wswitch-enum
+            -Wdeclaration-after-statement
+            -Wstrict-prototypes
+            -Wundef
+            -Wpointer-arith
+            -Wformat-security
+            -Wvla
+            -Wformat=2
+            -Winit-self
+            -Wfloat-equal
+            -Wwrite-strings
+            -Wredundant-decls
+            -Wstrict-overflow=2)
+endif()
 
 list(
   APPEND
@@ -355,9 +363,15 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift
   ${CMAKE_CURRENT_SOURCE_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-  ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib
-  ${CMAKE_CURRENT_SOURCE_DIR}/xxHash
   ${CMAKE_CURRENT_BINARY_DIR})
+
+if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
+  list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib)
+endif()
+
+if(NOT (XXHASH_FOUND AND PREFER_SYSTEM_XXHASH))
+  list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/xxHash)
+endif()
 
 if(USE_JEMALLOC)
   list(APPEND INCLUDE_DIRS ${Jemalloc_INCLUDE_DIRS})
@@ -445,10 +459,20 @@ target_link_libraries(
   thrift_light
   folly
   ${Boost_LIBRARIES}
-  libzstd_static
-  xxhash
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
+
+if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
+  target_link_libraries(dwarfs PkgConfig::ZSTD)
+else()
+  target_link_libraries(dwarfs libzstd_static)
+endif()
+
+if(XXHASH_FOUND AND PREFER_SYSTEM_XXHASH)
+  target_link_libraries(dwarfs PkgConfig::XXHASH)
+else()
+  target_link_libraries(dwarfs xxhash)
+endif()
 
 if(WITH_PYTHON)
   target_link_libraries(dwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
