@@ -28,8 +28,7 @@
 namespace dwarfs {
 
 template <typename T, typename U>
-std::vector<T>
-global_entry_data::get_vector(std::unordered_map<T, U> const& map) const {
+std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
   using namespace folly::gen;
   std::vector<std::pair<T, U>> pairs(map.begin(), map.end());
   return from(pairs) | orderBy([](auto const& p) { return p.second; }) |
@@ -56,7 +55,7 @@ std::vector<std::string> global_entry_data::get_links() const {
   return get_vector(links_);
 }
 
-void global_entry_data::index(std::unordered_map<std::string, uint32_t>& map) {
+void global_entry_data::index(map_type<std::string, uint32_t>& map) {
   using namespace folly::gen;
   uint32_t ix = 0;
   from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };

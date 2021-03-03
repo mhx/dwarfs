@@ -29,13 +29,13 @@
 #include <mutex>
 #include <new>
 #include <thread>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <fmt/format.h>
 
 #include <folly/container/EvictingCacheMap.h>
+#include <folly/container/F14Map.h>
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fs_section.h"
@@ -534,12 +534,12 @@ class block_cache_ : public block_cache::impl {
 
   mutable std::mutex mx_;
   mutable lru_type cache_;
-  mutable std::unordered_map<size_t,
-                             std::deque<std::weak_ptr<block_request_set>>>
+  mutable folly::F14FastMap<size_t,
+                            std::deque<std::weak_ptr<block_request_set>>>
       active_;
 
   mutable std::mutex mx_dec_;
-  mutable std::unordered_map<size_t, std::weak_ptr<block_request_set>>
+  mutable folly::F14FastMap<size_t, std::weak_ptr<block_request_set>>
       decompressing_;
 
   mutable std::atomic<size_t> blocks_created_{0};

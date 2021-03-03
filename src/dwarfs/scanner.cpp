@@ -27,7 +27,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -36,6 +35,7 @@
 #include <boost/system/system_error.hpp>
 
 #include <folly/ExceptionString.h>
+#include <folly/container/F14Map.h>
 
 #include <fmt/format.h>
 
@@ -104,7 +104,7 @@ class scan_files_visitor : public visitor_base {
   worker_group& wg_;
   os_access& os_;
   progress& prog_;
-  std::unordered_map<uint64_t, file*> cache_;
+  folly::F14FastMap<uint64_t, file*> cache_;
 };
 
 class file_deduplication_visitor : public visitor_base {
@@ -146,7 +146,7 @@ class file_deduplication_visitor : public visitor_base {
   }
 
  private:
-  std::unordered_map<std::string_view, inode::files_vector, folly::Hash> hash_;
+  folly::F14FastMap<std::string_view, inode::files_vector> hash_;
 };
 
 class dir_set_inode_visitor : public visitor_base {

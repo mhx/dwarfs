@@ -24,8 +24,9 @@
 #include <cstdint>
 #include <limits>
 #include <string>
-#include <unordered_map>
 #include <vector>
+
+#include <folly/container/F14Map.h>
 
 namespace dwarfs {
 
@@ -76,13 +77,16 @@ class global_entry_data {
   uint64_t get_timestamp_base() const;
 
  private:
+  template <typename K, typename V>
+  using map_type = folly::F14FastMap<K, V>;
+
   template <typename T, typename U>
-  std::vector<T> get_vector(std::unordered_map<T, U> const& map) const;
+  std::vector<T> get_vector(map_type<T, U> const& map) const;
 
-  static void index(std::unordered_map<std::string, uint32_t>& map);
+  static void index(map_type<std::string, uint32_t>& map);
 
-  void add(uint16_t val, std::unordered_map<uint16_t, uint16_t>& map,
-           uint16_t& next_index) {
+  void
+  add(uint16_t val, map_type<uint16_t, uint16_t>& map, uint16_t& next_index) {
     if (map.emplace(val, next_index).second) {
       ++next_index;
     }
@@ -90,11 +94,11 @@ class global_entry_data {
 
   uint64_t get_time_offset(uint64_t time) const;
 
-  std::unordered_map<uint16_t, uint16_t> uids_;
-  std::unordered_map<uint16_t, uint16_t> gids_;
-  std::unordered_map<uint16_t, uint16_t> modes_;
-  std::unordered_map<std::string, uint32_t> names_;
-  std::unordered_map<std::string, uint32_t> links_;
+  map_type<uint16_t, uint16_t> uids_;
+  map_type<uint16_t, uint16_t> gids_;
+  map_type<uint16_t, uint16_t> modes_;
+  map_type<std::string, uint32_t> names_;
+  map_type<std::string, uint32_t> links_;
   uint16_t next_uid_index_{0};
   uint16_t next_gid_index_{0};
   uint16_t next_mode_index_{0};
