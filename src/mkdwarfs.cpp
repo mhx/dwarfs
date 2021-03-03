@@ -218,7 +218,7 @@ struct level_defaults {
   char const* data_compression;
   char const* schema_compression;
   char const* metadata_compression;
-  char const* window_sizes;
+  unsigned window_size;
   char const* order;
 };
 
@@ -308,16 +308,16 @@ struct level_defaults {
 
 constexpr std::array<level_defaults, 10> levels{{
     // clang-format off
-    /* 0 */ {20, "null",     "null"    , "null",         "-",        "none"},
-    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",         "-",        "path"},
-    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",         "-",        "path"},
-    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         "13",       "similarity"},
-    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         "13",       "similarity"},
-    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         "15,13",    "similarity"},
-    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         "16,14,12", "nilsimsa"},
-    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, "16,14,12", "nilsimsa"},
-    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa"},
-    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, "16,14,12", "nilsimsa::50000"},
+    /* 0 */ {20, "null",     "null"    , "null",          0, "none"},
+    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",          0, "path"},
+    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",          0, "path"},
+    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         12, "similarity"},
+    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         12, "similarity"},
+    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         12, "similarity"},
+    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         12, "nilsimsa"},
+    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, 12, "nilsimsa"},
+    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, 12, "nilsimsa"},
+    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, 12, "nilsimsa"},
     // clang-format on
 }};
 
@@ -329,7 +329,7 @@ int mkdwarfs(int argc, char** argv) {
   const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
 
   block_manager::config cfg;
-  std::string path, output, window_sizes, memory_limit, script_arg, compression,
+  std::string path, output, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts;
   size_t num_workers, max_scanner_workers;
@@ -408,13 +408,16 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&script_arg),
         "Python script for customization")
 #endif
-    ("blockhash-window-sizes",
-        po::value<std::string>(&window_sizes),
+    ("blockhash-window-size",
+        po::value<unsigned>(&cfg.blockhash_window_size),
         "window sizes for block hashing")
     ("window-increment-shift",
         po::value<unsigned>(&cfg.window_increment_shift)
             ->default_value(1),
         "window increment (as right shift of size)")
+    ("max-lookback-blocks",
+        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
+        "how many blocks to scan for segments")
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
@@ -459,36 +462,35 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
-    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_ws = 0, l_or = 0;
+    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, ::strlen(l.data_compression));
       l_sc = std::max(l_sc, ::strlen(l.schema_compression));
       l_mc = std::max(l_mc, ::strlen(l.metadata_compression));
-      l_ws = std::max(l_ws, ::strlen(l.window_sizes));
       l_or = std::max(l_or, ::strlen(l.order));
     }
 
-    std::string sep(22 + l_dc + l_sc + l_mc + l_ws + l_or, '-');
+    std::string sep(28 + l_dc + l_sc + l_mc + l_or, '-');
 
     std::cout << "mkdwarfs (" << PRJ_GIT_ID << ")\n\n" << opts << std::endl;
     std::cout << "Compression level defaults:\n"
               << "  " << sep << "\n"
-              << fmt::format("  Level  Block  {:{}s}  {:{}s}  Inode Order\n",
+              << fmt::format("  Level  Block  {:{}s}  {:s}  Inode\n",
                              "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
-                             "Window", l_ws)
-              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}  {:{}s}\n",
+                             "Window")
+              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}  {:6s}\n",
                              "Block Data", l_dc, "Schema", l_sc, "Metadata",
-                             l_mc, "Sizes", l_ws)
+                             l_mc, "Size    Order")
               << "  " << sep << std::endl;
 
     int level = 0;
     for (auto const& l : levels) {
       std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  "
-                               "{:{}s}  {:{}s}",
+                               "  {:2d}    {:{}s}",
                                level, l.block_size_bits, l.data_compression,
                                l_dc, l.schema_compression, l_sc,
-                               l.metadata_compression, l_mc, l.window_sizes,
-                               l_ws, l.order, l_or)
+                               l.metadata_compression, l_mc, l.window_size,
+                               l.order, l_or)
                 << std::endl;
       ++level;
     }
@@ -544,8 +546,8 @@ int mkdwarfs(int argc, char** argv) {
     metadata_compression = defaults.metadata_compression;
   }
 
-  if (!vm.count("blockhash-window-sizes")) {
-    window_sizes = defaults.window_sizes;
+  if (!vm.count("blockhash-window-size")) {
+    cfg.blockhash_window_size = defaults.window_size;
   }
 
   if (!vm.count("order")) {
@@ -619,24 +621,6 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
-
-  std::vector<std::string> wsv;
-
-  if (window_sizes != "-") {
-    boost::split(wsv, window_sizes, boost::is_any_of(","));
-
-    try {
-      std::transform(wsv.begin(), wsv.end(),
-                     std::back_inserter(cfg.blockhash_window_size),
-                     [](const std::string& x) {
-                       return static_cast<size_t>(1) << folly::to<unsigned>(x);
-                     });
-    } catch (folly::ConversionError const& e) {
-      std::cerr << "error: window size is not numeric (" << window_sizes << ")"
-                << std::endl;
-      return 1;
-    }
-  }
 
   worker_group wg_writer("writer", num_workers);
   worker_group wg_scanner(worker_group::load_adaptive, "scanner",

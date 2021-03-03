@@ -183,7 +183,7 @@ void basic_end_to_end_test(std::string const& compressor,
   block_manager::config cfg;
   scanner_options options;
 
-  cfg.blockhash_window_size.push_back(1 << 10);
+  cfg.blockhash_window_size = 10;
   cfg.block_size_bits = block_size_bits;
 
   options.file_order.mode = file_order;

@@ -162,9 +162,9 @@ class block_manager_ : public block_manager::impl {
       , cfg_{cfg}
       , os_{std::move(os)}
       , fsw_{fsw}
-      , window_size_{cfg.blockhash_window_size.empty()
-                         ? 0
-                         : cfg.blockhash_window_size.front()}
+      , window_size_{cfg.blockhash_window_size > 0
+                         ? static_cast<size_t>(1) << cfg.blockhash_window_size
+                         : 0}
       , window_step_{window_size_ >> cfg.window_increment_shift}
       , block_size_{static_cast<size_t>(1) << cfg.block_size_bits} {}
 
