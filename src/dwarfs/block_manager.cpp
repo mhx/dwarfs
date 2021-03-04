@@ -30,7 +30,8 @@
 
 #include <fmt/format.h>
 
-#include <folly/container/F14Map.h>
+#include <parallel_hashmap/phmap.h>
+
 #include <folly/small_vector.h>
 #include <folly/stats/Histogram.h>
 
@@ -89,8 +90,8 @@ template <typename KeyT, typename ValT, size_t MaxCollInline = 2>
 class fast_multimap {
  private:
   using collision_vector = folly::small_vector<ValT, MaxCollInline>;
-  using blockhash_t = folly::F14ValueMap<KeyT, ValT>;
-  using collision_t = folly::F14FastMap<KeyT, collision_vector>;
+  using blockhash_t = phmap::flat_hash_map<KeyT, ValT>;
+  using collision_t = phmap::flat_hash_map<KeyT, collision_vector>;
 
  public:
   void insert(KeyT const& key, ValT const& val) {

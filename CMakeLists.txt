@@ -433,8 +433,9 @@ add_dependencies(metadata_thrift thrift_light)
 
 foreach(tgt dwarfs ${BINARY_TARGETS})
   target_include_directories(
-    ${tgt} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS}
-                          ${INCLUDE_DIRS})
+    ${tgt} SYSTEM
+    PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
+            ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
 
   target_include_directories(${tgt} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
