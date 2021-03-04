@@ -95,16 +95,16 @@ class fast_multimap {
 
  public:
   void insert(KeyT const& key, ValT const& val) {
-    if (!values_.insert(std::make_pair(key, val)).second) {
+    if (DWARFS_UNLIKELY(!values_.insert(std::make_pair(key, val)).second)) {
       collisions_[key].emplace_back(val);
     }
   }
 
   template <typename F>
   void for_each_value(KeyT const& key, F&& func) const {
-    if (auto it = values_.find(key); it != values_.end()) {
+    if (auto it = values_.find(key); DWARFS_UNLIKELY(it != values_.end())) {
       func(it->second);
-      if (auto it2 = collisions_.find(key); it2 != collisions_.end()) {
+      if (auto it2 = collisions_.find(key); DWARFS_UNLIKELY(it2 != collisions_.end())) {
         for (auto const& val : it2->second) {
           func(val);
         }
@@ -268,11 +268,11 @@ void active_block::append(uint8_t const* p, size_t size) {
   ::memcpy(v.data() + offset, p, size);
 
   while (offset < v.size()) {
-    if (offset < window_size_) {
+    if (DWARFS_UNLIKELY(offset < window_size_)) {
       hasher_.update(v[offset++]);
     } else {
       hasher_.update(v[offset - window_size_], v[offset]);
-      if ((++offset & window_step_mask_) == 0) {
+      if (DWARFS_UNLIKELY((++offset & window_step_mask_) == 0)) {
         offsets_.insert(hasher_(), offset - window_size_);
       }
     }
@@ -383,7 +383,7 @@ void block_manager_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
 
   prog_.filesystem_size += size;
 
-  if (block.full()) {
+  if (DWARFS_UNLIKELY(block.full())) {
     mm.release_until(offset + size);
     finish_chunk(ino);
     block_ready();
@@ -447,7 +447,7 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
       });
     }
 
-    if (!matches.empty()) {
+    if (DWARFS_UNLIKELY(!matches.empty())) {
       LOG_TRACE << "found " << matches.size() << " matches (hash=" << hasher()
                 << ", window size=" << window_size_ << ")";
 
@@ -510,7 +510,7 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
     // no matches found, see if we can append data
     // we need to keep at least lookback_size bytes unwritten
 
-    if (offset == next_hash_offset) {
+    if (DWARFS_UNLIKELY(offset == next_hash_offset)) {
       auto num_to_write = offset - lookback_size - written;
       add_data(ino, mm, written, num_to_write);
       written += num_to_write;

@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "dwarfs/compiler.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/inode.h"
@@ -403,11 +404,11 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
         auto sim = nilsimsa::similarity(
             ref_hash, inodes[index[i]]->nilsimsa_similarity_hash().data());
 
-        if (sim > max_sim) {
+        if (DWARFS_UNLIKELY(sim > max_sim)) {
           max_sim = sim;
           max_sim_ix = i;
 
-          if (max_sim >= limit) {
+          if (DWARFS_UNLIKELY(max_sim >= limit)) {
             break;
           }
         }
