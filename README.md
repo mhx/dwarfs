@@ -780,9 +780,44 @@ match the DwarFS image size:
     $ ls -lh raspbian.tar.xz
     -rw-r--r-- 1 mhx users 247M Mar  4 21:40 raspbian.tar.xz
 
-In summary, DwarFS can even outperform an `xz` compressed tarball in
-terms of size. It's also significantly faster to build the file
-system than to build the tarball.
+DwarFS also comes with the [dwarfsextract](doc/dwarfsextract.md) tool
+that allows extraction of a filesystem image without the FUSE driver.
+So here's a comparison of the extraction speed:
+
+    $ time sudo tar xf raspbian.tar.xz -C out1
+    
+    real    0m12.846s
+    user    0m12.313s
+    sys     0m1.616s
+
+    $ time sudo dwarfsextract -i raspbian-9.dwarfs -o out2
+    
+    real    0m13.108s
+    user    0m11.793s
+    sys     0m1.399s
+
+Not much of a difference really.
+
+One nice feature of `dwarfsextract` is that it allows you to directly
+output data in an archive format, so you could create a tarball from
+your image without extracting the files to disk:
+
+    $ time dwarfsextract -i raspbian-9.dwarfs -f ustar | xz -9 -T0 >raspbian2.tar.xz
+    
+    real    1m28.961s
+    user    6m13.924s
+    sys     0m2.567s
+
+This has the interesting side-effect that the resulting tarball will
+likely be smaller than the one built straight from the directory:
+
+    $ ls -lh raspbian*.tar.xz
+    -rw-r--r-- 1 mhx users 247M Mar  4 21:40 raspbian.tar.xz
+    -rw-r--r-- 1 mhx users 240M Mar  4 23:52 raspbian2.tar.xz
+
+That's because `dwarfsextract` writes files in inode-order, and by
+default inodes are ordered by similarity for the best possible
+compression.
 
 ### With wimlib
 
