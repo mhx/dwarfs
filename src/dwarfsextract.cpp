@@ -19,9 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cstring>
 #include <exception>
+#include <vector>
 
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include <boost/program_options.hpp>
@@ -141,6 +144,22 @@ int dwarfsextract(int argc, char** argv) {
                  : nullptr));
     }
 
+    // TODO: This can surely be implemented more efficiently inside libdwarfs
+    //       using entry indices / inode numbers, which should reduce the
+    //       amount of memory needed by roughly a factor of 8.
+
+    std::vector<std::pair<entry_view, directory_view>> entries;
+
+    fs.walk([&](auto entry, auto parent) {
+      if (!S_ISDIR(entry.mode())) {
+        entries.emplace_back(entry, parent);
+      }
+    });
+
+    std::sort(entries.begin(), entries.end(), [](auto& a, auto& b) {
+      return a.first.inode() < b.first.inode();
+    });
+
     auto lr = ::archive_entry_linkresolver_new();
 
     ::archive_entry_linkresolver_set_strategy(lr, ::archive_format(a));
@@ -159,11 +178,7 @@ int dwarfsextract(int argc, char** argv) {
       }
     };
 
-    fs.walk([&](auto entry, auto parent) {
-      if (entry.inode() == 0) {
-        return;
-      }
-
+    for (auto& [entry, parent] : entries) {
       auto ae = ::archive_entry_new();
       struct ::stat stbuf;
 
@@ -206,7 +221,7 @@ int dwarfsextract(int argc, char** argv) {
         do_archive(spare, *ev);
         ::archive_entry_free(spare);
       }
-    });
+    }
 
     // As we're visiting *all* hardlinks, we should never see any deferred
     // entries.
