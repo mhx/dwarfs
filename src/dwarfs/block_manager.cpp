@@ -104,7 +104,8 @@ class fast_multimap {
   void for_each_value(KeyT const& key, F&& func) const {
     if (auto it = values_.find(key); DWARFS_UNLIKELY(it != values_.end())) {
       func(it->second);
-      if (auto it2 = collisions_.find(key); DWARFS_UNLIKELY(it2 != collisions_.end())) {
+      if (auto it2 = collisions_.find(key);
+          DWARFS_UNLIKELY(it2 != collisions_.end())) {
         for (auto const& val : it2->second) {
           func(val);
         }
