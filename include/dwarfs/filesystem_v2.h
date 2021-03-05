@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <iosfwd>
 #include <memory>
 #include <optional>
@@ -47,6 +48,7 @@ struct filesystem_options;
 struct rewrite_options;
 struct iovec_read_buf;
 
+class block_range;
 class filesystem_writer;
 class logger;
 class mmif;
@@ -146,6 +148,11 @@ class filesystem_v2 {
     return impl_->readv(inode, buf, size, offset);
   }
 
+  folly::Expected<std::vector<std::future<block_range>>, int>
+  readv(uint32_t inode, size_t size, off_t offset) const {
+    return impl_->readv(inode, size, offset);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -180,6 +187,8 @@ class filesystem_v2 {
     read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                           off_t offset) const = 0;
+    virtual folly::Expected<std::vector<std::future<block_range>>, int>
+    readv(uint32_t inode, size_t size, off_t offset) const = 0;
   };
 
  private:

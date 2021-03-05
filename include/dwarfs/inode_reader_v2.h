@@ -28,6 +28,8 @@
 
 #include <sys/types.h>
 
+#include <folly/Expected.h>
+
 #include "dwarfs/metadata_types.h"
 
 namespace dwarfs {
@@ -53,6 +55,11 @@ class inode_reader_v2 {
     return impl_->readv(buf, size, offset, chunks);
   }
 
+  folly::Expected<std::vector<std::future<block_range>>, int>
+  readv(size_t size, off_t offset, chunk_range chunks) const {
+    return impl_->readv(size, offset, chunks);
+  }
+
   void
   dump(std::ostream& os, const std::string& indent, chunk_range chunks) const {
     impl_->dump(os, indent, chunks);
@@ -66,6 +73,8 @@ class inode_reader_v2 {
     read(char* buf, size_t size, off_t offset, chunk_range chunks) const = 0;
     virtual ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
                           chunk_range chunks) const = 0;
+    virtual folly::Expected<std::vector<std::future<block_range>>, int>
+    readv(size_t size, off_t offset, chunk_range chunks) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
   };

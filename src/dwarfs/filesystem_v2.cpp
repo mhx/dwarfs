@@ -21,7 +21,6 @@
 
 #include <cstddef>
 #include <cstring>
-#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -209,6 +208,8 @@ class filesystem_ : public filesystem_v2::impl {
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                 off_t offset) const override;
+  folly::Expected<std::vector<std::future<block_range>>, int>
+  readv(uint32_t inode, size_t size, off_t offset) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -382,7 +383,7 @@ ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.read(buf, size, offset, *chunks);
   }
-  return -1;
+  return -EBADF;
 }
 
 template <typename LoggerPolicy>
@@ -391,7 +392,17 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.readv(buf, size, offset, *chunks);
   }
-  return -1;
+  return -EBADF;
+}
+
+template <typename LoggerPolicy>
+folly::Expected<std::vector<std::future<block_range>>, int>
+filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
+                                 off_t offset) const {
+  if (auto chunks = meta_.get_chunks(inode)) {
+    return ir_.readv(size, offset, *chunks);
+  }
+  return folly::makeUnexpected(-EBADF);
 }
 
 } // namespace

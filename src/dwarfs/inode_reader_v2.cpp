@@ -64,10 +64,15 @@ class inode_reader_ : public inode_reader_v2::impl {
   read(char* buf, size_t size, off_t offset, chunk_range chunks) const override;
   ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
                 chunk_range chunks) const override;
+  folly::Expected<std::vector<std::future<block_range>>, int>
+  readv(size_t size, off_t offset, chunk_range chunks) const override;
   void dump(std::ostream& os, const std::string& indent,
             chunk_range chunks) const override;
 
  private:
+  folly::Expected<std::vector<std::future<block_range>>, int>
+  read(size_t size, off_t offset, chunk_range chunks) const;
+
   template <typename StoreFunc>
   ssize_t read(size_t size, off_t offset, chunk_range chunks,
                const StoreFunc& store) const;
@@ -89,16 +94,18 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
 }
 
 template <typename LoggerPolicy>
-template <typename StoreFunc>
-ssize_t
-inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
-                                  const StoreFunc& store) const {
+folly::Expected<std::vector<std::future<block_range>>, int>
+inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
+                                   chunk_range chunks) const {
   if (offset < 0) {
-    return -EINVAL;
+    return folly::makeUnexpected(-EINVAL);
   }
 
+  // request ranges from block cache
+  std::vector<std::future<block_range>> ranges;
+
   if (size == 0 || chunks.empty()) {
-    return 0;
+    return ranges;
   }
 
   auto it = chunks.begin();
@@ -118,11 +125,8 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
 
   if (it == end) {
     // offset beyond EOF; TODO: check if this should rather be -EINVAL
-    return 0;
+    return ranges;
   }
-
-  // request ranges from block cache
-  std::vector<std::future<block_range>> ranges;
 
   for (size_t num_read = 0; it != end && num_read < size; ++it) {
     size_t chunksize = it->size() - offset;
@@ -130,7 +134,7 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
 
     if (chunksize == 0) {
       LOG_ERROR << "invalid zero-sized chunk";
-      return -EIO;
+      return folly::makeUnexpected(-EIO);
     }
 
     if (num_read + chunksize > size) {
@@ -143,10 +147,24 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
     offset = 0;
   }
 
+  return ranges;
+}
+
+template <typename LoggerPolicy>
+template <typename StoreFunc>
+ssize_t
+inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
+                                  const StoreFunc& store) const {
+  auto ranges = readv(size, offset, chunks);
+
+  if (!ranges) {
+    return ranges.error();
+  }
+
   try {
     // now fill the buffer
     size_t num_read = 0;
-    for (auto& r : ranges) {
+    for (auto& r : ranges.value()) {
       auto br = r.get();
       store(num_read, br);
       num_read += br.size();
