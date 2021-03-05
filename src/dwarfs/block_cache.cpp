@@ -75,8 +75,6 @@ class cached_block {
 
   const uint8_t* data() const { return data_.data(); }
 
-  size_t size() const { return data_.size(); }
-
   void decompress_until(size_t end) {
     while (data_.size() < end) {
       if (!decompressor_) {
@@ -575,10 +573,10 @@ block_range::block_range(std::shared_ptr<cached_block const> block,
   if (!block_->data()) {
     DWARFS_THROW(runtime_error, "block_range: block data is null");
   }
-  if (size > block_->size()) {
+  if (size > block_->range_end()) {
     DWARFS_THROW(runtime_error,
                  fmt::format("block_range: size out of range ({0} > {1})", size,
-                             block_->size()));
+                             block_->range_end()));
   }
 }
 
