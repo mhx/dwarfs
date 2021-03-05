@@ -797,7 +797,8 @@ So here's a comparison of the extraction speed:
     sys     0m1.382s
 
 So `dwarfsextract` is almost 4 times faster thanks to using multiple
-worker threads for decompression.
+worker threads for decompression. It's writing about 300 MiB/s in this
+example.
 
 Another nice feature of `dwarfsextract` is that it allows you to directly
 output data in an archive format, so you could create a tarball from
