@@ -54,7 +54,7 @@ using namespace dwarfs;
 
 namespace {
 
-class semaphore {
+class cache_semaphore {
  public:
   void post(int64_t n) {
     {
@@ -183,7 +183,7 @@ int dwarfsextract(int argc, char** argv) {
     ::archive_entry* spare = nullptr;
 
     worker_group archiver("archiver", 1);
-    semaphore sem;
+    cache_semaphore sem;
 
     {
       struct ::statvfs buf;
