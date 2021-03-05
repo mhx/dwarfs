@@ -373,13 +373,13 @@ int mkdwarfs(int argc, char** argv) {
     ("max-lookback-blocks,B",
         po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
         "how many blocks to scan for segments")
-    ("blockhash-window-size,W",
+    ("window-size,W",
         po::value<unsigned>(&cfg.blockhash_window_size),
         "window sizes for block hashing")
-    ("window-increment-shift",
+    ("window-step",
         po::value<unsigned>(&cfg.window_increment_shift)
             ->default_value(1),
-        "window increment (as right shift of size)")
+        "window step (as right shift of size)")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
