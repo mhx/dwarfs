@@ -792,9 +792,9 @@ So here's a comparison of the extraction speed:
 
     $ time sudo dwarfsextract -i raspbian-9.dwarfs -o out2
     
-    real    0m13.108s
-    user    0m11.793s
-    sys     0m1.399s
+    real    0m12.986s
+    user    0m11.711s
+    sys     0m1.350s
 
 Not much of a difference really.
 
