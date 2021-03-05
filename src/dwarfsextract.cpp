@@ -56,26 +56,29 @@ namespace {
 
 class semaphore {
  public:
-  void post(uint64_t n = 1) {
+  void post(int64_t n) {
     {
       std::lock_guard lock(mx_);
-      count_ += n;
+      size_ += n;
+      ++count_;
     }
     condition_.notify_one();
   }
 
-  void wait(uint64_t n = 1) {
+  void wait(int64_t n) {
     std::unique_lock lock(mx_);
-    while (count_ < n) {
+    while (size_ < n && count_ <= 0) {
       condition_.wait(lock);
     }
-    count_ -= n;
+    size_ -= n;
+    --count_;
   }
 
  private:
   std::mutex mx_;
   std::condition_variable condition_;
-  uint64_t count_{0};
+  int64_t count_{0};
+  int64_t size_{0};
 };
 
 int dwarfsextract(int argc, char** argv) {
@@ -98,7 +101,7 @@ int dwarfsextract(int argc, char** argv) {
         po::value<size_t>(&num_workers)->default_value(4),
         "number of worker threads")
     ("cache-size,s",
-        po::value<std::string>(&cache_size_str)->default_value("256m"),
+        po::value<std::string>(&cache_size_str)->default_value("512m"),
         "block cache size")
     ("log-level,l",
         po::value<std::string>(&log_level)->default_value("warn"),
@@ -181,7 +184,14 @@ int dwarfsextract(int argc, char** argv) {
 
     worker_group archiver("archiver", 1);
     semaphore sem;
-    sem.post(fsopts.block_cache.max_bytes);
+
+    {
+      struct ::statvfs buf;
+      fs.statvfs(&buf);
+      sem.post(fsopts.block_cache.max_bytes > buf.f_bsize
+                   ? fsopts.block_cache.max_bytes - buf.f_bsize
+                   : 0);
+    }
 
     auto do_archive = [&](::archive_entry* ae, entry_view entry) {
       if (auto size = ::archive_entry_size(ae);
