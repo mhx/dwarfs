@@ -268,13 +268,15 @@ void active_block::append(uint8_t const* p, size_t size) {
   v.resize(offset + size);
   ::memcpy(v.data() + offset, p, size);
 
-  while (offset < v.size()) {
-    if (DWARFS_UNLIKELY(offset < window_size_)) {
-      hasher_.update(v[offset++]);
-    } else {
-      hasher_.update(v[offset - window_size_], v[offset]);
-      if (DWARFS_UNLIKELY((++offset & window_step_mask_) == 0)) {
-        offsets_.insert(hasher_(), offset - window_size_);
+  if (window_size_ > 0) {
+    while (offset < v.size()) {
+      if (DWARFS_UNLIKELY(offset < window_size_)) {
+        hasher_.update(v[offset++]);
+      } else {
+        hasher_.update(v[offset - window_size_], v[offset]);
+        if (DWARFS_UNLIKELY((++offset & window_step_mask_) == 0)) {
+          offsets_.insert(hasher_(), offset - window_size_);
+        }
       }
     }
   }
@@ -317,7 +319,8 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
     LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
               << "] - size: " << size;
 
-    if (window_size_ == 0 or size < window_size_) {
+    if (cfg_.max_active_blocks == 0 or window_size_ == 0 or
+        size < window_size_) {
       // no point dealing with hashing, just write it out
       add_data(*ino, *mm, 0, size);
       finish_chunk(*ino);
@@ -373,7 +376,8 @@ void block_manager_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
       blocks_.pop_front();
     }
 
-    blocks_.emplace_back(block_count_++, block_size_, window_size_,
+    blocks_.emplace_back(block_count_++, block_size_,
+                         cfg_.max_active_blocks > 0 ? window_size_ : 0,
                          window_step_);
   }
 
