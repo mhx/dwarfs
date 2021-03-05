@@ -46,7 +46,7 @@ class progress {
 
   template <typename T>
   void sync(T&& func) {
-    std::unique_lock<std::mutex> lock(mx_);
+    std::unique_lock lock(mx_);
     func();
   }
 

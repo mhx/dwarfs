@@ -122,7 +122,7 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
     os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
         << "\n";
 

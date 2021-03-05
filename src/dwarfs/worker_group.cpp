@@ -87,7 +87,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   void stop() override {
     if (running_) {
       {
-        std::lock_guard<std::mutex> lock(mx_);
+        std::lock_guard lock(mx_);
         running_ = false;
       }
 
@@ -104,7 +104,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
    */
   void wait() override {
     if (running_) {
-      std::unique_lock<std::mutex> lock(mx_);
+      std::unique_lock lock(mx_);
       wait_.wait(lock, [&] { return pending_ == 0; });
     }
   }
@@ -124,7 +124,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   bool add_job(worker_group::job_t&& job) override {
     if (running_) {
       {
-        std::unique_lock<std::mutex> lock(mx_);
+        std::unique_lock lock(mx_);
         queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
         jobs_.emplace(std::move(job));
         ++pending_;
@@ -149,7 +149,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
    * \returns The number of queued jobs.
    */
   size_t queue_size() const override {
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
     return jobs_.size();
   }
 
@@ -161,7 +161,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
       worker_group::job_t job;
 
       {
-        std::unique_lock<std::mutex> lock(mx_);
+        std::unique_lock lock(mx_);
 
         while (jobs_.empty() && running_) {
           cond_.wait(lock);
@@ -186,7 +186,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
       }
 
       {
-        std::lock_guard<std::mutex> lock(mx_);
+        std::lock_guard lock(mx_);
         pending_--;
       }
 
@@ -276,7 +276,7 @@ void load_adaptive_policy::stop_task(uint64_t wall_ns, uint64_t cpu_ns) {
   int adjust = 0;
 
   {
-    std::unique_lock<std::mutex> lock(mx_);
+    std::unique_lock lock(mx_);
 
     wall_ns_ += wall_ns;
     cpu_ns_ += cpu_ns;

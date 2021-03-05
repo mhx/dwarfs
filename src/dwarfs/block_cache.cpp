@@ -273,7 +273,7 @@ class block_cache_ : public block_cache::impl {
       max_blocks = block_.size();
     }
 
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
     cache_.~lru_type();
     new (&cache_) lru_type(max_blocks);
     cache_.setPruneHook(
@@ -295,7 +295,7 @@ class block_cache_ : public block_cache::impl {
     auto future = promise.get_future();
 
     // That is a mighty long lock, let's see how it works...
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
 
     const auto range_end = offset + size;
 
@@ -454,12 +454,12 @@ class block_cache_ : public block_cache::impl {
 
     // Check if another worker is already processing this block
     {
-      std::lock_guard<std::mutex> lock(mx_dec_);
+      std::lock_guard lock(mx_dec_);
 
       auto di = decompressing_.find(block_no);
 
       if (di != decompressing_.end()) {
-        std::lock_guard<std::mutex> lock(mx_);
+        std::lock_guard lock(mx_);
 
         if (auto other = di->second.lock()) {
           LOG_TRACE << "merging sets for block " << block_no;
@@ -481,7 +481,7 @@ class block_cache_ : public block_cache::impl {
 
       // Fetch the next request, if any
       {
-        std::lock_guard<std::mutex> lock(mx_);
+        std::lock_guard lock(mx_);
 
         if (brs->empty()) {
           // This is absolutely crucial! At this point, we can no longer
@@ -524,7 +524,7 @@ class block_cache_ : public block_cache::impl {
     // in there, in which case we just promote it to the front of
     // the LRU queue.
     {
-      std::lock_guard<std::mutex> lock(mx_);
+      std::lock_guard lock(mx_);
       cache_.set(block_no, std::move(block));
     }
   }

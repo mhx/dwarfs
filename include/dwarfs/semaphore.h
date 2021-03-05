@@ -32,13 +32,13 @@ class semaphore {
       : count_{count} {}
 
   void release() {
-    std::unique_lock<std::mutex> lock(mx_);
+    std::unique_lock lock(mx_);
     ++count_;
     cv_.notify_one();
   }
 
   void acquire() {
-    std::unique_lock<std::mutex> lock(mx_);
+    std::unique_lock lock(mx_);
     while (count_ == 0) {
       cv_.wait(lock);
     }

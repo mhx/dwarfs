@@ -33,7 +33,7 @@ progress::progress(folly::Function<void(const progress&, bool)>&& func,
     : running_(true)
     , thread_([this, interval_ms, func = std::move(func)]() mutable {
       folly::setThreadName("progress");
-      std::unique_lock<std::mutex> lock(mx_);
+      std::unique_lock lock(mx_);
       while (running_) {
         func(*this, false);
         cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
@@ -51,7 +51,7 @@ progress::~progress() noexcept {
 }
 
 void progress::set_status_function(status_function_type status_fun) {
-  std::unique_lock<std::mutex> lock(mx_);
+  std::unique_lock lock(mx_);
   status_fun_ = std::move(status_fun);
 }
 

@@ -100,7 +100,7 @@ class raw_fsblock : public fsblock::impl {
       }
 
       {
-        std::lock_guard<std::mutex> lock(mx_);
+        std::lock_guard lock(mx_);
         data_.swap(tmp);
         compressed_ = true;
       }
@@ -109,14 +109,14 @@ class raw_fsblock : public fsblock::impl {
     }
 
     void wait() {
-      std::unique_lock<std::mutex> lock(mx_);
+      std::unique_lock lock(mx_);
       cond_.wait(lock, [&]() -> bool { return compressed_; });
     }
 
     std::vector<uint8_t> const& data() const { return data_->vec(); }
 
     size_t size() const {
-      std::lock_guard<std::mutex> lock(mx_);
+      std::lock_guard lock(mx_);
       return data_->size();
     }
 
@@ -283,7 +283,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
     std::unique_ptr<fsblock> fsb;
 
     {
-      std::unique_lock<std::mutex> lock(mx_);
+      std::unique_lock lock(mx_);
 
       if (!flush_ and queue_.empty()) {
         cond_.wait(lock);
@@ -379,7 +379,7 @@ void filesystem_writer_<LoggerPolicy>::write_section(
     section_type type, std::shared_ptr<block_data>&& data,
     block_compressor const& bc) {
   {
-    std::unique_lock<std::mutex> lock(mx_);
+    std::unique_lock lock(mx_);
 
     while (mem_used() > max_queue_size_) {
       cond_.wait(lock);
@@ -392,7 +392,7 @@ void filesystem_writer_<LoggerPolicy>::write_section(
   fsb->compress(wg_);
 
   {
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
     queue_.push_back(std::move(fsb));
   }
 
@@ -405,7 +405,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
   auto fsb = std::make_unique<fsblock>(type, compression, data);
 
   {
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
     queue_.push_back(std::move(fsb));
   }
 
@@ -433,7 +433,7 @@ void filesystem_writer_<LoggerPolicy>::write_metadata_v2(
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::flush() {
   {
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
 
     if (flush_) {
       return;

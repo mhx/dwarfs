@@ -126,7 +126,7 @@ void console_writer::write(level_type level, const std::string& output,
       }
     }
 
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
 
     switch (pg_mode_) {
     case UNICODE:
@@ -215,7 +215,7 @@ void console_writer::update(const progress& p, bool last) {
 
   if (pg_mode_ == NONE) {
     if (INFO <= threshold_) {
-      std::lock_guard<std::mutex> lock(mx_);
+      std::lock_guard lock(mx_);
       os_ << oss.str();
     }
     return;
@@ -246,11 +246,11 @@ void console_writer::update(const progress& p, bool last) {
     if (tmp != statebuf_) {
       auto t = boost::posix_time::microsec_clock::local_time();
       statebuf_ = tmp;
-      std::lock_guard<std::mutex> lock(mx_);
+      std::lock_guard lock(mx_);
       os_ << "- " << t << statebuf_ << "\n";
     }
     if (last) {
-      std::lock_guard<std::mutex> lock(mx_);
+      std::lock_guard lock(mx_);
       os_ << oss.str();
     }
   } else {
@@ -268,7 +268,7 @@ void console_writer::update(const progress& p, bool last) {
 
     ++counter_;
 
-    std::lock_guard<std::mutex> lock(mx_);
+    std::lock_guard lock(mx_);
 
     rewind();
 
