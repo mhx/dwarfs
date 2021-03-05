@@ -652,15 +652,21 @@ void metadata_<LoggerPolicy>::walk_inode_order_impl(
     std::function<Signature> const& func) const {
   std::vector<std::pair<uint32_t, uint32_t>> entries;
 
-  walk_tree([&](uint32_t entry_ix, uint32_t parent_ix) {
-    entries.emplace_back(entry_ix, parent_ix);
-  });
+  {
+    auto td = LOG_TIMED_DEBUG;
 
-  std::sort(entries.begin(), entries.end(),
-            [this](auto const& a, auto const& b) {
-              return meta_.entries()[a.first].inode() <
-                     meta_.entries()[b.first].inode();
-            });
+    walk_tree([&](uint32_t entry_ix, uint32_t parent_ix) {
+      entries.emplace_back(entry_ix, parent_ix);
+    });
+
+    std::sort(entries.begin(), entries.end(),
+              [this](auto const& a, auto const& b) {
+                return meta_.entries()[a.first].inode() <
+                       meta_.entries()[b.first].inode();
+              });
+
+    td << "ordered " << entries.size() << " entries by inode";
+  }
 
   for (auto [entry, parent] : entries) {
     walk_call(func, entry, parent);
