@@ -23,7 +23,7 @@ A fast high compression read-only file system
 
 ## Overview
 
-![Alt text](doc/screenshot.png?raw=true "DwarFS Screenshot")
+![Alt text](doc/screenshot.gif?raw=true "DwarFS Screenshot")
 
 DwarFS is a read-only file system with a focus on achieving **very
 high compression ratios** in particular for very redundant data.
