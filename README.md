@@ -792,21 +792,18 @@ So here's a comparison of the extraction speed:
 
     $ time sudo dwarfsextract -i raspbian-9.dwarfs -o out2
     
-    real    0m12.986s
-    user    0m11.711s
-    sys     0m1.350s
+    real    0m3.825s
+    user    0m13.234s
+    sys     0m1.382s
 
-Not much of a difference really.
+So `dwarfsextract` is almost 4 times faster thanks to using multiple
+worker threads for decompression.
 
-One nice feature of `dwarfsextract` is that it allows you to directly
+Another nice feature of `dwarfsextract` is that it allows you to directly
 output data in an archive format, so you could create a tarball from
 your image without extracting the files to disk:
 
-    $ time dwarfsextract -i raspbian-9.dwarfs -f ustar | xz -9 -T0 >raspbian2.tar.xz
-    
-    real    1m28.961s
-    user    6m13.924s
-    sys     0m2.567s
+    $ dwarfsextract -i raspbian-9.dwarfs -f ustar | xz -9 -T0 >raspbian2.tar.xz
 
 This has the interesting side-effect that the resulting tarball will
 likely be smaller than the one built straight from the directory:
