@@ -49,10 +49,9 @@ Most other options are concerned with compression tuning:
     the data infrequently. This `-l` option is meant to be the "easy"
     interface to configure `mkdwarfs`, and it will actually pick defaults
     for six distinct options: `--block-size-bits`, `--compression`,
-    `--schema-compression`, `--metadata-compression`,
-    `--blockhash-window-sizes` and `--order`. See the output of
-    `mkdwarfs --help` for a table listing the exact defaults used for each
-    compression level.
+    `--schema-compression`, `--metadata-compression`, `--window-size` and
+    `--order`. See the output of `mkdwarfs --help` for a table listing the
+    exact defaults used for each compression level.
 
   * `-S`, `--block-size-bits=`*value*:
     The block size used for the compressed filesystem. The actual block size
@@ -178,34 +177,44 @@ Most other options are concerned with compression tuning:
     Last but not least, if scripting support is built into `mkdwarfs`, you can
     choose `script` to let the script determine the order.
 
-  * `--blockhash-window-sizes=`*value*[,*value*]...:
-    Window sizes used for block hashing. These sizes, separated by commas,
-    are again exponents to a base of two. These block hashes are used by
-    `mkdwarfs` for finding identical segments in across multiple files.
-    This is done on top of duplicate file detection, If a reasonable amount
-    of duplicate segments is found, this means less blocks will be used in
-    the filesystem and potentially less memory will be used when accessing
-    the filesystem. It doesn't necessarily mean that the filesystem will be
-    smaller, as this is remove redundany that cannot be exploited by the
-    block compression anymore. But it shouldn't make the resulting filesystem
-    any bigger. This option is used along with `--window-increment-shift` to
-    determine how extensively this segment search will be. The smaller the
-    window sizes, the more segments will obviously be found. However, this
-    also means files will become more fragmented and thus the filesystem
-    can be slower to use. If multiple window sizes are specified, larger
-    segments will be searched first, meaning less fragmentation and better
-    efficiency. However, multiple window sizes will also make `mkdwarfs`
-    slower. It's all a tradeoff, so YMMV.
+  * `-W`, `--window-size=`*value*:
+    Window size of cyclic hash used for segmenting. This is again an exponent
+    to a base of two. Cyclic hashes are used by `mkdwarfs` for finding
+    identical segments across multiple files. This is done on top of duplicate
+    file detection. If a reasonable amount of duplicate segments is found,
+    this means less blocks will be used in the filesystem and potentially
+    less memory will be used when accessing the filesystem. It doesn't
+    necessarily mean that the filesystem will be much smaller, as this removes
+    redundany that cannot be exploited by the block compression any longer.
+    But it shouldn't make the resulting filesystem any bigger. This option
+    is used along with `--window-step` to determine how extensive this
+    segment search will be. The smaller the window sizes, the more segments
+    will obviously be found. However, this also means files will become more
+    fragmented and thus the filesystem can be slower to use and metadata
+    size will grow. Passing `-W0` will completely disable duplicate segment
+    search.
 
-  * `--window-increment-shift=`*value*:
-    This option specifies how many hash values are kept for lookup. It is
-    specified in number of right shifts of the window size. To give an
-    example, if `--block-hash-window-sizes=16` and `--window-increment-shift=1`,
-    then a block hash across 65536 bytes will be stored at every 32768 bytes
-    of input data. This means that not every 65536-byte duplicate segment will
-    be detected, but duplicate segments of 98304 bytes or more will be detected.
+  * `--window-step=`*value*:
+    This option specifies how often cyclic hash values are stored for lookup.
+    It is specified relative to the window size, as a base-2 exponent that
+    divides the window size. To give a concrete example, if `--window-size=16`
+    and `--window-step=1`, then a cyclic hash across 65536 bytes will be stored
+    at every 32768 bytes of input data. If `--window-step=2`, then a hash value
+    will be stored at every 16384 bytes. This means that not every possible
+    65536-byte duplicate segment will be detected, but it is guaranteed that
+    all duplicate segments of (`window_size` + `window_step`) bytes or more
+    will be detected (unless they span across block boundaries, of course).
     If you use a larger value for this option, the increments become *smaller*,
     and `mkdwarfs` will be slower and use more memory.
+
+  * `-B`, `--max-lookback-blocks=`*value*:
+    Specify how many of the most recent blocks to scan for duplicate segments.
+    By default, only the current block will be scanned. The larger this number,
+    the more duplicate segments will likely be found, which may further improve
+    compression. However, it can also slow down compression and could cause the
+    resulting filesystem to be less efficient to use, as single small files can
+    now potentially span multiple filesystem blocks. Passing `-B0` will completely
+    disable duplicate segment search.
 
   * `--remove-empty-dirs`:
     Removes all empty directories from the output file system, recursively.
