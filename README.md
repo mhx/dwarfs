@@ -300,8 +300,8 @@ The systems were mostly idle during all of the tests.
 The source directory contained **1139 different Perl installations**
 from 284 distinct releases, a total of 47.65 GiB of data in 1,927,501
 files and 330,733 directories. The source directory was freshly
-unpacked from a tar archive to a 850 EVO 1TB SSD, so most of its
-contents were likely cached.
+unpacked from a tar archive to an XFS partition on a 970 EVO Plus 2TB
+NVME drive, so most of its contents were likely cached.
 
 I'm using the same compression type and compression level for
 SquashFS that is the default setting for DwarFS:
