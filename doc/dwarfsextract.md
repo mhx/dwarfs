@@ -45,10 +45,14 @@ to disk:
     case the default is to extract the files to the current directory, or
     to write the archive data to stdout.
 
+  * `-f`, `--format=`*format*:
+    The archive format to produce. If this is left empty or unspecified,
+    files will be extracted to the output directory (or the current directory
+    if no output directory is specified). For a full list of supported formats,
+    see libarchive-formats(5).
+
   * `-n`, `--num-workers=`*value*:
-    Number of worker threads used for building the filesystem. This defaults
-    to the number of processors available on your system. Use this option if
-    you want to limit the resources used by `mkdwarfs`.
+    Number of worker threads used for extracting the filesystem.
 
   * `-s`, `--cache-size=`*value*:
     Size of the block cache, in bytes. You can append suffixes (`k`, `m`, `g`)
@@ -62,8 +66,7 @@ to disk:
     Specifiy a logging level.
 
   * `--help`:
-    Show program help, including defaults, compression level detail and
-    supported compression algorithms.
+    Show program help, including option defaults.
 
 ## AUTHOR
 
