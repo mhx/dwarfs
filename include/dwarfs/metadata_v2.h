@@ -91,6 +91,15 @@ class metadata_v2 {
     impl_->walk(func);
   }
 
+  void walk_inode_order(std::function<void(entry_view)> const& func) const {
+    impl_->walk_inode_order(func);
+  }
+
+  void walk_inode_order(
+      std::function<void(entry_view, directory_view)> const& func) const {
+    impl_->walk_inode_order(func);
+  }
+
   std::optional<entry_view> find(const char* path) const {
     return impl_->find(path);
   }
@@ -158,6 +167,11 @@ class metadata_v2 {
     virtual void walk(std::function<void(entry_view)> const& func) const = 0;
     virtual void
     walk(std::function<void(entry_view, directory_view)> const& func) const = 0;
+
+    virtual void
+    walk_inode_order(std::function<void(entry_view)> const& func) const = 0;
+    virtual void walk_inode_order(
+        std::function<void(entry_view, directory_view)> const& func) const = 0;
 
     virtual std::optional<entry_view> find(const char* path) const = 0;
     virtual std::optional<entry_view> find(int inode) const = 0;

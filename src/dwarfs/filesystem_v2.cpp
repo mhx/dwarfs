@@ -186,6 +186,11 @@ class filesystem_ : public filesystem_v2::impl {
   void walk(std::function<void(entry_view)> const& func) const override;
   void walk(std::function<void(entry_view, directory_view)> const& func)
       const override;
+  void
+  walk_inode_order(std::function<void(entry_view)> const& func) const override;
+  void
+  walk_inode_order(std::function<void(entry_view, directory_view)> const& func)
+      const override;
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
   std::optional<entry_view> find(int inode, const char* name) const override;
@@ -288,6 +293,18 @@ template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::walk(
     std::function<void(entry_view, directory_view)> const& func) const {
   meta_.walk(func);
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::walk_inode_order(
+    std::function<void(entry_view)> const& func) const {
+  meta_.walk_inode_order(func);
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::walk_inode_order(
+    std::function<void(entry_view, directory_view)> const& func) const {
+  meta_.walk_inode_order(func);
 }
 
 template <typename LoggerPolicy>

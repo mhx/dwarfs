@@ -183,6 +183,12 @@ class metadata_ : public metadata_v2::impl {
   void walk(std::function<void(entry_view, directory_view)> const& func)
       const override;
 
+  void
+  walk_inode_order(std::function<void(entry_view)> const& func) const override;
+  void
+  walk_inode_order(std::function<void(entry_view, directory_view)> const& func)
+      const override;
+
   std::optional<entry_view> find(const char* path) const override;
   std::optional<entry_view> find(int inode) const override;
   std::optional<entry_view> find(int inode, const char* name) const override;
@@ -337,20 +343,25 @@ class metadata_ : public metadata_v2::impl {
     }
   }
 
-  static void walk_call(std::function<void(entry_view)> const& func,
-                        entry_view entry, directory_view) {
-    func(entry);
+  void walk_call(std::function<void(entry_view)> const& func, uint32_t entry,
+                 uint32_t) const {
+    func(make_entry_view(entry));
   }
 
-  static void
-  walk_call(std::function<void(entry_view, directory_view)> const& func,
-            entry_view entry, directory_view dir) {
-    func(entry, dir);
+  void walk_call(std::function<void(entry_view, directory_view)> const& func,
+                 uint32_t entry, uint32_t dir) const {
+    func(make_entry_view(entry), make_directory_view(make_entry_view(dir)));
   }
+
+  template <typename T>
+  void walk(uint32_t parent_ix, uint32_t entry_ix, set_type<int>& seen,
+            T&& func) const;
 
   template <typename Signature>
-  void walk(directory_view parent, entry_view entry, set_type<int>& seen,
-            std::function<Signature> const& func) const;
+  void walk_impl(std::function<Signature> const& func) const;
+
+  template <typename Signature>
+  void walk_inode_order_impl(std::function<Signature> const& func) const;
 
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -590,11 +601,11 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
 }
 
 template <typename LoggerPolicy>
-template <typename Signature>
-void metadata_<LoggerPolicy>::walk(directory_view parent, entry_view entry,
-                                   set_type<int>& seen,
-                                   std::function<Signature> const& func) const {
-  walk_call(func, entry, parent);
+template <typename T>
+void metadata_<LoggerPolicy>::walk(uint32_t parent_ix, uint32_t entry_ix,
+                                   set_type<int>& seen, T&& func) const {
+  func(entry_ix, parent_ix);
+  auto entry = make_entry_view(entry_ix);
   if (S_ISDIR(entry.mode())) {
     auto inode = entry.inode();
     if (!seen.emplace(inode).second) {
@@ -602,24 +613,64 @@ void metadata_<LoggerPolicy>::walk(directory_view parent, entry_view entry,
     }
     auto dir = make_directory_view(entry);
     for (auto cur : dir.entry_range()) {
-      walk(dir, make_entry_view(cur), seen, func);
+      walk(entry_ix, cur, seen, func);
     }
     seen.erase(inode);
   }
 }
 
 template <typename LoggerPolicy>
+template <typename Signature>
+void metadata_<LoggerPolicy>::walk_impl(
+    std::function<Signature> const& func) const {
+  set_type<int> seen;
+  walk(
+      meta_.entry_index()[0], meta_.entry_index()[0], seen,
+      [&](uint32_t entry, uint32_t parent) { walk_call(func, entry, parent); });
+}
+
+template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view)> const& func) const {
-  set_type<int> seen;
-  walk(make_directory_view(root_), root_, seen, func);
+  walk_impl(func);
 }
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::walk(
     std::function<void(entry_view, directory_view)> const& func) const {
+  walk_impl(func);
+}
+
+template <typename LoggerPolicy>
+template <typename Signature>
+void metadata_<LoggerPolicy>::walk_inode_order_impl(
+    std::function<Signature> const& func) const {
+  std::vector<std::pair<uint32_t, uint32_t>> entries;
   set_type<int> seen;
-  walk(make_directory_view(root_), root_, seen, func);
+  walk(meta_.entry_index()[0], meta_.entry_index()[0], seen,
+       [&](uint32_t entry_ix, uint32_t parent_ix) {
+         entries.emplace_back(entry_ix, parent_ix);
+       });
+  std::sort(entries.begin(), entries.end(),
+            [this](auto const& a, auto const& b) {
+              return meta_.entries()[a.first].inode() <
+                     meta_.entries()[b.first].inode();
+            });
+  for (auto [entry, parent] : entries) {
+    walk_call(func, entry, parent);
+  }
+}
+
+template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::walk_inode_order(
+    std::function<void(entry_view)> const& func) const {
+  walk_inode_order_impl(func);
+}
+
+template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::walk_inode_order(
+    std::function<void(entry_view, directory_view)> const& func) const {
+  walk_inode_order_impl(func);
 }
 
 template <typename LoggerPolicy>
