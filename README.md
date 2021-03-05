@@ -37,7 +37,7 @@ compressed file systems.
 DwarFS also **doesn't compromise on speed** and for my use cases I've
 found it to be on par with or perform better than SquashFS. For my
 primary use case, **DwarFS compression is an order of magnitude better
-than SquashFS compression**, it's **4 times faster to build the file
+than SquashFS compression**, it's **6 times faster to build the file
 system**, it's typically faster to access files on DwarFS and it uses
 less CPU resources.
 
