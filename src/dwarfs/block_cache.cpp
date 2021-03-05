@@ -305,7 +305,7 @@ class block_cache_ : public block_cache::impl {
     std::shared_ptr<block_request_set> brs;
 
     if (ia != active_.end()) {
-      LOG_DEBUG << "active sets found for block " << block_no;
+      LOG_TRACE << "active sets found for block " << block_no;
 
       bool add_to_set = false;
 
@@ -340,7 +340,7 @@ class block_cache_ : public block_cache::impl {
         // promise immediately, otherwise add a new
         // request to the request set.
 
-        LOG_DEBUG << "block " << block_no << " found in active set";
+        LOG_TRACE << "block " << block_no << " found in active set";
 
         auto block = brs->block();
 
@@ -368,7 +368,7 @@ class block_cache_ : public block_cache::impl {
         return future;
       }
 
-      LOG_DEBUG << "block " << block_no << " not found in active set";
+      LOG_TRACE << "block " << block_no << " not found in active set";
     }
 
     // See if it's cached (fully or partially decompressed)
@@ -377,7 +377,7 @@ class block_cache_ : public block_cache::impl {
     if (ic != cache_.end()) {
       // Nice, at least the block is already there.
 
-      LOG_DEBUG << "block " << block_no << " found in cache";
+      LOG_TRACE << "block " << block_no << " found in cache";
 
       auto block = ic->second;
 
@@ -409,7 +409,7 @@ class block_cache_ : public block_cache::impl {
                                  block_no, block_.size()));
       }
 
-      LOG_DEBUG << "block " << block_no << " not found";
+      LOG_TRACE << "block " << block_no << " not found";
 
       auto block = std::make_shared<cached_block>(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
@@ -450,7 +450,7 @@ class block_cache_ : public block_cache::impl {
   void process_job(std::shared_ptr<block_request_set> brs) const {
     auto block_no = brs->block_no();
 
-    LOG_DEBUG << "processing block " << block_no;
+    LOG_TRACE << "processing block " << block_no;
 
     // Check if another worker is already processing this block
     {
@@ -462,7 +462,7 @@ class block_cache_ : public block_cache::impl {
         std::lock_guard<std::mutex> lock(mx_);
 
         if (auto other = di->second.lock()) {
-          LOG_DEBUG << "merging sets for block " << block_no;
+          LOG_TRACE << "merging sets for block " << block_no;
           other->merge(std::move(*brs));
           ++sets_merged_;
           brs.reset();
@@ -503,13 +503,13 @@ class block_cache_ : public block_cache::impl {
         auto max_end = block->uncompressed_size();
         double ratio = double(range_end) / double(max_end);
         if (ratio > options_.decompress_ratio) {
-          LOG_DEBUG << "block " << block_no << " over ratio: " << ratio << " > "
+          LOG_TRACE << "block " << block_no << " over ratio: " << ratio << " > "
                     << options_.decompress_ratio;
           range_end = max_end;
         }
       }
 
-      LOG_DEBUG << "decompressing block " << block_no << " until position "
+      LOG_TRACE << "decompressing block " << block_no << " until position "
                 << req.end();
 
       try {
