@@ -372,7 +372,7 @@ template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
                                                    size_t offset, size_t size) {
   if (DWARFS_UNLIKELY(blocks_.empty() or blocks_.back().full())) {
-    if (blocks_.size() >= cfg_.max_active_blocks) {
+    if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
     }
 
