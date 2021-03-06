@@ -459,7 +459,7 @@ void usage(const char* progname) {
 
 int option_hdl(void* data, const char* arg, int key,
                struct fuse_args* /*outargs*/) {
-  options* opts = reinterpret_cast<options*>(data);
+  auto* opts = reinterpret_cast<options*>(data);
 
   switch (key) {
   case FUSE_OPT_KEY_NONOPT:

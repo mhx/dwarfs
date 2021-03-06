@@ -372,8 +372,7 @@ class lz4_block_compressor final : public block_compressor::impl {
   compress(const std::vector<uint8_t>& data) const override {
     std::vector<uint8_t> compressed(
         sizeof(uint32_t) + LZ4_compressBound(folly::to<int>(data.size())));
-    uint32_t* psize = reinterpret_cast<uint32_t*>(&compressed[0]);
-    *psize = data.size();
+    *reinterpret_cast<uint32_t*>(&compressed[0]) = data.size();
     auto csize =
         Policy::compress(&data[0], &compressed[sizeof(uint32_t)], data.size(),
                          compressed.size() - sizeof(uint32_t), level_);
