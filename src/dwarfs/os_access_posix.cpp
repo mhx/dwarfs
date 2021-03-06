@@ -36,7 +36,7 @@ namespace dwarfs {
 
 class posix_dir_reader final : public dir_reader {
  public:
-  posix_dir_reader(const std::string& path)
+  explicit posix_dir_reader(const std::string& path)
       : dir_(::opendir(path.c_str())) {
     if (!dir_) {
       DWARFS_THROW(system_error, fmt::format("opendir('{}')", path));

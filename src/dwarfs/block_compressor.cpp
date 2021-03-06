@@ -61,7 +61,7 @@ namespace {
 
 class option_map {
  public:
-  option_map(const std::string& spec) {
+  explicit option_map(const std::string& spec) {
     std::vector<std::string> arg;
     boost::split(arg, spec, boost::is_any_of(":"));
 
@@ -360,7 +360,7 @@ struct lz4hc_compression_policy {
 template <typename Policy>
 class lz4_block_compressor final : public block_compressor::impl {
  public:
-  lz4_block_compressor(int level = 0)
+  explicit lz4_block_compressor(int level = 0)
       : level_(level) {}
   lz4_block_compressor(const lz4_block_compressor& rhs) = default;
 
@@ -406,7 +406,7 @@ class lz4_block_compressor final : public block_compressor::impl {
 #ifdef DWARFS_HAVE_LIBZSTD
 class zstd_block_compressor final : public block_compressor::impl {
  public:
-  zstd_block_compressor(int level)
+  explicit zstd_block_compressor(int level)
       : ctx_(ZSTD_createCCtx())
       , level_(level) {}
 

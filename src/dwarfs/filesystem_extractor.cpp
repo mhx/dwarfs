@@ -70,7 +70,7 @@ class cache_semaphore {
 template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
-  filesystem_extractor_(logger& lgr)
+  explicit filesystem_extractor_(logger& lgr)
       : log_{lgr} {}
 
   ~filesystem_extractor_() override {

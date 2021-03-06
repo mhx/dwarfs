@@ -54,7 +54,7 @@ namespace {
 
 class filesystem_parser {
  public:
-  filesystem_parser(std::shared_ptr<mmif> mm)
+  explicit filesystem_parser(std::shared_ptr<mmif> mm)
       : mm_(mm) {
     if (mm_->size() < sizeof(file_header)) {
       DWARFS_THROW(runtime_error, "file too small");

@@ -150,7 +150,7 @@ class file_deduplication_visitor : public visitor_base {
 
 class dir_set_inode_visitor : public visitor_base {
  public:
-  dir_set_inode_visitor(uint32_t& inode_no)
+  explicit dir_set_inode_visitor(uint32_t& inode_no)
       : inode_no_(inode_no) {}
 
   void visit(dir* p) override {
@@ -166,7 +166,7 @@ class dir_set_inode_visitor : public visitor_base {
 
 class link_set_inode_visitor : public visitor_base {
  public:
-  link_set_inode_visitor(uint32_t& inode_no)
+  explicit link_set_inode_visitor(uint32_t& inode_no)
       : inode_no_(inode_no) {}
 
   void visit(link* p) override { p->set_inode(inode_no_++); }
@@ -177,7 +177,7 @@ class link_set_inode_visitor : public visitor_base {
 
 class device_set_inode_visitor : public visitor_base {
  public:
-  device_set_inode_visitor(uint32_t& inode_no)
+  explicit device_set_inode_visitor(uint32_t& inode_no)
       : inode_no_(inode_no) {}
 
   void visit(device* p) override {
@@ -196,7 +196,7 @@ class device_set_inode_visitor : public visitor_base {
 
 class pipe_set_inode_visitor : public visitor_base {
  public:
-  pipe_set_inode_visitor(uint32_t& inode_no)
+  explicit pipe_set_inode_visitor(uint32_t& inode_no)
       : inode_no_(inode_no) {}
 
   void visit(device* p) override {
@@ -211,7 +211,7 @@ class pipe_set_inode_visitor : public visitor_base {
 
 class names_and_links_visitor : public entry_visitor {
  public:
-  names_and_links_visitor(global_entry_data& data)
+  explicit names_and_links_visitor(global_entry_data& data)
       : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
@@ -235,7 +235,7 @@ class names_and_links_visitor : public entry_visitor {
 
 class save_directories_visitor : public visitor_base {
  public:
-  save_directories_visitor(size_t num_directories) {
+  explicit save_directories_visitor(size_t num_directories) {
     directories_.resize(num_directories);
   }
 

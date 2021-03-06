@@ -154,7 +154,7 @@ class inode_ : public inode {
 
 class nilsimsa_cache_entry {
  public:
-  nilsimsa_cache_entry(std::shared_ptr<inode> i)
+  explicit nilsimsa_cache_entry(std::shared_ptr<inode> i)
       : size(i->size())
       , hash(i->nilsimsa_similarity_hash().data())
       , path(i->any()->path())

@@ -210,7 +210,7 @@ class no_policy {
  public:
   class task {
    public:
-    task(no_policy*) {}
+    explicit task(no_policy*) {}
   };
 };
 
@@ -218,7 +218,7 @@ class load_adaptive_policy {
  public:
   class task {
    public:
-    task(load_adaptive_policy* policy)
+    explicit task(load_adaptive_policy* policy)
         : policy_(policy) {
       policy_->start_task();
 
@@ -237,7 +237,7 @@ class load_adaptive_policy {
     struct timeval utime_, stime_;
   };
 
-  load_adaptive_policy(size_t workers)
+  explicit load_adaptive_policy(size_t workers)
       : sem_(workers)
       , max_throttled_(static_cast<int>(workers) - 1) {}
 
