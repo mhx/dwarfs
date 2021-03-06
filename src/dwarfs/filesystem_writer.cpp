@@ -210,7 +210,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
                      const block_compressor& schema_bc,
                      const block_compressor& metadata_bc,
                      size_t max_queue_size);
-  ~filesystem_writer_() noexcept;
+  ~filesystem_writer_() noexcept override;
 
   void write_block(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;

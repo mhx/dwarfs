@@ -300,7 +300,8 @@ class scanner_ final : public scanner::impl {
            std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
            std::shared_ptr<script> scr, const scanner_options& options);
 
-  void scan(filesystem_writer& fsw, const std::string& path, progress& prog);
+  void scan(filesystem_writer& fsw, const std::string& path,
+            progress& prog) override;
 
  private:
   std::shared_ptr<entry> scan_tree(const std::string& path, progress& prog);

@@ -129,7 +129,7 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
 } // namespace
 
 #ifdef DWARFS_HAVE_LIBLZMA
-class lzma_block_compressor : public block_compressor::impl {
+class lzma_block_compressor final : public block_compressor::impl {
  public:
   lzma_block_compressor(unsigned level, bool extreme,
                         const std::string& binary_mode, unsigned dict_size,
@@ -193,7 +193,7 @@ class lzma_block_compressor : public block_compressor::impl {
 };
 #endif
 
-class null_block_compressor : public block_compressor::impl {
+class null_block_compressor final : public block_compressor::impl {
  public:
   null_block_compressor() = default;
   null_block_compressor(const null_block_compressor& rhs) = default;
@@ -358,7 +358,7 @@ struct lz4hc_compression_policy {
 };
 
 template <typename Policy>
-class lz4_block_compressor : public block_compressor::impl {
+class lz4_block_compressor final : public block_compressor::impl {
  public:
   lz4_block_compressor(int level = 0)
       : level_(level) {}
@@ -405,7 +405,7 @@ class lz4_block_compressor : public block_compressor::impl {
 #endif
 
 #ifdef DWARFS_HAVE_LIBZSTD
-class zstd_block_compressor : public block_compressor::impl {
+class zstd_block_compressor final : public block_compressor::impl {
  public:
   zstd_block_compressor(int level)
       : ctx_(ZSTD_createCCtx())
@@ -415,7 +415,7 @@ class zstd_block_compressor : public block_compressor::impl {
       : ctx_(ZSTD_createCCtx())
       , level_(rhs.level_) {}
 
-  ~zstd_block_compressor() { ZSTD_freeCCtx(ctx_); }
+  ~zstd_block_compressor() override { ZSTD_freeCCtx(ctx_); }
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<zstd_block_compressor>(*this);
@@ -486,7 +486,7 @@ block_compressor::block_compressor(const std::string& spec, size_t block_size) {
   om.report();
 }
 
-class null_block_decompressor : public block_decompressor::impl {
+class null_block_decompressor final : public block_decompressor::impl {
  public:
   null_block_decompressor(const uint8_t* data, size_t size,
                           std::vector<uint8_t>& target)
@@ -531,7 +531,7 @@ class null_block_decompressor : public block_decompressor::impl {
 };
 
 #ifdef DWARFS_HAVE_LIBLZMA
-class lzma_block_decompressor : public block_decompressor::impl {
+class lzma_block_decompressor final : public block_decompressor::impl {
  public:
   lzma_block_decompressor(const uint8_t* data, size_t size,
                           std::vector<uint8_t>& target)
@@ -554,7 +554,7 @@ class lzma_block_decompressor : public block_decompressor::impl {
     }
   }
 
-  ~lzma_block_decompressor() { lzma_end(&stream_); }
+  ~lzma_block_decompressor() override { lzma_end(&stream_); }
 
   compression_type type() const override { return compression_type::LZMA; }
 
@@ -612,7 +612,7 @@ class lzma_block_decompressor : public block_decompressor::impl {
 #endif
 
 #ifdef DWARFS_HAVE_LIBLZ4
-class lz4_block_decompressor : public block_decompressor::impl {
+class lz4_block_decompressor final : public block_decompressor::impl {
  public:
   lz4_block_decompressor(const uint8_t* data, size_t size,
                          std::vector<uint8_t>& target)
@@ -670,7 +670,7 @@ class lz4_block_decompressor : public block_decompressor::impl {
 #endif
 
 #ifdef DWARFS_HAVE_LIBZSTD
-class zstd_block_decompressor : public block_decompressor::impl {
+class zstd_block_decompressor final : public block_decompressor::impl {
  public:
   zstd_block_decompressor(const uint8_t* data, size_t size,
                           std::vector<uint8_t>& target)

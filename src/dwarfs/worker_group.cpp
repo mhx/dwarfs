@@ -43,7 +43,7 @@
 namespace dwarfs {
 
 template <typename Policy>
-class basic_worker_group : public worker_group::impl, private Policy {
+class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
   basic_worker_group(const char* group_name, size_t num_workers,
@@ -74,7 +74,7 @@ class basic_worker_group : public worker_group::impl, private Policy {
   /**
    * Stop and destroy a worker group
    */
-  ~basic_worker_group() noexcept {
+  ~basic_worker_group() noexcept override {
     try {
       stop();
     } catch (...) {

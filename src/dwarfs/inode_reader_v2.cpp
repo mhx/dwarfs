@@ -49,7 +49,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
       , log_(lgr)
       , iovec_sizes_(1, 0, 256) {}
 
-  ~inode_reader_() {
+  ~inode_reader_() override {
     std::lock_guard lock(iovec_sizes_mutex_);
     if (iovec_sizes_.computeTotalCount() > 0) {
       LOG_INFO << "iovec size p90: " << iovec_sizes_.getPercentileEstimate(0.9);

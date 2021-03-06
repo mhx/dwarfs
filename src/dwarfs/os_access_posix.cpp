@@ -34,7 +34,7 @@
 
 namespace dwarfs {
 
-class posix_dir_reader : public dir_reader {
+class posix_dir_reader final : public dir_reader {
  public:
   posix_dir_reader(const std::string& path)
       : dir_(::opendir(path.c_str())) {
@@ -43,7 +43,7 @@ class posix_dir_reader : public dir_reader {
     }
   }
 
-  ~posix_dir_reader() noexcept {
+  ~posix_dir_reader() noexcept override {
     if (dir_) {
       ::closedir(dir_);
     }
