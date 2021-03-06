@@ -527,7 +527,8 @@ add_custom_target(
   COMMAND
     rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
     thrift zstd dwarfs* mkdwarfs mount.dwarfs mount.dwarfs2 lib*.a *.cmake
-    googletest-* _CPack_Packages install_manifest.txt share)
+    googletest-* _CPack_Packages install_manifest.txt share build.ninja
+    compile_commands.json)
 
 install(
   TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
