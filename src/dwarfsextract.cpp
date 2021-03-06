@@ -19,67 +19,27 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
-#include <condition_variable>
-#include <cstring>
 #include <exception>
-#include <future>
-#include <memory>
-#include <mutex>
-#include <vector>
+#include <iostream>
+#include <string>
 
 #include <sys/statvfs.h>
-#include <unistd.h>
 
 #include <boost/program_options.hpp>
 
-#include <folly/Conv.h>
-#include <folly/String.h>
-
-#include <archive.h>
-#include <archive_entry.h>
-
+#include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
-#include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
-#include "dwarfs/worker_group.h"
 
 namespace po = boost::program_options;
 
 using namespace dwarfs;
 
 namespace {
-
-class cache_semaphore {
- public:
-  void post(int64_t n) {
-    {
-      std::lock_guard lock(mx_);
-      size_ += n;
-      ++count_;
-    }
-    condition_.notify_one();
-  }
-
-  void wait(int64_t n) {
-    std::unique_lock lock(mx_);
-    while (size_ < n && count_ <= 0) {
-      condition_.wait(lock);
-    }
-    size_ -= n;
-    --count_;
-  }
-
- private:
-  std::mutex mx_;
-  std::condition_variable condition_;
-  int64_t count_{0};
-  int64_t size_{0};
-};
 
 int dwarfsextract(int argc, char** argv) {
   std::string filesystem, output, format, cache_size_str, log_level;
@@ -134,153 +94,31 @@ int dwarfsextract(int argc, char** argv) {
     fsopts.block_cache.num_workers = num_workers;
     fsopts.metadata.enable_nlink = true;
 
-    dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
-                             fsopts);
+    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts);
+    filesystem_extractor fsx(lgr);
 
-    log_proxy<debug_logger_policy> log_(lgr);
-    struct ::archive* a;
-
-    auto check_result = [&](int res) {
-      switch (res) {
-      case ARCHIVE_OK:
-        break;
-      case ARCHIVE_WARN:
-        LOG_WARN << std::string(archive_error_string(a));
-        break;
-      case ARCHIVE_RETRY:
-      case ARCHIVE_FATAL:
-        DWARFS_THROW(runtime_error, std::string(archive_error_string(a)));
-      }
-    };
-
-    if (format.empty()) {
-      if (!output.empty()) {
-        if (::chdir(output.c_str()) != 0) {
-          DWARFS_THROW(runtime_error,
-                       output + ": " + std::string(strerror(errno)));
-        }
-      }
-
-      a = ::archive_write_disk_new();
-
-      check_result(::archive_write_disk_set_options(
-          a,
-          ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME));
-    } else {
-      a = ::archive_write_new();
-
-      check_result(::archive_write_set_format_by_name(a, format.c_str()));
-      check_result(::archive_write_open_filename(
-          a, vm.count("output") && !output.empty() && output != "-"
-                 ? output.c_str()
-                 : nullptr));
-    }
-
-    auto lr = ::archive_entry_linkresolver_new();
-
-    ::archive_entry_linkresolver_set_strategy(lr, ::archive_format(a));
-
-    ::archive_entry* spare = nullptr;
-
-    worker_group archiver("archiver", 1);
-    cache_semaphore sem;
+    size_t max_queued_bytes = 0;
 
     {
       struct ::statvfs buf;
       fs.statvfs(&buf);
-      sem.post(fsopts.block_cache.max_bytes > buf.f_bsize
-                   ? fsopts.block_cache.max_bytes - buf.f_bsize
-                   : 0);
+      if (fsopts.block_cache.max_bytes > buf.f_bsize) {
+        max_queued_bytes = fsopts.block_cache.max_bytes - buf.f_bsize;
+      }
     }
 
-    auto do_archive = [&](::archive_entry* ae, entry_view entry) {
-      if (auto size = ::archive_entry_size(ae);
-          S_ISREG(entry.mode()) && size > 0) {
-        auto fd = fs.open(entry);
-        sem.wait(size);
-        auto ranges = fs.readv(fd, size, 0);
-        if (!ranges) {
-          LOG_ERROR << "error reading inode [" << fd
-                    << "]: " << ::strerror(-ranges.error());
-          return;
-        }
-        archiver.add_job([&sem, &check_result, ranges = std::move(*ranges), a,
-                          ae, size]() mutable {
-          check_result(::archive_write_header(a, ae));
-          for (auto& r : ranges) {
-            auto br = r.get();
-            check_result(::archive_write_data(a, br.data(), br.size()));
-          }
-          sem.post(size);
-          ::archive_entry_free(ae);
-        });
-      } else {
-        archiver.add_job([&check_result, a, ae] {
-          check_result(::archive_write_header(a, ae));
-          ::archive_entry_free(ae);
-        });
+    if (format.empty()) {
+      fsx.open_disk(output);
+    } else {
+      if (output == "-") {
+        output.clear();
       }
-    };
-
-    fs.walk_inode_order([&](auto entry, auto parent) {
-      if (entry.inode() == 0) {
-        return;
-      }
-
-      auto ae = ::archive_entry_new();
-      struct ::stat stbuf;
-
-      if (fs.getattr(entry, &stbuf) != 0) {
-        DWARFS_THROW(runtime_error, "getattr() failed");
-      }
-
-      std::string path;
-      path.reserve(256);
-      parent.append_path_to(path);
-      if (!path.empty()) {
-        path += '/';
-      }
-      path += entry.name();
-
-      ::archive_entry_set_pathname(ae, path.c_str());
-      ::archive_entry_copy_stat(ae, &stbuf);
-
-      if (S_ISLNK(entry.mode())) {
-        std::string link;
-        if (fs.readlink(entry, &link) != 0) {
-          LOG_ERROR << "readlink() failed";
-        }
-        ::archive_entry_set_symlink(ae, link.c_str());
-      }
-
-      ::archive_entry_linkify(lr, &ae, &spare);
-
-      if (ae) {
-        do_archive(ae, entry);
-      }
-
-      if (spare) {
-        auto ev = fs.find(::archive_entry_ino(spare));
-        if (!ev) {
-          LOG_ERROR << "find() failed";
-        }
-        LOG_DEBUG << "archiving spare " << ::archive_entry_pathname(spare);
-        do_archive(spare, *ev);
-      }
-    });
-
-    archiver.wait();
-
-    // As we're visiting *all* hardlinks, we should never see any deferred
-    // entries.
-    ::archive_entry* ae = nullptr;
-    ::archive_entry_linkify(lr, &ae, &spare);
-    if (ae) {
-      DWARFS_THROW(runtime_error, "unexpected deferred entry");
+      fsx.open_archive(output, format);
     }
 
-    ::archive_entry_linkresolver_free(lr);
-    check_result(::archive_write_free(a));
+    fsx.extract(fs, max_queued_bytes);
+
+    fsx.close();
   } catch (runtime_error const& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
