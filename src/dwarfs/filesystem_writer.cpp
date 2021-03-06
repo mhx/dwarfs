@@ -203,7 +203,7 @@ fsblock::fsblock(section_type type, compression_type compression,
     : impl_(std::make_unique<compressed_fsblock>(type, compression, data)) {}
 
 template <typename LoggerPolicy>
-class filesystem_writer_ : public filesystem_writer::impl {
+class filesystem_writer_ final : public filesystem_writer::impl {
  public:
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
                      progress& prog, const block_compressor& bc,

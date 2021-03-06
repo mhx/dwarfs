@@ -68,7 +68,7 @@ class cache_semaphore {
 } // namespace
 
 template <typename LoggerPolicy>
-class filesystem_extractor_ : public filesystem_extractor::impl {
+class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
   filesystem_extractor_(logger& lgr)
       : log_{lgr} {}

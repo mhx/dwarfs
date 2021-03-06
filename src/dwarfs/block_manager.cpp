@@ -179,7 +179,7 @@ class active_block {
 };
 
 template <typename LoggerPolicy>
-class block_manager_ : public block_manager::impl {
+class block_manager_ final : public block_manager::impl {
  public:
   block_manager_(logger& lgr, progress& prog, const block_manager::config& cfg,
                  std::shared_ptr<os_access> os, filesystem_writer& fsw)

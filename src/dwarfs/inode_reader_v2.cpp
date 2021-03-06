@@ -42,7 +42,7 @@ namespace dwarfs {
 namespace {
 
 template <typename LoggerPolicy>
-class inode_reader_ : public inode_reader_v2::impl {
+class inode_reader_ final : public inode_reader_v2::impl {
  public:
   inode_reader_(logger& lgr, block_cache&& bc)
       : cache_(std::move(bc))

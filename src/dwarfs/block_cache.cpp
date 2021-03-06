@@ -199,7 +199,7 @@ class block_request_set {
 
 // multi-threaded block cache
 template <typename LoggerPolicy>
-class block_cache_ : public block_cache::impl {
+class block_cache_ final : public block_cache::impl {
  public:
   block_cache_(logger& lgr, std::shared_ptr<mmif> mm,
                block_cache_options const& options)

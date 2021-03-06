@@ -173,7 +173,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
 }
 
 template <typename LoggerPolicy>
-class filesystem_ : public filesystem_v2::impl {
+class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr_, std::shared_ptr<mmif> mm,
               const filesystem_options& options,

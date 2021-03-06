@@ -294,7 +294,7 @@ std::string status_string(progress const& p, size_t width) {
 } // namespace
 
 template <typename LoggerPolicy>
-class scanner_ : public scanner::impl {
+class scanner_ final : public scanner::impl {
  public:
   scanner_(logger& lgr, worker_group& wg, const block_manager::config& config,
            std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,

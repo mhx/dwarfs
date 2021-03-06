@@ -172,7 +172,7 @@ class nilsimsa_cache_entry {
 } // namespace
 
 template <typename LoggerPolicy>
-class inode_manager_ : public inode_manager::impl {
+class inode_manager_ final : public inode_manager::impl {
  public:
   inode_manager_(logger& lgr, progress& prog)
       : LOG_PROXY_INIT(lgr)

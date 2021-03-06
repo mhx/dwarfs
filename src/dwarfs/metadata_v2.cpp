@@ -104,7 +104,7 @@ const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 } // namespace
 
 template <typename LoggerPolicy>
-class metadata_ : public metadata_v2::impl {
+class metadata_ final : public metadata_v2::impl {
  public:
   // TODO: defaults?, remove
   metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
