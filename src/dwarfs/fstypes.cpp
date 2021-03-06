@@ -22,6 +22,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 #include <folly/Conv.h>
 
@@ -33,7 +34,7 @@ namespace dwarfs {
 
 namespace {
 
-const std::map<section_type, std::string> sections{
+const std::map<section_type, std::string_view> sections{
 #define SECTION_TYPE_(x) {section_type::x, #x}
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
@@ -41,7 +42,7 @@ const std::map<section_type, std::string> sections{
 #undef SECTION_TYPE_
 };
 
-const std::map<compression_type, std::string> compressions{
+const std::map<compression_type, std::string_view> compressions{
 #define COMPRESSION_TYPE_(x) {compression_type::x, #x}
     COMPRESSION_TYPE_(NONE), COMPRESSION_TYPE_(LZMA), COMPRESSION_TYPE_(ZSTD),
     COMPRESSION_TYPE_(LZ4), COMPRESSION_TYPE_(LZ4HC)
@@ -49,15 +50,12 @@ const std::map<compression_type, std::string> compressions{
 };
 
 template <typename HT>
-typename HT::mapped_type
-get_default(const HT& ht, const typename HT::key_type& key) {
-  auto i = ht.find(key);
-
-  if (i != ht.end()) {
-    return i->second;
+std::string get_default(const HT& ht, const typename HT::key_type& key) {
+  if (auto it = ht.find(key); it != ht.end()) {
+    return folly::to<std::string>(it->second);
   }
 
-  return folly::to<typename HT::mapped_type>("unknown (", key, ")");
+  return folly::to<std::string>("unknown (", key, ")");
 }
 } // namespace
 
