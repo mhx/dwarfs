@@ -33,7 +33,9 @@ g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
 	/usr/lib/x86_64-linux-gnu/libgflags.a \
 	/usr/lib/x86_64-linux-gnu/libglog.a \
 	/usr/lib/x86_64-linux-gnu/libevent.a \
-	/usr/lib/x86_64-linux-gnu/libz.a \
+	/usr/local/lib/libarchive.a \
+	/usr/lib/libacl.a \
+	/usr/local/lib/libxml2.a \
 	/usr/lib/x86_64-linux-gnu/libssl.a \
 	/usr/lib/x86_64-linux-gnu/libcrypto.a \
 	/usr/lib/x86_64-linux-gnu/libiberty.a \
