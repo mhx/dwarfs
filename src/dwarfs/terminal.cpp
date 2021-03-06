@@ -40,7 +40,7 @@ bool stream_is_fancy_terminal(std::ostream& os) {
     return false;
   }
   auto term = ::getenv("TERM");
-  return term && term[0] && ::strcmp(term, "dumb");
+  return term && term[0] != '\0' && ::strcmp(term, "dumb") != 0;
 }
 
 char const* terminal_color(termcolor color) {

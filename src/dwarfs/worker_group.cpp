@@ -239,7 +239,7 @@ class load_adaptive_policy {
 
   load_adaptive_policy(size_t workers)
       : sem_(workers)
-      , max_throttled_(workers - 1) {}
+      , max_throttled_(static_cast<int>(workers) - 1) {}
 
   void start_task() { sem_.acquire(); }
 

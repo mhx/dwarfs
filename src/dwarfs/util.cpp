@@ -63,15 +63,15 @@ size_t parse_size_with_unit(const std::string& str) {
     case 't':
     case 'T':
       size <<= 10;
-      // fallthrough
+      [[fallthrough]];
     case 'g':
     case 'G':
       size <<= 10;
-      // fallthrough
+      [[fallthrough]];
     case 'm':
     case 'M':
       size <<= 10;
-      // fallthrough
+      [[fallthrough]];
     case 'k':
     case 'K':
       size <<= 10;
