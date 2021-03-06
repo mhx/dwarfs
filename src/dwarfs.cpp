@@ -481,6 +481,9 @@ int option_hdl(void* data, const char* arg, int key,
       usage(opts->progname);
     }
     break;
+
+  default:
+    break;
   }
 
   return 1;
