@@ -44,7 +44,6 @@
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/global_entry_data.h"
-#include "dwarfs/hash_util.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
