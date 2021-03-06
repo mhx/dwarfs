@@ -1,5 +1,68 @@
 # Change Log
 
+## Version 0.4.0 - 2021-03-06
+
+- [feature] New `dwarfsextract` tool that allows extracting a file
+  system image. It also allows conversion of the file system image
+  directly into a standard archive format (e.g. `tar` or `cpio`).
+  Extracting a DwarFS image can be significantly faster than
+  extracting a equivalent compressed archive.
+
+- [feature] The segmenting algorithm has been completely rewritten
+  and is now much cleaner, uses much less memory, is significantly
+  faster and detects a lot more duplicate segments. At the same time
+  it's easier to configure (just a single window size instead of a
+  list).
+
+- [feature] There's a new option `--max-lookback-blocks` that
+  allows duplicate segments to be detected across multiple blocks,
+  which can result in significantly better compression when using
+  small file system blocks.
+
+- [compat] The `--blockhash-window-sizes` and
+  `--blockhash-increment-shift` options were replaced by
+  `--window-size` and `--window-step`, respectively. The new
+  `--window-size` option takes only a single window size instead
+  of a list.
+
+- [fix] The rewrite of the segmenting algorithm was triggered by
+  a "bug" (github #35) that caused excessive memory consumption
+  in `mkdwarfs`. It wasn't really a bug, though, more like a bad
+  algorithm that used memory proportional to the file size. This
+  issue has now been fully solved.
+
+- [fix] Scanning of large files would excessively grow `mkdwarfs`
+  RSS. The memory would have sooner or later be reclaimed by the
+  kernel, but the code now actively releases the memory while
+  scanning.
+
+- [perf] `mkdwarfs` speed has been significantly improved. The
+  47 GiB worth of Perl installations can now be turned into a
+  DwarFS image in less then 6 minutes, about 30% faster than
+  with the 0.3.1 release. Using `lzma` compression, it actually
+  takes less than 4 minutes now, almost twice as fast as 0.3.1.
+
+- [perf] At the same time, compression ratio also significantly
+  improved, mostly due to the new segmenting algorithm. With the
+  0.3.1 release, using the default configuration, the 47 GiB of
+  Perl installations compressed down to 471.6 MiB. With the 0.4.0
+  release, this has dropped to 426.5 MiB, a 10% improvement.
+  Using `lzma` compression (`-l9`), the size of the resulting
+  image went from 319.5 MiB to 300.9 MiB, about 5% better. More
+  importantly, though, the uncompressed file system size dropped
+  from about 7 GiB to 4 GiB thanks to improved segmenting, which
+  means *less* blocks need to be decompressed on average when
+  using the file system.
+
+- [build] The project can now be built to use the system installed
+  `zstd` and `xxHash` libraries. (fixes github #34)
+
+- [build] The project can now be built without the legacy FUSE
+  driver. (fixes github #32)
+
+- [other] Several small code cleanups.
+
+
 ## Version 0.3.1 - 2021-01-07
 
 - [fix] Fix linking of Python libraries
