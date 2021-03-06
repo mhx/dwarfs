@@ -42,8 +42,10 @@ namespace dwarfs {
 
 namespace {
 
-char const* const asc_bar[8] = {"=", "=", "=", "=", "=", "=", "=", "="};
-char const* const uni_bar[8] = {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+constexpr std::array<char const*, 8> asc_bar{
+    {"=", "=", "=", "=", "=", "=", "=", "="}};
+constexpr std::array<char const*, 8> uni_bar{
+    {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}};
 
 bool is_debug_progress() {
   if (auto var = ::getenv("DWARFS_DEBUG_PROGRESS")) {
@@ -237,7 +239,7 @@ void console_writer::update(const progress& p, bool last) {
   size_t w = barlen / 8;
   size_t c = barlen % 8;
 
-  char const* const* bar = pg_mode_ == UNICODE ? uni_bar : asc_bar;
+  auto bar = pg_mode_ == UNICODE ? uni_bar.data() : asc_bar.data();
 
   if (pg_mode_ == SIMPLE) {
     std::string tmp =

@@ -92,15 +92,15 @@ std::string get_program_path() {
   }};
 
   for (auto cand : paths) {
-    char linkname[PATH_MAX];
+    std::array<char, PATH_MAX> linkname;
 
-    auto r = ::readlink(cand, linkname, PATH_MAX);
+    auto r = ::readlink(cand, linkname.data(), PATH_MAX);
 
     if (r == -1) {
       continue;
     }
 
-    return std::string(linkname, r);
+    return std::string(linkname.data(), r);
   }
 
   return std::string();

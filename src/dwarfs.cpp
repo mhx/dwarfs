@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <iostream>
 #include <stdexcept>
 
@@ -75,7 +76,7 @@ struct options {
 #define DWARFS_OPT(t, p, v)                                                    \
   { t, offsetof(struct options, p), v }
 
-const struct fuse_opt dwarfs_opts[] = {
+constexpr struct ::fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
     DWARFS_OPT("cachesize=%s", cachesize_str, 0),
     DWARFS_OPT("debuglevel=%s", debuglevel_str, 0),
@@ -586,7 +587,7 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg) {
 
 #endif
 
-int run_dwarfs(int argc, char* argv[]) {
+int run_dwarfs(int argc, char** argv) {
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
   s_opts.progname = argv[0];
@@ -674,6 +675,6 @@ int run_dwarfs(int argc, char* argv[]) {
 
 } // namespace dwarfs
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   return dwarfs::safe_main([&] { return dwarfs::run_dwarfs(argc, argv); });
 }

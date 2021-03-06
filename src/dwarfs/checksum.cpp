@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <cstring>
 
 #include <openssl/evp.h>
@@ -139,9 +140,9 @@ bool checksum::compute(algorithm alg, void const* data, size_t size,
 
 bool checksum::verify(algorithm alg, void const* data, size_t size,
                       const void* digest) {
-  char tmp[EVP_MAX_MD_SIZE];
-  return compute(alg, data, size, tmp) &&
-         ::memcmp(digest, tmp, digest_size(alg)) == 0;
+  std::array<char, EVP_MAX_MD_SIZE> tmp;
+  return compute(alg, data, size, tmp.data()) &&
+         ::memcmp(digest, tmp.data(), digest_size(alg)) == 0;
 }
 
 checksum::checksum(algorithm alg)
@@ -163,8 +164,9 @@ checksum::checksum(algorithm alg)
 }
 
 bool checksum::verify(void const* digest) const {
-  char tmp[EVP_MAX_MD_SIZE];
-  return impl_->finalize(tmp) && ::memcmp(digest, tmp, digest_size(alg_)) == 0;
+  std::array<char, EVP_MAX_MD_SIZE> tmp;
+  return impl_->finalize(tmp.data()) &&
+         ::memcmp(digest, tmp.data(), digest_size(alg_)) == 0;
 }
 
 } // namespace dwarfs
