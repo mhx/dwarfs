@@ -99,7 +99,7 @@ struct metadata {
    /**
     * Ranges of chunks that make up regular files. Identical
     * files share the same inode number. The range of chunks
-    * for a * regular file inode are:
+    * for a regular file inode are:
     *
     *   chunks[chunk_index[inode]] .. chunks[chunk_index[inode + 1] - 1]
     */
