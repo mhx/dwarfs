@@ -17,6 +17,7 @@ A fast high compression read-only file system
 * [Comparison](#comparison)
    * [With SquashFS](#with-squashfs)
    * [With SquashFS &amp; xz](#with-squashfs--xz)
+   * [With lrzip](#with-lrzip)
    * [With wimlib](#with-wimlib)
    * [With Cromfs](#with-cromfs)
    * [With EROFS](#with-erofs)
@@ -286,12 +287,11 @@ DwarFS image.
 
 ## Comparison
 
-The SquashFS and `xz` tests were all done on an 8 core Intel(R) Xeon(R)
-E-2286M CPU @ 2.40GHz with 64 GiB of RAM.
+The SquashFS, `xz`, `lrzip` and `wimlib` tests were all done on an
+8 core Intel(R) Xeon(R) E-2286M CPU @ 2.40GHz with 64 GiB of RAM.
 
-The wimlib, Cromfs and EROFS tests were done with an older version of
-DwarFS on a 6 core Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz with 64 GiB
-of RAM.
+The Cromfs and EROFS tests were done with an older version of DwarFS
+on a 6 core Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz with 64 GiB of RAM.
 
 The systems were mostly idle during all of the tests.
 
@@ -817,6 +817,71 @@ That's because `dwarfsextract` writes files in inode-order, and by
 default inodes are ordered by similarity for the best possible
 compression.
 
+### With lrzip
+
+[lrzip](https://github.com/ckolivas/lrzip) is a compression utility
+targeted especially at compressing large files. From its description,
+it looks like it does something very similar to DwarFS, i.e. it looks
+for duplicate segments before passsing the de-duplicated data on to
+an `lzma` compressor.
+
+When I first read about `lrzip`, I was pretty certain it would easily
+beat DwarFS. So let's take a look. `lrzip` operates on a single file,
+so it's necessary to first build a tarball:
+
+    $ time tar cf perl-install.tar install
+    
+    real    2m9.568s
+    user    0m3.757s
+    sys     0m26.623s
+
+Now we can run `lrzip`:
+
+    $ time lrzip -vL9 -o perl-install.tar.lrzip perl-install.tar 
+    The following options are in effect for this COMPRESSION.
+    Threading is ENABLED. Number of CPUs detected: 16
+    Detected 67106172928 bytes ram
+    Compression level 9
+    Nice Value: 19
+    Show Progress
+    Verbose
+    Output Filename Specified: perl-install.tar.lrzip
+    Temporary Directory set as: ./
+    Compression mode is: LZMA. LZO Compressibility testing enabled
+    Heuristically Computed Compression Window: 426 = 42600MB
+    File size: 52615639040
+    Will take 2 passes
+    Beginning rzip pre-processing phase
+    Beginning rzip pre-processing phase
+    perl-install.tar - Compression Ratio: 100.378. Average Compression Speed: 14.536MB/s.
+    Total time: 00:57:32.47
+    
+    real    57m32.472s
+    user    81m44.104s
+    sys     4m50.221s
+
+That definitely took a while. This is about an order of magnitude
+slower than `mkdwarfs` and it barely makes use of the 8 cores.
+
+    $ ll -h perl-install.tar.lrzip
+    -rw-r--r-- 1 mhx users 500M Mar  6 21:16 perl-install.tar.lrzip
+
+This is a surprisingly disappointing result. The archive is 65% larger
+than a DwarFS image at `-l9` that takes less than 4 minutes to build.
+
+That being said, it *is* better than just using `xz` on the tarball:
+
+    $ time xz -T0 -v9 -c perl-install.tar >perl-install.tar.xz
+    perl-install.tar (1/1)
+      100 %      4,317.0 MiB / 49.0 GiB = 0.086    24 MiB/s      34:55
+    
+    real    34m55.450s
+    user    543m50.810s
+    sys     0m26.533s
+
+    $ ll perl-install.tar.xz -h
+    -rw-r--r-- 1 mhx users 4.3G Mar  6 22:59 perl-install.tar.xz
+
 ### With wimlib
 
 [wimlib](https://wimlib.net/) is a really interesting project that is
@@ -829,24 +894,25 @@ I first tried `wimcapture` on the perl dataset:
 
     $ time wimcapture --unix-data --solid --solid-chunk-size=16M install perl-install.wim
     Scanning "install"
-    47 GiB scanned (1927501 files, 330733 directories)    
-    Using LZMS compression with 12 threads
+    47 GiB scanned (1927501 files, 330733 directories)
+    Using LZMS compression with 16 threads
     Archiving file data: 19 GiB of 19 GiB (100%) done
     
-    real    21m38.857s
-    user    191m53.452s
-    sys     1m2.743s
+    real    15m23.310s
+    user    174m29.274s
+    sys     0m42.921s
 
     $ ll perl-install.*
-    -rw-r--r-- 1 mhx users  494602224 Dec 10 18:20 perl-install.dwarfs
-    -rw-r--r-- 1 mhx users 1016971956 Dec  6 00:12 perl-install.wim
-    -rw-r--r-- 1 mhx users 4748902400 Nov 25 00:37 perl-install.squashfs
+    -rw-r--r-- 1 mhx users  447230618 Mar  3 20:28 perl-install.dwarfs
+    -rw-r--r-- 1 mhx users  315482627 Mar  3 21:23 perl-install-l9.dwarfs
+    -rw-r--r-- 1 mhx users 4748902400 Mar  3 20:10 perl-install.squashfs
+    -rw-r--r-- 1 mhx users 1016981520 Mar  6 21:12 perl-install.wim
 
 So wimlib is definitely much better than squashfs, in terms of both
-compression ratio and speed. DwarFS is still about 35% faster to create
-the file system and the DwarFS file system less than half the size.
-When switching to LZMA compression, the DwarFS file system is almost
-60% smaller (wimlib uses LZMS compression by default).
+compression ratio and speed. DwarFS is however about 3 times faster to
+create the file system and the DwarFS file system less than half the size.
+When switching to LZMA compression, the DwarFS file system is more than
+3 times smaller (wimlib uses LZMS compression by default).
 
 What's a bit surprising is that mounting a *wim* file takes quite a bit
 of time:
@@ -854,34 +920,34 @@ of time:
     $ time wimmount perl-install.wim mnt
     [WARNING] Mounting a WIM file containing solid-compressed data; file access may be slow.
     
-    real    0m2.371s
-    user    0m2.034s
-    sys     0m0.335s
+    real    0m2.038s
+    user    0m1.764s
+    sys     0m0.242s
 
 Mounting the DwarFS image takes almost no time in comparison:
 
-    $ time dwarfs perl-install.dwarfs mnt
-    00:36:42.626580 dwarfs (0.3.0)
+    $ time git/github/dwarfs/build-clang-11/dwarfs perl-install-default.dwarfs mnt
+    I 00:23:39.238182 dwarfs (v0.4.0, fuse version 35)
     
-    real    0m0.010s
-    user    0m0.001s
-    sys     0m0.008s
+    real    0m0.003s
+    user    0m0.003s
+    sys     0m0.000s
 
 That's just because it immediately forks into background by default and
 initializes the file system in the background. However, even when
 running it in the foreground, initializing the file system takes only
-slightly longer than 100 milliseconds:
+about 60 milliseconds:
 
     $ dwarfs perl-install.dwarfs mnt -f
-    21:01:34.554090 dwarfs (0.3.0)
-    21:01:34.695661 file system initialized [137.9ms]
+    I 00:25:03.186005 dwarfs (v0.4.0, fuse version 35)
+    I 00:25:03.248061 file system initialized [60.95ms]
 
 If you actually build the DwarFS file system with uncompressed metadata,
 mounting is basically instantaneous:
 
     $ dwarfs perl-install-meta.dwarfs mnt -f
-    00:35:44.975437 dwarfs (0.3.0)
-    00:35:44.987450 file system initialized [5.064ms]
+    I 00:27:52.667026 dwarfs (v0.4.0, fuse version 35)
+    I 00:27:52.671066 file system initialized [2.879ms]
 
 I've tried running the benchmark where all 1139 `perl` executables
 print their version with the wimlib image, but after about 10 minutes,
@@ -915,43 +981,44 @@ the image as a mounted file system. So I tried again without `--solid`:
     $ time wimcapture --unix-data install perl-install-nonsolid.wim
     Scanning "install"
     47 GiB scanned (1927501 files, 330733 directories)
-    Using LZX compression with 12 threads
+    Using LZX compression with 16 threads
     Archiving file data: 19 GiB of 19 GiB (100%) done
     
-    real    12m14.515s
-    user    107m14.962s
-    sys     0m50.042s
+    real    8m39.034s
+    user    64m58.575s
+    sys     0m32.003s
 
-This is actually about 3 minutes faster than `mkdwarfs`. However, it
+This is still more than 3 minutes slower than `mkdwarfs`. However, it
 yields an image that's almost 10 times the size of the DwarFS image
 and comparable in size to the SquashFS image:
 
     $ ll perl-install-nonsolid.wim -h
-    -rw-r--r-- 1 mhx users 4.6G Dec  6 00:58 perl-install-nonsolid.wim
+    -rw-r--r-- 1 mhx users 4.6G Mar  6 23:24 perl-install-nonsolid.wim
 
 This *still* takes surprisingly long to mount:
 
-    $ time wimmount perl-install-nonsolid.wim /tmp/perl/install
+    $ time wimmount perl-install-nonsolid.wim mnt
     
-    real    0m2.029s
-    user    0m1.635s
-    sys     0m0.383s
+    real    0m1.603s
+    user    0m1.327s
+    sys     0m0.275s
 
 However, it's really usable as a file system, even though it's about
 4-5 times slower than the DwarFS image:
 
-    $ hyperfine -c 'umount /tmp/perl/install' -p 'umount /tmp/perl/install; dwarfs perl-install.dwarfs /tmp/perl/install -o cachesize=1g -o workers=4; sleep 1' -n dwarfs "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'umount /tmp/perl/install; wimmount perl-install-nonsolid.wim /tmp/perl/install; sleep 1' -n wimlib "ls -1 /tmp/perl/install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
+    $ hyperfine -c 'umount mnt' -p 'umount mnt; dwarfs perl-install.dwarfs mnt -o cachesize=1g -o workers=4; sleep 1' -n dwarfs "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'" -p 'umount mnt; wimmount perl-install-nonsolid.wim mnt; sleep 1' -n wimlib "ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '\$0 -v >/dev/null'"
     Benchmark #1: dwarfs
-      Time (mean ± σ):      2.295 s ±  0.362 s    [User: 1.823 s, System: 3.173 s]
-      Range (min … max):    1.813 s …  2.606 s    10 runs
+      Time (mean ± σ):      1.149 s ±  0.019 s    [User: 2.147 s, System: 0.739 s]
+      Range (min … max):    1.122 s …  1.187 s    10 runs
      
     Benchmark #2: wimlib
-      Time (mean ± σ):     10.418 s ±  0.286 s    [User: 1.510 s, System: 2.208 s]
-      Range (min … max):   10.134 s … 10.854 s    10 runs
+      Time (mean ± σ):      7.542 s ±  0.069 s    [User: 2.787 s, System: 0.694 s]
+      Range (min … max):    7.490 s …  7.732 s    10 runs
      
     Summary
       'dwarfs' ran
-        4.54 ± 0.73 times faster than 'wimlib'
+        6.56 ± 0.12 times faster than 'wimlib'
+
 
 ### With Cromfs
 
