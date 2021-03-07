@@ -912,7 +912,7 @@ After a few million lines of output that (I think) cannot be turned off:
 So it's an order of magnitude slower than `mkdwarfs` and uses 14 times
 as much CPU resources as `mkdwarfs -l9`. The resulting archive it pretty
 close in size to the default configuration DwarFS image, but it's more
-than 50% bigger than the `mkdwarfs -l9`.
+than 50% bigger than the image produced by `mkdwarfs -l9`.
 
     $ ll perl-install*.*
     -rw-r--r-- 1 mhx users 490227707 Mar  7 01:38 perl-install.zpaq
