@@ -18,6 +18,7 @@ A fast high compression read-only file system
    * [With SquashFS](#with-squashfs)
    * [With SquashFS &amp; xz](#with-squashfs--xz)
    * [With lrzip](#with-lrzip)
+   * [With zpaq](#with-zpaq)
    * [With wimlib](#with-wimlib)
    * [With Cromfs](#with-cromfs)
    * [With EROFS](#with-erofs)
@@ -287,8 +288,8 @@ DwarFS image.
 
 ## Comparison
 
-The SquashFS, `xz`, `lrzip` and `wimlib` tests were all done on an
-8 core Intel(R) Xeon(R) E-2286M CPU @ 2.40GHz with 64 GiB of RAM.
+The SquashFS, `xz`, `lrzip`, `zpaq` and `wimlib` tests were all done on
+an 8 core Intel(R) Xeon(R) E-2286M CPU @ 2.40GHz with 64 GiB of RAM.
 
 The Cromfs and EROFS tests were done with an older version of DwarFS
 on a 6 core Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz with 64 GiB of RAM.
@@ -868,6 +869,8 @@ slower than `mkdwarfs` and it barely makes use of the 8 cores.
 
 This is a surprisingly disappointing result. The archive is 65% larger
 than a DwarFS image at `-l9` that takes less than 4 minutes to build.
+Also, you can't just access the files in the `.lrzip` without fully
+unpacking the archive first.
 
 That being said, it *is* better than just using `xz` on the tarball:
 
@@ -881,6 +884,53 @@ That being said, it *is* better than just using `xz` on the tarball:
 
     $ ll perl-install.tar.xz -h
     -rw-r--r-- 1 mhx users 4.3G Mar  6 22:59 perl-install.tar.xz
+
+### With zpaq
+
+[zpaq](http://mattmahoney.net/dc/zpaq.html) is a journaling backup
+utility and archiver. Again, it appears to share some of the ideas in
+DwarFS, like segmentation analysis, but it also adds some features on
+top that make it useful for incremental backups. However, it's also
+not usable as a file system, so data needs to be extracted before it
+can be used.
+
+Anyway, how does it fare in terms of speed and compression performance?
+
+    $ time zpaq a perl-install.zpaq install -m5
+
+After a few million lines of output that (I think) cannot be turned off:
+
+    2258234 +added, 0 -removed.
+    
+    0.000000 + (51161.953159 -> 8932.000297 -> 490.227707) = 490.227707 MB
+    2828.082 seconds (all OK)
+    
+    real    47m8.104s
+    user    714m44.286s
+    sys     3m6.751s
+
+So it's an order of magnitude slower than `mkdwarfs` and uses 14 times
+as much CPU resources as `mkdwarfs -l9`. The resulting archive it pretty
+close in size to the default configuration DwarFS image, but it's more
+than 50% bigger than the `mkdwarfs -l9`.
+
+    $ ll perl-install*.*
+    -rw-r--r-- 1 mhx users 490227707 Mar  7 01:38 perl-install.zpaq
+    -rw-r--r-- 1 mhx users 315482627 Mar  3 21:23 perl-install-l9.dwarfs
+    -rw-r--r-- 1 mhx users 447230618 Mar  3 20:28 perl-install.dwarfs
+
+What's *really* surprising is how slow it is to extract the `zpaq`
+archive again:
+
+    $ time zpaq x perl-install.zpaq
+    2798.097 seconds (all OK)
+    
+    real    46m38.117s
+    user    711m18.734s
+    sys     3m47.876s
+
+That's 700 times slower than extracting the DwarFS image.
+
 
 ### With wimlib
 
