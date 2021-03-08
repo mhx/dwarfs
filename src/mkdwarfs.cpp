@@ -549,7 +549,7 @@ int mkdwarfs(int argc, char** argv) {
     metadata_compression = defaults.metadata_compression;
   }
 
-  if (!vm.count("blockhash-window-size")) {
+  if (!vm.count("window-size")) {
     cfg.blockhash_window_size = defaults.window_size;
   }
 
