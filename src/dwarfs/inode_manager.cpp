@@ -152,23 +152,6 @@ class inode_ : public inode {
   std::vector<uint64_t> nilsimsa_similarity_hash_;
 };
 
-class nilsimsa_cache_entry {
- public:
-  explicit nilsimsa_cache_entry(std::shared_ptr<inode> i)
-      : size(i->size())
-      , hash(i->nilsimsa_similarity_hash().data())
-      , path(i->any()->path())
-      , ino(std::move(i)) {
-    assert(hash);
-  }
-
-  int similarity{0};
-  uint64_t const size;
-  uint64_t const* const hash;
-  std::string const path;
-  std::shared_ptr<inode> ino;
-};
-
 } // namespace
 
 template <typename LoggerPolicy>
