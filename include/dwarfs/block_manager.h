@@ -41,6 +41,7 @@ class block_manager {
     size_t max_active_blocks{1};
     size_t memory_limit{256 << 20};
     unsigned block_size_bits{22};
+    unsigned bloom_filter_size{4};
   };
 
   block_manager(logger& lgr, progress& prog, const config& cfg,
