@@ -258,8 +258,6 @@ add_executable(dwarfsextract src/dwarfsextract.cpp)
 
 list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
 
-target_link_libraries(dwarfsextract PkgConfig::LIBARCHIVE)
-
 if(FUSE3_FOUND)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_compile_definitions(dwarfs-bin PRIVATE _FILE_OFFSET_BITS=64
@@ -482,6 +480,7 @@ target_link_libraries(
   thrift_light
   folly
   ${Boost_LIBRARIES}
+  PkgConfig::LIBARCHIVE
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
