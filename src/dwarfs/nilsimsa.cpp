@@ -57,15 +57,6 @@ uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
   return ((TT53[(a + n) & 0xFF] ^ TT53[b] * (n + n + 1)) + TT53[c ^ TT53[n]]);
 }
 
-// TODO: this will currently only work for gcc/clang, but should be easy to port
-__attribute__((__unused__)) int popcount(unsigned long x) {
-  return __builtin_popcountl(x);
-}
-
-__attribute__((__unused__)) int popcount(unsigned long long x) {
-  return __builtin_popcountll(x);
-}
-
 } // namespace
 
 class nilsimsa::impl {
@@ -198,14 +189,39 @@ void nilsimsa::update(uint8_t const* data, size_t size) {
 
 std::vector<uint64_t> nilsimsa::finalize() const { return impl_->finalize(); }
 
+#ifndef DWARFS_SANITIZE_THREAD
+__attribute__((target("popcnt"))) int
+nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
+  int bits = 0;
+
+  for (int i = 0; i < 4; ++i) {
+    if constexpr (std::is_same_v<unsigned long, uint64_t>) {
+      bits += __builtin_popcountl(a[i] ^ b[i]);
+    } else if constexpr (std::is_same_v<unsigned long long, uint64_t>) {
+      bits += __builtin_popcountll(a[i] ^ b[i]);
+    }
+  }
+
+  return 255 - bits;
+}
+
+__attribute__((target("default")))
+#endif
 int nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
   int bits = 0;
 
   for (int i = 0; i < 4; ++i) {
-    bits += popcount(a[i] ^ b[i]);
+    if constexpr (std::is_same_v<unsigned long, uint64_t>) {
+      bits += __builtin_popcountl(a[i] ^ b[i]);
+    } else if constexpr (std::is_same_v<unsigned long long, uint64_t>) {
+      bits += __builtin_popcountll(a[i] ^ b[i]);
+    }
   }
 
-  return 256 - bits;
+  return 255 - bits;
 }
+
+static_assert(std::is_same_v<unsigned long, uint64_t> ||
+              std::is_same_v<unsigned long long, uint64_t>);
 
 } // namespace dwarfs

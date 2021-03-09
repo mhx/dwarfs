@@ -25,6 +25,8 @@
 #include <memory>
 #include <vector>
 
+#include "dwarfs/compiler.h"
+
 namespace dwarfs {
 
 class nilsimsa {
@@ -35,7 +37,14 @@ class nilsimsa {
   void update(uint8_t const* data, size_t size);
   std::vector<uint64_t> finalize() const;
 
-  static int similarity(uint64_t const* a, uint64_t const* b);
+#ifndef DWARFS_SANITIZE_THREAD
+  __attribute__((target("popcnt"))) static int
+  similarity(uint64_t const* a, uint64_t const* b);
+
+  __attribute__((target("default")))
+#endif
+  static int
+  similarity(uint64_t const* a, uint64_t const* b);
 
  private:
   class impl;

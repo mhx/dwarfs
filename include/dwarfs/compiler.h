@@ -28,3 +28,11 @@
 #define DWARFS_LIKELY(x) (x)
 #define DWARFS_UNLIKELY(x) (x)
 #endif
+
+#if defined(__SANITIZE_THREAD__)
+#define DWARFS_SANITIZE_THREAD 1
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define DWARFS_SANITIZE_THREAD 1
+#endif
+#endif
