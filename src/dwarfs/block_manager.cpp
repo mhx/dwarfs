@@ -279,7 +279,8 @@ class block_manager_ final : public block_manager::impl {
       , window_size_{cfg.blockhash_window_size > 0
                          ? static_cast<size_t>(1) << cfg.blockhash_window_size
                          : 0}
-      , window_step_{std::max<size_t>(1, window_size_ >> cfg.window_increment_shift)}
+      , window_step_{std::max<size_t>(1, window_size_ >>
+                                             cfg.window_increment_shift)}
       , block_size_{static_cast<size_t>(1) << cfg.block_size_bits}
       , filter_{bloom_filter_size()} {
     LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
