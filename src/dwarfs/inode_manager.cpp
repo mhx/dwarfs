@@ -46,6 +46,44 @@
 
 namespace dwarfs {
 
+#define DWARFS_FIND_SIMILAR_INODE_IMPL                                         \
+  std::pair<int_fast32_t, int_fast32_t> find_similar_inode(                    \
+      uint64_t const* ref_hash,                                                \
+      std::vector<std::shared_ptr<inode>> const& inodes,                       \
+      std::vector<uint32_t> const& index, int_fast32_t const limit,            \
+      int_fast32_t const end) {                                                \
+    int_fast32_t max_sim = 0;                                                  \
+    int_fast32_t max_sim_ix = 0;                                               \
+                                                                               \
+    for (int_fast32_t i = index.size() - 1; i >= end; --i) {                   \
+      auto const* test_hash =                                                  \
+          inodes[index[i]]->nilsimsa_similarity_hash().data();                 \
+      int sim;                                                                 \
+      DWARFS_NILSIMSA_SIMILARITY(sim =, ref_hash, test_hash);                  \
+                                                                               \
+      if (DWARFS_UNLIKELY(sim > max_sim)) {                                    \
+        max_sim = sim;                                                         \
+        max_sim_ix = i;                                                        \
+                                                                               \
+        if (DWARFS_UNLIKELY(max_sim >= limit)) {                               \
+          break;                                                               \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+                                                                               \
+    return {max_sim_ix, max_sim};                                              \
+  }                                                                            \
+  static_assert(true, "")
+
+#ifndef DWARFS_SANITIZE_THREAD
+#ifdef __clang__
+__attribute__((target("arch=skylake"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
+#endif
+__attribute__((target("popcnt"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
+__attribute__((target("default")))
+#endif
+DWARFS_FIND_SIMILAR_INODE_IMPL;
+
 namespace {
 
 class inode_ : public inode {
@@ -376,26 +414,9 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
     finalize_inode();
 
     while (!index.empty()) {
-      auto* ref_hash = inodes_.back()->nilsimsa_similarity_hash().data();
-
-      int_fast32_t max_sim = 0;
-      int_fast32_t max_sim_ix = 0;
-
-      int_fast32_t end = int(index.size()) > depth ? index.size() - depth : 0;
-
-      for (int_fast32_t i = index.size() - 1; i >= end; --i) {
-        auto sim = nilsimsa::similarity(
-            ref_hash, inodes[index[i]]->nilsimsa_similarity_hash().data());
-
-        if (DWARFS_UNLIKELY(sim > max_sim)) {
-          max_sim = sim;
-          max_sim_ix = i;
-
-          if (DWARFS_UNLIKELY(max_sim >= limit)) {
-            break;
-          }
-        }
-      }
+      auto [max_sim_ix, max_sim] = find_similar_inode(
+          inodes_.back()->nilsimsa_similarity_hash().data(), inodes, index,
+          limit, int(index.size()) > depth ? index.size() - depth : 0);
 
       LOG_TRACE << max_sim << " @ " << max_sim_ix << "/" << index.size();
 

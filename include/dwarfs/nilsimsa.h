@@ -23,9 +23,23 @@
 
 #include <cstdint>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "dwarfs/compiler.h"
+
+#define DWARFS_NILSIMSA_SIMILARITY(r, a, b)                                    \
+  do {                                                                         \
+    int bits = 0;                                                              \
+    for (int i = 0; i < 4; ++i) {                                              \
+      if constexpr (std::is_same_v<unsigned long, uint64_t>) {                 \
+        bits += __builtin_popcountl(a[i] ^ b[i]);                              \
+      } else if constexpr (std::is_same_v<unsigned long long, uint64_t>) {     \
+        bits += __builtin_popcountll(a[i] ^ b[i]);                             \
+      }                                                                        \
+    }                                                                          \
+    r 255 - bits;                                                              \
+  } while (false)
 
 namespace dwarfs {
 

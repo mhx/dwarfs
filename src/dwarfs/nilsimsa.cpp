@@ -142,37 +142,45 @@ class nilsimsa::impl {
     size_ += size;
   }
 
-  void update_fast(uint8_t const* data, size_t size) {
-    uint_fast8_t w1 = w_[0];
-    uint_fast8_t w2 = w_[1];
-    uint_fast8_t w3 = w_[2];
-    uint_fast8_t w4 = w_[3];
+#define DWARFS_NILSIMSA_UPDATE_FAST_IMPL                                       \
+  void update_fast(uint8_t const* data, size_t size) {                         \
+    uint8_t w1 = w_[0];                                                        \
+    uint8_t w2 = w_[1];                                                        \
+    uint8_t w3 = w_[2];                                                        \
+    uint8_t w4 = w_[3];                                                        \
+                                                                               \
+    for (size_t i = 0; i < size; ++i) {                                        \
+      uint8_t w0 = data[i];                                                    \
+                                                                               \
+      ++acc_[tran3(w0, w1, w2, 0)];                                            \
+      ++acc_[tran3(w0, w1, w3, 1)];                                            \
+      ++acc_[tran3(w0, w2, w3, 2)];                                            \
+      ++acc_[tran3(w0, w1, w4, 3)];                                            \
+      ++acc_[tran3(w0, w2, w4, 4)];                                            \
+      ++acc_[tran3(w0, w3, w4, 5)];                                            \
+      ++acc_[tran3(w4, w1, w0, 6)];                                            \
+      ++acc_[tran3(w4, w3, w0, 7)];                                            \
+                                                                               \
+      w4 = w3;                                                                 \
+      w3 = w2;                                                                 \
+      w2 = w1;                                                                 \
+      w1 = w0;                                                                 \
+    }                                                                          \
+                                                                               \
+    w_[0] = w1;                                                                \
+    w_[1] = w2;                                                                \
+    w_[2] = w3;                                                                \
+    w_[3] = w4;                                                                \
+                                                                               \
+    size_ += size;                                                             \
+  }                                                                            \
+  static_assert(true, "")
 
-    for (size_t i = 0; i < size; ++i) {
-      uint_fast8_t w0 = data[i];
-
-      ++acc_[tran3(w0, w1, w2, 0)];
-      ++acc_[tran3(w0, w1, w3, 1)];
-      ++acc_[tran3(w0, w2, w3, 2)];
-      ++acc_[tran3(w0, w1, w4, 3)];
-      ++acc_[tran3(w0, w2, w4, 4)];
-      ++acc_[tran3(w0, w3, w4, 5)];
-      ++acc_[tran3(w4, w1, w0, 6)];
-      ++acc_[tran3(w4, w3, w0, 7)];
-
-      w4 = w3;
-      w3 = w2;
-      w2 = w1;
-      w1 = w0;
-    }
-
-    w_[0] = w1;
-    w_[1] = w2;
-    w_[2] = w3;
-    w_[3] = w4;
-
-    size_ += size;
-  }
+#ifndef DWARFS_SANITIZE_THREAD
+  __attribute__((target("avx"))) DWARFS_NILSIMSA_UPDATE_FAST_IMPL;
+  __attribute__((target("default")))
+#endif
+  DWARFS_NILSIMSA_UPDATE_FAST_IMPL;
 
   std::array<size_t, 256> acc_;
   std::array<uint_fast8_t, 4> w_;
@@ -192,33 +200,13 @@ std::vector<uint64_t> nilsimsa::finalize() const { return impl_->finalize(); }
 #ifndef DWARFS_SANITIZE_THREAD
 __attribute__((target("popcnt"))) int
 nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
-  int bits = 0;
-
-  for (int i = 0; i < 4; ++i) {
-    if constexpr (std::is_same_v<unsigned long, uint64_t>) {
-      bits += __builtin_popcountl(a[i] ^ b[i]);
-    } else if constexpr (std::is_same_v<unsigned long long, uint64_t>) {
-      bits += __builtin_popcountll(a[i] ^ b[i]);
-    }
-  }
-
-  return 255 - bits;
+  DWARFS_NILSIMSA_SIMILARITY(return, a, b);
 }
 
 __attribute__((target("default")))
 #endif
 int nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
-  int bits = 0;
-
-  for (int i = 0; i < 4; ++i) {
-    if constexpr (std::is_same_v<unsigned long, uint64_t>) {
-      bits += __builtin_popcountl(a[i] ^ b[i]);
-    } else if constexpr (std::is_same_v<unsigned long long, uint64_t>) {
-      bits += __builtin_popcountll(a[i] ^ b[i]);
-    }
-  }
-
-  return 255 - bits;
+  DWARFS_NILSIMSA_SIMILARITY(return, a, b);
 }
 
 static_assert(std::is_same_v<unsigned long, uint64_t> ||
