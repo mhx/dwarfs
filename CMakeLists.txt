@@ -44,6 +44,9 @@ endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
+  # For gcc, -O3 is *much* worse than -O2
+  set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
+  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
 endif()
