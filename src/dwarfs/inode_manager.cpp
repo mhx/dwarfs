@@ -75,7 +75,7 @@ namespace dwarfs {
   }                                                                            \
   static_assert(true, "")
 
-#ifndef DWARFS_SANITIZE_THREAD
+#ifdef DWARFS_MULTIVERSIONING
 #ifdef __clang__
 __attribute__((target("arch=skylake"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
 #endif

@@ -51,7 +51,7 @@ class nilsimsa {
   void update(uint8_t const* data, size_t size);
   std::vector<uint64_t> finalize() const;
 
-#ifndef DWARFS_SANITIZE_THREAD
+#ifdef DWARFS_MULTIVERSIONING
   __attribute__((target("popcnt"))) static int
   similarity(uint64_t const* a, uint64_t const* b);
 
