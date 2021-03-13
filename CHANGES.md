@@ -5,6 +5,14 @@
 - [fix] Linking against libarchive was fixed so that it also
   works for shared library builds. (fixes github #36)
 
+- [fix] `mkdwarfs` didn't catch certain exceptions correctly,
+  which would cause a stack trace instead of a simple error
+  message. This has been fixed.
+
+- [fix] The statically linked executables were unable to handle
+  any exceptions at all due to duplicate stack unwinding code.
+  This has (hopefully) been fixed now.
+
 - [perf] GCC builds have traditionally been much slower than
   Clang builds, though it was unclear why that was the case.
   It turns out the reason is simply that CMake defaults to
