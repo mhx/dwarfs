@@ -51,8 +51,8 @@ std::vector<std::string> global_entry_data::get_names() const {
   return get_vector(names_);
 }
 
-std::vector<std::string> global_entry_data::get_links() const {
-  return get_vector(links_);
+std::vector<std::string> global_entry_data::get_symlinks() const {
+  return get_vector(symlinks_);
 }
 
 void global_entry_data::index(map_type<std::string, uint32_t>& map) {
@@ -100,8 +100,8 @@ uint32_t global_entry_data::get_name_index(std::string const& name) const {
   return DWARFS_NOTHROW(names_.at(name));
 }
 
-uint32_t global_entry_data::get_link_index(std::string const& link) const {
-  return DWARFS_NOTHROW(links_.at(link));
+uint32_t global_entry_data::get_symlink_index(std::string const& link) const {
+  return DWARFS_NOTHROW(symlinks_.at(link));
 }
 
 void global_entry_data::add_uid(uint16_t uid) {

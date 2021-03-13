@@ -172,7 +172,7 @@ void console_writer::update(const progress& p, bool last) {
             << newline;
       }
 
-      oss << p.dirs_scanned << " dirs, " << p.links_scanned << "/"
+      oss << p.dirs_scanned << " dirs, " << p.symlinks_scanned << "/"
           << p.hardlinks << " soft/hard links, " << p.files_scanned << "/"
           << p.files_found << " files, " << p.specials_found << " other"
           << newline

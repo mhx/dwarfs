@@ -49,11 +49,11 @@ class global_entry_data {
   void add_ctime(uint64_t time);
 
   void add_name(std::string const& name) { names_.emplace(name, 0); }
-  void add_link(std::string const& link) { links_.emplace(link, 0); }
+  void add_link(std::string const& link) { symlinks_.emplace(link, 0); }
 
   void index() {
     index(names_);
-    index(links_);
+    index(symlinks_);
   }
 
   uint16_t get_uid_index(uint16_t uid) const;
@@ -61,7 +61,7 @@ class global_entry_data {
   uint16_t get_mode_index(uint16_t mode) const;
 
   uint32_t get_name_index(std::string const& name) const;
-  uint32_t get_link_index(std::string const& link) const;
+  uint32_t get_symlink_index(std::string const& link) const;
 
   uint64_t get_mtime_offset(uint64_t time) const;
   uint64_t get_atime_offset(uint64_t time) const;
@@ -72,7 +72,7 @@ class global_entry_data {
   std::vector<uint16_t> get_modes() const;
 
   std::vector<std::string> get_names() const;
-  std::vector<std::string> get_links() const;
+  std::vector<std::string> get_symlinks() const;
 
   uint64_t get_timestamp_base() const;
 
@@ -98,7 +98,7 @@ class global_entry_data {
   map_type<uint16_t, uint16_t> gids_;
   map_type<uint16_t, uint16_t> modes_;
   map_type<std::string, uint32_t> names_;
-  map_type<std::string, uint32_t> links_;
+  map_type<std::string, uint32_t> symlinks_;
   uint16_t next_uid_index_{0};
   uint16_t next_gid_index_{0};
   uint16_t next_mode_index_{0};

@@ -209,9 +209,9 @@ class pipe_set_inode_visitor : public visitor_base {
   uint32_t& inode_no_;
 };
 
-class names_and_links_visitor : public entry_visitor {
+class names_and_symlinks_visitor : public entry_visitor {
  public:
-  explicit names_and_links_visitor(global_entry_data& data)
+  explicit names_and_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
@@ -417,9 +417,9 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
               break;
 
             case entry::E_LINK:
-              prog.links_found++;
+              prog.symlinks_found++;
               pe->scan(*os_, prog);
-              prog.links_scanned++;
+              prog.symlinks_scanned++;
               break;
 
             case entry::E_DEVICE:
@@ -506,7 +506,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
 
-  mv2.link_index.resize(first_file_inode - first_link_inode);
+  mv2.symlink_index.resize(first_file_inode - first_link_inode);
 
   LOG_INFO << "assigning device inodes...";
   uint32_t first_device_inode = first_file_inode + im.count();
@@ -522,8 +522,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   LOG_INFO << "building metadata...";
 
   wg_.add_job([&] {
-    LOG_INFO << "saving names and links...";
-    names_and_links_visitor nlv(ge_data);
+    LOG_INFO << "saving names and symlinks...";
+    names_and_symlinks_visitor nlv(ge_data);
     root->accept(nlv);
 
     ge_data.index();
@@ -532,8 +532,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        DWARFS_NOTHROW(mv2.link_index.at(ep->inode_num() - first_link_inode)) =
-            ge_data.get_link_index(lp->linkname());
+        DWARFS_NOTHROW(mv2.symlink_index.at(ep->inode_num() - first_link_inode)) =
+            ge_data.get_symlink_index(lp->linkname());
       }
     });
   });
@@ -607,7 +607,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.gids = ge_data.get_gids();
   mv2.modes = ge_data.get_modes();
   mv2.names = ge_data.get_names();
-  mv2.links = ge_data.get_links();
+  mv2.symlinks = ge_data.get_symlinks();
   mv2.timestamp_base = ge_data.get_timestamp_base();
   mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;
