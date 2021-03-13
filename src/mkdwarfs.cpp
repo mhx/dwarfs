@@ -771,6 +771,9 @@ int mkdwarfs(int argc, char** argv) {
     } catch (runtime_error const& e) {
       LOG_ERROR << e.what();
       return 1;
+    } catch (system_error const& e) {
+      LOG_ERROR << e.what();
+      return 1;
     }
   }
 
