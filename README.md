@@ -58,8 +58,8 @@ Distinct features of DwarFS are:
   [FUSE driver](doc/dwarfs.md) are able to make good use of the
   many cores of your system.
 
-* Optional experimental Lua support to provide custom filtering and
-  ordering functionality.
+* Optional experimental Python scripting support to provide custom
+  filtering and ordering functionality.
 
 ## History
 
