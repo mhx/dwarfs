@@ -176,7 +176,7 @@ class nilsimsa::impl {
   }                                                                            \
   static_assert(true, "")
 
-#ifndef DWARFS_MULTIVERSIONING
+#ifdef DWARFS_MULTIVERSIONING
   __attribute__((target("avx"))) DWARFS_NILSIMSA_UPDATE_FAST_IMPL;
   __attribute__((target("default")))
 #endif
