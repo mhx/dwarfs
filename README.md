@@ -162,56 +162,12 @@ A good starting point for apt-based systems is probably:
         libfuse3-dev \
         libgoogle-glog-dev
 
-You can pick either `clang` or `g++`, but at least recent `clang`
-versions will produce substantially faster code:
+Note that when building with `gcc`, the optimization level will be
+set to `-O2` instead of the CMake default of `-O3` for release
+builds. At least with versions up to `gcc-10`, the `-O3` build is
+[up to 70% slower](https://github.com/mhx/dwarfs/issues/14) than a
+build with `-O2`.
 
-    $ hyperfine -L prog $(echo build-*/mkdwarfs | tr ' ' ,) '{prog} --no-progress --log-level warn -i /usr/include -o /dev/null -C null'
-    Benchmark #1: build-clang-10/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null
-      Time (mean ± σ):      6.403 s ±  0.178 s    [User: 12.039 s, System: 1.963 s]
-      Range (min … max):    6.250 s …  6.701 s    10 runs
-     
-    Benchmark #2: build-clang-11/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null
-      Time (mean ± σ):      6.408 s ±  0.143 s    [User: 12.109 s, System: 1.974 s]
-      Range (min … max):    6.231 s …  6.617 s    10 runs
-     
-    Benchmark #3: build-gcc-10/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null
-      Time (mean ± σ):     11.484 s ±  0.245 s    [User: 18.487 s, System: 2.071 s]
-      Range (min … max):   11.119 s … 11.779 s    10 runs
-     
-    Benchmark #4: build-gcc-9/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null
-      Time (mean ± σ):     11.443 s ±  0.242 s    [User: 18.419 s, System: 2.067 s]
-      Range (min … max):   11.177 s … 11.742 s    10 runs
-     
-    Summary
-      'build-clang-10/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null' ran
-        1.00 ± 0.04 times faster than 'build-clang-11/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null'
-        1.79 ± 0.06 times faster than 'build-gcc-9/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null'
-        1.79 ± 0.06 times faster than 'build-gcc-10/mkdwarfs --no-progress --log-level warn -i /usr/include -o /dev/null -C null'
-
-    $ hyperfine build-*/dwarfs_test
-    Benchmark #1: build-clang-10/dwarfs_test
-      Time (mean ± σ):      1.789 s ±  0.008 s    [User: 2.049 s, System: 0.636 s]
-      Range (min … max):    1.775 s …  1.808 s    10 runs
-     
-    Benchmark #2: build-clang-11/dwarfs_test
-      Time (mean ± σ):      1.806 s ±  0.011 s    [User: 2.053 s, System: 0.660 s]
-      Range (min … max):    1.791 s …  1.820 s    10 runs
-     
-    Benchmark #3: build-gcc-10/dwarfs_test
-      Time (mean ± σ):      2.027 s ±  0.004 s    [User: 2.270 s, System: 0.797 s]
-      Range (min … max):    2.023 s …  2.032 s    10 runs
-     
-    Benchmark #4: build-gcc-9/dwarfs_test
-      Time (mean ± σ):      2.033 s ±  0.005 s    [User: 2.278 s, System: 0.796 s]
-      Range (min … max):    2.027 s …  2.040 s    10 runs
-     
-    Summary
-      'build-clang-10/dwarfs_test' ran
-        1.01 ± 0.01 times faster than 'build-clang-11/dwarfs_test'
-        1.13 ± 0.01 times faster than 'build-gcc-10/dwarfs_test'
-        1.14 ± 0.01 times faster than 'build-gcc-9/dwarfs_test'
-
-These measurements were made with gcc-9.3.0, gcc-10.2.0, clang-10.0.1 and clang-11.0.1.
 
 ### Building
 
