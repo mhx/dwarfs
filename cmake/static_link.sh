@@ -11,8 +11,7 @@ elif [[ "$target" == "dwarfs2" ]]; then
 	fuse="/usr/lib/x86_64-linux-gnu/libfuse.a"
 fi
 
-g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
-	-Wl,-allow-multiple-definition -Wl,-Bstatic \
+g++ -static "$@" -o "$target" \
 	libdwarfs.a \
 	libmetadata_thrift.a \
 	libthrift_light.a \
@@ -39,9 +38,7 @@ g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
 	/usr/lib/x86_64-linux-gnu/libssl.a \
 	/usr/lib/x86_64-linux-gnu/libcrypto.a \
 	/usr/lib/x86_64-linux-gnu/libiberty.a \
-	/usr/lib/x86_64-linux-gnu/libunwind.a \
 	/usr/lib/x86_64-linux-gnu/liblz4.a \
-	/usr/lib/x86_64-linux-gnu/liblzma.a \
 	/usr/lib/x86_64-linux-gnu/libz.a \
 	/usr/lib/gcc/x86_64-linux-gnu/10/libatomic.a \
 	/usr/lib/x86_64-linux-gnu/libjemalloc.a \
@@ -49,4 +46,7 @@ g++ -static -static-libgcc -static-libstdc++ "$@" -o "$target" \
 	/usr/lib/x86_64-linux-gnu/libdl.a \
 	/usr/lib/x86_64-linux-gnu/libc.a \
 	/usr/lib/x86_64-linux-gnu/libm.a \
-	/usr/lib/x86_64-linux-gnu/librt.a
+	/usr/lib/x86_64-linux-gnu/librt.a \
+	/usr/lib/gcc/x86_64-linux-gnu/10/libgcc_eh.a \
+	/usr/lib/x86_64-linux-gnu/libunwind.a \
+	/usr/lib/x86_64-linux-gnu/liblzma.a
