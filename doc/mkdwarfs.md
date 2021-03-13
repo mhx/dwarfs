@@ -205,16 +205,25 @@ Most other options are concerned with compression tuning:
     all duplicate segments of (`window_size` + `window_step`) bytes or more
     will be detected (unless they span across block boundaries, of course).
     If you use a larger value for this option, the increments become *smaller*,
-    and `mkdwarfs` will be slower and use more memory.
+    and `mkdwarfs` will be slightly slower and use more memory.
 
   * `-B`, `--max-lookback-blocks=`*value*:
     Specify how many of the most recent blocks to scan for duplicate segments.
     By default, only the current block will be scanned. The larger this number,
     the more duplicate segments will likely be found, which may further improve
-    compression. However, it can also slow down compression and could cause the
-    resulting filesystem to be less efficient to use, as single small files can
-    now potentially span multiple filesystem blocks. Passing `-B0` will completely
-    disable duplicate segment search.
+    compression. Impact on compression speed is minimal, but this could cause
+    resulting filesystem to be slightly less efficient to use, as single small
+    files can now potentially span multiple filesystem blocks. Passing `-B0`
+    will completely disable duplicate segment search.
+
+  * `--bloom-filter-size`=*value*:
+    The segmenting algorithm uses a bloom filter to determine quickly if
+    there is *no* match at a given position. This will filter out more than
+    90% of bad matches quickly with the default bloom filter size. The default
+    is pretty much where the sweet spot lies. If you have copious amounts of
+    RAM and CPU power, feel free to increase this by one or two and you *might*
+    be able to see some improvement. If you're tight on memory, then decreasing
+    this will potentially save a few MiBs.
 
   * `--remove-empty-dirs`:
     Removes all empty directories from the output file system, recursively.
