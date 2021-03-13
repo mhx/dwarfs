@@ -1,5 +1,36 @@
 # Change Log
 
+## Version 0.4.1 - 2021-03-13
+
+- [fix] Linking against libarchive was fixed so that it also
+  works for shared library builds. (fixes github #36)
+
+- [perf] GCC builds have traditionally been much slower than
+  Clang builds, though it was unclear why that was the case.
+  It turns out the reason is simply that CMake defaults to
+  `-O3` optimization, which is known to cause performance
+  regressions in some cases. The build has been changed to
+  *always* build with `-O2` when doing an optimized GCC build.
+  The Clang build is unaffected. (fixes github #14)
+
+- [perf] The segmenting code now uses a bloom filter to discard
+  unsuccessful matches as early and quickly as possible. While
+  this only gives a minor speedup when using a single lookback
+  block, as you increase the number of lookback blocks speed is
+  barely affected whereas before it would slow down significantly.
+  The bloom filter size (relative to the number of values) can be
+  tuned by using `--bloom-filter-size`, though increasing it any
+  further from the default is likely not going to make a difference.
+
+- [perf] Nilsimsa similarity computation has been improved to
+  make use of different instruction sets depending on the CPU
+  architecture, speeding up the process of ordering files by
+  similarity by almost a factor of 2.
+
+- [doc] Added comparison with `lrzip`, `zpaq`. Updated `wimlib`
+  comparison.
+
+
 ## Version 0.4.0 - 2021-03-06
 
 - [feature] New `dwarfsextract` tool that allows extracting a file
