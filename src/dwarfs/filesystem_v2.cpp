@@ -532,7 +532,11 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   }
 
   if (detail_level > 0) {
-    filesystem_v2(lgr, mm).dump(os, detail_level);
+    filesystem_options fsopts;
+    if (detail_level > 1) {
+      fsopts.metadata.enable_nlink = true;
+    }
+    filesystem_v2(lgr, mm, fsopts).dump(os, detail_level);
   }
 }
 

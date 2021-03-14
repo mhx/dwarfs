@@ -24,6 +24,7 @@
 #include <cerrno>
 #include <climits>
 #include <cstring>
+#include <numeric>
 #include <ostream>
 
 #include <fcntl.h>
@@ -507,6 +508,23 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 1) {
+    os << "chunks: " << meta_.chunks().size() << std::endl;
+    os << "directories: " << meta_.directories().size() << std::endl;
+    os << "entries: " << meta_.entries().size() << std::endl;
+    os << "chunk_index: " << meta_.chunk_index().size() << std::endl;
+    os << "entry_index: " << meta_.entry_index().size() << std::endl;
+    os << "symlink_table: " << meta_.symlink_table().size() << std::endl;
+    os << "uids: " << meta_.uids().size() << std::endl;
+    os << "gids: " << meta_.gids().size() << std::endl;
+    os << "modes: " << meta_.modes().size() << std::endl;
+    os << "names: " << meta_.names().size() << std::endl;
+    os << "symlinks: " << meta_.symlinks().size() << std::endl;
+    os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0) << std::endl;
+    os << "devices: " << meta_.devices()->size() << std::endl;
+    os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
+    os << "file_index_offset: " << file_index_offset_ << std::endl;
+    os << "dev_index_offset: " << dev_index_offset_ << std::endl;
+
     analyze_frozen(os, meta_);
   }
 
