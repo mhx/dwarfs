@@ -115,43 +115,43 @@ class metadata_ final : public metadata_v2::impl {
       , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
       , log_(lgr)
       , inode_offset_(inode_offset)
-      , symlink_index_offset_(find_index_offset(inode_rank::INO_LNK))
-      , chunk_index_offset_(find_index_offset(inode_rank::INO_REG))
+      , symlink_table_offset_(find_index_offset(inode_rank::INO_LNK))
+      , file_index_offset_(find_index_offset(inode_rank::INO_REG))
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
       , nlinks_(build_nlinks(options))
       , options_(options) {
-    LOG_DEBUG << "symlink index offset: " << symlink_index_offset_;
-    LOG_DEBUG << "chunk index offset: " << chunk_index_offset_;
+    LOG_DEBUG << "symlink table offset: " << symlink_table_offset_;
+    LOG_DEBUG << "chunk index offset: " << file_index_offset_;
     LOG_DEBUG << "device index offset: " << dev_index_offset_;
 
-    if (int(meta_.directories().size() - 1) != symlink_index_offset_) {
+    if (int(meta_.directories().size() - 1) != symlink_table_offset_) {
       DWARFS_THROW(
           runtime_error,
           fmt::format("metadata inconsistency: number of directories ({}) does "
                       "not match link index ({})",
-                      meta_.directories().size() - 1, symlink_index_offset_));
+                      meta_.directories().size() - 1, symlink_table_offset_));
     }
 
-    if (int(meta_.symlink_index().size()) !=
-        (chunk_index_offset_ - symlink_index_offset_)) {
+    if (int(meta_.symlink_table().size()) !=
+        (file_index_offset_ - symlink_table_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format(
               "metadata inconsistency: number of symlinks ({}) does not match "
-              "chunk/symlink index delta ({} - {} = {})",
-              meta_.symlink_index().size(), chunk_index_offset_,
-              symlink_index_offset_, chunk_index_offset_ - symlink_index_offset_));
+              "chunk/symlink table delta ({} - {} = {})",
+              meta_.symlink_table().size(), file_index_offset_,
+              symlink_table_offset_, file_index_offset_ - symlink_table_offset_));
     }
 
     if (int(meta_.chunk_index().size() - 1) !=
-        (dev_index_offset_ - chunk_index_offset_)) {
+        (dev_index_offset_ - file_index_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format(
               "metadata inconsistency: number of files ({}) does not match "
               "device/chunk index delta ({} - {} = {})",
               meta_.chunk_index().size() - 1, dev_index_offset_,
-              chunk_index_offset_, dev_index_offset_ - chunk_index_offset_));
+              file_index_offset_, dev_index_offset_ - file_index_offset_));
     }
 
     if (auto devs = meta_.devices()) {
@@ -324,7 +324,7 @@ class metadata_ final : public metadata_v2::impl {
   std::string modestring(uint16_t mode) const;
 
   size_t reg_file_size(entry_view entry) const {
-    auto inode = entry.inode() - chunk_index_offset_;
+    auto inode = entry.inode() - file_index_offset_;
     uint32_t cur = meta_.chunk_index()[inode];
     uint32_t end = meta_.chunk_index()[inode + 1];
     if (cur > end) {
@@ -395,7 +395,7 @@ class metadata_ final : public metadata_v2::impl {
 
   std::string_view link_value(entry_view entry) const {
     return meta_
-        .symlinks()[meta_.symlink_index()[entry.inode() - symlink_index_offset_]];
+        .symlinks()[meta_.symlink_table()[entry.inode() - symlink_table_offset_]];
   }
 
   uint64_t get_device_id(int inode) const {
@@ -412,10 +412,10 @@ class metadata_ final : public metadata_v2::impl {
     if (options.enable_nlink) {
       auto ti = LOG_TIMED_DEBUG;
 
-      nlinks.resize(dev_index_offset_ - chunk_index_offset_);
+      nlinks.resize(dev_index_offset_ - file_index_offset_);
 
       for (auto e : meta_.entries()) {
-        auto index = int(e.inode()) - chunk_index_offset_;
+        auto index = int(e.inode()) - file_index_offset_;
         if (index >= 0 && index < int(nlinks.size())) {
           ++DWARFS_NOTHROW(nlinks.at(index));
         }
@@ -433,8 +433,8 @@ class metadata_ final : public metadata_v2::impl {
   entry_view root_;
   log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
-  const int symlink_index_offset_;
-  const int chunk_index_offset_;
+  const int symlink_table_offset_;
+  const int file_index_offset_;
   const int dev_index_offset_;
   const std::vector<uint32_t> nlinks_;
   const metadata_options options_;
@@ -455,8 +455,8 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (S_ISREG(mode)) {
-    uint32_t beg = meta_.chunk_index()[inode - chunk_index_offset_];
-    uint32_t end = meta_.chunk_index()[inode - chunk_index_offset_ + 1];
+    uint32_t beg = meta_.chunk_index()[inode - file_index_offset_];
+    uint32_t end = meta_.chunk_index()[inode - file_index_offset_ + 1];
     os << " [" << beg << ", " << end << "]";
     os << " " << file_size(entry, mode) << "\n";
     if (detail_level > 3) {
@@ -774,7 +774,7 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
                                : resolution * (timebase + entry.ctime_offset());
   stbuf->st_nlink =
       options_.enable_nlink && S_ISREG(mode)
-          ? DWARFS_NOTHROW(nlinks_.at(inode - chunk_index_offset_))
+          ? DWARFS_NOTHROW(nlinks_.at(inode - file_index_offset_))
           : 1;
 
   if (S_ISBLK(mode) || S_ISCHR(mode)) {
@@ -903,7 +903,7 @@ template <typename LoggerPolicy>
 std::optional<chunk_range>
 metadata_<LoggerPolicy>::get_chunks(int inode) const {
   std::optional<chunk_range> rv;
-  inode -= inode_offset_ + chunk_index_offset_;
+  inode -= inode_offset_ + file_index_offset_;
   if (inode >= 0 &&
       inode < (static_cast<int>(meta_.chunk_index().size()) - 1)) {
     uint32_t begin = meta_.chunk_index()[inode];

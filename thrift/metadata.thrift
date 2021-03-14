@@ -138,10 +138,11 @@ struct metadata {
     *   - character and block devices
     *   - named pipes and sockets
     */
+   5: required list<UInt32>    entry_index,                      ///// <------------ deprecate (see above)
    5: required list<UInt32>    entry_index,
 
-   // link index, indexed by (inode - link_index_offset)
-   6: required list<UInt32>    symlink_index,
+   // symlink lookup table, indexed by (inode - link_index_offset)
+   6: required list<UInt32>    symlink_table,
 
    // user ids, for lookup by index in entry.owner
    7: required list<UInt16>    uids,
@@ -155,7 +156,7 @@ struct metadata {
    // entry names, for lookup by index in entry.name_index
   10: required list<string>    names,
 
-   // link targets, for lookup by index from symlink_index
+   // link targets, for lookup by index from symlink_table
   11: required list<string>    symlinks,
 
    // timestamp base for all entry timestamps

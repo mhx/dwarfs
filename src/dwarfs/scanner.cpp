@@ -506,7 +506,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
 
-  mv2.symlink_index.resize(first_file_inode - first_link_inode);
+  mv2.symlink_table.resize(first_file_inode - first_link_inode);
 
   LOG_INFO << "assigning device inodes...";
   uint32_t first_device_inode = first_file_inode + im.count();
@@ -532,8 +532,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        DWARFS_NOTHROW(mv2.symlink_index.at(ep->inode_num() - first_link_inode)) =
-            ge_data.get_symlink_index(lp->linkname());
+        DWARFS_NOTHROW(mv2.symlink_table.at(ep->inode_num() - first_link_inode)) =
+            ge_data.get_symlink_table_entry(lp->linkname());
       }
     });
   });
