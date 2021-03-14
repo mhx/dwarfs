@@ -113,7 +113,7 @@ class metadata_ final : public metadata_v2::impl {
             int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
-      , root_(meta_.entries()[meta_.entry_index()[0]], &meta_)
+      , root_(meta_.entries()[meta_.entry_table_v2_2()[0]], &meta_)
       , log_(lgr)
       , inode_offset_(inode_offset)
       , symlink_table_offset_(find_index_offset(inode_rank::INO_LNK))
@@ -141,17 +141,18 @@ class metadata_ final : public metadata_v2::impl {
               "metadata inconsistency: number of symlinks ({}) does not match "
               "chunk/symlink table delta ({} - {} = {})",
               meta_.symlink_table().size(), file_index_offset_,
-              symlink_table_offset_, file_index_offset_ - symlink_table_offset_));
+              symlink_table_offset_,
+              file_index_offset_ - symlink_table_offset_));
     }
 
-    if (int(meta_.chunk_index().size() - 1) !=
+    if (int(meta_.chunk_table().size() - 1) !=
         (dev_index_offset_ - file_index_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format(
               "metadata inconsistency: number of files ({}) does not match "
               "device/chunk index delta ({} - {} = {})",
-              meta_.chunk_index().size() - 1, dev_index_offset_,
+              meta_.chunk_table().size() - 1, dev_index_offset_,
               file_index_offset_, dev_index_offset_ - file_index_offset_));
     }
 
@@ -239,10 +240,10 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   entry_view make_entry_view_from_inode(uint32_t inode) const {
-    return make_entry_view(meta_.entry_index()[inode]);
+    return make_entry_view(meta_.entry_table_v2_2()[inode]);
   }
 
-  // This represents the order in which inodes are stored in entry_index
+  // This represents the order in which inodes are stored in entry_table_v2_2
   enum class inode_rank {
     INO_DIR,
     INO_LNK,
@@ -294,7 +295,7 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t find_index_offset(inode_rank rank) const {
-    auto range = boost::irange(size_t(0), meta_.entry_index().size());
+    auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
 
     auto it = std::lower_bound(range.begin(), range.end(), rank,
                                [&](auto inode, inode_rank r) {
@@ -326,8 +327,8 @@ class metadata_ final : public metadata_v2::impl {
 
   size_t reg_file_size(entry_view entry) const {
     auto inode = entry.inode() - file_index_offset_;
-    uint32_t cur = meta_.chunk_index()[inode];
-    uint32_t end = meta_.chunk_index()[inode + 1];
+    uint32_t cur = meta_.chunk_table()[inode];
+    uint32_t end = meta_.chunk_table()[inode + 1];
     if (cur > end) {
       DWARFS_THROW(runtime_error,
                    fmt::format("invalid chunk range: [{0}..{1}]", cur, end));
@@ -371,7 +372,7 @@ class metadata_ final : public metadata_v2::impl {
   template <typename T>
   void walk_tree(T&& func) const {
     set_type<int> seen;
-    auto root = meta_.entry_index()[0];
+    auto root = meta_.entry_table_v2_2()[0];
     walk(root, root, seen, std::forward<T>(func));
   }
 
@@ -388,15 +389,16 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<entry_view> get_entry(int inode) const {
     inode -= inode_offset_;
     std::optional<entry_view> rv;
-    if (inode >= 0 && inode < static_cast<int>(meta_.entry_index().size())) {
+    if (inode >= 0 &&
+        inode < static_cast<int>(meta_.entry_table_v2_2().size())) {
       rv = make_entry_view_from_inode(inode);
     }
     return rv;
   }
 
   std::string_view link_value(entry_view entry) const {
-    return meta_
-        .symlinks()[meta_.symlink_table()[entry.inode() - symlink_table_offset_]];
+    return meta_.symlinks()[meta_.symlink_table()[entry.inode() -
+                                                  symlink_table_offset_]];
   }
 
   uint64_t get_device_id(int inode) const {
@@ -456,8 +458,8 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (S_ISREG(mode)) {
-    uint32_t beg = meta_.chunk_index()[inode - file_index_offset_];
-    uint32_t end = meta_.chunk_index()[inode - file_index_offset_ + 1];
+    uint32_t beg = meta_.chunk_table()[inode - file_index_offset_];
+    uint32_t end = meta_.chunk_table()[inode - file_index_offset_ + 1];
     os << " [" << beg << ", " << end << "]";
     os << " " << file_size(entry, mode) << "\n";
     if (detail_level > 3) {
@@ -511,15 +513,16 @@ void metadata_<LoggerPolicy>::dump(
     os << "chunks: " << meta_.chunks().size() << std::endl;
     os << "directories: " << meta_.directories().size() << std::endl;
     os << "entries: " << meta_.entries().size() << std::endl;
-    os << "chunk_index: " << meta_.chunk_index().size() << std::endl;
-    os << "entry_index: " << meta_.entry_index().size() << std::endl;
+    os << "chunk_table: " << meta_.chunk_table().size() << std::endl;
+    os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << std::endl;
     os << "symlink_table: " << meta_.symlink_table().size() << std::endl;
     os << "uids: " << meta_.uids().size() << std::endl;
     os << "gids: " << meta_.gids().size() << std::endl;
     os << "modes: " << meta_.modes().size() << std::endl;
     os << "names: " << meta_.names().size() << std::endl;
     os << "symlinks: " << meta_.symlinks().size() << std::endl;
-    os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0) << std::endl;
+    os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0)
+       << std::endl;
     os << "devices: " << meta_.devices()->size() << std::endl;
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
     os << "file_index_offset: " << file_index_offset_ << std::endl;
@@ -790,10 +793,9 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
                                : resolution * (timebase + entry.atime_offset());
   stbuf->st_ctime = mtime_only ? stbuf->st_mtime
                                : resolution * (timebase + entry.ctime_offset());
-  stbuf->st_nlink =
-      options_.enable_nlink && S_ISREG(mode)
-          ? DWARFS_NOTHROW(nlinks_.at(inode - file_index_offset_))
-          : 1;
+  stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
+                        ? DWARFS_NOTHROW(nlinks_.at(inode - file_index_offset_))
+                        : 1;
 
   if (S_ISBLK(mode) || S_ISCHR(mode)) {
     stbuf->st_rdev = get_device_id(inode);
@@ -910,7 +912,7 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   stbuf->f_bsize = meta_.block_size();
   stbuf->f_frsize = 1UL;
   stbuf->f_blocks = meta_.total_fs_size();
-  stbuf->f_files = meta_.entry_index().size();
+  stbuf->f_files = meta_.entry_table_v2_2().size();
   stbuf->f_flag = ST_RDONLY;
   stbuf->f_namemax = PATH_MAX;
 
@@ -923,9 +925,9 @@ metadata_<LoggerPolicy>::get_chunks(int inode) const {
   std::optional<chunk_range> rv;
   inode -= inode_offset_ + file_index_offset_;
   if (inode >= 0 &&
-      inode < (static_cast<int>(meta_.chunk_index().size()) - 1)) {
-    uint32_t begin = meta_.chunk_index()[inode];
-    uint32_t end = meta_.chunk_index()[inode + 1];
+      inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
+    uint32_t begin = meta_.chunk_table()[inode];
+    uint32_t end = meta_.chunk_table()[inode + 1];
     rv = chunk_range(&meta_, begin, end);
   }
   return rv;

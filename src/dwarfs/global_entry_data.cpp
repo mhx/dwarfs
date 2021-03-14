@@ -100,7 +100,8 @@ uint32_t global_entry_data::get_name_index(std::string const& name) const {
   return DWARFS_NOTHROW(names_.at(name));
 }
 
-uint32_t global_entry_data::get_symlink_table_entry(std::string const& link) const {
+uint32_t
+global_entry_data::get_symlink_table_entry(std::string const& link) const {
   return DWARFS_NOTHROW(symlinks_.at(link));
 }
 

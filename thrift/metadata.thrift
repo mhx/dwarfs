@@ -66,7 +66,7 @@ struct entry {
     * - For links, (inode - link_index_offset) can be
     *   used as an index into metadata.links.
     * - For files, (inode - chunk_index_offset) can be
-    *   used as in index into metadata.chunk_index.
+    *   used as in index into metadata.chunk_table.
     */
    3: required UInt32 inode,
 
@@ -101,7 +101,7 @@ struct metadata {
     * files share the same inode number. The range of chunks
     * for a regular file inode are:
     *
-    *   chunks[chunk_index[inode]] .. chunks[chunk_index[inode + 1] - 1]
+    *   chunks[chunk_table[inode]] .. chunks[chunk_table[inode + 1] - 1]
     */
    1: required list<chunk>     chunks,
 
@@ -114,18 +114,18 @@ struct metadata {
    2: required list<directory> directories,
 
    /**
-    * All entries, can be looked up by inode through entry_index, or by
+    * All entries, can be looked up by inode through entry_table_v2_2, or by
     * directory through `first_entry`, where the entries will be between
     * `directories[n].first_entry` and `directories[n+1].first_entry`.
     */
    3: required list<entry>     entries,
 
    /**
-    * Chunk index, indexed by (inode - chunk_index_offset).
+    * Chunk lookup table, indexed by (inode - chunk_index_offset).
     * There's one extra dummy item at the end that points to the
     * end of `chunks`, so chunk lookups work the same for all inodes.
     */
-   4: required list<UInt32>    chunk_index,
+   4: required list<UInt32>    chunk_table,
 
    /**
     * Entry index, indexed by inode
@@ -138,10 +138,9 @@ struct metadata {
     *   - character and block devices
     *   - named pipes and sockets
     */
-   5: required list<UInt32>    entry_index,                      ///// <------------ deprecate (see above)
-   5: required list<UInt32>    entry_index,
+   5: required list<UInt32>    entry_table_v2_2,
 
-   // symlink lookup table, indexed by (inode - link_index_offset)
+   // symlink lookup table, indexed by (inode - symlink_table_offset)
    6: required list<UInt32>    symlink_table,
 
    // user ids, for lookup by index in entry.owner

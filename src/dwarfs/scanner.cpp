@@ -532,7 +532,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        DWARFS_NOTHROW(mv2.symlink_table.at(ep->inode_num() - first_link_inode)) =
+        DWARFS_NOTHROW(
+            mv2.symlink_table.at(ep->inode_num() - first_link_inode)) =
             ge_data.get_symlink_table_entry(lp->linkname());
       }
     });
@@ -574,24 +575,24 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->set_name(std::string());
 
   LOG_INFO << "saving chunks...";
-  mv2.chunk_index.resize(im.count() + 1);
+  mv2.chunk_table.resize(im.count() + 1);
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
   im.for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    DWARFS_NOTHROW(mv2.chunk_index.at(ino->num() - first_file_inode)) =
+    DWARFS_NOTHROW(mv2.chunk_table.at(ino->num() - first_file_inode)) =
         mv2.chunks.size();
     ino->append_chunks_to(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
-  DWARFS_NOTHROW(mv2.chunk_index.at(im.count())) = mv2.chunks.size();
+  DWARFS_NOTHROW(mv2.chunk_table.at(im.count())) = mv2.chunks.size();
 
   LOG_DEBUG << "total number of file inodes: " << im.count();
   LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
 
   LOG_INFO << "saving directories...";
-  mv2.entry_index.resize(first_pipe_inode);
+  mv2.entry_table_v2_2.resize(first_pipe_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);

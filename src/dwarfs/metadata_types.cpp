@@ -66,7 +66,7 @@ uint32_t directory_view::parent_inode() const {
 }
 
 directory_view::directory_view(uint32_t inode, Meta const* meta)
-    : entry_(meta->entries()[meta->entry_index()[inode]])
+    : entry_(meta->entries()[meta->entry_table_v2_2()[inode]])
     , meta_(meta) {}
 
 std::string directory_view::path() const {

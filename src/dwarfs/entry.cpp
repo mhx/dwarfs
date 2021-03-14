@@ -254,7 +254,7 @@ void dir::scan(os_access&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
-  DWARFS_NOTHROW(mv2.entry_index.at(inode_num())) = mv2.entries.size();
+  DWARFS_NOTHROW(mv2.entry_table_v2_2.at(inode_num())) = mv2.entries.size();
   mv2.entries.emplace_back();
   entry::pack(mv2.entries.back(), data);
 }
@@ -268,7 +268,8 @@ void dir::pack(thrift::metadata::metadata& mv2,
   // d.entry_count = entries_.size();
   mv2.directories.push_back(d);
   for (entry_ptr const& e : entries_) {
-    DWARFS_NOTHROW(mv2.entry_index.at(e->inode_num())) = mv2.entries.size();
+    DWARFS_NOTHROW(mv2.entry_table_v2_2.at(e->inode_num())) =
+        mv2.entries.size();
     mv2.entries.emplace_back();
     e->pack(mv2.entries.back(), data);
   }
