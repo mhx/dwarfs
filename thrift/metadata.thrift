@@ -42,8 +42,8 @@ struct chunk {
  * `metadata.entries`.
  */
 struct directory {
-   1: required UInt32 parent_inode,
-   2: required UInt32 first_entry,
+   1: required UInt32 parent_inode,     // indexes into entries
+   2: required UInt32 first_entry,      // indexes into dir_entries
 }
 
 /**
@@ -51,9 +51,15 @@ struct directory {
  * by far the most common metadata object type, so it has been
  * optimized for size.
  */
-struct entry {
+struct inode_data {
+   /**
+    * =========================================================================
+    * NOTE: This has been deprecated with filesystem version 2.3 (DwarFS 0.5.0)
+    *       It is still being used to read older filesystem versions.
+    * =========================================================================
+    */
    // index into metadata.names
-   1: required UInt32 name_index,
+   1: required UInt32 name_index_v2_2,
 
    // index into metadata.modes
    2: required UInt16 mode_index,
@@ -68,7 +74,7 @@ struct entry {
     * - For files, (inode - chunk_index_offset) can be
     *   used as in index into metadata.chunk_table.
     */
-   3: required UInt32 inode,
+   3: required UInt32 inode,                   ///// <---------- rename to content_index
 
    // index into metadata.uids
    4: required UInt16 owner_index,
@@ -84,6 +90,18 @@ struct entry {
 
    // ctime relative to metadata.timestamp_base
    8: required UInt64 ctime_offset,
+}
+
+////// 
+////// entries can now be stored in inode-order (we don't need old_entry_table any more :-)
+////// 
+
+struct dir_entry {                             ///// <--------- or entry?
+   // index into metadata.names
+   1: required UInt32 name_index,
+
+   // index into metadata.entries
+   2: required UInt32 entry_index,            ///// <--------- entries (inodes) are shared for hardlinks
 }
 
 struct fs_options {
@@ -103,7 +121,7 @@ struct metadata {
     *
     *   chunks[chunk_table[inode]] .. chunks[chunk_table[inode + 1] - 1]
     */
-   1: required list<chunk>     chunks,
+   1: required list<chunk>      chunks,
 
    /**
     * All directories, indexed by inode number. There's one extra
@@ -111,24 +129,29 @@ struct metadata {
     * end of `entries`, so that directory entry lookup work the
     * same for all directories.
     */
-   2: required list<directory> directories,
+   2: required list<directory>  directories,
 
    /**
     * All entries, can be looked up by inode through entry_table_v2_2, or by
     * directory through `first_entry`, where the entries will be between
     * `directories[n].first_entry` and `directories[n+1].first_entry`.
     */
-   3: required list<entry>     entries,
+   3: required list<inode_data> entries,
 
    /**
     * Chunk lookup table, indexed by (inode - chunk_index_offset).
     * There's one extra dummy item at the end that points to the
     * end of `chunks`, so chunk lookups work the same for all inodes.
     */
-   4: required list<UInt32>    chunk_table,
+   4: required list<UInt32>     chunk_table,
 
    /**
-    * Entry index, indexed by inode
+    * =========================================================================
+    * NOTE: This has been deprecated with filesystem version 2.3 (DwarFS 0.5.0)
+    *       It is still being used to read older filesystem versions.
+    * =========================================================================
+    *
+    * Entry lookup table, indexed by inode
     *
     * This list contains all inodes strictly in the following order:
     *
@@ -138,28 +161,28 @@ struct metadata {
     *   - character and block devices
     *   - named pipes and sockets
     */
-   5: required list<UInt32>    entry_table_v2_2,
+   5: required list<UInt32>     entry_table_v2_2,                     ///// <------------ deprecate (see above)
 
    // symlink lookup table, indexed by (inode - symlink_table_offset)
-   6: required list<UInt32>    symlink_table,
+   6: required list<UInt32>     symlink_table,
 
    // user ids, for lookup by index in entry.owner
-   7: required list<UInt16>    uids,
+   7: required list<UInt16>     uids,
 
    // group ids, for lookup by index in entry.group
-   8: required list<UInt16>    gids,
+   8: required list<UInt16>     gids,
 
    // entry modes, for lookup by index in entry.mode
-   9: required list<UInt16>    modes,
+   9: required list<UInt16>     modes,
 
    // entry names, for lookup by index in entry.name_index
-  10: required list<string>    names,
+  10: required list<string>     names,
 
    // link targets, for lookup by index from symlink_table
-  11: required list<string>    symlinks,
+  11: required list<string>     symlinks,
 
    // timestamp base for all entry timestamps
-  12: required UInt64          timestamp_base,
+  12: required UInt64           timestamp_base,
 
   /************************ DEPRECATED **********************
    *
@@ -173,18 +196,31 @@ struct metadata {
    *********************************************************/
 
    // block size
-  15: required UInt32          block_size,
+  15: required UInt32           block_size,
 
    // total file system size
-  16: required UInt64          total_fs_size,
+  16: required UInt64           total_fs_size,
 
   //=========================================================//
   // fields added with dwarfs-0.3.0, file system version 2.1 //
   //=========================================================//
 
    // device ids, for lookup by (inode - device_index_offset)
-  17: optional list<UInt64>    devices,
+  17: optional list<UInt64>     devices,
 
    // file system options
-  18: optional fs_options      options,
+  18: optional fs_options       options,
+
+  //=========================================================//
+  // fields added with dwarfs-0.5.0, file system version 2.3 //
+  //=========================================================//
+
+   /**
+    * 
+    * 
+    * 
+    */
+  19: optional list<dir_entry>  dir_entries,
+
+  20: optional UInt64           timestamp,
 }

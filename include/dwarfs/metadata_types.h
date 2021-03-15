@@ -38,8 +38,9 @@ template <typename T>
 class metadata_;
 
 class entry_view
-    : public ::apache::thrift::frozen::View<thrift::metadata::entry> {
-  using EntryView = ::apache::thrift::frozen::View<thrift::metadata::entry>;
+    : public ::apache::thrift::frozen::View<thrift::metadata::inode_data> {
+  using EntryView =
+      ::apache::thrift::frozen::View<thrift::metadata::inode_data>;
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
@@ -61,7 +62,8 @@ class entry_view
 };
 
 class directory_view {
-  using EntryView = ::apache::thrift::frozen::View<thrift::metadata::entry>;
+  using EntryView =
+      ::apache::thrift::frozen::View<thrift::metadata::inode_data>;
   using DirView = ::apache::thrift::frozen::View<thrift::metadata::directory>;
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;

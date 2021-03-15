@@ -26,7 +26,7 @@
 namespace dwarfs {
 
 std::string_view entry_view::name() const {
-  return meta_->names()[name_index()];
+  return meta_->names()[name_index_v2_2()];
 }
 
 uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
@@ -81,7 +81,7 @@ void directory_view::append_path_to(std::string& s) const {
     s += '/';
   }
   if (inode() != 0) {
-    s += meta_->names()[entry_.name_index()];
+    s += meta_->names()[entry_.name_index_v2_2()];
   }
 }
 

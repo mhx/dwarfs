@@ -101,9 +101,9 @@ void entry::update(global_entry_data& data) const {
   data.add_ctime(stat_.st_ctime);
 }
 
-void entry::pack(thrift::metadata::entry& entry_v2,
+void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
-  entry_v2.name_index = has_parent() ? data.get_name_index(name_) : 0;
+  entry_v2.name_index_v2_2 = has_parent() ? data.get_name_index(name_) : 0;
   entry_v2.mode_index = data.get_mode_index(stat_.st_mode & 0xFFFF);
   entry_v2.owner_index = data.get_uid_index(stat_.st_uid);
   entry_v2.group_index = data.get_gid_index(stat_.st_gid);

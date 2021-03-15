@@ -38,7 +38,7 @@ namespace dwarfs {
 
 namespace thrift::metadata {
 
-class entry;
+class inode_data;
 class metadata;
 
 } // namespace thrift::metadata
@@ -78,8 +78,8 @@ class entry : public entry_interface {
   std::string type_string() const override;
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
-  void
-  pack(thrift::metadata::entry& entry_v2, global_entry_data const& data) const;
+  void pack(thrift::metadata::inode_data& entry_v2,
+            global_entry_data const& data) const;
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual uint32_t inode_num() const = 0;
