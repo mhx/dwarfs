@@ -28,6 +28,7 @@ option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
 option(ENABLE_ASAN "enable address sanitizer" OFF)
 option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
+option(ENABLE_COVERAGE "enable code coverage" OFF)
 option(USE_JEMALLOC "build with jemalloc" ON)
 option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
@@ -474,6 +475,19 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     target_compile_options(${tgt} PRIVATE -fsanitize=undefined
                                           -fno-omit-frame-pointer)
     target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+  endif()
+
+
+  if(ENABLE_COVERAGE)
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+      target_compile_options(${tgt} PRIVATE --coverage
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE --coverage)
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+      target_compile_options(${tgt} PRIVATE -fprofile-instr-generate -fcoverage-mapping
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+    endif()
   endif()
 endforeach()
 
