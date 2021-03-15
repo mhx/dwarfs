@@ -442,24 +442,30 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
 
   auto l1_collisions = stats_.l2_collision_vec_size.computeTotalCount();
 
-  LOG_INFO << "bloom filter reject rate: "
-           << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
-                                                 stats_.bloom_lookups)
-           << " (TPR="
-           << fmt::format("{:.3f}%", 100.0 * stats_.bloom_true_positives /
-                                         stats_.bloom_hits)
-           << ", lookups=" << stats_.bloom_lookups << ")";
-  LOG_INFO << "segmentation matches: good=" << stats_.good_matches
-           << ", bad=" << stats_.bad_matches
-           << ", total=" << stats_.total_matches;
-  LOG_INFO << "segmentation collisions: L1="
-           << fmt::format("{:.3f}%",
-                          100.0 * (l1_collisions + stats_.l2_collisions) /
-                              stats_.total_hashes)
-           << ", L2="
-           << fmt::format("{:.3f}%",
-                          100.0 * stats_.l2_collisions / stats_.total_hashes)
-           << " [" << stats_.total_hashes << " hashes]";
+  if (stats_.bloom_lookups > 0) {
+    LOG_INFO << "bloom filter reject rate: "
+             << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
+                                                   stats_.bloom_lookups)
+             << " (TPR="
+             << fmt::format("{:.3f}%", 100.0 * stats_.bloom_true_positives /
+                                           stats_.bloom_hits)
+             << ", lookups=" << stats_.bloom_lookups << ")";
+  }
+  if (stats_.total_matches > 0) {
+    LOG_INFO << "segmentation matches: good=" << stats_.good_matches
+             << ", bad=" << stats_.bad_matches
+             << ", total=" << stats_.total_matches;
+  }
+  if (stats_.total_hashes > 0) {
+    LOG_INFO << "segmentation collisions: L1="
+             << fmt::format("{:.3f}%",
+                            100.0 * (l1_collisions + stats_.l2_collisions) /
+                                stats_.total_hashes)
+             << ", L2="
+             << fmt::format("{:.3f}%",
+                            100.0 * stats_.l2_collisions / stats_.total_hashes)
+             << " [" << stats_.total_hashes << " hashes]";
+  }
 
   if (l1_collisions > 0) {
     auto pct = [&](double p) {
