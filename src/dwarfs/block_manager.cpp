@@ -283,7 +283,9 @@ class block_manager_ final : public block_manager::impl {
                                              cfg.window_increment_shift)}
       , block_size_{static_cast<size_t>(1) << cfg.block_size_bits}
       , filter_{bloom_filter_size()} {
-    LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
+    if (segmentation_enabled()) {
+      LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
+    }
   }
 
   void add_inode(std::shared_ptr<inode> ino) override;
@@ -294,6 +296,10 @@ class block_manager_ final : public block_manager::impl {
     size_t offset{0};
     size_t size{0};
   };
+
+  bool segmentation_enabled() const {
+    return cfg_.max_active_blocks > 0 and window_size_ > 0;
+  }
 
   void block_ready();
   void finish_chunk(inode& ino);
@@ -423,8 +429,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
     LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
               << "] - size: " << size;
 
-    if (cfg_.max_active_blocks == 0 or window_size_ == 0 or
-        size < window_size_) {
+    if (!segmentation_enabled() or size < window_size_) {
       // no point dealing with hashing, just write it out
       add_data(*ino, *mm, 0, size);
       finish_chunk(*ino);
