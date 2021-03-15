@@ -342,7 +342,7 @@ class entry_factory_ : public entry_factory {
       // TODO: warn
     }
 
-    return std::shared_ptr<entry>();
+    return nullptr;
   }
 };
 

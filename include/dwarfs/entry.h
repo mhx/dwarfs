@@ -110,7 +110,7 @@ class file : public entry {
  public:
   file(const std::string& name, std::shared_ptr<entry> parent,
        const struct ::stat& st)
-      : entry(name, parent, st) {}
+      : entry(name, std::move(parent), st) {}
 
   type_t type() const override;
   std::string_view hash() const;
@@ -204,6 +204,6 @@ class entry_factory {
 
   virtual std::shared_ptr<entry>
   create(os_access& os, const std::string& name,
-         std::shared_ptr<entry> parent = std::shared_ptr<entry>()) = 0;
+         std::shared_ptr<entry> parent = nullptr) = 0;
 };
 } // namespace dwarfs
