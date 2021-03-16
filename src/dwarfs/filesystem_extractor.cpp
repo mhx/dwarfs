@@ -150,7 +150,8 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
 
   sem.post(max_queued_bytes);
 
-  auto do_archive = [&](::archive_entry* ae, entry_view entry) {
+  auto do_archive = [&](::archive_entry* ae,
+                        inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
         S_ISREG(entry.mode()) && size > 0) {
       auto fd = fs.open(entry);
@@ -180,21 +181,23 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
     }
   };
 
-  fs.walk_inode_order([&](auto entry, auto parent) {
-    if (entry.inode() == 0) {
+  fs.walk_inode_order([&](auto entry) {
+    if (entry.is_root()) {
       return;
     }
+
+    auto inode = entry.inode();
 
     auto ae = ::archive_entry_new();
     struct ::stat stbuf;
 
-    if (fs.getattr(entry, &stbuf) != 0) {
+    if (fs.getattr(inode, &stbuf) != 0) {
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
     std::string path;
     path.reserve(256);
-    parent.append_path_to(path);
+    entry.append_path_to(path);
     if (!path.empty()) {
       path += '/';
     }
@@ -203,9 +206,9 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
     ::archive_entry_set_pathname(ae, path.c_str());
     ::archive_entry_copy_stat(ae, &stbuf);
 
-    if (S_ISLNK(entry.mode())) {
+    if (S_ISLNK(inode.mode())) {
       std::string link;
-      if (fs.readlink(entry, &link) != 0) {
+      if (fs.readlink(inode, &link) != 0) {
         LOG_ERROR << "readlink() failed";
       }
       ::archive_entry_set_symlink(ae, link.c_str());
@@ -214,7 +217,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
     ::archive_entry_linkify(lr, &ae, &spare);
 
     if (ae) {
-      do_archive(ae, entry);
+      do_archive(ae, inode);
     }
 
     if (spare) {

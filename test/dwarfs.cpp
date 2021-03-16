@@ -245,6 +245,14 @@ void basic_end_to_end_test(std::string const& compressor,
 
   filesystem_v2 fs(lgr, mm, opts);
 
+  // fs.dump(std::cerr, 9);
+
+  std::ostringstream dumpss;
+
+  fs.dump(dumpss, 9);
+
+  EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
+
   auto entry = fs.find("/foo.pl");
   struct ::stat st;
 
@@ -395,7 +403,7 @@ void basic_end_to_end_test(std::string const& compressor,
   auto e2 = fs.find("/bar.pl");
   ASSERT_TRUE(e2);
 
-  EXPECT_EQ(entry->inode(), e2->inode());
+  EXPECT_EQ(entry->content_index(), e2->content_index());
 
   struct ::stat st1, st2;
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
@@ -403,21 +411,19 @@ void basic_end_to_end_test(std::string const& compressor,
 
   EXPECT_EQ(st1.st_ino, st2.st_ino);
   if (enable_nlink) {
-    EXPECT_EQ(3, st1.st_nlink); // TODO: this should be 2
-    EXPECT_EQ(3, st2.st_nlink); // TODO: this should be 2
+    EXPECT_EQ(2, st1.st_nlink);
+    EXPECT_EQ(2, st2.st_nlink);
   }
 
   entry = fs.find("/");
   ASSERT_TRUE(entry);
-  EXPECT_EQ(0, entry->inode());
+  EXPECT_EQ(0, entry->content_index());
   e2 = fs.find(0);
   ASSERT_TRUE(e2);
-  EXPECT_EQ(e2->inode(), 0);
-  e2 = fs.find(0, "baz.pl");
-  ASSERT_TRUE(e2);
-  EXPECT_GT(e2->inode(), 0);
-  entry = fs.find(e2->inode());
+  EXPECT_EQ(e2->content_index(), 0);
+  entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
+  EXPECT_GT(entry->content_index(), 0);
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
   EXPECT_EQ(23456, st1.st_size);
   e2 = fs.find(0, "somedir");
@@ -432,51 +438,37 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_EQ(set_uid ? EACCES : 0, fs.access(*entry, R_OK, 1337, 0));
 
-  using mptype = void (filesystem_v2::*)(
-      std::function<void(entry_view, directory_view)> const&) const;
-
-  for (auto mp : {static_cast<mptype>(&filesystem_v2::walk),
-                  static_cast<mptype>(&filesystem_v2::walk_inode_order)}) {
+  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_inode_order}) {
     std::map<std::string, struct ::stat> entries;
     std::vector<int> inodes;
 
-    (fs.*mp)([&](entry_view e, directory_view d) {
+    (fs.*mp)([&](dir_entry_view e) {
       struct ::stat stbuf;
-      ASSERT_EQ(0, fs.getattr(e, &stbuf));
+      ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
       inodes.push_back(stbuf.st_ino);
-      std::string path;
-      if (e.inode() > 0) {
-        if (auto dp = d.path(); !dp.empty()) {
-          path += "/" + dp;
-        }
-        path += "/" + std::string(e.name());
-      }
-      EXPECT_TRUE(entries.emplace(path, stbuf).second);
+      EXPECT_TRUE(entries.emplace(e.path(), stbuf).second);
     });
 
     EXPECT_EQ(entries.size(), dwarfs::test::statmap.size() + 2 * with_devices +
                                   with_specials - 3);
 
     for (auto const& [p, st] : entries) {
-      auto const& stref = dwarfs::test::statmap.at(p);
-      EXPECT_EQ(stref.st_mode, st.st_mode) << p;
-      EXPECT_EQ(set_uid ? 0 : stref.st_uid, st.st_uid) << p;
-      EXPECT_EQ(set_gid ? 0 : stref.st_gid, st.st_gid) << p;
-      if (!S_ISDIR(st.st_mode)) {
-        EXPECT_EQ(stref.st_size, st.st_size) << p;
+      auto it = dwarfs::test::statmap.find(p);
+      EXPECT_TRUE(it != dwarfs::test::statmap.end()) << p;
+      if (it != dwarfs::test::statmap.end()) {
+        EXPECT_EQ(it->second.st_mode, st.st_mode) << p;
+        EXPECT_EQ(set_uid ? 0 : it->second.st_uid, st.st_uid) << p;
+        EXPECT_EQ(set_gid ? 0 : it->second.st_gid, st.st_gid) << p;
+        if (!S_ISDIR(st.st_mode)) {
+          EXPECT_EQ(it->second.st_size, st.st_size) << p;
+        }
       }
     }
 
-    if (mp == static_cast<mptype>(&filesystem_v2::walk_inode_order)) {
+    if (mp == &filesystem_v2::walk_inode_order) {
       EXPECT_TRUE(std::is_sorted(inodes.begin(), inodes.end()));
     }
   }
-
-  std::ostringstream dumpss;
-
-  fs.dump(dumpss, 9);
-
-  EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto dyn = fs.metadata_as_dynamic();
 

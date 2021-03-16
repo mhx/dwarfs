@@ -42,7 +42,7 @@ struct chunk {
  * `metadata.entries`.
  */
 struct directory {
-   1: required UInt32 parent_inode,     // indexes into entries
+   1: required UInt32 parent_entry,     // indexes into dir_entries
    2: required UInt32 first_entry,      // indexes into dir_entries
 }
 
@@ -74,7 +74,14 @@ struct inode_data {
     * - For files, (inode - chunk_index_offset) can be
     *   used as in index into metadata.chunk_table.
     */
-   3: required UInt32 inode,                   ///// <---------- rename to content_index
+   3: required UInt32 content_index,
+
+   //--------------------------------------------------------------------------
+   // TODO: actually, the inode field is redundant as of v2.3, as entries are
+   //       ordered by inode already; maybe we can drop this?
+   //
+   //       we definitely need it for files to point into chunk_table
+   //--------------------------------------------------------------------------
 
    // index into metadata.uids
    4: required UInt16 owner_index,
@@ -101,7 +108,7 @@ struct dir_entry {                             ///// <--------- or entry?
    1: required UInt32 name_index,
 
    // index into metadata.entries
-   2: required UInt32 entry_index,            ///// <--------- entries (inodes) are shared for hardlinks
+   2: required UInt32 inode_num,                  ///// <--------- entries (inodes) are shared for hardlinks
 }
 
 struct fs_options {
@@ -216,11 +223,10 @@ struct metadata {
   //=========================================================//
 
    /**
-    * 
-    * 
-    * 
+    *  TODO TODO TODO   describe this
     */
   19: optional list<dir_entry>  dir_entries,
 
-  20: optional UInt64           timestamp,
+  // TODO: add timestamp
+  // 20: optional UInt64           timestamp,
 }

@@ -182,28 +182,23 @@ class filesystem_ final : public filesystem_v2::impl {
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
-  void walk(std::function<void(entry_view)> const& func) const override;
-  void walk(std::function<void(entry_view, directory_view)> const& func)
-      const override;
-  void
-  walk_inode_order(std::function<void(entry_view)> const& func) const override;
-  void
-  walk_inode_order(std::function<void(entry_view, directory_view)> const& func)
-      const override;
-  std::optional<entry_view> find(const char* path) const override;
-  std::optional<entry_view> find(int inode) const override;
-  std::optional<entry_view> find(int inode, const char* name) const override;
-  int getattr(entry_view entry, struct ::stat* stbuf) const override;
-  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const override;
-  std::optional<directory_view> opendir(entry_view entry) const override;
-  std::optional<std::pair<entry_view, std::string_view>>
+  void walk(std::function<void(dir_entry_view)> const& func) const override;
+  void walk_inode_order(
+      std::function<void(dir_entry_view)> const& func) const override;
+  std::optional<inode_view> find(const char* path) const override;
+  std::optional<inode_view> find(int inode) const override;
+  std::optional<inode_view> find(int inode, const char* name) const override;
+  int getattr(inode_view entry, struct ::stat* stbuf) const override;
+  int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
+  std::optional<directory_view> opendir(inode_view entry) const override;
+  std::optional<std::pair<inode_view, std::string_view>>
   readdir(directory_view dir, size_t offset) const override;
   size_t dirsize(directory_view dir) const override;
-  int readlink(entry_view entry, std::string* buf) const override;
+  int readlink(inode_view entry, std::string* buf) const override;
   folly::Expected<std::string_view, int>
-  readlink(entry_view entry) const override;
+  readlink(inode_view entry) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
-  int open(entry_view entry) const override;
+  int open(inode_view entry) const override;
   ssize_t
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
@@ -286,65 +281,53 @@ filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::walk(
-    std::function<void(entry_view)> const& func) const {
-  meta_.walk(func);
-}
-
-template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::walk(
-    std::function<void(entry_view, directory_view)> const& func) const {
+    std::function<void(dir_entry_view)> const& func) const {
   meta_.walk(func);
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::walk_inode_order(
-    std::function<void(entry_view)> const& func) const {
+    std::function<void(dir_entry_view)> const& func) const {
   meta_.walk_inode_order(func);
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::walk_inode_order(
-    std::function<void(entry_view, directory_view)> const& func) const {
-  meta_.walk_inode_order(func);
-}
-
-template <typename LoggerPolicy>
-std::optional<entry_view>
+std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(const char* path) const {
   return meta_.find(path);
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view> filesystem_<LoggerPolicy>::find(int inode) const {
+std::optional<inode_view> filesystem_<LoggerPolicy>::find(int inode) const {
   return meta_.find(inode);
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view>
+std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
   return meta_.find(inode, name);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::getattr(entry_view entry,
+int filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                        struct ::stat* stbuf) const {
   return meta_.getattr(entry, stbuf);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
+int filesystem_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
                                       gid_t gid) const {
   return meta_.access(entry, mode, uid, gid);
 }
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
-filesystem_<LoggerPolicy>::opendir(entry_view entry) const {
+filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
   return meta_.opendir(entry);
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<entry_view, std::string_view>>
+std::optional<std::pair<inode_view, std::string_view>>
 filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   return meta_.readdir(dir, offset);
 }
@@ -355,14 +338,14 @@ size_t filesystem_<LoggerPolicy>::dirsize(directory_view dir) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::readlink(entry_view entry,
+int filesystem_<LoggerPolicy>::readlink(inode_view entry,
                                         std::string* buf) const {
   return meta_.readlink(entry, buf);
 }
 
 template <typename LoggerPolicy>
 folly::Expected<std::string_view, int>
-filesystem_<LoggerPolicy>::readlink(entry_view entry) const {
+filesystem_<LoggerPolicy>::readlink(inode_view entry) const {
   return meta_.readlink(entry);
 }
 
@@ -373,7 +356,7 @@ int filesystem_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::open(entry_view entry) const {
+int filesystem_<LoggerPolicy>::open(inode_view entry) const {
   return meta_.open(entry);
 }
 

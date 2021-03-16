@@ -103,14 +103,17 @@ void entry::update(global_entry_data& data) const {
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
-  entry_v2.name_index_v2_2 = has_parent() ? data.get_name_index(name_) : 0;
   entry_v2.mode_index = data.get_mode_index(stat_.st_mode & 0xFFFF);
   entry_v2.owner_index = data.get_uid_index(stat_.st_uid);
   entry_v2.group_index = data.get_gid_index(stat_.st_gid);
   entry_v2.atime_offset = data.get_atime_offset(stat_.st_atime);
   entry_v2.mtime_offset = data.get_mtime_offset(stat_.st_mtime);
   entry_v2.ctime_offset = data.get_ctime_offset(stat_.st_ctime);
-  entry_v2.inode = inode_num();
+  if (auto fp = dynamic_cast<file const*>(this)) {
+    entry_v2.content_index = fp->content_index();
+  } else {
+    entry_v2.content_index = inode_num();
+  }
 }
 
 entry::type_t file::type() const { return E_FILE; }
@@ -157,8 +160,6 @@ void file::set_inode(std::shared_ptr<inode> ino) {
 
 std::shared_ptr<inode> file::get_inode() const { return inode_; }
 
-uint32_t file::inode_num() const { return inode_->num(); }
-
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access& os, progress& prog) {
@@ -188,6 +189,8 @@ void file::scan(os_access& os, progress& prog) {
   }
 }
 
+uint32_t file::content_index() const { return inode_->num(); }
+
 uint64_t file::raw_inode_num() const { return status().st_ino; }
 
 unsigned file::num_hard_links() const { return status().st_nlink; }
@@ -204,6 +207,7 @@ void file::hardlink(file* other, progress& prog) {
     prog.original_size += s;
     prog.hardlink_size += s;
   }
+  ++prog.hardlinks;
   data_ = other->data_;
 }
 
@@ -248,30 +252,28 @@ void dir::sort() {
             });
 }
 
-void dir::set_inode(uint32_t inode) { inode_ = inode; }
-
 void dir::scan(os_access&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
-  DWARFS_NOTHROW(mv2.entry_table_v2_2.at(inode_num())) = mv2.entries.size();
-  mv2.entries.emplace_back();
-  entry::pack(mv2.entries.back(), data);
+  auto& de = mv2.dir_entries_ref()->emplace_back();
+  de.name_index = has_parent() ? data.get_name_index(name()) : 0;
+  de.inode_num = inode_num();
+  entry::pack(DWARFS_NOTHROW(mv2.entries.at(inode_num())), data);
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
                global_entry_data const& data) const {
   thrift::metadata::directory d;
-  d.parent_inode =
+  d.parent_entry =
       has_parent() ? std::dynamic_pointer_cast<dir>(parent())->inode_num() : 0;
-  d.first_entry = mv2.entries.size();
-  // d.entry_count = entries_.size();
+  d.first_entry = mv2.dir_entries_ref()->size();
   mv2.directories.push_back(d);
   for (entry_ptr const& e : entries_) {
-    DWARFS_NOTHROW(mv2.entry_table_v2_2.at(e->inode_num())) =
-        mv2.entries.size();
-    mv2.entries.emplace_back();
-    e->pack(mv2.entries.back(), data);
+    auto& de = mv2.dir_entries_ref()->emplace_back();
+    de.name_index = data.get_name_index(e->name());
+    de.inode_num = e->inode_num();
+    e->pack(DWARFS_NOTHROW(mv2.entries.at(e->inode_num())), data);
   }
 }
 
@@ -297,8 +299,6 @@ entry::type_t link::type() const { return E_LINK; }
 
 const std::string& link::linkname() const { return link_; }
 
-void link::set_inode(uint32_t inode) { inode_ = inode; }
-
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access& os, progress& prog) {
@@ -310,8 +310,6 @@ entry::type_t device::type() const {
   auto mode = status().st_mode;
   return S_ISCHR(mode) || S_ISBLK(mode) ? E_DEVICE : E_OTHER;
 }
-
-void device::set_inode(uint32_t inode) { inode_ = inode; }
 
 void device::accept(entry_visitor& v, bool) { v.visit(this); }
 

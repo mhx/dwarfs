@@ -113,14 +113,17 @@ class metadata_ final : public metadata_v2::impl {
             int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
-      , root_(meta_.entries()[meta_.entry_table_v2_2()[0]], &meta_)
+      , root_(dir_entry_view::from_dir_entry_index(0, &meta_))
       , log_(lgr)
       , inode_offset_(inode_offset)
       , symlink_table_offset_(find_index_offset(inode_rank::INO_LNK))
       , file_index_offset_(find_index_offset(inode_rank::INO_REG))
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
+      , inode_count_(meta_.dir_entries() ? meta_.entries().size()
+                                         : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
       , options_(options) {
+    LOG_DEBUG << "inode count: " << inode_count_;
     LOG_DEBUG << "symlink table offset: " << symlink_table_offset_;
     LOG_DEBUG << "chunk index offset: " << file_index_offset_;
     LOG_DEBUG << "device index offset: " << dev_index_offset_;
@@ -145,16 +148,18 @@ class metadata_ final : public metadata_v2::impl {
               file_index_offset_ - symlink_table_offset_));
     }
 
-    if (int(meta_.chunk_table().size() - 1) !=
-        (dev_index_offset_ - file_index_offset_)) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format(
-              "metadata inconsistency: number of files ({}) does not match "
-              "device/chunk index delta ({} - {} = {})",
-              meta_.chunk_table().size() - 1, dev_index_offset_,
-              file_index_offset_, dev_index_offset_ - file_index_offset_));
-    }
+    // TODO: this might be a silly check for v2.3
+    //
+    // if (int(meta_.chunk_table().size() - 1) !=
+    //     (dev_index_offset_ - file_index_offset_)) {
+    //   DWARFS_THROW(
+    //       runtime_error,
+    //       fmt::format(
+    //           "metadata inconsistency: number of files ({}) does not match "
+    //           "device/chunk index delta ({} - {} = {})",
+    //           meta_.chunk_table().size() - 1, dev_index_offset_,
+    //           file_index_offset_, dev_index_offset_ - file_index_offset_));
+    // }
 
     if (auto devs = meta_.devices()) {
       auto other_offset = find_index_offset(inode_rank::INO_OTH);
@@ -181,49 +186,40 @@ class metadata_ final : public metadata_v2::impl {
 
   bool empty() const override { return data_.empty(); }
 
-  void walk(std::function<void(entry_view)> const& func) const override {
-    walk_impl(func);
+  void walk(std::function<void(dir_entry_view)> const& func) const override {
+    walk_tree([&](uint32_t self_index, uint32_t parent_index) {
+      walk_call(func, self_index, parent_index);
+    });
   }
 
-  void walk(std::function<void(entry_view, directory_view)> const& func)
-      const override {
-    walk_impl(func);
-  }
-
-  void
-  walk_inode_order(std::function<void(entry_view)> const& func) const override {
+  void walk_inode_order(
+      std::function<void(dir_entry_view)> const& func) const override {
     walk_inode_order_impl(func);
   }
 
-  void
-  walk_inode_order(std::function<void(entry_view, directory_view)> const& func)
-      const override {
-    walk_inode_order_impl(func);
-  }
+  std::optional<inode_view> find(const char* path) const override;
+  std::optional<inode_view> find(int inode) const override;
+  std::optional<inode_view> find(int inode, const char* name) const override;
 
-  std::optional<entry_view> find(const char* path) const override;
-  std::optional<entry_view> find(int inode) const override;
-  std::optional<entry_view> find(int inode, const char* name) const override;
+  int getattr(inode_view entry, struct ::stat* stbuf) const override;
 
-  int getattr(entry_view entry, struct ::stat* stbuf) const override;
+  std::optional<directory_view> opendir(inode_view entry) const override;
 
-  std::optional<directory_view> opendir(entry_view entry) const override;
-
-  std::optional<std::pair<entry_view, std::string_view>>
+  std::optional<std::pair<inode_view, std::string_view>>
   readdir(directory_view dir, size_t offset) const override;
 
   size_t dirsize(directory_view dir) const override {
     return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
   }
 
-  int access(entry_view entry, int mode, uid_t uid, gid_t gid) const override;
+  int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
 
-  int open(entry_view entry) const override;
+  int open(inode_view entry) const override;
 
-  int readlink(entry_view entry, std::string* buf) const override;
+  int readlink(inode_view entry, std::string* buf) const override;
 
   folly::Expected<std::string_view, int>
-  readlink(entry_view entry) const override;
+  readlink(inode_view entry) const override;
 
   int statvfs(struct ::statvfs* stbuf) const override;
 
@@ -235,12 +231,21 @@ class metadata_ final : public metadata_v2::impl {
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
 
-  entry_view make_entry_view(size_t index) const {
-    return entry_view(meta_.entries()[index], &meta_);
+  inode_view make_inode_view(uint32_t inode) const {
+    // TODO: move compatibility details to metadata_types
+    uint32_t index =
+        meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
+    return inode_view(meta_.entries()[index], inode, &meta_);
   }
 
-  entry_view make_entry_view_from_inode(uint32_t inode) const {
-    return make_entry_view(meta_.entry_table_v2_2()[inode]);
+  dir_entry_view make_dir_entry_view(uint32_t self_index) const {
+    return dir_entry_view::from_dir_entry_index(self_index, &meta_);
+  }
+
+  dir_entry_view
+  make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
+    return dir_entry_view::from_dir_entry_index(self_index, parent_index,
+                                                &meta_);
   }
 
   // This represents the order in which inodes are stored in entry_table_v2_2
@@ -295,38 +300,51 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t find_index_offset(inode_rank rank) const {
-    auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
+    if (meta_.dir_entries()) {
+      auto range = boost::irange(size_t(0), meta_.entries().size());
 
-    auto it = std::lower_bound(range.begin(), range.end(), rank,
-                               [&](auto inode, inode_rank r) {
-                                 auto e = make_entry_view_from_inode(inode);
-                                 return get_inode_rank(e.mode()) < r;
-                               });
+      auto it = std::lower_bound(
+          range.begin(), range.end(), rank, [&](auto inode, inode_rank r) {
+            auto mode = meta_.modes()[meta_.entries()[inode].mode_index()];
+            return get_inode_rank(mode) < r;
+          });
 
-    return *it;
+      return *it;
+    } else {
+      auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
+
+      auto it = std::lower_bound(range.begin(), range.end(), rank,
+                                 [&](auto inode, inode_rank r) {
+                                   auto e = make_inode_view(inode);
+                                   return get_inode_rank(e.mode()) < r;
+                                 });
+
+      return *it;
+    }
   }
 
-  directory_view make_directory_view(entry_view entry) const {
-    return directory_view(entry, &meta_);
+  directory_view make_directory_view(inode_view inode) const {
+    // TODO: revisit: is this the way to do it?
+    return directory_view(inode.inode_num(), &meta_);
   }
 
-  void dump(std::ostream& os, const std::string& indent, entry_view entry,
+  void dump(std::ostream& os, const std::string& indent, dir_entry_view entry,
             int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
-            int detail_level,
+            dir_entry_view entry, int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
-  folly::dynamic as_dynamic(entry_view entry) const;
-  folly::dynamic as_dynamic(directory_view dir) const;
+  folly::dynamic as_dynamic(dir_entry_view entry) const;
+  folly::dynamic as_dynamic(directory_view dir, dir_entry_view entry) const;
 
-  std::optional<entry_view>
+  std::optional<inode_view>
   find(directory_view dir, std::string_view name) const;
 
   std::string modestring(uint16_t mode) const;
 
-  size_t reg_file_size(entry_view entry) const {
-    auto inode = entry.inode() - file_index_offset_;
+  size_t reg_file_size(inode_view entry) const {
+    auto inode = entry.content_index() - file_index_offset_;
     uint32_t cur = meta_.chunk_table()[inode];
     uint32_t end = meta_.chunk_table()[inode + 1];
     if (cur > end) {
@@ -345,7 +363,7 @@ class metadata_ final : public metadata_v2::impl {
     return size;
   }
 
-  size_t file_size(entry_view entry, uint16_t mode) const {
+  size_t file_size(inode_view entry, uint16_t mode) const {
     if (S_ISREG(mode)) {
       return reg_file_size(entry);
     } else if (S_ISLNK(mode)) {
@@ -355,49 +373,35 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  void walk_call(std::function<void(entry_view)> const& func, uint32_t entry,
-                 uint32_t) const {
-    func(make_entry_view(entry));
-  }
-
-  void walk_call(std::function<void(entry_view, directory_view)> const& func,
-                 uint32_t entry, uint32_t dir) const {
-    func(make_entry_view(entry), make_directory_view(make_entry_view(dir)));
+  void walk_call(std::function<void(dir_entry_view)> const& func,
+                 uint32_t self_index, uint32_t parent_index) const {
+    func(make_dir_entry_view(self_index, parent_index));
   }
 
   template <typename T>
-  void walk(uint32_t parent_ix, uint32_t entry_ix, set_type<int>& seen,
+  void walk(uint32_t self_index, uint32_t parent_index, set_type<int>& seen,
             T&& func) const;
 
   template <typename T>
   void walk_tree(T&& func) const {
     set_type<int> seen;
-    auto root = meta_.entry_table_v2_2()[0];
-    walk(root, root, seen, std::forward<T>(func));
+    walk(0, 0, seen, std::forward<T>(func));
   }
 
-  template <typename Signature>
-  void walk_impl(std::function<Signature> const& func) const {
-    walk_tree([&](uint32_t entry, uint32_t parent) {
-      walk_call(func, entry, parent);
-    });
-  }
+  void
+  walk_inode_order_impl(std::function<void(dir_entry_view)> const& func) const;
 
-  template <typename Signature>
-  void walk_inode_order_impl(std::function<Signature> const& func) const;
-
-  std::optional<entry_view> get_entry(int inode) const {
+  std::optional<inode_view> get_entry(int inode) const {
     inode -= inode_offset_;
-    std::optional<entry_view> rv;
-    if (inode >= 0 &&
-        inode < static_cast<int>(meta_.entry_table_v2_2().size())) {
-      rv = make_entry_view_from_inode(inode);
+    std::optional<inode_view> rv;
+    if (inode >= 0 && inode < inode_count_) {
+      rv = make_inode_view(inode);
     }
     return rv;
   }
 
-  std::string_view link_value(entry_view entry) const {
-    return meta_.symlinks()[meta_.symlink_table()[entry.inode() -
+  std::string_view link_value(inode_view entry) const {
+    return meta_.symlinks()[meta_.symlink_table()[entry.content_index() -
                                                   symlink_table_offset_]];
   }
 
@@ -417,10 +421,19 @@ class metadata_ final : public metadata_v2::impl {
 
       nlinks.resize(dev_index_offset_ - file_index_offset_);
 
-      for (auto e : meta_.entries()) {
-        auto index = int(e.inode()) - file_index_offset_;
-        if (index >= 0 && index < int(nlinks.size())) {
-          ++DWARFS_NOTHROW(nlinks.at(index));
+      if (auto de = meta_.dir_entries()) {
+        for (auto e : *de) {
+          auto index = int(e.inode_num()) - file_index_offset_;
+          if (index >= 0 && index < int(nlinks.size())) {
+            ++DWARFS_NOTHROW(nlinks.at(index));
+          }
+        }
+      } else {
+        for (auto e : meta_.entries()) {
+          auto index = int(e.content_index()) - file_index_offset_;
+          if (index >= 0 && index < int(nlinks.size())) {
+            ++DWARFS_NOTHROW(nlinks.at(index));
+          }
         }
       }
 
@@ -433,23 +446,25 @@ class metadata_ final : public metadata_v2::impl {
 
   folly::ByteRange data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
-  entry_view root_;
+  dir_entry_view root_;
   log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
   const int symlink_table_offset_;
   const int file_index_offset_;
   const int dev_index_offset_;
+  const int inode_count_;
   const std::vector<uint32_t> nlinks_;
   const metadata_options options_;
 };
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, const std::string& indent, entry_view entry,
+    std::ostream& os, const std::string& indent, dir_entry_view entry,
     int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  auto mode = entry.mode();
-  auto inode = entry.inode();
+  auto inode_data = entry.inode();
+  auto mode = inode_data.mode();
+  auto inode = inode_data.content_index(); // TODO: rename inode appropriately
 
   os << indent << "<inode:" << inode << "> " << modestring(mode);
 
@@ -461,15 +476,15 @@ void metadata_<LoggerPolicy>::dump(
     uint32_t beg = meta_.chunk_table()[inode - file_index_offset_];
     uint32_t end = meta_.chunk_table()[inode - file_index_offset_ + 1];
     os << " [" << beg << ", " << end << "]";
-    os << " " << file_size(entry, mode) << "\n";
+    os << " " << file_size(inode_data, mode) << "\n";
     if (detail_level > 3) {
       icb(indent + "  ", inode);
     }
   } else if (S_ISDIR(mode)) {
-    dump(os, indent + "  ", make_directory_view(entry), detail_level,
-         std::move(icb));
+    dump(os, indent + "  ", make_directory_view(inode_data), entry,
+         detail_level, std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> " << link_value(entry) << "\n";
+    os << " -> " << link_value(inode_data) << "\n";
   } else if (S_ISBLK(mode)) {
     os << " (block device: " << get_device_id(inode) << ")\n";
   } else if (S_ISCHR(mode)) {
@@ -481,18 +496,20 @@ void metadata_<LoggerPolicy>::dump(
   }
 }
 
+// TODO: can we move this to dir_entry_view?
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
-    int detail_level,
+    dir_entry_view entry, int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
-  os << " (" << count << " entries, parent=" << dir.parent_inode() << ")\n";
+  os << " (" << count << " entries, parent=" << dir.parent_entry() << ")\n";
 
   for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, make_entry_view(first + i), detail_level, icb);
+    dump(os, indent, make_dir_entry_view(first + i, entry.self_index()),
+         detail_level, icb);
   }
 }
 
@@ -533,35 +550,38 @@ void metadata_<LoggerPolicy>::dump(
     analyze_frozen(os, meta_);
   }
 
-  if (detail_level > 2) {
-    dump(os, "", root_, detail_level, icb);
-  }
-
   if (detail_level > 4) {
     os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
+  }
+
+  if (detail_level > 2) {
+    dump(os, "", root_, detail_level, icb);
   }
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::as_dynamic(directory_view dir) const {
+folly::dynamic metadata_<LoggerPolicy>::as_dynamic(directory_view dir,
+                                                   dir_entry_view entry) const {
   folly::dynamic obj = folly::dynamic::array;
 
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
   for (size_t i = 0; i < count; ++i) {
-    obj.push_back(as_dynamic(make_entry_view(first + i)));
+    obj.push_back(
+        as_dynamic(make_dir_entry_view(first + i, entry.self_index())));
   }
 
   return obj;
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::as_dynamic(entry_view entry) const {
+folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
   folly::dynamic obj = folly::dynamic::object;
 
-  auto mode = entry.mode();
-  auto inode = entry.inode();
+  auto inode_data = entry.inode();
+  auto mode = inode_data.mode();
+  auto inode = inode_data.content_index(); // TODO: rename all the things
 
   obj["mode"] = mode;
   obj["modestring"] = modestring(mode);
@@ -573,13 +593,13 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(entry_view entry) const {
 
   if (S_ISREG(mode)) {
     obj["type"] = "file";
-    obj["size"] = file_size(entry, mode);
+    obj["size"] = file_size(inode_data, mode);
   } else if (S_ISDIR(mode)) {
     obj["type"] = "directory";
-    obj["entries"] = as_dynamic(make_directory_view(entry));
+    obj["entries"] = as_dynamic(make_directory_view(inode_data), entry);
   } else if (S_ISLNK(mode)) {
     obj["type"] = "link";
-    obj["target"] = std::string(link_value(entry));
+    obj["target"] = std::string(link_value(inode_data));
   } else if (S_ISBLK(mode)) {
     obj["type"] = "blockdev";
     obj["device_id"] = get_device_id(inode);
@@ -646,23 +666,24 @@ std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
 
 template <typename LoggerPolicy>
 template <typename T>
-void metadata_<LoggerPolicy>::walk(uint32_t parent_ix, uint32_t entry_ix,
+void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
                                    set_type<int>& seen, T&& func) const {
-  func(entry_ix, parent_ix);
+  func(self_index, parent_index);
 
-  auto entry = make_entry_view(entry_ix);
+  auto entry = make_dir_entry_view(self_index, parent_index);
+  auto inode_data = entry.inode();
 
-  if (S_ISDIR(entry.mode())) {
-    auto inode = entry.inode();
+  if (S_ISDIR(inode_data.mode())) {
+    auto inode = inode_data.content_index();
 
     if (!seen.emplace(inode).second) {
       DWARFS_THROW(runtime_error, "cycle detected during directory walk");
     }
 
-    auto dir = make_directory_view(entry);
+    auto dir = make_directory_view(inode_data);
 
-    for (auto cur : dir.entry_range()) {
-      walk(entry_ix, cur, seen, func);
+    for (auto cur_index : dir.entry_range()) {
+      walk(cur_index, self_index, seen, func);
     }
 
     seen.erase(inode);
@@ -670,49 +691,53 @@ void metadata_<LoggerPolicy>::walk(uint32_t parent_ix, uint32_t entry_ix,
 }
 
 template <typename LoggerPolicy>
-template <typename Signature>
 void metadata_<LoggerPolicy>::walk_inode_order_impl(
-    std::function<Signature> const& func) const {
+    std::function<void(dir_entry_view)> const& func) const {
   std::vector<std::pair<uint32_t, uint32_t>> entries;
 
   {
     auto td = LOG_TIMED_DEBUG;
 
-    walk_tree([&](uint32_t entry_ix, uint32_t parent_ix) {
-      entries.emplace_back(entry_ix, parent_ix);
+    walk_tree([&](uint32_t self_index, uint32_t parent_index) {
+      entries.emplace_back(self_index, parent_index);
     });
 
-    std::sort(entries.begin(), entries.end(),
-              [this](auto const& a, auto const& b) {
-                return meta_.entries()[a.first].inode() <
-                       meta_.entries()[b.first].inode();
-              });
+    if (auto dep = meta_.dir_entries()) {
+      std::sort(entries.begin(), entries.end(),
+                [de = *dep](auto const& a, auto const& b) {
+                  return de[a.first].inode_num() < de[b.first].inode_num();
+                });
+    } else {
+      std::sort(entries.begin(), entries.end(),
+                [this](auto const& a, auto const& b) {
+                  return meta_.entries()[a.first].content_index() <
+                         meta_.entries()[b.first].content_index();
+                });
+    }
 
     td << "ordered " << entries.size() << " entries by inode";
   }
 
-  for (auto [entry, parent] : entries) {
-    walk_call(func, entry, parent);
+  for (auto [self_index, parent_index] : entries) {
+    walk_call(func, self_index, parent_index);
   }
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view>
+std::optional<inode_view>
 metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
   auto range = dir.entry_range();
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
                              [&](auto ix, std::string_view name) {
-                               return make_entry_view(ix).name() < name;
+                               return dir_entry_view::name(ix, &meta_) < name;
                              });
 
-  std::optional<entry_view> rv;
+  std::optional<inode_view> rv;
 
   if (it != range.end()) {
-    auto cand = make_entry_view(*it);
-
-    if (cand.name() == name) {
-      rv = cand;
+    if (dir_entry_view::name(*it, &meta_) == name) {
+      rv = dir_entry_view::inode(*it, &meta_);
     }
   }
 
@@ -720,13 +745,13 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view>
+std::optional<inode_view>
 metadata_<LoggerPolicy>::find(const char* path) const {
   while (*path and *path == '/') {
     ++path;
   }
 
-  std::optional<entry_view> entry = root_;
+  std::optional<inode_view> entry = root_.inode();
 
   while (*path) {
     const char* next = ::strchr(path, '/');
@@ -745,12 +770,12 @@ metadata_<LoggerPolicy>::find(const char* path) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view> metadata_<LoggerPolicy>::find(int inode) const {
+std::optional<inode_view> metadata_<LoggerPolicy>::find(int inode) const {
   return get_entry(inode);
 }
 
 template <typename LoggerPolicy>
-std::optional<entry_view>
+std::optional<inode_view>
 metadata_<LoggerPolicy>::find(int inode, const char* name) const {
   auto entry = get_entry(inode);
 
@@ -762,13 +787,13 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(entry_view entry,
+int metadata_<LoggerPolicy>::getattr(inode_view entry,
                                      struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = entry.mode();
   auto timebase = meta_.timestamp_base();
-  auto inode = entry.inode();
+  auto inode = entry.inode_num();
   bool mtime_only = meta_.options() && meta_.options()->mtime_only();
   uint32_t resolution = 1;
   if (meta_.options()) {
@@ -808,7 +833,7 @@ int metadata_<LoggerPolicy>::getattr(entry_view entry,
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
-metadata_<LoggerPolicy>::opendir(entry_view entry) const {
+metadata_<LoggerPolicy>::opendir(inode_view entry) const {
   std::optional<directory_view> rv;
 
   if (S_ISDIR(entry.mode())) {
@@ -819,14 +844,14 @@ metadata_<LoggerPolicy>::opendir(entry_view entry) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<entry_view, std::string_view>>
+std::optional<std::pair<inode_view, std::string_view>>
 metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   switch (offset) {
   case 0:
-    return std::pair(make_entry_view_from_inode(dir.inode()), ".");
+    return std::pair(make_inode_view(dir.inode()), ".");
 
   case 1:
-    return std::pair(make_entry_view_from_inode(dir.parent_inode()), "..");
+    return std::pair(make_inode_view(dir.parent_inode()), "..");
 
   default:
     offset -= 2;
@@ -835,16 +860,16 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
       break;
     }
 
-    auto entry = make_entry_view(dir.first_entry() + offset);
-
-    return std::pair(entry, entry.name());
+    auto index = dir.first_entry() + offset;
+    auto inode = dir_entry_view::inode(index, &meta_);
+    return std::pair(inode, dir_entry_view::name(index, &meta_));
   }
 
   return std::nullopt;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
+int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
                                     gid_t gid) const {
   if (mode == F_OK) {
     // easy; we're only interested in the file's existance
@@ -878,16 +903,16 @@ int metadata_<LoggerPolicy>::access(entry_view entry, int mode, uid_t uid,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::open(entry_view entry) const {
+int metadata_<LoggerPolicy>::open(inode_view entry) const {
   if (S_ISREG(entry.mode())) {
-    return entry.inode();
+    return entry.content_index();
   }
 
   return -1;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(entry_view entry,
+int metadata_<LoggerPolicy>::readlink(inode_view entry,
                                       std::string* buf) const {
   if (S_ISLNK(entry.mode())) {
     buf->assign(link_value(entry));
@@ -899,7 +924,7 @@ int metadata_<LoggerPolicy>::readlink(entry_view entry,
 
 template <typename LoggerPolicy>
 folly::Expected<std::string_view, int>
-metadata_<LoggerPolicy>::readlink(entry_view entry) const {
+metadata_<LoggerPolicy>::readlink(inode_view entry) const {
   if (S_ISLNK(entry.mode())) {
     return link_value(entry);
   }

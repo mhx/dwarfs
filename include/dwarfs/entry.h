@@ -82,7 +82,8 @@ class entry : public entry_interface {
             global_entry_data const& data) const;
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
-  virtual uint32_t inode_num() const = 0;
+  void set_inode_num(uint32_t inode_num) { inode_num_ = inode_num; }
+  uint32_t inode_num() const { return inode_num_; }
   virtual void scan(os_access& os, progress& prog) = 0;
   const struct ::stat& status() const { return stat_; }
 
@@ -104,6 +105,7 @@ class entry : public entry_interface {
   std::string name_;
   std::weak_ptr<entry> parent_;
   struct ::stat stat_;
+  uint32_t inode_num_{0};
 };
 
 class file : public entry {
@@ -117,12 +119,12 @@ class file : public entry {
   void set_inode(std::shared_ptr<inode> ino);
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
-  uint32_t inode_num() const override;
   void scan(os_access& os, progress& prog) override;
   void create_data();
   void hardlink(file* other, progress& prog);
   uint64_t raw_inode_num() const;
   unsigned num_hard_links() const;
+  uint32_t content_index() const;
 
  private:
   struct data {
@@ -144,12 +146,10 @@ class dir : public entry {
   void walk(std::function<void(const entry*)> const& f) const override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
-  void set_inode(uint32_t inode);
   void
   pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
   void pack_entry(thrift::metadata::metadata& mv2,
                   global_entry_data const& data) const;
-  uint32_t inode_num() const override { return inode_; }
   void scan(os_access& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);
@@ -158,7 +158,6 @@ class dir : public entry {
   using entry_ptr = std::shared_ptr<entry>;
 
   std::vector<std::shared_ptr<entry>> entries_;
-  uint32_t inode_{0};
 };
 
 class link : public entry {
@@ -167,14 +166,11 @@ class link : public entry {
 
   type_t type() const override;
   const std::string& linkname() const;
-  void set_inode(uint32_t inode);
   void accept(entry_visitor& v, bool preorder) override;
-  uint32_t inode_num() const override { return inode_; }
   void scan(os_access& os, progress& prog) override;
 
  private:
   std::string link_;
-  uint32_t inode_{0};
 };
 
 /**
@@ -186,14 +182,9 @@ class device : public entry {
   using entry::entry;
 
   type_t type() const override;
-  void set_inode(uint32_t inode);
   void accept(entry_visitor& v, bool preorder) override;
-  uint32_t inode_num() const override { return inode_; }
   void scan(os_access& os, progress& prog) override;
   uint64_t device_id() const;
-
- private:
-  uint32_t inode_{0};
 };
 
 class entry_factory {

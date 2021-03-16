@@ -288,39 +288,31 @@ TEST_P(compat_filesystem, backwards_compat) {
       {"/test.py", make_stat(S_IFREG | 0644, 1012)},
   };
 
-  using mptype = void (filesystem_v2::*)(
-      std::function<void(entry_view, directory_view)> const&) const;
-
-  for (auto mp : {static_cast<mptype>(&filesystem_v2::walk),
-                  static_cast<mptype>(&filesystem_v2::walk_inode_order)}) {
+  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_inode_order}) {
     std::map<std::string, struct ::stat> entries;
     std::vector<int> inodes;
 
-    (fs.*mp)([&](entry_view e, directory_view d) {
+    (fs.*mp)([&](dir_entry_view e) {
       struct ::stat stbuf;
-      ASSERT_EQ(0, fs.getattr(e, &stbuf));
+      ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
       inodes.push_back(stbuf.st_ino);
-      std::string path;
-      if (e.inode() > 0) {
-        if (auto dp = d.path(); !dp.empty()) {
-          path += "/" + dp;
-        }
-        path += "/" + std::string(e.name());
-      }
-      EXPECT_TRUE(entries.emplace(path, stbuf).second);
+      EXPECT_TRUE(entries.emplace(e.path(), stbuf).second);
     });
 
     EXPECT_EQ(entries.size(), ref_entries.size());
 
     for (auto const& [p, st] : entries) {
-      auto const& stref = ref_entries.at(p);
-      EXPECT_EQ(stref.st_mode, st.st_mode) << p;
-      EXPECT_EQ(1000, st.st_uid) << p;
-      EXPECT_EQ(100, st.st_gid) << p;
-      EXPECT_EQ(stref.st_size, st.st_size) << p;
+      auto it = ref_entries.find(p);
+      EXPECT_TRUE(it != ref_entries.end()) << p;
+      if (it != ref_entries.end()) {
+        EXPECT_EQ(it->second.st_mode, st.st_mode) << p;
+        EXPECT_EQ(1000, st.st_uid) << p;
+        EXPECT_EQ(100, st.st_gid) << p;
+        EXPECT_EQ(it->second.st_size, st.st_size) << p;
+      }
     }
 
-    if (mp == static_cast<mptype>(&filesystem_v2::walk_inode_order)) {
+    if (mp == &filesystem_v2::walk_inode_order) {
       EXPECT_TRUE(std::is_sorted(inodes.begin(), inodes.end()));
     }
   }

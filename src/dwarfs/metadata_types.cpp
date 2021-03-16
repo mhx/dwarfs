@@ -20,69 +20,211 @@
  */
 
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/error.h"
+#include "dwarfs/overloaded.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 
 namespace dwarfs {
 
-std::string_view entry_view::name() const {
-  return meta_->names()[name_index_v2_2()];
+uint16_t inode_view::mode() const { return meta_->modes()[mode_index()]; }
+
+uint16_t inode_view::getuid() const { return meta_->uids()[owner_index()]; }
+
+uint16_t inode_view::getgid() const { return meta_->gids()[group_index()]; }
+
+// TODO: pretty certain some of this stuff can be simplified
+
+std::string_view dir_entry_view::name() const {
+  return std::visit(overloaded{
+                        [this](DirEntryView const& dev) {
+                          return meta_->names()[dev.name_index()];
+                        },
+                        [this](InodeView const& iv) {
+                          return meta_->names()[iv.name_index_v2_2()];
+                        },
+                    },
+                    v_);
 }
 
-uint16_t entry_view::mode() const { return meta_->modes()[mode_index()]; }
-
-uint16_t entry_view::getuid() const { return meta_->uids()[owner_index()]; }
-
-uint16_t entry_view::getgid() const { return meta_->gids()[group_index()]; }
-
-::apache::thrift::frozen::View<thrift::metadata::directory>
-directory_view::getdir() const {
-  return getdir(entry_.inode());
+inode_view dir_entry_view::inode() const {
+  return std::visit(overloaded{
+                        [this](DirEntryView const& dev) {
+                          return inode_view(meta_->entries()[dev.inode_num()],
+                                            dev.inode_num(), meta_);
+                        },
+                        [this](InodeView const& iv) {
+                          return inode_view(iv, iv.content_index(), meta_);
+                        },
+                    },
+                    v_);
 }
 
-::apache::thrift::frozen::View<thrift::metadata::directory>
-directory_view::getdir(uint32_t ino) const {
-  return meta_->directories()[ino];
+// TODO: remove?
+// std::optional<directory_view> dir_entry_view::directory() const {
+//   if (is_root()) {
+//     return std::nullopt;
+//   }
+//
+//   auto dir_inode = parent_index_;
+//
+//   if (auto de = meta_->dir_entries()) {
+//     dir_inode = (*de)[dir_inode].entry_index();
+//   }
+//
+//   return directory_view(dir_inode, meta_);
+// }
+
+bool dir_entry_view::is_root() const {
+  return std::visit(
+      overloaded{
+          [](DirEntryView const& dev) { return dev.inode_num() == 0; },
+          [](InodeView const& iv) { return iv.content_index() == 0; },
+      },
+      v_);
 }
 
-uint32_t directory_view::entry_count() const { return entry_count(getdir()); }
+/**
+ * We need a parent index if the dir_entry_view is for a file. For
+ * directories, the parent can be determined via the directory's
+ * inode, but for files, this isn't possible.
+ */
 
-uint32_t directory_view::entry_count(
-    ::apache::thrift::frozen::View<thrift::metadata::directory> self) const {
-  auto next = getdir(entry_.inode() + 1);
-  return next.first_entry() - self.first_entry();
+dir_entry_view
+dir_entry_view::from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
+                                     Meta const* meta) {
+  if (auto de = meta->dir_entries()) {
+    DWARFS_CHECK(self_index < de->size(), "self_index out of range");
+    DWARFS_CHECK(parent_index < de->size(), "parent_index out of range");
+
+    auto dev = (*de)[self_index];
+
+    return dir_entry_view(dev, self_index, parent_index, meta);
+  }
+
+  DWARFS_CHECK(self_index < meta->entries().size(), "self_index out of range");
+  DWARFS_CHECK(parent_index < meta->entries().size(),
+               "self_index out of range");
+
+  auto iv = meta->entries()[self_index];
+
+  return dir_entry_view(iv, self_index, parent_index, meta);
 }
 
-boost::integer_range<uint32_t> directory_view::entry_range() const {
-  auto d = getdir();
-  auto first = d.first_entry();
-  return boost::irange(first, first + entry_count(d));
+dir_entry_view
+dir_entry_view::from_dir_entry_index(uint32_t self_index, Meta const* meta) {
+  if (auto de = meta->dir_entries()) {
+    DWARFS_CHECK(self_index < de->size(), "self_index out of range");
+    auto dev = (*de)[self_index];
+    DWARFS_CHECK(dev.inode_num() < meta->directories().size(),
+                 "self_index inode out of range");
+    return dir_entry_view(dev, self_index,
+                          meta->directories()[dev.inode_num()].parent_entry(),
+                          meta);
+  }
+
+  DWARFS_CHECK(self_index < meta->entries().size(), "self_index out of range");
+  auto iv = meta->entries()[self_index];
+
+  DWARFS_CHECK(iv.content_index() < meta->directories().size(),
+               "parent_index out of range");
+  return dir_entry_view(
+      iv, self_index,
+      meta->entry_table_v2_2()[meta->directories()[iv.content_index()]
+                                   .parent_entry()],
+      meta);
 }
 
-uint32_t directory_view::first_entry() const { return getdir().first_entry(); }
+std::optional<dir_entry_view> dir_entry_view::parent() const {
+  if (is_root()) {
+    return std::nullopt;
+  }
 
-uint32_t directory_view::parent_inode() const {
-  return getdir().parent_inode();
+  return from_dir_entry_index(parent_index_, meta_);
 }
 
-directory_view::directory_view(uint32_t inode, Meta const* meta)
-    : entry_(meta->entries()[meta->entry_table_v2_2()[inode]])
-    , meta_(meta) {}
+std::string_view dir_entry_view::name(uint32_t index, Meta const* meta) {
+  if (auto de = meta->dir_entries()) {
+    DWARFS_CHECK(index < de->size(), "index out of range");
+    auto dev = (*de)[index];
+    return meta->names()[dev.name_index()];
+  }
 
-std::string directory_view::path() const {
+  DWARFS_CHECK(index < meta->entries().size(), "index out of range");
+  auto iv = meta->entries()[index];
+  return meta->names()[iv.name_index_v2_2()];
+}
+
+inode_view dir_entry_view::inode(uint32_t index, Meta const* meta) {
+  if (auto de = meta->dir_entries()) {
+    DWARFS_CHECK(index < de->size(), "index out of range");
+    auto dev = (*de)[index];
+    return inode_view(meta->entries()[dev.inode_num()], dev.inode_num(), meta);
+  }
+
+  DWARFS_CHECK(index < meta->entries().size(), "index out of range");
+  auto iv = meta->entries()[index];
+  return inode_view(iv, iv.content_index(), meta);
+}
+
+std::string dir_entry_view::path() const {
   std::string p;
   append_path_to(p);
   return p;
 }
 
-void directory_view::append_path_to(std::string& s) const {
-  if (auto ino = parent_inode(); ino != 0) {
-    directory_view(parent_inode(), meta_).append_path_to(s);
+void dir_entry_view::append_path_to(std::string& s) const {
+  if (auto p = parent()) {
+    p->append_path_to(s);
     s += '/';
   }
-  if (inode() != 0) {
-    s += meta_->names()[entry_.name_index_v2_2()];
+  if (!is_root()) {
+    s += name();
   }
+}
+
+directory_view::directory_view(uint32_t inode, Meta const* meta)
+    : DirView{getdir(inode, meta)}
+    , inode_{inode}
+    , meta_{meta} {}
+
+auto directory_view::getdir(uint32_t ino) const -> DirView {
+  return getdir(ino, meta_);
+}
+
+auto directory_view::getdir(uint32_t ino, Meta const* meta) -> DirView {
+  return meta->directories()[ino];
+}
+
+uint32_t directory_view::entry_count() const {
+  return getdir(inode_ + 1).first_entry() - first_entry();
+}
+
+boost::integer_range<uint32_t> directory_view::entry_range() const {
+  auto first = first_entry();
+  return boost::irange(first, first + entry_count());
+}
+
+uint32_t directory_view::parent_inode() const {
+  if (inode_ == 0) {
+    return 0;
+  }
+
+  auto ent = parent_entry();
+
+  if (auto e = meta_->dir_entries()) {
+    ent = (*e)[ent].inode_num();
+  }
+
+  return ent;
+}
+
+std::optional<directory_view> directory_view::parent() const {
+  if (inode_ == 0) {
+    return std::nullopt;
+  }
+
+  return directory_view(parent_inode(), meta_);
 }
 
 } // namespace dwarfs

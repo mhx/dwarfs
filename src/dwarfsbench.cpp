@@ -106,13 +106,14 @@ int dwarfsbench(int argc, char** argv) {
     worker_group wg("reader", num_readers);
 
     fs.walk([&](auto entry) {
-      if (S_ISREG(entry.mode())) {
-        wg.add_job([&fs, entry] {
+      auto inode_data = entry.inode();
+      if (S_ISREG(inode_data.mode())) {
+        wg.add_job([&fs, inode_data] {
           try {
             struct ::stat stbuf;
-            if (fs.getattr(entry, &stbuf) == 0) {
+            if (fs.getattr(inode_data, &stbuf) == 0) {
               std::vector<char> buf(stbuf.st_size);
-              int fh = fs.open(entry);
+              int fh = fs.open(inode_data);
               fs.read(fh, buf.data(), buf.size());
             }
           } catch (runtime_error const& e) {

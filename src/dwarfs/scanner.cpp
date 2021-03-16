@@ -72,10 +72,12 @@ class visitor_base : public entry_visitor {
 
 class scan_files_visitor : public visitor_base {
  public:
-  scan_files_visitor(worker_group& wg, os_access& os, progress& prog)
+  scan_files_visitor(worker_group& wg, os_access& os, progress& prog,
+                     uint32_t& inode_num)
       : wg_(wg)
       , os_(os)
-      , prog_(prog) {}
+      , prog_(prog)
+      , inode_num_(inode_num) {}
 
   void visit(file* p) override {
     if (p->num_hard_links() > 1) {
@@ -84,18 +86,19 @@ class scan_files_visitor : public visitor_base {
 
       if (!is_new) {
         p->hardlink(it->second, prog_);
-        prog_.files_scanned++;
-        prog_.hardlinks++;
+        p->set_inode_num(it->second->inode_num());
+        ++prog_.files_scanned;
         return;
       }
     }
 
     p->create_data();
+    p->set_inode_num(inode_num_++);
 
     wg_.add_job([=] {
       prog_.current.store(p);
       p->scan(os_, prog_);
-      prog_.files_scanned++;
+      ++prog_.files_scanned;
     });
   }
 
@@ -104,6 +107,7 @@ class scan_files_visitor : public visitor_base {
   os_access& os_;
   progress& prog_;
   folly::F14FastMap<uint64_t, file*> cache_;
+  uint32_t& inode_num_;
 };
 
 class file_deduplication_visitor : public visitor_base {
@@ -150,39 +154,39 @@ class file_deduplication_visitor : public visitor_base {
 
 class dir_set_inode_visitor : public visitor_base {
  public:
-  explicit dir_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no) {}
+  explicit dir_set_inode_visitor(uint32_t& inode_num)
+      : inode_num_(inode_num) {}
 
   void visit(dir* p) override {
     p->sort();
-    p->set_inode(inode_no_++);
+    p->set_inode_num(inode_num_++);
   }
 
-  uint32_t inode_no() const { return inode_no_; }
+  uint32_t inode_num() const { return inode_num_; }
 
  private:
-  uint32_t& inode_no_;
+  uint32_t& inode_num_;
 };
 
 class link_set_inode_visitor : public visitor_base {
  public:
-  explicit link_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no) {}
+  explicit link_set_inode_visitor(uint32_t& inode_num)
+      : inode_num_(inode_num) {}
 
-  void visit(link* p) override { p->set_inode(inode_no_++); }
+  void visit(link* p) override { p->set_inode_num(inode_num_++); }
 
  private:
-  uint32_t& inode_no_;
+  uint32_t& inode_num_;
 };
 
 class device_set_inode_visitor : public visitor_base {
  public:
-  explicit device_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no) {}
+  explicit device_set_inode_visitor(uint32_t& inode_num)
+      : inode_num_(inode_num) {}
 
   void visit(device* p) override {
     if (p->type() == entry::E_DEVICE) {
-      p->set_inode(inode_no_++);
+      p->set_inode_num(inode_num_++);
       dev_ids_.push_back(p->device_id());
     }
   }
@@ -191,22 +195,22 @@ class device_set_inode_visitor : public visitor_base {
 
  private:
   std::vector<uint64_t> dev_ids_;
-  uint32_t& inode_no_;
+  uint32_t& inode_num_;
 };
 
 class pipe_set_inode_visitor : public visitor_base {
  public:
-  explicit pipe_set_inode_visitor(uint32_t& inode_no)
-      : inode_no_(inode_no) {}
+  explicit pipe_set_inode_visitor(uint32_t& inode_num)
+      : inode_num_(inode_num) {}
 
   void visit(device* p) override {
     if (p->type() != entry::E_DEVICE) {
-      p->set_inode(inode_no_++);
+      p->set_inode_num(inode_num_++);
     }
   }
 
  private:
-  uint32_t& inode_no_;
+  uint32_t& inode_num_;
 };
 
 class names_and_symlinks_visitor : public entry_visitor {
@@ -251,8 +255,8 @@ class save_directories_visitor : public visitor_base {
     }
 
     thrift::metadata::directory dummy;
-    dummy.parent_inode = 0;
-    dummy.first_entry = mv2.entries.size();
+    dummy.parent_entry = 0;
+    dummy.first_entry = mv2.dir_entries_ref()->size();
     mv2.directories.push_back(dummy);
   }
 
@@ -452,6 +456,8 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   return root;
 }
 
+// TODO: all _inode stuff should be named _index or something
+
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
@@ -467,13 +473,6 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     d->remove_empty_dirs(prog);
   }
 
-  // now scan all files
-  scan_files_visitor sfv(wg_, *os_, prog);
-  root->accept(sfv);
-
-  LOG_INFO << "waiting for background scanners...";
-  wg_.wait();
-
   LOG_INFO << "assigning directory and link inodes...";
 
   uint32_t first_link_inode = 0;
@@ -483,6 +482,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   uint32_t first_file_inode = first_link_inode;
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
+
+  // now scan all files
+  uint32_t first_device_inode = first_file_inode;
+  scan_files_visitor sfv(wg_, *os_, prog, first_device_inode);
+  root->accept(sfv);
+
+  LOG_INFO << "waiting for background scanners...";
+  wg_.wait();
 
   LOG_INFO << "finding duplicate files...";
 
@@ -509,14 +516,14 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.symlink_table.resize(first_file_inode - first_link_inode);
 
   LOG_INFO << "assigning device inodes...";
-  uint32_t first_device_inode = first_file_inode + im.count();
-  device_set_inode_visitor devsiv(first_device_inode);
+  uint32_t first_pipe_inode = first_device_inode;
+  device_set_inode_visitor devsiv(first_pipe_inode);
   root->accept(devsiv);
   mv2.devices_ref() = std::move(devsiv.device_ids());
 
   LOG_INFO << "assigning pipe/socket inodes...";
-  uint32_t first_pipe_inode = first_device_inode;
-  pipe_set_inode_visitor pipsiv(first_pipe_inode);
+  uint32_t last_inode = first_pipe_inode;
+  pipe_set_inode_visitor pipsiv(last_inode);
   root->accept(pipsiv);
 
   LOG_INFO << "building metadata...";
@@ -592,7 +599,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
 
   LOG_INFO << "saving directories...";
-  mv2.entry_table_v2_2.resize(first_pipe_inode);
+  mv2.set_dir_entries(std::vector<thrift::metadata::dir_entry>());
+  mv2.entries.resize(last_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);

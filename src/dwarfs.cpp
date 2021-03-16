@@ -137,7 +137,7 @@ template <typename LoggerPolicy>
 void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
   LOG_PROXY(LoggerPolicy, s_lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << parent << ", " << name << ")";
 
   int err = ENOENT;
 
@@ -175,7 +175,7 @@ template <typename LoggerPolicy>
 void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   LOG_PROXY(LoggerPolicy, s_lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ")";
 
   int err = ENOENT;
 
@@ -282,7 +282,8 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
       } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
         err = EACCES;
       } else {
-        fi->fh = FUSE_ROOT_ID + entry->inode();
+        fi->fh = FUSE_ROOT_ID +
+                 entry->content_index(); // <<---- THIS IS NOT THE INODE!!!!
         fi->direct_io = !s_opts.cache_files;
         fi->keep_cache = s_opts.cache_files;
         fuse_reply_open(req, fi);
