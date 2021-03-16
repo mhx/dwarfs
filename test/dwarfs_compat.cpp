@@ -31,6 +31,8 @@
 #include <tuple>
 #include <vector>
 
+#include <sys/statvfs.h>
+
 #include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
@@ -214,6 +216,16 @@ TEST_P(compat_filesystem, backwards_compat) {
   opts.metadata.enable_nlink = enable_nlink;
 
   filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);
+
+  struct ::statvfs vfsbuf;
+  fs.statvfs(&vfsbuf);
+
+  EXPECT_EQ(1048576, vfsbuf.f_bsize);
+  EXPECT_EQ(1, vfsbuf.f_frsize);
+  EXPECT_EQ(4240, vfsbuf.f_blocks);
+  EXPECT_EQ(12, vfsbuf.f_files);
+  EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
+  EXPECT_GT(vfsbuf.f_namemax, 0);
 
   auto json = fs.serialize_metadata_as_json(true);
   EXPECT_GT(json.size(), 1000) << json;

@@ -25,6 +25,8 @@
 #include <sstream>
 #include <vector>
 
+#include <sys/statvfs.h>
+
 #include <gtest/gtest.h>
 
 #include "dwarfs/block_compressor.h"
@@ -246,6 +248,16 @@ void basic_end_to_end_test(std::string const& compressor,
   filesystem_v2 fs(lgr, mm, opts);
 
   // fs.dump(std::cerr, 9);
+
+  struct ::statvfs vfsbuf;
+  fs.statvfs(&vfsbuf);
+
+  EXPECT_EQ(1 << block_size_bits, vfsbuf.f_bsize);
+  EXPECT_EQ(1, vfsbuf.f_frsize);
+  EXPECT_EQ(2056934, vfsbuf.f_blocks);
+  EXPECT_EQ(9 + 2 * with_devices + with_specials, vfsbuf.f_files);
+  EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
+  EXPECT_GT(vfsbuf.f_namemax, 0);
 
   std::ostringstream dumpss;
 
