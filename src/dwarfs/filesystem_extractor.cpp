@@ -161,9 +161,11 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
       if (auto ranges = fs.readv(fd, size, 0)) {
         archiver.add_job(
             [this, &sem, ranges = std::move(*ranges), ae, size]() mutable {
+              LOG_TRACE << "archiving " << ::archive_entry_pathname(ae);
               check_result(::archive_write_header(a_, ae));
               for (auto& r : ranges) {
                 auto br = r.get();
+                LOG_TRACE << "writing " << br.size() << " bytes";
                 check_result(::archive_write_data(a_, br.data(), br.size()));
               }
               sem.post(size);
@@ -195,15 +197,11 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
-    std::string path;
-    path.reserve(256);
-    entry.append_path_to(path);
-    if (!path.empty()) {
-      path += '/';
-    }
-    path += entry.name();
+    auto path = entry.path();
 
-    ::archive_entry_set_pathname(ae, path.c_str());
+    DWARFS_CHECK(path[0] == '/', "path expected to start with /");
+
+    ::archive_entry_set_pathname(ae, path.c_str() + 1); // drop leading /
     ::archive_entry_copy_stat(ae, &stbuf);
 
     if (S_ISLNK(inode.mode())) {
