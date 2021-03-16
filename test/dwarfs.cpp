@@ -403,7 +403,7 @@ void basic_end_to_end_test(std::string const& compressor,
   auto e2 = fs.find("/bar.pl");
   ASSERT_TRUE(e2);
 
-  EXPECT_EQ(entry->content_index(), e2->content_index());
+  EXPECT_EQ(entry->inode_num(), e2->inode_num());
 
   struct ::stat st1, st2;
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
@@ -417,13 +417,13 @@ void basic_end_to_end_test(std::string const& compressor,
 
   entry = fs.find("/");
   ASSERT_TRUE(entry);
-  EXPECT_EQ(0, entry->content_index());
+  EXPECT_EQ(0, entry->inode_num());
   e2 = fs.find(0);
   ASSERT_TRUE(e2);
-  EXPECT_EQ(e2->content_index(), 0);
+  EXPECT_EQ(e2->inode_num(), 0);
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
-  EXPECT_GT(entry->content_index(), 0);
+  EXPECT_GT(entry->inode_num(), 0);
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
   EXPECT_EQ(23456, st1.st_size);
   e2 = fs.find(0, "somedir");

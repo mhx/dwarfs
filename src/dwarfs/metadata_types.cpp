@@ -54,32 +54,17 @@ inode_view dir_entry_view::inode() const {
                                             dev.inode_num(), meta_);
                         },
                         [this](InodeView const& iv) {
-                          return inode_view(iv, iv.content_index(), meta_);
+                          return inode_view(iv, iv.inode_v2_2(), meta_);
                         },
                     },
                     v_);
 }
 
-// TODO: remove?
-// std::optional<directory_view> dir_entry_view::directory() const {
-//   if (is_root()) {
-//     return std::nullopt;
-//   }
-//
-//   auto dir_inode = parent_index_;
-//
-//   if (auto de = meta_->dir_entries()) {
-//     dir_inode = (*de)[dir_inode].entry_index();
-//   }
-//
-//   return directory_view(dir_inode, meta_);
-// }
-
 bool dir_entry_view::is_root() const {
   return std::visit(
       overloaded{
           [](DirEntryView const& dev) { return dev.inode_num() == 0; },
-          [](InodeView const& iv) { return iv.content_index() == 0; },
+          [](InodeView const& iv) { return iv.inode_v2_2() == 0; },
       },
       v_);
 }
@@ -126,11 +111,11 @@ dir_entry_view::from_dir_entry_index(uint32_t self_index, Meta const* meta) {
   DWARFS_CHECK(self_index < meta->entries().size(), "self_index out of range");
   auto iv = meta->entries()[self_index];
 
-  DWARFS_CHECK(iv.content_index() < meta->directories().size(),
+  DWARFS_CHECK(iv.inode_v2_2() < meta->directories().size(),
                "parent_index out of range");
   return dir_entry_view(
       iv, self_index,
-      meta->entry_table_v2_2()[meta->directories()[iv.content_index()]
+      meta->entry_table_v2_2()[meta->directories()[iv.inode_v2_2()]
                                    .parent_entry()],
       meta);
 }
@@ -164,7 +149,7 @@ inode_view dir_entry_view::inode(uint32_t index, Meta const* meta) {
 
   DWARFS_CHECK(index < meta->entries().size(), "index out of range");
   auto iv = meta->entries()[index];
-  return inode_view(iv, iv.content_index(), meta);
+  return inode_view(iv, iv.inode_v2_2(), meta);
 }
 
 std::string dir_entry_view::path() const {

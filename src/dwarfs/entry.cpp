@@ -109,11 +109,6 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
   entry_v2.atime_offset = data.get_atime_offset(stat_.st_atime);
   entry_v2.mtime_offset = data.get_mtime_offset(stat_.st_mtime);
   entry_v2.ctime_offset = data.get_ctime_offset(stat_.st_ctime);
-  if (auto fp = dynamic_cast<file const*>(this)) {
-    entry_v2.content_index = fp->content_index();
-  } else {
-    entry_v2.content_index = inode_num();
-  }
 }
 
 entry::type_t file::type() const { return E_FILE; }
@@ -189,7 +184,7 @@ void file::scan(os_access& os, progress& prog) {
   }
 }
 
-uint32_t file::content_index() const { return inode_->num(); }
+uint32_t file::unique_file_id() const { return inode_->num(); }
 
 uint64_t file::raw_inode_num() const { return status().st_ino; }
 

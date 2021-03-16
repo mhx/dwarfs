@@ -124,7 +124,7 @@ class file : public entry {
   void hardlink(file* other, progress& prog);
   uint64_t raw_inode_num() const;
   unsigned num_hard_links() const;
-  uint32_t content_index() const;
+  uint32_t unique_file_id() const;
 
  private:
   struct data {

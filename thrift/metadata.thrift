@@ -74,7 +74,7 @@ struct inode_data {
     * - For files, (inode - chunk_index_offset) can be
     *   used as in index into metadata.chunk_table.
     */
-   3: required UInt32 content_index,
+   3: required UInt32 inode_v2_2,
 
    //--------------------------------------------------------------------------
    // TODO: actually, the inode field is redundant as of v2.3, as entries are
@@ -227,6 +227,11 @@ struct metadata {
     */
   19: optional list<dir_entry>  dir_entries,
 
+   /**
+    *  Maps from file inode to chunk_table index
+    */
+  20: optional list<UInt32>     unique_files_table,
+
   // TODO: add timestamp
-  // 20: optional UInt64           timestamp,
+  // 21: optional UInt64           timestamp,
 }

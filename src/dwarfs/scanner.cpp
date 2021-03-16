@@ -213,7 +213,7 @@ class pipe_set_inode_visitor : public visitor_base {
   uint32_t& inode_num_;
 };
 
-class names_and_symlinks_visitor : public entry_visitor {
+class names_and_symlinks_visitor : public visitor_base {
  public:
   explicit names_and_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
@@ -262,6 +262,24 @@ class save_directories_visitor : public visitor_base {
 
  private:
   std::vector<dir*> directories_;
+};
+
+class save_unique_files_visitor : public visitor_base {
+ public:
+  explicit save_unique_files_visitor(uint32_t inode_begin, uint32_t inode_end)
+      : inode_begin_{inode_begin} {
+    unique_files_.resize(inode_end - inode_begin);
+  }
+
+  void visit(file* p) override {
+    unique_files_.at(p->inode_num() - inode_begin_) = p->unique_file_id();
+  }
+
+  std::vector<uint32_t>& get_unique_files() { return unique_files_; }
+
+ private:
+  uint32_t const inode_begin_;
+  std::vector<uint32_t> unique_files_;
 };
 
 std::string status_string(progress const& p, size_t width) {
@@ -551,7 +569,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   worker_group blockify("blockify", 1, 1 << 20);
 
-  im.order_inodes(script_, options_.file_order, first_file_inode,
+  im.order_inodes(script_, options_.file_order, 0,
                   [&](std::shared_ptr<inode> const& ino) {
                     blockify.add_job([&] {
                       prog.current.store(ino.get());
@@ -587,15 +605,15 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
   im.for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    DWARFS_NOTHROW(mv2.chunk_table.at(ino->num() - first_file_inode)) =
-        mv2.chunks.size();
+    // TODO: no need for this offset stuff here...
+    DWARFS_NOTHROW(mv2.chunk_table.at(ino->num())) = mv2.chunks.size();
     ino->append_chunks_to(mv2.chunks);
   });
 
   // insert dummy inode to help determine number of chunks per inode
   DWARFS_NOTHROW(mv2.chunk_table.at(im.count())) = mv2.chunks.size();
 
-  LOG_DEBUG << "total number of file inodes: " << im.count();
+  LOG_DEBUG << "total number of unique files: " << im.count();
   LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
 
   LOG_INFO << "saving directories...";
@@ -605,6 +623,11 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
+
+  LOG_INFO << "saving unique files table...";
+  save_unique_files_visitor sufv(first_file_inode, first_device_inode);
+  root->accept(sufv);
+  mv2.unique_files_table_ref() = std::move(sufv.get_unique_files());
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;

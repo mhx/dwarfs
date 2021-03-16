@@ -69,10 +69,6 @@ class inode_view
   Meta const* meta_;
 };
 
-/**
- * THIS *MUST* BE CONSTRUCTIBLE FROM ONLY AN INODE NUMBER (NOT EVEN AN
- * INODE_VIEW)
- */
 class directory_view
     : public ::apache::thrift::frozen::View<thrift::metadata::directory> {
   using DirView = ::apache::thrift::frozen::View<thrift::metadata::directory>;
@@ -124,8 +120,6 @@ class dir_entry_view {
 
   bool is_root() const;
 
-  // TODO: remove?
-  // std::optional<directory_view> directory() const;
   std::optional<dir_entry_view> parent() const;
 
   std::string path() const;

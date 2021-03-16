@@ -282,8 +282,7 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
       } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
         err = EACCES;
       } else {
-        fi->fh = FUSE_ROOT_ID +
-                 entry->content_index(); // <<---- THIS IS NOT THE INODE!!!!
+        fi->fh = FUSE_ROOT_ID + entry->inode_num();
         fi->direct_io = !s_opts.cache_files;
         fi->keep_cache = s_opts.cache_files;
         fuse_reply_open(req, fi);

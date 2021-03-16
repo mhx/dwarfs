@@ -343,24 +343,35 @@ class metadata_ final : public metadata_v2::impl {
 
   std::string modestring(uint16_t mode) const;
 
+  std::optional<chunk_range> get_chunk_range(int inode) const {
+    std::optional<chunk_range> rv;
+
+    inode -= file_index_offset_;
+
+    if (auto uf = meta_.unique_files_table()) {
+      if (inode < 0 or inode >= static_cast<int>(uf->size())) {
+        return rv;
+      }
+
+      inode = (*uf)[inode];
+    }
+
+    if (inode >= 0 &&
+        inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
+      uint32_t begin = meta_.chunk_table()[inode];
+      uint32_t end = meta_.chunk_table()[inode + 1];
+      rv = chunk_range(&meta_, begin, end);
+    }
+
+    return rv;
+  }
+
   size_t reg_file_size(inode_view entry) const {
-    auto inode = entry.content_index() - file_index_offset_;
-    uint32_t cur = meta_.chunk_table()[inode];
-    uint32_t end = meta_.chunk_table()[inode + 1];
-    if (cur > end) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("invalid chunk range: [{0}..{1}]", cur, end));
-    }
-    if (end > meta_.chunks().size()) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("chunk index out of range: {0} > {1}", end,
-                               meta_.chunks().size()));
-    }
-    size_t size = 0;
-    while (cur < end) {
-      size += meta_.chunks()[cur++].size();
-    }
-    return size;
+    auto cr = get_chunk_range(entry.inode_num());
+    DWARFS_CHECK(cr, "invalid chunk range");
+    return std::accumulate(
+        cr->begin(), cr->end(), static_cast<size_t>(0),
+        [](size_t s, chunk_view cv) { return s + cv.size(); });
   }
 
   size_t file_size(inode_view entry, uint16_t mode) const {
@@ -401,7 +412,7 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   std::string_view link_value(inode_view entry) const {
-    return meta_.symlinks()[meta_.symlink_table()[entry.content_index() -
+    return meta_.symlinks()[meta_.symlink_table()[entry.inode_num() -
                                                   symlink_table_offset_]];
   }
 
@@ -430,7 +441,7 @@ class metadata_ final : public metadata_v2::impl {
         }
       } else {
         for (auto e : meta_.entries()) {
-          auto index = int(e.content_index()) - file_index_offset_;
+          auto index = int(e.inode_v2_2()) - file_index_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
             ++DWARFS_NOTHROW(nlinks.at(index));
           }
@@ -464,7 +475,7 @@ void metadata_<LoggerPolicy>::dump(
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto inode_data = entry.inode();
   auto mode = inode_data.mode();
-  auto inode = inode_data.content_index(); // TODO: rename inode appropriately
+  auto inode = inode_data.inode_num(); // TODO: rename inode appropriately
 
   os << indent << "<inode:" << inode << "> " << modestring(mode);
 
@@ -473,9 +484,9 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (S_ISREG(mode)) {
-    uint32_t beg = meta_.chunk_table()[inode - file_index_offset_];
-    uint32_t end = meta_.chunk_table()[inode - file_index_offset_ + 1];
-    os << " [" << beg << ", " << end << "]";
+    auto cr = get_chunk_range(inode);
+    DWARFS_CHECK(cr, "invalid chunk range");
+    os << " [" << cr->begin_ << ", " << cr->end_ << "]";
     os << " " << file_size(inode_data, mode) << "\n";
     if (detail_level > 3) {
       icb(indent + "  ", inode);
@@ -581,7 +592,7 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
 
   auto inode_data = entry.inode();
   auto mode = inode_data.mode();
-  auto inode = inode_data.content_index(); // TODO: rename all the things
+  auto inode = inode_data.inode_num(); // TODO: rename all the things
 
   obj["mode"] = mode;
   obj["modestring"] = modestring(mode);
@@ -674,7 +685,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
   auto inode_data = entry.inode();
 
   if (S_ISDIR(inode_data.mode())) {
-    auto inode = inode_data.content_index();
+    auto inode = inode_data.inode_num();
 
     if (!seen.emplace(inode).second) {
       DWARFS_THROW(runtime_error, "cycle detected during directory walk");
@@ -710,8 +721,8 @@ void metadata_<LoggerPolicy>::walk_inode_order_impl(
     } else {
       std::sort(entries.begin(), entries.end(),
                 [this](auto const& a, auto const& b) {
-                  return meta_.entries()[a.first].content_index() <
-                         meta_.entries()[b.first].content_index();
+                  return meta_.entries()[a.first].inode_v2_2() <
+                         meta_.entries()[b.first].inode_v2_2();
                 });
     }
 
@@ -905,7 +916,7 @@ int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::open(inode_view entry) const {
   if (S_ISREG(entry.mode())) {
-    return entry.content_index();
+    return entry.inode_num();
   }
 
   return -1;
@@ -949,15 +960,7 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
 template <typename LoggerPolicy>
 std::optional<chunk_range>
 metadata_<LoggerPolicy>::get_chunks(int inode) const {
-  std::optional<chunk_range> rv;
-  inode -= inode_offset_ + file_index_offset_;
-  if (inode >= 0 &&
-      inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
-    uint32_t begin = meta_.chunk_table()[inode];
-    uint32_t end = meta_.chunk_table()[inode + 1];
-    rv = chunk_range(&meta_, begin, end);
-  }
-  return rv;
+  return get_chunk_range(inode - inode_offset_);
 }
 
 void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
