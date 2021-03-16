@@ -198,10 +198,7 @@ void file::create_data() {
 void file::hardlink(file* other, progress& prog) {
   assert(!data_);
   assert(other->data_);
-  if (size_t s = size(); s > 0) {
-    prog.original_size += s;
-    prog.hardlink_size += s;
-  }
+  prog.hardlink_size += size();
   ++prog.hardlinks;
   data_ = other->data_;
 }
