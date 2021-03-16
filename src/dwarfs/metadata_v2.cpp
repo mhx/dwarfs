@@ -523,7 +523,9 @@ void metadata_<LoggerPolicy>::dump(
     os << "symlinks: " << meta_.symlinks().size() << std::endl;
     os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0)
        << std::endl;
-    os << "devices: " << meta_.devices()->size() << std::endl;
+    if (auto dev = meta_.devices()) {
+      os << "devices: " << dev->size() << std::endl;
+    }
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
     os << "file_index_offset: " << file_index_offset_ << std::endl;
     os << "dev_index_offset: " << dev_index_offset_ << std::endl;
