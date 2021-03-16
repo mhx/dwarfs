@@ -257,11 +257,19 @@ void dir::pack_entry(thrift::metadata::metadata& mv2,
 void dir::pack(thrift::metadata::metadata& mv2,
                global_entry_data const& data) const {
   thrift::metadata::directory d;
-  d.parent_entry =
-      has_parent() ? std::dynamic_pointer_cast<dir>(parent())->inode_num() : 0;
+  if (has_parent()) {
+    auto pd = std::dynamic_pointer_cast<dir>(parent());
+    DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
+    auto pe = pd->entry_index();
+    DWARFS_CHECK(pe, "parent entry index not set");
+    d.parent_entry = *pe;
+  } else {
+    d.parent_entry = 0;
+  }
   d.first_entry = mv2.dir_entries_ref()->size();
   mv2.directories.push_back(d);
   for (entry_ptr const& e : entries_) {
+    e->set_entry_index(mv2.dir_entries_ref()->size());
     auto& de = mv2.dir_entries_ref()->emplace_back();
     de.name_index = data.get_name_index(e->name());
     de.inode_num = e->inode_num();

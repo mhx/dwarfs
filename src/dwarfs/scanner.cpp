@@ -248,6 +248,7 @@ class save_directories_visitor : public visitor_base {
   void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
     for (auto p : directories_) {
       if (!p->has_parent()) {
+        p->set_entry_index(mv2.dir_entries_ref()->size());
         p->pack_entry(mv2, ge_data);
       }
 

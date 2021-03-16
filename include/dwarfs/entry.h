@@ -86,6 +86,8 @@ class entry : public entry_interface {
   uint32_t inode_num() const { return inode_num_; }
   virtual void scan(os_access& os, progress& prog) = 0;
   const struct ::stat& status() const { return stat_; }
+  void set_entry_index(uint32_t index) { entry_index_ = index; }
+  std::optional<uint32_t> entry_index() const { return entry_index_; }
 
   // more methods from entry_interface
   uint16_t get_permissions() const override;
@@ -106,6 +108,7 @@ class entry : public entry_interface {
   std::weak_ptr<entry> parent_;
   struct ::stat stat_;
   uint32_t inode_num_{0};
+  std::optional<uint32_t> entry_index_;
 };
 
 class file : public entry {
