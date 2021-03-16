@@ -104,7 +104,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
     check_result(::archive_write_disk_set_options(
         a_,
-        ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME));
+        ARCHIVE_EXTRACT_OWNER | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_TIME |
+            ARCHIVE_EXTRACT_UNLINK | ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS |
+            ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_SYMLINKS));
   }
 
   void close() override {
@@ -141,7 +143,9 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
 
   auto lr = ::archive_entry_linkresolver_new();
 
-  ::archive_entry_linkresolver_set_strategy(lr, ::archive_format(a_));
+  if (auto fmt = ::archive_format(a_)) {
+    ::archive_entry_linkresolver_set_strategy(lr, fmt);
+  }
 
   ::archive_entry* spare = nullptr;
 
@@ -219,7 +223,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
       if (!ev) {
         LOG_ERROR << "find() failed";
       }
-      LOG_DEBUG << "archiving spare " << ::archive_entry_pathname(spare);
+      LOG_INFO << "archiving spare " << ::archive_entry_pathname(spare);
       do_archive(spare, *ev);
     }
   });
