@@ -458,7 +458,11 @@ void basic_end_to_end_test(std::string const& compressor,
       struct ::stat stbuf;
       ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
       inodes.push_back(stbuf.st_ino);
-      EXPECT_TRUE(entries.emplace(e.path(), stbuf).second);
+      auto path = e.path();
+      if (!path.empty()) {
+        path = "/" + path;
+      }
+      EXPECT_TRUE(entries.emplace(path, stbuf).second);
     });
 
     EXPECT_EQ(entries.size(), dwarfs::test::statmap.size() + 2 * with_devices +

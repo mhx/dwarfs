@@ -286,18 +286,18 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   std::map<std::string, struct ::stat> ref_entries{
       {"", make_stat(S_IFDIR | 0755, 8)},
-      {"/bench.sh", make_stat(S_IFREG | 0644, 1517)},
-      {"/dev", make_stat(S_IFDIR | 0755, 0)},
-      {"/empty", make_stat(S_IFDIR | 0755, 1)},
-      {"/empty/alsoempty", make_stat(S_IFDIR | 0755, 0)},
-      {"/foo", make_stat(S_IFDIR | 0755, 3)},
-      {"/foo/bad", make_stat(S_IFLNK | 0777, 6)},
-      {"/foo/bar", make_stat(S_IFREG | 0644, 0)},
-      {"/foo/bla.sh", make_stat(S_IFREG | 0644, 1517)},
-      {"/foobar", make_stat(S_IFLNK | 0777, 7)},
-      {"/format.sh", make_stat(S_IFREG | 0755, 94)},
-      {"/perl-exec.sh", make_stat(S_IFREG | 0644, 87)},
-      {"/test.py", make_stat(S_IFREG | 0644, 1012)},
+      {"bench.sh", make_stat(S_IFREG | 0644, 1517)},
+      {"dev", make_stat(S_IFDIR | 0755, 0)},
+      {"empty", make_stat(S_IFDIR | 0755, 1)},
+      {"empty/alsoempty", make_stat(S_IFDIR | 0755, 0)},
+      {"foo", make_stat(S_IFDIR | 0755, 3)},
+      {"foo/bad", make_stat(S_IFLNK | 0777, 6)},
+      {"foo/bar", make_stat(S_IFREG | 0644, 0)},
+      {"foo/bla.sh", make_stat(S_IFREG | 0644, 1517)},
+      {"foobar", make_stat(S_IFLNK | 0777, 7)},
+      {"format.sh", make_stat(S_IFREG | 0755, 94)},
+      {"perl-exec.sh", make_stat(S_IFREG | 0644, 87)},
+      {"test.py", make_stat(S_IFREG | 0644, 1012)},
   };
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_inode_order}) {

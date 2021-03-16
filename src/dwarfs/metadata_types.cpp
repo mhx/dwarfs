@@ -160,8 +160,10 @@ std::string dir_entry_view::path() const {
 
 void dir_entry_view::append_path_to(std::string& s) const {
   if (auto p = parent()) {
-    p->append_path_to(s);
-    s += '/';
+    if (!p->is_root()) {
+      p->append_path_to(s);
+      s += '/';
+    }
   }
   if (!is_root()) {
     s += name();

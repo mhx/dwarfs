@@ -197,11 +197,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
-    auto path = entry.path();
-
-    DWARFS_CHECK(path[0] == '/', "path expected to start with /");
-
-    ::archive_entry_set_pathname(ae, path.c_str() + 1); // drop leading /
+    ::archive_entry_set_pathname(ae, entry.path().c_str());
     ::archive_entry_copy_stat(ae, &stbuf);
 
     if (S_ISLNK(inode.mode())) {

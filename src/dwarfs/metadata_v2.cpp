@@ -238,10 +238,6 @@ class metadata_ final : public metadata_v2::impl {
     return inode_view(meta_.entries()[index], inode, &meta_);
   }
 
-  dir_entry_view make_dir_entry_view(uint32_t self_index) const {
-    return dir_entry_view::from_dir_entry_index(self_index, &meta_);
-  }
-
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
     return dir_entry_view::from_dir_entry_index(self_index, parent_index,
