@@ -950,7 +950,7 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   stbuf->f_bsize = meta_.block_size();
   stbuf->f_frsize = 1UL;
   stbuf->f_blocks = meta_.total_fs_size();
-  stbuf->f_files = meta_.entry_table_v2_2().size();
+  stbuf->f_files = inode_count_;
   stbuf->f_flag = ST_RDONLY;
   stbuf->f_namemax = PATH_MAX;
 
