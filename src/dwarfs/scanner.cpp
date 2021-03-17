@@ -129,7 +129,7 @@ class file_deduplication_visitor : public visitor_base {
     };
 
     for (auto& p : hash_) {
-      if (p.second.size() > 1) {
+      if (p.second.size() > p.second.front()->refcount()) {
         continue;
       }
 
@@ -168,10 +168,9 @@ class file_deduplication_visitor : public visitor_base {
         fp->set_inode(inode);
       }
 
-      if (auto dupes = files.size() - 1; dupes > 0) {
-        prog.duplicate_files += dupes;
-        prog.saved_by_deduplication += dupes * files.front()->size();
-      }
+      auto dupes = files.size() - 1;
+      prog.duplicate_files += dupes;
+      prog.saved_by_deduplication += dupes * files.front()->size();
 
       inode->set_files(std::move(files));
 

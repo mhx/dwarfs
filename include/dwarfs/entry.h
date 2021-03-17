@@ -131,6 +131,8 @@ class file : public entry {
   void set_inode_num(uint32_t ino) override;
   std::optional<uint32_t> const& inode_num() const override;
 
+  uint32_t refcount() const { return data_->refcount; }
+
  private:
   struct data {
     using hash_type = std::array<char, 20>;
