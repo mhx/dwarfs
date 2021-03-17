@@ -50,7 +50,7 @@ std::string_view dir_entry_view::name() const {
 inode_view dir_entry_view::inode() const {
   return std::visit(overloaded{
                         [this](DirEntryView const& dev) {
-                          return inode_view(meta_->entries()[dev.inode_num()],
+                          return inode_view(meta_->inodes()[dev.inode_num()],
                                             dev.inode_num(), meta_);
                         },
                         [this](InodeView const& iv) {
@@ -87,11 +87,10 @@ dir_entry_view::from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
     return dir_entry_view(dev, self_index, parent_index, meta);
   }
 
-  DWARFS_CHECK(self_index < meta->entries().size(), "self_index out of range");
-  DWARFS_CHECK(parent_index < meta->entries().size(),
-               "self_index out of range");
+  DWARFS_CHECK(self_index < meta->inodes().size(), "self_index out of range");
+  DWARFS_CHECK(parent_index < meta->inodes().size(), "self_index out of range");
 
-  auto iv = meta->entries()[self_index];
+  auto iv = meta->inodes()[self_index];
 
   return dir_entry_view(iv, self_index, parent_index, meta);
 }
@@ -108,8 +107,8 @@ dir_entry_view::from_dir_entry_index(uint32_t self_index, Meta const* meta) {
                           meta);
   }
 
-  DWARFS_CHECK(self_index < meta->entries().size(), "self_index out of range");
-  auto iv = meta->entries()[self_index];
+  DWARFS_CHECK(self_index < meta->inodes().size(), "self_index out of range");
+  auto iv = meta->inodes()[self_index];
 
   DWARFS_CHECK(iv.inode_v2_2() < meta->directories().size(),
                "parent_index out of range");
@@ -135,8 +134,8 @@ std::string_view dir_entry_view::name(uint32_t index, Meta const* meta) {
     return meta->names()[dev.name_index()];
   }
 
-  DWARFS_CHECK(index < meta->entries().size(), "index out of range");
-  auto iv = meta->entries()[index];
+  DWARFS_CHECK(index < meta->inodes().size(), "index out of range");
+  auto iv = meta->inodes()[index];
   return meta->names()[iv.name_index_v2_2()];
 }
 
@@ -144,11 +143,11 @@ inode_view dir_entry_view::inode(uint32_t index, Meta const* meta) {
   if (auto de = meta->dir_entries()) {
     DWARFS_CHECK(index < de->size(), "index out of range");
     auto dev = (*de)[index];
-    return inode_view(meta->entries()[dev.inode_num()], dev.inode_num(), meta);
+    return inode_view(meta->inodes()[dev.inode_num()], dev.inode_num(), meta);
   }
 
-  DWARFS_CHECK(index < meta->entries().size(), "index out of range");
-  auto iv = meta->entries()[index];
+  DWARFS_CHECK(index < meta->inodes().size(), "index out of range");
+  auto iv = meta->inodes()[index];
   return inode_view(iv, iv.inode_v2_2(), meta);
 }
 

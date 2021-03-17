@@ -259,7 +259,7 @@ void dir::pack_entry(thrift::metadata::metadata& mv2,
   auto& de = mv2.dir_entries_ref()->emplace_back();
   de.name_index = has_parent() ? data.get_name_index(name()) : 0;
   de.inode_num = DWARFS_NOTHROW(inode_num().value());
-  entry::pack(DWARFS_NOTHROW(mv2.entries.at(de.inode_num)), data);
+  entry::pack(DWARFS_NOTHROW(mv2.inodes.at(de.inode_num)), data);
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
@@ -281,7 +281,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
     auto& de = mv2.dir_entries_ref()->emplace_back();
     de.name_index = data.get_name_index(e->name());
     de.inode_num = DWARFS_NOTHROW(e->inode_num().value());
-    e->pack(DWARFS_NOTHROW(mv2.entries.at(de.inode_num)), data);
+    e->pack(DWARFS_NOTHROW(mv2.inodes.at(de.inode_num)), data);
   }
 }
 

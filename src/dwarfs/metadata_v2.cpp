@@ -121,7 +121,7 @@ class metadata_ final : public metadata_v2::impl {
       , symlink_table_offset_(find_index_offset(inode_rank::INO_LNK))
       , file_index_offset_(find_index_offset(inode_rank::INO_REG))
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
-      , inode_count_(meta_.dir_entries() ? meta_.entries().size()
+      , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                          : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
       , shared_files_(decompress_shared_files())
@@ -242,7 +242,7 @@ class metadata_ final : public metadata_v2::impl {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
         meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
-    return inode_view(meta_.entries()[index], inode, &meta_);
+    return inode_view(meta_.inodes()[index], inode, &meta_);
   }
 
   dir_entry_view
@@ -251,7 +251,7 @@ class metadata_ final : public metadata_v2::impl {
                                                 &meta_);
   }
 
-  // This represents the order in which inodes are stored in entries
+  // This represents the order in which inodes are stored in inodes
   // (or entry_table_v2_2 for older file systems)
   enum class inode_rank {
     INO_DIR,
@@ -305,11 +305,11 @@ class metadata_ final : public metadata_v2::impl {
 
   size_t find_index_offset(inode_rank rank) const {
     if (meta_.dir_entries()) {
-      auto range = boost::irange(size_t(0), meta_.entries().size());
+      auto range = boost::irange(size_t(0), meta_.inodes().size());
 
       auto it = std::lower_bound(
           range.begin(), range.end(), rank, [&](auto inode, inode_rank r) {
-            auto mode = meta_.modes()[meta_.entries()[inode].mode_index()];
+            auto mode = meta_.modes()[meta_.inodes()[inode].mode_index()];
             return get_inode_rank(mode) < r;
           });
 
@@ -478,7 +478,7 @@ class metadata_ final : public metadata_v2::impl {
           }
         }
       } else {
-        for (auto e : meta_.entries()) {
+        for (auto e : meta_.inodes()) {
           int index = int(e.inode_v2_2()) - file_index_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
             ++nlinks[index];
@@ -591,7 +591,7 @@ void metadata_<LoggerPolicy>::dump(
   if (detail_level > 1) {
     os << "chunks: " << meta_.chunks().size() << std::endl;
     os << "directories: " << meta_.directories().size() << std::endl;
-    os << "entries: " << meta_.entries().size() << std::endl;
+    os << "inodes: " << meta_.inodes().size() << std::endl;
     os << "chunk_table: " << meta_.chunk_table().size() << std::endl;
     os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << std::endl;
     os << "symlink_table: " << meta_.symlink_table().size() << std::endl;
@@ -665,7 +665,7 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
     obj["size"] = file_size(inode_data, mode);
   } else if (S_ISDIR(mode)) {
     obj["type"] = "directory";
-    obj["entries"] = as_dynamic(make_directory_view(inode_data), entry);
+    obj["inodes"] = as_dynamic(make_directory_view(inode_data), entry);
   } else if (S_ISLNK(mode)) {
     obj["type"] = "link";
     obj["target"] = std::string(link_value(inode_data));
@@ -808,8 +808,8 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     } else {
       std::sort(entries.begin(), entries.end(),
                 [this](auto const& a, auto const& b) {
-                  return meta_.entries()[a.first].inode_v2_2() <
-                         meta_.entries()[b.first].inode_v2_2();
+                  return meta_.inodes()[a.first].inode_v2_2() <
+                         meta_.inodes()[b.first].inode_v2_2();
                 });
     }
 

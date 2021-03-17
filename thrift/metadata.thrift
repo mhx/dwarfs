@@ -143,7 +143,7 @@ struct metadata {
     * directory through `first_entry`, where the entries will be between
     * `directories[n].first_entry` and `directories[n+1].first_entry`.
     */
-   3: required list<inode_data> entries,
+   3: required list<inode_data> inodes,
 
    /**
     * Chunk lookup table, indexed by (inode - chunk_index_offset).

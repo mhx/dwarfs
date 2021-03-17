@@ -51,7 +51,7 @@ namespace {
 char const* reference = R"(
 {
   "root": {
-    "entries": [
+    "inodes": [
       {
         "inode": 11,
         "mode": 33188,
@@ -61,7 +61,7 @@ char const* reference = R"(
         "type": "file"
       },
       {
-        "entries": [],
+        "inodes": [],
         "inode": 1,
         "mode": 16877,
         "modestring": "---drwxr-xr-x",
@@ -69,9 +69,9 @@ char const* reference = R"(
         "type": "directory"
       },
       {
-        "entries": [
+        "inodes": [
           {
-            "entries": [],
+            "inodes": [],
             "inode": 3,
             "mode": 16877,
             "modestring": "---drwxr-xr-x",
@@ -86,7 +86,7 @@ char const* reference = R"(
         "type": "directory"
       },
       {
-        "entries": [
+        "inodes": [
           {
             "inode": 5,
             "mode": 41471,

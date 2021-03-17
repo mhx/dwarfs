@@ -698,7 +698,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   LOG_INFO << "saving directories...";
   mv2.set_dir_entries(std::vector<thrift::metadata::dir_entry>());
-  mv2.entries.resize(last_inode);
+  mv2.inodes.resize(last_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
