@@ -118,66 +118,61 @@ class metadata_ final : public metadata_v2::impl {
       , root_(dir_entry_view::from_dir_entry_index(0, &meta_))
       , log_(lgr)
       , inode_offset_(inode_offset)
-      , symlink_table_offset_(find_index_offset(inode_rank::INO_LNK))
-      , file_index_offset_(find_index_offset(inode_rank::INO_REG))
-      , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
+      , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
+      , file_inode_offset_(find_inode_offset(inode_rank::INO_REG))
+      , dev_inode_offset_(find_inode_offset(inode_rank::INO_DEV))
       , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                          : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
       , shared_files_(decompress_shared_files())
-      , unique_files_(dev_index_offset_ - file_index_offset_ -
+      , unique_files_(dev_inode_offset_ - file_inode_offset_ -
                       shared_files_.size())
       , options_(options) {
-    LOG_DEBUG << "inode count: " << inode_count_;
-    LOG_DEBUG << "symlink table offset: " << symlink_table_offset_;
-    LOG_DEBUG << "file index offset: " << file_index_offset_;
-    LOG_DEBUG << "device index offset: " << dev_index_offset_;
-
     if (static_cast<int>(meta_.directories().size() - 1) !=
-        symlink_table_offset_) {
+        symlink_inode_offset_) {
       DWARFS_THROW(
           runtime_error,
           fmt::format("metadata inconsistency: number of directories ({}) does "
                       "not match link index ({})",
-                      meta_.directories().size() - 1, symlink_table_offset_));
+                      meta_.directories().size() - 1, symlink_inode_offset_));
     }
 
     if (static_cast<int>(meta_.symlink_table().size()) !=
-        (file_index_offset_ - symlink_table_offset_)) {
+        (file_inode_offset_ - symlink_inode_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format(
               "metadata inconsistency: number of symlinks ({}) does not match "
               "chunk/symlink table delta ({} - {} = {})",
-              meta_.symlink_table().size(), file_index_offset_,
-              symlink_table_offset_,
-              file_index_offset_ - symlink_table_offset_));
+              meta_.symlink_table().size(), file_inode_offset_,
+              symlink_inode_offset_,
+              file_inode_offset_ - symlink_inode_offset_));
     }
 
     if (!meta_.shared_files_table()) {
       if (static_cast<int>(meta_.chunk_table().size() - 1) !=
-          (dev_index_offset_ - file_index_offset_)) {
+          (dev_inode_offset_ - file_inode_offset_)) {
         DWARFS_THROW(
             runtime_error,
             fmt::format(
                 "metadata inconsistency: number of files ({}) does not match "
                 "device/chunk index delta ({} - {} = {})",
-                meta_.chunk_table().size() - 1, dev_index_offset_,
-                file_index_offset_, dev_index_offset_ - file_index_offset_));
+                meta_.chunk_table().size() - 1, dev_inode_offset_,
+                file_inode_offset_, dev_inode_offset_ - file_inode_offset_));
       }
     }
 
     if (auto devs = meta_.devices()) {
-      int other_offset = find_index_offset(inode_rank::INO_OTH);
+      int other_offset = find_inode_offset(inode_rank::INO_OTH);
 
       if (static_cast<int>(devs->size()) !=
-          (other_offset - dev_index_offset_)) {
+          (other_offset - dev_inode_offset_)) {
         DWARFS_THROW(
             runtime_error,
             fmt::format("metadata inconsistency: number of devices ({}) does "
                         "not match other/device index delta ({} - {} = {})",
-                        devs->size(), other_offset, dev_index_offset_,
-                        other_offset - dev_index_offset_));
+                        devs->size(), other_offset, dev_inode_offset_,
+                        other_offset - dev_inode_offset_));
       }
     }
   }
@@ -303,7 +298,7 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  size_t find_index_offset(inode_rank rank) const {
+  size_t find_inode_offset(inode_rank rank) const {
     if (meta_.dir_entries()) {
       auto range = boost::irange(size_t(0), meta_.inodes().size());
 
@@ -352,7 +347,7 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<chunk_range> get_chunk_range(int inode) const {
     std::optional<chunk_range> rv;
 
-    inode -= file_index_offset_;
+    inode -= file_inode_offset_;
 
     if (!shared_files_.empty()) {
       if (inode >= unique_files_) {
@@ -423,12 +418,12 @@ class metadata_ final : public metadata_v2::impl {
 
   std::string_view link_value(inode_view entry) const {
     return meta_.symlinks()[meta_.symlink_table()[entry.inode_num() -
-                                                  symlink_table_offset_]];
+                                                  symlink_inode_offset_]];
   }
 
   uint64_t get_device_id(int inode) const {
     if (auto devs = meta_.devices()) {
-      return (*devs)[inode - dev_index_offset_];
+      return (*devs)[inode - dev_inode_offset_];
     }
     LOG_ERROR << "get_device_id() called, but no devices in file system";
     return 0;
@@ -468,18 +463,18 @@ class metadata_ final : public metadata_v2::impl {
     if (options.enable_nlink) {
       auto ti = LOG_TIMED_DEBUG;
 
-      nlinks.resize(dev_index_offset_ - file_index_offset_);
+      nlinks.resize(dev_inode_offset_ - file_inode_offset_);
 
       if (auto de = meta_.dir_entries()) {
         for (auto e : *de) {
-          int index = int(e.inode_num()) - file_index_offset_;
+          int index = int(e.inode_num()) - file_inode_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
             ++nlinks[index];
           }
         }
       } else {
         for (auto e : meta_.inodes()) {
-          int index = int(e.inode_v2_2()) - file_index_offset_;
+          int index = int(e.inode_v2_2()) - file_inode_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
             ++nlinks[index];
           }
@@ -498,9 +493,9 @@ class metadata_ final : public metadata_v2::impl {
   dir_entry_view root_;
   log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
-  const int symlink_table_offset_;
-  const int file_index_offset_;
-  const int dev_index_offset_;
+  const int symlink_inode_offset_;
+  const int file_inode_offset_;
+  const int dev_inode_offset_;
   const int inode_count_;
   const std::vector<uint32_t> nlinks_;
   const std::vector<uint32_t> shared_files_;
@@ -589,6 +584,10 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 1) {
+    os << "inode_count: " << inode_count_;
+    os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
+    os << "file_inode_offset: " << file_inode_offset_ << std::endl;
+    os << "dev_inode_offset: " << dev_inode_offset_ << std::endl;
     os << "chunks: " << meta_.chunks().size() << std::endl;
     os << "directories: " << meta_.directories().size() << std::endl;
     os << "inodes: " << meta_.inodes().size() << std::endl;
@@ -612,9 +611,6 @@ void metadata_<LoggerPolicy>::dump(
          << std::endl;
       os << "unique files: " << unique_files_ << std::endl;
     }
-    os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
-    os << "file_index_offset: " << file_index_offset_ << std::endl;
-    os << "dev_index_offset: " << dev_index_offset_ << std::endl;
 
     analyze_frozen(os, meta_);
   }
@@ -775,8 +771,8 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
       // first, partition files / non-files
       auto mid =
           std::stable_partition(entries.begin(), entries.end(),
-                                [de = *dep, beg = file_index_offset_,
-                                 end = dev_index_offset_](auto const& e) {
+                                [de = *dep, beg = file_inode_offset_,
+                                 end = dev_inode_offset_](auto const& e) {
                                   int ino = de[e.first].inode_num();
                                   return ino < beg or ino >= end;
                                 });
@@ -788,8 +784,8 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
 
       for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
         int ino = (*dep)[ix].inode_num();
-        if (ino >= file_index_offset_ and ino < dev_index_offset_) {
-          ino -= file_index_offset_;
+        if (ino >= file_inode_offset_ and ino < dev_inode_offset_) {
+          ino -= file_inode_offset_;
           if (ino >= unique_files_) {
             ino = shared_files_[ino - unique_files_] + unique_files_;
           }
@@ -919,7 +915,7 @@ int metadata_<LoggerPolicy>::getattr(inode_view entry,
   stbuf->st_ctime = mtime_only ? stbuf->st_mtime
                                : resolution * (timebase + entry.ctime_offset());
   stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
-                        ? DWARFS_NOTHROW(nlinks_.at(inode - file_index_offset_))
+                        ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
                         : 1;
 
   if (S_ISBLK(mode) || S_ISCHR(mode)) {
