@@ -550,6 +550,12 @@ void metadata_<LoggerPolicy>::dump(
     if (auto dev = meta_.devices()) {
       os << "devices: " << dev->size() << std::endl;
     }
+    if (auto de = meta_.dir_entries()) {
+      os << "dir_entries: " << de->size() << std::endl;
+    }
+    if (auto uf = meta_.unique_files_table()) {
+      os << "unique_files_table: " << uf->size() << std::endl;
+    }
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
     os << "file_index_offset: " << file_index_offset_ << std::endl;
     os << "dev_index_offset: " << dev_index_offset_ << std::endl;
