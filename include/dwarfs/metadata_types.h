@@ -81,9 +81,7 @@ class directory_view
   friend class dir_entry_view;
 
  public:
-  // TODO: not sure if these are needed
   uint32_t inode() const { return inode_; }
-  bool is_root() const { return inode_ == 0; }
 
   uint32_t entry_count() const;
 
@@ -131,7 +129,7 @@ class dir_entry_view {
   dir_entry_view(DirEntryView v, uint32_t self_index, uint32_t parent_index,
                  Meta const* meta)
       : v_{v}
-      , self_index_{self_index} // TODO: check if we really need this
+      , self_index_{self_index}
       , parent_index_{parent_index}
       , meta_{meta} {}
 
