@@ -48,12 +48,13 @@
 
 namespace {
 
-char const* reference = R"(
+char const* reference_v0_2 = R"(
 {
   "root": {
+    "inode": 0,
     "inodes": [
       {
-        "inode": 11,
+        "inode": 32,
         "mode": 33188,
         "modestring": "----rw-r--r--",
         "name": "bench.sh",
@@ -61,34 +62,268 @@ char const* reference = R"(
         "type": "file"
       },
       {
-        "inodes": [],
         "inode": 1,
+        "inodes": [],
         "mode": 16877,
         "modestring": "---drwxr-xr-x",
         "name": "dev",
         "type": "directory"
       },
       {
+        "inode": 2,
         "inodes": [
           {
-            "inodes": [],
             "inode": 3,
+            "inodes": [],
             "mode": 16877,
             "modestring": "---drwxr-xr-x",
             "name": "alsoempty",
             "type": "directory"
           }
         ],
-        "inode": 2,
         "mode": 16877,
         "modestring": "---drwxr-xr-x",
         "name": "empty",
         "type": "directory"
       },
       {
+        "inode": 4,
         "inodes": [
           {
             "inode": 5,
+            "inodes": [
+              {
+                "inode": 6,
+                "inodes": [
+                  {
+                    "inode": 7,
+                    "inodes": [
+                      {
+                        "inode": 8,
+                        "inodes": [
+                          {
+                            "inode": 9,
+                            "inodes": [
+                              {
+                                "inode": 10,
+                                "inodes": [
+                                  {
+                                    "inode": 11,
+                                    "inodes": [
+                                      {
+                                        "inode": 12,
+                                        "inodes": [
+                                          {
+                                            "inode": 13,
+                                            "inodes": [
+                                              {
+                                                "inode": 17,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "a",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 18,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "b",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 32,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "blubb",
+                                                "size": 1517,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 19,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "c",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 20,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "d",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 21,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "e",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 22,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "f",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 23,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "g",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 24,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "h",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 25,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "i",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 26,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "j",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 27,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "k",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 28,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "l",
+                                                "size": 2,
+                                                "type": "file"
+                                              }
+                                            ],
+                                            "mode": 16877,
+                                            "modestring": "---drwxr-xr-x",
+                                            "name": "9",
+                                            "type": "directory"
+                                          }
+                                        ],
+                                        "mode": 16877,
+                                        "modestring": "---drwxr-xr-x",
+                                        "name": "8",
+                                        "type": "directory"
+                                      }
+                                    ],
+                                    "mode": 16877,
+                                    "modestring": "---drwxr-xr-x",
+                                    "name": "7",
+                                    "type": "directory"
+                                  }
+                                ],
+                                "mode": 16877,
+                                "modestring": "---drwxr-xr-x",
+                                "name": "6",
+                                "type": "directory"
+                              },
+                              {
+                                "inode": 32,
+                                "mode": 33188,
+                                "modestring": "----rw-r--r--",
+                                "name": "z",
+                                "size": 1517,
+                                "type": "file"
+                              }
+                            ],
+                            "mode": 16877,
+                            "modestring": "---drwxr-xr-x",
+                            "name": "5",
+                            "type": "directory"
+                          },
+                          {
+                            "inode": 32,
+                            "mode": 33188,
+                            "modestring": "----rw-r--r--",
+                            "name": "y",
+                            "size": 1517,
+                            "type": "file"
+                          }
+                        ],
+                        "mode": 16877,
+                        "modestring": "---drwxr-xr-x",
+                        "name": "4",
+                        "type": "directory"
+                      },
+                      {
+                        "inode": 29,
+                        "mode": 33261,
+                        "modestring": "----rwxr-xr-x",
+                        "name": "copy.sh",
+                        "size": 94,
+                        "type": "file"
+                      },
+                      {
+                        "inode": 32,
+                        "mode": 33188,
+                        "modestring": "----rw-r--r--",
+                        "name": "x",
+                        "size": 1517,
+                        "type": "file"
+                      }
+                    ],
+                    "mode": 16877,
+                    "modestring": "---drwxr-xr-x",
+                    "name": "3",
+                    "type": "directory"
+                  },
+                  {
+                    "inode": 29,
+                    "mode": 33261,
+                    "modestring": "----rwxr-xr-x",
+                    "name": "xxx.sh",
+                    "size": 94,
+                    "type": "file"
+                  }
+                ],
+                "mode": 16877,
+                "modestring": "---drwxr-xr-x",
+                "name": "2",
+                "type": "directory"
+              },
+              {
+                "inode": 29,
+                "mode": 33261,
+                "modestring": "----rwxr-xr-x",
+                "name": "fmt.sh",
+                "size": 94,
+                "type": "file"
+              }
+            ],
+            "mode": 16877,
+            "modestring": "---drwxr-xr-x",
+            "name": "1",
+            "type": "directory"
+          },
+          {
+            "inode": 14,
             "mode": 41471,
             "modestring": "---lrwxrwxrwx",
             "name": "bad",
@@ -96,7 +331,7 @@ char const* reference = R"(
             "type": "link"
           },
           {
-            "inode": 7,
+            "inode": 16,
             "mode": 33188,
             "modestring": "----rw-r--r--",
             "name": "bar",
@@ -104,7 +339,7 @@ char const* reference = R"(
             "type": "file"
           },
           {
-            "inode": 11,
+            "inode": 32,
             "mode": 33188,
             "modestring": "----rw-r--r--",
             "name": "bla.sh",
@@ -112,14 +347,13 @@ char const* reference = R"(
             "type": "file"
           }
         ],
-        "inode": 4,
         "mode": 16877,
         "modestring": "---drwxr-xr-x",
         "name": "foo",
         "type": "directory"
       },
       {
-        "inode": 6,
+        "inode": 15,
         "mode": 41471,
         "modestring": "---lrwxrwxrwx",
         "name": "foobar",
@@ -127,7 +361,7 @@ char const* reference = R"(
         "type": "link"
       },
       {
-        "inode": 8,
+        "inode": 29,
         "mode": 33261,
         "modestring": "----rwxr-xr-x",
         "name": "format.sh",
@@ -135,7 +369,7 @@ char const* reference = R"(
         "type": "file"
       },
       {
-        "inode": 10,
+        "inode": 31,
         "mode": 33188,
         "modestring": "----rw-r--r--",
         "name": "perl-exec.sh",
@@ -143,7 +377,7 @@ char const* reference = R"(
         "type": "file"
       },
       {
-        "inode": 9,
+        "inode": 30,
         "mode": 33188,
         "modestring": "----rw-r--r--",
         "name": "test.py",
@@ -151,23 +385,393 @@ char const* reference = R"(
         "type": "file"
       }
     ],
-    "inode": 0,
     "mode": 16877,
     "modestring": "---drwxr-xr-x",
     "type": "directory"
   },
   "statvfs": {
-    "f_blocks": 4240,
-    "f_bsize": 1048576,
-    "f_files": 12
+    "f_blocks": 10614,
+    "f_bsize": 1024,
+    "f_files": 33
+  }
+}
+)";
+
+char const* reference = R"(
+{
+  "root": {
+    "inode": 0,
+    "inodes": [
+      {
+        "inode": 32,
+        "mode": 33188,
+        "modestring": "----rw-r--r--",
+        "name": "bench.sh",
+        "size": 1517,
+        "type": "file"
+      },
+      {
+        "inode": 1,
+        "inodes": [
+          {
+            "device_id": 259,
+            "inode": 33,
+            "mode": 8630,
+            "modestring": "---crw-rw-rw-",
+            "name": "null",
+            "type": "chardev"
+          },
+          {
+            "device_id": 261,
+            "inode": 34,
+            "mode": 8630,
+            "modestring": "---crw-rw-rw-",
+            "name": "zero",
+            "type": "chardev"
+          }
+        ],
+        "mode": 16877,
+        "modestring": "---drwxr-xr-x",
+        "name": "dev",
+        "type": "directory"
+      },
+      {
+        "inode": 2,
+        "inodes": [
+          {
+            "inode": 3,
+            "inodes": [],
+            "mode": 16877,
+            "modestring": "---drwxr-xr-x",
+            "name": "alsoempty",
+            "type": "directory"
+          }
+        ],
+        "mode": 16877,
+        "modestring": "---drwxr-xr-x",
+        "name": "empty",
+        "type": "directory"
+      },
+      {
+        "inode": 4,
+        "inodes": [
+          {
+            "inode": 5,
+            "inodes": [
+              {
+                "inode": 6,
+                "inodes": [
+                  {
+                    "inode": 7,
+                    "inodes": [
+                      {
+                        "inode": 8,
+                        "inodes": [
+                          {
+                            "inode": 9,
+                            "inodes": [
+                              {
+                                "inode": 10,
+                                "inodes": [
+                                  {
+                                    "inode": 11,
+                                    "inodes": [
+                                      {
+                                        "inode": 12,
+                                        "inodes": [
+                                          {
+                                            "inode": 13,
+                                            "inodes": [
+                                              {
+                                                "inode": 17,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "a",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 18,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "b",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 32,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "blubb",
+                                                "size": 1517,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 19,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "c",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 20,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "d",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 21,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "e",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 22,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "f",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 23,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "g",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 24,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "h",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 25,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "i",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 26,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "j",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 27,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "k",
+                                                "size": 2,
+                                                "type": "file"
+                                              },
+                                              {
+                                                "inode": 28,
+                                                "mode": 33188,
+                                                "modestring": "----rw-r--r--",
+                                                "name": "l",
+                                                "size": 2,
+                                                "type": "file"
+                                              }
+                                            ],
+                                            "mode": 16877,
+                                            "modestring": "---drwxr-xr-x",
+                                            "name": "9",
+                                            "type": "directory"
+                                          }
+                                        ],
+                                        "mode": 16877,
+                                        "modestring": "---drwxr-xr-x",
+                                        "name": "8",
+                                        "type": "directory"
+                                      }
+                                    ],
+                                    "mode": 16877,
+                                    "modestring": "---drwxr-xr-x",
+                                    "name": "7",
+                                    "type": "directory"
+                                  }
+                                ],
+                                "mode": 16877,
+                                "modestring": "---drwxr-xr-x",
+                                "name": "6",
+                                "type": "directory"
+                              },
+                              {
+                                "inode": 32,
+                                "mode": 33188,
+                                "modestring": "----rw-r--r--",
+                                "name": "z",
+                                "size": 1517,
+                                "type": "file"
+                              }
+                            ],
+                            "mode": 16877,
+                            "modestring": "---drwxr-xr-x",
+                            "name": "5",
+                            "type": "directory"
+                          },
+                          {
+                            "inode": 32,
+                            "mode": 33188,
+                            "modestring": "----rw-r--r--",
+                            "name": "y",
+                            "size": 1517,
+                            "type": "file"
+                          }
+                        ],
+                        "mode": 16877,
+                        "modestring": "---drwxr-xr-x",
+                        "name": "4",
+                        "type": "directory"
+                      },
+                      {
+                        "inode": 29,
+                        "mode": 33261,
+                        "modestring": "----rwxr-xr-x",
+                        "name": "copy.sh",
+                        "size": 94,
+                        "type": "file"
+                      },
+                      {
+                        "inode": 32,
+                        "mode": 33188,
+                        "modestring": "----rw-r--r--",
+                        "name": "x",
+                        "size": 1517,
+                        "type": "file"
+                      }
+                    ],
+                    "mode": 16877,
+                    "modestring": "---drwxr-xr-x",
+                    "name": "3",
+                    "type": "directory"
+                  },
+                  {
+                    "inode": 29,
+                    "mode": 33261,
+                    "modestring": "----rwxr-xr-x",
+                    "name": "xxx.sh",
+                    "size": 94,
+                    "type": "file"
+                  }
+                ],
+                "mode": 16877,
+                "modestring": "---drwxr-xr-x",
+                "name": "2",
+                "type": "directory"
+              },
+              {
+                "inode": 29,
+                "mode": 33261,
+                "modestring": "----rwxr-xr-x",
+                "name": "fmt.sh",
+                "size": 94,
+                "type": "file"
+              }
+            ],
+            "mode": 16877,
+            "modestring": "---drwxr-xr-x",
+            "name": "1",
+            "type": "directory"
+          },
+          {
+            "inode": 14,
+            "mode": 41471,
+            "modestring": "---lrwxrwxrwx",
+            "name": "bad",
+            "target": "../foo",
+            "type": "link"
+          },
+          {
+            "inode": 16,
+            "mode": 33188,
+            "modestring": "----rw-r--r--",
+            "name": "bar",
+            "size": 0,
+            "type": "file"
+          },
+          {
+            "inode": 32,
+            "mode": 33188,
+            "modestring": "----rw-r--r--",
+            "name": "bla.sh",
+            "size": 1517,
+            "type": "file"
+          },
+          {
+            "inode": 35,
+            "mode": 4516,
+            "modestring": "---prw-r--r--",
+            "name": "pipe",
+            "type": "fifo"
+          }
+        ],
+        "mode": 16877,
+        "modestring": "---drwxr-xr-x",
+        "name": "foo",
+        "type": "directory"
+      },
+      {
+        "inode": 15,
+        "mode": 41471,
+        "modestring": "---lrwxrwxrwx",
+        "name": "foobar",
+        "target": "foo/bar",
+        "type": "link"
+      },
+      {
+        "inode": 29,
+        "mode": 33261,
+        "modestring": "----rwxr-xr-x",
+        "name": "format.sh",
+        "size": 94,
+        "type": "file"
+      },
+      {
+        "inode": 31,
+        "mode": 33188,
+        "modestring": "----rw-r--r--",
+        "name": "perl-exec.sh",
+        "size": 87,
+        "type": "file"
+      },
+      {
+        "inode": 30,
+        "mode": 33188,
+        "modestring": "----rw-r--r--",
+        "name": "test.py",
+        "size": 1012,
+        "type": "file"
+      }
+    ],
+    "mode": 16877,
+    "modestring": "---drwxr-xr-x",
+    "type": "directory"
+  },
+  "statvfs": {
+    "f_blocks": 10614,
+    "f_bsize": 1024,
+    "f_files": 36
   }
 }
 )";
 
 std::vector<std::string> versions{
-    "0.2.0",
-    "0.2.3",
-    "0.3.0",
+    "0.2.0", "0.2.3", "0.3.0", "0.4.0", "0.4.1",
 };
 
 std::string format_sh = R"(#!/bin/bash
@@ -188,15 +792,24 @@ using namespace dwarfs;
 
 class compat_metadata : public testing::TestWithParam<std::string> {};
 
+void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
+  auto meta = fs.metadata_as_dynamic();
+  folly::dynamic ref;
+  if (version == "0.2.0" or version == "0.2.3") {
+    ref = folly::parseJson(reference_v0_2);
+  } else {
+    ref = folly::parseJson(reference);
+  }
+  EXPECT_EQ(ref, meta);
+}
+
 TEST_P(compat_metadata, backwards_compat) {
   std::ostringstream oss;
   stream_logger lgr(oss);
-  auto filename =
-      std::string(TEST_DATA_DIR "/compat-v") + GetParam() + ".dwarfs";
+  auto version = GetParam();
+  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
   filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
-  auto meta = fs.metadata_as_dynamic();
-  auto ref = folly::parseJson(reference);
-  EXPECT_EQ(ref, meta);
+  check_dynamic(version, fs);
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, compat_metadata,
@@ -207,6 +820,9 @@ class compat_filesystem
 
 TEST_P(compat_filesystem, backwards_compat) {
   auto [version, enable_nlink] = GetParam();
+
+  bool has_devices = not(version == "0.2.0" or version == "0.2.3");
+  bool has_ac_time = version == "0.2.0" or version == "0.2.3";
 
   std::ostringstream oss;
   stream_logger lgr(oss);
@@ -220,10 +836,10 @@ TEST_P(compat_filesystem, backwards_compat) {
   struct ::statvfs vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1048576, vfsbuf.f_bsize);
+  EXPECT_EQ(1024, vfsbuf.f_bsize);
   EXPECT_EQ(1, vfsbuf.f_frsize);
-  EXPECT_EQ(4240, vfsbuf.f_blocks);
-  EXPECT_EQ(12, vfsbuf.f_files);
+  EXPECT_EQ(10614, vfsbuf.f_blocks);
+  EXPECT_EQ(33 + 3 * has_devices, vfsbuf.f_files);
   EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
   EXPECT_GT(vfsbuf.f_namemax, 0);
 
@@ -243,9 +859,11 @@ TEST_P(compat_filesystem, backwards_compat) {
   EXPECT_EQ(S_IFREG | 0755, st.st_mode);
   EXPECT_EQ(1000, st.st_uid);
   EXPECT_EQ(100, st.st_gid);
-  EXPECT_EQ(1606161908 + 1007022, st.st_atime);
-  EXPECT_EQ(1606161908 + 94137, st.st_mtime);
-  EXPECT_EQ(1606161908 + 94137, st.st_ctime);
+  EXPECT_EQ(1606256045, st.st_mtime);
+  if (has_ac_time) {
+    EXPECT_EQ(1616013831, st.st_atime);
+    EXPECT_EQ(1616013816, st.st_ctime);
+  }
 
   EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 0));
 
@@ -268,7 +886,7 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   auto dir = fs.opendir(*entry);
   ASSERT_TRUE(dir);
-  EXPECT_EQ(5, fs.dirsize(*dir));
+  EXPECT_EQ(6 + has_devices, fs.dirsize(*dir));
 
   std::vector<std::string> names;
   for (size_t i = 0; i < fs.dirsize(*dir); ++i) {
@@ -279,26 +897,69 @@ TEST_P(compat_filesystem, backwards_compat) {
   }
 
   std::vector<std::string> expected{
-      ".", "..", "bad", "bar", "bla.sh",
+      ".", "..", "1", "bad", "bar", "bla.sh",
   };
+
+  if (has_devices) {
+    expected.push_back("pipe");
+  }
 
   EXPECT_EQ(expected, names);
 
   std::map<std::string, struct ::stat> ref_entries{
       {"", make_stat(S_IFDIR | 0755, 8)},
       {"bench.sh", make_stat(S_IFREG | 0644, 1517)},
-      {"dev", make_stat(S_IFDIR | 0755, 0)},
+      {"dev", make_stat(S_IFDIR | 0755, 2)},
+      {"dev/null", make_stat(S_IFCHR | 0666, 0)},
+      {"dev/zero", make_stat(S_IFCHR | 0666, 0)},
       {"empty", make_stat(S_IFDIR | 0755, 1)},
       {"empty/alsoempty", make_stat(S_IFDIR | 0755, 0)},
-      {"foo", make_stat(S_IFDIR | 0755, 3)},
+      {"foo", make_stat(S_IFDIR | 0755, 5)},
+      {"foo/1", make_stat(S_IFDIR | 0755, 2)},
+      {"foo/1/2", make_stat(S_IFDIR | 0755, 2)},
+      {"foo/1/2/3", make_stat(S_IFDIR | 0755, 3)},
+      {"foo/1/2/3/4", make_stat(S_IFDIR | 0755, 2)},
+      {"foo/1/2/3/4/5", make_stat(S_IFDIR | 0755, 2)},
+      {"foo/1/2/3/4/5/6", make_stat(S_IFDIR | 0755, 1)},
+      {"foo/1/2/3/4/5/6/7", make_stat(S_IFDIR | 0755, 1)},
+      {"foo/1/2/3/4/5/6/7/8", make_stat(S_IFDIR | 0755, 1)},
+      {"foo/1/2/3/4/5/6/7/8/9", make_stat(S_IFDIR | 0755, 13)},
+      {"foo/1/2/3/4/5/6/7/8/9/a", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/b", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/blubb", make_stat(S_IFREG | 0644, 1517)},
+      {"foo/1/2/3/4/5/6/7/8/9/c", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/d", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/e", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/f", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/g", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/h", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/i", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/j", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/k", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/l", make_stat(S_IFREG | 0644, 2)},
+      {"foo/1/2/3/4/5/z", make_stat(S_IFREG | 0644, 1517)},
+      {"foo/1/2/3/4/y", make_stat(S_IFREG | 0644, 1517)},
+      {"foo/1/2/3/copy.sh", make_stat(S_IFREG | 0755, 94)},
+      {"foo/1/2/3/x", make_stat(S_IFREG | 0644, 1517)},
+      {"foo/1/2/xxx.sh", make_stat(S_IFREG | 0755, 94)},
+      {"foo/1/fmt.sh", make_stat(S_IFREG | 0755, 94)},
       {"foo/bad", make_stat(S_IFLNK | 0777, 6)},
       {"foo/bar", make_stat(S_IFREG | 0644, 0)},
       {"foo/bla.sh", make_stat(S_IFREG | 0644, 1517)},
+      {"foo/pipe", make_stat(S_IFIFO | 0644, 0)},
       {"foobar", make_stat(S_IFLNK | 0777, 7)},
       {"format.sh", make_stat(S_IFREG | 0755, 94)},
       {"perl-exec.sh", make_stat(S_IFREG | 0644, 87)},
       {"test.py", make_stat(S_IFREG | 0644, 1012)},
   };
+
+  if (!has_devices) {
+    for (auto special : {"dev/null", "dev/zero", "foo/pipe"}) {
+      ref_entries.erase(special);
+    }
+    ref_entries["dev"].st_size -= 2;
+    ref_entries["foo"].st_size -= 1;
+  }
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
     std::map<std::string, struct ::stat> entries;
@@ -318,8 +979,13 @@ TEST_P(compat_filesystem, backwards_compat) {
       EXPECT_TRUE(it != ref_entries.end()) << p;
       if (it != ref_entries.end()) {
         EXPECT_EQ(it->second.st_mode, st.st_mode) << p;
-        EXPECT_EQ(1000, st.st_uid) << p;
-        EXPECT_EQ(100, st.st_gid) << p;
+        if (S_ISCHR(st.st_mode)) {
+          EXPECT_EQ(0, st.st_uid) << p;
+          EXPECT_EQ(0, st.st_gid) << p;
+        } else {
+          EXPECT_EQ(1000, st.st_uid) << p;
+          EXPECT_EQ(100, st.st_gid) << p;
+        }
         EXPECT_EQ(it->second.st_size, st.st_size) << p;
       }
     }
@@ -356,9 +1022,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   filesystem_v2::identify(
       lgr, std::make_shared<test::mmap_mock>(rewritten.str()), idss);
   filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(rewritten.str()));
-  auto meta = fs.metadata_as_dynamic();
-  auto ref = folly::parseJson(reference);
-  EXPECT_EQ(ref, meta);
+  check_dynamic(version, fs);
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, rewrite,
