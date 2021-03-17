@@ -128,7 +128,8 @@ class metadata_ final : public metadata_v2::impl {
     LOG_DEBUG << "chunk index offset: " << file_index_offset_;
     LOG_DEBUG << "device index offset: " << dev_index_offset_;
 
-    if (int(meta_.directories().size() - 1) != symlink_table_offset_) {
+    if (static_cast<int>(meta_.directories().size() - 1) !=
+        symlink_table_offset_) {
       DWARFS_THROW(
           runtime_error,
           fmt::format("metadata inconsistency: number of directories ({}) does "
@@ -136,7 +137,7 @@ class metadata_ final : public metadata_v2::impl {
                       meta_.directories().size() - 1, symlink_table_offset_));
     }
 
-    if (int(meta_.symlink_table().size()) !=
+    if (static_cast<int>(meta_.symlink_table().size()) !=
         (file_index_offset_ - symlink_table_offset_)) {
       DWARFS_THROW(
           runtime_error,
@@ -148,23 +149,35 @@ class metadata_ final : public metadata_v2::impl {
               file_index_offset_ - symlink_table_offset_));
     }
 
-    // TODO: this might be a silly check for v2.3
-    //
-    // if (int(meta_.chunk_table().size() - 1) !=
-    //     (dev_index_offset_ - file_index_offset_)) {
-    //   DWARFS_THROW(
-    //       runtime_error,
-    //       fmt::format(
-    //           "metadata inconsistency: number of files ({}) does not match "
-    //           "device/chunk index delta ({} - {} = {})",
-    //           meta_.chunk_table().size() - 1, dev_index_offset_,
-    //           file_index_offset_, dev_index_offset_ - file_index_offset_));
-    // }
+    if (auto uft = meta_.unique_files_table()) {
+      if (static_cast<int>(uft->size()) !=
+          (dev_index_offset_ - file_index_offset_)) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format(
+                "metadata inconsistency: number of files ({}) does not match "
+                "device/chunk index delta ({} - {} = {})",
+                uft->size(), dev_index_offset_, file_index_offset_,
+                dev_index_offset_ - file_index_offset_));
+      }
+    } else {
+      if (static_cast<int>(meta_.chunk_table().size() - 1) !=
+          (dev_index_offset_ - file_index_offset_)) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format(
+                "metadata inconsistency: number of files ({}) does not match "
+                "device/chunk index delta ({} - {} = {})",
+                meta_.chunk_table().size() - 1, dev_index_offset_,
+                file_index_offset_, dev_index_offset_ - file_index_offset_));
+      }
+    }
 
     if (auto devs = meta_.devices()) {
-      auto other_offset = find_index_offset(inode_rank::INO_OTH);
+      int other_offset = find_index_offset(inode_rank::INO_OTH);
 
-      if (devs->size() != (other_offset - dev_index_offset_)) {
+      if (static_cast<int>(devs->size()) !=
+          (other_offset - dev_index_offset_)) {
         DWARFS_THROW(
             runtime_error,
             fmt::format("metadata inconsistency: number of devices ({}) does "
@@ -244,7 +257,8 @@ class metadata_ final : public metadata_v2::impl {
                                                 &meta_);
   }
 
-  // This represents the order in which inodes are stored in entry_table_v2_2
+  // This represents the order in which inodes are stored in entries
+  // (or entry_table_v2_2 for older file systems)
   enum class inode_rank {
     INO_DIR,
     INO_LNK,
@@ -324,6 +338,8 @@ class metadata_ final : public metadata_v2::impl {
     return directory_view(inode.inode_num(), &meta_);
   }
 
+  // TODO: see if we really need to pass the extra dir_entry_view in
+  //       addition to directory_view
   void dump(std::ostream& os, const std::string& indent, dir_entry_view entry,
             int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
