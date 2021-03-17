@@ -230,7 +230,7 @@ struct metadata {
    /**
     *  Maps from file inode to chunk_table index
     */
-  20: optional list<UInt32>     unique_files_table,
+  20: optional list<UInt32>     shared_files_table,
 
   // TODO: add timestamp
   // 21: optional UInt64           timestamp,

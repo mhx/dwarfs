@@ -660,10 +660,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
 
-  LOG_INFO << "saving unique files table...";
+  LOG_INFO << "saving shared files table...";
   save_unique_files_visitor sufv(first_file_inode, first_device_inode);
   root->accept(sufv);
-  mv2.unique_files_table_ref() = std::move(sufv.get_unique_files());
+  mv2.shared_files_table_ref() = std::move(sufv.get_unique_files());
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;

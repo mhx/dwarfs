@@ -149,15 +149,15 @@ class metadata_ final : public metadata_v2::impl {
               file_index_offset_ - symlink_table_offset_));
     }
 
-    if (auto uft = meta_.unique_files_table()) {
-      if (static_cast<int>(uft->size()) !=
+    if (auto sfp = meta_.shared_files_table()) {
+      if (static_cast<int>(sfp->size()) !=
           (dev_index_offset_ - file_index_offset_)) {
         DWARFS_THROW(
             runtime_error,
             fmt::format(
                 "metadata inconsistency: number of files ({}) does not match "
                 "device/chunk index delta ({} - {} = {})",
-                uft->size(), dev_index_offset_, file_index_offset_,
+                sfp->size(), dev_index_offset_, file_index_offset_,
                 dev_index_offset_ - file_index_offset_));
       }
     } else {
@@ -360,12 +360,12 @@ class metadata_ final : public metadata_v2::impl {
 
     inode -= file_index_offset_;
 
-    if (auto uf = meta_.unique_files_table()) {
-      if (inode < 0 or inode >= static_cast<int>(uf->size())) {
+    if (auto sfp = meta_.shared_files_table()) {
+      if (inode < 0 or inode >= static_cast<int>(sfp->size())) {
         return rv;
       }
 
-      inode = (*uf)[inode];
+      inode = (*sfp)[inode];
     }
 
     if (inode >= 0 &&
@@ -569,11 +569,11 @@ void metadata_<LoggerPolicy>::dump(
     if (auto de = meta_.dir_entries()) {
       os << "dir_entries: " << de->size() << std::endl;
     }
-    if (auto uf = meta_.unique_files_table()) {
-      os << "unique_files_table: " << uf->size() << std::endl;
+    if (auto sfp = meta_.shared_files_table()) {
+      os << "shared_files_table: " << sfp->size() << std::endl;
       std::vector<uint32_t> uni;
       uni.resize(meta_.chunk_table().size());
-      for (auto f : *uf) {
+      for (auto f : *sfp) {
         ++uni.at(f);
       }
       os << "unique files: " << std::count(uni.begin(), uni.end(), 1)
@@ -740,7 +740,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
 
     if (auto dep = meta_.dir_entries()) {
       // TODO: this is *even more complicated* now :-)
-      auto ufp = meta_.unique_files_table();
+      auto sfp = meta_.shared_files_table();
       auto mid =
           std::stable_partition(entries.begin(), entries.end(),
                                 [de = *dep, beg = file_index_offset_,
@@ -749,11 +749,11 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                                   return ino < beg or ino >= end;
                                 });
       std::stable_sort(mid, entries.end(),
-                       [de = *dep, uf = *ufp, off = file_index_offset_](
+                       [de = *dep, sf = *sfp, off = file_index_offset_](
                            auto const& a, auto const& b) {
                          auto ia = de[a.first].inode_num() - off;
                          auto ib = de[b.first].inode_num() - off;
-                         return uf[ia] < uf[ib];
+                         return sf[ia] < sf[ib];
                        });
     } else {
       std::sort(entries.begin(), entries.end(),
