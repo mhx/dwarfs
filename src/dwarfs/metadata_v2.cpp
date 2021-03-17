@@ -570,6 +570,10 @@ void metadata_<LoggerPolicy>::dump(
   struct ::statvfs stbuf;
   statvfs(&stbuf);
 
+  if (auto version = meta_.dwarfs_version()) {
+    os << "created by: " << *version << std::endl;
+  }
+
   if (detail_level > 0) {
     os << "block size: " << stbuf.f_bsize << std::endl;
     os << "inode count: " << stbuf.f_files << std::endl;

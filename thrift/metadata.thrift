@@ -235,6 +235,9 @@ struct metadata {
    // total file system size (without hardlinks)
   21: optional UInt64           total_hardlink_size,
 
+  // version
+  22: optional string           dwarfs_version,
+
   // TODO: add timestamp
   // 21: optional UInt64           timestamp,
 }

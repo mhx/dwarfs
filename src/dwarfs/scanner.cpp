@@ -54,6 +54,7 @@
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
 #include "dwarfs/util.h"
+#include "dwarfs/version.h"
 #include "dwarfs/worker_group.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
@@ -724,6 +725,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.total_fs_size = prog.original_size;
   mv2.total_hardlink_size_ref() = prog.hardlink_size;
   mv2.options_ref() = fsopts;
+  mv2.dwarfs_version_ref() = std::string("libdwarfs ") + PRJ_GIT_ID;
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
