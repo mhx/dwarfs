@@ -96,12 +96,12 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view entry, struct ::stat* stbuf) const {
-    return impl_->getattr(entry, stbuf);
+  int getattr(inode_view iv, struct ::stat* stbuf) const {
+    return impl_->getattr(iv, stbuf);
   }
 
-  std::optional<directory_view> opendir(inode_view entry) const {
-    return impl_->opendir(entry);
+  std::optional<directory_view> opendir(inode_view iv) const {
+    return impl_->opendir(iv);
   }
 
   std::optional<std::pair<inode_view, std::string_view>>
@@ -111,18 +111,18 @@ class metadata_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int access(inode_view entry, int mode, uid_t uid, gid_t gid) const {
-    return impl_->access(entry, mode, uid, gid);
+  int access(inode_view iv, int mode, uid_t uid, gid_t gid) const {
+    return impl_->access(iv, mode, uid, gid);
   }
 
-  int open(inode_view entry) const { return impl_->open(entry); }
+  int open(inode_view iv) const { return impl_->open(iv); }
 
-  int readlink(inode_view entry, std::string* buf) const {
-    return impl_->readlink(entry, buf);
+  int readlink(inode_view iv, std::string* buf) const {
+    return impl_->readlink(iv, buf);
   }
 
-  folly::Expected<std::string_view, int> readlink(inode_view entry) const {
-    return impl_->readlink(entry);
+  folly::Expected<std::string_view, int> readlink(inode_view iv) const {
+    return impl_->readlink(iv);
   }
 
   int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
@@ -161,24 +161,23 @@ class metadata_v2 {
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
 
-    virtual int getattr(inode_view entry, struct ::stat* stbuf) const = 0;
+    virtual int getattr(inode_view iv, struct ::stat* stbuf) const = 0;
 
-    virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
+    virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 
     virtual std::optional<std::pair<inode_view, std::string_view>>
     readdir(directory_view dir, size_t offset) const = 0;
 
     virtual size_t dirsize(directory_view dir) const = 0;
 
-    virtual int
-    access(inode_view entry, int mode, uid_t uid, gid_t gid) const = 0;
+    virtual int access(inode_view iv, int mode, uid_t uid, gid_t gid) const = 0;
 
-    virtual int open(inode_view entry) const = 0;
+    virtual int open(inode_view iv) const = 0;
 
-    virtual int readlink(inode_view entry, std::string* buf) const = 0;
+    virtual int readlink(inode_view iv, std::string* buf) const = 0;
 
     virtual folly::Expected<std::string_view, int>
-    readlink(inode_view entry) const = 0;
+    readlink(inode_view iv) const = 0;
 
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
 

@@ -201,9 +201,9 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
 
-  int getattr(inode_view entry, struct ::stat* stbuf) const override;
+  int getattr(inode_view iv, struct ::stat* stbuf) const override;
 
-  std::optional<directory_view> opendir(inode_view entry) const override;
+  std::optional<directory_view> opendir(inode_view iv) const override;
 
   std::optional<std::pair<inode_view, std::string_view>>
   readdir(directory_view dir, size_t offset) const override;
@@ -212,14 +212,13 @@ class metadata_ final : public metadata_v2::impl {
     return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
   }
 
-  int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
+  int access(inode_view iv, int mode, uid_t uid, gid_t gid) const override;
 
-  int open(inode_view entry) const override;
+  int open(inode_view iv) const override;
 
-  int readlink(inode_view entry, std::string* buf) const override;
+  int readlink(inode_view iv, std::string* buf) const override;
 
-  folly::Expected<std::string_view, int>
-  readlink(inode_view entry) const override;
+  folly::Expected<std::string_view, int> readlink(inode_view iv) const override;
 
   int statvfs(struct ::statvfs* stbuf) const override;
 
@@ -312,17 +311,17 @@ class metadata_ final : public metadata_v2::impl {
 
       auto it = std::lower_bound(range.begin(), range.end(), rank,
                                  [&](auto inode, inode_rank r) {
-                                   auto e = make_inode_view(inode);
-                                   return get_inode_rank(e.mode()) < r;
+                                   auto iv = make_inode_view(inode);
+                                   return get_inode_rank(iv.mode()) < r;
                                  });
 
       return *it;
     }
   }
 
-  directory_view make_directory_view(inode_view inode) const {
+  directory_view make_directory_view(inode_view iv) const {
     // TODO: revisit: is this the way to do it?
-    return directory_view(inode.inode_num(), &meta_);
+    return directory_view(iv.inode_num(), &meta_);
   }
 
   // TODO: see if we really need to pass the extra dir_entry_view in
@@ -369,19 +368,19 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  size_t reg_file_size(inode_view entry) const {
-    auto cr = get_chunk_range(entry.inode_num());
+  size_t reg_file_size(inode_view iv) const {
+    auto cr = get_chunk_range(iv.inode_num());
     DWARFS_CHECK(cr, "invalid chunk range");
     return std::accumulate(
         cr->begin(), cr->end(), static_cast<size_t>(0),
         [](size_t s, chunk_view cv) { return s + cv.size(); });
   }
 
-  size_t file_size(inode_view entry, uint16_t mode) const {
+  size_t file_size(inode_view iv, uint16_t mode) const {
     if (S_ISREG(mode)) {
-      return reg_file_size(entry);
+      return reg_file_size(iv);
     } else if (S_ISLNK(mode)) {
-      return link_value(entry).size();
+      return link_value(iv).size();
     } else {
       return 0;
     }
@@ -414,8 +413,8 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  std::string_view link_value(inode_view entry) const {
-    return meta_.symlinks()[meta_.symlink_table()[entry.inode_num() -
+  std::string_view link_value(inode_view iv) const {
+    return meta_.symlinks()[meta_.symlink_table()[iv.inode_num() -
                                                   symlink_inode_offset_]];
   }
 
@@ -506,9 +505,9 @@ void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, dir_entry_view entry,
     int detail_level,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  auto inode_data = entry.inode();
-  auto mode = inode_data.mode();
-  auto inode = inode_data.inode_num(); // TODO: rename inode appropriately
+  auto iv = entry.inode();
+  auto mode = iv.mode();
+  auto inode = iv.inode_num();
 
   os << indent << "<inode:" << inode << "> " << modestring(mode);
 
@@ -520,15 +519,15 @@ void metadata_<LoggerPolicy>::dump(
     auto cr = get_chunk_range(inode);
     DWARFS_CHECK(cr, "invalid chunk range");
     os << " [" << cr->begin_ << ", " << cr->end_ << "]";
-    os << " " << file_size(inode_data, mode) << "\n";
+    os << " " << file_size(iv, mode) << "\n";
     if (detail_level > 3) {
       icb(indent + "  ", inode);
     }
   } else if (S_ISDIR(mode)) {
-    dump(os, indent + "  ", make_directory_view(inode_data), entry,
-         detail_level, std::move(icb));
+    dump(os, indent + "  ", make_directory_view(iv), entry, detail_level,
+         std::move(icb));
   } else if (S_ISLNK(mode)) {
-    os << " -> " << link_value(inode_data) << "\n";
+    os << " -> " << link_value(iv) << "\n";
   } else if (S_ISBLK(mode)) {
     os << " (block device: " << get_device_id(inode) << ")\n";
   } else if (S_ISCHR(mode)) {
@@ -642,9 +641,9 @@ template <typename LoggerPolicy>
 folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
   folly::dynamic obj = folly::dynamic::object;
 
-  auto inode_data = entry.inode();
-  auto mode = inode_data.mode();
-  auto inode = inode_data.inode_num(); // TODO: rename all the things
+  auto iv = entry.inode();
+  auto mode = iv.mode();
+  auto inode = iv.inode_num();
 
   obj["mode"] = mode;
   obj["modestring"] = modestring(mode);
@@ -656,13 +655,13 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
 
   if (S_ISREG(mode)) {
     obj["type"] = "file";
-    obj["size"] = file_size(inode_data, mode);
+    obj["size"] = file_size(iv, mode);
   } else if (S_ISDIR(mode)) {
     obj["type"] = "directory";
-    obj["inodes"] = as_dynamic(make_directory_view(inode_data), entry);
+    obj["inodes"] = as_dynamic(make_directory_view(iv), entry);
   } else if (S_ISLNK(mode)) {
     obj["type"] = "link";
-    obj["target"] = std::string(link_value(inode_data));
+    obj["target"] = std::string(link_value(iv));
   } else if (S_ISBLK(mode)) {
     obj["type"] = "blockdev";
     obj["device_id"] = get_device_id(inode);
@@ -734,16 +733,16 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
   func(self_index, parent_index);
 
   auto entry = make_dir_entry_view(self_index, parent_index);
-  auto inode_data = entry.inode();
+  auto iv = entry.inode();
 
-  if (S_ISDIR(inode_data.mode())) {
-    auto inode = inode_data.inode_num();
+  if (S_ISDIR(iv.mode())) {
+    auto inode = iv.inode_num();
 
     if (!seen.emplace(inode).second) {
       DWARFS_THROW(runtime_error, "cycle detected during directory walk");
     }
 
-    auto dir = make_directory_view(inode_data);
+    auto dir = make_directory_view(iv);
 
     for (auto cur_index : dir.entry_range()) {
       walk(cur_index, self_index, seen, func);
@@ -843,22 +842,22 @@ metadata_<LoggerPolicy>::find(const char* path) const {
     ++path;
   }
 
-  std::optional<inode_view> entry = root_.inode();
+  std::optional<inode_view> iv = root_.inode();
 
   while (*path) {
     const char* next = ::strchr(path, '/');
     size_t clen = next ? next - path : ::strlen(path);
 
-    entry = find(make_directory_view(*entry), std::string_view(path, clen));
+    iv = find(make_directory_view(*iv), std::string_view(path, clen));
 
-    if (!entry) {
+    if (!iv) {
       break;
     }
 
     path = next ? next + 1 : path + clen;
   }
 
-  return entry;
+  return iv;
 }
 
 template <typename LoggerPolicy>
@@ -869,23 +868,23 @@ std::optional<inode_view> metadata_<LoggerPolicy>::find(int inode) const {
 template <typename LoggerPolicy>
 std::optional<inode_view>
 metadata_<LoggerPolicy>::find(int inode, const char* name) const {
-  auto entry = get_entry(inode);
+  auto iv = get_entry(inode);
 
-  if (entry) {
-    entry = find(make_directory_view(*entry), std::string_view(name));
+  if (iv) {
+    iv = find(make_directory_view(*iv), std::string_view(name));
   }
 
-  return entry;
+  return iv;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(inode_view entry,
+int metadata_<LoggerPolicy>::getattr(inode_view iv,
                                      struct ::stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  auto mode = entry.mode();
+  auto mode = iv.mode();
   auto timebase = meta_.timestamp_base();
-  auto inode = entry.inode_num();
+  auto inode = iv.inode_num();
   bool mtime_only = meta_.options() && meta_.options()->mtime_only();
   uint32_t resolution = 1;
   if (meta_.options()) {
@@ -901,17 +900,17 @@ int metadata_<LoggerPolicy>::getattr(inode_view entry,
     stbuf->st_mode &= READ_ONLY_MASK;
   }
 
-  stbuf->st_size = S_ISDIR(mode) ? make_directory_view(entry).entry_count()
-                                 : file_size(entry, mode);
+  stbuf->st_size = S_ISDIR(mode) ? make_directory_view(iv).entry_count()
+                                 : file_size(iv, mode);
   stbuf->st_ino = inode + inode_offset_;
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
-  stbuf->st_uid = entry.getuid();
-  stbuf->st_gid = entry.getgid();
-  stbuf->st_mtime = resolution * (timebase + entry.mtime_offset());
+  stbuf->st_uid = iv.getuid();
+  stbuf->st_gid = iv.getgid();
+  stbuf->st_mtime = resolution * (timebase + iv.mtime_offset());
   stbuf->st_atime = mtime_only ? stbuf->st_mtime
-                               : resolution * (timebase + entry.atime_offset());
+                               : resolution * (timebase + iv.atime_offset());
   stbuf->st_ctime = mtime_only ? stbuf->st_mtime
-                               : resolution * (timebase + entry.ctime_offset());
+                               : resolution * (timebase + iv.ctime_offset());
   stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
                         ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
                         : 1;
@@ -925,11 +924,11 @@ int metadata_<LoggerPolicy>::getattr(inode_view entry,
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
-metadata_<LoggerPolicy>::opendir(inode_view entry) const {
+metadata_<LoggerPolicy>::opendir(inode_view iv) const {
   std::optional<directory_view> rv;
 
-  if (S_ISDIR(entry.mode())) {
-    rv = make_directory_view(entry);
+  if (S_ISDIR(iv.mode())) {
+    rv = make_directory_view(iv);
   }
 
   return rv;
@@ -961,7 +960,7 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
+int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
                                     gid_t gid) const {
   if (mode == F_OK) {
     // easy; we're only interested in the file's existance
@@ -969,7 +968,7 @@ int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
   }
 
   int access_mode = 0;
-  int e_mode = entry.mode();
+  int e_mode = iv.mode();
 
   auto test = [e_mode, &access_mode](uint16_t r_bit, uint16_t x_bit) {
     if (e_mode & r_bit) {
@@ -980,14 +979,14 @@ int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
     }
   };
 
-  // Let's build the entry's access mask
+  // Let's build the inode's access mask
   test(S_IROTH, S_IXOTH);
 
-  if (entry.getgid() == gid) {
+  if (iv.getgid() == gid) {
     test(S_IRGRP, S_IXGRP);
   }
 
-  if (entry.getuid() == uid) {
+  if (iv.getuid() == uid) {
     test(S_IRUSR, S_IXUSR);
   }
 
@@ -995,19 +994,18 @@ int metadata_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::open(inode_view entry) const {
-  if (S_ISREG(entry.mode())) {
-    return entry.inode_num();
+int metadata_<LoggerPolicy>::open(inode_view iv) const {
+  if (S_ISREG(iv.mode())) {
+    return iv.inode_num();
   }
 
   return -1;
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(inode_view entry,
-                                      std::string* buf) const {
-  if (S_ISLNK(entry.mode())) {
-    buf->assign(link_value(entry));
+int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
+  if (S_ISLNK(iv.mode())) {
+    buf->assign(link_value(iv));
     return 0;
   }
 
@@ -1016,9 +1014,9 @@ int metadata_<LoggerPolicy>::readlink(inode_view entry,
 
 template <typename LoggerPolicy>
 folly::Expected<std::string_view, int>
-metadata_<LoggerPolicy>::readlink(inode_view entry) const {
-  if (S_ISLNK(entry.mode())) {
-    return link_value(entry);
+metadata_<LoggerPolicy>::readlink(inode_view iv) const {
+  if (S_ISLNK(iv.mode())) {
+    return link_value(iv);
   }
 
   return folly::makeUnexpected(-EINVAL);
