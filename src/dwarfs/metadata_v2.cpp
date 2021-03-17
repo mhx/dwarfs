@@ -588,9 +588,6 @@ void metadata_<LoggerPolicy>::dump(
     os << "modes: " << meta_.modes().size() << std::endl;
     os << "names: " << meta_.names().size() << std::endl;
     os << "symlinks: " << meta_.symlinks().size() << std::endl;
-    // TODO: this isn't useful:
-    os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0)
-       << std::endl;
     if (auto dev = meta_.devices()) {
       os << "devices: " << dev->size() << std::endl;
     }
@@ -1028,6 +1025,11 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   stbuf->f_bsize = meta_.block_size();
   stbuf->f_frsize = 1UL;
   stbuf->f_blocks = meta_.total_fs_size();
+  if (!options_.enable_nlink) {
+    if (auto ths = meta_.total_hardlink_size()) {
+      stbuf->f_blocks += *ths;
+    }
+  }
   stbuf->f_files = inode_count_;
   stbuf->f_flag = ST_RDONLY;
   stbuf->f_namemax = PATH_MAX;

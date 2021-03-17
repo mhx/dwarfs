@@ -232,6 +232,9 @@ struct metadata {
     */
   20: optional list<UInt32>     shared_files_table,
 
+   // total file system size (without hardlinks)
+  21: optional UInt64           total_hardlink_size,
+
   // TODO: add timestamp
   // 21: optional UInt64           timestamp,
 }

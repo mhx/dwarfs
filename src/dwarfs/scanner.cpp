@@ -722,6 +722,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.timestamp_base = ge_data.get_timestamp_base();
   mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;
+  mv2.total_hardlink_size_ref() = prog.hardlink_size;
   mv2.options_ref() = fsopts;
 
   auto [schema, data] = metadata_v2::freeze(mv2);
