@@ -121,11 +121,15 @@ class metadata_ final : public metadata_v2::impl {
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
       , inode_count_(meta_.dir_entries() ? meta_.entries().size()
                                          : meta_.entry_table_v2_2().size())
+      , unique_files_(meta_.shared_files_table()
+                          ? (dev_index_offset_ - file_index_offset_ -
+                             meta_.shared_files_table()->size())
+                          : 0)
       , nlinks_(build_nlinks(options))
       , options_(options) {
     LOG_DEBUG << "inode count: " << inode_count_;
     LOG_DEBUG << "symlink table offset: " << symlink_table_offset_;
-    LOG_DEBUG << "chunk index offset: " << file_index_offset_;
+    LOG_DEBUG << "file index offset: " << file_index_offset_;
     LOG_DEBUG << "device index offset: " << dev_index_offset_;
 
     if (static_cast<int>(meta_.directories().size() - 1) !=
@@ -149,18 +153,7 @@ class metadata_ final : public metadata_v2::impl {
               file_index_offset_ - symlink_table_offset_));
     }
 
-    if (auto sfp = meta_.shared_files_table()) {
-      if (static_cast<int>(sfp->size()) !=
-          (dev_index_offset_ - file_index_offset_)) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format(
-                "metadata inconsistency: number of files ({}) does not match "
-                "device/chunk index delta ({} - {} = {})",
-                sfp->size(), dev_index_offset_, file_index_offset_,
-                dev_index_offset_ - file_index_offset_));
-      }
-    } else {
+    if (!meta_.shared_files_table()) {
       if (static_cast<int>(meta_.chunk_table().size() - 1) !=
           (dev_index_offset_ - file_index_offset_)) {
         DWARFS_THROW(
@@ -361,11 +354,15 @@ class metadata_ final : public metadata_v2::impl {
     inode -= file_index_offset_;
 
     if (auto sfp = meta_.shared_files_table()) {
-      if (inode < 0 or inode >= static_cast<int>(sfp->size())) {
-        return rv;
-      }
+      if (inode >= unique_files_) {
+        inode -= unique_files_;
 
-      inode = (*sfp)[inode];
+        if (inode >= static_cast<int>(sfp->size())) {
+          return rv;
+        }
+
+        inode = (*sfp)[inode] + unique_files_;
+      }
     }
 
     if (inode >= 0 &&
@@ -476,6 +473,7 @@ class metadata_ final : public metadata_v2::impl {
   const int file_index_offset_;
   const int dev_index_offset_;
   const int inode_count_;
+  const int unique_files_;
   const std::vector<uint32_t> nlinks_;
   const metadata_options options_;
 };
@@ -561,6 +559,7 @@ void metadata_<LoggerPolicy>::dump(
     os << "modes: " << meta_.modes().size() << std::endl;
     os << "names: " << meta_.names().size() << std::endl;
     os << "symlinks: " << meta_.symlinks().size() << std::endl;
+    // TODO: this isn't useful:
     os << "hardlinks: " << std::accumulate(nlinks_.begin(), nlinks_.end(), 0)
        << std::endl;
     if (auto dev = meta_.devices()) {
@@ -571,13 +570,7 @@ void metadata_<LoggerPolicy>::dump(
     }
     if (auto sfp = meta_.shared_files_table()) {
       os << "shared_files_table: " << sfp->size() << std::endl;
-      std::vector<uint32_t> uni;
-      uni.resize(meta_.chunk_table().size());
-      for (auto f : *sfp) {
-        ++uni.at(f);
-      }
-      os << "unique files: " << std::count(uni.begin(), uni.end(), 1)
-         << std::endl;
+      os << "unique files: " << unique_files_ << std::endl;
     }
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
     os << "file_index_offset: " << file_index_offset_ << std::endl;
@@ -739,8 +732,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     });
 
     if (auto dep = meta_.dir_entries()) {
-      // TODO: this is *even more complicated* now :-)
-      auto sfp = meta_.shared_files_table();
+      // first, partition files / non-files
       auto mid =
           std::stable_partition(entries.begin(), entries.end(),
                                 [de = *dep, beg = file_index_offset_,
@@ -748,12 +740,31 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                                   int ino = de[e.first].inode_num();
                                   return ino < beg or ino >= end;
                                 });
+
+      // now, order files by chunk block number
+      std::vector<uint32_t> first_chunk_block;
+      first_chunk_block.resize(dep->size());
+      auto shared = *meta_.shared_files_table();
+      auto chunk_table = meta_.chunk_table();
+
+      for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
+        int ino = (*dep)[ix].inode_num();
+        if (ino >= file_index_offset_ and ino < dev_index_offset_) {
+          ino -= file_index_offset_;
+          if (ino >= unique_files_) {
+            ino = shared[ino - unique_files_] + unique_files_;
+          }
+          if (chunk_table[ino] != chunk_table[ino + 1]) {
+            DWARFS_NOTHROW(first_chunk_block.at(ix)) =
+                meta_.chunks()[chunk_table[ino]].block();
+          }
+        }
+      }
+
       std::stable_sort(mid, entries.end(),
-                       [de = *dep, sf = *sfp, off = file_index_offset_](
-                           auto const& a, auto const& b) {
-                         auto ia = de[a.first].inode_num() - off;
-                         auto ib = de[b.first].inode_num() - off;
-                         return sf[ia] < sf[ib];
+                       [&first_chunk_block](auto const& a, auto const& b) {
+                         return first_chunk_block[a.first] <
+                                first_chunk_block[b.first];
                        });
     } else {
       std::sort(entries.begin(), entries.end(),
@@ -763,7 +774,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                 });
     }
 
-    td << "ordered " << entries.size() << " entries by inode";
+    td << "ordered " << entries.size() << " entries by file data order";
   }
 
   for (auto [self_index, parent_index] : entries) {

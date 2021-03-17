@@ -136,6 +136,8 @@ class file_deduplication_visitor : public visitor_base {
       auto fp = p.second.front();
       auto inode = im.create_inode();
 
+      ++num_unique_;
+
       fp->set_inode_num(inode_num_++);
       fp->set_inode(inode);
 
@@ -178,10 +180,12 @@ class file_deduplication_visitor : public visitor_base {
   }
 
   uint32_t inode_num_end() const { return inode_num_; }
+  uint32_t num_unique() const { return num_unique_; }
 
  private:
   folly::F14FastMap<std::string_view, inode::files_vector> hash_;
   uint32_t inode_num_;
+  uint32_t num_unique_{0};
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -297,23 +301,31 @@ class save_directories_visitor : public visitor_base {
   std::vector<dir*> directories_;
 };
 
-class save_unique_files_visitor : public visitor_base {
+class save_shared_files_visitor : public visitor_base {
  public:
-  explicit save_unique_files_visitor(uint32_t inode_begin, uint32_t inode_end)
-      : inode_begin_{inode_begin} {
-    unique_files_.resize(inode_end - inode_begin);
+  explicit save_shared_files_visitor(uint32_t inode_begin, uint32_t inode_end,
+                                     uint32_t num_unique_files)
+      : begin_shared_{inode_begin + num_unique_files}
+      , num_unique_{num_unique_files} {
+    DWARFS_CHECK(inode_end - inode_begin >= num_unique_files,
+                 "inconsistent file count");
+    shared_files_.resize(inode_end - begin_shared_);
   }
 
   void visit(file* p) override {
-    unique_files_.at(p->inode_num().value() - inode_begin_) =
-        p->unique_file_id();
+    if (auto ino = p->inode_num().value(); ino >= begin_shared_) {
+      auto ufi = p->unique_file_id();
+      DWARFS_CHECK(ufi >= num_unique_, "inconsistent file id");
+      DWARFS_NOTHROW(shared_files_.at(ino - begin_shared_)) = ufi - num_unique_;
+    }
   }
 
-  std::vector<uint32_t>& get_unique_files() { return unique_files_; }
+  std::vector<uint32_t>& get_shared_files() { return shared_files_; }
 
  private:
-  uint32_t const inode_begin_;
-  std::vector<uint32_t> unique_files_;
+  uint32_t const begin_shared_;
+  uint32_t const num_unique_;
+  std::vector<uint32_t> shared_files_;
 };
 
 std::string status_string(progress const& p, size_t width) {
@@ -661,9 +673,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   sdv.pack(mv2, ge_data);
 
   LOG_INFO << "saving shared files table...";
-  save_unique_files_visitor sufv(first_file_inode, first_device_inode);
-  root->accept(sufv);
-  mv2.shared_files_table_ref() = std::move(sufv.get_unique_files());
+  save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
+                                 fdv.num_unique());
+  root->accept(ssfv);
+  mv2.shared_files_table_ref() = std::move(ssfv.get_shared_files());
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;
