@@ -183,7 +183,7 @@ class filesystem_ final : public filesystem_v2::impl {
   folly::dynamic metadata_as_dynamic() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
   void walk(std::function<void(dir_entry_view)> const& func) const override;
-  void walk_inode_order(
+  void walk_data_order(
       std::function<void(dir_entry_view)> const& func) const override;
   std::optional<inode_view> find(const char* path) const override;
   std::optional<inode_view> find(int inode) const override;
@@ -286,9 +286,9 @@ void filesystem_<LoggerPolicy>::walk(
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::walk_inode_order(
+void filesystem_<LoggerPolicy>::walk_data_order(
     std::function<void(dir_entry_view)> const& func) const {
-  meta_.walk_inode_order(func);
+  meta_.walk_data_order(func);
 }
 
 template <typename LoggerPolicy>

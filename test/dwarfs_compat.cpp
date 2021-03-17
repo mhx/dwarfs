@@ -300,7 +300,7 @@ TEST_P(compat_filesystem, backwards_compat) {
       {"test.py", make_stat(S_IFREG | 0644, 1012)},
   };
 
-  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_inode_order}) {
+  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
     std::map<std::string, struct ::stat> entries;
     std::vector<int> inodes;
 
@@ -322,10 +322,6 @@ TEST_P(compat_filesystem, backwards_compat) {
         EXPECT_EQ(100, st.st_gid) << p;
         EXPECT_EQ(it->second.st_size, st.st_size) << p;
       }
-    }
-
-    if (mp == &filesystem_v2::walk_inode_order) {
-      EXPECT_TRUE(std::is_sorted(inodes.begin(), inodes.end()));
     }
   }
 }

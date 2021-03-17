@@ -85,8 +85,8 @@ class filesystem_v2 {
     impl_->walk(func);
   }
 
-  void walk_inode_order(std::function<void(dir_entry_view)> const& func) const {
-    impl_->walk_inode_order(func);
+  void walk_data_order(std::function<void(dir_entry_view)> const& func) const {
+    impl_->walk_data_order(func);
   }
 
   std::optional<inode_view> find(const char* path) const {
@@ -154,7 +154,7 @@ class filesystem_v2 {
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual void
-    walk_inode_order(std::function<void(dir_entry_view)> const& func) const = 0;
+    walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual std::optional<inode_view> find(const char* path) const = 0;
     virtual std::optional<inode_view> find(int inode) const = 0;
     virtual std::optional<inode_view>

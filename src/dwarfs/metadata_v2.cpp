@@ -192,9 +192,9 @@ class metadata_ final : public metadata_v2::impl {
     });
   }
 
-  void walk_inode_order(
+  void walk_data_order(
       std::function<void(dir_entry_view)> const& func) const override {
-    walk_inode_order_impl(func);
+    walk_data_order_impl(func);
   }
 
   std::optional<inode_view> find(const char* path) const override;
@@ -396,7 +396,7 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   void
-  walk_inode_order_impl(std::function<void(dir_entry_view)> const& func) const;
+  walk_data_order_impl(std::function<void(dir_entry_view)> const& func) const;
 
   std::optional<inode_view> get_entry(int inode) const {
     inode -= inode_offset_;
@@ -704,7 +704,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
 }
 
 template <typename LoggerPolicy>
-void metadata_<LoggerPolicy>::walk_inode_order_impl(
+void metadata_<LoggerPolicy>::walk_data_order_impl(
     std::function<void(dir_entry_view)> const& func) const {
   std::vector<std::pair<uint32_t, uint32_t>> entries;
 
@@ -716,10 +716,21 @@ void metadata_<LoggerPolicy>::walk_inode_order_impl(
     });
 
     if (auto dep = meta_.dir_entries()) {
-      std::sort(entries.begin(), entries.end(),
-                [de = *dep](auto const& a, auto const& b) {
-                  return de[a.first].inode_num() < de[b.first].inode_num();
-                });
+      auto ufp = meta_.unique_files_table();
+      auto mid =
+          std::stable_partition(entries.begin(), entries.end(),
+                                [de = *dep, beg = file_index_offset_,
+                                 end = dev_index_offset_](auto const& e) {
+                                  int ino = de[e.first].inode_num();
+                                  return ino < beg or ino >= end;
+                                });
+      std::stable_sort(mid, entries.end(),
+                       [de = *dep, uf = *ufp, off = file_index_offset_](
+                           auto const& a, auto const& b) {
+                         auto ia = de[a.first].inode_num() - off;
+                         auto ib = de[b.first].inode_num() - off;
+                         return uf[ia] < uf[ib];
+                       });
     } else {
       std::sort(entries.begin(), entries.end(),
                 [this](auto const& a, auto const& b) {

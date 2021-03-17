@@ -450,7 +450,7 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_EQ(set_uid ? EACCES : 0, fs.access(*entry, R_OK, 1337, 0));
 
-  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_inode_order}) {
+  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
     std::map<std::string, struct ::stat> entries;
     std::vector<int> inodes;
 
@@ -479,10 +479,6 @@ void basic_end_to_end_test(std::string const& compressor,
           EXPECT_EQ(it->second.st_size, st.st_size) << p;
         }
       }
-    }
-
-    if (mp == &filesystem_v2::walk_inode_order) {
-      EXPECT_TRUE(std::is_sorted(inodes.begin(), inodes.end()));
     }
   }
 

@@ -187,7 +187,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
     }
   };
 
-  fs.walk_inode_order([&](auto entry) {
+  fs.walk_data_order([&](auto entry) {
     if (entry.is_root()) {
       return;
     }
