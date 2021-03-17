@@ -45,6 +45,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
+#include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
@@ -121,11 +122,10 @@ class metadata_ final : public metadata_v2::impl {
       , dev_index_offset_(find_index_offset(inode_rank::INO_DEV))
       , inode_count_(meta_.dir_entries() ? meta_.entries().size()
                                          : meta_.entry_table_v2_2().size())
-      , unique_files_(meta_.shared_files_table()
-                          ? (dev_index_offset_ - file_index_offset_ -
-                             meta_.shared_files_table()->size())
-                          : 0)
       , nlinks_(build_nlinks(options))
+      , shared_files_(decompress_shared_files())
+      , unique_files_(dev_index_offset_ - file_index_offset_ -
+                      shared_files_.size())
       , options_(options) {
     LOG_DEBUG << "inode count: " << inode_count_;
     LOG_DEBUG << "symlink table offset: " << symlink_table_offset_;
@@ -353,15 +353,15 @@ class metadata_ final : public metadata_v2::impl {
 
     inode -= file_index_offset_;
 
-    if (auto sfp = meta_.shared_files_table()) {
+    if (!shared_files_.empty()) {
       if (inode >= unique_files_) {
         inode -= unique_files_;
 
-        if (inode >= static_cast<int>(sfp->size())) {
+        if (inode >= static_cast<int>(shared_files_.size())) {
           return rv;
         }
 
-        inode = (*sfp)[inode] + unique_files_;
+        inode = shared_files_[inode] + unique_files_;
       }
     }
 
@@ -433,6 +433,34 @@ class metadata_ final : public metadata_v2::impl {
     return 0;
   }
 
+  std::vector<uint32_t> decompress_shared_files() const {
+    std::vector<uint32_t> decompressed;
+
+    if (auto sfp = meta_.shared_files_table()) {
+      if (!sfp->empty()) {
+        auto ti = LOG_TIMED_DEBUG;
+
+        auto size = std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
+        decompressed.reserve(size);
+
+        uint32_t index = 0;
+        for (auto c : *sfp) {
+          decompressed.insert(decompressed.end(), c + 2, index++);
+        }
+
+        DWARFS_CHECK(decompressed.size() == size,
+                     "unexpected decompressed shared files count");
+
+        ti << "decompressed shared files table ("
+           << size_with_unit(sizeof(decompressed.front()) *
+                             decompressed.capacity())
+           << ")";
+      }
+    }
+
+    return decompressed;
+  }
+
   std::vector<uint32_t> build_nlinks(metadata_options const& options) const {
     std::vector<uint32_t> nlinks;
 
@@ -457,8 +485,8 @@ class metadata_ final : public metadata_v2::impl {
         }
       }
 
-      ti << "build hardlink table (" << sizeof(uint32_t) * nlinks.capacity()
-         << " bytes)";
+      ti << "built hardlink table ("
+         << size_with_unit(sizeof(nlinks.front()) * nlinks.capacity()) << ")";
     }
 
     return nlinks;
@@ -473,8 +501,9 @@ class metadata_ final : public metadata_v2::impl {
   const int file_index_offset_;
   const int dev_index_offset_;
   const int inode_count_;
-  const int unique_files_;
   const std::vector<uint32_t> nlinks_;
+  const std::vector<uint32_t> shared_files_;
+  const int unique_files_;
   const metadata_options options_;
 };
 
@@ -569,7 +598,9 @@ void metadata_<LoggerPolicy>::dump(
       os << "dir_entries: " << de->size() << std::endl;
     }
     if (auto sfp = meta_.shared_files_table()) {
-      os << "shared_files_table: " << sfp->size() << std::endl;
+      os << "compressed shared_files_table: " << sfp->size() << std::endl;
+      os << "decompressed shared_files_table: " << shared_files_.size()
+         << std::endl;
       os << "unique files: " << unique_files_ << std::endl;
     }
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
@@ -744,7 +775,6 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
       // now, order files by chunk block number
       std::vector<uint32_t> first_chunk_block;
       first_chunk_block.resize(dep->size());
-      auto shared = *meta_.shared_files_table();
       auto chunk_table = meta_.chunk_table();
 
       for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
@@ -752,7 +782,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
         if (ino >= file_index_offset_ and ino < dev_index_offset_) {
           ino -= file_index_offset_;
           if (ino >= unique_files_) {
-            ino = shared[ino - unique_files_] + unique_files_;
+            ino = shared_files_[ino - unique_files_] + unique_files_;
           }
           if (chunk_table[ino] != chunk_table[ino + 1]) {
             DWARFS_NOTHROW(first_chunk_block.at(ix)) =

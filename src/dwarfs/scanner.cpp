@@ -319,11 +319,42 @@ class save_shared_files_visitor : public visitor_base {
     }
   }
 
-  std::vector<uint32_t>& get_shared_files() { return shared_files_; }
+  std::vector<uint32_t>& get_compressed_shared_files() {
+    if (!shared_files_.empty() && !compressed_) {
+      DWARFS_CHECK(std::is_sorted(shared_files_.begin(), shared_files_.end()),
+                   "shared files vector not sorted");
+      std::vector<uint32_t> compressed;
+      compressed.reserve(shared_files_.back() + 1);
+
+      uint32_t count = 0;
+      uint32_t index = 0;
+      for (auto i : shared_files_) {
+        if (i == index) {
+          ++count;
+        } else {
+          ++index;
+          DWARFS_CHECK(i == index, "inconsistent shared files vector");
+          DWARFS_CHECK(count >= 2, "unique file in shared files vector");
+          compressed.emplace_back(count - 2);
+          count = 1;
+        }
+      }
+
+      compressed.emplace_back(count - 2);
+
+      DWARFS_CHECK(compressed.size() == shared_files_.back() + 1,
+                   "unexpected compressed vector size");
+
+      shared_files_.swap(compressed);
+    }
+
+    return shared_files_;
+  }
 
  private:
   uint32_t const begin_shared_;
   uint32_t const num_unique_;
+  bool compressed_{false};
   std::vector<uint32_t> shared_files_;
 };
 
@@ -675,7 +706,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                  fdv.num_unique());
   root->accept(ssfv);
-  mv2.shared_files_table_ref() = std::move(ssfv.get_shared_files());
+  mv2.shared_files_table_ref() = std::move(ssfv.get_compressed_shared_files());
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;
