@@ -24,6 +24,7 @@
 #include <cerrno>
 #include <climits>
 #include <cstring>
+#include <ctime>
 #include <numeric>
 #include <ostream>
 
@@ -572,6 +573,13 @@ void metadata_<LoggerPolicy>::dump(
 
   if (auto version = meta_.dwarfs_version()) {
     os << "created by: " << *version << std::endl;
+  }
+
+  if (auto ts = meta_.create_timestamp()) {
+    time_t tp = *ts;
+    std::string str(20, '\0');
+    std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp));
+    os << "created on: " << str << std::endl;
   }
 
   if (detail_level > 0) {

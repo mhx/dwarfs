@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <deque>
 #include <iterator>
 #include <stdexcept>
@@ -726,6 +727,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.total_hardlink_size_ref() = prog.hardlink_size;
   mv2.options_ref() = fsopts;
   mv2.dwarfs_version_ref() = std::string("libdwarfs ") + PRJ_GIT_ID;
+  mv2.create_timestamp_ref() = std::time(nullptr);
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 

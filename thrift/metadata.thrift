@@ -238,6 +238,6 @@ struct metadata {
   // version
   22: optional string           dwarfs_version,
 
-  // TODO: add timestamp
-  // 21: optional UInt64           timestamp,
+  // timestamp
+  23: optional UInt64           create_timestamp,
 }
