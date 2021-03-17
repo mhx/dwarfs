@@ -571,6 +571,13 @@ void metadata_<LoggerPolicy>::dump(
     }
     if (auto uf = meta_.unique_files_table()) {
       os << "unique_files_table: " << uf->size() << std::endl;
+      std::vector<uint32_t> uni;
+      uni.resize(meta_.chunk_table().size());
+      for (auto f : *uf) {
+        ++uni.at(f);
+      }
+      os << "unique files: " << std::count(uni.begin(), uni.end(), 1)
+         << std::endl;
     }
     os << "symlink_table_offset: " << symlink_table_offset_ << std::endl;
     os << "file_index_offset: " << file_index_offset_ << std::endl;
@@ -732,6 +739,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     });
 
     if (auto dep = meta_.dir_entries()) {
+      // TODO: this is *even more complicated* now :-)
       auto ufp = meta_.unique_files_table();
       auto mid =
           std::stable_partition(entries.begin(), entries.end(),

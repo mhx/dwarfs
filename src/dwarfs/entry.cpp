@@ -186,9 +186,16 @@ void file::scan(os_access& os, progress& prog) {
 
 uint32_t file::unique_file_id() const { return inode_->num(); }
 
-uint64_t file::raw_inode_num() const { return status().st_ino; }
+void file::set_inode_num(uint32_t inode_num) {
+  DWARFS_CHECK(data_, "file data unset");
+  DWARFS_CHECK(!data_->inode_num, "attempt to set inode number more than once");
+  data_->inode_num = inode_num;
+}
 
-unsigned file::num_hard_links() const { return status().st_nlink; }
+std::optional<uint32_t> const& file::inode_num() const {
+  DWARFS_CHECK(data_, "file data unset");
+  return data_->inode_num;
+}
 
 void file::create_data() {
   assert(!data_);
@@ -201,6 +208,7 @@ void file::hardlink(file* other, progress& prog) {
   prog.hardlink_size += size();
   ++prog.hardlinks;
   data_ = other->data_;
+  ++data_->refcount;
 }
 
 entry::type_t dir::type() const { return E_DIR; }
@@ -250,8 +258,8 @@ void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
   auto& de = mv2.dir_entries_ref()->emplace_back();
   de.name_index = has_parent() ? data.get_name_index(name()) : 0;
-  de.inode_num = inode_num();
-  entry::pack(DWARFS_NOTHROW(mv2.entries.at(inode_num())), data);
+  de.inode_num = DWARFS_NOTHROW(inode_num().value());
+  entry::pack(DWARFS_NOTHROW(mv2.entries.at(de.inode_num)), data);
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
@@ -272,8 +280,8 @@ void dir::pack(thrift::metadata::metadata& mv2,
     e->set_entry_index(mv2.dir_entries_ref()->size());
     auto& de = mv2.dir_entries_ref()->emplace_back();
     de.name_index = data.get_name_index(e->name());
-    de.inode_num = e->inode_num();
-    e->pack(DWARFS_NOTHROW(mv2.entries.at(e->inode_num())), data);
+    de.inode_num = DWARFS_NOTHROW(e->inode_num().value());
+    e->pack(DWARFS_NOTHROW(mv2.entries.at(de.inode_num)), data);
   }
 }
 

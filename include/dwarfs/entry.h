@@ -82,12 +82,14 @@ class entry : public entry_interface {
             global_entry_data const& data) const;
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
-  void set_inode_num(uint32_t inode_num) { inode_num_ = inode_num; }
-  uint32_t inode_num() const { return inode_num_; }
   virtual void scan(os_access& os, progress& prog) = 0;
   const struct ::stat& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
-  std::optional<uint32_t> entry_index() const { return entry_index_; }
+  std::optional<uint32_t> const& entry_index() const { return entry_index_; }
+  uint64_t raw_inode_num() const { return stat_.st_ino; }
+  uint64_t num_hard_links() const { return stat_.st_nlink; }
+  virtual void set_inode_num(uint32_t ino) = 0;
+  virtual std::optional<uint32_t> const& inode_num() const = 0;
 
   // more methods from entry_interface
   uint16_t get_permissions() const override;
@@ -107,7 +109,6 @@ class entry : public entry_interface {
   std::string name_;
   std::weak_ptr<entry> parent_;
   struct ::stat stat_;
-  uint32_t inode_num_{0};
   std::optional<uint32_t> entry_index_;
 };
 
@@ -125,14 +126,17 @@ class file : public entry {
   void scan(os_access& os, progress& prog) override;
   void create_data();
   void hardlink(file* other, progress& prog);
-  uint64_t raw_inode_num() const;
-  unsigned num_hard_links() const;
   uint32_t unique_file_id() const;
+
+  void set_inode_num(uint32_t ino) override;
+  std::optional<uint32_t> const& inode_num() const override;
 
  private:
   struct data {
     using hash_type = std::array<char, 20>;
     hash_type hash{0};
+    uint32_t refcount{1};
+    std::optional<uint32_t> inode_num;
   };
 
   std::shared_ptr<data> data_;
@@ -157,10 +161,16 @@ class dir : public entry {
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);
 
+  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
+  std::optional<uint32_t> const& inode_num() const override {
+    return inode_num_;
+  }
+
  private:
   using entry_ptr = std::shared_ptr<entry>;
 
   std::vector<std::shared_ptr<entry>> entries_;
+  std::optional<uint32_t> inode_num_;
 };
 
 class link : public entry {
@@ -172,8 +182,14 @@ class link : public entry {
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
 
+  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
+  std::optional<uint32_t> const& inode_num() const override {
+    return inode_num_;
+  }
+
  private:
   std::string link_;
+  std::optional<uint32_t> inode_num_;
 };
 
 /**
@@ -188,6 +204,14 @@ class device : public entry {
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
   uint64_t device_id() const;
+
+  void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
+  std::optional<uint32_t> const& inode_num() const override {
+    return inode_num_;
+  }
+
+ private:
+  std::optional<uint32_t> inode_num_;
 };
 
 class entry_factory {

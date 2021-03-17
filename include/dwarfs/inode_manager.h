@@ -46,12 +46,13 @@ class inode_manager {
   size_t count() const { return impl_->count(); }
 
   void order_inodes(std::shared_ptr<script> scr,
-                    file_order_options const& file_order, uint32_t first_inode,
-                    order_cb const& fn) {
-    impl_->order_inodes(std::move(scr), file_order, first_inode, fn);
+                    file_order_options const& file_order, order_cb const& fn) {
+    impl_->order_inodes(std::move(scr), file_order, fn);
   }
 
-  void for_each_inode(inode_cb const& fn) const { impl_->for_each_inode(fn); }
+  void for_each_inode_in_order(inode_cb const& fn) const {
+    impl_->for_each_inode_in_order(fn);
+  }
 
   class impl {
    public:
@@ -59,10 +60,10 @@ class inode_manager {
 
     virtual std::shared_ptr<inode> create_inode() = 0;
     virtual size_t count() const = 0;
-    virtual void order_inodes(std::shared_ptr<script> scr,
-                              file_order_options const& file_order,
-                              uint32_t first_inode, order_cb const& fn) = 0;
-    virtual void for_each_inode(
+    virtual void
+    order_inodes(std::shared_ptr<script> scr,
+                 file_order_options const& file_order, order_cb const& fn) = 0;
+    virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
   };
 

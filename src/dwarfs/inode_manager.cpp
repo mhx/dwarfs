@@ -90,7 +90,8 @@ class inode_ : public inode {
  public:
   using chunk_type = thrift::metadata::chunk;
 
-  void set_num(uint32_t num) override { num_ = num; }
+  inode_(uint32_t n)
+      : num_{n} {}
 
   uint32_t num() const override { return num_; }
 
@@ -183,7 +184,7 @@ class inode_ : public inode {
   }
 
  private:
-  uint32_t num_{std::numeric_limits<uint32_t>::max()};
+  uint32_t const num_;
   uint32_t similarity_hash_{0};
   files_vector files_;
   std::vector<chunk_type> chunks_;
@@ -200,7 +201,7 @@ class inode_manager_ final : public inode_manager::impl {
       , prog_(prog) {}
 
   std::shared_ptr<inode> create_inode() override {
-    auto ino = std::make_shared<inode_>();
+    auto ino = std::make_shared<inode_>(inodes_.size());
     inodes_.push_back(ino);
     return ino;
   }
@@ -208,14 +209,20 @@ class inode_manager_ final : public inode_manager::impl {
   size_t count() const override { return inodes_.size(); }
 
   void order_inodes(std::shared_ptr<script> scr,
-                    file_order_options const& file_order, uint32_t first_inode,
+                    file_order_options const& file_order,
                     inode_manager::order_cb const& fn) override;
 
-  void
-  for_each_inode(std::function<void(std::shared_ptr<inode> const&)> const& fn)
+  void for_each_inode_in_order(
+      std::function<void(std::shared_ptr<inode> const&)> const& fn)
       const override {
-    for (const auto& ino : inodes_) {
-      fn(ino);
+    std::vector<uint32_t> index;
+    index.resize(inodes_.size());
+    std::iota(index.begin(), index.end(), size_t(0));
+    std::sort(index.begin(), index.end(), [this](size_t a, size_t b) {
+      return inodes_[a]->num() < inodes_[b]->num();
+    });
+    for (auto i : index) {
+      fn(inodes_[i]);
     }
   }
 
@@ -261,15 +268,8 @@ class inode_manager_ final : public inode_manager::impl {
   void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
                      std::vector<uint32_t>& index);
 
-  void
-  order_inodes_by_nilsimsa(inode_manager::order_cb const& fn, uint32_t inode_no,
-                           file_order_options const& file_order);
-
-  void number_inodes(size_t first_no) {
-    for (auto& i : inodes_) {
-      i->set_num(first_no++);
-    }
-  }
+  void order_inodes_by_nilsimsa(inode_manager::order_cb const& fn,
+                                file_order_options const& file_order);
 
   std::vector<std::shared_ptr<inode>> inodes_;
   LOG_PROXY_DECL(LoggerPolicy);
@@ -279,7 +279,7 @@ class inode_manager_ final : public inode_manager::impl {
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
     std::shared_ptr<script> scr, file_order_options const& file_order,
-    uint32_t first_inode, inode_manager::order_cb const& fn) {
+    inode_manager::order_cb const& fn) {
   switch (file_order.mode) {
   case file_order_mode::NONE:
     LOG_INFO << "keeping inode order";
@@ -316,14 +316,13 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     LOG_INFO << "ordering " << count()
              << " inodes using nilsimsa similarity...";
     auto ti = LOG_TIMED_INFO;
-    order_inodes_by_nilsimsa(fn, first_inode, file_order);
+    order_inodes_by_nilsimsa(fn, file_order);
     ti << count() << " inodes ordered";
     return;
   }
   }
 
   LOG_INFO << "assigning file inodes...";
-  number_inodes(first_inode);
   for (const auto& ino : inodes_) {
     fn(ino);
   }
@@ -372,8 +371,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
-    inode_manager::order_cb const& fn, uint32_t inode_no,
-    file_order_options const& file_order) {
+    inode_manager::order_cb const& fn, file_order_options const& file_order) {
   auto count = inodes_.size();
 
   std::vector<std::shared_ptr<inode>> inodes;
@@ -389,7 +387,6 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   auto finalize_inode = [&]() {
     inodes_.push_back(std::move(inodes[index.back()]));
     index.pop_back();
-    inodes_.back()->set_num(inode_no++);
     return fn(inodes_.back());
   };
 

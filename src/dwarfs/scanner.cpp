@@ -86,14 +86,13 @@ class scan_files_visitor : public visitor_base {
 
       if (!is_new) {
         p->hardlink(it->second, prog_);
-        p->set_inode_num(it->second->inode_num());
         ++prog_.files_scanned;
         return;
       }
     }
 
     p->create_data();
-    p->set_inode_num(inode_num_++);
+    ++inode_num_;
 
     wg_.add_job([=] {
       prog_.current.store(p);
@@ -112,22 +111,58 @@ class scan_files_visitor : public visitor_base {
 
 class file_deduplication_visitor : public visitor_base {
  public:
+  file_deduplication_visitor(uint32_t first_file_inode)
+      : inode_num_{first_file_inode} {}
+
   void visit(file* p) override { hash_[p->hash()].push_back(p); }
 
   void deduplicate_files(worker_group& wg, os_access& os, inode_manager& im,
                          inode_options const& ino_opts, progress& prog) {
+    auto check_scan = [&](auto inode) {
+      if (ino_opts.needs_scan()) {
+        wg.add_job([&, inode = std::move(inode)] {
+          prog.current = inode->any();
+          inode->scan(os, ino_opts);
+          ++prog.inodes_scanned;
+        });
+      }
+    };
+
+    for (auto& p : hash_) {
+      if (p.second.size() > 1) {
+        continue;
+      }
+
+      auto fp = p.second.front();
+      auto inode = im.create_inode();
+
+      fp->set_inode_num(inode_num_++);
+      fp->set_inode(inode);
+
+      inode->set_files(std::move(p.second));
+
+      check_scan(std::move(inode));
+    }
+
     for (auto& p : hash_) {
       auto& files = p.second;
 
-      if (files.size() > 1) {
-        std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
-          return a->path() < b->path();
-        });
+      if (files.empty()) {
+        continue;
       }
+
+      DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
+
+      std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
+        return a->path() < b->path();
+      });
 
       auto inode = im.create_inode();
 
       for (auto fp : files) {
+        if (!fp->inode_num()) {
+          fp->set_inode_num(inode_num_++);
+        }
         fp->set_inode(inode);
       }
 
@@ -138,18 +173,15 @@ class file_deduplication_visitor : public visitor_base {
 
       inode->set_files(std::move(files));
 
-      if (ino_opts.needs_scan()) {
-        wg.add_job([&, inode] {
-          prog.current = inode->any();
-          inode->scan(os, ino_opts);
-          ++prog.inodes_scanned;
-        });
-      }
+      check_scan(std::move(inode));
     }
   }
 
+  uint32_t inode_num_end() const { return inode_num_; }
+
  private:
   folly::F14FastMap<std::string_view, inode::files_vector> hash_;
+  uint32_t inode_num_;
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -243,7 +275,7 @@ class save_directories_visitor : public visitor_base {
     directories_.resize(num_directories);
   }
 
-  void visit(dir* p) override { directories_[p->inode_num()] = p; }
+  void visit(dir* p) override { directories_.at(p->inode_num().value()) = p; }
 
   void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
     for (auto p : directories_) {
@@ -273,7 +305,8 @@ class save_unique_files_visitor : public visitor_base {
   }
 
   void visit(file* p) override {
-    unique_files_.at(p->inode_num() - inode_begin_) = p->unique_file_id();
+    unique_files_.at(p->inode_num().value() - inode_begin_) =
+        p->unique_file_id();
   }
 
   std::vector<uint32_t>& get_unique_files() { return unique_files_; }
@@ -514,10 +547,13 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   inode_manager im(lgr_, prog);
 
-  file_deduplication_visitor fdv;
+  file_deduplication_visitor fdv(first_file_inode);
   root->accept(fdv);
 
   fdv.deduplicate_files(wg_, *os_, im, options_.inode, prog);
+
+  DWARFS_CHECK(fdv.inode_num_end() == first_device_inode,
+               "inconsistent inode numbers");
 
   LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
            << size_with_unit(prog.original_size) << " in "
@@ -559,7 +595,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
         DWARFS_NOTHROW(
-            mv2.symlink_table.at(ep->inode_num() - first_link_inode)) =
+            mv2.symlink_table.at(ep->inode_num().value() - first_link_inode)) =
             ge_data.get_symlink_table_entry(lp->linkname());
       }
     });
@@ -570,7 +606,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   worker_group blockify("blockify", 1, 1 << 20);
 
-  im.order_inodes(script_, options_.file_order, 0,
+  im.order_inodes(script_, options_.file_order,
                   [&](std::shared_ptr<inode> const& ino) {
                     blockify.add_job([&] {
                       prog.current.store(ino.get());
@@ -605,8 +641,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
-  im.for_each_inode([&](std::shared_ptr<inode> const& ino) {
-    // TODO: no need for this offset stuff here...
+  im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
     DWARFS_NOTHROW(mv2.chunk_table.at(ino->num())) = mv2.chunks.size();
     ino->append_chunks_to(mv2.chunks);
   });
