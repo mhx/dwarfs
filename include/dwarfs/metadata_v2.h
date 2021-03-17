@@ -58,8 +58,7 @@ class metadata_v2 {
   metadata_v2() = default;
 
   metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-              metadata_options const& options,
-              struct ::stat const* defaults = nullptr, int inode_offset = 0);
+              metadata_options const& options, int inode_offset = 0);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 
@@ -75,12 +74,8 @@ class metadata_v2 {
     return impl_->serialize_as_json(simple);
   }
 
-  static void get_stat_defaults(struct ::stat* defaults);
-
-  // TODO: check if this is needed
   size_t size() const { return impl_->size(); }
 
-  // TODO: check if this is needed
   bool empty() const { return !impl_ || impl_->empty(); }
 
   void walk(std::function<void(dir_entry_view)> const& func) const {

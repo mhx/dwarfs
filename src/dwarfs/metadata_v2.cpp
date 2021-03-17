@@ -109,10 +109,8 @@ const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 template <typename LoggerPolicy>
 class metadata_ final : public metadata_v2::impl {
  public:
-  // TODO: defaults?, remove
   metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-            metadata_options const& options, struct ::stat const* /*defaults*/,
-            int inode_offset)
+            metadata_options const& options, int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , root_(dir_entry_view::from_dir_entry_index(0, &meta_))
@@ -1051,16 +1049,6 @@ metadata_<LoggerPolicy>::get_chunks(int inode) const {
   return get_chunk_range(inode - inode_offset_);
 }
 
-void metadata_v2::get_stat_defaults(struct ::stat* defaults) {
-  ::memset(defaults, 0, sizeof(struct ::stat));
-  defaults->st_uid = ::geteuid();
-  defaults->st_gid = ::getegid();
-  time_t t = ::time(nullptr);
-  defaults->st_atime = t;
-  defaults->st_mtime = t;
-  defaults->st_ctime = t;
-}
-
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
 metadata_v2::freeze(const thrift::metadata::metadata& data) {
   return freeze_to_buffer(data);
@@ -1068,9 +1056,9 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
 
 metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
                          folly::ByteRange data, metadata_options const& options,
-                         struct ::stat const* defaults, int inode_offset)
+                         int inode_offset)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, schema, data, options, defaults, inode_offset)) {}
+          lgr, schema, data, options, inode_offset)) {}
 
 } // namespace dwarfs

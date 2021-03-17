@@ -68,7 +68,6 @@ struct options {
   mlock_mode lock_mode;
   double decompress_ratio;
   logger::level_type debuglevel;
-  struct ::stat stat_defaults;
 };
 
 // TODO: better error handling
@@ -114,8 +113,7 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
     fsopts.metadata.enable_nlink = bool(s_opts.enable_nlink);
     fsopts.metadata.readonly = bool(s_opts.readonly);
     s_fs = std::make_shared<filesystem_v2>(
-        s_lgr, std::make_shared<mmap>(s_opts.fsimage), fsopts,
-        &s_opts.stat_defaults, FUSE_ROOT_ID);
+        s_lgr, std::make_shared<mmap>(s_opts.fsimage), fsopts, FUSE_ROOT_ID);
 
     ti << "file system initialized";
   } catch (std::exception const& e) {
@@ -663,8 +661,6 @@ int run_dwarfs(int argc, char** argv) {
 
   LOG_INFO << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
            << ")";
-
-  metadata_v2::get_stat_defaults(&s_opts.stat_defaults);
 
 #if FUSE_USE_VERSION >= 30
   return run_fuse(args, fuse_opts);

@@ -59,9 +59,7 @@ class filesystem_v2 {
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                const filesystem_options& options,
-                const struct ::stat* stat_defaults = nullptr,
-                int inode_offset = 0);
+                const filesystem_options& options, int inode_offset = 0);
 
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
                       filesystem_writer& writer, rewrite_options const& opts);

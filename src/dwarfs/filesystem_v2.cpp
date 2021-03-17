@@ -128,9 +128,8 @@ metadata_v2
 make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
-              const metadata_options& options,
-              const struct ::stat* stat_defaults = nullptr,
-              int inode_offset = 0, bool force_buffers = false,
+              const metadata_options& options, int inode_offset = 0,
+              bool force_buffers = false,
               mlock_mode lock_mode = mlock_mode::NONE) {
   LOG_PROXY(debug_logger_policy, lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
@@ -169,15 +168,14 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   return metadata_v2(
       lgr,
       get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      meta_section_range, options, stat_defaults, inode_offset);
+      meta_section_range, options, inode_offset);
 }
 
 template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr_, std::shared_ptr<mmif> mm,
-              const filesystem_options& options,
-              const struct ::stat* stat_defaults, int inode_offset);
+              const filesystem_options& options, int inode_offset);
 
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
@@ -217,7 +215,6 @@ class filesystem_ final : public filesystem_v2::impl {
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                                        const filesystem_options& options,
-                                       const struct ::stat* stat_defaults,
                                        int inode_offset)
     : LOG_PROXY_INIT(lgr)
     , mm_(std::move(mm)) {
@@ -244,9 +241,9 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   std::vector<uint8_t> schema_buffer;
 
-  meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
-                        options.metadata, stat_defaults, inode_offset, false,
-                        options.lock_mode);
+  meta_ =
+      make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
+                    options.metadata, inode_offset, false, options.lock_mode);
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -395,11 +392,10 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
-                             const struct ::stat* stat_defaults,
                              int inode_offset)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), options, stat_defaults, inode_offset)) {}
+          lgr, std::move(mm), options, inode_offset)) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm, filesystem_writer& writer,
@@ -436,7 +432,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   if (opts.recompress_metadata) {
     auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw,
-                              metadata_options(), nullptr, 0, true);
+                              metadata_options(), 0, true);
 
     struct ::statvfs stbuf;
     meta.statvfs(&stbuf);
