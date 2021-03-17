@@ -386,6 +386,7 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
+  // TODO: cleanup the walk logic
   void walk_call(std::function<void(dir_entry_view)> const& func,
                  uint32_t self_index, uint32_t parent_index) const {
     func(make_dir_entry_view(self_index, parent_index));
@@ -757,6 +758,12 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     std::function<void(dir_entry_view)> const& func) const {
   std::vector<std::pair<uint32_t, uint32_t>> entries;
 
+  if (auto dep = meta_.dir_entries()) {
+    entries.reserve(dep->size());
+  } else {
+    entries.reserve(meta_.inodes().size());
+  }
+
   {
     auto td = LOG_TIMED_DEBUG;
 
@@ -765,7 +772,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     });
 
     if (auto dep = meta_.dir_entries()) {
-      // first, partition files / non-files
+      // 1. partition non-files / files
       auto mid =
           std::stable_partition(entries.begin(), entries.end(),
                                 [de = *dep, beg = file_inode_offset_,
@@ -774,30 +781,45 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                                   return ino < beg or ino >= end;
                                 });
 
-      // now, order files by chunk block number
+      // 2. order files by chunk block number
+      // 2a. build mapping inode -> first chunk block
       std::vector<uint32_t> first_chunk_block;
-      first_chunk_block.resize(dep->size());
-      auto chunk_table = meta_.chunk_table();
 
-      for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
-        int ino = (*dep)[ix].inode_num();
-        if (ino >= file_inode_offset_ and ino < dev_inode_offset_) {
-          ino -= file_inode_offset_;
-          if (ino >= unique_files_) {
-            ino = shared_files_[ino - unique_files_] + unique_files_;
-          }
-          if (chunk_table[ino] != chunk_table[ino + 1]) {
-            DWARFS_NOTHROW(first_chunk_block.at(ix)) =
-                meta_.chunks()[chunk_table[ino]].block();
+      {
+        auto td2 = LOG_TIMED_DEBUG;
+
+        first_chunk_block.resize(dep->size());
+        auto chunk_table = meta_.chunk_table();
+
+        for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
+          int ino = (*dep)[ix].inode_num();
+          if (ino >= file_inode_offset_ and ino < dev_inode_offset_) {
+            ino -= file_inode_offset_;
+            if (ino >= unique_files_) {
+              ino = shared_files_[ino - unique_files_] + unique_files_;
+            }
+            if (chunk_table[ino] != chunk_table[ino + 1]) {
+              first_chunk_block[ix] = meta_.chunks()[chunk_table[ino]].block();
+            }
           }
         }
+
+        td2 << "prepare first chunk block vector";
       }
 
-      std::stable_sort(mid, entries.end(),
-                       [&first_chunk_block](auto const& a, auto const& b) {
-                         return first_chunk_block[a.first] <
-                                first_chunk_block[b.first];
-                       });
+      // 2b. sort second partition accordingly
+      {
+        auto td2 = LOG_TIMED_DEBUG;
+
+        std::stable_sort(mid, entries.end(),
+                         [&first_chunk_block](auto const& a, auto const& b) {
+                           return first_chunk_block[a.first] <
+                                  first_chunk_block[b.first];
+                         });
+
+        td2 << "final sort of " << std::distance(mid, entries.end())
+            << " file entries";
+      }
     } else {
       std::sort(entries.begin(), entries.end(),
                 [this](auto const& a, auto const& b) {
