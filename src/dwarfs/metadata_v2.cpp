@@ -472,16 +472,16 @@ class metadata_ final : public metadata_v2::impl {
 
       if (auto de = meta_.dir_entries()) {
         for (auto e : *de) {
-          auto index = int(e.inode_num()) - file_index_offset_;
+          int index = int(e.inode_num()) - file_index_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
-            ++DWARFS_NOTHROW(nlinks.at(index));
+            ++nlinks[index];
           }
         }
       } else {
         for (auto e : meta_.entries()) {
-          auto index = int(e.inode_v2_2()) - file_index_offset_;
+          int index = int(e.inode_v2_2()) - file_index_offset_;
           if (index >= 0 && index < int(nlinks.size())) {
-            ++DWARFS_NOTHROW(nlinks.at(index));
+            ++nlinks[index];
           }
         }
       }
