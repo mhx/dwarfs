@@ -1127,10 +1127,6 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
   return freeze_to_buffer(data);
 }
 
-void metadata_v2::delta_compress(std::vector<uint32_t>& vec) {
-  std::adjacent_difference(vec.begin(), vec.end(), vec.begin());
-}
-
 metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
                          folly::ByteRange data, metadata_options const& options,
                          int inode_offset)
