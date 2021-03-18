@@ -929,10 +929,12 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv,
   stbuf->st_uid = iv.getuid();
   stbuf->st_gid = iv.getgid();
   stbuf->st_mtime = resolution * (timebase + iv.mtime_offset());
-  stbuf->st_atime = mtime_only ? stbuf->st_mtime
-                               : resolution * (timebase + iv.atime_offset());
-  stbuf->st_ctime = mtime_only ? stbuf->st_mtime
-                               : resolution * (timebase + iv.ctime_offset());
+  if (mtime_only) {
+    stbuf->st_atime = stbuf->st_ctime = stbuf->st_mtime;
+  } else {
+    stbuf->st_atime = resolution * (timebase + iv.atime_offset());
+    stbuf->st_ctime = resolution * (timebase + iv.ctime_offset());
+  }
   stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
                         ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
                         : 1;
