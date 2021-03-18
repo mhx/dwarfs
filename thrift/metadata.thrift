@@ -54,12 +54,17 @@ struct chunk {
  *    dir_entries[directory[inode].first_entry]
  *    ..
  *    dir_entries[directory[inode + 1].first_entry - 1]
+ *
+ * Note that the `first_entry` fields are stored delta-compressed
+ * as of v2.3 and must be unpacked before using. Also note that
+ * the `parent_entry` fields are all set to zero as of v2.3. The
+ * `parent_entry` information can easily and quickly be built by
+ * traversing the `dir_entries` using the unpacked `first_entry`
+ * fields.
  */
 struct directory {
-   // TODO: this is redundant (can be determined at run-time)
    1: required UInt32 parent_entry,     // indexes into `dir_entries`
 
-   // TODO: this can be delta-compressed
    2: required UInt32 first_entry,      // indexes into `dir_entries`
 }
 
@@ -161,6 +166,10 @@ struct metadata {
     * sentinel directory at the end that has `first_entry` point to
     * the end of `dir_entries`, so directory entry lookup work the
     * same for all directories.
+    *
+    * Note that this list is stored in a packed format as of v2.3
+    * and needs to be unpacked before use. See the documentation
+    * for the `directory` struct.
     */
    2: required list<directory>  directories,
 
@@ -191,8 +200,10 @@ struct metadata {
     * Chunk lookup table, indexed by `inode - file_inode_offset`.
     * There's one extra sentinel item at the end that points to the
     * end of `chunks`, so chunk lookups work the same for all inodes.
+    *
+    * Note that this is stored delta-compressed as of v2.3 and must
+    * be unpacked before using.
     */
-   // TODO: this can be delta-compressed
    4: required list<UInt32>     chunk_table,
 
    /**
