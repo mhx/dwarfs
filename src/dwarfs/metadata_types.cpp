@@ -205,12 +205,4 @@ uint32_t directory_view::parent_inode() const {
   return ent;
 }
 
-std::optional<directory_view> directory_view::parent() const {
-  if (inode_ == 0) {
-    return std::nullopt;
-  }
-
-  return directory_view(parent_inode(), meta_);
-}
-
 } // namespace dwarfs

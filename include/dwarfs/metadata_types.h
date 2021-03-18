@@ -87,8 +87,6 @@ class directory_view
 
   boost::integer_range<uint32_t> entry_range() const;
 
-  std::optional<directory_view> parent() const;
-
   uint32_t parent_inode() const;
 
  private:
