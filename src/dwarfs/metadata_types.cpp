@@ -169,26 +169,22 @@ void dir_entry_view::append_path_to(std::string& s) const {
   }
 }
 
-directory_view::directory_view(uint32_t inode, Meta const* meta)
-    : DirView{getdir(inode, meta)}
-    , inode_{inode}
-    , meta_{meta} {}
-
-auto directory_view::getdir(uint32_t ino) const -> DirView {
-  return getdir(ino, meta_);
+uint32_t directory_view::first_entry(uint32_t ino) const {
+  return directories_ ? directories_[ino].first_entry
+                      : meta_->directories()[ino].first_entry();
 }
 
-auto directory_view::getdir(uint32_t ino, Meta const* meta) -> DirView {
-  return meta->directories()[ino];
+uint32_t directory_view::parent_entry(uint32_t ino) const {
+  return directories_ ? directories_[ino].parent_entry
+                      : meta_->directories()[ino].parent_entry();
 }
 
 uint32_t directory_view::entry_count() const {
-  return getdir(inode_ + 1).first_entry() - first_entry();
+  return first_entry(inode_ + 1) - first_entry();
 }
 
 boost::integer_range<uint32_t> directory_view::entry_range() const {
-  auto first = first_entry();
-  return boost::irange(first, first + entry_count());
+  return boost::irange(first_entry(), first_entry(inode_ + 1));
 }
 
 uint32_t directory_view::parent_inode() const {
@@ -196,7 +192,7 @@ uint32_t directory_view::parent_inode() const {
     return 0;
   }
 
-  auto ent = parent_entry();
+  auto ent = parent_entry(inode_);
 
   if (auto e = meta_->dir_entries()) {
     ent = (*e)[ent].inode_num();

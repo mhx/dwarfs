@@ -69,8 +69,7 @@ class inode_view
   Meta const* meta_;
 };
 
-class directory_view
-    : public ::apache::thrift::frozen::View<thrift::metadata::directory> {
+class directory_view {
   using DirView = ::apache::thrift::frozen::View<thrift::metadata::directory>;
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
@@ -82,20 +81,25 @@ class directory_view
 
  public:
   uint32_t inode() const { return inode_; }
-
-  uint32_t entry_count() const;
-
-  boost::integer_range<uint32_t> entry_range() const;
-
   uint32_t parent_inode() const;
 
- private:
-  directory_view(uint32_t inode, Meta const* meta);
+  uint32_t first_entry() const { return first_entry(inode_); }
+  uint32_t parent_entry() const { return parent_entry(inode_); }
+  uint32_t entry_count() const;
+  boost::integer_range<uint32_t> entry_range() const;
 
-  DirView getdir(uint32_t ino) const;
-  static DirView getdir(uint32_t ino, Meta const* meta);
+ private:
+  directory_view(uint32_t inode, Meta const* meta,
+                 thrift::metadata::directory const* directories = nullptr)
+      : inode_{inode}
+      , directories_{directories}
+      , meta_{meta} {}
+
+  uint32_t first_entry(uint32_t ino) const;
+  uint32_t parent_entry(uint32_t ino) const;
 
   uint32_t inode_;
+  thrift::metadata::directory const* directories_;
   Meta const* meta_;
 };
 
