@@ -56,7 +56,10 @@ struct chunk {
  *    dir_entries[directory[inode + 1].first_entry - 1]
  */
 struct directory {
+   // TODO: this is redundant (can be determined at run-time)
    1: required UInt32 parent_entry,     // indexes into `dir_entries`
+
+   // TODO: this can be delta-compressed
    2: required UInt32 first_entry,      // indexes into `dir_entries`
 }
 
@@ -189,6 +192,7 @@ struct metadata {
     * There's one extra sentinel item at the end that points to the
     * end of `chunks`, so chunk lookups work the same for all inodes.
     */
+   // TODO: this can be delta-compressed
    4: required list<UInt32>     chunk_table,
 
    /**
