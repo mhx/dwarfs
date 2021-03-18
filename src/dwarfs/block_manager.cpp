@@ -625,6 +625,7 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
           finish_chunk(ino);
 
           ino.add_chunk(block_num, match_off, match_len);
+          prog_.chunk_count++;
           written += match_len;
 
           prog_.saved_by_segmentation += match_len;
