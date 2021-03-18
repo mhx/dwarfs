@@ -168,9 +168,9 @@ The `inodes` list is strictly in the following order:
 
 * regular *shared* file inodes (`S_IREG`)
 
-* character/block device inodes
+* character/block device inodes (`S_IFCHR`, `S_IFBLK`)
 
-* socket/pipe inodes
+* socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
 
 The offsets can thus be found using a simple binary search.
 
