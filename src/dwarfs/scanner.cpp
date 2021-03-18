@@ -25,6 +25,7 @@
 #include <ctime>
 #include <deque>
 #include <iterator>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -704,16 +705,18 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
 
-  /// //---------------------------------------------------
-  /// uint32_t last_first_entry = 0;
-  /// for (auto& d : mv2.directories) {
-  ///   d.parent_entry = 0; // can be recovered
-  ///   auto delta = d.first_entry - last_first_entry;
-  ///   last_first_entry = d.first_entry;
-  ///   d.first_entry = delta;
-  /// }
-  /// metadata_v2::delta_compress(mv2.chunk_table);
-  /// //---------------------------------------------------
+  // pack directories
+  uint32_t last_first_entry = 0;
+  for (auto& d : mv2.directories) {
+    d.parent_entry = 0; // this will be recovered
+    auto delta = d.first_entry - last_first_entry;
+    last_first_entry = d.first_entry;
+    d.first_entry = delta;
+  }
+
+  // delta-compress chunk table
+  std::adjacent_difference(mv2.chunk_table.begin(), mv2.chunk_table.end(),
+                           mv2.chunk_table.begin());
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,

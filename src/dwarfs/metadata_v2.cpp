@@ -123,13 +123,14 @@ class metadata_ final : public metadata_v2::impl {
       , inode_count_(meta_.dir_entries() ? meta_.inodes().size()
                                          : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
+      , chunk_table_(unpack_chunk_table())
+      , directories_storage_(unpack_directories())
+      , directories_(meta_.dir_entries() ? directories_storage_.data()
+                                         : nullptr)
       , shared_files_(decompress_shared_files())
       , unique_files_(dev_inode_offset_ - file_inode_offset_ -
                       shared_files_.size())
       , options_(options) {
-
-    build_parent_entry_list();
-
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {
       DWARFS_THROW(
@@ -299,53 +300,6 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  void build_parent_entry_list() {
-    if (!meta_.dir_entries()) {
-      return;
-    }
-
-    std::vector<uint32_t> parent_entries;
-
-    auto dirent = *meta_.dir_entries();
-    auto dir = meta_.directories();
-
-    {
-      auto ti = LOG_TIMED_INFO;
-
-      parent_entries.resize(meta_.directories().size() - 1);
-
-      std::queue<uint32_t> queue;
-      queue.push(0);
-
-      while (!queue.empty()) {
-        auto parent = queue.front();
-        queue.pop();
-
-        auto p_ino = dirent[parent].inode_num();
-
-        auto beg = dir[p_ino].first_entry();
-        auto end = dir[p_ino + 1].first_entry();
-
-        for (auto e = beg; e < end; ++e) {
-          if (auto e_ino = dirent[e].inode_num();
-              e_ino < parent_entries.size()) {
-            parent_entries[e_ino] = parent;
-            queue.push(e);
-          }
-        }
-      }
-
-      ti << "built parent entries table";
-    }
-
-    for (size_t i = 0; i < parent_entries.size(); ++i) {
-      if (parent_entries[i] != dir[i].parent_entry()) {
-        LOG_WARN << "[" << i << "] " << parent_entries[i]
-                 << " != " << dir[i].parent_entry();
-      }
-    }
-  }
-
   size_t find_inode_offset(inode_rank rank) const {
     if (meta_.dir_entries()) {
       auto range = boost::irange(size_t(0), meta_.inodes().size());
@@ -372,7 +326,7 @@ class metadata_ final : public metadata_v2::impl {
 
   directory_view make_directory_view(inode_view iv) const {
     // TODO: revisit: is this the way to do it?
-    return directory_view(iv.inode_num(), &meta_);
+    return directory_view(iv.inode_num(), &meta_, directories_);
   }
 
   // TODO: see if we really need to pass the extra dir_entry_view in
@@ -391,6 +345,10 @@ class metadata_ final : public metadata_v2::impl {
   find(directory_view dir, std::string_view name) const;
 
   std::string modestring(uint16_t mode) const;
+
+  uint32_t chunk_table_lookup(uint32_t ino) const {
+    return chunk_table_.empty() ? meta_.chunk_table()[ino] : chunk_table_[ino];
+  }
 
   std::optional<chunk_range> get_chunk_range(int inode) const {
     std::optional<chunk_range> rv;
@@ -411,8 +369,8 @@ class metadata_ final : public metadata_v2::impl {
 
     if (inode >= 0 &&
         inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
-      uint32_t begin = meta_.chunk_table()[inode];
-      uint32_t end = meta_.chunk_table()[inode + 1];
+      uint32_t begin = chunk_table_lookup(inode);
+      uint32_t end = chunk_table_lookup(inode + 1);
       rv = chunk_range(&meta_, begin, end);
     }
 
@@ -476,6 +434,70 @@ class metadata_ final : public metadata_v2::impl {
     }
     LOG_ERROR << "get_device_id() called, but no devices in file system";
     return 0;
+  }
+
+  std::vector<uint32_t> unpack_chunk_table() const {
+    std::vector<uint32_t> chunk_table;
+
+    if (meta_.dir_entries()) {
+      chunk_table.resize(meta_.chunk_table().size());
+      std::partial_sum(meta_.chunk_table().begin(), meta_.chunk_table().end(),
+                       chunk_table.begin());
+    }
+
+    return chunk_table;
+  }
+
+  std::vector<thrift::metadata::directory> unpack_directories() const {
+    std::vector<thrift::metadata::directory> directories;
+
+    if (auto dep = meta_.dir_entries()) {
+      auto dirent = *dep;
+      auto metadir = meta_.directories();
+
+      {
+        auto ti = LOG_TIMED_DEBUG;
+
+        directories.resize(metadir.size());
+
+        // delta-decode first entries first
+        directories[0].first_entry = metadir[0].first_entry();
+
+        for (size_t i = 1; i < directories.size(); ++i) {
+          directories[i].first_entry =
+              directories[i - 1].first_entry + metadir[i].first_entry();
+        }
+
+        // then traverse to recover parent entries
+        std::queue<uint32_t> queue;
+        queue.push(0);
+
+        while (!queue.empty()) {
+          auto parent = queue.front();
+          queue.pop();
+
+          auto p_ino = dirent[parent].inode_num();
+
+          auto beg = directories[p_ino].first_entry;
+          auto end = directories[p_ino + 1].first_entry;
+
+          for (auto e = beg; e < end; ++e) {
+            if (auto e_ino = dirent[e].inode_num();
+                e_ino < (directories.size() - 1)) {
+              directories[e_ino].parent_entry = parent;
+              queue.push(e);
+            }
+          }
+        }
+
+        ti << "unpacked directories table ("
+           << size_with_unit(sizeof(directories.front()) *
+                             directories.capacity())
+           << ")";
+      }
+    }
+
+    return directories;
   }
 
   std::vector<uint32_t> decompress_shared_files() const {
@@ -547,6 +569,9 @@ class metadata_ final : public metadata_v2::impl {
   const int dev_inode_offset_;
   const int inode_count_;
   const std::vector<uint32_t> nlinks_;
+  const std::vector<uint32_t> chunk_table_;
+  const std::vector<thrift::metadata::directory> directories_storage_;
+  thrift::metadata::directory const* const directories_;
   const std::vector<uint32_t> shared_files_;
   const int unique_files_;
   const metadata_options options_;
@@ -841,7 +866,6 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
         auto td2 = LOG_TIMED_DEBUG;
 
         first_chunk_block.resize(dep->size());
-        auto chunk_table = meta_.chunk_table();
 
         for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
           int ino = (*dep)[ix].inode_num();
@@ -850,8 +874,9 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
             if (ino >= unique_files_) {
               ino = shared_files_[ino - unique_files_] + unique_files_;
             }
-            if (chunk_table[ino] != chunk_table[ino + 1]) {
-              first_chunk_block[ix] = meta_.chunks()[chunk_table[ino]].block();
+            if (auto beg = chunk_table_lookup(ino);
+                beg != chunk_table_lookup(ino + 1)) {
+              first_chunk_block[ix] = meta_.chunks()[beg].block();
             }
           }
         }
