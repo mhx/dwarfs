@@ -27,6 +27,7 @@
 #include <ctime>
 #include <numeric>
 #include <ostream>
+#include <queue>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -126,6 +127,9 @@ class metadata_ final : public metadata_v2::impl {
       , unique_files_(dev_inode_offset_ - file_inode_offset_ -
                       shared_files_.size())
       , options_(options) {
+
+    build_parent_entry_list();
+
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {
       DWARFS_THROW(
@@ -292,6 +296,53 @@ class metadata_ final : public metadata_v2::impl {
     default:
       DWARFS_THROW(runtime_error,
                    fmt::format("unknown file type: {:#06x}", mode));
+    }
+  }
+
+  void build_parent_entry_list() {
+    if (!meta_.dir_entries()) {
+      return;
+    }
+
+    std::vector<uint32_t> parent_entries;
+
+    auto dirent = *meta_.dir_entries();
+    auto dir = meta_.directories();
+
+    {
+      auto ti = LOG_TIMED_INFO;
+
+      parent_entries.resize(meta_.directories().size() - 1);
+
+      std::queue<uint32_t> queue;
+      queue.push(0);
+
+      while (!queue.empty()) {
+        auto parent = queue.front();
+        queue.pop();
+
+        auto p_ino = dirent[parent].inode_num();
+
+        auto beg = dir[p_ino].first_entry();
+        auto end = dir[p_ino + 1].first_entry();
+
+        for (auto e = beg; e < end; ++e) {
+          if (auto e_ino = dirent[e].inode_num();
+              e_ino < parent_entries.size()) {
+            parent_entries[e_ino] = parent;
+            queue.push(e);
+          }
+        }
+      }
+
+      ti << "built parent entries table";
+    }
+
+    for (size_t i = 0; i < parent_entries.size(); ++i) {
+      if (parent_entries[i] != dir[i].parent_entry()) {
+        LOG_WARN << "[" << i << "] " << parent_entries[i]
+                 << " != " << dir[i].parent_entry();
+      }
     }
   }
 
