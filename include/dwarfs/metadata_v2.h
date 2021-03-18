@@ -136,6 +136,8 @@ class metadata_v2 {
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 
+  static void delta_compress(std::vector<uint32_t>& vec);
+
   class impl {
    public:
     virtual ~impl() = default;
