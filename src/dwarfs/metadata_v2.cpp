@@ -621,8 +621,9 @@ void metadata_<LoggerPolicy>::dump(
 
   if (auto ts = meta_.create_timestamp()) {
     time_t tp = *ts;
-    std::string str(20, '\0');
-    std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp));
+    std::string str(32, '\0');
+    str.resize(
+        std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
     os << "created on: " << str << std::endl;
   }
 
@@ -633,7 +634,7 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 1) {
-    os << "inode_count: " << inode_count_;
+    os << "inode_count: " << inode_count_ << std::endl;
     os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
     os << "file_inode_offset: " << file_inode_offset_ << std::endl;
     os << "dev_inode_offset: " << dev_inode_offset_ << std::endl;
