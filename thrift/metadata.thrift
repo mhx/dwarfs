@@ -136,6 +136,10 @@ struct fs_options {
    // time base and offsets are stored with this resolution
    // 1 = seconds, 60 = minutes, 3600 = hours, ...
    2: optional UInt32 time_resolution_sec,
+
+   3: required bool   packed_chunk_table,
+   4: required bool   packed_directories,
+   5: required bool   packed_shared_files_table,
 }
 
 /**
@@ -168,8 +172,8 @@ struct metadata {
     * same for all directories.
     *
     * Note that this list is stored in a packed format as of v2.3
-    * and needs to be unpacked before use. See the documentation
-    * for the `directory` struct.
+    * if `options.packed_directories` is `true` and must be unpacked
+    * before use. See the documentation for the `directory` struct.
     */
    2: required list<directory>  directories,
 
@@ -201,8 +205,9 @@ struct metadata {
     * There's one extra sentinel item at the end that points to the
     * end of `chunks`, so chunk lookups work the same for all inodes.
     *
-    * Note that this is stored delta-compressed as of v2.3 and must
-    * be unpacked before using.
+    * Note that this list is stored delta-compressed as of v2.3
+    * if `options.packed_chunk_table` is `true` and must be unpacked
+    * before use.
     */
    4: required list<UInt32>     chunk_table,
 
@@ -286,9 +291,13 @@ struct metadata {
    /**
     * Shared files mapping
     *
-    * Note that this table cannot be used directly and must first
-    * be unpacked. It is stored as number of repetitions per index,
-    * offset by 2 (the minimum number of repetitions), so e.g.
+    * Note that this list is stored in a packed format if
+    * `options.packed_shared_files_table` is `true` and must be
+    * unpacked before use.
+    *
+    * In packed format, it is stored as number of repetitions
+    * per index, offset by 2 (the minimum number of repetitions),
+    * so e.g. a packed list
     *
     *   [0, 3, 1, 0, 1]
     *

@@ -74,6 +74,9 @@ struct scanner_options {
   bool with_specials{false};
   uint32_t time_resolution_sec{1};
   inode_options inode;
+  bool pack_chunk_table{false};
+  bool pack_directories{false};
+  bool pack_shared_files_table{false};
 };
 
 struct rewrite_options {

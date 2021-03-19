@@ -35,6 +35,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <boost/algorithm/string.hpp>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
@@ -125,11 +127,15 @@ class metadata_ final : public metadata_v2::impl {
       , nlinks_(build_nlinks(options))
       , chunk_table_(unpack_chunk_table())
       , directories_storage_(unpack_directories())
-      , directories_(meta_.dir_entries() ? directories_storage_.data()
-                                         : nullptr)
+      , directories_(directories_storage_.empty() ? nullptr
+                                                  : directories_storage_.data())
       , shared_files_(decompress_shared_files())
       , unique_files_(dev_inode_offset_ - file_inode_offset_ -
-                      shared_files_.size())
+                      (shared_files_.empty()
+                           ? meta_.shared_files_table()
+                                 ? meta_.shared_files_table()->size()
+                                 : 0
+                           : shared_files_.size()))
       , options_(options) {
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {
@@ -350,22 +356,30 @@ class metadata_ final : public metadata_v2::impl {
     return chunk_table_.empty() ? meta_.chunk_table()[ino] : chunk_table_[ino];
   }
 
+  int file_inode_to_chunk_index(int inode) const {
+    inode -= file_inode_offset_;
+
+    if (inode >= unique_files_) {
+      inode -= unique_files_;
+
+      if (!shared_files_.empty()) {
+        if (inode < static_cast<int>(shared_files_.size())) {
+          inode = shared_files_[inode] + unique_files_;
+        }
+      } else if (auto sfp = meta_.shared_files_table()) {
+        if (inode < static_cast<int>(sfp->size())) {
+          inode = (*sfp)[inode] + unique_files_;
+        }
+      }
+    }
+
+    return inode;
+  }
+
   std::optional<chunk_range> get_chunk_range(int inode) const {
     std::optional<chunk_range> rv;
 
-    inode -= file_inode_offset_;
-
-    if (!shared_files_.empty()) {
-      if (inode >= unique_files_) {
-        inode -= unique_files_;
-
-        if (inode >= static_cast<int>(shared_files_.size())) {
-          return rv;
-        }
-
-        inode = shared_files_[inode] + unique_files_;
-      }
-    }
+    inode = file_inode_to_chunk_index(inode);
 
     if (inode >= 0 &&
         inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
@@ -439,7 +453,7 @@ class metadata_ final : public metadata_v2::impl {
   std::vector<uint32_t> unpack_chunk_table() const {
     std::vector<uint32_t> chunk_table;
 
-    if (meta_.dir_entries()) {
+    if (auto opts = meta_.options(); opts and opts->packed_chunk_table()) {
       chunk_table.resize(meta_.chunk_table().size());
       std::partial_sum(meta_.chunk_table().begin(), meta_.chunk_table().end(),
                        chunk_table.begin());
@@ -451,8 +465,8 @@ class metadata_ final : public metadata_v2::impl {
   std::vector<thrift::metadata::directory> unpack_directories() const {
     std::vector<thrift::metadata::directory> directories;
 
-    if (auto dep = meta_.dir_entries()) {
-      auto dirent = *dep;
+    if (auto opts = meta_.options(); opts and opts->packed_directories()) {
+      auto dirent = *meta_.dir_entries();
       auto metadir = meta_.directories();
 
       {
@@ -503,8 +517,9 @@ class metadata_ final : public metadata_v2::impl {
   std::vector<uint32_t> decompress_shared_files() const {
     std::vector<uint32_t> decompressed;
 
-    if (auto sfp = meta_.shared_files_table()) {
-      if (!sfp->empty()) {
+    if (auto opts = meta_.options();
+        opts and opts->packed_shared_files_table()) {
+      if (auto sfp = meta_.shared_files_table(); sfp and !sfp->empty()) {
         auto ti = LOG_TIMED_DEBUG;
 
         auto size = std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
@@ -656,6 +671,22 @@ void metadata_<LoggerPolicy>::dump(
     os << "block size: " << stbuf.f_bsize << std::endl;
     os << "inode count: " << stbuf.f_files << std::endl;
     os << "original filesystem size: " << stbuf.f_blocks << std::endl;
+    if (auto opt = meta_.options()) {
+      std::vector<std::string> options;
+      auto boolopt = [&](auto const& name, bool value) {
+        if (value) {
+          options.push_back(name);
+        }
+      };
+      boolopt("mtime_only", opt->mtime_only());
+      boolopt("packed_chunk_table", opt->packed_chunk_table());
+      boolopt("packed_directories", opt->packed_directories());
+      boolopt("packed_shared_files_table", opt->packed_shared_files_table());
+      os << "options: " << boost::join(options, "\n         ") << std::endl;
+      if (auto res = opt->time_resolution_sec()) {
+        os << "time resolution: " << *res << " seconds" << std::endl;
+      }
+    }
   }
 
   if (detail_level > 1) {
@@ -681,9 +712,13 @@ void metadata_<LoggerPolicy>::dump(
       os << "dir_entries: " << de->size() << std::endl;
     }
     if (auto sfp = meta_.shared_files_table()) {
-      os << "compressed shared_files_table: " << sfp->size() << std::endl;
-      os << "decompressed shared_files_table: " << shared_files_.size()
-         << std::endl;
+      if (meta_.options()->packed_shared_files_table()) {
+        os << "compressed shared_files_table: " << sfp->size() << std::endl;
+        os << "decompressed shared_files_table: " << shared_files_.size()
+           << std::endl;
+      } else {
+        os << "shared_files_table: " << sfp->size() << std::endl;
+      }
       os << "unique files: " << unique_files_ << std::endl;
     }
 
@@ -870,10 +905,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
         for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
           int ino = (*dep)[ix].inode_num();
           if (ino >= file_inode_offset_ and ino < dev_inode_offset_) {
-            ino -= file_inode_offset_;
-            if (ino >= unique_files_) {
-              ino = shared_files_[ino - unique_files_] + unique_files_;
-            }
+            ino = file_inode_to_chunk_index(ino);
             if (auto beg = chunk_table_lookup(ino);
                 beg != chunk_table_lookup(ino + 1)) {
               first_chunk_block[ix] = meta_.chunks()[beg].block();

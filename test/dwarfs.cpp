@@ -194,7 +194,9 @@ void basic_end_to_end_test(std::string const& compressor,
                            unsigned block_size_bits, file_order_mode file_order,
                            bool with_devices, bool with_specials, bool set_uid,
                            bool set_gid, bool set_time, bool keep_all_times,
-                           bool enable_nlink) {
+                           bool enable_nlink, bool pack_chunk_table,
+                           bool pack_directories,
+                           bool pack_shared_files_table) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -207,6 +209,9 @@ void basic_end_to_end_test(std::string const& compressor,
   options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;
   options.inode.with_nilsimsa = file_order == file_order_mode::NILSIMSA;
   options.keep_all_times = keep_all_times;
+  options.pack_chunk_table = pack_chunk_table;
+  options.pack_directories = pack_directories;
+  options.pack_shared_files_table = pack_shared_files_table;
 
   if (set_uid) {
     options.uid = 0;
@@ -513,8 +518,9 @@ class compression_test
     : public testing::TestWithParam<
           std::tuple<std::string, unsigned, file_order_mode>> {};
 
-class scanner_test : public testing::TestWithParam<
-                         std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
+class scanner_test
+    : public testing::TestWithParam<std::tuple<bool, bool, bool, bool, bool,
+                                               bool, bool, bool, bool, bool>> {
 };
 
 TEST_P(compression_test, end_to_end) {
@@ -526,16 +532,18 @@ TEST_P(compression_test, end_to_end) {
   }
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
-                        false, false, false, false, false);
+                        false, false, false, false, false, true, true, true);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        enable_nlink] = GetParam();
+        enable_nlink, pack_chunk_table, pack_directories,
+        pack_shared_files_table] = GetParam();
 
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
                         with_devices, with_specials, set_uid, set_gid, set_time,
-                        keep_all_times, enable_nlink);
+                        keep_all_times, enable_nlink, pack_chunk_table,
+                        pack_directories, pack_shared_files_table);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -549,5 +557,6 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
+                       ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool()));

@@ -331,7 +331,7 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level_str, timestamp,
-      time_resolution, order, progress_mode, recompress_opts;
+      time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers, max_scanner_workers;
   bool no_progress = false;
   unsigned level;
@@ -395,6 +395,9 @@ int mkdwarfs(int argc, char** argv) {
     ("metadata-compression",
         po::value<std::string>(&metadata_compression),
         "metadata compression algorithm")
+    ("pack-metadata",
+        po::value<std::string>(&pack_metadata)->default_value("all"),
+        "pack certain metadata elements (none, chunk_table, directories, shared_files, all)")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
@@ -723,6 +726,30 @@ int mkdwarfs(int argc, char** argv) {
     std::cerr << "error: the argument ('" << time_resolution
               << "') to '--time-resolution' is invalid" << std::endl;
     return 1;
+  }
+
+  if (!pack_metadata.empty() and pack_metadata != "none") {
+    if (pack_metadata == "all") {
+      options.pack_chunk_table = true;
+      options.pack_directories = true;
+      options.pack_shared_files_table = true;
+    } else {
+      std::vector<std::string> pack_opts;
+      boost::split(pack_opts, pack_metadata, boost::is_any_of(","));
+      for (auto const& opt : pack_opts) {
+        if (opt == "chunk_table") {
+          options.pack_chunk_table = true;
+        } else if (opt == "directories") {
+          options.pack_directories = true;
+        } else if (opt == "shared_files") {
+          options.pack_shared_files_table = true;
+        } else {
+          std::cerr << "error: the argument ('" << opt
+                    << "') to '--pack-metadata' is invalid" << std::endl;
+          return 1;
+        }
+      }
+    }
   }
 
   unsigned interval_ms =

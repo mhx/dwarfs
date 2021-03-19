@@ -322,8 +322,8 @@ class save_shared_files_visitor : public visitor_base {
     }
   }
 
-  std::vector<uint32_t>& get_compressed_shared_files() {
-    if (!shared_files_.empty() && !compressed_) {
+  void pack_shared_files() {
+    if (!shared_files_.empty()) {
       DWARFS_CHECK(std::is_sorted(shared_files_.begin(), shared_files_.end()),
                    "shared files vector not sorted");
       std::vector<uint32_t> compressed;
@@ -350,14 +350,13 @@ class save_shared_files_visitor : public visitor_base {
 
       shared_files_.swap(compressed);
     }
-
-    return shared_files_;
   }
+
+  std::vector<uint32_t>& get_shared_files() { return shared_files_; }
 
  private:
   uint32_t const begin_shared_;
   uint32_t const num_unique_;
-  bool compressed_{false};
   std::vector<uint32_t> shared_files_;
 };
 
@@ -705,30 +704,41 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
 
-  // pack directories
-  uint32_t last_first_entry = 0;
-  for (auto& d : mv2.directories) {
-    d.parent_entry = 0; // this will be recovered
-    auto delta = d.first_entry - last_first_entry;
-    last_first_entry = d.first_entry;
-    d.first_entry = delta;
+  if (options_.pack_directories) {
+    // pack directories
+    uint32_t last_first_entry = 0;
+
+    for (auto& d : mv2.directories) {
+      d.parent_entry = 0; // this will be recovered
+      auto delta = d.first_entry - last_first_entry;
+      last_first_entry = d.first_entry;
+      d.first_entry = delta;
+    }
   }
 
-  // delta-compress chunk table
-  std::adjacent_difference(mv2.chunk_table.begin(), mv2.chunk_table.end(),
-                           mv2.chunk_table.begin());
+  if (options_.pack_chunk_table) {
+    // delta-compress chunk table
+    std::adjacent_difference(mv2.chunk_table.begin(), mv2.chunk_table.end(),
+                             mv2.chunk_table.begin());
+  }
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                  fdv.num_unique());
   root->accept(ssfv);
-  mv2.shared_files_table_ref() = std::move(ssfv.get_compressed_shared_files());
+  if (options_.pack_shared_files_table) {
+    ssfv.pack_shared_files();
+  }
+  mv2.shared_files_table_ref() = std::move(ssfv.get_shared_files());
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only = !options_.keep_all_times;
   if (options_.time_resolution_sec > 1) {
     fsopts.time_resolution_sec_ref() = options_.time_resolution_sec;
   }
+  fsopts.packed_chunk_table = options_.pack_chunk_table;
+  fsopts.packed_directories = options_.pack_directories;
+  fsopts.packed_shared_files_table = options_.pack_shared_files_table;
 
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
