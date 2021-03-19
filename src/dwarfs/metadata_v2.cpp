@@ -97,12 +97,100 @@ MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
 }
 
 void analyze_frozen(std::ostream& os,
-                    MappedFrozen<thrift::metadata::metadata> const& meta) {
+                    MappedFrozen<thrift::metadata::metadata> const& meta,
+                    size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
+
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();
-  (*layout)->print(os, 0);
-  os << '\n';
+
+  os << "metadata memory usage:\n";
+
+  auto& l = *layout;
+  std::vector<std::pair<size_t, std::string>> usage;
+
+  auto fmt_size = [&](auto const& name, size_t count, size_t size) {
+    return fmt::format(
+        "{0:>10} {1:.<20}{2:.>13L} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
+        count, name, size, 100.0 * size / total_size,
+        count > 0 ? static_cast<double>(size) / count : 0.0);
+  };
+
+  auto fmt_detail = [&](auto const& name, size_t count, size_t size) {
+    return fmt::format("           {0:<20}{1:>13L} bytes {2:5.1f}% "
+                       "{3:5.1f} bytes/item\n",
+                       name, size, 100.0 * size / total_size,
+                       count > 0 ? static_cast<double>(size) / count : 0.0);
+  };
+
+  auto add_size = [&](auto const& name, size_t count, size_t size) {
+    usage.emplace_back(size, fmt_size(name, count, size));
+  };
+
+  auto list_size = [&](auto const& list, auto const& field) {
+    return (list.size() * field.layout.itemField.layout.bits + 7) / 8;
+  };
+
+  auto add_list_size = [&](auto const& name, auto const& list,
+                           auto const& field) {
+    add_size(name, list.size(), list_size(list, field));
+  };
+
+  auto add_string_list_size = [&](auto const& name, auto const& list,
+                                  auto const& field) {
+    auto count = list.size();
+    auto index_size = list_size(list, field);
+    auto data_size = list.back().end() - list.front().begin();
+    auto size = index_size + data_size;
+    auto fmt = fmt_size(name, count, size) +
+               fmt_detail("|- index", count, index_size) +
+               fmt_detail("'- data", count, data_size);
+    usage.emplace_back(size, fmt);
+  };
+
+#define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l->x##Field)
+
+#define META_STRING_LIST_SIZE(x) add_string_list_size(#x, meta.x(), l->x##Field)
+
+#define META_OPT_LIST_SIZE(x)                                                  \
+  do {                                                                         \
+    if (auto list = meta.x()) {                                                \
+      add_list_size(#x, *list, l->x##Field.layout.valueField);                 \
+    }                                                                          \
+  } while (0)
+
+  META_LIST_SIZE(chunks);
+  META_LIST_SIZE(directories);
+  META_LIST_SIZE(inodes);
+  META_LIST_SIZE(chunk_table);
+  META_LIST_SIZE(symlink_table);
+  META_LIST_SIZE(uids);
+  META_LIST_SIZE(gids);
+  META_LIST_SIZE(modes);
+
+  META_OPT_LIST_SIZE(devices);
+  META_OPT_LIST_SIZE(dir_entries);
+  META_OPT_LIST_SIZE(shared_files_table);
+
+  META_STRING_LIST_SIZE(names);
+  META_STRING_LIST_SIZE(symlinks);
+
+#undef META_LIST_SIZE
+#undef META_STRING_LIST_SIZE
+#undef META_OPT_LIST_SIZE
+
+  std::sort(usage.begin(), usage.end(), [](auto const& a, auto const& b) {
+    return a.first > b.first || (a.first == b.first && a.second < b.second);
+  });
+
+  for (auto const& u : usage) {
+    os << u.second;
+  }
+
+  if (detail > 2) {
+    l->print(os, 0);
+    os << '\n';
+  }
 }
 
 const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
@@ -722,7 +810,7 @@ void metadata_<LoggerPolicy>::dump(
       os << "unique files: " << unique_files_ << std::endl;
     }
 
-    analyze_frozen(os, meta_);
+    analyze_frozen(os, meta_, data_.size(), detail_level);
   }
 
   if (detail_level > 4) {
