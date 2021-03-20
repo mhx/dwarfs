@@ -489,21 +489,10 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
   while (auto sp = parser.next_section()) {
     std::packaged_task<fs_section()> task{[&, s = *sp] {
-      std::vector<uint8_t> tmp;
-      block_decompressor bd(s.compression(), mm->as<uint8_t>(s.start()),
-                            s.length(), tmp);
-      float compression_ratio = float(s.length()) / bd.uncompressed_size();
-
-      if (detail_level > 2) {
-        os << "SECTION " << s.description()
-           << ", blocksize=" << bd.uncompressed_size()
-           << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-           << std::endl;
-      }
-
       if (!s.check_fast(*mm)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
       }
+
       if (!s.verify(*mm)) {
         DWARFS_THROW(runtime_error,
                      "integrity check error in section: " + s.name());
@@ -522,6 +511,18 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   for (auto& sf : sections) {
     try {
       auto s = sf.get();
+
+      std::vector<uint8_t> tmp;
+      block_decompressor bd(s.compression(), mm->as<uint8_t>(s.start()),
+                            s.length(), tmp);
+      float compression_ratio = float(s.length()) / bd.uncompressed_size();
+
+      if (detail_level > 2) {
+        os << "SECTION " << s.description()
+           << ", blocksize=" << bd.uncompressed_size()
+           << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
+           << std::endl;
+      }
 
       if (s.type() != section_type::BLOCK) {
         if (!seen.emplace(s.type()).second) {
