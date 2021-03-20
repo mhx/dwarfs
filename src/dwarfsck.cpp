@@ -41,7 +41,10 @@ namespace dwarfs {
 namespace po = boost::program_options;
 
 int dwarfsck(int argc, char** argv) {
+  const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
+
   std::string log_level, input, export_metadata;
+  size_t num_workers;
   int detail;
   bool json = false;
 
@@ -54,6 +57,9 @@ int dwarfsck(int argc, char** argv) {
     ("detail,d",
         po::value<int>(&detail)->default_value(1),
         "detail level")
+    ("num-workers,n",
+        po::value<size_t>(&num_workers)->default_value(num_cpu),
+        "number of reader worker threads")
     ("json",
         po::value<bool>(&json)->zero_tokens(),
         "print metadata in JSON format")
@@ -105,7 +111,7 @@ int dwarfsck(int argc, char** argv) {
       filesystem_v2 fs(lgr, mm);
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
     } else {
-      filesystem_v2::identify(lgr, mm, std::cout, detail);
+      filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers);
     }
   } catch (system_error const& e) {
     LOG_ERROR << folly::exceptionStr(e);
