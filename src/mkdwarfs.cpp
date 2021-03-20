@@ -333,7 +333,7 @@ int mkdwarfs(int argc, char** argv) {
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers, max_scanner_workers;
-  bool no_progress = false;
+  bool no_progress = false, plain_string_tables = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -400,6 +400,10 @@ int mkdwarfs(int argc, char** argv) {
         "pack certain metadata elements (none, all, chunk_table, "
         "directories, shared_files, names, names_index, symlinks, "
         "symlinks_index)")
+    ("plain-string-tables",
+        po::value<bool>(&plain_string_tables)->zero_tokens(),
+        "use plain string tables in metadata (overrides string table "
+        "packing options)")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
@@ -729,6 +733,9 @@ int mkdwarfs(int argc, char** argv) {
               << "') to '--time-resolution' is invalid" << std::endl;
     return 1;
   }
+
+  options.plain_names_table = plain_string_tables;
+  options.plain_symlinks_table = plain_string_tables;
 
   if (!pack_metadata.empty() and pack_metadata != "none") {
     if (pack_metadata == "all") {
