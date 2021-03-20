@@ -27,7 +27,6 @@
 #include <ctime>
 #include <numeric>
 #include <ostream>
-#include <queue>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -45,10 +44,13 @@
 
 #include <folly/container/F14Set.h>
 
+#include <fsst.h>
+
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
+#include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
@@ -104,8 +106,6 @@ void analyze_frozen(std::ostream& os,
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();
 
-  os << "metadata memory usage:\n";
-
   auto& l = *layout;
   std::vector<std::pair<size_t, std::string>> usage;
 
@@ -139,13 +139,33 @@ void analyze_frozen(std::ostream& os,
   auto add_string_list_size = [&](auto const& name, auto const& list,
                                   auto const& field) {
     auto count = list.size();
-    auto index_size = list_size(list, field);
-    auto data_size = list.back().end() - list.front().begin();
-    auto size = index_size + data_size;
-    auto fmt = fmt_size(name, count, size) +
-               fmt_detail("|- index", count, index_size) +
-               fmt_detail("'- data", count, data_size);
-    usage.emplace_back(size, fmt);
+    if (count > 0) {
+      auto index_size = list_size(list, field);
+      auto data_size = list.back().end() - list.front().begin();
+      auto size = index_size + data_size;
+      auto fmt = fmt_size(name, count, size) +
+                 fmt_detail("|- data", count, data_size) +
+                 fmt_detail("'- index", count, index_size);
+      usage.emplace_back(size, fmt);
+    }
+  };
+
+  auto add_string_table_size = [&](auto const& name, auto const& table,
+                                   auto const& field) {
+    if (auto data_size = table.buffer().size(); data_size > 0) {
+      auto dict_size =
+          table.symtab() ? table.symtab()->size() : static_cast<size_t>(0);
+      auto index_size = list_size(table.index(), field.layout.indexField);
+      auto size = index_size + data_size + dict_size;
+      auto count = table.index().size() - (table.packed_index() ? 0 : 1);
+      auto fmt =
+          fmt_size(name, count, size) + fmt_detail("|- data", count, data_size);
+      if (table.symtab()) {
+        fmt += fmt_detail("|- dict", count, dict_size);
+      }
+      fmt += fmt_detail("'- index", count, index_size);
+      usage.emplace_back(size, fmt);
+    }
   };
 
 #define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l->x##Field)
@@ -156,6 +176,13 @@ void analyze_frozen(std::ostream& os,
   do {                                                                         \
     if (auto list = meta.x()) {                                                \
       add_list_size(#x, *list, l->x##Field.layout.valueField);                 \
+    }                                                                          \
+  } while (0)
+
+#define META_OPT_STRING_TABLE_SIZE(x)                                          \
+  do {                                                                         \
+    if (auto table = meta.x()) {                                               \
+      add_string_table_size(#x, *table, l->x##Field.layout.valueField);        \
     }                                                                          \
   } while (0)
 
@@ -172,16 +199,26 @@ void analyze_frozen(std::ostream& os,
   META_OPT_LIST_SIZE(dir_entries);
   META_OPT_LIST_SIZE(shared_files_table);
 
+  META_OPT_STRING_TABLE_SIZE(compact_names);
+  META_OPT_STRING_TABLE_SIZE(compact_symlinks);
+
   META_STRING_LIST_SIZE(names);
   META_STRING_LIST_SIZE(symlinks);
 
 #undef META_LIST_SIZE
 #undef META_STRING_LIST_SIZE
 #undef META_OPT_LIST_SIZE
+#undef META_OPT_STRING_TABLE_SIZE
 
   std::sort(usage.begin(), usage.end(), [](auto const& a, auto const& b) {
     return a.first > b.first || (a.first == b.first && a.second < b.second);
   });
+
+  os << "metadata memory usage:\n";
+  os << fmt::format(
+      "           {0:.<20}{1:.>13L} bytes       {2:6.1f} bytes/inode\n",
+      "total metadata", total_size,
+      static_cast<double>(total_size) / meta.inodes().size());
 
   for (auto const& u : usage) {
     os << u.second;
@@ -204,7 +241,8 @@ class metadata_ final : public metadata_v2::impl {
             metadata_options const& options, int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
-      , root_(dir_entry_view::from_dir_entry_index(0, &meta_))
+      , global_(&meta_)
+      , root_(dir_entry_view::from_dir_entry_index(0, &global_))
       , log_(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
@@ -214,9 +252,6 @@ class metadata_ final : public metadata_v2::impl {
                                          : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
       , chunk_table_(unpack_chunk_table())
-      , directories_storage_(unpack_directories())
-      , directories_(directories_storage_.empty() ? nullptr
-                                                  : directories_storage_.data())
       , shared_files_(decompress_shared_files())
       , unique_files_(dev_inode_offset_ - file_inode_offset_ -
                       (shared_files_.empty()
@@ -224,7 +259,10 @@ class metadata_ final : public metadata_v2::impl {
                                  ? meta_.shared_files_table()->size()
                                  : 0
                            : shared_files_.size()))
-      , options_(options) {
+      , options_(options)
+      , symlinks_(meta_.compact_symlinks()
+                      ? string_table(*meta_.compact_symlinks())
+                      : string_table(meta_.symlinks())) {
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {
       DWARFS_THROW(
@@ -304,7 +342,7 @@ class metadata_ final : public metadata_v2::impl {
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
-  std::optional<std::pair<inode_view, std::string_view>>
+  std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const override;
 
   size_t dirsize(directory_view dir) const override {
@@ -317,7 +355,7 @@ class metadata_ final : public metadata_v2::impl {
 
   int readlink(inode_view iv, std::string* buf) const override;
 
-  folly::Expected<std::string_view, int> readlink(inode_view iv) const override;
+  folly::Expected<std::string, int> readlink(inode_view iv) const override;
 
   int statvfs(struct ::statvfs* stbuf) const override;
 
@@ -339,7 +377,7 @@ class metadata_ final : public metadata_v2::impl {
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
     return dir_entry_view::from_dir_entry_index(self_index, parent_index,
-                                                &meta_);
+                                                &global_);
   }
 
   // This represents the order in which inodes are stored in inodes
@@ -420,7 +458,7 @@ class metadata_ final : public metadata_v2::impl {
 
   directory_view make_directory_view(inode_view iv) const {
     // TODO: revisit: is this the way to do it?
-    return directory_view(iv.inode_num(), &meta_, directories_);
+    return directory_view(iv.inode_num(), &global_);
   }
 
   // TODO: see if we really need to pass the extra dir_entry_view in
@@ -525,9 +563,9 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  std::string_view link_value(inode_view iv) const {
-    return meta_.symlinks()[meta_.symlink_table()[iv.inode_num() -
-                                                  symlink_inode_offset_]];
+  std::string link_value(inode_view iv) const {
+    return symlinks_[meta_.symlink_table()[iv.inode_num() -
+                                           symlink_inode_offset_]];
   }
 
   uint64_t get_device_id(int inode) const {
@@ -548,58 +586,6 @@ class metadata_ final : public metadata_v2::impl {
     }
 
     return chunk_table;
-  }
-
-  std::vector<thrift::metadata::directory> unpack_directories() const {
-    std::vector<thrift::metadata::directory> directories;
-
-    if (auto opts = meta_.options(); opts and opts->packed_directories()) {
-      auto dirent = *meta_.dir_entries();
-      auto metadir = meta_.directories();
-
-      {
-        auto ti = LOG_TIMED_DEBUG;
-
-        directories.resize(metadir.size());
-
-        // delta-decode first entries first
-        directories[0].first_entry = metadir[0].first_entry();
-
-        for (size_t i = 1; i < directories.size(); ++i) {
-          directories[i].first_entry =
-              directories[i - 1].first_entry + metadir[i].first_entry();
-        }
-
-        // then traverse to recover parent entries
-        std::queue<uint32_t> queue;
-        queue.push(0);
-
-        while (!queue.empty()) {
-          auto parent = queue.front();
-          queue.pop();
-
-          auto p_ino = dirent[parent].inode_num();
-
-          auto beg = directories[p_ino].first_entry;
-          auto end = directories[p_ino + 1].first_entry;
-
-          for (auto e = beg; e < end; ++e) {
-            if (auto e_ino = dirent[e].inode_num();
-                e_ino < (directories.size() - 1)) {
-              directories[e_ino].parent_entry = parent;
-              queue.push(e);
-            }
-          }
-        }
-
-        ti << "unpacked directories table ("
-           << size_with_unit(sizeof(directories.front()) *
-                             directories.capacity())
-           << ")";
-      }
-    }
-
-    return directories;
   }
 
   std::vector<uint32_t> decompress_shared_files() const {
@@ -664,6 +650,7 @@ class metadata_ final : public metadata_v2::impl {
 
   folly::ByteRange data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
+  const global_metadata global_;
   dir_entry_view root_;
   log_proxy<LoggerPolicy> log_;
   const int inode_offset_;
@@ -673,11 +660,10 @@ class metadata_ final : public metadata_v2::impl {
   const int inode_count_;
   const std::vector<uint32_t> nlinks_;
   const std::vector<uint32_t> chunk_table_;
-  const std::vector<thrift::metadata::directory> directories_storage_;
-  thrift::metadata::directory const* const directories_;
   const std::vector<uint32_t> shared_files_;
   const int unique_files_;
   const metadata_options options_;
+  const string_table symlinks_;
 };
 
 template <typename LoggerPolicy>
@@ -770,6 +756,14 @@ void metadata_<LoggerPolicy>::dump(
       boolopt("packed_chunk_table", opt->packed_chunk_table());
       boolopt("packed_directories", opt->packed_directories());
       boolopt("packed_shared_files_table", opt->packed_shared_files_table());
+      if (auto names = meta_.compact_names()) {
+        boolopt("packed_names", static_cast<bool>(names->symtab()));
+        boolopt("packed_names_index", names->packed_index());
+      }
+      if (auto symlinks = meta_.compact_symlinks()) {
+        boolopt("packed_symlinks", static_cast<bool>(symlinks->symtab()));
+        boolopt("packed_symlinks_index", symlinks->packed_index());
+      }
       os << "options: " << boost::join(options, "\n         ") << std::endl;
       if (auto res = opt->time_resolution_sec()) {
         os << "time resolution: " << *res << " seconds" << std::endl;
@@ -1041,14 +1035,14 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
                              [&](auto ix, std::string_view name) {
-                               return dir_entry_view::name(ix, &meta_) < name;
+                               return dir_entry_view::name(ix, &global_) < name;
                              });
 
   std::optional<inode_view> rv;
 
   if (it != range.end()) {
-    if (dir_entry_view::name(*it, &meta_) == name) {
-      rv = dir_entry_view::inode(*it, &meta_);
+    if (dir_entry_view::name(*it, &global_) == name) {
+      rv = dir_entry_view::inode(*it, &global_);
     }
   }
 
@@ -1157,7 +1151,7 @@ metadata_<LoggerPolicy>::opendir(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<inode_view, std::string_view>>
+std::optional<std::pair<inode_view, std::string>>
 metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   switch (offset) {
   case 0:
@@ -1174,8 +1168,8 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
     }
 
     auto index = dir.first_entry() + offset;
-    auto inode = dir_entry_view::inode(index, &meta_);
-    return std::pair(inode, dir_entry_view::name(index, &meta_));
+    auto inode = dir_entry_view::inode(index, &global_);
+    return std::pair(inode, dir_entry_view::name(index, &global_));
   }
 
   return std::nullopt;
@@ -1235,7 +1229,7 @@ int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
 }
 
 template <typename LoggerPolicy>
-folly::Expected<std::string_view, int>
+folly::Expected<std::string, int>
 metadata_<LoggerPolicy>::readlink(inode_view iv) const {
   if (S_ISLNK(iv.mode())) {
     return link_value(iv);

@@ -195,8 +195,10 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool with_devices, bool with_specials, bool set_uid,
                            bool set_gid, bool set_time, bool keep_all_times,
                            bool enable_nlink, bool pack_chunk_table,
-                           bool pack_directories,
-                           bool pack_shared_files_table) {
+                           bool pack_directories, bool pack_shared_files_table,
+                           bool pack_names, bool pack_names_index,
+                           bool pack_symlinks, bool pack_symlinks_index,
+                           bool plain_names_table, bool plain_symlinks_table) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -212,6 +214,13 @@ void basic_end_to_end_test(std::string const& compressor,
   options.pack_chunk_table = pack_chunk_table;
   options.pack_directories = pack_directories;
   options.pack_shared_files_table = pack_shared_files_table;
+  options.pack_names = pack_names;
+  options.pack_names_index = pack_names_index;
+  options.pack_symlinks = pack_symlinks;
+  options.pack_symlinks_index = pack_symlinks_index;
+  options.force_pack_string_tables = true;
+  options.plain_names_table = plain_names_table;
+  options.plain_symlinks_table = plain_symlinks_table;
 
   if (set_uid) {
     options.uid = 0;
@@ -518,10 +527,16 @@ class compression_test
     : public testing::TestWithParam<
           std::tuple<std::string, unsigned, file_order_mode>> {};
 
-class scanner_test
-    : public testing::TestWithParam<std::tuple<bool, bool, bool, bool, bool,
-                                               bool, bool, bool, bool, bool>> {
+class scanner_test : public testing::TestWithParam<
+                         std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
 };
+
+class packing_test : public testing::TestWithParam<
+                         std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
+};
+
+class plain_tables_test
+    : public testing::TestWithParam<std::tuple<bool, bool>> {};
 
 TEST_P(compression_test, end_to_end) {
   auto [compressor, block_size_bits, file_order] = GetParam();
@@ -532,18 +547,38 @@ TEST_P(compression_test, end_to_end) {
   }
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
-                        false, false, false, false, false, true, true, true);
+                        false, false, false, false, false, true, true, true,
+                        true, true, true, true, false, false);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        enable_nlink, pack_chunk_table, pack_directories,
-        pack_shared_files_table] = GetParam();
+        enable_nlink] = GetParam();
 
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
                         with_devices, with_specials, set_uid, set_gid, set_time,
-                        keep_all_times, enable_nlink, pack_chunk_table,
-                        pack_directories, pack_shared_files_table);
+                        keep_all_times, enable_nlink, true, true, true, true,
+                        true, true, true, false, false);
+}
+
+TEST_P(packing_test, end_to_end) {
+  auto [pack_chunk_table, pack_directories, pack_shared_files_table, pack_names,
+        pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
+
+  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
+                        false, false, false, false, false, pack_chunk_table,
+                        pack_directories, pack_shared_files_table, pack_names,
+                        pack_names_index, pack_symlinks, pack_symlinks_index,
+                        false, false);
+}
+
+TEST_P(plain_tables_test, end_to_end) {
+  auto [plain_names_table, plain_symlinks_table] = GetParam();
+
+  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
+                        false, false, false, false, false, false, false, false,
+                        false, false, false, false, plain_names_table,
+                        plain_symlinks_table);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -558,5 +593,14 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
+                       ::testing::Bool()));
+
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, packing_test,
+    ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool()));
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, plain_tables_test,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()));

@@ -55,6 +55,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
+#include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
 #include "dwarfs/worker_group.h"
@@ -740,11 +741,32 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   fsopts.packed_directories = options_.pack_directories;
   fsopts.packed_shared_files_table = options_.pack_shared_files_table;
 
+  if (options_.plain_names_table) {
+    mv2.names = ge_data.get_names();
+  } else {
+    auto ti = LOG_TIMED_INFO;
+    mv2.set_compact_names(string_table::pack(
+        ge_data.get_names(), string_table::pack_options(
+                                 options_.pack_names, options_.pack_names_index,
+                                 options_.force_pack_string_tables)));
+    ti << "saving names table...";
+  }
+
+  if (options_.plain_symlinks_table) {
+    mv2.symlinks = ge_data.get_symlinks();
+  } else {
+    auto ti = LOG_TIMED_INFO;
+    mv2.set_compact_symlinks(string_table::pack(
+        ge_data.get_symlinks(),
+        string_table::pack_options(options_.pack_symlinks,
+                                   options_.pack_symlinks_index,
+                                   options_.force_pack_string_tables)));
+    ti << "saving symlinks table...";
+  }
+
   mv2.uids = ge_data.get_uids();
   mv2.gids = ge_data.get_gids();
   mv2.modes = ge_data.get_modes();
-  mv2.names = ge_data.get_names();
-  mv2.symlinks = ge_data.get_symlinks();
   mv2.timestamp_base = ge_data.get_timestamp_base();
   mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
   mv2.total_fs_size = prog.original_size;

@@ -29,7 +29,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include <sys/types.h>
@@ -109,7 +108,7 @@ class filesystem_v2 {
     return impl_->opendir(entry);
   }
 
-  std::optional<std::pair<inode_view, std::string_view>>
+  std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const {
     return impl_->readdir(dir, offset);
   }
@@ -120,7 +119,7 @@ class filesystem_v2 {
     return impl_->readlink(entry, buf);
   }
 
-  folly::Expected<std::string_view, int> readlink(inode_view entry) const {
+  folly::Expected<std::string, int> readlink(inode_view entry) const {
     return impl_->readlink(entry);
   }
 
@@ -161,11 +160,11 @@ class filesystem_v2 {
     virtual int
     access(inode_view entry, int mode, uid_t uid, gid_t gid) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
-    virtual std::optional<std::pair<inode_view, std::string_view>>
+    virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;
     virtual size_t dirsize(directory_view dir) const = 0;
     virtual int readlink(inode_view entry, std::string* buf) const = 0;
-    virtual folly::Expected<std::string_view, int>
+    virtual folly::Expected<std::string, int>
     readlink(inode_view entry) const = 0;
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;

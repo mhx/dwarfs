@@ -190,12 +190,11 @@ class filesystem_ final : public filesystem_v2::impl {
   int getattr(inode_view entry, struct ::stat* stbuf) const override;
   int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
-  std::optional<std::pair<inode_view, std::string_view>>
+  std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const override;
   size_t dirsize(directory_view dir) const override;
   int readlink(inode_view entry, std::string* buf) const override;
-  folly::Expected<std::string_view, int>
-  readlink(inode_view entry) const override;
+  folly::Expected<std::string, int> readlink(inode_view entry) const override;
   int statvfs(struct ::statvfs* stbuf) const override;
   int open(inode_view entry) const override;
   ssize_t
@@ -325,7 +324,7 @@ filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<inode_view, std::string_view>>
+std::optional<std::pair<inode_view, std::string>>
 filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   return meta_.readdir(dir, offset);
 }
@@ -342,7 +341,7 @@ int filesystem_<LoggerPolicy>::readlink(inode_view entry,
 }
 
 template <typename LoggerPolicy>
-folly::Expected<std::string_view, int>
+folly::Expected<std::string, int>
 filesystem_<LoggerPolicy>::readlink(inode_view entry) const {
   return meta_.readlink(entry);
 }

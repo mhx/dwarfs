@@ -142,6 +142,13 @@ struct fs_options {
    5: required bool   packed_shared_files_table,
 }
 
+struct string_table {
+   1: required string buffer,
+   2: optional string symtab,
+   3: required list<UInt32> index,
+   4: required bool packed_index,
+}
+
 /**
  * File System Metadata
  *
@@ -320,4 +327,8 @@ struct metadata {
 
    // unix timestamp of metadata creation time
   23: optional UInt64           create_timestamp,
+
+  24: optional string_table     compact_names,
+
+  25: optional string_table     compact_symlinks,
 }

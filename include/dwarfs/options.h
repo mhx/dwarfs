@@ -77,6 +77,13 @@ struct scanner_options {
   bool pack_chunk_table{false};
   bool pack_directories{false};
   bool pack_shared_files_table{false};
+  bool plain_names_table{false};
+  bool pack_names{false};
+  bool pack_names_index{false};
+  bool plain_symlinks_table{false};
+  bool pack_symlinks{false};
+  bool pack_symlinks_index{false};
+  bool force_pack_string_tables{false};
 };
 
 struct rewrite_options {

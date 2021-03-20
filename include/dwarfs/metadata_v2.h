@@ -28,7 +28,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -104,7 +103,7 @@ class metadata_v2 {
     return impl_->opendir(iv);
   }
 
-  std::optional<std::pair<inode_view, std::string_view>>
+  std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const {
     return impl_->readdir(dir, offset);
   }
@@ -121,7 +120,7 @@ class metadata_v2 {
     return impl_->readlink(iv, buf);
   }
 
-  folly::Expected<std::string_view, int> readlink(inode_view iv) const {
+  folly::Expected<std::string, int> readlink(inode_view iv) const {
     return impl_->readlink(iv);
   }
 
@@ -165,7 +164,7 @@ class metadata_v2 {
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 
-    virtual std::optional<std::pair<inode_view, std::string_view>>
+    virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;
 
     virtual size_t dirsize(directory_view dir) const = 0;
@@ -176,8 +175,7 @@ class metadata_v2 {
 
     virtual int readlink(inode_view iv, std::string* buf) const = 0;
 
-    virtual folly::Expected<std::string_view, int>
-    readlink(inode_view iv) const = 0;
+    virtual folly::Expected<std::string, int> readlink(inode_view iv) const = 0;
 
     virtual int statvfs(struct ::statvfs* stbuf) const = 0;
 

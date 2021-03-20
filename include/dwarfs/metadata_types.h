@@ -24,13 +24,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <string_view>
 #include <variant>
 
 #include <boost/iterator/iterator_facade.hpp>
 #include <boost/range/irange.hpp>
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
+
+#include "dwarfs/string_table.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 
@@ -40,6 +41,27 @@ template <typename T>
 class metadata_;
 
 class dir_entry_view;
+
+class global_metadata {
+ public:
+  using Meta =
+      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
+
+  global_metadata(Meta const* meta);
+
+  Meta const* meta() const { return meta_; }
+
+  uint32_t first_dir_entry(uint32_t ino) const;
+  uint32_t parent_dir_entry(uint32_t ino) const;
+
+  string_table const& names() const { return names_; }
+
+ private:
+  Meta const* const meta_;
+  std::vector<thrift::metadata::directory> const directories_storage_;
+  thrift::metadata::directory const* const directories_;
+  string_table const names_;
+};
 
 class inode_view
     : public ::apache::thrift::frozen::View<thrift::metadata::inode_data> {
@@ -89,18 +111,15 @@ class directory_view {
   boost::integer_range<uint32_t> entry_range() const;
 
  private:
-  directory_view(uint32_t inode, Meta const* meta,
-                 thrift::metadata::directory const* directories = nullptr)
+  directory_view(uint32_t inode, global_metadata const* g)
       : inode_{inode}
-      , directories_{directories}
-      , meta_{meta} {}
+      , g_{g} {}
 
   uint32_t first_entry(uint32_t ino) const;
   uint32_t parent_entry(uint32_t ino) const;
 
   uint32_t inode_;
-  thrift::metadata::directory const* directories_;
-  Meta const* meta_;
+  global_metadata const* g_;
 };
 
 class dir_entry_view {
@@ -108,14 +127,12 @@ class dir_entry_view {
       ::apache::thrift::frozen::View<thrift::metadata::inode_data>;
   using DirEntryView =
       ::apache::thrift::frozen::View<thrift::metadata::dir_entry>;
-  using Meta =
-      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
   template <typename T>
   friend class metadata_;
 
  public:
-  std::string_view name() const;
+  std::string name() const;
   inode_view inode() const;
 
   bool is_root() const;
@@ -129,33 +146,33 @@ class dir_entry_view {
 
  private:
   dir_entry_view(DirEntryView v, uint32_t self_index, uint32_t parent_index,
-                 Meta const* meta)
+                 global_metadata const* g)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , meta_{meta} {}
+      , g_{g} {}
 
   dir_entry_view(InodeView v, uint32_t self_index, uint32_t parent_index,
-                 Meta const* meta)
+                 global_metadata const* g)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , meta_{meta} {}
+      , g_{g} {}
 
   static dir_entry_view
   from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
-                       Meta const* meta);
+                       global_metadata const* g);
   static dir_entry_view
-  from_dir_entry_index(uint32_t self_index, Meta const* meta);
+  from_dir_entry_index(uint32_t self_index, global_metadata const* g);
 
   // TODO: this works, but it's strange; a limited version of dir_entry_view
   //       should work without a parent for these use cases
-  static std::string_view name(uint32_t index, Meta const* meta);
-  static inode_view inode(uint32_t index, Meta const* meta);
+  static std::string name(uint32_t index, global_metadata const* g);
+  static inode_view inode(uint32_t index, global_metadata const* g);
 
   std::variant<DirEntryView, InodeView> v_;
   uint32_t self_index_, parent_index_;
-  Meta const* meta_;
+  global_metadata const* g_;
 };
 
 using chunk_view = ::apache::thrift::frozen::View<thrift::metadata::chunk>;

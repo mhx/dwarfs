@@ -397,7 +397,9 @@ int mkdwarfs(int argc, char** argv) {
         "metadata compression algorithm")
     ("pack-metadata",
         po::value<std::string>(&pack_metadata)->default_value("all"),
-        "pack certain metadata elements (none, chunk_table, directories, shared_files, all)")
+        "pack certain metadata elements (none, all, chunk_table, "
+        "directories, shared_files, names, names_index, symlinks, "
+        "symlinks_index)")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
@@ -733,6 +735,10 @@ int mkdwarfs(int argc, char** argv) {
       options.pack_chunk_table = true;
       options.pack_directories = true;
       options.pack_shared_files_table = true;
+      options.pack_names = true;
+      options.pack_names_index = true;
+      options.pack_symlinks = true;
+      options.pack_symlinks_index = true;
     } else {
       std::vector<std::string> pack_opts;
       boost::split(pack_opts, pack_metadata, boost::is_any_of(","));
@@ -743,6 +749,14 @@ int mkdwarfs(int argc, char** argv) {
           options.pack_directories = true;
         } else if (opt == "shared_files") {
           options.pack_shared_files_table = true;
+        } else if (opt == "names") {
+          options.pack_names = true;
+        } else if (opt == "names_index") {
+          options.pack_names_index = true;
+        } else if (opt == "symlinks") {
+          options.pack_symlinks = true;
+        } else if (opt == "symlinks_index") {
+          options.pack_symlinks_index = true;
         } else {
           std::cerr << "error: the argument ('" << opt
                     << "') to '--pack-metadata' is invalid" << std::endl;
