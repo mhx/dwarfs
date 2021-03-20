@@ -284,6 +284,8 @@ class block_manager_ final : public block_manager::impl {
       , block_size_{static_cast<size_t>(1) << cfg.block_size_bits}
       , filter_{bloom_filter_size()} {
     if (segmentation_enabled()) {
+      LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
+               << size_with_unit(window_step_) << " steps for segment analysis";
       LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
     }
   }

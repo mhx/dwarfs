@@ -219,6 +219,7 @@ struct level_defaults {
   char const* schema_compression;
   char const* metadata_compression;
   unsigned window_size;
+  unsigned window_step;
   char const* order;
 };
 
@@ -308,16 +309,16 @@ struct level_defaults {
 
 constexpr std::array<level_defaults, 10> levels{{
     // clang-format off
-    /* 0 */ {20, "null",     "null"    , "null",          0, "none"},
-    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",          0, "path"},
-    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",          0, "path"},
-    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         12, "similarity"},
-    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         12, "similarity"},
-    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         12, "similarity"},
-    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         12, "nilsimsa"},
-    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, 12, "nilsimsa"},
-    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, 12, "nilsimsa"},
-    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, 12, "nilsimsa"},
+    /* 0 */ {20, "null",     "null"    , "null",          0, 0, "none"},
+    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",          0, 0, "path"},
+    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",          0, 0, "path"},
+    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         12, 1, "similarity"},
+    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         12, 2, "similarity"},
+    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         12, 2, "similarity"},
+    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         12, 3, "nilsimsa"},
+    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, 12, 3, "nilsimsa"},
+    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
+    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
     // clang-format on
 }};
 
@@ -377,8 +378,7 @@ int mkdwarfs(int argc, char** argv) {
         po::value<unsigned>(&cfg.blockhash_window_size),
         "window sizes for block hashing")
     ("window-step",
-        po::value<unsigned>(&cfg.window_increment_shift)
-            ->default_value(1),
+        po::value<unsigned>(&cfg.window_increment_shift),
         "window step (as right shift of size)")
     ("bloom-filter-size",
         po::value<unsigned>(&cfg.bloom_filter_size)->default_value(5),
@@ -482,27 +482,27 @@ int mkdwarfs(int argc, char** argv) {
       l_or = std::max(l_or, ::strlen(l.order));
     }
 
-    std::string sep(28 + l_dc + l_sc + l_mc + l_or, '-');
+    std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
     std::cout << "mkdwarfs (" << PRJ_GIT_ID << ")\n\n" << opts << std::endl;
     std::cout << "Compression level defaults:\n"
               << "  " << sep << "\n"
-              << fmt::format("  Level  Block  {:{}s}  {:s}  Inode\n",
+              << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
                              "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
                              "Window")
-              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}  {:6s}\n",
+              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
                              "Block Data", l_dc, "Schema", l_sc, "Metadata",
-                             l_mc, "Size    Order")
+                             l_mc, "Size/Step  Order")
               << "  " << sep << std::endl;
 
     int level = 0;
     for (auto const& l : levels) {
-      std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  "
-                               "  {:2d}    {:{}s}",
+      std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
+                               "  {:2d} / {:1d}    {:{}s}",
                                level, l.block_size_bits, l.data_compression,
                                l_dc, l.schema_compression, l_sc,
                                l.metadata_compression, l_mc, l.window_size,
-                               l.order, l_or)
+                               l.window_step, l.order, l_or)
                 << std::endl;
       ++level;
     }
@@ -560,6 +560,10 @@ int mkdwarfs(int argc, char** argv) {
 
   if (!vm.count("window-size")) {
     cfg.blockhash_window_size = defaults.window_size;
+  }
+
+  if (!vm.count("window-step")) {
+    cfg.window_increment_shift = defaults.window_step;
   }
 
   if (!vm.count("order")) {
