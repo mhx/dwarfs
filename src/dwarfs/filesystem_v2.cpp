@@ -479,7 +479,9 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
 
-  os << "FILESYSTEM version " << parser.version() << std::endl;
+  if (detail_level > 0) {
+    os << "FILESYSTEM version " << parser.version() << std::endl;
+  }
 
   section_map sections;
 
@@ -489,10 +491,12 @@ void filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                           s->length(), tmp);
     float compression_ratio = float(s->length()) / bd.uncompressed_size();
 
-    os << "SECTION " << s->description()
-       << ", blocksize=" << bd.uncompressed_size()
-       << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-       << std::endl;
+    if (detail_level > 2) {
+      os << "SECTION " << s->description()
+         << ", blocksize=" << bd.uncompressed_size()
+         << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
+         << std::endl;
+    }
 
     // TODO: don't throw if we're just checking the file system
 

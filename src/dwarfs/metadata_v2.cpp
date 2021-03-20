@@ -777,8 +777,7 @@ void metadata_<LoggerPolicy>::dump(
     }
   }
 
-  if (detail_level > 1) {
-    os << "inode_count: " << inode_count_ << std::endl;
+  if (detail_level > 2) {
     os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
     os << "file_inode_offset: " << file_inode_offset_ << std::endl;
     os << "dev_inode_offset: " << dev_inode_offset_ << std::endl;
@@ -801,15 +800,17 @@ void metadata_<LoggerPolicy>::dump(
     }
     if (auto sfp = meta_.shared_files_table()) {
       if (meta_.options()->packed_shared_files_table()) {
-        os << "compressed shared_files_table: " << sfp->size() << std::endl;
-        os << "decompressed shared_files_table: " << shared_files_.size()
+        os << "packed shared_files_table: " << sfp->size() << std::endl;
+        os << "unpacked shared_files_table: " << shared_files_.size()
            << std::endl;
       } else {
         os << "shared_files_table: " << sfp->size() << std::endl;
       }
       os << "unique files: " << unique_files_ << std::endl;
     }
+  }
 
+  if (detail_level > 1) {
     analyze_frozen(os, meta_, data_.size(), detail_level);
   }
 
