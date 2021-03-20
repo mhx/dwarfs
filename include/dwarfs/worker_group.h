@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstddef>
+#include <future>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -71,6 +72,11 @@ class worker_group {
   bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
   size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
+
+  template <typename T>
+  bool add_job(std::packaged_task<T()>&& task) {
+    return add_job([task = std::move(task)]() mutable { task(); });
+  }
 
   class impl {
    public:
