@@ -142,6 +142,7 @@ set(compiler_only
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
+add_subdirectory(fsst EXCLUDE_FROM_ALL)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 endif()
@@ -491,11 +492,14 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
   endif()
 endforeach()
 
+target_include_directories(dwarfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
+
 target_link_libraries(
   dwarfs
   metadata_thrift
   thrift_light
   folly
+  fsst
   ${Boost_LIBRARIES}
   PkgConfig::LIBARCHIVE
   PkgConfig::LIBLZ4
