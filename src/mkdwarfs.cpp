@@ -638,9 +638,8 @@ int mkdwarfs(int argc, char** argv) {
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
 
-  worker_group wg_writer("writer", num_workers);
-  worker_group wg_scanner(worker_group::load_adaptive, "scanner",
-                          max_scanner_workers);
+  worker_group wg_compress("compress", num_workers);
+  worker_group wg_scanner("scanner", max_scanner_workers);
 
   if (no_progress) {
     progress_mode = "none";
@@ -799,7 +798,7 @@ int mkdwarfs(int argc, char** argv) {
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 
-  filesystem_writer fsw(ofs, lgr, wg_writer, prog, bc, schema_bc, metadata_bc,
+  filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
                         mem_limit);
 
   auto ti = LOG_TIMED_INFO;
@@ -807,7 +806,7 @@ int mkdwarfs(int argc, char** argv) {
   if (recompress) {
     filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw,
                            rw_opts);
-    wg_writer.wait();
+    wg_compress.wait();
   } else {
     options.inode.with_similarity =
         force_similarity ||
