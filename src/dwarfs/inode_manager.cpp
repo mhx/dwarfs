@@ -22,11 +22,15 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <deque>
+#include <fstream>
 #include <limits>
 #include <numeric>
 #include <string>
 #include <vector>
+
+#include <fmt/format.h>
 
 #include "dwarfs/compiler.h"
 #include "dwarfs/entry.h"
@@ -370,6 +374,18 @@ template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
     inode_manager::order_cb const& fn, file_order_options const& file_order) {
   auto count = inodes_.size();
+
+  if (auto fname = ::getenv("DWARFS_NILSIMSA_DUMP")) {
+    std::ofstream ofs{fname};
+
+    for (auto const& i : inodes_) {
+      auto const& h = i->nilsimsa_similarity_hash();
+      if (!h.empty()) {
+        ofs << fmt::format("{0:016x}{1:016x}{2:016x}{3:016x}\t{4}\t{5}\n", h[0],
+                           h[1], h[2], h[3], i->size(), i->any()->name());
+      }
+    }
+  }
 
   std::vector<std::shared_ptr<inode>> inodes;
   inodes.swap(inodes_);
