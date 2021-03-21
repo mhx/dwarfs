@@ -25,6 +25,7 @@
 #include <ctime>
 #include <deque>
 #include <iterator>
+#include <mutex>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -76,119 +77,141 @@ class visitor_base : public entry_visitor {
 
 class scan_files_visitor : public visitor_base {
  public:
-  scan_files_visitor(worker_group& wg, os_access& os, progress& prog,
-                     uint32_t& inode_num)
+  scan_files_visitor(worker_group& wg, os_access& os, inode_manager& im,
+                     inode_options const& ino_opts, progress& prog)
       : wg_(wg)
       , os_(os)
-      , prog_(prog)
-      , inode_num_(inode_num) {}
+      , im_(im)
+      , ino_opts_(ino_opts)
+      , prog_(prog) {}
 
   void visit(file* p) override {
     if (p->num_hard_links() > 1) {
       auto ino = p->raw_inode_num();
-      auto [it, is_new] = cache_.emplace(ino, p);
+      auto [it, is_new] = hardlink_cache_.emplace(ino, p);
 
       if (!is_new) {
         p->hardlink(it->second, prog_);
         ++prog_.files_scanned;
+        hardlinked_.push_back(p);
         return;
       }
     }
 
     p->create_data();
-    ++inode_num_;
 
     wg_.add_job([=] {
+      auto const size = p->size();
+      std::shared_ptr<mmif> mm;
+
+      if (size > 0) {
+        mm = os_.map_file(p->path(), size);
+      }
+
       prog_.current.store(p);
-      p->scan(os_, prog_);
+      p->scan(mm, prog_);
       ++prog_.files_scanned;
+      std::shared_ptr<inode> inode;
+
+      {
+        std::lock_guard lock(mx_);
+        auto& ref = hash_[p->hash()];
+        if (ref.empty()) {
+          inode = im_.create_inode();
+          p->set_inode(inode);
+        } else {
+          p->set_inode(ref.front()->get_inode());
+        }
+        ref.push_back(p);
+      }
+
+      if (inode) {
+        if (ino_opts_.needs_scan()) {
+          if (mm) {
+            inode->scan(mm, ino_opts_);
+          }
+          ++prog_.inodes_scanned;
+        }
+      } else {
+        ++prog_.duplicate_files;
+        prog_.saved_by_deduplication += size;
+      }
     });
   }
 
- private:
-  worker_group& wg_;
-  os_access& os_;
-  progress& prog_;
-  folly::F14FastMap<uint64_t, file*> cache_;
-  uint32_t& inode_num_;
-};
+  void finalize(uint32_t& inode_num) {
+    hardlink_cache_.clear();
 
-class file_deduplication_visitor : public visitor_base {
- public:
-  file_deduplication_visitor(uint32_t first_file_inode)
-      : inode_num_{first_file_inode} {}
-
-  void visit(file* p) override { hash_[p->hash()].push_back(p); }
-
-  void deduplicate_files(worker_group& wg, os_access& os, inode_manager& im,
-                         inode_options const& ino_opts, progress& prog) {
-    auto check_scan = [&](auto inode) {
-      if (ino_opts.needs_scan()) {
-        wg.add_job([&, inode = std::move(inode)] {
-          prog.current = inode->any();
-          inode->scan(os, ino_opts);
-          ++prog.inodes_scanned;
-        });
-      }
-    };
-
-    for (auto& p : hash_) {
-      if (p.second.size() > p.second.front()->refcount()) {
-        continue;
-      }
-
-      auto fp = p.second.front();
-      auto inode = im.create_inode();
-
-      ++num_unique_;
-
-      fp->set_inode_num(inode_num_++);
-      fp->set_inode(inode);
-
-      inode->set_files(std::move(p.second));
-
-      check_scan(std::move(inode));
+    for (auto p : hardlinked_) {
+      auto& fv = hash_[p->hash()];
+      p->set_inode(fv.front()->get_inode());
+      fv.push_back(p);
     }
 
-    for (auto& p : hash_) {
-      auto& files = p.second;
+    hardlinked_.clear();
 
-      if (files.empty()) {
-        continue;
-      }
+    uint32_t obj_num = 0;
 
-      DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
+    finalize_inodes<true>(inode_num, obj_num);
+    finalize_inodes<false>(inode_num, obj_num);
 
-      std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
-        return a->path() < b->path();
-      });
-
-      auto inode = im.create_inode();
-
-      for (auto fp : files) {
-        if (!fp->inode_num()) {
-          fp->set_inode_num(inode_num_++);
-        }
-        fp->set_inode(inode);
-      }
-
-      auto dupes = files.size() - 1;
-      prog.duplicate_files += dupes;
-      prog.saved_by_deduplication += dupes * files.front()->size();
-
-      inode->set_files(std::move(files));
-
-      check_scan(std::move(inode));
-    }
+    hash_.clear();
   }
 
-  uint32_t inode_num_end() const { return inode_num_; }
   uint32_t num_unique() const { return num_unique_; }
 
  private:
-  folly::F14FastMap<std::string_view, inode::files_vector> hash_;
-  uint32_t inode_num_;
+  template <bool Unique>
+  void finalize_inodes(uint32_t& inode_num, uint32_t& obj_num) {
+    for (auto& p : hash_) {
+      auto& files = p.second;
+
+      if constexpr (Unique) {
+        std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
+          return a->path() < b->path();
+        });
+
+        // this is true regardless of how the files are ordered
+        if (files.size() > files.front()->refcount()) {
+          continue;
+        }
+
+        ++num_unique_;
+      } else {
+        if (files.empty()) {
+          continue;
+        }
+
+        DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
+      }
+
+      for (auto fp : files) {
+        // need to check because hardlinks share the same number
+        if (!fp->inode_num()) {
+          fp->set_inode_num(inode_num);
+          ++inode_num;
+        }
+      }
+
+      auto fp = files.front();
+      auto inode = fp->get_inode();
+      inode->set_num(obj_num);
+      inode->set_files(std::move(files));
+
+      ++obj_num;
+    }
+  }
+
+  worker_group& wg_;
+  os_access& os_;
+  inode_manager& im_;
+  inode_options const& ino_opts_;
+  progress& prog_;
   uint32_t num_unique_{0};
+  std::vector<file*> hardlinked_;
+  folly::F14FastMap<uint64_t, file*> hardlink_cache_;
+  std::mutex mx_;
+  folly::F14FastMap<std::string_view, inode::files_vector> hash_;
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -298,6 +321,8 @@ class save_directories_visitor : public visitor_base {
     dummy.parent_entry = 0;
     dummy.first_entry = mv2.dir_entries_ref()->size();
     mv2.directories.push_back(dummy);
+
+    directories_.clear();
   }
 
  private:
@@ -580,35 +605,23 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
 
+  inode_manager im(lgr_, prog);
+
   // now scan all files
-  uint32_t first_device_inode = first_file_inode;
-  scan_files_visitor sfv(wg_, *os_, prog, first_device_inode);
+  scan_files_visitor sfv(wg_, *os_, im, options_.inode, prog);
   root->accept(sfv);
 
   LOG_INFO << "waiting for background scanners...";
   wg_.wait();
 
-  LOG_INFO << "finding duplicate files...";
-
-  inode_manager im(lgr_, prog);
-
-  file_deduplication_visitor fdv(first_file_inode);
-  root->accept(fdv);
-
-  fdv.deduplicate_files(wg_, *os_, im, options_.inode, prog);
-
-  DWARFS_CHECK(fdv.inode_num_end() == first_device_inode,
-               "inconsistent inode numbers");
+  LOG_INFO << "finalizing file inodes...";
+  uint32_t first_device_inode = first_file_inode;
+  sfv.finalize(first_device_inode);
 
   LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
            << size_with_unit(prog.original_size) << " in "
            << prog.duplicate_files << "/" << prog.files_found
            << " duplicate files";
-
-  if (options_.inode.needs_scan()) {
-    LOG_INFO << "waiting for inode scanners...";
-    wg_.wait();
-  }
 
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
@@ -725,7 +738,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
-                                 fdv.num_unique());
+                                 sfv.num_unique());
   root->accept(ssfv);
   if (options_.pack_shared_files_table) {
     ssfv.pack_shared_files();

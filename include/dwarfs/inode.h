@@ -22,6 +22,7 @@
 #pragma once
 
 #include <iosfwd>
+#include <memory>
 #include <vector>
 
 #include <folly/small_vector.h>
@@ -35,7 +36,7 @@ class chunk;
 }
 
 class file;
-class os_access;
+class mmif;
 
 struct inode_options;
 
@@ -44,7 +45,9 @@ class inode : public object {
   using files_vector = folly::small_vector<file*, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
-  virtual void scan(os_access& os, inode_options const& options) = 0;
+  virtual void
+  scan(std::shared_ptr<mmif> const& mm, inode_options const& options) = 0;
+  virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
   virtual uint32_t similarity_hash() const = 0;
   virtual std::vector<uint64_t> const& nilsimsa_similarity_hash() const = 0;

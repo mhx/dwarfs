@@ -158,13 +158,22 @@ std::shared_ptr<inode> file::get_inode() const { return inode_; }
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void file::scan(os_access& os, progress& prog) {
+  std::shared_ptr<mmif> mm;
+
+  if (size_t s = size(); s > 0) {
+    mm = os.map_file(path(), s);
+  }
+
+  scan(mm, prog);
+}
+
+void file::scan(std::shared_ptr<mmif> const& mm, progress& prog) {
   constexpr auto alg = checksum::algorithm::SHA1;
   static_assert(checksum::digest_size(alg) == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
-    constexpr size_t chunk_size = 16 << 20;
+    constexpr size_t chunk_size = 32 << 20;
     prog.original_size += s;
-    auto mm = os.map_file(path(), s);
     checksum cs(alg);
     size_t offset = 0;
 

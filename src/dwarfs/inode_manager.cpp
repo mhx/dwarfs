@@ -37,7 +37,6 @@
 #include "dwarfs/mmif.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/options.h"
-#include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
@@ -90,10 +89,12 @@ class inode_ : public inode {
  public:
   using chunk_type = thrift::metadata::chunk;
 
-  inode_(uint32_t n)
-      : num_{n} {}
+  void set_num(uint32_t num) override {
+    DWARFS_CHECK(!num_, "attempt to set inode number multiple times");
+    num_ = num;
+  }
 
-  uint32_t num() const override { return num_; }
+  uint32_t num() const override { return num_.value(); }
 
   uint32_t similarity_hash() const override {
     if (files_.empty()) {
@@ -117,45 +118,41 @@ class inode_ : public inode {
     files_ = std::move(fv);
   }
 
-  void scan(os_access& os, inode_options const& opts) override {
+  void
+  scan(std::shared_ptr<mmif> const& mm, inode_options const& opts) override {
     if (opts.needs_scan()) {
-      auto file = files_.front();
-      auto size = file->size();
+      similarity sc;
+      nilsimsa nc;
 
-      if (size > 0) {
-        similarity sc;
-        nilsimsa nc;
-
-        auto update_hashes = [&](uint8_t const* data, size_t size) {
-          if (opts.with_similarity) {
-            sc.update(data, size);
-          }
-
-          if (opts.with_nilsimsa) {
-            nc.update(data, size);
-          }
-        };
-
-        constexpr size_t chunk_size = 16 << 20;
-        auto mm = os.map_file(file->path(), size);
-        size_t offset = 0;
-
-        while (size >= chunk_size) {
-          update_hashes(mm->as<uint8_t>(offset), chunk_size);
-          mm->release_until(offset);
-          offset += chunk_size;
-          size -= chunk_size;
-        }
-
-        update_hashes(mm->as<uint8_t>(offset), size);
-
+      auto update_hashes = [&](uint8_t const* data, size_t size) {
         if (opts.with_similarity) {
-          similarity_hash_ = sc.finalize();
+          sc.update(data, size);
         }
 
         if (opts.with_nilsimsa) {
-          nilsimsa_similarity_hash_ = nc.finalize();
+          nc.update(data, size);
         }
+      };
+
+      constexpr size_t chunk_size = 32 << 20;
+      size_t offset = 0;
+      size_t size = mm->size();
+
+      while (size >= chunk_size) {
+        update_hashes(mm->as<uint8_t>(offset), chunk_size);
+        mm->release_until(offset);
+        offset += chunk_size;
+        size -= chunk_size;
+      }
+
+      update_hashes(mm->as<uint8_t>(offset), size);
+
+      if (opts.with_similarity) {
+        similarity_hash_ = sc.finalize();
+      }
+
+      if (opts.with_nilsimsa) {
+        nilsimsa_similarity_hash_ = nc.finalize();
       }
     }
   }
@@ -184,7 +181,7 @@ class inode_ : public inode {
   }
 
  private:
-  uint32_t const num_;
+  std::optional<uint32_t> num_;
   uint32_t similarity_hash_{0};
   files_vector files_;
   std::vector<chunk_type> chunks_;
@@ -201,7 +198,7 @@ class inode_manager_ final : public inode_manager::impl {
       , prog_(prog) {}
 
   std::shared_ptr<inode> create_inode() override {
-    auto ino = std::make_shared<inode_>(inodes_.size());
+    auto ino = std::make_shared<inode_>();
     inodes_.push_back(ino);
     return ino;
   }

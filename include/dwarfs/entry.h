@@ -48,6 +48,7 @@ class link;
 class dir;
 class device;
 class inode;
+class mmif;
 class os_access;
 class progress;
 class global_entry_data;
@@ -124,6 +125,7 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
+  void scan(std::shared_ptr<mmif> const& mm, progress& prog);
   void create_data();
   void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;
