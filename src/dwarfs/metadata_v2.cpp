@@ -580,9 +580,15 @@ class metadata_ final : public metadata_v2::impl {
     std::vector<uint32_t> chunk_table;
 
     if (auto opts = meta_.options(); opts and opts->packed_chunk_table()) {
+      auto ti = LOG_TIMED_DEBUG;
+
       chunk_table.resize(meta_.chunk_table().size());
       std::partial_sum(meta_.chunk_table().begin(), meta_.chunk_table().end(),
                        chunk_table.begin());
+
+      ti << "unpacked chunk table ("
+         << size_with_unit(sizeof(chunk_table.front()) * chunk_table.capacity())
+         << ")";
     }
 
     return chunk_table;
@@ -686,7 +692,7 @@ void metadata_<LoggerPolicy>::dump(
     DWARFS_CHECK(cr, "invalid chunk range");
     os << " [" << cr->begin_ << ", " << cr->end_ << "]";
     os << " " << file_size(iv, mode) << "\n";
-    if (detail_level > 3) {
+    if (detail_level > 4) {
       icb(indent + "  ", inode);
     }
   } else if (S_ISDIR(mode)) {
@@ -771,6 +777,10 @@ void metadata_<LoggerPolicy>::dump(
     }
   }
 
+  if (detail_level > 1) {
+    analyze_frozen(os, meta_, data_.size(), detail_level);
+  }
+
   if (detail_level > 2) {
     os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
     os << "file_inode_offset: " << file_inode_offset_ << std::endl;
@@ -804,16 +814,12 @@ void metadata_<LoggerPolicy>::dump(
     }
   }
 
-  if (detail_level > 1) {
-    analyze_frozen(os, meta_, data_.size(), detail_level);
-  }
-
-  if (detail_level > 4) {
-    os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
-  }
-
-  if (detail_level > 2) {
+  if (detail_level > 3) {
     dump(os, "", root_, detail_level, icb);
+  }
+
+  if (detail_level > 5) {
+    os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
   }
 }
 
