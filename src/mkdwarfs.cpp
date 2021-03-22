@@ -847,7 +847,7 @@ int mkdwarfs(int argc, char** argv) {
     err << "without errors";
   }
 
-  ti << "filesystem " << (recompress ? "rewritten" : "created ") << err.str();
+  ti << "filesystem " << (recompress ? "rewritten " : "created ") << err.str();
 
   return prog.errors > 0;
 }
