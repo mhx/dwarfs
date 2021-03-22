@@ -19,8 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/compiler.h"
 #include "dwarfs/nilsimsa.h"
+#include "dwarfs/compiler.h"
 
 namespace dwarfs {
 

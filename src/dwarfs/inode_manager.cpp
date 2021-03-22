@@ -91,7 +91,8 @@ class inode_ : public inode {
   using chunk_type = thrift::metadata::chunk;
 
   inode_() {
-    std::fill(nilsimsa_similarity_hash_.begin(), nilsimsa_similarity_hash_.end(), 0);
+    std::fill(nilsimsa_similarity_hash_.begin(),
+              nilsimsa_similarity_hash_.end(), 0);
   }
 
   void set_num(uint32_t num) override {
