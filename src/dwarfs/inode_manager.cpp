@@ -93,6 +93,10 @@ class inode_ : public inode {
  public:
   using chunk_type = thrift::metadata::chunk;
 
+  inode_() {
+    std::fill(nilsimsa_similarity_hash_.begin(), nilsimsa_similarity_hash_.end(), 0);
+  }
+
   void set_num(uint32_t num) override {
     DWARFS_CHECK(!num_, "attempt to set inode number multiple times");
     num_ = num;
@@ -107,7 +111,7 @@ class inode_ : public inode {
     return similarity_hash_;
   }
 
-  std::vector<uint64_t> const& nilsimsa_similarity_hash() const override {
+  nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file");
     }
@@ -156,7 +160,7 @@ class inode_ : public inode {
       }
 
       if (opts.with_nilsimsa) {
-        nilsimsa_similarity_hash_ = nc.finalize();
+        nc.finalize(nilsimsa_similarity_hash_);
       }
     }
   }
@@ -189,7 +193,7 @@ class inode_ : public inode {
   uint32_t similarity_hash_{0};
   files_vector files_;
   std::vector<chunk_type> chunks_;
-  std::vector<uint64_t> nilsimsa_similarity_hash_;
+  nilsimsa::hash_type nilsimsa_similarity_hash_;
 };
 
 } // namespace

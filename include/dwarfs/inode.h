@@ -27,6 +27,7 @@
 
 #include <folly/small_vector.h>
 
+#include "dwarfs/nilsimsa.h"
 #include "dwarfs/object.h"
 
 namespace dwarfs {
@@ -50,7 +51,7 @@ class inode : public object {
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
   virtual uint32_t similarity_hash() const = 0;
-  virtual std::vector<uint64_t> const& nilsimsa_similarity_hash() const = 0;
+  virtual nilsimsa::hash_type const& nilsimsa_similarity_hash() const = 0;
   virtual size_t size() const = 0;
   virtual file const* any() const = 0;
   virtual files_vector const& files() const = 0;

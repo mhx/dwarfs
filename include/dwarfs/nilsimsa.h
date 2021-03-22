@@ -21,10 +21,10 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <type_traits>
-#include <vector>
 
 #include "dwarfs/compiler.h"
 
@@ -45,11 +45,13 @@ namespace dwarfs {
 
 class nilsimsa {
  public:
+  using hash_type = std::array<uint64_t, 4>;
+
   nilsimsa();
   ~nilsimsa();
 
   void update(uint8_t const* data, size_t size);
-  std::vector<uint64_t> finalize() const;
+  void finalize(hash_type& hash) const;
 
 #ifdef DWARFS_MULTIVERSIONING
   __attribute__((target("popcnt"))) static int

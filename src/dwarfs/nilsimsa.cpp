@@ -19,8 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <array>
-
 #include "dwarfs/compiler.h"
 #include "dwarfs/nilsimsa.h"
 
@@ -76,7 +74,7 @@ class nilsimsa::impl {
     update_fast(data, size);
   }
 
-  std::vector<uint64_t> finalize() const {
+  void finalize(hash_type& hash) const {
     size_t total = 0;
 
     if (size_ == 3) {
@@ -89,16 +87,13 @@ class nilsimsa::impl {
 
     size_t threshold = total / acc_.size();
 
-    std::vector<uint64_t> hash;
-    hash.resize(4);
+    std::fill(hash.begin(), hash.end(), 0);
 
     for (size_t i = 0; i < acc_.size(); i++) {
       if (acc_[i] > threshold) {
         hash[i >> 6] |= UINT64_C(1) << (i & 0x3F);
       }
     }
-
-    return hash;
   }
 
  private:
@@ -195,7 +190,7 @@ void nilsimsa::update(uint8_t const* data, size_t size) {
   impl_->update(data, size);
 }
 
-std::vector<uint64_t> nilsimsa::finalize() const { return impl_->finalize(); }
+void nilsimsa::finalize(hash_type& hash) const { impl_->finalize(hash); }
 
 #ifdef DWARFS_MULTIVERSIONING
 __attribute__((target("popcnt"))) int
