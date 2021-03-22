@@ -475,7 +475,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,
-                            size_t num_readers) {
+                            size_t num_readers, bool check_integrity) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm);
@@ -493,7 +493,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
         DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
       }
 
-      if (!s.verify(*mm)) {
+      if (check_integrity and !s.verify(*mm)) {
         DWARFS_THROW(runtime_error,
                      "integrity check error in section: " + s.name());
       }

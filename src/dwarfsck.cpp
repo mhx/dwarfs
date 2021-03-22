@@ -47,6 +47,7 @@ int dwarfsck(int argc, char** argv) {
   size_t num_workers;
   int detail;
   bool json = false;
+  bool check_integrity = false;
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -60,6 +61,9 @@ int dwarfsck(int argc, char** argv) {
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
+    ("check-integrity",
+        po::value<bool>(&check_integrity)->zero_tokens(),
+        "check integrity of each block")
     ("json",
         po::value<bool>(&json)->zero_tokens(),
         "print metadata in JSON format")
@@ -111,7 +115,8 @@ int dwarfsck(int argc, char** argv) {
       filesystem_v2 fs(lgr, mm);
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
     } else {
-      filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers);
+      filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
+                              check_integrity);
     }
   } catch (system_error const& e) {
     LOG_ERROR << folly::exceptionStr(e);
