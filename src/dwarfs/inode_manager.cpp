@@ -79,9 +79,6 @@ namespace dwarfs {
   static_assert(true, "")
 
 #ifdef DWARFS_MULTIVERSIONING
-#ifdef __clang__
-__attribute__((target("arch=skylake"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
-#endif
 __attribute__((target("popcnt"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
 __attribute__((target("default")))
 #endif
