@@ -23,11 +23,14 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 
 namespace dwarfs {
+
+class logger;
 
 class string_table {
  public:
@@ -48,7 +51,7 @@ class string_table {
     bool force_pack_data;
   };
 
-  string_table(PackedTableView v);
+  string_table(logger& lgr, std::string_view name, PackedTableView v);
   string_table(LegacyTableView v);
 
   std::string operator[](size_t index) const { return impl_->lookup(index); }

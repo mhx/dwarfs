@@ -224,7 +224,7 @@ void analyze_frozen(std::ostream& os,
     os << u.second;
   }
 
-  if (detail > 2) {
+  if (detail > 3) {
     l->print(os, 0);
     os << '\n';
   }
@@ -241,7 +241,7 @@ class metadata_ final : public metadata_v2::impl {
             metadata_options const& options, int inode_offset)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
-      , global_(&meta_)
+      , global_(lgr, &meta_)
       , root_(dir_entry_view::from_dir_entry_index(0, &global_))
       , log_(lgr)
       , inode_offset_(inode_offset)
@@ -261,7 +261,7 @@ class metadata_ final : public metadata_v2::impl {
                            : shared_files_.size()))
       , options_(options)
       , symlinks_(meta_.compact_symlinks()
-                      ? string_table(*meta_.compact_symlinks())
+                      ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                       : string_table(meta_.symlinks())) {
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {

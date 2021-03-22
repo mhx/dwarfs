@@ -41,13 +41,14 @@ template <typename T>
 class metadata_;
 
 class dir_entry_view;
+class logger;
 
 class global_metadata {
  public:
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
-  global_metadata(Meta const* meta);
+  global_metadata(logger& lgr, Meta const* meta);
 
   Meta const* meta() const { return meta_; }
 

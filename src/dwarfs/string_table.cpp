@@ -27,6 +27,7 @@
 #include <fsst.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/string_table.h"
 
 namespace dwarfs {
@@ -47,10 +48,15 @@ class legacy_string_table : public string_table::impl {
 template <bool PackedData, bool PackedIndex>
 class packed_string_table : public string_table::impl {
  public:
-  packed_string_table(string_table::PackedTableView v)
+  packed_string_table(logger& lgr, std::string_view name,
+                      string_table::PackedTableView v)
       : v_{v}
       , buffer_{v_.buffer().data()} {
+    LOG_PROXY(debug_logger_policy, lgr);
+
     if constexpr (PackedData) {
+      auto ti = LOG_TIMED_DEBUG;
+
       auto st = v_.symtab();
       DWARFS_CHECK(st, "symtab unexpectedly unset");
       dec_ = std::make_unique<fsst_decoder_t>();
@@ -63,13 +69,20 @@ class packed_string_table : public string_table::impl {
                      fmt::format("read {0} symtab bytes, expected {1}", read,
                                  st->size()));
       }
+
+      ti << "imported dictionary for " << name << " string table";
     }
 
     if constexpr (PackedIndex) {
+      auto ti = LOG_TIMED_DEBUG;
+
       DWARFS_CHECK(v_.packed_index(), "index unexpectedly not packed");
       index_.resize(v_.index().size() + 1);
       std::partial_sum(v_.index().begin(), v_.index().end(),
                        index_.begin() + 1);
+
+      ti << "unpacked index for " << name << " string table ("
+         << sizeof(index_.front()) * index_.capacity() << " bytes)";
     }
   }
 
@@ -113,26 +126,28 @@ string_table::string_table(LegacyTableView v)
 namespace {
 
 std::unique_ptr<string_table::impl>
-build_string_table(string_table::PackedTableView v) {
+build_string_table(logger& lgr, std::string_view name,
+                   string_table::PackedTableView v) {
   if (v.symtab()) {
     if (v.packed_index()) {
-      return std::make_unique<packed_string_table<true, true>>(v);
+      return std::make_unique<packed_string_table<true, true>>(lgr, name, v);
     } else {
-      return std::make_unique<packed_string_table<true, false>>(v);
+      return std::make_unique<packed_string_table<true, false>>(lgr, name, v);
     }
   } else {
     if (v.packed_index()) {
-      return std::make_unique<packed_string_table<false, true>>(v);
+      return std::make_unique<packed_string_table<false, true>>(lgr, name, v);
     } else {
-      return std::make_unique<packed_string_table<false, false>>(v);
+      return std::make_unique<packed_string_table<false, false>>(lgr, name, v);
     }
   }
 }
 
 } // namespace
 
-string_table::string_table(PackedTableView v)
-    : impl_{build_string_table(v)} {}
+string_table::string_table(logger& lgr, std::string_view name,
+                           PackedTableView v)
+    : impl_{build_string_table(lgr, name, v)} {}
 
 thrift::metadata::string_table
 string_table::pack(std::vector<std::string> const& input,

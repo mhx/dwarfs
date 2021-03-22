@@ -22,6 +22,7 @@
 #include <queue>
 
 #include "dwarfs/error.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/overloaded.h"
 
@@ -32,46 +33,50 @@ namespace dwarfs {
 namespace {
 
 std::vector<thrift::metadata::directory>
-unpack_directories(global_metadata::Meta const* meta) {
+unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
   std::vector<thrift::metadata::directory> directories;
 
   if (auto opts = meta->options(); opts and opts->packed_directories()) {
+    LOG_PROXY(debug_logger_policy, lgr);
+
+    auto ti = LOG_TIMED_DEBUG;
+
     auto dirent = *meta->dir_entries();
     auto metadir = meta->directories();
 
-    {
-      directories.resize(metadir.size());
+    directories.resize(metadir.size());
 
-      // delta-decode first entries first
-      directories[0].first_entry = metadir[0].first_entry();
+    // delta-decode first entries first
+    directories[0].first_entry = metadir[0].first_entry();
 
-      for (size_t i = 1; i < directories.size(); ++i) {
-        directories[i].first_entry =
-            directories[i - 1].first_entry + metadir[i].first_entry();
-      }
+    for (size_t i = 1; i < directories.size(); ++i) {
+      directories[i].first_entry =
+          directories[i - 1].first_entry + metadir[i].first_entry();
+    }
 
-      // then traverse to recover parent entries
-      std::queue<uint32_t> queue;
-      queue.push(0);
+    // then traverse to recover parent entries
+    std::queue<uint32_t> queue;
+    queue.push(0);
 
-      while (!queue.empty()) {
-        auto parent = queue.front();
-        queue.pop();
+    while (!queue.empty()) {
+      auto parent = queue.front();
+      queue.pop();
 
-        auto p_ino = dirent[parent].inode_num();
+      auto p_ino = dirent[parent].inode_num();
 
-        auto beg = directories[p_ino].first_entry;
-        auto end = directories[p_ino + 1].first_entry;
+      auto beg = directories[p_ino].first_entry;
+      auto end = directories[p_ino + 1].first_entry;
 
-        for (auto e = beg; e < end; ++e) {
-          if (auto e_ino = dirent[e].inode_num();
-              e_ino < (directories.size() - 1)) {
-            directories[e_ino].parent_entry = parent;
-            queue.push(e);
-          }
+      for (auto e = beg; e < end; ++e) {
+        if (auto e_ino = dirent[e].inode_num();
+            e_ino < (directories.size() - 1)) {
+          directories[e_ino].parent_entry = parent;
+          queue.push(e);
         }
       }
     }
+
+    ti << "unpacked directories table";
   }
 
   return directories;
@@ -79,13 +84,14 @@ unpack_directories(global_metadata::Meta const* meta) {
 
 } // namespace
 
-global_metadata::global_metadata(Meta const* meta)
+global_metadata::global_metadata(logger& lgr, Meta const* meta)
     : meta_{meta}
-    , directories_storage_{unpack_directories(meta_)}
+    , directories_storage_{unpack_directories(lgr, meta_)}
     , directories_{directories_storage_.empty() ? nullptr
                                                 : directories_storage_.data()}
-    , names_{meta_->compact_names() ? string_table(*meta_->compact_names())
-                                    : string_table(meta_->names())} {}
+    , names_{meta_->compact_names()
+                 ? string_table(lgr, "names", *meta_->compact_names())
+                 : string_table(meta_->names())} {}
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
   return directories_ ? directories_[ino].first_entry
