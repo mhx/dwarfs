@@ -40,7 +40,7 @@ enum class compression_type : uint8_t {
 
 class block_compressor {
  public:
-  block_compressor(const std::string& spec, size_t block_size = 0);
+  block_compressor(const std::string& spec);
 
   block_compressor(const block_compressor& bc)
       : impl_(bc.impl_->clone()) {}
@@ -56,12 +56,6 @@ class block_compressor {
     return impl_->compress(std::move(data));
   }
 
-  void append(const uint8_t* data, size_t size, bool last) {
-    impl_->append(data, size, last);
-  }
-
-  std::vector<uint8_t> move_data() { return impl_->move_data(); }
-
   compression_type type() const { return impl_->type(); }
 
   class impl {
@@ -70,14 +64,10 @@ class block_compressor {
 
     virtual std::unique_ptr<impl> clone() const = 0;
 
-    // TODO: obsolete
     virtual std::vector<uint8_t>
     compress(const std::vector<uint8_t>& data) const = 0;
     virtual std::vector<uint8_t>
     compress(std::vector<uint8_t>&& data) const = 0;
-
-    virtual void append(const uint8_t* data, size_t size, bool last) = 0;
-    virtual std::vector<uint8_t> move_data() = 0;
 
     virtual compression_type type() const = 0;
   };
