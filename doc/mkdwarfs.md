@@ -67,13 +67,6 @@ Most other options are concerned with compression tuning:
     to the number of processors available on your system. Use this option if
     you want to limit the resources used by `mkdwarfs`.
 
-  * `-M`, `--max-scanner-workers=`*value*:
-    Maximum number of worker threads used for building the filesystem. This
-    defaults to the number of processors available on your system, but the
-    number of active workers will be automatically adjusted based on load.
-    With fast SSDs, scanning multiple files is probably fine, but with older
-    spinning disks, having less concurrency can improve overall speed.
-
   * `-L`, `--memory-limit=`*value*:
     Approximately how much memory you want `mkdwarfs` to use during filesystem
     creation. Note that currently this will only affect the block manager

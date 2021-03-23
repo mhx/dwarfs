@@ -333,7 +333,7 @@ int mkdwarfs(int argc, char** argv) {
   std::string path, output, memory_limit, script_arg, compression,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
-  size_t num_workers, max_scanner_workers;
+  size_t num_workers;
   bool no_progress = false, plain_string_tables = false;
   unsigned level;
   uint16_t uid, gid;
@@ -368,9 +368,6 @@ int mkdwarfs(int argc, char** argv) {
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of writer worker threads")
-    ("max-scanner-workers,M",
-        po::value<size_t>(&max_scanner_workers)->default_value(num_cpu),
-        "max number of scanner worker threads")
     ("max-lookback-blocks,B",
         po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
         "how many blocks to scan for segments")
@@ -639,7 +636,7 @@ int mkdwarfs(int argc, char** argv) {
   size_t mem_limit = parse_size_with_unit(memory_limit);
 
   worker_group wg_compress("compress", num_workers);
-  worker_group wg_scanner("scanner", max_scanner_workers);
+  worker_group wg_scanner("scanner", num_workers);
 
   if (no_progress) {
     progress_mode = "none";
