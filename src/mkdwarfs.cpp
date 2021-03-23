@@ -392,9 +392,9 @@ int mkdwarfs(int argc, char** argv) {
     ("metadata-compression",
         po::value<std::string>(&metadata_compression),
         "metadata compression algorithm")
-    ("pack-metadata",
+    ("pack-metadata,P",
         po::value<std::string>(&pack_metadata)->default_value("all"),
-        "pack certain metadata elements (none, all, chunk_table, "
+        "pack certain metadata elements (all, none, mmap, chunk_table, "
         "directories, shared_files, names, names_index, symlinks, "
         "symlinks_index)")
     ("plain-string-tables",
@@ -746,6 +746,14 @@ int mkdwarfs(int argc, char** argv) {
       options.pack_names_index = true;
       options.pack_symlinks = true;
       options.pack_symlinks_index = true;
+    } else if (pack_metadata == "mmap") {
+      options.pack_chunk_table = false;
+      options.pack_directories = false;
+      options.pack_shared_files_table = false;
+      options.pack_names = true;
+      options.pack_names_index = false;
+      options.pack_symlinks = true;
+      options.pack_symlinks_index = false;
     } else {
       std::vector<std::string> pack_opts;
       boost::split(pack_opts, pack_metadata, boost::is_any_of(","));
