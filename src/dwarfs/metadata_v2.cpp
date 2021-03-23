@@ -41,6 +41,7 @@
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
+#include <fmt/locale.h>
 
 #include <folly/container/F14Set.h>
 
@@ -102,6 +103,7 @@ void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
+  std::locale loc("");
 
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();
@@ -111,13 +113,14 @@ void analyze_frozen(std::ostream& os,
 
   auto fmt_size = [&](auto const& name, size_t count, size_t size) {
     return fmt::format(
-        "{0:>10} {1:.<20}{2:.>13L} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
+        loc, "{0:>14L} {1:.<20}{2:.>16L} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
         count, name, size, 100.0 * size / total_size,
         count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
   auto fmt_detail = [&](auto const& name, size_t count, size_t size) {
-    return fmt::format("           {0:<20}{1:>13L} bytes {2:5.1f}% "
+    return fmt::format(loc,
+                       "               {0:<20}{1:>16L} bytes {2:5.1f}% "
                        "{3:5.1f} bytes/item\n",
                        name, size, 100.0 * size / total_size,
                        count > 0 ? static_cast<double>(size) / count : 0.0);
@@ -216,7 +219,8 @@ void analyze_frozen(std::ostream& os,
 
   os << "metadata memory usage:\n";
   os << fmt::format(
-      "           {0:.<20}{1:.>13L} bytes       {2:6.1f} bytes/inode\n",
+      loc,
+      "               {0:.<20}{1:.>16L} bytes       {2:6.1f} bytes/inode\n",
       "total metadata", total_size,
       static_cast<double>(total_size) / meta.inodes().size());
 
@@ -748,9 +752,10 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 0) {
-    os << "block size: " << stbuf.f_bsize << std::endl;
+    os << "block size: " << size_with_unit(stbuf.f_bsize) << std::endl;
     os << "inode count: " << stbuf.f_files << std::endl;
-    os << "original filesystem size: " << stbuf.f_blocks << std::endl;
+    os << "original filesystem size: " << size_with_unit(stbuf.f_blocks)
+       << std::endl;
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       auto boolopt = [&](auto const& name, bool value) {

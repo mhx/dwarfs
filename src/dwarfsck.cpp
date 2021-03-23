@@ -56,7 +56,7 @@ int dwarfsck(int argc, char** argv) {
         po::value<std::string>(&input),
         "input filesystem")
     ("detail,d",
-        po::value<int>(&detail)->default_value(1),
+        po::value<int>(&detail)->default_value(2),
         "detail level")
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
