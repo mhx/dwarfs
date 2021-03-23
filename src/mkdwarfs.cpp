@@ -795,6 +795,15 @@ int mkdwarfs(int argc, char** argv) {
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 
+  size_t min_memory_req = num_workers * (1 << cfg.block_size_bits);
+
+  if (mem_limit < min_memory_req && compression != "null") {
+    LOG_WARN << "low memory limit (" << size_with_unit(mem_limit) << "), need "
+             << size_with_unit(min_memory_req) << " to efficiently compress "
+             << size_with_unit(1 << cfg.block_size_bits) << " blocks with "
+             << num_workers << " threads";
+  }
+
   filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
                         mem_limit);
 
