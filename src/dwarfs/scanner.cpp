@@ -75,17 +75,17 @@ class visitor_base : public entry_visitor {
   void visit(device*) override {}
 };
 
-class scan_files_visitor : public visitor_base {
+class file_scanner {
  public:
-  scan_files_visitor(worker_group& wg, os_access& os, inode_manager& im,
-                     inode_options const& ino_opts, progress& prog)
+  file_scanner(worker_group& wg, os_access& os, inode_manager& im,
+               inode_options const& ino_opts, progress& prog)
       : wg_(wg)
       , os_(os)
       , im_(im)
       , ino_opts_(ino_opts)
       , prog_(prog) {}
 
-  void visit(file* p) override {
+  void scan(file* p) {
     if (p->num_hard_links() > 1) {
       auto ino = p->raw_inode_num();
       auto [it, is_new] = hardlink_cache_.emplace(ino, p);
@@ -430,7 +430,8 @@ class scanner_ final : public scanner::impl {
             progress& prog) override;
 
  private:
-  std::shared_ptr<entry> scan_tree(const std::string& path, progress& prog);
+  std::shared_ptr<entry>
+  scan_tree(const std::string& path, progress& prog, file_scanner& fs);
 
   const block_manager::config& cfg_;
   const scanner_options& options_;
@@ -460,7 +461,8 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
-scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
+scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
+                                  file_scanner& fs) {
   auto root = entry_->create(*os_, path);
 
   if (root->type() != entry::E_DIR) {
@@ -532,7 +534,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 
             switch (pe->type()) {
             case entry::E_DIR:
-              prog.current.store(pe.get());
+              // prog.current.store(pe.get());
               prog.dirs_found++;
               pe->scan(*os_, prog);
               subdirs.push_back(pe);
@@ -540,6 +542,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
 
             case entry::E_FILE:
               prog.files_found++;
+              fs.scan(dynamic_cast<file*>(pe.get()));
               break;
 
             case entry::E_LINK:
@@ -578,8 +581,6 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog) {
   return root;
 }
 
-// TODO: all _inode stuff should be named _index or something
-
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
@@ -587,7 +588,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   prog.set_status_function(status_string);
 
-  auto root = scan_tree(path, prog);
+  inode_manager im(lgr_, prog);
+  file_scanner fs(wg_, *os_, im, options_.inode, prog);
+
+  auto root = scan_tree(path, prog, fs);
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";
@@ -605,18 +609,12 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   link_set_inode_visitor lsiv(first_file_inode);
   root->accept(lsiv, true);
 
-  inode_manager im(lgr_, prog);
-
-  // now scan all files
-  scan_files_visitor sfv(wg_, *os_, im, options_.inode, prog);
-  root->accept(sfv);
-
   LOG_INFO << "waiting for background scanners...";
   wg_.wait();
 
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
-  sfv.finalize(first_device_inode);
+  fs.finalize(first_device_inode);
 
   LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
            << size_with_unit(prog.original_size) << " in "
@@ -738,7 +736,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
-                                 sfv.num_unique());
+                                 fs.num_unique());
   root->accept(ssfv);
   if (options_.pack_shared_files_table) {
     ssfv.pack_shared_files();
