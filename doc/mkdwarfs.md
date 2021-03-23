@@ -76,24 +76,24 @@ Most other options are concerned with compression tuning:
     good option when building large filesystems with expensive compression
     algorithms.
 
-  * `-C`, `--compression=`*algorithm*[:*algopt*[=*value*]]...:
+  * `-C`, `--compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
     The compression algorithm and configuration used for file system data.
     The value for this option is a colon-separated list. The first item is
     the compression algorithm, the remaining item are its options. Options
-    can be either boolean or have a value. For details on which algorithms
+    can be either boolean or have a value. For details on which algori`thms
     and options are available, see the output of `mkdwarfs --help`. `zstd`
     will give you the best compression while still keeping decompression
     *very* fast. `lzma` will compress even better, but decompression will
     be around ten times slower.
 
-  * `--schema-compression=`*algorithm*[:*algopt*[=*value*]]...:
+  * `--schema-compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
     The compression algorithm and configuration used for the metadata schema.
     Takes the same arguments as `--compression` above. The schema is *very*
     small, in the hundreds of bytes, so this is only relevant for extremely
     small file systems. The default (`zstd`) has shown to give considerably
     better results than any other algorithms.
 
-  * `--metadata-compression=`*algorithm*[:*algopt*[=*value*]]...:
+  * `--metadata-compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
     The compression algorithm and configuration used for the metadata.
     Takes the same arguments as `--compression` above. The metadata has been
     optimized for very little redundancy and leaving it uncompressed, the
@@ -103,7 +103,7 @@ Most other options are concerned with compression tuning:
     care about mount time, you can safely choose `lzma` compression here, as
     the data will only have to be decompressed once when mounting the image.
 
-  * `--recompress`[`=all|block|metadata|none`]:
+  * `--recompress`[`=all`|`=block`|`=metadata`|`=none`]:
     Take an existing DwarFS file system and recompress it using different
     compression algorithms. If no argument or `all` is given, all sections
     in the file system image will be recompressed. Note that *only* the
@@ -118,6 +118,21 @@ Most other options are concerned with compression tuning:
     are recompressed. This can be useful if you want to switch from compressed
     metadata to uncompressed metadata without having to rebuild or recompress
     all the other data.
+
+  * `-P`, `--pack-metadata=all`|`none`|`mmap`|[`chunk_table`|`directories`|`shared_files`|`names`|`names_index`|`symlinks`|`symlinks_index`[`,`...]]:
+    Which metadata information to store in packed format. This is primarily
+    useful when storing metadata uncompressed, as it allows for smaller
+    metadata block size without having to turn on compression. Keep in mind,
+    though, that *some* of the packed data must be unpacked into memory when
+    reading the file system. If you want a purely memory-mappable metadata
+    block, use the `mmap` argument, which will turn on `names` and `symlinks`.
+    Tweaking these options is really only interesting when dealing with
+    file systems that contain hundreds of thousands of files.
+
+  * `--plain-string-tables`:
+    Store names and symlinks in "plain old" string tables. These use more
+    memory, but make it easier to interpret the metadata, if necessary. You
+    can safely ignore this option unless you want to debug the metadata.
 
   * `--set-owner=`*uid*:
     Set the owner for all entities in the file system. This can reduce the
@@ -160,13 +175,16 @@ Most other options are concerned with compression tuning:
     enough for adding. A *limit* of 255 means "essentially identical", whereas
     a *limit* of 0 means "not similar at all". The *depth* determines up to
     how many inodes can be checked at most while searching for a similar one.
-    To avoid nilsimsa ordering to become a bottleneck when ordering lots of
+    To avoid `nilsimsa` ordering to become a bottleneck when ordering lots of
     small files, the *depth* is adjusted dynamically to keep the input queue
     to the segmentation/compression stages adequately filled. You can specify
     how much the *depth* can be adjusted by also specifying *mindepth*.
     The default if you omit these values is a *limit* of 255, a *depth*
     of 20000 and a *mindepth* of 1000. Note that if you want reproducible
-    results, you need to set *depth* and *mindepth* to the same value.
+    results, you need to set *depth* and *mindepth* to the same value. Also
+    note that when you're compressing lots (as in hundreds of thousands) of
+    small files, ordering them by `similarity` instead of `nilsimsa` is likely
+    going to speed things up significantly without impacting compression too much.
     Last but not least, if scripting support is built into `mkdwarfs`, you can
     choose `script` to let the script determine the order.
 
