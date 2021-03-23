@@ -167,10 +167,6 @@ class file_scanner {
       auto& files = p.second;
 
       if constexpr (Unique) {
-        std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
-          return a->path() < b->path();
-        });
-
         // this is true regardless of how the files are ordered
         if (files.size() > files.front()->refcount()) {
           continue;
@@ -184,6 +180,11 @@ class file_scanner {
 
         DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
       }
+
+      // this isn't strictly necessary, but helps metadata compression
+      std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
+        return a->path() < b->path();
+      });
 
       for (auto fp : files) {
         // need to check because hardlinks share the same number
