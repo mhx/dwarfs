@@ -56,6 +56,10 @@ class string_table {
 
   std::string operator[](size_t index) const { return impl_->lookup(index); }
 
+  std::vector<std::string> unpack() const { return impl_->unpack(); }
+
+  bool is_packed() const { return impl_->is_packed(); }
+
   static thrift::metadata::string_table
   pack(std::vector<std::string> const& input,
        pack_options const& options = pack_options());
@@ -65,6 +69,8 @@ class string_table {
     virtual ~impl() = default;
 
     virtual std::string lookup(size_t index) const = 0;
+    virtual std::vector<std::string> unpack() const = 0;
+    virtual bool is_packed() const = 0;
   };
 
  private:

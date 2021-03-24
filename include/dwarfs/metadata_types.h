@@ -57,6 +57,10 @@ class global_metadata {
 
   string_table const& names() const { return names_; }
 
+  std::vector<thrift::metadata::directory> const& directories() const {
+    return directories_storage_;
+  }
+
  private:
   Meta const* const meta_;
   std::vector<thrift::metadata::directory> const directories_storage_;

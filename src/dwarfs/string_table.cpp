@@ -41,6 +41,12 @@ class legacy_string_table : public string_table::impl {
     return std::string(v_[index]);
   }
 
+  std::vector<std::string> unpack() const override {
+    throw std::runtime_error("cannot unpack legacy string table");
+  }
+
+  bool is_packed() const override { return false; }
+
  private:
   string_table::LegacyTableView v_;
 };
@@ -112,6 +118,20 @@ class packed_string_table : public string_table::impl {
 
     return std::string(beg, end);
   }
+
+  std::vector<std::string> unpack() const override {
+    std::vector<std::string> v;
+    auto size = PackedIndex ? index_.size() : v_.index().size();
+    if (size > 0) {
+      v.reserve(size - 1);
+      for (size_t i = 0; i < size - 1; ++i) {
+        v.emplace_back(lookup(i));
+      }
+    }
+    return v;
+  }
+
+  bool is_packed() const override { return true; }
 
  private:
   string_table::PackedTableView v_;

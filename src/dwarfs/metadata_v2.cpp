@@ -371,6 +371,8 @@ class metadata_ final : public metadata_v2::impl {
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
 
+  thrift::metadata::metadata unpack_metadata() const;
+
   inode_view make_inode_view(uint32_t inode) const {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
@@ -900,14 +902,44 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
 }
 
 template <typename LoggerPolicy>
+thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
+  auto meta = meta_.thaw();
+
+  if (auto opts = meta.options_ref()) {
+    if (opts->packed_chunk_table) {
+      meta.chunk_table = chunk_table_;
+    }
+    if (opts->packed_directories) {
+      meta.directories = global_.directories();
+    }
+    if (opts->packed_shared_files_table) {
+      meta.shared_files_table_ref() = shared_files_;
+    }
+    if (auto const& names = global_.names(); names.is_packed()) {
+      meta.names = names.unpack();
+      meta.compact_names_ref().reset();
+    }
+    if (symlinks_.is_packed()) {
+      meta.symlinks = symlinks_.unpack();
+      meta.compact_symlinks_ref().reset();
+    }
+    opts->packed_chunk_table = false;
+    opts->packed_directories = false;
+    opts->packed_shared_files_table = false;
+  }
+
+  return meta;
+}
+
+template <typename LoggerPolicy>
 std::string metadata_<LoggerPolicy>::serialize_as_json(bool simple) const {
   std::string json;
   if (simple) {
     apache::thrift::SimpleJSONSerializer serializer;
-    serializer.serialize(meta_.thaw(), &json);
+    serializer.serialize(unpack_metadata(), &json);
   } else {
     apache::thrift::JSONSerializer serializer;
-    serializer.serialize(meta_.thaw(), &json);
+    serializer.serialize(unpack_metadata(), &json);
   }
   return json;
 }
