@@ -292,10 +292,15 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
 endif()
 
 if(WITH_TESTS)
-  add_executable(dwarfs_test test/dwarfs.cpp test/loremipsum.cpp)
+  add_library(test_helpers test/test_helpers.cpp test/loremipsum.cpp)
+  target_link_libraries(test_helpers folly)
+endif()
+
+if(WITH_TESTS)
+  add_executable(dwarfs_test test/dwarfs.cpp)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
 
-  target_link_libraries(dwarfs_test gtest_main)
+  target_link_libraries(dwarfs_test test_helpers gtest_main)
   target_link_libraries(dwarfs_compat_test gtest_main)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test)
