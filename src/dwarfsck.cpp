@@ -104,7 +104,7 @@ int dwarfsck(int argc, char** argv) {
     auto mm = std::make_shared<mmap>(input);
 
     if (!export_metadata.empty()) {
-      auto of = folly::File(export_metadata, O_RDWR | O_CREAT);
+      auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
       filesystem_v2 fs(lgr, mm);
       auto json = fs.serialize_metadata_as_json(true);
       if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
