@@ -295,7 +295,7 @@ endif()
 if(WITH_TESTS OR WITH_BENCHMARKS)
   add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
                            test/loremipsum.cpp)
-  target_link_libraries(test_helpers folly)
+  target_link_libraries(test_helpers dwarfs folly)
   set_property(TARGET test_helpers PROPERTY CXX_STANDARD 17)
 endif()
 
