@@ -169,9 +169,10 @@ string_table::string_table(logger& lgr, std::string_view name,
                            PackedTableView v)
     : impl_{build_string_table(lgr, name, v)} {}
 
+template <typename T>
 thrift::metadata::string_table
-string_table::pack(std::vector<std::string> const& input,
-                   pack_options const& options) {
+string_table::pack_generic(folly::Range<T const*> input,
+                           pack_options const& options) {
   auto size = input.size();
   bool pack_data = options.pack_data;
   size_t total_input_size = 0;
@@ -278,6 +279,18 @@ string_table::pack(std::vector<std::string> const& input,
   }
 
   return output;
+}
+
+thrift::metadata::string_table
+string_table::pack(folly::Range<std::string const*> input,
+                   pack_options const& options) {
+  return pack_generic(input, options);
+}
+
+thrift::metadata::string_table
+string_table::pack(folly::Range<std::string_view const*> input,
+                   pack_options const& options) {
+  return pack_generic(input, options);
 }
 
 } // namespace dwarfs

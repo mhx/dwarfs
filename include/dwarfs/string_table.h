@@ -21,10 +21,13 @@
 
 #pragma once
 
+#include <array>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <folly/Range.h>
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 
@@ -61,8 +64,25 @@ class string_table {
   bool is_packed() const { return impl_->is_packed(); }
 
   static thrift::metadata::string_table
-  pack(std::vector<std::string> const& input,
+  pack(folly::Range<std::string const*> input,
        pack_options const& options = pack_options());
+
+  static thrift::metadata::string_table
+  pack(folly::Range<std::string_view const*> input,
+       pack_options const& options = pack_options());
+
+  static thrift::metadata::string_table
+  pack(std::vector<std::string> const& input,
+       pack_options const& options = pack_options()) {
+    return pack(folly::Range(input.data(), input.size()), options);
+  }
+
+  template <size_t N>
+  static thrift::metadata::string_table
+  pack(std::array<std::string_view, N> const& input,
+       pack_options const& options = pack_options()) {
+    return pack(folly::Range(input.data(), input.size()), options);
+  }
 
   class impl {
    public:
@@ -74,6 +94,10 @@ class string_table {
   };
 
  private:
+  template <typename T>
+  static thrift::metadata::string_table
+  pack_generic(folly::Range<T const*> input, pack_options const& options);
+
   std::unique_ptr<impl const> impl_;
 };
 
