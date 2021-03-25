@@ -23,6 +23,7 @@ cmake_minimum_required(VERSION 3.13.4)
 include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
+option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
 option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
 option(ENABLE_ASAN "enable address sanitizer" OFF)
@@ -291,9 +292,11 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   list(APPEND BINARY_TARGETS dwarfs2-bin)
 endif()
 
-if(WITH_TESTS)
-  add_library(test_helpers test/test_helpers.cpp test/loremipsum.cpp)
+if(WITH_TESTS OR WITH_BENCHMARKS)
+  add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
+                           test/loremipsum.cpp)
   target_link_libraries(test_helpers folly)
+  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 17)
 endif()
 
 if(WITH_TESTS)
@@ -310,6 +313,13 @@ if(WITH_TESTS)
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+endif()
+
+if(WITH_BENCHMARKS)
+  pkg_check_modules(BENCHMARK IMPORTED_TARGET benchmark)
+  add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
+  target_link_libraries(dwarfs_benchmark test_helpers PkgConfig::BENCHMARK)
+  list(APPEND BINARY_TARGETS dwarfs_benchmark)
 endif()
 
 foreach(man dwarfs mkdwarfs dwarfsextract)
