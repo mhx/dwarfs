@@ -494,16 +494,16 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     target_link_options(${tgt} PRIVATE -fsanitize=undefined)
   endif()
 
-
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-      target_compile_options(${tgt} PRIVATE --coverage
-                                            -fno-omit-frame-pointer)
+      target_compile_options(${tgt} PRIVATE --coverage -fno-omit-frame-pointer)
       target_link_options(${tgt} PRIVATE --coverage)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      target_compile_options(${tgt} PRIVATE -fprofile-instr-generate -fcoverage-mapping
-                                            -fno-omit-frame-pointer)
-      target_link_options(${tgt} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+      target_compile_options(
+        ${tgt} PRIVATE -fprofile-instr-generate -fcoverage-mapping
+                       -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fprofile-instr-generate
+                          -fcoverage-mapping)
     endif()
   endif()
 endforeach()
