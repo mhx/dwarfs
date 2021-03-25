@@ -93,8 +93,8 @@ std::string make_filesystem(::benchmark::State const& state) {
   block_manager::config cfg;
   scanner_options options;
 
-  cfg.blockhash_window_size = 10;
-  cfg.block_size_bits = 10;
+  cfg.blockhash_window_size = 8;
+  cfg.block_size_bits = 12;
 
   options.with_devices = true;
   options.with_specials = true;
@@ -234,7 +234,22 @@ class filesystem : public ::benchmark::Fixture {
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
-      ::benchmark::DoNotOptimize(fs->readv(i, st.st_size));
+      iovec_read_buf buf;
+      ::benchmark::DoNotOptimize(fs->readv(i, buf, st.st_size));
+    }
+  }
+
+  void readv_future_bench(::benchmark::State& state, char const* file) {
+    auto iv = fs->find(file);
+    struct ::stat st;
+    fs->getattr(*iv, &st);
+    auto i = fs->open(*iv);
+
+    for (auto _ : state) {
+      auto x = fs->readv(i, st.st_size);
+      for (auto& f : *x) {
+        ::benchmark::DoNotOptimize(f.get());
+      }
     }
   }
 
@@ -416,6 +431,14 @@ BENCHMARK_DEFINE_F(filesystem, readv_large)(::benchmark::State& state) {
   readv_bench(state, "/ipsum.txt");
 }
 
+BENCHMARK_DEFINE_F(filesystem, readv_future_small)(::benchmark::State& state) {
+  readv_future_bench(state, "/somedir/ipsum.py");
+}
+
+BENCHMARK_DEFINE_F(filesystem, readv_future_large)(::benchmark::State& state) {
+  readv_future_bench(state, "/ipsum.txt");
+}
+
 } // namespace
 
 BENCHMARK(frozen_legacy_string_table_lookup);
@@ -448,5 +471,7 @@ BENCHMARK_REGISTER_F(filesystem, read_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, read_large)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_large)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, readv_future_small)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, readv_future_large)->Apply(PackParamsNone);
 
 BENCHMARK_MAIN();
