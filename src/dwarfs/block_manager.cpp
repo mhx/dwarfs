@@ -166,11 +166,11 @@ class bloom_filter {
   static constexpr size_t index_shift = bitcount(value_mask);
 
   bloom_filter(size_t size)
-      : index_mask_{(size >> index_shift) - 1} {
+      : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1} {
     if (size & (size - 1)) {
       throw std::runtime_error("size must be a power of two");
     }
-    bits_.resize(size >> index_shift);
+    bits_.resize(std::max(size, value_mask + 1) >> index_shift);
   }
 
   void add(size_t val) { set(val); }
