@@ -132,13 +132,13 @@ class filesystem_v2 {
     return impl_->read(inode, buf, size, offset);
   }
 
-  ssize_t
-  readv(uint32_t inode, iovec_read_buf& buf, size_t size, off_t offset) const {
+  ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+                off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
   }
 
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(uint32_t inode, size_t size, off_t offset) const {
+  readv(uint32_t inode, size_t size, off_t offset = 0) const {
     return impl_->readv(inode, size, offset);
   }
 
