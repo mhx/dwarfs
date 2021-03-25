@@ -457,7 +457,7 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
             ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
 
-  target_include_directories(${tgt} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
   target_compile_definitions(
     ${tgt}
