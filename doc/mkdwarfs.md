@@ -48,24 +48,32 @@ Most other options are concerned with compression tuning:
     access, so reserve these levels for cases where you only need to access
     the data infrequently. This `-l` option is meant to be the "easy"
     interface to configure `mkdwarfs`, and it will actually pick defaults
-    for six distinct options: `--block-size-bits`, `--compression`,
-    `--schema-compression`, `--metadata-compression`, `--window-size` and
-    `--order`. See the output of `mkdwarfs --help` for a table listing the
-    exact defaults used for each compression level.
+    for seven distinct options: `--block-size-bits`, `--compression`,
+    `--schema-compression`, `--metadata-compression`, `--window-size`,
+    `--window-step` and `--order`. See the output of `mkdwarfs --help` for
+    a table listing the exact defaults used for each compression level.
 
   * `-S`, `--block-size-bits=`*value*:
     The block size used for the compressed filesystem. The actual block size
-    is two to the power of this value. The valid range of this option is from
-    12 to 28, i.e. block sizes between 4kiB and 256MiB. Larger block sizes
-    will offer better compression, but will be slower and consume more memory
+    is two to the power of this value. Larger block sizes will offer better
+    overall compression ratios, but will be slower and consume more memory
     when actually using the filesystem, as blocks will have to be fully or at
-    least partially decompressed into memory. Value between 20 and 24, i.e.
-    between 1MiB and 16MiB, are usually a good compromise.
+    least partially decompressed into memory. Values between 20 and 26, i.e.
+    between 1MiB and 64MiB, usually work quite well.
 
   * `-N`, `--num-workers=`*value*:
     Number of worker threads used for building the filesystem. This defaults
     to the number of processors available on your system. Use this option if
     you want to limit the resources used by `mkdwarfs`.
+    This option affects both the scanning phase and the compression phase.
+    In the scanning phase, the worker threads are used to scan files in the
+    background as they are discovered. File scanning includes checksumming
+    for de-duplication as well as (optionally) checksumming for similarity
+    computation, depending on the `--order` option. File discovery itself
+    is single-threaded and runs independently from the scanning threads.
+    In the compression phase, the worker threads are used to compress the
+    individual filesystem blocks in the background. Ordering, segmenting
+    and block building are, again, single-threaded and run independently.
 
   * `-L`, `--memory-limit=`*value*:
     Approximately how much memory you want `mkdwarfs` to use during filesystem
@@ -74,7 +82,9 @@ Most other options are concerned with compression tuning:
     haven't been compressed and written to the output file yet. So the memory
     used by `mkdwarfs` can certainly be larger than this limit, but it's a
     good option when building large filesystems with expensive compression
-    algorithms.
+    algorithms. Also note that most memory is likely used by the compression
+    algorithms, so if you're short on memory it might be worth tweaking the
+    compression options.
 
   * `-C`, `--compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
     The compression algorithm and configuration used for file system data.
