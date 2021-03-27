@@ -42,7 +42,8 @@ using namespace dwarfs;
 namespace {
 
 int dwarfsextract(int argc, char** argv) {
-  std::string filesystem, output, format, cache_size_str, log_level;
+  std::string filesystem, output, format, cache_size_str, log_level,
+      image_offset;
   size_t num_workers;
 
   // clang-format off
@@ -54,6 +55,9 @@ int dwarfsextract(int argc, char** argv) {
     ("output,o",
         po::value<std::string>(&output),
         "output file or directory")
+    ("image-offset,O",
+        po::value<std::string>(&image_offset)->default_value("auto"),
+        "filesystem image offset in bytes")
     ("format,f",
         po::value<std::string>(&format),
         "output format")
@@ -89,6 +93,13 @@ int dwarfsextract(int argc, char** argv) {
   try {
     stream_logger lgr(std::cerr, logger::parse_level(log_level));
     filesystem_options fsopts;
+    try {
+      fsopts.image_offset = image_offset == "auto"
+                                ? filesystem_options::IMAGE_OFFSET_AUTO
+                                : folly::to<off_t>(image_offset);
+    } catch (...) {
+      DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
+    }
 
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;

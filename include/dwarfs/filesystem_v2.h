@@ -65,7 +65,7 @@ class filesystem_v2 {
 
   static int identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
                       int detail_level = 0, size_t num_readers = 1,
-                      bool check_integrity = false);
+                      bool check_integrity = false, off_t image_offset = 0);
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);

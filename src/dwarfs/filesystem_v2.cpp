@@ -55,13 +55,71 @@ namespace {
 
 class filesystem_parser {
  public:
-  explicit filesystem_parser(std::shared_ptr<mmif> mm)
-      : mm_(mm) {
-    if (mm_->size() < sizeof(file_header)) {
+  static off_t find_image_offset(mmif& mm, off_t image_offset) {
+    if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
+      return image_offset;
+    }
+
+    static constexpr std::array<char, 7> magic{
+        {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
+
+    off_t start = 0;
+    for (;;) {
+      auto ps = mm.as<void>(start);
+      auto pc = ::memmem(ps, mm.size(), magic.data(), magic.size());
+
+      if (!pc) {
+        break;
+      }
+
+      off_t pos =
+          static_cast<uint8_t const*>(pc) - static_cast<uint8_t const*>(ps);
+
+      if (pos + sizeof(file_header) >= mm.size()) {
+        break;
+      }
+
+      auto fh = mm.as<file_header>(pos);
+
+      if (fh->minor < 2) {
+        // best we can do for older file systems
+        return pos;
+      }
+
+      // do a little more validation before we return
+      if (pos + sizeof(section_header_v2) >= mm.size()) {
+        break;
+      }
+
+      auto sh = mm.as<section_header_v2>(pos);
+
+      if (sh->number == 0) {
+        if (pos + 2 * sizeof(section_header_v2) + sh->length >= mm.size()) {
+          break;
+        }
+
+        ps = mm.as<void>(pos + sizeof(section_header_v2) + sh->length);
+
+        if (::memcmp(ps, magic.data(), magic.size()) == 0 and
+            reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
+          return pos;
+        }
+      }
+
+      start = pos + magic.size();
+    }
+
+    DWARFS_THROW(runtime_error, "no filesystem found");
+  }
+
+  explicit filesystem_parser(std::shared_ptr<mmif> mm, off_t image_offset = 0)
+      : mm_{mm}
+      , image_offset_{find_image_offset(*mm_, image_offset)} {
+    if (mm_->size() < image_offset_ + sizeof(file_header)) {
       DWARFS_THROW(runtime_error, "file too small");
     }
 
-    auto fh = mm_->as<file_header>();
+    auto fh = mm_->as<file_header>(image_offset_);
 
     if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
       DWARFS_THROW(runtime_error, "magic not found");
@@ -83,7 +141,7 @@ class filesystem_parser {
   }
 
   std::optional<fs_section> next_section() {
-    if (offset_ < mm_->size()) {
+    if (offset_ < static_cast<off_t>(mm_->size())) {
       auto section = fs_section(*mm_, offset_, version_);
       offset_ = section.end();
       return section;
@@ -92,15 +150,20 @@ class filesystem_parser {
     return std::nullopt;
   }
 
-  void rewind() { offset_ = version_ == 1 ? sizeof(file_header) : 0; }
+  void rewind() {
+    offset_ = image_offset_ + (version_ == 1 ? sizeof(file_header) : 0);
+  }
 
   std::string version() const {
     return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
   }
 
+  off_t image_offset() const { return image_offset_; }
+
  private:
   std::shared_ptr<mmif> mm_;
-  size_t offset_{0};
+  off_t const image_offset_;
+  off_t offset_{0};
   int version_{0};
   uint8_t major_{0};
   uint8_t minor_{0};
@@ -218,7 +281,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                                        int inode_offset)
     : LOG_PROXY_INIT(lgr)
     , mm_(std::move(mm)) {
-  filesystem_parser parser(mm_);
+  filesystem_parser parser(mm_, options.image_offset);
   block_cache cache(lgr, mm_, options.block_cache);
 
   section_map sections;
@@ -475,13 +538,18 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,
-                            size_t num_readers, bool check_integrity) {
+                            size_t num_readers, bool check_integrity,
+                            off_t image_offset) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
-  filesystem_parser parser(mm);
+  filesystem_parser parser(mm, image_offset);
 
   if (detail_level > 0) {
-    os << "FILESYSTEM version " << parser.version() << std::endl;
+    os << "DwarFS version " << parser.version();
+    if (auto off = parser.image_offset(); off > 0) {
+      os << " at offset " << off;
+    }
+    os << std::endl;
   }
 
   worker_group wg("reader", num_readers);
@@ -540,6 +608,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     if (detail_level > 0) {
       fsopts.metadata.enable_nlink = true;
     }
+    fsopts.image_offset = image_offset;
     filesystem_v2(lgr, mm, fsopts).dump(os, detail_level);
   }
 

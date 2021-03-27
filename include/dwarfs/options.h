@@ -25,6 +25,8 @@
 #include <iosfwd>
 #include <optional>
 
+#include <sys/types.h>
+
 namespace dwarfs {
 
 enum class mlock_mode { NONE, TRY, MUST };
@@ -42,7 +44,10 @@ struct metadata_options {
 };
 
 struct filesystem_options {
+  static constexpr off_t IMAGE_OFFSET_AUTO{-1};
+
   mlock_mode lock_mode{mlock_mode::NONE};
+  off_t image_offset{0};
   block_cache_options block_cache;
   metadata_options metadata;
 };

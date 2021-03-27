@@ -43,7 +43,7 @@ namespace po = boost::program_options;
 int dwarfsck(int argc, char** argv) {
   const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
 
-  std::string log_level, input, export_metadata;
+  std::string log_level, input, export_metadata, image_offset;
   size_t num_workers;
   int detail;
   bool json = false;
@@ -58,6 +58,9 @@ int dwarfsck(int argc, char** argv) {
     ("detail,d",
         po::value<int>(&detail)->default_value(2),
         "detail level")
+    ("image-offset,O",
+        po::value<std::string>(&image_offset)->default_value("auto"),
+        "filesystem image offset in bytes")
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
@@ -101,22 +104,31 @@ int dwarfsck(int argc, char** argv) {
   LOG_PROXY(debug_logger_policy, lgr);
 
   try {
+    filesystem_options fsopts;
+    try {
+      fsopts.image_offset = image_offset == "auto"
+                                ? filesystem_options::IMAGE_OFFSET_AUTO
+                                : folly::to<off_t>(image_offset);
+    } catch (...) {
+      DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
+    }
+
     auto mm = std::make_shared<mmap>(input);
 
     if (!export_metadata.empty()) {
       auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
-      filesystem_v2 fs(lgr, mm);
+      filesystem_v2 fs(lgr, mm, fsopts);
       auto json = fs.serialize_metadata_as_json(true);
       if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
         LOG_ERROR << "failed to export metadata";
       }
       of.close();
     } else if (json) {
-      filesystem_v2 fs(lgr, mm);
+      filesystem_v2 fs(lgr, mm, fsopts);
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
     } else {
       filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
-                              check_integrity);
+                              check_integrity, fsopts.image_offset);
     }
   } catch (system_error const& e) {
     LOG_ERROR << folly::exceptionStr(e);

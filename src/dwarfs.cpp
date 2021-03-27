@@ -59,6 +59,7 @@ struct options {
   const char* workers_str;          // TODO: const?? -> use string?
   const char* mlock_str;            // TODO: const?? -> use string?
   const char* decompress_ratio_str; // TODO: const?? -> use string?
+  const char* image_offset_str;     // TODO: const?? -> use string?
   int enable_nlink;
   int readonly;
   int cache_image;
@@ -82,6 +83,7 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("workers=%s", workers_str, 0),
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
+    DWARFS_OPT("offset=%s", image_offset_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("cache_image", cache_image, 1),
@@ -112,6 +114,19 @@ void op_init(void* /*userdata*/, struct fuse_conn_info* /*conn*/) {
     fsopts.block_cache.mm_release = !s_opts.cache_image;
     fsopts.metadata.enable_nlink = bool(s_opts.enable_nlink);
     fsopts.metadata.readonly = bool(s_opts.readonly);
+
+    if (s_opts.image_offset_str) {
+      std::string image_offset{s_opts.image_offset_str};
+
+      try {
+        fsopts.image_offset = image_offset == "auto"
+                                  ? filesystem_options::IMAGE_OFFSET_AUTO
+                                  : folly::to<off_t>(image_offset);
+      } catch (...) {
+        DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
+      }
+    }
+
     s_fs = std::make_shared<filesystem_v2>(
         s_lgr, std::make_shared<mmap>(s_opts.fsimage), fsopts, FUSE_ROOT_ID);
 
@@ -426,20 +441,22 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 }
 
 void usage(const char* progname) {
-  std::cerr << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
-            << ")\n\n"
-            << "usage: " << progname << " image mountpoint [options]\n\n"
-            << "DWARFS options:\n"
-            << "    -o cachesize=SIZE      set size of block cache (512M)\n"
-            << "    -o workers=NUM         number of worker threads (2)\n"
-            << "    -o mlock=NAME          mlock mode: (none), try, must\n"
-            << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
-            << "    -o enable_nlink        show correct hardlink numbers\n"
-            << "    -o readonly            show read-only file system\n"
-            << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
-            << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
-            << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
-            << std::endl;
+  std::cerr
+      << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
+      << ")\n\n"
+      << "usage: " << progname << " image mountpoint [options]\n\n"
+      << "DWARFS options:\n"
+      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
+      << "    -o workers=NUM         number of worker threads (2)\n"
+      << "    -o mlock=NAME          mlock mode: (none), try, must\n"
+      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
+      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
+      << "    -o enable_nlink        show correct hardlink numbers\n"
+      << "    -o readonly            show read-only file system\n"
+      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
+      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
+      << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
+      << std::endl;
 
 #if FUSE_USE_VERSION >= 30
   fuse_cmdline_help();
