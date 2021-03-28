@@ -98,11 +98,18 @@ class filesystem_parser {
       auto sh = mm.as<section_header_v2>(pos);
 
       if (sh->number == 0) {
-        if (pos + 2 * sizeof(section_header_v2) + sh->length >= mm.size()) {
+        auto endpos = pos + sh->length + 2 * sizeof(section_header_v2);
+
+        if (endpos < sh->length) {
+          // overflow
           break;
         }
 
-        ps = mm.as<void>(pos + sizeof(section_header_v2) + sh->length);
+        if (endpos >= mm.size()) {
+          break;
+        }
+
+        ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
 
         if (::memcmp(ps, magic.data(), magic.size()) == 0 and
             reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
