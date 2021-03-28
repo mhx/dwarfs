@@ -72,8 +72,8 @@ class filesystem_parser {
         break;
       }
 
-      off_t pos =
-          static_cast<uint8_t const*>(pc) - static_cast<uint8_t const*>(ps);
+      off_t pos = start + static_cast<uint8_t const*>(pc) -
+                  static_cast<uint8_t const*>(ps);
 
       if (pos + sizeof(file_header) >= mm.size()) {
         break;
