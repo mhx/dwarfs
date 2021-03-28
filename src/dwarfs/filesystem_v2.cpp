@@ -65,8 +65,12 @@ class filesystem_parser {
 
     off_t start = 0;
     for (;;) {
+      if (start + magic.size() >= mm.size()) {
+        break;
+      }
+
       auto ps = mm.as<void>(start);
-      auto pc = ::memmem(ps, mm.size(), magic.data(), magic.size());
+      auto pc = ::memmem(ps, mm.size() - start, magic.data(), magic.size());
 
       if (!pc) {
         break;
