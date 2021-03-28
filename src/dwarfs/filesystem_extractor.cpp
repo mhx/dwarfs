@@ -27,6 +27,9 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <folly/ExceptionString.h>
+#include <folly/ScopeGuard.h>
+
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
@@ -143,6 +146,8 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
 
   auto lr = ::archive_entry_linkresolver_new();
 
+  SCOPE_EXIT { ::archive_entry_linkresolver_free(lr); };
+
   if (auto fmt = ::archive_format(a_)) {
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
   }
@@ -154,6 +159,8 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
 
   sem.post(max_queued_bytes);
 
+  std::atomic<bool> abort{false};
+
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
@@ -163,32 +170,43 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
       sem.wait(size);
 
       if (auto ranges = fs.readv(fd, size, 0)) {
-        archiver.add_job(
-            [this, &sem, ranges = std::move(*ranges), ae, size]() mutable {
-              LOG_TRACE << "archiving " << ::archive_entry_pathname(ae);
-              check_result(::archive_write_header(a_, ae));
-              for (auto& r : ranges) {
-                auto br = r.get();
-                LOG_TRACE << "writing " << br.size() << " bytes";
-                check_result(::archive_write_data(a_, br.data(), br.size()));
-              }
-              sem.post(size);
-              ::archive_entry_free(ae);
-            });
+        archiver.add_job([this, &sem, &abort, ranges = std::move(*ranges), ae,
+                          size]() mutable {
+          SCOPE_EXIT { ::archive_entry_free(ae); };
+          try {
+            LOG_TRACE << "archiving " << ::archive_entry_pathname(ae);
+            check_result(::archive_write_header(a_, ae));
+            for (auto& r : ranges) {
+              auto br = r.get();
+              LOG_TRACE << "writing " << br.size() << " bytes";
+              check_result(::archive_write_data(a_, br.data(), br.size()));
+            }
+            sem.post(size);
+          } catch (...) {
+            LOG_ERROR << folly::exceptionStr(std::current_exception());
+            abort = true;
+          }
+        });
       } else {
         LOG_ERROR << "error reading inode [" << fd
                   << "]: " << ::strerror(-ranges.error());
       }
     } else {
-      archiver.add_job([this, ae] {
-        check_result(::archive_write_header(a_, ae));
-        ::archive_entry_free(ae);
+      archiver.add_job([this, ae, &abort] {
+        SCOPE_EXIT { ::archive_entry_free(ae); };
+        try {
+          check_result(::archive_write_header(a_, ae));
+        } catch (...) {
+          LOG_ERROR << folly::exceptionStr(std::current_exception());
+          abort = true;
+        }
       });
     }
   };
 
   fs.walk_data_order([&](auto entry) {
-    if (entry.is_root()) {
+    // TODO: we can surely early abort walk() somehow
+    if (entry.is_root() || abort) {
       return;
     }
 
@@ -230,6 +248,10 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
 
   archiver.wait();
 
+  if (abort) {
+    DWARFS_THROW(runtime_error, "extraction aborted");
+  }
+
   // As we're visiting *all* hardlinks, we should never see any deferred
   // entries.
   ::archive_entry* ae = nullptr;
@@ -237,8 +259,6 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
   if (ae) {
     DWARFS_THROW(runtime_error, "unexpected deferred entry");
   }
-
-  ::archive_entry_linkresolver_free(lr);
 }
 
 filesystem_extractor::filesystem_extractor(logger& lgr)
