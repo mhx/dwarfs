@@ -38,6 +38,7 @@
 #include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
@@ -804,7 +805,8 @@ struct ::stat make_stat(::mode_t mode, ::off_t size) {
   return st;
 }
 
-void check_compat(filesystem_v2 const& fs, std::string const& version) {
+void check_compat(logger& lgr, filesystem_v2 const& fs,
+                  std::string const& version) {
   bool has_devices = not(version == "0.2.0" or version == "0.2.3");
   bool has_ac_time = version == "0.2.0" or version == "0.2.3";
 
@@ -965,6 +967,55 @@ void check_compat(filesystem_v2 const& fs, std::string const& version) {
       }
     }
   }
+
+  filesystem_extractor ext(lgr);
+  std::ostringstream oss;
+
+  EXPECT_NO_THROW(ext.open_stream(oss, "mtree"));
+  EXPECT_NO_THROW(ext.extract(fs, 4096));
+  EXPECT_NO_THROW(ext.close());
+
+  std::istringstream iss(oss.str());
+  std::string line;
+  size_t num = 0;
+  ref_entries.erase("");
+
+  while (std::getline(iss, line, '\n')) {
+    if (line == "#mtree") {
+      continue;
+    }
+
+    std::vector<std::string> parts;
+    folly::split(' ', line, parts);
+    auto name = parts.front().substr(2);
+    parts.erase(parts.begin());
+    std::unordered_map<std::string, std::string> kv;
+
+    for (auto const& p : parts) {
+      std::string key, value;
+      folly::split('=', p, key, value);
+      kv[key] = value;
+    }
+
+    ++num;
+
+    auto ri = ref_entries.find(name);
+    EXPECT_FALSE(ri == ref_entries.end());
+
+    if (ri != ref_entries.end()) {
+      auto const& st = ri->second;
+
+      EXPECT_EQ(kv["mode"], fmt::format("{0:o}", st.st_mode & 0777));
+      EXPECT_EQ(std::stoi(kv["uid"]), kv["type"] == "char" ? 0 : 1000);
+      EXPECT_EQ(std::stoi(kv["gid"]), kv["type"] == "char" ? 0 : 100);
+
+      if (kv["type"] == "file") {
+        EXPECT_EQ(std::stoi(kv["size"]), st.st_size);
+      }
+    }
+  }
+
+  EXPECT_EQ(ref_entries.size(), num);
 }
 
 } // namespace
@@ -1009,7 +1060,7 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   {
     filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);
-    check_compat(fs, version);
+    check_compat(lgr, fs, version);
   }
 
   opts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
@@ -1020,14 +1071,14 @@ TEST_P(compat_filesystem, backwards_compat) {
   for (auto const& hdr : headers) {
     filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
                      opts);
-    check_compat(fs, version);
+    check_compat(lgr, fs, version);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
       filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
                        opts);
-      check_compat(fs, version);
+      check_compat(lgr, fs, version);
     }
   }
 }
