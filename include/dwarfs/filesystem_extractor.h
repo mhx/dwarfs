@@ -22,6 +22,7 @@
 #pragma once
 
 #include <memory>
+#include <ostream>
 #include <string>
 
 namespace dwarfs {
@@ -37,11 +38,15 @@ class filesystem_extractor {
     return impl_->open_archive(output, format);
   }
 
+  void open_stream(std::ostream& os, std::string const& format) {
+    return impl_->open_stream(os, format);
+  }
+
   void open_disk(std::string const& output) { return impl_->open_disk(output); }
 
   void close() { return impl_->close(); }
 
-  void extract(filesystem_v2& fs, size_t max_queued_bytes) {
+  void extract(filesystem_v2 const& fs, size_t max_queued_bytes) {
     return impl_->extract(fs, max_queued_bytes);
   }
 
@@ -51,9 +56,10 @@ class filesystem_extractor {
 
     virtual void
     open_archive(std::string const& output, std::string const& format) = 0;
+    virtual void open_stream(std::ostream& os, std::string const& format) = 0;
     virtual void open_disk(std::string const& output) = 0;
     virtual void close() = 0;
-    virtual void extract(filesystem_v2& fs, size_t max_queued_bytes) = 0;
+    virtual void extract(filesystem_v2 const& fs, size_t max_queued_bytes) = 0;
   };
 
  private:

@@ -19,8 +19,11 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <thread>
 
 #include <unistd.h>
 
@@ -29,6 +32,7 @@
 
 #include <folly/ExceptionString.h>
 #include <folly/ScopeGuard.h>
+#include <folly/system/ThreadName.h>
 
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
@@ -95,6 +99,20 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
         a_, output.empty() ? nullptr : output.c_str()));
   }
 
+  void open_stream(std::ostream& os, std::string const& format) override {
+    if (::pipe(pipefd_) != 0) {
+      DWARFS_THROW(system_error, "pipe()");
+    }
+
+    iot_ = std::make_unique<std::thread>(
+        [this, &os, fd = pipefd_[0]] { pump(os, fd); });
+
+    a_ = ::archive_write_new();
+
+    check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+    check_result(::archive_write_open_fd(a_, pipefd_[1]));
+  }
+
   void open_disk(std::string const& output) override {
     if (!output.empty()) {
       if (::chdir(output.c_str()) != 0) {
@@ -117,11 +135,49 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       check_result(::archive_write_free(a_));
       a_ = nullptr;
     }
+
+    closefd(pipefd_[1]);
+
+    if (iot_) {
+      iot_->join();
+      iot_.reset();
+    }
+
+    closefd(pipefd_[0]);
   }
 
-  void extract(filesystem_v2& fs, size_t max_queued_bytes) override;
+  void extract(filesystem_v2 const& fs, size_t max_queued_bytes) override;
 
  private:
+  void closefd(int& fd) {
+    if (fd >= 0) {
+      if (::close(fd) != 0) {
+        DWARFS_THROW(system_error, "close()");
+      }
+      fd = -1;
+    }
+  }
+
+  void pump(std::ostream& os, int fd) {
+    folly::setThreadName("pump");
+
+    std::array<char, 1024> buf;
+
+    for (;;) {
+      auto rv = ::read(fd, buf.data(), buf.size());
+
+      if (rv == 0) {
+        break;
+      }
+
+      if (rv < 0) {
+        LOG_ERROR << "read(): " << ::strerror(errno);
+      }
+
+      os.write(buf.data(), rv);
+    }
+  }
+
   void check_result(int res) {
     switch (res) {
     case ARCHIVE_OK:
@@ -137,10 +193,12 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   log_proxy<debug_logger_policy> log_;
   struct ::archive* a_{nullptr};
+  int pipefd_[2]{-1, -1};
+  std::unique_ptr<std::thread> iot_;
 };
 
 template <typename LoggerPolicy>
-void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2& fs,
+void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
                                                   size_t max_queued_bytes) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
