@@ -840,29 +840,30 @@ int mkdwarfs(int argc, char** argv) {
 
   auto ti = LOG_TIMED_INFO;
 
-  if (recompress) {
-    filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw,
-                           rw_opts);
-    wg_compress.wait();
-  } else {
-    options.inode.with_similarity =
-        force_similarity ||
-        options.file_order.mode == file_order_mode::SIMILARITY;
-    options.inode.with_nilsimsa =
-        options.file_order.mode == file_order_mode::NILSIMSA;
+  try {
+    if (recompress) {
+      filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
+                             fsw, rw_opts);
+      wg_compress.wait();
+    } else {
+      options.inode.with_similarity =
+          force_similarity ||
+          options.file_order.mode == file_order_mode::SIMILARITY;
+      options.inode.with_nilsimsa =
+          options.file_order.mode == file_order_mode::NILSIMSA;
 
-    scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
-              std::make_shared<os_access_posix>(), std::move(script), options);
+      scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
+                std::make_shared<os_access_posix>(), std::move(script),
+                options);
 
-    try {
       s.scan(fsw, path, prog);
-    } catch (runtime_error const& e) {
-      LOG_ERROR << e.what();
-      return 1;
-    } catch (system_error const& e) {
-      LOG_ERROR << e.what();
-      return 1;
     }
+  } catch (runtime_error const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  } catch (system_error const& e) {
+    LOG_ERROR << e.what();
+    return 1;
   }
 
   ofs.close();
