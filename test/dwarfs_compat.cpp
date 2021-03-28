@@ -33,6 +33,7 @@
 
 #include <sys/statvfs.h>
 
+#include <folly/FileUtil.h>
 #include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
@@ -45,6 +46,8 @@
 #include "dwarfs/worker_group.h"
 
 #include "mmap_mock.h"
+
+using namespace dwarfs;
 
 namespace {
 
@@ -778,6 +781,20 @@ std::string format_sh = R"(#!/bin/bash
 find test/ src/ include/ -type f -name '*.[ch]*' | xargs -d $'\n' clang-format -i
 )";
 
+std::vector<std::string> headers{
+    "D",
+    "DWARFS",
+    format_sh,
+    "DWARFS" + format_sh,
+    "DWARFS" + format_sh + "DWARDWAR",
+};
+
+std::vector<std::string> headers_v2{
+    "DWARFS\x02",
+    "DWARFS\x02" + format_sh,
+    "DWARFS\x02" + format_sh + "DWARFS\x02",
+};
+
 struct ::stat make_stat(::mode_t mode, ::off_t size) {
   struct ::stat st;
   std::memset(&st, 0, sizeof(st));
@@ -786,52 +803,9 @@ struct ::stat make_stat(::mode_t mode, ::off_t size) {
   return st;
 }
 
-} // namespace
-
-using namespace dwarfs;
-
-class compat_metadata : public testing::TestWithParam<std::string> {};
-
-void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
-  auto meta = fs.metadata_as_dynamic();
-  folly::dynamic ref;
-  if (version == "0.2.0" or version == "0.2.3") {
-    ref = folly::parseJson(reference_v0_2);
-  } else {
-    ref = folly::parseJson(reference);
-  }
-  EXPECT_EQ(ref, meta);
-}
-
-TEST_P(compat_metadata, backwards_compat) {
-  std::ostringstream oss;
-  stream_logger lgr(oss);
-  auto version = GetParam();
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
-  filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
-  check_dynamic(version, fs);
-}
-
-INSTANTIATE_TEST_SUITE_P(dwarfs, compat_metadata,
-                         ::testing::ValuesIn(versions));
-
-class compat_filesystem
-    : public testing::TestWithParam<std::tuple<std::string, bool>> {};
-
-TEST_P(compat_filesystem, backwards_compat) {
-  auto [version, enable_nlink] = GetParam();
-
+void check_compat(filesystem_v2 const& fs, std::string const& version) {
   bool has_devices = not(version == "0.2.0" or version == "0.2.3");
   bool has_ac_time = version == "0.2.0" or version == "0.2.3";
-
-  std::ostringstream oss;
-  stream_logger lgr(oss);
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
-
-  filesystem_options opts;
-  opts.metadata.enable_nlink = enable_nlink;
-
-  filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);
 
   struct ::statvfs vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -988,6 +962,71 @@ TEST_P(compat_filesystem, backwards_compat) {
         }
         EXPECT_EQ(it->second.st_size, st.st_size) << p;
       }
+    }
+  }
+}
+
+} // namespace
+
+class compat_metadata : public testing::TestWithParam<std::string> {};
+
+void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
+  auto meta = fs.metadata_as_dynamic();
+  folly::dynamic ref;
+  if (version == "0.2.0" or version == "0.2.3") {
+    ref = folly::parseJson(reference_v0_2);
+  } else {
+    ref = folly::parseJson(reference);
+  }
+  EXPECT_EQ(ref, meta);
+}
+
+TEST_P(compat_metadata, backwards_compat) {
+  std::ostringstream oss;
+  stream_logger lgr(oss);
+  auto version = GetParam();
+  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+  filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
+  check_dynamic(version, fs);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, compat_metadata,
+                         ::testing::ValuesIn(versions));
+
+class compat_filesystem
+    : public testing::TestWithParam<std::tuple<std::string, bool>> {};
+
+TEST_P(compat_filesystem, backwards_compat) {
+  auto [version, enable_nlink] = GetParam();
+
+  std::ostringstream oss;
+  stream_logger lgr(oss);
+  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+
+  filesystem_options opts;
+  opts.metadata.enable_nlink = enable_nlink;
+
+  {
+    filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);
+    check_compat(fs, version);
+  }
+
+  opts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+
+  std::string fsdata;
+  ASSERT_TRUE(folly::readFile(filename.c_str(), fsdata));
+
+  for (auto const& hdr : headers) {
+    filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
+                     opts);
+    check_compat(fs, version);
+  }
+
+  if (version != "0.2.0" and version != "0.2.3") {
+    for (auto const& hdr : headers_v2) {
+      filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
+                       opts);
+      check_compat(fs, version);
     }
   }
 }
