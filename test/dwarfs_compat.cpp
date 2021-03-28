@@ -34,6 +34,7 @@
 #include <sys/statvfs.h>
 
 #include <folly/FileUtil.h>
+#include <folly/String.h>
 #include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
@@ -1053,15 +1054,106 @@ TEST_P(rewrite, filesystem_rewrite) {
   block_compressor bc("null");
   progress prog([](const progress&, bool) {}, 1000);
   std::ostringstream rewritten, idss;
-  filesystem_writer fsw(rewritten, lgr, wg, prog, bc, 64 << 20);
-  filesystem_v2::identify(lgr, std::make_shared<mmap>(filename), idss);
-  filesystem_v2::rewrite(lgr, prog, std::make_shared<mmap>(filename), fsw,
-                         opts);
 
-  filesystem_v2::identify(
-      lgr, std::make_shared<test::mmap_mock>(rewritten.str()), idss);
-  filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(rewritten.str()));
-  check_dynamic(version, fs);
+  {
+    filesystem_writer fsw(rewritten, lgr, wg, prog, bc);
+    auto mm = std::make_shared<mmap>(filename);
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_FALSE(filesystem_v2::header(mm));
+    filesystem_v2::rewrite(lgr, prog, mm, fsw, opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_FALSE(filesystem_v2::header(mm));
+    filesystem_v2 fs(lgr, mm);
+    check_dynamic(version, fs);
+  }
+
+  rewritten.str(std::string());
+  rewritten.clear();
+
+  {
+    std::istringstream hdr_iss(format_sh);
+    filesystem_writer_options fsw_opts;
+    filesystem_writer fsw(rewritten, lgr, wg, prog, bc, fsw_opts, &hdr_iss);
+    filesystem_v2::rewrite(lgr, prog, std::make_shared<mmap>(filename), fsw,
+                           opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
+    EXPECT_NO_THROW(filesystem_v2::identify(
+        lgr, mm, idss, 0, 1, false, filesystem_options::IMAGE_OFFSET_AUTO));
+    auto hdr = filesystem_v2::header(mm);
+    ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
+                                       rewritten.str().size());
+    EXPECT_EQ(format_sh, std::string(reinterpret_cast<char const*>(hdr->data()),
+                                     hdr->size()));
+    filesystem_options fsopts;
+    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+    filesystem_v2 fs(lgr, mm, fsopts);
+    check_dynamic(version, fs);
+  }
+
+  std::ostringstream rewritten2;
+
+  {
+    std::istringstream hdr_iss("D");
+    filesystem_writer_options fsw_opts;
+    filesystem_writer fsw(rewritten2, lgr, wg, prog, bc, fsw_opts, &hdr_iss);
+    filesystem_v2::rewrite(lgr, prog,
+                           std::make_shared<test::mmap_mock>(rewritten.str()),
+                           fsw, opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten2.str());
+    auto hdr = filesystem_v2::header(mm);
+    ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
+                                       rewritten2.str().size());
+    EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
+                               hdr->size()));
+  }
+
+  std::ostringstream rewritten3;
+
+  {
+    filesystem_writer fsw(rewritten3, lgr, wg, prog, bc);
+    filesystem_v2::rewrite(lgr, prog,
+                           std::make_shared<test::mmap_mock>(rewritten2.str()),
+                           fsw, opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten3.str());
+    auto hdr = filesystem_v2::header(mm);
+    ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
+                                       rewritten3.str().size());
+    EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
+                               hdr->size()));
+  }
+
+  std::ostringstream rewritten4;
+
+  {
+    filesystem_writer_options fsw_opts;
+    fsw_opts.remove_header = true;
+    filesystem_writer fsw(rewritten4, lgr, wg, prog, bc, fsw_opts);
+    filesystem_v2::rewrite(lgr, prog,
+                           std::make_shared<test::mmap_mock>(rewritten3.str()),
+                           fsw, opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten4.str());
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_FALSE(filesystem_v2::header(mm))
+        << folly::hexDump(rewritten3.str().data(), rewritten3.str().size());
+    filesystem_v2 fs(lgr, mm);
+    check_dynamic(version, fs);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, rewrite,

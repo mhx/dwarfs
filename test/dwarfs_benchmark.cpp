@@ -126,7 +126,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   progress prog([](const progress&, bool) {}, 1000);
 
   block_compressor bc("null");
-  filesystem_writer fsw(oss, lgr, wg, prog, bc, 64 << 20);
+  filesystem_writer fsw(oss, lgr, wg, prog, bc);
 
   s.scan(fsw, "", prog);
 

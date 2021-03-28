@@ -20,6 +20,7 @@
  */
 
 #include <iostream>
+#include <string_view>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -48,6 +49,7 @@ int dwarfsck(int argc, char** argv) {
   int detail;
   bool json = false;
   bool check_integrity = false;
+  bool print_header = false;
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -61,6 +63,9 @@ int dwarfsck(int argc, char** argv) {
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
+    ("print-header,H",
+        po::value<bool>(&print_header)->zero_tokens(),
+        "print filesystem header to stdout and exit")
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
@@ -126,6 +131,14 @@ int dwarfsck(int argc, char** argv) {
     } else if (json) {
       filesystem_v2 fs(lgr, mm, fsopts);
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
+    } else if (print_header) {
+      if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
+        std::cout << std::string_view(
+            reinterpret_cast<char const*>(hdr->data()), hdr->size());
+      } else {
+        LOG_ERROR << "filesystem does not contain a header";
+        return 1;
+      }
     } else {
       filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
                               check_integrity, fsopts.image_offset);

@@ -150,6 +150,13 @@ class filesystem_parser {
     return std::nullopt;
   }
 
+  std::optional<folly::ByteRange> header() const {
+    if (image_offset_ == 0) {
+      return std::nullopt;
+    }
+    return folly::ByteRange(mm_->as<uint8_t>(), image_offset_);
+  }
+
   void rewind() {
     offset_ = image_offset_ + (version_ == 1 ? sizeof(file_header) : 0);
   }
@@ -266,6 +273,7 @@ class filesystem_ final : public filesystem_v2::impl {
                 off_t offset) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
   readv(uint32_t inode, size_t size, off_t offset) const override;
+  std::optional<folly::ByteRange> header() const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -273,6 +281,7 @@ class filesystem_ final : public filesystem_v2::impl {
   metadata_v2 meta_;
   inode_reader_v2 ir_;
   std::vector<uint8_t> meta_buffer_;
+  std::optional<folly::ByteRange> header_;
 };
 
 template <typename LoggerPolicy>
@@ -283,6 +292,8 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
     , mm_(std::move(mm)) {
   filesystem_parser parser(mm_, options.image_offset);
   block_cache cache(lgr, mm_, options.block_cache);
+
+  header_ = parser.header();
 
   section_map sections;
 
@@ -448,6 +459,11 @@ filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
   return folly::makeUnexpected(-EBADF);
 }
 
+template <typename LoggerPolicy>
+std::optional<folly::ByteRange> filesystem_<LoggerPolicy>::header() const {
+  return header_;
+}
+
 } // namespace
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
@@ -465,7 +481,11 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             rewrite_options const& opts) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
-  filesystem_parser parser(mm);
+  filesystem_parser parser(mm, opts.image_offset);
+
+  if (auto hdr = parser.header()) {
+    writer.copy_header(*hdr);
+  }
 
   std::vector<section_type> section_types;
   section_map sections;
@@ -613,6 +633,16 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   }
 
   return errors;
+}
+
+std::optional<folly::ByteRange>
+filesystem_v2::header(std::shared_ptr<mmif> mm) {
+  return header(std::move(mm), filesystem_options::IMAGE_OFFSET_AUTO);
+}
+
+std::optional<folly::ByteRange>
+filesystem_v2::header(std::shared_ptr<mmif> mm, off_t image_offset) {
+  return filesystem_parser(mm, image_offset).header();
 }
 
 } // namespace dwarfs

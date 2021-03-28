@@ -52,6 +52,11 @@ struct filesystem_options {
   metadata_options metadata;
 };
 
+struct filesystem_writer_options {
+  size_t max_queue_size{64 << 20};
+  bool remove_header{false};
+};
+
 struct inode_options {
   bool with_similarity{false};
   bool with_nilsimsa{false};
@@ -94,6 +99,7 @@ struct scanner_options {
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
+  off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

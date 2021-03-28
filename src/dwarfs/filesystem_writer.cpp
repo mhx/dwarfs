@@ -209,9 +209,11 @@ class filesystem_writer_ final : public filesystem_writer::impl {
                      progress& prog, const block_compressor& bc,
                      const block_compressor& schema_bc,
                      const block_compressor& metadata_bc,
-                     size_t max_queue_size);
+                     filesystem_writer_options const& options,
+                     std::istream* header);
   ~filesystem_writer_() noexcept override;
 
+  void copy_header(folly::ByteRange header) override;
   void write_block(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
@@ -234,12 +236,13 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   size_t mem_used() const;
 
   std::ostream& os_;
+  std::istream* header_;
   worker_group& wg_;
   progress& prog_;
   const block_compressor& bc_;
   const block_compressor& schema_bc_;
   const block_compressor& metadata_bc_;
-  const size_t max_queue_size_;
+  const filesystem_writer_options options_;
   LOG_PROXY_DECL(LoggerPolicy);
   std::deque<std::unique_ptr<fsblock>> queue_;
   mutable std::mutex mx_;
@@ -253,17 +256,27 @@ template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
     const block_compressor& bc, const block_compressor& schema_bc,
-    const block_compressor& metadata_bc, size_t max_queue_size)
+    const block_compressor& metadata_bc,
+    filesystem_writer_options const& options, std::istream* header)
     : os_(os)
+    , header_(header)
     , wg_(wg)
     , prog_(prog)
     , bc_(bc)
     , schema_bc_(schema_bc)
     , metadata_bc_(metadata_bc)
-    , max_queue_size_(max_queue_size)
+    , options_(options)
     , LOG_PROXY_INIT(lgr)
     , flush_(false)
-    , writer_thread_(&filesystem_writer_::writer_thread, this) {}
+    , writer_thread_(&filesystem_writer_::writer_thread, this) {
+  if (header_) {
+    if (options_.remove_header) {
+      LOG_WARN << "header will not be written because remove_header is set";
+    } else {
+      os_ << header_->rdbuf();
+    }
+  }
+}
 
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::~filesystem_writer_() noexcept {
@@ -381,7 +394,7 @@ void filesystem_writer_<LoggerPolicy>::write_section(
   {
     std::unique_lock lock(mx_);
 
-    while (mem_used() > max_queue_size_) {
+    while (mem_used() > options_.max_queue_size) {
       cond_.wait(lock);
     }
   }
@@ -410,6 +423,17 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
   }
 
   cond_.notify_one();
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::copy_header(folly::ByteRange header) {
+  if (!options_.remove_header) {
+    if (header_) {
+      LOG_WARN << "replacing old header";
+    } else {
+      write(header);
+    }
+  }
 }
 
 template <typename LoggerPolicy>
@@ -452,17 +476,20 @@ void filesystem_writer_<LoggerPolicy>::flush() {
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
                                      const block_compressor& bc,
-                                     size_t max_queue_size)
-    : filesystem_writer(os, lgr, wg, prog, bc, bc, bc, max_queue_size) {}
+                                     filesystem_writer_options const& options,
+                                     std::istream* header)
+    : filesystem_writer(os, lgr, wg, prog, bc, bc, bc, options, header) {}
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
                                      const block_compressor& bc,
                                      const block_compressor& schema_bc,
                                      const block_compressor& metadata_bc,
-                                     size_t max_queue_size)
+                                     filesystem_writer_options const& options,
+                                     std::istream* header)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, bc, schema_bc, metadata_bc, max_queue_size)) {}
+              lgr, os, wg, prog, bc, schema_bc, metadata_bc, options, header)) {
+}
 
 } // namespace dwarfs

@@ -30,6 +30,7 @@
 #include <folly/Range.h>
 
 #include "dwarfs/fstypes.h"
+#include "dwarfs/options.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
@@ -42,14 +43,20 @@ class worker_group;
 
 class filesystem_writer {
  public:
-  filesystem_writer(std::ostream& os, logger& lgr, worker_group& wg,
-                    progress& prog, const block_compressor& bc,
-                    size_t max_queue_size);
+  filesystem_writer(
+      std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
+      const block_compressor& bc,
+      filesystem_writer_options const& options = filesystem_writer_options(),
+      std::istream* header = nullptr);
 
   filesystem_writer(std::ostream& os, logger& lgr, worker_group& wg,
                     progress& prog, const block_compressor& bc,
                     const block_compressor& schema_bc,
-                    const block_compressor& metadata_bc, size_t max_queue_size);
+                    const block_compressor& metadata_bc,
+                    filesystem_writer_options const& options,
+                    std::istream* header = nullptr);
+
+  void copy_header(folly::ByteRange header) { impl_->copy_header(header); }
 
   void write_block(std::shared_ptr<block_data>&& data) {
     impl_->write_block(std::move(data));
@@ -78,6 +85,7 @@ class filesystem_writer {
    public:
     virtual ~impl() = default;
 
+    virtual void copy_header(folly::ByteRange header) = 0;
     virtual void write_block(std::shared_ptr<block_data>&& data) = 0;
     virtual void
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;

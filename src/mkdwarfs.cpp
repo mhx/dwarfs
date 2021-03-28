@@ -330,11 +330,11 @@ int mkdwarfs(int argc, char** argv) {
   const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
 
   block_manager::config cfg;
-  std::string path, output, memory_limit, script_arg, compression,
+  std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers;
-  bool no_progress = false, plain_string_tables = false;
+  bool no_progress = false, plain_string_tables = false, remove_header = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -436,6 +436,13 @@ int mkdwarfs(int argc, char** argv) {
     ("with-specials",
         po::value<bool>(&options.with_specials)->zero_tokens(),
         "include named fifo and sockets")
+    ("header",
+        po::value<std::string>(&header),
+        "prepend output filesystem with contents of this file")
+    ("remove-header",
+        po::value<bool>(&remove_header)->zero_tokens(),
+        "remove any header present before filesystem data"
+        " (use with --recompress)")
     ("log-level",
         po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
@@ -794,6 +801,22 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
+  filesystem_writer_options fswopts;
+  fswopts.max_queue_size = mem_limit;
+  fswopts.remove_header = remove_header;
+
+  std::unique_ptr<std::ifstream> header_ifs;
+
+  if (!header.empty()) {
+    header_ifs =
+        std::make_unique<std::ifstream>(header.c_str(), std::ios::binary);
+    if (header_ifs->bad() || !header_ifs->is_open()) {
+      std::cerr << "error: cannot open header file '" << header
+                << "': " << strerror(errno) << std::endl;
+      return 1;
+    }
+  }
+
   LOG_PROXY(debug_logger_policy, lgr);
 
   progress prog([&](const progress& p, bool last) { lgr.update(p, last); },
@@ -813,7 +836,7 @@ int mkdwarfs(int argc, char** argv) {
   }
 
   filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
-                        mem_limit);
+                        fswopts, header_ifs.get());
 
   auto ti = LOG_TIMED_INFO;
 
