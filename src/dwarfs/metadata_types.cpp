@@ -225,6 +225,10 @@ void check_packed_tables(global_metadata::Meta const* meta) {
 void check_chunks(global_metadata::Meta const* meta) {
   auto block_size = meta->block_size();
 
+  if (block_size == 0 || (block_size & (block_size - 1))) {
+    DWARFS_THROW(runtime_error, "invalid block size");
+  }
+
   for (auto c : meta->chunks()) {
     if (c.offset() >= block_size || c.size() > block_size) {
       DWARFS_THROW(runtime_error, "chunk offset/size out of range");
