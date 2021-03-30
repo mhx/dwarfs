@@ -178,6 +178,8 @@ class filesystem_parser {
 
   off_t image_offset() const { return image_offset_; }
 
+  bool has_checksums() const { return version_ >= 2; }
+
  private:
   std::shared_ptr<mmif> mm_;
   off_t const image_offset_;
@@ -212,7 +214,8 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               std::vector<uint8_t>& meta_buffer,
               const metadata_options& options, int inode_offset = 0,
               bool force_buffers = false,
-              mlock_mode lock_mode = mlock_mode::NONE) {
+              mlock_mode lock_mode = mlock_mode::NONE,
+              bool force_consistency_check = false) {
   LOG_PROXY(debug_logger_policy, lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
@@ -250,7 +253,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
   return metadata_v2(
       lgr,
       get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      meta_section_range, options, inode_offset);
+      meta_section_range, options, inode_offset, force_consistency_check);
 }
 
 template <typename LoggerPolicy>
@@ -326,9 +329,9 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   std::vector<uint8_t> schema_buffer;
 
-  meta_ =
-      make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
-                    options.metadata, inode_offset, false, options.lock_mode);
+  meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
+                        options.metadata, inode_offset, false,
+                        options.lock_mode, !parser.has_checksums());
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -526,16 +529,10 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   std::vector<uint8_t> schema_raw;
   std::vector<uint8_t> meta_raw;
 
-  if (opts.recompress_metadata) {
-    auto meta = make_metadata(lgr, mm, sections, schema_raw, meta_raw,
-                              metadata_options(), 0, true);
-
-    struct ::statvfs stbuf;
-    meta.statvfs(&stbuf);
-    prog.original_size = stbuf.f_blocks * stbuf.f_frsize;
-  } else {
-    prog.original_size = total_block_size;
-  }
+  // force metadata check
+  auto meta =
+      make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(),
+                    0, true, mlock_mode::NONE, !parser.has_checksums());
 
   parser.rewind();
 
@@ -639,9 +636,8 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
 
   if (errors == 0 and detail_level > 0) {
     filesystem_options fsopts;
-    if (detail_level > 0) {
-      fsopts.metadata.enable_nlink = true;
-    }
+    fsopts.metadata.check_consistency = true;
+    fsopts.metadata.enable_nlink = true;
     fsopts.image_offset = image_offset;
     filesystem_v2(lgr, mm, fsopts).dump(os, detail_level);
   }

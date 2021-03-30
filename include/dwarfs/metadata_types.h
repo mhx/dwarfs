@@ -48,7 +48,7 @@ class global_metadata {
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
-  global_metadata(logger& lgr, Meta const* meta);
+  global_metadata(logger& lgr, Meta const* meta, bool check_consistency);
 
   Meta const* meta() const { return meta_; }
 

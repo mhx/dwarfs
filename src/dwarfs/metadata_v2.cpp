@@ -242,10 +242,12 @@ template <typename LoggerPolicy>
 class metadata_ final : public metadata_v2::impl {
  public:
   metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-            metadata_options const& options, int inode_offset)
+            metadata_options const& options, int inode_offset,
+            bool force_consistency_check)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
-      , global_(lgr, &meta_)
+      , global_(lgr, &meta_,
+                options.check_consistency || force_consistency_check)
       , root_(dir_entry_view::from_dir_entry_index(0, &global_))
       , log_(lgr)
       , inode_offset_(inode_offset)
@@ -1313,9 +1315,9 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
 
 metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
                          folly::ByteRange data, metadata_options const& options,
-                         int inode_offset)
+                         int inode_offset, bool force_consistency_check)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, schema, data, options, inode_offset)) {}
+          lgr, schema, data, options, inode_offset, force_consistency_check)) {}
 
 } // namespace dwarfs

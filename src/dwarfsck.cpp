@@ -110,6 +110,9 @@ int dwarfsck(int argc, char** argv) {
 
   try {
     filesystem_options fsopts;
+
+    fsopts.metadata.check_consistency = true;
+
     try {
       fsopts.image_offset = image_offset == "auto"
                                 ? filesystem_options::IMAGE_OFFSET_AUTO

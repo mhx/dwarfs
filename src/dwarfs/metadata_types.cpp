@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <numeric>
 #include <queue>
 
 #include "dwarfs/error.h"
@@ -82,10 +84,269 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
   return directories;
 }
 
+int mode_rank(uint16_t mode) {
+  switch (mode & S_IFMT) {
+  case S_IFDIR:
+    return 0;
+  case S_IFLNK:
+    return 1;
+  case S_IFREG:
+    return 2;
+  case S_IFBLK:
+  case S_IFCHR:
+    return 3;
+  default:
+    return 4;
+  }
+}
+
+void check_empty_tables(global_metadata::Meta const* meta) {
+  if (meta->inodes().empty()) {
+    DWARFS_THROW(runtime_error, "empty inodes table");
+  }
+
+  if (meta->directories().empty()) {
+    DWARFS_THROW(runtime_error, "empty directories table");
+  }
+
+  if (meta->chunk_table().empty()) {
+    DWARFS_THROW(runtime_error, "empty chunk_table table");
+  }
+
+  if (auto de = meta->dir_entries()) {
+    if (de->empty()) {
+      DWARFS_THROW(runtime_error, "empty dir_entries table");
+    }
+  } else {
+    if (meta->entry_table_v2_2().empty()) {
+      DWARFS_THROW(runtime_error, "empty entry_table_v2_2 table");
+    }
+  }
+
+  if (meta->modes().empty()) {
+    DWARFS_THROW(runtime_error, "empty modes table");
+  }
+}
+
+void check_index_range(global_metadata::Meta const* meta) {
+  auto num_modes = meta->modes().size();
+  auto num_uids = meta->uids().size();
+  auto num_gids = meta->gids().size();
+  auto num_names = meta->names().size();
+  auto num_inodes = meta->inodes().size();
+  bool v2_2 = !static_cast<bool>(meta->dir_entries());
+
+  for (auto ino : meta->inodes()) {
+    if (ino.mode_index() >= num_modes) {
+      DWARFS_THROW(runtime_error, "mode_index out of range");
+    }
+    if (auto i = ino.owner_index(); i >= num_uids && i > 0) {
+      DWARFS_THROW(runtime_error, "owner_index out of range");
+    }
+    if (auto i = ino.group_index(); i >= num_gids && i > 0) {
+      DWARFS_THROW(runtime_error, "group_index out of range");
+    }
+    if (v2_2) {
+      if (auto i = ino.name_index_v2_2(); i >= num_names && i > 0) {
+        DWARFS_THROW(runtime_error, "name_index_v2_2 out of range");
+      }
+    }
+  }
+
+  if (auto dep = meta->dir_entries()) {
+    if (auto cn = meta->compact_names()) {
+      num_names = cn->index().size();
+      if (!cn->packed_index()) {
+        if (num_names == 0) {
+          DWARFS_THROW(runtime_error, "empty compact_names index");
+        }
+        --num_names;
+      }
+    }
+
+    for (auto de : *dep) {
+      if (auto i = de.name_index(); i >= num_names && i > 0) {
+        DWARFS_THROW(runtime_error, "name_index out of range");
+      }
+      if (auto i = de.inode_num(); i >= num_inodes) {
+        DWARFS_THROW(runtime_error, "inode_num out of range");
+      }
+    }
+  } else {
+    for (auto ent : meta->entry_table_v2_2()) {
+      if (ent >= num_inodes) {
+        DWARFS_THROW(runtime_error, "entry_table_v2_2 value out of range");
+      }
+    }
+  }
+}
+
+void check_packed_tables(global_metadata::Meta const* meta) {
+  if (auto opt = meta->options(); opt and opt->packed_directories()) {
+    if (std::any_of(meta->directories().begin(), meta->directories().end(),
+                    [](auto i) { return i.parent_entry() != 0; })) {
+      DWARFS_THROW(runtime_error, "parent_entry set in packed directory");
+    }
+    if (std::accumulate(meta->directories().begin(), meta->directories().end(),
+                        static_cast<size_t>(0), [](auto n, auto d) {
+                          return n + d.first_entry();
+                        }) != meta->dir_entries()->size()) {
+      DWARFS_THROW(runtime_error,
+                   "first_entry inconsistency in packed directories");
+    }
+  } else {
+    size_t num_entries = meta->dir_entries() ? meta->dir_entries()->size()
+                                             : meta->inodes().size();
+
+    for (auto d : meta->directories()) {
+      if (auto i = d.first_entry(); i > num_entries) {
+        DWARFS_THROW(runtime_error, "first_entry out of range");
+      }
+      if (auto i = d.parent_entry(); i >= num_entries) {
+        DWARFS_THROW(runtime_error, "parent_entry out of range");
+      }
+    }
+  }
+
+  if (auto opt = meta->options(); opt and opt->packed_chunk_table()) {
+    if (std::accumulate(meta->chunk_table().begin(), meta->chunk_table().end(),
+                        static_cast<size_t>(0)) != meta->chunks().size()) {
+      DWARFS_THROW(runtime_error, "packed chunk_table inconsistency");
+    }
+  } else {
+    if (!std::is_sorted(meta->chunk_table().begin(),
+                        meta->chunk_table().end()) or
+        meta->chunk_table().back() != meta->chunks().size()) {
+      DWARFS_THROW(runtime_error, "chunk_table inconsistency");
+    }
+  }
+}
+
+void check_chunks(global_metadata::Meta const* meta) {
+  auto block_size = meta->block_size();
+
+  for (auto c : meta->chunks()) {
+    if (c.offset() >= block_size || c.size() > block_size) {
+      DWARFS_THROW(runtime_error, "chunk offset/size out of range");
+    }
+    if (c.offset() + c.size() > block_size) {
+      DWARFS_THROW(runtime_error, "chunk end outside of block");
+    }
+  }
+}
+
+std::array<size_t, 6> check_partitioning(global_metadata::Meta const* meta) {
+  std::array<size_t, 6> offsets;
+
+  for (int r = 0; r < static_cast<int>(offsets.size()); ++r) {
+    if (auto dep = meta->dir_entries()) {
+      auto pred = [r, modes = meta->modes()](auto ino) {
+        return mode_rank(modes[ino.mode_index()]) < r;
+      };
+      auto inodes = meta->inodes();
+
+      if (!std::is_partitioned(inodes.begin(), inodes.end(), pred)) {
+        DWARFS_THROW(runtime_error, "inode table inconsistency");
+      }
+
+      offsets[r] = std::distance(
+          inodes.begin(),
+          std::partition_point(inodes.begin(), inodes.end(), pred));
+    } else {
+      auto pred = [r, modes = meta->modes(),
+                   inodes = meta->inodes()](auto ent) {
+        return mode_rank(modes[inodes[ent].mode_index()]) < r;
+      };
+      auto entries = meta->entry_table_v2_2();
+
+      if (!std::is_partitioned(entries.begin(), entries.end(), pred)) {
+        DWARFS_THROW(runtime_error, "entry_table_v2_2 inconsistency");
+      }
+
+      offsets[r] = std::distance(
+          entries.begin(),
+          std::partition_point(entries.begin(), entries.end(), pred));
+    }
+  }
+
+  return offsets;
+}
+
+global_metadata::Meta const*
+check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
+  if (check) {
+    LOG_PROXY(debug_logger_policy, lgr);
+
+    auto ti = LOG_TIMED_DEBUG;
+
+    ti << "check metadata consistency";
+
+    check_empty_tables(meta);
+    check_index_range(meta);
+    check_packed_tables(meta);
+    check_chunks(meta);
+    auto offsets = check_partitioning(meta);
+
+    auto num_dir = meta->directories().size() - 1;
+    auto num_lnk = meta->symlink_table().size();
+    auto num_reg_unique = meta->chunk_table().size() - 1;
+    size_t num_reg_shared = 0;
+
+    if (auto sfp = meta->shared_files_table()) {
+      if (meta->options()->packed_shared_files_table()) {
+        num_reg_shared =
+            std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
+        num_reg_unique -= sfp->size();
+      } else {
+        if (!std::is_sorted(sfp->begin(), sfp->end())) {
+          DWARFS_THROW(runtime_error,
+                       "unpacked shared_files_table is not sorted");
+        }
+        num_reg_shared = sfp->size();
+        num_reg_unique -= sfp->back() + 1;
+      }
+    }
+
+    size_t num_dev = meta->devices() ? meta->devices()->size() : 0;
+
+    if (num_dir != offsets[1]) {
+      DWARFS_THROW(runtime_error, "wrong number of directories");
+    }
+
+    if (num_lnk != offsets[2] - offsets[1]) {
+      DWARFS_THROW(runtime_error, "wrong number of links");
+    }
+
+    if (num_reg_unique + num_reg_shared != offsets[3] - offsets[2]) {
+      DWARFS_THROW(runtime_error, "wrong number of files");
+    }
+
+    if (num_dev != offsets[4] - offsets[3]) {
+      DWARFS_THROW(runtime_error, "wrong number of devices");
+    }
+
+    if (!meta->dir_entries()) {
+      for (auto ino : meta->inodes()) {
+        auto mode = meta->modes()[ino.mode_index()];
+        auto i = ino.inode_v2_2();
+        int base = mode_rank(mode);
+
+        if (i < offsets[base] ||
+            (i >= offsets[base + 1] && i > offsets[base])) {
+          DWARFS_THROW(runtime_error, "inode_v2_2 out of range");
+        }
+      }
+    }
+  }
+
+  return meta;
+}
+
 } // namespace
 
-global_metadata::global_metadata(logger& lgr, Meta const* meta)
-    : meta_{meta}
+global_metadata::global_metadata(logger& lgr, Meta const* meta,
+                                 bool check_consistency)
+    : meta_{check_metadata(lgr, meta, check_consistency)}
     , directories_storage_{unpack_directories(lgr, meta_)}
     , directories_{directories_storage_.empty() ? nullptr
                                                 : directories_storage_.data()}
