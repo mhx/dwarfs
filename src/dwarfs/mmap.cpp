@@ -56,6 +56,10 @@ size_t safe_size(int fd) {
 }
 
 void* safe_mmap(int fd, size_t size) {
+  if (size == 0) {
+    DWARFS_THROW(runtime_error, "empty file");
+  }
+
   void* addr = ::mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 
   if (addr == MAP_FAILED) {
@@ -64,6 +68,7 @@ void* safe_mmap(int fd, size_t size) {
 
   return addr;
 }
+
 } // namespace
 
 boost::system::error_code mmap::lock(off_t offset, size_t size) {
