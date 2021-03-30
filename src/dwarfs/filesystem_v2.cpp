@@ -500,9 +500,10 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 
   std::vector<section_type> section_types;
   section_map sections;
-  size_t total_block_size = 0;
 
   while (auto s = parser.next_section()) {
+    LOG_DEBUG << "section " << s->description() << " @ " << s->start() << " ["
+              << s->length() << " bytes]";
     if (!s->check_fast(*mm)) {
       DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
     }
@@ -510,9 +511,10 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
       DWARFS_THROW(runtime_error,
                    "integrity check error in section: " + s->name());
     }
+    prog.original_size += s->length();
+    prog.filesystem_size += s->length();
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
-      total_block_size += s->length();
     } else {
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
@@ -544,7 +546,6 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
         auto block =
             std::make_shared<block_data>(block_decompressor::decompress(
                 s->compression(), mm->as<uint8_t>(s->start()), s->length()));
-        prog.filesystem_size += block->size();
         writer.write_block(std::move(block));
       } else {
         writer.write_compressed_section(s->type(), s->compression(),
@@ -587,6 +588,8 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {
+    LOG_DEBUG << "section " << sp->description() << " @ " << sp->start() << " ["
+              << sp->length() << " bytes]";
     std::packaged_task<fs_section()> task{[&, s = *sp] {
       if (!s.check_fast(*mm)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
