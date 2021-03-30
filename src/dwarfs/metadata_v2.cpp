@@ -397,7 +397,7 @@ class metadata_ final : public metadata_v2::impl {
   };
 
   static inode_rank get_inode_rank(uint16_t mode) {
-    switch ((mode)&S_IFMT) {
+    switch (mode & S_IFMT) {
     case S_IFDIR:
       return inode_rank::INO_DIR;
     case S_IFLNK:
