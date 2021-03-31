@@ -329,7 +329,7 @@ if(WITH_BENCHMARKS)
   list(APPEND BINARY_TARGETS dwarfs_benchmark)
 endif()
 
-foreach(man dwarfs mkdwarfs dwarfsextract)
+foreach(man dwarfs mkdwarfs dwarfsck dwarfsextract)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/man

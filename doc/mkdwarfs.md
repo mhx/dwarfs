@@ -3,8 +3,8 @@ mkdwarfs(1) -- create highly compressed read-only file systems
 
 ## SYNOPSIS
 
-`mkdwarfs` -i *path* -o *file* [*options*...]<br>
-`mkdwarfs` -i *file* -o *file* --recompress [*options*...]
+`mkdwarfs` `-i` *path* `-o` *file* [*options*...]<br>
+`mkdwarfs` `-i` *file* `-o` *file* `--recompress` [*options*...]
 
 ## DESCRIPTION
 
@@ -261,6 +261,13 @@ Most other options are concerned with compression tuning:
     Include named fifos and sockets in the output file system. These are not
     included by default.
 
+  * `--header=`*file*:
+    Read header from file and place it before the output filesystem image.
+    Can be used with `--recompress` to add or replace a header.
+
+  * `--remove-header`:
+    Remove header from a filesystem image. Only useful with `--recompress`.
+
   * `--log-level=`*name*:
     Specifiy a logging level.
 
@@ -324,4 +331,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-dwarfs(1), dwarfsextract(1)
+dwarfs(1), dwarfsextract(1), dwarfsck(1)

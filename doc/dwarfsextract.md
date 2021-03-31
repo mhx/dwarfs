@@ -3,8 +3,8 @@ dwarfsextract(1) -- extract DwarFS image
 
 ## SYNOPSIS
 
-`dwarfsextract` -i *image* [-o *dir*] [*options*...]
-`dwarfsextract` -i *image* -f *format* [-o *file*] [*options*...]<br>
+`dwarfsextract` `-i` *image* [`-o` *dir*] [*options*...]<br>
+`dwarfsextract` `-i` *image* -f *format* [`-o` *file*] [*options*...]
 
 ## DESCRIPTION
 
@@ -38,12 +38,18 @@ to disk:
   * `-i`, `--input=`*file*:
     Path to the source filesystem.
 
-  * `-o`, `--output=`*directory*`|`*file*:
+  * `-o`, `--output=`*directory*|*file*:
     If no format is specified, this is the directory to which the contents
     of the filesystem should be extracted. If a format is specified, this
     is the name of the output archive. This option can be omitted, in which
     case the default is to extract the files to the current directory, or
     to write the archive data to stdout.
+
+  * `-O`, `--image-offset=`*value*|`auto`:
+    Specify the byte offset at which the filesystem is located in the image.
+    Use `auto` to detect the offset automatically. This is also the default.
+    This is only useful for images that have some header located before the
+    actual filesystem data.
 
   * `-f`, `--format=`*format*:
     The archive format to produce. If this is left empty or unspecified,
@@ -78,4 +84,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfs(1), libarchive-formats(5)
+mkdwarfs(1), dwarfs(1), dwarfsck(1), libarchive-formats(5)

@@ -3,7 +3,7 @@ dwarfs(1) -- mount highly compressed read-only file system
 
 ## SYNOPSIS
 
-`dwarfs` image mountpoint [*options*...]
+`dwarfs` *image* *mountpoint* [*options*...]
 
 ## DESCRIPTION
 
@@ -49,12 +49,18 @@ options:
     we keep the partially decompressed block, but if we've
     decompressed more then 80%, we'll fully decompress it.
 
-  * `-o mlock=none`|`try`|`must`
+  * `-o offset=`*value*|`auto`:
+    Specify the byte offset at which the filesystem is located in
+    the image, or use `auto` to detect the offset automatically.
+    This is only useful for images that have some header located
+    before the actual filesystem data.
+
+  * `-o mlock=none`|`try`|`must`:
     Set this to `try` or `must` instead of the default `none` to
     try or require `mlock()`ing of the file system metadata into
     memory.
 
-  * `-o enable_nlink`
+  * `-o enable_nlink`:
     Set this option if you want correct hardlink counts for regular
     files. If this is not specified, the hardlink count will be 1.
     Enabling this will slow down the initialization of the fuse
@@ -64,7 +70,7 @@ options:
     will also consume more memory to hold the hardlink count table.
     This will be 4 bytes for every regular file inode.
 
-  * `-o readonly`
+  * `-o readonly`:
     Show all file system entries as read-only. By default, DwarFS
     will preserve the original writeability, which is obviously a
     lie as it's a read-only file system. However, this is needed
@@ -74,7 +80,7 @@ options:
     overlays and want the file system to reflect its read-only
     state, you can set this option.
 
-  * `-o (no_)cache_image`
+  * `-o (no_)cache_image`:
     By default, `dwarfs` tries to ensure that the compressed file
     system image will not be cached by the kernel (i.e. the default
     is `-o no_cache_image`). This will reduce the memory consumption
@@ -85,7 +91,7 @@ options:
     `-o cache_image` to keep the compressed image data in the kernel
     cache.
 
-  * `-o (no_)cache_files`
+  * `-o (no_)cache_files`:
     By default, files in the mounted file system will be cached by
     the kernel (i.e. the default is `-o cache_files`). This will
     significantly improve performance when accessing the same files
@@ -108,7 +114,7 @@ There's two particular FUSE options that you'll likely need at some
 point, e.g. when trying to set up an `overlayfs` mount on top of
 a DwarFS image:
 
-  * `-o allow_root` and `-o allow_other`
+  * `-o allow_root` and `-o allow_other`:
     These will ensure that the mounted file system can be read by
     either `root` or any other user in addition to the user that
     started the fuse driver. So if you're running `dwarfs` as a
@@ -201,4 +207,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfsextract(1)
+mkdwarfs(1), dwarfsextract(1), dwarfsck(1)
