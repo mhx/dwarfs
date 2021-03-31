@@ -352,7 +352,7 @@ void check_string_tables(global_metadata::Meta const* meta) {
     }
   }
 
-  constexpr size_t max_name_len = 255;
+  constexpr size_t max_name_len = 2048;
   constexpr size_t max_symlink_len = 4096;
 
   if (auto cn = meta->compact_names()) {
