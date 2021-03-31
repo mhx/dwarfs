@@ -1057,6 +1057,7 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   filesystem_options opts;
   opts.metadata.enable_nlink = enable_nlink;
+  opts.metadata.check_consistency = true;
 
   {
     filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);

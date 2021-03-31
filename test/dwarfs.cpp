@@ -114,6 +114,7 @@ void basic_end_to_end_test(std::string const& compressor,
   filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = enable_nlink;
+  opts.metadata.check_consistency = true;
 
   filesystem_v2 fs(lgr, mm, opts);
 
