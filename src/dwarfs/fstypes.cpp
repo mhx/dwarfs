@@ -59,6 +59,14 @@ std::string get_default(const HT& ht, const typename HT::key_type& key) {
 }
 } // namespace
 
+bool is_valid_compression_type(compression_type type) {
+  return compressions.count(type) > 0;
+}
+
+bool is_valid_section_type(section_type type) {
+  return sections.count(type) > 0;
+}
+
 std::string get_compression_name(compression_type type) {
   return get_default(compressions, type);
 }

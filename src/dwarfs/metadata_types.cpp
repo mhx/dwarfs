@@ -235,6 +235,12 @@ void check_packed_tables(global_metadata::Meta const* meta) {
     size_t num_entries = meta->dir_entries() ? meta->dir_entries()->size()
                                              : meta->inodes().size();
 
+    if (!std::is_sorted(
+            meta->directories().begin(), meta->directories().end(),
+            [](auto a, auto b) { return a.first_entry() < b.first_entry(); })) {
+      DWARFS_THROW(runtime_error, "first_entry inconsistency");
+    }
+
     for (auto d : meta->directories()) {
       if (auto i = d.first_entry(); i > num_entries) {
         DWARFS_THROW(runtime_error, "first_entry out of range");
@@ -256,6 +262,114 @@ void check_packed_tables(global_metadata::Meta const* meta) {
         meta->chunk_table().back() != meta->chunks().size()) {
       DWARFS_THROW(runtime_error, "chunk_table inconsistency");
     }
+  }
+}
+
+void check_compact_strings(
+    ::apache::thrift::frozen::View<thrift::metadata::string_table> v,
+    size_t expected_num, size_t max_item_len, std::string const& what) {
+  size_t index_size = v.index().size();
+
+  if (!v.packed_index() && index_size > 0) {
+    --index_size;
+  }
+
+  if (index_size != expected_num) {
+    DWARFS_THROW(runtime_error, "unexpected number of compact " + what);
+  }
+
+  size_t expected_data_size = 0;
+  size_t longest_item_len = 0;
+  if (!v.index().empty()) {
+    if (v.packed_index()) {
+      expected_data_size =
+          std::accumulate(v.index().begin(), v.index().end(), 0);
+      longest_item_len = *std::max_element(v.index().begin(), v.index().end());
+    } else {
+      expected_data_size = v.index().back();
+      if (!std::is_sorted(v.index().begin(), v.index().end())) {
+        DWARFS_THROW(runtime_error, "inconsistent index for compact " + what);
+      }
+    }
+  }
+
+  if (v.buffer().size() != expected_data_size) {
+    DWARFS_THROW(runtime_error, "data size mismatch for compact " + what);
+  }
+
+  if (longest_item_len > max_item_len) {
+    DWARFS_THROW(runtime_error, "invalid item length in compact " + what);
+  }
+}
+
+void check_plain_strings(
+    ::apache::thrift::frozen::View<std::vector<std::string>> v,
+    size_t expected_num, size_t max_item_len, std::string const& what) {
+  if (v.size() != expected_num) {
+    DWARFS_THROW(runtime_error, "unexpected number of " + what);
+  }
+
+  size_t total_size = 0;
+
+  for (auto s : v) {
+    if (s.size() > max_item_len) {
+      DWARFS_THROW(runtime_error, "unexpectedly long item in " + what);
+    }
+    total_size += s.size();
+  }
+
+  if (!v.empty()) {
+    if (total_size != static_cast<size_t>(v.back().end() - v.front().begin())) {
+      DWARFS_THROW(runtime_error, "unexpectedly data size in " + what);
+    }
+  }
+}
+
+void check_string_tables(global_metadata::Meta const* meta) {
+  size_t num_names = 0;
+  if (auto dep = meta->dir_entries()) {
+    if (dep->size() > 1) {
+      num_names = std::max_element(dep->begin(), dep->end(),
+                                   [](auto const& a, auto const& b) {
+                                     return a.name_index() < b.name_index();
+                                   })
+                      ->name_index() +
+                  1;
+    }
+  } else {
+    if (meta->inodes().size() > 1) {
+      num_names =
+          std::max_element(meta->inodes().begin(), meta->inodes().end(),
+                           [](auto const& a, auto const& b) {
+                             return a.name_index_v2_2() < b.name_index_v2_2();
+                           })
+              ->name_index_v2_2() +
+          1;
+    }
+  }
+
+  constexpr size_t max_name_len = 255;
+  constexpr size_t max_symlink_len = 4096;
+
+  if (auto cn = meta->compact_names()) {
+    check_compact_strings(*cn, num_names, max_name_len, "names");
+  } else {
+    check_plain_strings(meta->names(), num_names, max_name_len, "names");
+  }
+
+  size_t num_symlink_strings = 0;
+  if (!meta->symlink_table().empty()) {
+    num_symlink_strings = *std::max_element(meta->symlink_table().begin(),
+                                            meta->symlink_table().end()) +
+                          1;
+  }
+
+  if (auto cs = meta->compact_symlinks()) {
+    check_compact_strings(*cs, num_symlink_strings, max_symlink_len,
+                          "symlink strings");
+  } else {
+    check_plain_strings(meta->symlinks(), num_symlink_strings, max_symlink_len,
+                        "symlink strings");
   }
 }
 
@@ -329,6 +443,7 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
     check_empty_tables(meta);
     check_index_range(meta);
     check_packed_tables(meta);
+    check_string_tables(meta);
     check_chunks(meta);
     auto offsets = check_partitioning(meta);
 

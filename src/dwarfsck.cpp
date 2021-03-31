@@ -143,8 +143,10 @@ int dwarfsck(int argc, char** argv) {
         return 1;
       }
     } else {
-      filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
-                              check_integrity, fsopts.image_offset);
+      if (filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
+                                  check_integrity, fsopts.image_offset) != 0) {
+        return 1;
+      }
     }
   } catch (system_error const& e) {
     LOG_ERROR << folly::exceptionStr(e);

@@ -30,6 +30,48 @@
 
 namespace dwarfs {
 
+namespace {
+
+template <typename T>
+void read_section_header_common(T& header, size_t& start, mmif& mm,
+                                size_t offset) {
+  if (offset + sizeof(T) > mm.size()) {
+    DWARFS_THROW(runtime_error, "truncated section header");
+  }
+
+  ::memcpy(&header, mm.as<void>(offset), sizeof(T));
+
+  offset += sizeof(T);
+
+  auto end = offset + header.length;
+
+  if (end < offset) {
+    DWARFS_THROW(runtime_error, "offset/length overflow");
+  }
+
+  if (end > mm.size()) {
+    DWARFS_THROW(runtime_error, "truncated section data");
+  }
+
+  start = offset;
+}
+
+template <typename T>
+void check_section(T const& sec) {
+  if (!is_valid_section_type(sec.type())) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid section type ({0})",
+                                            static_cast<int>(sec.type())));
+  }
+
+  if (!is_valid_compression_type(sec.compression())) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid compression type ({0})",
+                             static_cast<int>(sec.compression())));
+  }
+}
+
+} // namespace
+
 class fs_section_v1 : public fs_section::impl {
  public:
   fs_section_v1(mmif& mm, size_t offset);
@@ -118,36 +160,14 @@ fs_section::fs_section(mmif& mm, size_t offset, int version) {
   }
 }
 
-template <typename T>
-void read_section_header_common(T& header, size_t& start, mmif& mm,
-                                size_t offset) {
-  if (offset + sizeof(T) > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section header");
-  }
-
-  ::memcpy(&header, mm.as<void>(offset), sizeof(T));
-
-  offset += sizeof(T);
-
-  auto end = offset + header.length;
-
-  if (end < offset) {
-    DWARFS_THROW(runtime_error, "offset/length overflow");
-  }
-
-  if (end > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section data");
-  }
-
-  start = offset;
-}
-
 fs_section_v1::fs_section_v1(mmif& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
+  check_section(*this);
 }
 
 fs_section_v2::fs_section_v2(mmif& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
+  check_section(*this);
 }
 
 } // namespace dwarfs

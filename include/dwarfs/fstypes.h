@@ -114,6 +114,10 @@ struct section_header_v2 {
   void dump(std::ostream& os) const;
 };
 
+bool is_valid_compression_type(compression_type type);
+
+bool is_valid_section_type(section_type type);
+
 std::string get_compression_name(compression_type type);
 
 std::string get_section_name(section_type type);
