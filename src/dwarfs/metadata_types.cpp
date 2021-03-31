@@ -23,6 +23,8 @@
 #include <numeric>
 #include <queue>
 
+#include <fmt/format.h>
+
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_types.h"
@@ -298,7 +300,9 @@ void check_compact_strings(
   }
 
   if (longest_item_len > max_item_len) {
-    DWARFS_THROW(runtime_error, "invalid item length in compact " + what);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid item length in compact {0}: {1} > {2}",
+                             what, longest_item_len, max_item_len));
   }
 }
 
