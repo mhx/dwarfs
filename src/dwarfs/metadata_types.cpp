@@ -136,6 +136,26 @@ void check_index_range(global_metadata::Meta const* meta) {
   auto num_inodes = meta->inodes().size();
   bool v2_2 = !static_cast<bool>(meta->dir_entries());
 
+  if (num_modes >= std::numeric_limits<uint16_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of modes");
+  }
+
+  if (num_uids >= std::numeric_limits<uint16_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of uids");
+  }
+
+  if (num_gids >= std::numeric_limits<uint16_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of gids");
+  }
+
+  if (num_names >= std::numeric_limits<uint32_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of names");
+  }
+
+  if (num_inodes >= std::numeric_limits<uint32_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of inodes");
+  }
+
   for (auto ino : meta->inodes()) {
     if (ino.mode_index() >= num_modes) {
       DWARFS_THROW(runtime_error, "mode_index out of range");
@@ -154,6 +174,10 @@ void check_index_range(global_metadata::Meta const* meta) {
   }
 
   if (auto dep = meta->dir_entries()) {
+    if (dep->size() >= std::numeric_limits<uint32_t>::max()) {
+      DWARFS_THROW(runtime_error, "invalid number of dir_entries");
+    }
+
     if (auto cn = meta->compact_names()) {
       num_names = cn->index().size();
       if (!cn->packed_index()) {
@@ -173,6 +197,11 @@ void check_index_range(global_metadata::Meta const* meta) {
       }
     }
   } else {
+    if (meta->entry_table_v2_2().size() >=
+        std::numeric_limits<uint32_t>::max()) {
+      DWARFS_THROW(runtime_error, "invalid number of entries");
+    }
+
     for (auto ent : meta->entry_table_v2_2()) {
       if (ent >= num_inodes) {
         DWARFS_THROW(runtime_error, "entry_table_v2_2 value out of range");
@@ -182,6 +211,14 @@ void check_index_range(global_metadata::Meta const* meta) {
 }
 
 void check_packed_tables(global_metadata::Meta const* meta) {
+  if (meta->directories().size() >= std::numeric_limits<uint32_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of directories");
+  }
+
+  if (meta->chunk_table().size() >= std::numeric_limits<uint32_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of chunk_table entries");
+  }
+
   if (auto opt = meta->options(); opt and opt->packed_directories()) {
     if (std::any_of(meta->directories().begin(), meta->directories().end(),
                     [](auto i) { return i.parent_entry() != 0; })) {
@@ -227,6 +264,10 @@ void check_chunks(global_metadata::Meta const* meta) {
 
   if (block_size == 0 || (block_size & (block_size - 1))) {
     DWARFS_THROW(runtime_error, "invalid block size");
+  }
+
+  if (meta->chunks().size() >= std::numeric_limits<uint32_t>::max()) {
+    DWARFS_THROW(runtime_error, "invalid number of chunks");
   }
 
   for (auto c : meta->chunks()) {

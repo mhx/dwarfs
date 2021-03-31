@@ -57,6 +57,8 @@
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 
+#include "thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h"
+
 namespace dwarfs {
 
 namespace {
@@ -89,9 +91,41 @@ freeze_to_buffer(const T& x) {
   return {schema_buffer, data_buffer};
 }
 
+void check_schema(folly::ByteRange data) {
+  using namespace ::apache::thrift;
+  frozen::schema::Schema schema;
+  size_t schemaSize = CompactSerializer::deserialize(data, schema);
+  // std::cerr << debugString(schema) << '\n';
+  if (schemaSize != data.size()) {
+    DWARFS_THROW(runtime_error, "invalid schema size");
+  }
+  if (schema.layouts_ref()->count(*schema.rootLayout_ref()) == 0) {
+    DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
+  }
+  for (auto const& kvl : *schema.layouts_ref()) {
+    auto const& layout = kvl.second;
+    if (kvl.first >= static_cast<int64_t>(schema.layouts_ref()->size())) {
+      DWARFS_THROW(runtime_error, "invalid layout key in schema");
+    }
+    if (*layout.size_ref() < 0) {
+      DWARFS_THROW(runtime_error, "negative size in schema");
+    }
+    if (*layout.bits_ref() < 0) {
+      DWARFS_THROW(runtime_error, "negative bits in schema");
+    }
+    for (auto const& kvf : *layout.fields_ref()) {
+      auto const& field = kvf.second;
+      if (schema.layouts_ref()->count(*field.layoutId_ref()) == 0) {
+        DWARFS_THROW(runtime_error, "invalid layoutId in field");
+      }
+    }
+  }
+}
+
 template <typename T>
 MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
   using namespace ::apache::thrift::frozen;
+  check_schema(schema);
   auto layout = std::make_unique<Layout<T>>();
   deserializeRootLayout(schema, *layout);
   MappedFrozen<T> ret(layout->view({data.begin(), 0}));
