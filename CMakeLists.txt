@@ -302,16 +302,23 @@ endif()
 if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
+  add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest_main)
   target_link_libraries(dwarfs_compat_test gtest_main)
+  target_link_libraries(dwarfs_badfs_test gtest_main)
 
-  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test)
+  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test)
+
 
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
+  gtest_discover_tests(dwarfs_badfs_test)
 
   target_compile_definitions(dwarfs_compat_test
+                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+
+  target_compile_definitions(dwarfs_badfs_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 endif()
 
