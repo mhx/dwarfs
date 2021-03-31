@@ -27,6 +27,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <folly/String.h>
+
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/logger.h"
@@ -91,7 +93,8 @@ int dwarfsextract(int argc, char** argv) {
   }
 
   try {
-    stream_logger lgr(std::cerr, logger::parse_level(log_level));
+    auto level = logger::parse_level(log_level);
+    stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
     filesystem_options fsopts;
     try {
       fsopts.image_offset = image_offset == "auto"
@@ -131,10 +134,13 @@ int dwarfsextract(int argc, char** argv) {
 
     fsx.close();
   } catch (runtime_error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << folly::exceptionStr(e) << std::endl;
     return 1;
   } catch (system_error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << folly::exceptionStr(e) << std::endl;
+    return 1;
+  } catch (std::system_error const& e) {
+    std::cerr << folly::exceptionStr(e) << std::endl;
     return 1;
   }
 

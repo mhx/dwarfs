@@ -105,10 +105,11 @@ int dwarfsck(int argc, char** argv) {
     return 0;
   }
 
-  stream_logger lgr(std::cerr, logger::parse_level(log_level));
-  LOG_PROXY(debug_logger_policy, lgr);
-
   try {
+    auto level = logger::parse_level(log_level);
+    stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
+    LOG_PROXY(debug_logger_policy, lgr);
+
     filesystem_options fsopts;
 
     fsopts.metadata.check_consistency = true;
@@ -149,13 +150,13 @@ int dwarfsck(int argc, char** argv) {
       }
     }
   } catch (system_error const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    std::cerr << folly::exceptionStr(e) << std::endl;
     return 1;
   } catch (runtime_error const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    std::cerr << folly::exceptionStr(e) << std::endl;
     return 1;
   } catch (std::system_error const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    std::cerr << folly::exceptionStr(e) << std::endl;
     return 1;
   }
 
