@@ -857,12 +857,12 @@ void metadata_<LoggerPolicy>::dump(
     }
   }
 
-  if (detail_level > 3) {
-    dump(os, "", root_, detail_level, icb);
-  }
-
   if (detail_level > 5) {
     os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
+  }
+
+  if (detail_level > 3) {
+    dump(os, "", root_, detail_level, icb);
   }
 }
 
