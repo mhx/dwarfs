@@ -189,12 +189,6 @@ using:
     $ cmake .. -DWITH_TESTS=1
     $ make -j$(nproc)
 
-If possible, try building with clang as your compiler, this will
-make DwarFS significantly faster. If you have both gcc and clang
-installed, use:
-
-    $ CC=clang CXX=clang++ cmake .. -DWITH_TESTS=1
-
 You can then run tests with:
 
     $ make test
@@ -233,9 +227,8 @@ what can currently be done with the interface.
 ## Usage
 
 Please check out the man pages for [mkdwarfs](doc/mkdwarfs.md),
-[dwarfs](doc/dwarfs.md) and [dwarfsextract](doc/dwarfsextract.md).
-`dwarfsck` will be built and installed as well, but it's still
-work in progress.
+[dwarfs](doc/dwarfs.md), [dwarfsck](doc/dwarfsck.md) and
+[dwarfsextract](doc/dwarfsextract.md).
 
 The [dwarfs](doc/dwarfs.md) man page also shows an example for setting
 up DwarFS with [overlayfs](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt)
