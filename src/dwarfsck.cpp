@@ -127,7 +127,7 @@ int dwarfsck(int argc, char** argv) {
     if (!export_metadata.empty()) {
       auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
       filesystem_v2 fs(lgr, mm, fsopts);
-      auto json = fs.serialize_metadata_as_json(true);
+      auto json = fs.serialize_metadata_as_json(false);
       if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
         LOG_ERROR << "failed to export metadata";
       }
