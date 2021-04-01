@@ -28,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include <boost/align.hpp>
+
 #include <fmt/format.h>
 
 #include <parallel_hashmap/phmap.h>
@@ -164,45 +166,62 @@ class bloom_filter {
 
   static constexpr size_t value_mask = 8 * sizeof(bits_type) - 1;
   static constexpr size_t index_shift = bitcount(value_mask);
+  static constexpr size_t alignment = 64;
 
   bloom_filter(size_t size)
-      : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1} {
+      : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
+      , size_{std::max(size, value_mask + 1)} {
     if (size & (size - 1)) {
       throw std::runtime_error("size must be a power of two");
     }
-    bits_.resize(std::max(size, value_mask + 1) >> index_shift);
+    bits_ = reinterpret_cast<bits_type*>(
+        boost::alignment::aligned_alloc(alignment, size_ / 8));
+    if (!bits_) {
+      throw std::runtime_error("failed to allocate aligned memory");
+    }
+    clear();
   }
 
-  void add(size_t val) { set(val); }
+  ~bloom_filter() { boost::alignment::aligned_free(bits_); }
 
-  bool test(size_t val) const { return isset(val); }
+  void add(size_t ix) {
+    auto bits = bits_;
+    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
+    bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
+                                               << (ix & value_mask);
+  }
 
-  size_t size() const { return bits_.size() << index_shift; }
+  bool test(size_t ix) const {
+    auto bits = bits_;
+    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
+    return bits[(ix >> index_shift) & index_mask_] &
+           (static_cast<bits_type>(1) << (ix & value_mask));
+  }
 
-  void clear() { std::fill(bits_.begin(), bits_.end(), 0); }
+  // size in bits
+  size_t size() const { return size_; }
+
+  void clear() { std::fill(begin(), end(), 0); }
 
   void merge(bloom_filter const& other) {
-    if (bits_.size() != other.bits_.size()) {
+    if (size() != other.size()) {
       throw std::runtime_error("size mismatch");
     }
-    std::transform(bits_.cbegin(), bits_.cend(), other.bits_.cbegin(),
-                   bits_.begin(), std::bit_or<>{});
+    std::transform(cbegin(), cend(), other.cbegin(), begin(), std::bit_or<>{});
   }
 
  private:
-  void set(size_t ix) {
-    bits_[(ix >> index_shift) & index_mask_] |= UINT64_C(1)
-                                                << (ix & value_mask);
-  }
+  bits_type const* cbegin() const { return bits_; }
+  bits_type const* cend() const { return bits_ + (size_ >> index_shift); }
+  bits_type const* begin() const { return bits_; }
+  bits_type const* end() const { return bits_ + (size_ >> index_shift); }
+  bits_type* begin() { return bits_; }
+  bits_type* end() { return bits_ + (size_ >> index_shift); }
 
-  bool isset(size_t ix) const {
-    return bits_[(ix >> index_shift) & index_mask_] &
-           (UINT64_C(1) << (ix & value_mask));
-  }
-
-  std::vector<bits_type> bits_;
+  bits_type* bits_;
   size_t const index_mask_;
-};
+  size_t const size_;
+} __attribute__((aligned(64)));
 
 class active_block {
  private:
@@ -278,13 +297,10 @@ class block_manager_ final : public block_manager::impl {
       , cfg_{cfg}
       , os_{std::move(os)}
       , fsw_{fsw}
-      , window_size_{cfg.blockhash_window_size > 0
-                         ? static_cast<size_t>(1) << cfg.blockhash_window_size
-                         : 0}
-      , window_step_{std::max<size_t>(1, window_size_ >>
-                                             cfg.window_increment_shift)}
-      , block_size_{static_cast<size_t>(1) << cfg.block_size_bits}
-      , filter_{bloom_filter_size()} {
+      , window_size_{window_size(cfg)}
+      , window_step_{window_step(cfg)}
+      , block_size_{block_size(cfg)}
+      , filter_{bloom_filter_size(cfg)} {
     if (segmentation_enabled()) {
       LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
                << size_with_unit(window_step_) << " steps for segment analysis";
@@ -310,10 +326,25 @@ class block_manager_ final : public block_manager::impl {
   void append_to_block(inode& ino, mmif& mm, size_t offset, size_t size);
   void add_data(inode& ino, mmif& mm, size_t offset, size_t size);
   void segment_and_add_data(inode& ino, mmif& mm, size_t size);
-  size_t bloom_filter_size() const {
-    auto hash_count = pow2ceil(std::max<size_t>(1, cfg_.max_active_blocks)) *
-                      (block_size_ / window_step_);
-    return (1 << cfg_.bloom_filter_size) * hash_count;
+
+  static size_t bloom_filter_size(const block_manager::config& cfg) {
+    auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
+                      (block_size(cfg) / window_step(cfg));
+    return (1 << cfg.bloom_filter_size) * hash_count;
+  }
+
+  static size_t window_size(const block_manager::config& cfg) {
+    return cfg.blockhash_window_size > 0
+               ? static_cast<size_t>(1) << cfg.blockhash_window_size
+               : 0;
+  }
+
+  static size_t window_step(const block_manager::config& cfg) {
+    return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
+  }
+
+  static size_t block_size(const block_manager::config& cfg) {
+    return static_cast<size_t>(1) << cfg.block_size_bits;
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
