@@ -367,7 +367,7 @@ int mkdwarfs(int argc, char** argv) {
         "block size bits (size = 2^bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
-        "number of writer worker threads")
+        "number of scanner/writer worker threads")
     ("max-lookback-blocks,B",
         po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
         "how many blocks to scan for segments")
