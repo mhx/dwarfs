@@ -321,6 +321,56 @@ is left uncompressed. This can be useful if mounting speed of the file
 system is important, as the uncompressed metadata part of the file can
 then simply be mapped into memory.
 
+## INTERNAL OPERATION
+
+Internally, `mkdwarfs` run in two completely separate phases. The first
+phase is scanning the input data, the second phase is building the file
+system.
+
+### Scanning
+
+The scanning process is driven by the main thread which traverses the
+input directory recursively and builds an internal representation of the
+directory structure. Traversal is breadth-first and single-threaded.
+
+When a regular file is discovered, its hardlink count is checked and
+if non-zero, its inode is looked up in a hardlink cache. If the inode
+has not been scanned yet, a scanning job will be added to a pool of
+`--num-workers` worker threads. These will perform a SHA1 checksum scan
+first, which is then used to determine duplicate files, as these will
+share the same data in the final DwarFS image. If a file is found not
+to be a duplicate, it will now potentially be scanned again (by the
+same worker threads and using the same memory mapping) to generate a
+similarity hash value. This only happens if `--order` is set to one
+of the two similary order modes.
+
+Once all file contents have been scanned by the worker threads, all
+unique files will be assigned an internal inode number.
+
+### Building
+
+Building the filesystem image uses a number of separate threads. If
+`nilsimsa` ordering is selected, the ordering algorithm runs in its
+own thread and continuously emits file inodes. These will be picked
+up by the segmenter thread, which scans the inode contents using a
+cyclic hash and determines overlapping segments between previously
+written data and new incoming data. The segmenter can look at up to
+`--max-lookback-block` previous filesystem blocks to find overlaps.
+
+Once the segmenter has produced enough data to fill a filesystem
+block, the block is added to a queue where from which the blocks
+will be picked up by a pool of `--num-workers` worker threads whose
+only job is to compress the block using the `--compression` algorithm.
+
+Blocks that have been compressed will be added to the next queue,
+in the original order, and will be picked up by the filesystem writer
+thread that will ultimately produce the final filesystem image.
+
+When all data has been segmented, the filesystem metadata is being
+finalized and frozen into a compact representation. If metadata
+compression is enabled, the metadata is sent to the worker thread
+pool.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
