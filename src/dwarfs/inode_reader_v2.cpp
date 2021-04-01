@@ -46,7 +46,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
  public:
   inode_reader_(logger& lgr, block_cache&& bc)
       : cache_(std::move(bc))
-      , log_(lgr)
+      , LOG_PROXY_INIT(lgr)
       , iovec_sizes_(1, 0, 256) {}
 
   ~inode_reader_() override {
@@ -78,7 +78,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
                const StoreFunc& store) const;
 
   block_cache cache_;
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   mutable folly::Histogram<size_t> iovec_sizes_;
   mutable std::mutex iovec_sizes_mutex_;
 };

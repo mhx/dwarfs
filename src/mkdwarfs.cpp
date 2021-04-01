@@ -122,7 +122,7 @@ class script_options : public options_interface {
  public:
   script_options(logger& lgr, po::variables_map& vm, scanner_options& opts,
                  bool& force_similarity)
-      : log_(lgr)
+      : LOG_PROXY_INIT(lgr)
       , vm_(vm)
       , opts_(opts)
       , force_similarity_(force_similarity) {}
@@ -163,7 +163,7 @@ class script_options : public options_interface {
     }
   }
 
-  log_proxy<debug_logger_policy> log_;
+  LOG_PROXY_DECL(debug_logger_policy);
   po::variables_map& vm_;
   scanner_options& opts_;
   bool& force_similarity_;

@@ -271,7 +271,7 @@ class block_manager_ final : public block_manager::impl {
  public:
   block_manager_(logger& lgr, progress& prog, const block_manager::config& cfg,
                  std::shared_ptr<os_access> os, filesystem_writer& fsw)
-      : log_{lgr}
+      : LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , cfg_{cfg}
       , os_{std::move(os)}
@@ -314,7 +314,7 @@ class block_manager_ final : public block_manager::impl {
     return (1 << cfg_.bloom_filter_size) * hash_count;
   }
 
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
   const block_manager::config& cfg_;
   std::shared_ptr<os_access> os_;

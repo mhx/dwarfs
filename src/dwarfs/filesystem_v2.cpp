@@ -259,7 +259,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
 template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
-  filesystem_(logger& lgr_, std::shared_ptr<mmif> mm,
+  filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
               const filesystem_options& options, int inode_offset);
 
   void dump(std::ostream& os, int detail_level) const override;

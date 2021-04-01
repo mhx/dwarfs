@@ -78,7 +78,7 @@ template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
   explicit filesystem_extractor_(logger& lgr)
-      : log_{lgr} {}
+      : LOG_PROXY_INIT(lgr) {}
 
   ~filesystem_extractor_() override {
     try {
@@ -191,7 +191,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  log_proxy<debug_logger_policy> log_;
+  LOG_PROXY_DECL(debug_logger_policy);
   struct ::archive* a_{nullptr};
   int pipefd_[2]{-1, -1};
   std::unique_ptr<std::thread> iot_;

@@ -55,7 +55,7 @@ class cached_block {
             b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_))
       , mm_(std::move(mm))
       , section_(b)
-      , log_(lgr)
+      , LOG_PROXY_INIT(lgr)
       , release_(release) {
     if (!section_.check_fast(*mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
@@ -112,7 +112,7 @@ class cached_block {
   std::unique_ptr<block_decompressor> decompressor_;
   std::shared_ptr<mmif> mm_;
   fs_section section_;
-  log_proxy<debug_logger_policy> log_;
+  LOG_PROXY_DECL(debug_logger_policy);
   bool const release_;
 };
 
@@ -209,7 +209,7 @@ class block_cache_ final : public block_cache::impl {
                                      : std::thread::hardware_concurrency(),
                                  static_cast<size_t>(1)))
       , mm_(std::move(mm))
-      , log_(lgr)
+      , LOG_PROXY_INIT(lgr)
       , options_(options) {}
 
   ~block_cache_() noexcept override {
@@ -558,7 +558,7 @@ class block_cache_ final : public block_cache::impl {
   mutable worker_group wg_;
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   const block_cache_options options_;
 };
 

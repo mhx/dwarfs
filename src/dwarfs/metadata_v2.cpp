@@ -297,7 +297,7 @@ class metadata_ final : public metadata_v2::impl {
       , global_(lgr, &meta_,
                 options.check_consistency || force_consistency_check)
       , root_(dir_entry_view::from_dir_entry_index(0, &global_))
-      , log_(lgr)
+      , LOG_PROXY_INIT(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
       , file_inode_offset_(find_inode_offset(inode_rank::INO_REG))
@@ -714,7 +714,7 @@ class metadata_ final : public metadata_v2::impl {
   MappedFrozen<thrift::metadata::metadata> meta_;
   const global_metadata global_;
   dir_entry_view root_;
-  log_proxy<LoggerPolicy> log_;
+  LOG_PROXY_DECL(LoggerPolicy);
   const int inode_offset_;
   const int symlink_inode_offset_;
   const int file_inode_offset_;
