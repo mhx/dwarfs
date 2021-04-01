@@ -191,11 +191,13 @@ class bloom_filter {
 
  private:
   void set(size_t ix) {
-    bits_[(ix >> index_shift) & index_mask_] |= 1 << (ix & value_mask);
+    bits_[(ix >> index_shift) & index_mask_] |= UINT64_C(1)
+                                                << (ix & value_mask);
   }
 
   bool isset(size_t ix) const {
-    return bits_[(ix >> index_shift) & index_mask_] & (1 << (ix & value_mask));
+    return bits_[(ix >> index_shift) & index_mask_] &
+           (UINT64_C(1) << (ix & value_mask));
   }
 
   std::vector<bits_type> bits_;
