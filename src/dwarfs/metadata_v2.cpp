@@ -138,6 +138,8 @@ void analyze_frozen(std::ostream& os,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
   std::locale loc("");
+  std::ostringstream oss;
+  stream_logger lgr(oss);
 
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();
@@ -152,12 +154,18 @@ void analyze_frozen(std::ostream& os,
         count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
-  auto fmt_detail = [&](auto const& name, size_t count, size_t size) {
+  auto fmt_detail = [&](auto const& name, size_t count, size_t size,
+                        std::string num) {
     return fmt::format(loc,
-                       "               {0:<20}{1:>16L} bytes {2:5.1f}% "
+                       "               {0:<20}{1:>16L} bytes {2:>6} "
                        "{3:5.1f} bytes/item\n",
-                       name, size, 100.0 * size / total_size,
+                       name, size, num,
                        count > 0 ? static_cast<double>(size) / count : 0.0);
+  };
+
+  auto fmt_detail_pct = [&](auto const& name, size_t count, size_t size) {
+    return fmt_detail(name, count, size,
+                      fmt::format("{0:5.1f}%", 100.0 * size / total_size));
   };
 
   auto add_size = [&](auto const& name, size_t count, size_t size) {
@@ -181,8 +189,8 @@ void analyze_frozen(std::ostream& os,
       auto data_size = list.back().end() - list.front().begin();
       auto size = index_size + data_size;
       auto fmt = fmt_size(name, count, size) +
-                 fmt_detail("|- data", count, data_size) +
-                 fmt_detail("'- index", count, index_size);
+                 fmt_detail_pct("|- data", count, data_size) +
+                 fmt_detail_pct("'- index", count, index_size);
       usage.emplace_back(size, fmt);
     }
   };
@@ -195,12 +203,18 @@ void analyze_frozen(std::ostream& os,
       auto index_size = list_size(table.index(), field.layout.indexField);
       auto size = index_size + data_size + dict_size;
       auto count = table.index().size() - (table.packed_index() ? 0 : 1);
-      auto fmt =
-          fmt_size(name, count, size) + fmt_detail("|- data", count, data_size);
+      auto fmt = fmt_size(name, count, size) +
+                 fmt_detail_pct("|- data", count, data_size);
       if (table.symtab()) {
-        fmt += fmt_detail("|- dict", count, dict_size);
+        string_table st(lgr, "tmp", table);
+        auto unpacked_size = st.unpacked_size();
+        fmt += fmt_detail(
+            "|- unpacked", count, unpacked_size,
+            fmt::format("{0:5.2f}x",
+                        static_cast<double>(unpacked_size) / data_size));
+        fmt += fmt_detail_pct("|- dict", count, dict_size);
       }
-      fmt += fmt_detail("'- index", count, index_size);
+      fmt += fmt_detail_pct("'- index", count, index_size);
       usage.emplace_back(size, fmt);
     }
   };

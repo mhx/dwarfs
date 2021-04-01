@@ -47,6 +47,11 @@ class legacy_string_table : public string_table::impl {
 
   bool is_packed() const override { return false; }
 
+  size_t unpacked_size() const override {
+    return std::accumulate(v_.begin(), v_.end(), 0,
+                           [](auto n, auto s) { return n + s.size(); });
+  }
+
  private:
   string_table::LegacyTableView v_;
 };
@@ -132,6 +137,15 @@ class packed_string_table : public string_table::impl {
   }
 
   bool is_packed() const override { return true; }
+
+  size_t unpacked_size() const override {
+    size_t unpacked = 0;
+    auto size = PackedIndex ? index_.size() : v_.index().size();
+    for (size_t i = 0; i < size - 1; ++i) {
+      unpacked += lookup(i).size();
+    }
+    return unpacked;
+  }
 
  private:
   string_table::PackedTableView v_;

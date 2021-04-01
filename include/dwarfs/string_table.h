@@ -63,6 +63,8 @@ class string_table {
 
   bool is_packed() const { return impl_->is_packed(); }
 
+  size_t unpacked_size() const { return impl_->unpacked_size(); }
+
   static thrift::metadata::string_table
   pack(folly::Range<std::string const*> input,
        pack_options const& options = pack_options());
@@ -91,6 +93,7 @@ class string_table {
     virtual std::string lookup(size_t index) const = 0;
     virtual std::vector<std::string> unpack() const = 0;
     virtual bool is_packed() const = 0;
+    virtual size_t unpacked_size() const = 0;
   };
 
  private:
