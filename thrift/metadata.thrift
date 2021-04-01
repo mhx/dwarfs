@@ -142,10 +142,23 @@ struct fs_options {
    5: required bool   packed_shared_files_table,
 }
 
+/**
+ * An (optionally packed) string table
+ */
 struct string_table {
+   // raw buffer containing the concatenation of all individual,
+   // potentially compressed, strings
    1: required string buffer,
+
+   // symbol table for fsst compression; if fsst is not used, this
+   // will not be set and `buffer` will contain uncompressed strings
    2: optional string symtab,
+
+   // the (optionally packed) index; if packed, the index is stored
+   // delta-compressed
    3: required list<UInt32> index,
+
+   // indicates if the index is packed
    4: required bool packed_index,
 }
 
