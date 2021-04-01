@@ -352,7 +352,9 @@ void check_string_tables(global_metadata::Meta const* meta) {
     }
   }
 
-  constexpr size_t max_name_len = 2048;
+  // max name length is usually 255, but fsst compression, in the worst
+  // case, will use 2 bytes per input byte...
+  constexpr size_t max_name_len = 512;
   constexpr size_t max_symlink_len = 4096;
 
   if (auto cn = meta->compact_names()) {
