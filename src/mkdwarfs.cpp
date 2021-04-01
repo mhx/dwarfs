@@ -378,7 +378,7 @@ int mkdwarfs(int argc, char** argv) {
         po::value<unsigned>(&cfg.window_increment_shift),
         "window step (as right shift of size)")
     ("bloom-filter-size",
-        po::value<unsigned>(&cfg.bloom_filter_size)->default_value(5),
+        po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4),
         "bloom filter size (2^N*values bits)")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
