@@ -235,6 +235,9 @@ up DwarFS with [overlayfs](https://www.kernel.org/doc/Documentation/filesystems/
 in order to create a writable file system mount on top a read-only
 DwarFS image.
 
+A description of the DwarFS filesystem format can be found in
+[dwarfs-format](doc/dwarfs-format.md).
+
 ## Comparison
 
 The SquashFS, `xz`, `lrzip`, `zpaq` and `wimlib` tests were all done on
