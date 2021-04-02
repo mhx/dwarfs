@@ -334,7 +334,7 @@ int mkdwarfs(int argc, char** argv) {
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers;
-  bool no_progress = false, plain_string_tables = false, remove_header = false;
+  bool no_progress = false, remove_header = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -393,14 +393,10 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&metadata_compression),
         "metadata compression algorithm")
     ("pack-metadata,P",
-        po::value<std::string>(&pack_metadata)->default_value("all"),
-        "pack certain metadata elements (all, none, mmap, chunk_table, "
+        po::value<std::string>(&pack_metadata)->default_value("auto"),
+        "pack certain metadata elements (auto, all, none, chunk_table, "
         "directories, shared_files, names, names_index, symlinks, "
-        "symlinks_index)")
-    ("plain-string-tables",
-        po::value<bool>(&plain_string_tables)->zero_tokens(),
-        "use plain string tables in metadata (overrides string table "
-        "packing options)")
+        "symlinks_index, force, plain)")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
@@ -741,19 +737,9 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  options.plain_names_table = plain_string_tables;
-  options.plain_symlinks_table = plain_string_tables;
-
   if (!pack_metadata.empty() and pack_metadata != "none") {
-    if (pack_metadata == "all") {
-      options.pack_chunk_table = true;
-      options.pack_directories = true;
-      options.pack_shared_files_table = true;
-      options.pack_names = true;
-      options.pack_names_index = true;
-      options.pack_symlinks = true;
-      options.pack_symlinks_index = true;
-    } else if (pack_metadata == "mmap") {
+    if (pack_metadata == "auto") {
+      options.force_pack_string_tables = false;
       options.pack_chunk_table = false;
       options.pack_directories = false;
       options.pack_shared_files_table = false;
@@ -778,6 +764,19 @@ int mkdwarfs(int argc, char** argv) {
         } else if (opt == "symlinks") {
           options.pack_symlinks = true;
         } else if (opt == "symlinks_index") {
+          options.pack_symlinks_index = true;
+        } else if (opt == "force") {
+          options.force_pack_string_tables = true;
+        } else if (opt == "plain") {
+          options.plain_names_table = true;
+          options.plain_symlinks_table = true;
+        } else if (opt == "all") {
+          options.pack_chunk_table = true;
+          options.pack_directories = true;
+          options.pack_shared_files_table = true;
+          options.pack_names = true;
+          options.pack_names_index = true;
+          options.pack_symlinks = true;
           options.pack_symlinks_index = true;
         } else {
           std::cerr << "error: the argument ('" << opt
