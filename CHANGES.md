@@ -1,5 +1,76 @@
 # Change Log
 
+- [fix] Disable multiversioning on non-x86 platforms, which broke
+  the ARM build.
+
+- [fix] Due to a bug in the bloom filter code, only half of each
+  64-bit block in the bloom filter was utilized, which reduced the
+  efficiency of the filter. The bug was spotted thanks to `ubsan`.
+  With the fixed filter being twice as effective, the default size
+  of the bloom filter has now been halved.
+
+- [fix] When exporting metadata using `--export-metadata`, `dwarfsck`
+  was not truncating the output file, which could lead to a corrupt
+  metadata export.
+
+- [perf] Scanning has been significantly optimized and is up to
+  three times faster now.
+
+- [perf] A set of micro-benchmarks has been added to evaluate the
+  performance of different filesystem operations. This can be
+  build by enabling the `-DWITH_BENCHMARKS=1` cmake option.
+
+- [perf] Zstd contexts are now reused during compression, which
+  seems to give some minor speedup.
+
+- [feature] New metadata format (v2.3). This includes a number of
+  changes:
+
+  - Correct hardlink preservation. With older metadata formats,
+    all duplicate files would appear hardlinked. The new format
+    preserves hardlinked files exactly as present in the input
+    data, and performs additional deduplication at a lower level.
+
+  - The new format offers a lot of customization for additional
+    packing of metadata. You can use these to trade off metadata size,
+    mounting speed, etc. Especially for filesystems with millions of
+    files, the metadata size can be reduced significantly.
+
+  - In particular, filename and symlink data can be stored in a
+    [format](https://github.com/cwida/fsst) that reduces the size
+    by roughly a factor of two, but still allows for random access,
+    so the compressed data can be mapped into memory and decompressed
+    on the fly.
+
+- [feature] DwarFS now directly supports images using a custom
+  header. The header can be completely arbitrary. `mkdwarfs` can
+  write, replace or remove such headers, and all other tools can
+  either skip to a specified offset, or determine this offset
+  automatically. This fixes github #38.
+
+- [feature] `dwarfsck` has been improved to perform extensive
+  metadata checks. Also, checksumming is now done in a thread pool,
+  which significantly speeds up `dwarfsck` for large file systems.
+
+- [feature] `dwarfsck` now shows a detailed breakdown of metadata
+  memory usage, which can be used to optimize metadata packing
+  options.
+
+- [feature] Added `ENABLE_COVERAGE` cmake option.
+
+- [test] Compatibility testing with older filesystem versions has
+  been improved.
+
+- [test] A new test suite has been added to check detection of
+  corrupted DwarFS images.
+
+- [doc] Added some high level internals documentation for `mkdwarfs`.
+
+- [doc] Documented the filesystem and metadata formats.
+
+- [other] Lots of internal cleanups.
+
+
 ## Version 0.4.1 - 2021-03-13
 
 - [fix] Linking against libarchive was fixed so that it also
