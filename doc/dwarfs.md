@@ -207,4 +207,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfsextract(1), dwarfsck(1)
+mkdwarfs(1), dwarfsextract(1), dwarfsck(1), dwarfs-format(5)

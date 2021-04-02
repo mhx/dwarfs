@@ -310,7 +310,6 @@ if(WITH_TESTS)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test)
 
-
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
   gtest_discover_tests(dwarfs_badfs_test)
@@ -329,14 +328,18 @@ if(WITH_BENCHMARKS)
   list(APPEND BINARY_TARGETS dwarfs_benchmark)
 endif()
 
-foreach(man dwarfs mkdwarfs dwarfsck dwarfsextract)
+foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
+  string(REGEX MATCH "^[^.]*" docname "${man}")
+  string(REGEX MATCH "[^.]*$" section "${man}")
+  set(mandir "man${section}")
+
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
-    COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/man
-    COMMAND ${RONN_EXE} <${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md
-            >${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${man}.md)
-  list(APPEND MAN_PAGES ${CMAKE_CURRENT_BINARY_DIR}/man/${man}.1)
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man}
+    COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/${mandir}
+    COMMAND ${RONN_EXE} <${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md
+            >${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md)
+  list(APPEND MAN_PAGES ${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man})
 endforeach()
 
 add_custom_target(manpages DEPENDS ${MAN_PAGES})
@@ -578,7 +581,8 @@ install(
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(FILES ${MAN_PAGES} DESTINATION share/man/man1)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/man1
+                  ${CMAKE_CURRENT_BINARY_DIR}/man5 DESTINATION share/man)
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   install(

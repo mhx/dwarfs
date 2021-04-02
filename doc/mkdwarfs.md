@@ -491,4 +491,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-dwarfs(1), dwarfsextract(1), dwarfsck(1)
+dwarfs(1), dwarfsextract(1), dwarfsck(1), dwarfs-format(5)

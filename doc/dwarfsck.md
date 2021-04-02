@@ -63,4 +63,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfs(1), dwarfsextract(1)
+mkdwarfs(1), dwarfs(1), dwarfsextract(1), dwarfs-format(5)

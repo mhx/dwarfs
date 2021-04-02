@@ -1,6 +1,12 @@
-# DwarFS File System Format v2.3
+dwarfs-format(5) -- DwarFS File System Format v2.3
+==================================================
 
-## File Structure
+## DESCRIPTION
+
+This document describes the DwarFS file system format, version 2.3.
+
+
+## FILE STRUCTURE
 
 A DwarFS file system image is just a sequence of blocks. Each block has the
 following format:
@@ -64,24 +70,22 @@ A couple of notes:
 
 There are currently 3 different section types.
 
-#### `BLOCK` (0)
+  * `BLOCK` (0):
+    A block of data. This is where all file data is stored. There can be
+    an arbitrary number of blocks of this type.
 
-A block of data. This is where all file data is stored. There can be
-an arbitrary number of blocks of this type.
+  * `METADATA_V2_SCHEMA` (7):
+    The schema used to layout the `METADATA_V2` block contents. This is
+    stored in "compact" thrift encoding.
 
-#### `METADATA_V2_SCHEMA` (7)
+  * `METADATA_V2` (8):
+    This section contains the bulk of the metadata. It's essentially just
+    a collection of bit-packed arrays and structures. The exact layout of
+    each list and structure depends on the actual data and is stored
+    separately in `METADATA_V2_SCHEMA`.
 
-The schema used to layout the `METADATA_V2` block contents. This is
-stored in "compact" thrift encoding.
 
-#### `METADATA_V2` (8)
-
-This section contains the bulk of the metadata. It's essentially just
-a collection of bit-packed arrays and structures. The exact layout of
-each list and structure depends on the actual data and is stored
-separately in `METADATA_V2_SCHEMA`.
-
-## Metadata Format
+## METADATA FORMAT
 
 Here is a high-level overview of how all the bits and pieces relate
 to each other:
@@ -252,17 +256,17 @@ can index into `devices`:
 
     device_id = devices[inode_num - device_inode_offset]
 
-### Optionally Packed Structures
+## OPTIONALLY PACKED STRUCTURES
 
 The overview above assumes metadata without any additional packing,
 which can be produced using:
 
-    mkdwarfs --pack-metadata=none --plain-string-tables
+    mkdwarfs --pack-metadata=none,plain
 
 However, this isn't the default, and parts of the metadata are
 likely stored in a packed format. These are mostly easy to unpack.
 
-#### Shared Files Table Packing
+### Shared Files Table Packing
 
 The `shared_files_table` can be stored in a packed format that
 only encodes the number of shared links to a `chunk_table` index.
@@ -279,7 +283,7 @@ would unpack to:
 The packed format is used when `options.packed_shared_files_table`
 is true.
 
-#### Directories Packing
+### Directories Packing
 
 The `directories` table, when stored in packed format, omits
 all `parent_entry` fields and uses delta compression for the
@@ -296,7 +300,7 @@ only about 50 milliseconds.
 The packed format is used when `options.packed_directories`
 is true.
 
-#### Chunk Table Packing
+### Chunk Table Packing
 
 The `chunk_table` can also be stored delta-compressed and
 must be unpacked accordingly.
@@ -304,7 +308,7 @@ must be unpacked accordingly.
 The packed format is used when `options.packed_chunk_table`
 is true.
 
-#### Names and Symlinks String Table Packing
+### Names and Symlinks String Table Packing
 
 Both the `names` and `symlinks` tables can be stored in a
 packed format in `compact_names` and `compact_symlinks`.
@@ -328,3 +332,15 @@ and is typically able to reduce the overall size of the
 string tables by 50%, using a dictionary that is only a few
 hundred bytes long. If a `symtab` is set for the string table,
 this compression is used.
+
+## AUTHOR
+
+Written by Marcus Holland-Moritz.
+
+## COPYRIGHT
+
+Copyright (C) Marcus Holland-Moritz.
+
+## SEE ALSO
+
+mkdwarfs(1), dwarfs(1), dwarfsextract(1), dwarfsck(1)

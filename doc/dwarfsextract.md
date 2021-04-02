@@ -84,4 +84,4 @@ Copyright (C) Marcus Holland-Moritz.
 
 ## SEE ALSO
 
-mkdwarfs(1), dwarfs(1), dwarfsck(1), libarchive-formats(5)
+mkdwarfs(1), dwarfs(1), dwarfsck(1), dwarfs-format(5), libarchive-formats(5)
