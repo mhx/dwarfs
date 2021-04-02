@@ -129,20 +129,17 @@ Most other options are concerned with compression tuning:
     metadata to uncompressed metadata without having to rebuild or recompress
     all the other data.
 
-  * `-P`, `--pack-metadata=all`|`none`|`mmap`|[`chunk_table`|`directories`|`shared_files`|`names`|`names_index`|`symlinks`|`symlinks_index`[`,`...]]:
+  * `-P`, `--pack-metadata=auto`|`none`|[`all`|`chunk_table`|`directories`|`shared_files`|`names`|`names_index`|`symlinks`|`symlinks_index`|`force`|`plain`[`,`...]]:
     Which metadata information to store in packed format. This is primarily
     useful when storing metadata uncompressed, as it allows for smaller
     metadata block size without having to turn on compression. Keep in mind,
-    though, that *some* of the packed data must be unpacked into memory when
+    though, that *most* of the packed data must be unpacked into memory when
     reading the file system. If you want a purely memory-mappable metadata
-    block, use the `mmap` argument, which will turn on `names` and `symlinks`.
-    Tweaking these options is really only interesting when dealing with
-    file systems that contain hundreds of thousands of files.
-
-  * `--plain-string-tables`:
-    Store names and symlinks in "plain old" string tables. These use more
-    memory, but make it easier to interpret the metadata, if necessary. You
-    can safely ignore this option unless you want to debug the metadata.
+    block, leave this at the default (`auto`), which will turn on `names` and
+    `symlinks` packing if these actually help save data.
+    Tweaking these options is mostly interesting when dealing with file
+    systems that contain hundreds of thousands of files.
+    See [Metadata Packing](#metadata-packing) for more details.
 
   * `--set-owner=`*uid*:
     Set the owner for all entities in the file system. This can reduce the
@@ -321,9 +318,122 @@ is left uncompressed. This can be useful if mounting speed of the file
 system is important, as the uncompressed metadata part of the file can
 then simply be mapped into memory.
 
+### Metadata Packing
+
+The filesystem metadata is stored in [Frozen](https://github.com/facebook/fbthrift/blob/master/thrift/lib/cpp2/frozen/Frozen.h),
+a library that allows serialization of structures defined in
+[Thrift IDL](https://github.com/facebook/fbthrift/) into an extremely
+compact representation that can be used in-place without the need for
+deserialization. It is very well suited for persistent, memory-mappable
+data. With Frozen, you essentially only pay for what you use: if fields
+are defined in the IDL, but they always hold the same value (or are not
+used at all), not a single bit will be allocated for this field even if
+you have a list of millions of items.
+
+Frozen metadata has relatively low redundancy and doesn't compress well,
+but you can still save around 30-50% by enabling compression. However,
+this means that upon reading the filesystem, you will first have to
+fully decompress the metadata block and keep it in memory. An uncompressed
+block could simply be mapped into memory and would be instantly usable.
+So if e.g. mounting speed is a concern, it would make sense to disable
+metadata compression, in particular for large filesystems.
+
+However, there are several options to choose from that allow you to
+further reduce metadata size without having to compress the metadata.
+These options are controlled by the `--pack-metadata` option.
+
+  * `auto`:
+    This is the default. It will enable both `names` and `symlinks`.
+
+  * `none`:
+    Don't enable any packing. However, string tables (i.e. names and
+    symlinks) will still be stored in "compact" rather than "plain"
+    format. In order to force storage in plain format, use `plain`.
+
+  * `all`:
+    Enable all packing options. This does *not* force packing of
+    string tables (i.e. names and symlinks) if the packing would
+    actually increase the size, which can happen if the string tables
+    are actually small. In order to force string table packing, use
+    `all,force`.
+
+  * `chunk_table`:
+    Delta-compress chunk tables. This can reduce the size of the
+    chunk tables for large file systems and help compression, however,
+    it will likely require a lot of memory when unpacking the tables
+    again. Only use this if you know what you're doing.
+
+  * `directories`:
+    Pack directories table by storing first entry pointers delta-
+    compressed and completely removing parent directory pointers.
+    The parent directory pointers can be rebuilt by tree traversal
+    when the filesystem is loaded. If you have a large number of
+    directories, this can reduce the metadata size, however, it
+    will likely require a lot of memory when unpacking the tables
+    again. Only use this if you know what you're doing.
+
+  * `shared_files`:
+    Pack shared files table. This is only useful if the filesystem
+    contains lots of non-hardlinked duplicates. It gets more efficient
+    the more copies of a file are in the filesystem.
+
+  * `names`,`symlinks`:
+    Compress the names and symlink targets using the
+    [fsst](https://github.com/cwida/fsst) compression scheme. This
+    compresses each individual entry separately using a small,
+    custom symbol table, and it's surprisingly efficient. It is
+    not uncommon for names to make up for 50-70% of the metadata,
+    and fsst compression typically reduces the size by a factor
+    of two. The entries can be decompressed individually, so no
+    extra memory is used when accessing the filesystem (except for
+    the symbol table, which is only a few hundred bytes). This is
+    turned on by default. For small filesystems, it's possible that
+    the compressed strings plus symbol table are actually larger
+    than the uncompressed strings. If this is the case, the strings
+    will be stored uncompressed, unless `force` is also specified.
+
+  * `names_index`,`symlinks_index`:
+    Delta-compress the names and symlink targets indices. The same
+    caveats apply as for `chunk_table`.
+
+  * `force`:
+    Forces the compression of the `names` and `symlinks` tables,
+    even if that would make them use more memory than the
+    uncompressed tables. This is really only useful for testing
+    and development.
+
+  * `plain`:
+    Store string tables in "plain" format. The plain format uses
+    Frozen thrift arrays and was used in earlier metadata versions.
+    It is useful for debugging, but wastes up to one byte per string.
+
+To give you an idea of the metadata size using different packing options,
+here's the size of the metadata block for the Ubuntu 20.04.2.0 Desktop
+ISO image. There are just over 200,000 files in this image. The ZSTD
+and LZMA columns show to what fraction it is possible to reduce the
+metadata size by additional compression. That fraction is relative to
+the corresponding packing option.
+
+    ---------|---------------|-----------|---------|---------
+     Packing | Metadata Size | Relative  | ZSTD    | LZMA
+    ---------|---------------|-----------|---------|---------
+     auto    |     5,301,177 |   100.00% |  57.33% |  49.29%
+     all     |     4,952,859 |    93.43% |  50.46% |  46.45%
+     none    |     6,337,294 |   119.55% |  47.70% |  41.37%
+     plain   |     6,430,275 |   121.30% |  48.36% |  41.37%
+    ---------|---------------|-----------|---------|---------
+
+So the default (`auto`) is roughly 20% smaller than not using any
+packing (`none` or `plain`). Enabling `all` packing options doesn't
+reduce the size much more. However, it *does* help if you want to
+further compress the block. So if you're really desperately trying
+to reduce the image size, enabling `all` packing would be an option
+at the cost of using a lot more memory when using the filesystem.
+
+
 ## INTERNAL OPERATION
 
-Internally, `mkdwarfs` run in two completely separate phases. The first
+Internally, `mkdwarfs` runs in two completely separate phases. The first
 phase is scanning the input data, the second phase is building the file
 system.
 
