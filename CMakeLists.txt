@@ -611,9 +611,7 @@ if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   set(CPACK_SOURCE_IGNORE_FILES
       "\\.git/"
       "${CMAKE_SOURCE_DIR}/build.*"
-      "${CMAKE_SOURCE_DIR}/tmp/"
       "${CMAKE_SOURCE_DIR}/@"
-      "\\.dwarfs$"
       "/\\."
       ".*~$")
   set(CPACK_VERBATIM_VARIABLES YES)
