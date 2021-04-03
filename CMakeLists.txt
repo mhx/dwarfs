@@ -584,14 +584,20 @@ install(
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/man1
                   ${CMAKE_CURRENT_BINARY_DIR}/man5 DESTINATION share/man)
 
-if(NOT STATIC_BUILD_DO_NOT_USE)
-  install(
-    TARGETS dwarfs
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib)
-  install(DIRECTORY include/dwarfs DESTINATION include)
-endif()
+### TODO:
+###
+### There's currently no point installing the library + headers, as these have
+### dependencies on the bundled folly/thrift/... which we don't install.
+###
+#
+# if(NOT STATIC_BUILD_DO_NOT_USE)
+#   install(
+#     TARGETS dwarfs
+#     RUNTIME DESTINATION bin
+#     LIBRARY DESTINATION lib
+#     ARCHIVE DESTINATION lib)
+#   install(DIRECTORY include/dwarfs DESTINATION include)
+# endif()
 
 if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   set(CPACK_GENERATOR "TGZ")
