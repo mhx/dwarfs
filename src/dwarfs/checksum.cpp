@@ -49,6 +49,14 @@ bool compute_xxh3_64(void const* data, size_t size, void* digest) {
   return true;
 }
 
+bool compute_xxh3_128(void const* data, size_t size, void* digest) {
+  auto hash = XXH3_128bits(data, size);
+  static_assert(checksum::digest_size(checksum::algorithm::XXH3_128) ==
+                sizeof(hash));
+  ::memcpy(digest, &hash, sizeof(hash));
+  return true;
+}
+
 class checksum_evp : public checksum::impl {
  public:
   checksum_evp(EVP_MD const* evp, checksum::algorithm alg)
@@ -109,6 +117,32 @@ class checksum_xxh3_64 : public checksum::impl {
   XXH3_state_t* state_;
 };
 
+class checksum_xxh3_128 : public checksum::impl {
+ public:
+  checksum_xxh3_128()
+      : state_(XXH3_createState()) {
+    DWARFS_CHECK(XXH3_128bits_reset(state_) == XXH_OK,
+                 "XXH3_128bits_reset() failed");
+  }
+
+  ~checksum_xxh3_128() override { XXH3_freeState(state_); }
+
+  void update(void const* data, size_t size) override {
+    auto err = XXH3_128bits_update(state_, data, size);
+    DWARFS_CHECK(err == XXH_OK, fmt::format("XXH3_128bits_update() failed: {}",
+                                            static_cast<int>(err)));
+  }
+
+  bool finalize(void* digest) override {
+    auto hash = XXH3_128bits_digest(state_);
+    ::memcpy(digest, &hash, sizeof(hash));
+    return true;
+  }
+
+ private:
+  XXH3_state_t* state_;
+};
+
 } // namespace
 
 bool checksum::compute(algorithm alg, void const* data, size_t size,
@@ -125,6 +159,9 @@ bool checksum::compute(algorithm alg, void const* data, size_t size,
     break;
   case algorithm::XXH3_64:
     rv = compute_xxh3_64(data, size, digest);
+    break;
+  case algorithm::XXH3_128:
+    rv = compute_xxh3_128(data, size, digest);
     break;
   }
 
@@ -156,6 +193,9 @@ checksum::checksum(algorithm alg)
     break;
   case algorithm::XXH3_64:
     impl_ = std::make_unique<checksum_xxh3_64>();
+    break;
+  case algorithm::XXH3_128:
+    impl_ = std::make_unique<checksum_xxh3_128>();
     break;
   default:
     DWARFS_CHECK(false, "unknown algorithm");

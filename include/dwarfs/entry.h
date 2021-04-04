@@ -137,7 +137,7 @@ class file : public entry {
 
  private:
   struct data {
-    using hash_type = std::array<char, 20>;
+    using hash_type = std::array<char, 16>;
     hash_type hash{0};
     uint32_t refcount{1};
     std::optional<uint32_t> inode_num;

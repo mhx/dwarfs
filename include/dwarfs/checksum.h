@@ -35,6 +35,7 @@ class checksum {
     SHA1,
     SHA2_512_256,
     XXH3_64,
+    XXH3_128,
   };
 
   static constexpr size_t digest_size(algorithm alg) {
@@ -45,6 +46,8 @@ class checksum {
       return 32;
     case algorithm::XXH3_64:
       return 8;
+    case algorithm::XXH3_128:
+      return 16;
     }
     DWARFS_CHECK(false, "unknown algorithm");
   }

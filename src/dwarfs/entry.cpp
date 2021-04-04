@@ -168,7 +168,7 @@ void file::scan(os_access& os, progress& prog) {
 }
 
 void file::scan(std::shared_ptr<mmif> const& mm, progress& prog) {
-  constexpr auto alg = checksum::algorithm::SHA1;
+  constexpr auto alg = checksum::algorithm::XXH3_128;
   static_assert(checksum::digest_size(alg) == sizeof(data::hash_type));
 
   if (size_t s = size(); s > 0) {
