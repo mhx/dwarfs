@@ -75,6 +75,54 @@ Most other options are concerned with compression tuning:
     individual filesystem blocks in the background. Ordering, segmenting
     and block building are, again, single-threaded and run independently.
 
+  * `-B`, `--max-lookback-blocks=`*value*:
+    Specify how many of the most recent blocks to scan for duplicate segments.
+    By default, only the current block will be scanned. The larger this number,
+    the more duplicate segments will likely be found, which may further improve
+    compression. Impact on compression speed is minimal, but this could cause
+    resulting filesystem to be slightly less efficient to use, as single small
+    files can now potentially span multiple filesystem blocks. Passing `-B0`
+    will completely disable duplicate segment search.
+
+  * `-W`, `--window-size=`*value*:
+    Window size of cyclic hash used for segmenting. This is again an exponent
+    to a base of two. Cyclic hashes are used by `mkdwarfs` for finding
+    identical segments across multiple files. This is done on top of duplicate
+    file detection. If a reasonable amount of duplicate segments is found,
+    this means less blocks will be used in the filesystem and potentially
+    less memory will be used when accessing the filesystem. It doesn't
+    necessarily mean that the filesystem will be much smaller, as this removes
+    redundany that cannot be exploited by the block compression any longer.
+    But it shouldn't make the resulting filesystem any bigger. This option
+    is used along with `--window-step` to determine how extensive this
+    segment search will be. The smaller the window sizes, the more segments
+    will obviously be found. However, this also means files will become more
+    fragmented and thus the filesystem can be slower to use and metadata
+    size will grow. Passing `-W0` will completely disable duplicate segment
+    search.
+
+  * `-w`, `--window-step=`*value*:
+    This option specifies how often cyclic hash values are stored for lookup.
+    It is specified relative to the window size, as a base-2 exponent that
+    divides the window size. To give a concrete example, if `--window-size=16`
+    and `--window-step=1`, then a cyclic hash across 65536 bytes will be stored
+    at every 32768 bytes of input data. If `--window-step=2`, then a hash value
+    will be stored at every 16384 bytes. This means that not every possible
+    65536-byte duplicate segment will be detected, but it is guaranteed that
+    all duplicate segments of (`window_size` + `window_step`) bytes or more
+    will be detected (unless they span across block boundaries, of course).
+    If you use a larger value for this option, the increments become *smaller*,
+    and `mkdwarfs` will be slightly slower and use more memory.
+
+  * `--bloom-filter-size`=*value*:
+    The segmenting algorithm uses a bloom filter to determine quickly if
+    there is *no* match at a given position. This will filter out more than
+    90% of bad matches quickly with the default bloom filter size. The default
+    is pretty much where the sweet spot lies. If you have copious amounts of
+    RAM and CPU power, feel free to increase this by one or two and you *might*
+    be able to see some improvement. If you're tight on memory, then decreasing
+    this will potentially save a few MiBs.
+
   * `-L`, `--memory-limit=`*value*:
     Approximately how much memory you want `mkdwarfs` to use during filesystem
     creation. Note that currently this will only affect the block manager
@@ -156,17 +204,17 @@ Most other options are concerned with compression tuning:
     reduce the size of the file system. You can pass either a unix time stamp
     or `now`.
 
+  * `--keep-all-times`:
+    As of release 0.3.0, by default, `mkdwarfs` will only save the contents of
+    the `mtime` field in order to save metadata space. If you want to save
+    `atime` and `ctime` as well, use this option.
+
   * `--time-resolution=`*sec*|`sec`|`min`|`hour`|`day`:
     Specify the resolution with which time stamps are stored. By default,
     time stamps are stored with second resolution. You can specify "odd"
     resolutions as well, e.g. something like 15 second resolution is
     entirely possible. Moving from second to minute resolution, for example,
     will save roughly 6 bits per file system entry in the metadata block.
-
-  * `--keep-all-times`:
-    As of release 0.3.0, by default, `mkdwarfs` will only save the contents of
-    the `mtime` field in order to save metadata space. If you want to save
-    `atime` and `ctime` as well, use this option.
 
   * `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*[`:`*mindepth*]]]|`script`:
     The order in which inodes will be written to the file system. Choosing `none`,
@@ -194,54 +242,6 @@ Most other options are concerned with compression tuning:
     going to speed things up significantly without impacting compression too much.
     Last but not least, if scripting support is built into `mkdwarfs`, you can
     choose `script` to let the script determine the order.
-
-  * `-W`, `--window-size=`*value*:
-    Window size of cyclic hash used for segmenting. This is again an exponent
-    to a base of two. Cyclic hashes are used by `mkdwarfs` for finding
-    identical segments across multiple files. This is done on top of duplicate
-    file detection. If a reasonable amount of duplicate segments is found,
-    this means less blocks will be used in the filesystem and potentially
-    less memory will be used when accessing the filesystem. It doesn't
-    necessarily mean that the filesystem will be much smaller, as this removes
-    redundany that cannot be exploited by the block compression any longer.
-    But it shouldn't make the resulting filesystem any bigger. This option
-    is used along with `--window-step` to determine how extensive this
-    segment search will be. The smaller the window sizes, the more segments
-    will obviously be found. However, this also means files will become more
-    fragmented and thus the filesystem can be slower to use and metadata
-    size will grow. Passing `-W0` will completely disable duplicate segment
-    search.
-
-  * `--window-step=`*value*:
-    This option specifies how often cyclic hash values are stored for lookup.
-    It is specified relative to the window size, as a base-2 exponent that
-    divides the window size. To give a concrete example, if `--window-size=16`
-    and `--window-step=1`, then a cyclic hash across 65536 bytes will be stored
-    at every 32768 bytes of input data. If `--window-step=2`, then a hash value
-    will be stored at every 16384 bytes. This means that not every possible
-    65536-byte duplicate segment will be detected, but it is guaranteed that
-    all duplicate segments of (`window_size` + `window_step`) bytes or more
-    will be detected (unless they span across block boundaries, of course).
-    If you use a larger value for this option, the increments become *smaller*,
-    and `mkdwarfs` will be slightly slower and use more memory.
-
-  * `-B`, `--max-lookback-blocks=`*value*:
-    Specify how many of the most recent blocks to scan for duplicate segments.
-    By default, only the current block will be scanned. The larger this number,
-    the more duplicate segments will likely be found, which may further improve
-    compression. Impact on compression speed is minimal, but this could cause
-    resulting filesystem to be slightly less efficient to use, as single small
-    files can now potentially span multiple filesystem blocks. Passing `-B0`
-    will completely disable duplicate segment search.
-
-  * `--bloom-filter-size`=*value*:
-    The segmenting algorithm uses a bloom filter to determine quickly if
-    there is *no* match at a given position. This will filter out more than
-    90% of bad matches quickly with the default bloom filter size. The default
-    is pretty much where the sweet spot lies. If you have copious amounts of
-    RAM and CPU power, feel free to increase this by one or two and you *might*
-    be able to see some improvement. If you're tight on memory, then decreasing
-    this will potentially save a few MiBs.
 
   * `--remove-empty-dirs`:
     Removes all empty directories from the output file system, recursively.
