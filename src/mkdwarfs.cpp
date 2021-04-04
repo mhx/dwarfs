@@ -374,7 +374,7 @@ int mkdwarfs(int argc, char** argv) {
     ("window-size,W",
         po::value<unsigned>(&cfg.blockhash_window_size),
         "window sizes for block hashing")
-    ("window-step",
+    ("window-step,w",
         po::value<unsigned>(&cfg.window_increment_shift),
         "window step (as right shift of size)")
     ("bloom-filter-size",
