@@ -22,25 +22,43 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <cstring>
+#include <ctime>
 #include <mutex>
 #include <queue>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <time.h>
 #include <unistd.h>
+
+#include <pthread.h>
 
 #include <folly/Conv.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/error.h"
 #include "dwarfs/semaphore.h"
+#include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
+
+namespace {
+
+pthread_t std_to_pthread_id(std::thread::id tid) {
+  static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
+  static_assert(sizeof(std::thread::id) ==
+                sizeof(std::thread::native_handle_type));
+  pthread_t id{0};
+  std::memcpy(&id, &tid, sizeof(id));
+  return id;
+}
+
+} // namespace
 
 template <typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
@@ -55,6 +73,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     if (num_workers < 1) {
       DWARFS_THROW(runtime_error, "invalid number of worker threads");
     }
+
     if (!group_name) {
       group_name = "worker";
     }
@@ -151,6 +170,22 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   size_t queue_size() const override {
     std::lock_guard lock(mx_);
     return jobs_.size();
+  }
+
+  double get_cpu_time() const override {
+    std::lock_guard lock(mx_);
+    double t = 0.0;
+
+    for (auto const& w : workers_) {
+      ::clockid_t cid;
+      struct ::timespec ts;
+      if (::pthread_getcpuclockid(std_to_pthread_id(w.get_id()), &cid) == 0 &&
+          ::clock_gettime(cid, &ts) == 0) {
+        t += ts.tv_sec + 1e-9 * ts.tv_nsec;
+      }
+    }
+
+    return t;
   }
 
  private:

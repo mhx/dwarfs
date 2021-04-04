@@ -613,6 +613,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   LOG_INFO << "waiting for background scanners...";
   wg_.wait();
 
+  LOG_INFO << "scanning CPU time: " << time_with_unit(wg_.get_cpu_time());
+
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
   fs.finalize(first_device_inode);
@@ -681,6 +683,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   LOG_INFO << "waiting for segmenting/blockifying to finish...";
 
   blockify.wait();
+
+  LOG_INFO << "segmenting/blockifying CPU time: "
+           << time_with_unit(blockify.get_cpu_time());
 
   bm.finish_blocks();
   wg_.wait();

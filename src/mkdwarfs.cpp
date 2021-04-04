@@ -865,6 +865,9 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
+  LOG_INFO << "compression CPU time: "
+           << time_with_unit(wg_compress.get_cpu_time());
+
   ofs.close();
 
   if (ofs.bad()) {

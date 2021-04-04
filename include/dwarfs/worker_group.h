@@ -72,6 +72,7 @@ class worker_group {
   bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
   size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
+  double get_cpu_time() const { return impl_->get_cpu_time(); }
 
   template <typename T>
   bool add_job(std::packaged_task<T()>&& task) {
@@ -88,6 +89,7 @@ class worker_group {
     virtual bool add_job(job_t&& job) = 0;
     virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
+    virtual double get_cpu_time() const = 0;
   };
 
  private:
