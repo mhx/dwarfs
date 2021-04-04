@@ -331,17 +331,31 @@ endif()
 foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
   string(REGEX MATCH "^[^.]*" docname "${man}")
   string(REGEX MATCH "[^.]*$" section "${man}")
-  set(mandir "man${section}")
+  set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
+  set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
+  set(man_output "${man_dir}/${man}")
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man}
-    COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/${mandir}
-    COMMAND ${RONN_EXE} <${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md
-            >${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md)
-  list(APPEND MAN_PAGES ${CMAKE_CURRENT_BINARY_DIR}/${mandir}/${man})
+  execute_process(
+    COMMAND ${RONN_EXE}
+    INPUT_FILE "${man_input}"
+    RESULT_VARIABLE ronn_result
+    OUTPUT_VARIABLE ronn_output
+    ERROR_VARIABLE ronn_error)
+
+  if(${ronn_result} EQUAL 0)
+    add_custom_command(
+      OUTPUT "${man_output}"
+      COMMAND mkdir -p "${man_dir}"
+      COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
+      DEPENDS "${man_input}")
+    list(APPEND MAN_PAGES "${man_output}")
+    list(APPEND MAN_DIRS "${man_dir}")
+  else()
+    message(WARNING "${RONN_EXE} failed to process ${man}")
+  endif()
 endforeach()
 
+list(REMOVE_DUPLICATES MAN_DIRS)
 add_custom_target(manpages DEPENDS ${MAN_PAGES})
 add_dependencies(mkdwarfs manpages)
 
@@ -581,23 +595,22 @@ install(
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/man1
-                  ${CMAKE_CURRENT_BINARY_DIR}/man5 DESTINATION share/man)
+foreach(man_dir ${MAN_DIRS})
+  install(DIRECTORY "${man_dir}" DESTINATION share/man)
+endforeach()
 
-### TODO:
-###
-### There's currently no point installing the library + headers, as these have
-### dependencies on the bundled folly/thrift/... which we don't install.
-###
-#
-# if(NOT STATIC_BUILD_DO_NOT_USE)
-#   install(
-#     TARGETS dwarfs
-#     RUNTIME DESTINATION bin
-#     LIBRARY DESTINATION lib
-#     ARCHIVE DESTINATION lib)
-#   install(DIRECTORY include/dwarfs DESTINATION include)
-# endif()
+# TODO: There's currently no point installing the library + headers, as these
+# have dependencies on the bundled folly/thrift/... which we don't install.
+if(FALSE)
+  if(NOT STATIC_BUILD_DO_NOT_USE)
+    install(
+      TARGETS dwarfs
+      RUNTIME DESTINATION bin
+      LIBRARY DESTINATION lib
+      ARCHIVE DESTINATION lib)
+    install(DIRECTORY include/dwarfs DESTINATION include)
+  endif()
+endif()
 
 if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   set(CPACK_GENERATOR "TGZ")
@@ -614,12 +627,8 @@ if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")
   set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-  set(CPACK_SOURCE_IGNORE_FILES
-      "\\.git/"
-      "${CMAKE_SOURCE_DIR}/build.*"
-      "${CMAKE_SOURCE_DIR}/@"
-      "/\\."
-      ".*~$")
+  set(CPACK_SOURCE_IGNORE_FILES "\\.git/" "${CMAKE_SOURCE_DIR}/build.*"
+                                "${CMAKE_SOURCE_DIR}/@" "/\\." ".*~$")
   set(CPACK_VERBATIM_VARIABLES YES)
 
   include(CPack)
