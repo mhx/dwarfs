@@ -147,20 +147,27 @@ void analyze_frozen(std::ostream& os,
   auto& l = *layout;
   std::vector<std::pair<size_t, std::string>> usage;
 
+#if FMT_VERSION >= 70000
+#define DWARFS_FMT_L "L"
+#else
+#define DWARFS_FMT_L "n"
+#endif
+
   auto fmt_size = [&](auto const& name, size_t count, size_t size) {
-    return fmt::format(
-        loc, "{0:>14L} {1:.<20}{2:.>16L} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
-        count, name, size, 100.0 * size / total_size,
-        count > 0 ? static_cast<double>(size) / count : 0.0);
+    return fmt::format(loc,
+                       "{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
+                       "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
+                       count, name, size, 100.0 * size / total_size,
+                       count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
   auto fmt_detail = [&](auto const& name, size_t count, size_t size,
                         std::string num) {
-    return fmt::format(loc,
-                       "               {0:<20}{1:>16L} bytes {2:>6} "
-                       "{3:5.1f} bytes/item\n",
-                       name, size, num,
-                       count > 0 ? static_cast<double>(size) / count : 0.0);
+    return fmt::format(
+        loc,
+        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
+        "{3:5.1f} bytes/item\n",
+        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
   auto fmt_detail_pct = [&](auto const& name, size_t count, size_t size) {
@@ -266,11 +273,13 @@ void analyze_frozen(std::ostream& os,
   });
 
   os << "metadata memory usage:\n";
-  os << fmt::format(
-      loc,
-      "               {0:.<20}{1:.>16L} bytes       {2:6.1f} bytes/inode\n",
-      "total metadata", total_size,
-      static_cast<double>(total_size) / meta.inodes().size());
+  os << fmt::format(loc,
+                    "               {0:.<20}{1:.>16" DWARFS_FMT_L
+                    "} bytes       {2:6.1f} bytes/inode\n",
+                    "total metadata", total_size,
+                    static_cast<double>(total_size) / meta.inodes().size());
+
+#undef DWARFS_FMT_L
 
   for (auto const& u : usage) {
     os << u.second;
