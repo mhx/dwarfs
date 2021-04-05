@@ -1,5 +1,7 @@
 # Change Log
 
+## Version 0.5.0 - 2021-04-05
+
 - [fix] Disable multiversioning on non-x86 platforms, which broke
   the ARM build.
 
@@ -13,8 +15,11 @@
   was not truncating the output file, which could lead to a corrupt
   metadata export.
 
-- [perf] Scanning has been significantly optimized and is up to
-  three times faster now.
+- [perf] Scanning has been significantly optimized and is now up to
+  three times faster on average.
+
+- [perf] Digest computation has been parallelized in both `mkdwarfs`
+  and `dwarfsck` giving better performance on multi-core systems.
 
 - [perf] A set of micro-benchmarks has been added to evaluate the
   performance of different filesystem operations. This can be
