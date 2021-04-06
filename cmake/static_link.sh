@@ -13,7 +13,7 @@ fi
 
 g++ -static "$@" -o "$target" \
 	libdwarfs.a \
-	fsst/libfsst.a \
+	libfsst.a \
 	libmetadata_thrift.a \
 	libthrift_light.a \
 	libxxhash.a \

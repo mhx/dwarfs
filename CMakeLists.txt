@@ -143,7 +143,6 @@ set(compiler_only
 
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
-add_subdirectory(fsst EXCLUDE_FROM_ALL)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 endif()
@@ -531,6 +530,17 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
     endif()
   endif()
 endforeach()
+
+# not sure why exactly, copied from fsst/CMakeLists.txt
+if(CMAKE_BUILD_TYPE STREQUAL Release)
+  set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
+endif()
+
+add_library(
+  fsst
+  fsst/libfsst.cpp fsst/fsst_avx512.cpp fsst/fsst_avx512_unroll1.inc
+  fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
+  fsst/fsst_avx512_unroll4.inc)
 
 target_include_directories(dwarfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
 
