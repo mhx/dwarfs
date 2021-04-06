@@ -1,5 +1,12 @@
 # Change Log
 
+## Version 0.5.1 - 2021-04-06
+
+- [fix] `fsst` library was built with `-march=native`, which caused
+  the static binaries not to work on non-AVX platforms. The `fsst`
+  library is now being built with no extra flags.
+
+
 ## Version 0.5.0 - 2021-04-05
 
 - [fix] Disable multiversioning on non-x86 platforms, which broke
