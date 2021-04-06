@@ -290,7 +290,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
 
   case file_order_mode::PATH: {
     LOG_INFO << "ordering " << count() << " inodes by path name...";
-    auto ti = LOG_TIMED_INFO;
+    auto ti = LOG_CPU_TIMED_INFO;
     order_inodes_by_path();
     ti << count() << " inodes ordered";
     break;
@@ -301,7 +301,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
       DWARFS_THROW(runtime_error, "script cannot order inodes");
     }
     LOG_INFO << "ordering " << count() << " inodes using script...";
-    auto ti = LOG_TIMED_INFO;
+    auto ti = LOG_CPU_TIMED_INFO;
     scr->order(inodes_);
     ti << count() << " inodes ordered";
     break;
@@ -309,7 +309,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
 
   case file_order_mode::SIMILARITY: {
     LOG_INFO << "ordering " << count() << " inodes by similarity...";
-    auto ti = LOG_TIMED_INFO;
+    auto ti = LOG_CPU_TIMED_INFO;
     order_inodes_by_similarity();
     ti << count() << " inodes ordered";
     break;
@@ -318,7 +318,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
   case file_order_mode::NILSIMSA: {
     LOG_INFO << "ordering " << count()
              << " inodes using nilsimsa similarity...";
-    auto ti = LOG_TIMED_INFO;
+    auto ti = LOG_CPU_TIMED_INFO;
     order_inodes_by_nilsimsa(fn, file_order);
     ti << count() << " inodes ordered";
     return;

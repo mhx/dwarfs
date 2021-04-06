@@ -25,6 +25,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <ctime>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -123,12 +124,18 @@ class level_logger {
 class timed_level_logger {
  public:
   timed_level_logger(logger& lgr, logger::level_type level,
-                     char const* file = nullptr, int line = 0)
+                     char const* file = nullptr, int line = 0,
+                     bool with_cpu = false)
       : lgr_(lgr)
       , level_(level)
       , start_time_(std::chrono::high_resolution_clock::now())
+      , with_cpu_(with_cpu)
       , file_(file)
-      , line_(line) {}
+      , line_(line) {
+    if (with_cpu) {
+      ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_start_time_);
+    }
+  }
 
   timed_level_logger(timed_level_logger const&) = delete;
 
@@ -136,7 +143,15 @@ class timed_level_logger {
     if (output_) {
       std::chrono::duration<double> sec =
           std::chrono::high_resolution_clock::now() - start_time_;
-      oss_ << " [" << time_with_unit(sec.count()) << "]";
+      oss_ << " [" << time_with_unit(sec.count());
+      if (with_cpu_) {
+        struct ::timespec cpu_end_time;
+        ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_end_time);
+        auto cpu_time = timespec_to_double(cpu_end_time) -
+                        timespec_to_double(cpu_start_time_);
+        oss_ << ", " << time_with_unit(cpu_time) << " CPU";
+      }
+      oss_ << "]";
       lgr_.write(level_, oss_.str(), file_, line_);
     }
   }
@@ -149,11 +164,17 @@ class timed_level_logger {
   }
 
  private:
+  static double timespec_to_double(struct ::timespec const& ts) {
+    return ts.tv_sec + 1e-9 * ts.tv_nsec;
+  }
+
   logger& lgr_;
   std::ostringstream oss_;
   logger::level_type const level_;
   std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
+  struct ::timespec cpu_start_time_;
   bool output_{false};
+  bool const with_cpu_;
   char const* const file_;
   int const line_;
 };
@@ -197,31 +218,6 @@ class log_proxy {
   log_proxy(logger& lgr)
       : lgr_(lgr) {}
 
-  auto error() const {
-    return
-        typename LogPolicy::template logger<logger::ERROR>(lgr_, logger::ERROR);
-  }
-
-  auto warn() const {
-    return
-        typename LogPolicy::template logger<logger::WARN>(lgr_, logger::WARN);
-  }
-
-  auto info() const {
-    return
-        typename LogPolicy::template logger<logger::INFO>(lgr_, logger::INFO);
-  }
-
-  auto debug() const {
-    return
-        typename LogPolicy::template logger<logger::DEBUG>(lgr_, logger::DEBUG);
-  }
-
-  auto trace() const {
-    return
-        typename LogPolicy::template logger<logger::TRACE>(lgr_, logger::TRACE);
-  }
-
   auto error(char const* file, int line) const {
     return typename LogPolicy::template logger<logger::ERROR>(
         lgr_, logger::ERROR, file, line);
@@ -245,31 +241,6 @@ class log_proxy {
   auto trace(char const* file, int line) const {
     return typename LogPolicy::template logger<logger::TRACE>(
         lgr_, logger::TRACE, file, line);
-  }
-
-  auto timed_error() const {
-    return typename LogPolicy::template timed_logger<logger::ERROR>(
-        lgr_, logger::ERROR);
-  }
-
-  auto timed_warn() const {
-    return typename LogPolicy::template timed_logger<logger::WARN>(
-        lgr_, logger::WARN);
-  }
-
-  auto timed_info() const {
-    return typename LogPolicy::template timed_logger<logger::INFO>(
-        lgr_, logger::INFO);
-  }
-
-  auto timed_debug() const {
-    return typename LogPolicy::template timed_logger<logger::DEBUG>(
-        lgr_, logger::DEBUG);
-  }
-
-  auto timed_trace() const {
-    return typename LogPolicy::template timed_logger<logger::TRACE>(
-        lgr_, logger::TRACE);
   }
 
   auto timed_error(char const* file, int line) const {
@@ -297,6 +268,31 @@ class log_proxy {
         lgr_, logger::TRACE, file, line);
   }
 
+  auto cpu_timed_error(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::ERROR>(
+        lgr_, logger::ERROR, file, line, true);
+  }
+
+  auto cpu_timed_warn(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::WARN>(
+        lgr_, logger::WARN, file, line, true);
+  }
+
+  auto cpu_timed_info(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::INFO>(
+        lgr_, logger::INFO, file, line, true);
+  }
+
+  auto cpu_timed_debug(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::DEBUG>(
+        lgr_, logger::DEBUG, file, line, true);
+  }
+
+  auto cpu_timed_trace(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger<logger::TRACE>(
+        lgr_, logger::TRACE, file, line, true);
+  }
+
   logger& get_logger() const { return lgr_; }
 
  private:
@@ -317,6 +313,11 @@ class log_proxy {
 #define LOG_TIMED_INFO log_.timed_info(__FILE__, __LINE__)
 #define LOG_TIMED_DEBUG log_.timed_debug(__FILE__, __LINE__)
 #define LOG_TIMED_TRACE log_.timed_trace(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_ERROR log_.cpu_timed_error(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_INFO log_.cpu_timed_info(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_DEBUG log_.cpu_timed_debug(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(__FILE__, __LINE__)
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::INFO> {
  public:
