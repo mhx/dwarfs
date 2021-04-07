@@ -1,5 +1,11 @@
 # Change Log
 
+## Version 0.5.2 - 2021-04-07
+
+- [fix] Make FUSE driver exit with non-zero exit code if filesystem
+  cannot be mounted. Fixes github #41.
+
+
 ## Version 0.5.1 - 2021-04-06
 
 - [fix] `fsst` library was built with `-march=native`, which caused
