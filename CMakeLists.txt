@@ -33,6 +33,7 @@ option(ENABLE_COVERAGE "enable code coverage" OFF)
 option(USE_JEMALLOC "build with jemalloc" ON)
 option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
+option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
@@ -155,33 +156,36 @@ set(ZSTD_LIBRARY_DEBUG
     CACHE FILEPATH "don't build folly with zstd" FORCE)
 
 if(WITH_TESTS)
-  # Download and unpack googletest at configure time
-  configure_file(CMakeLists.txt.gtest googletest-download/CMakeLists.txt)
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
-  if(result)
-    message(FATAL_ERROR "CMake step for googletest failed: ${result}")
-  endif()
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} --build .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
-  if(result)
-    message(FATAL_ERROR "Build step for googletest failed: ${result}")
-  endif()
+  if(NOT PREFER_SYSTEM_GTEST)
+    # Download and unpack googletest at configure time
+    configure_file(CMakeLists.txt.gtest googletest-download/CMakeLists.txt)
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+      RESULT_VARIABLE result
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
+    if(result)
+      message(FATAL_ERROR "CMake step for googletest failed: ${result}")
+    endif()
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} --build .
+      RESULT_VARIABLE result
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
+    if(result)
+      message(FATAL_ERROR "Build step for googletest failed: ${result}")
+    endif()
 
-  # Prevent overriding the parent project's compiler/linker settings on Windows
-  set(gtest_force_shared_crt
-      ON
-      CACHE BOOL "" FORCE)
+    # Prevent overriding the parent project's compiler/linker settings on
+    # Windows
+    set(gtest_force_shared_crt
+        ON
+        CACHE BOOL "" FORCE)
 
-  # Add googletest directly to our build. This defines the gtest and gtest_main
-  # targets.
-  add_subdirectory(
-    ${CMAKE_CURRENT_BINARY_DIR}/googletest-src
-    ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
+    # Add googletest directly to our build. This defines the gtest and
+    # gtest_main targets.
+    add_subdirectory(
+      ${CMAKE_CURRENT_BINARY_DIR}/googletest-src
+      ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
+  endif()
 
   enable_testing()
   include(GoogleTest)
@@ -303,9 +307,9 @@ if(WITH_TESTS)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
   add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
 
-  target_link_libraries(dwarfs_test test_helpers gtest_main)
-  target_link_libraries(dwarfs_compat_test gtest_main)
-  target_link_libraries(dwarfs_badfs_test gtest_main)
+  target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
+  target_link_libraries(dwarfs_compat_test gtest gtest_main)
+  target_link_libraries(dwarfs_badfs_test gtest gtest_main)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test)
 
