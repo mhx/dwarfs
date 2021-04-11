@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.5.3 - 2021-04-11
+
+- [fix] Add `PREFER_SYSTEM_GTEST` for distributions (like Gentoo)
+  that have a `gtest` package.
+
+- [fix] Make sure the source tarball can be built inside a git repo.
+  The version file generation code would attempt to pull information
+  from any outside git repository without checking if it's actually
+  the DwarFS repo.
+
+
 ## Version 0.5.2 - 2021-04-07
 
 - [fix] Make FUSE driver exit with non-zero exit code if filesystem
