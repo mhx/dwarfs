@@ -50,21 +50,29 @@ class worker_group {
    *
    * \param num_workers     Number of worker threads.
    */
-  worker_group(const char* group_name = nullptr, size_t num_workers = 1,
-               size_t max_queue_len = std::numeric_limits<size_t>::max(),
-               int niceness = 0);
+  explicit worker_group(
+      const char* group_name, size_t num_workers = 1,
+      size_t max_queue_len = std::numeric_limits<size_t>::max(),
+      int niceness = 0);
 
   /**
    * Create a load adaptive worker group
    *
    * \param num_workers     Number of worker threads.
    */
-  worker_group(load_adaptive_tag, const char* group_name = nullptr,
-               size_t max_num_workers = 1,
-               size_t max_queue_len = std::numeric_limits<size_t>::max(),
-               int niceness = 0);
+  explicit worker_group(
+      load_adaptive_tag, const char* group_name = nullptr,
+      size_t max_num_workers = 1,
+      size_t max_queue_len = std::numeric_limits<size_t>::max(),
+      int niceness = 0);
 
+  worker_group() = default;
   ~worker_group() = default;
+
+  worker_group(worker_group&&) = default;
+  worker_group& operator=(worker_group&&) = default;
+
+  explicit operator bool() const { return static_cast<bool>(impl_); }
 
   void stop() { impl_->stop(); }
   void wait() { impl_->wait(); }

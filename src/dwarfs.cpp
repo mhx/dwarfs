@@ -107,6 +107,17 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
   auto userdata = reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
 
 template <typename LoggerPolicy>
+void op_init(void* data, struct fuse_conn_info* /*conn*/) {
+  auto userdata = reinterpret_cast<dwarfs_userdata*>(data);
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__;
+
+  // we must do this *after* the fuse driver has forked into background
+  userdata->fs.set_num_workers(userdata->opts.workers);
+}
+
+template <typename LoggerPolicy>
 void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
@@ -475,6 +486,7 @@ int option_hdl(void* data, const char* arg, int key,
 
 template <typename LoggerPolicy>
 void init_lowlevel_ops(struct fuse_lowlevel_ops& ops) {
+  ops.init = &op_init<LoggerPolicy>;
   ops.lookup = &op_lookup<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
   ops.access = &op_access<LoggerPolicy>;
@@ -581,6 +593,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.num_workers = opts.workers;
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
   fsopts.block_cache.mm_release = !opts.cache_image;
+  fsopts.block_cache.init_workers = false;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
 

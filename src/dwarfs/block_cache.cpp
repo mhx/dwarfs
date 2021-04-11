@@ -28,6 +28,7 @@
 #include <iterator>
 #include <mutex>
 #include <new>
+#include <shared_mutex>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -204,17 +205,24 @@ class block_cache_ final : public block_cache::impl {
   block_cache_(logger& lgr, std::shared_ptr<mmif> mm,
                block_cache_options const& options)
       : cache_(0)
-      , wg_("blkcache", std::max(options.num_workers > 0
-                                     ? options.num_workers
-                                     : std::thread::hardware_concurrency(),
-                                 static_cast<size_t>(1)))
       , mm_(std::move(mm))
       , LOG_PROXY_INIT(lgr)
-      , options_(options) {}
+      , options_(options) {
+    if (options.init_workers) {
+      wg_ = worker_group("blkcache",
+                         std::max(options.num_workers > 0
+                                      ? options.num_workers
+                                      : std::thread::hardware_concurrency(),
+                                  static_cast<size_t>(1)));
+    }
+  }
 
   ~block_cache_() noexcept override {
     LOG_DEBUG << "stopping cache workers";
-    wg_.stop();
+
+    if (wg_) {
+      wg_.stop();
+    }
 
     if (!blocks_created_.load()) {
       return;
@@ -286,6 +294,16 @@ class block_cache_ final : public block_cache::impl {
           ++blocks_evicted_;
           update_block_stats(*block);
         });
+  }
+
+  void set_num_workers(size_t num) override {
+    std::unique_lock lock(mx_wg_);
+
+    if (wg_) {
+      wg_.stop();
+    }
+
+    wg_ = worker_group("blkcache", num);
   }
 
   std::future<block_range>
@@ -442,6 +460,8 @@ class block_cache_ final : public block_cache::impl {
   }
 
   void enqueue_job(std::shared_ptr<block_request_set> brs) const {
+    std::shared_lock lock(mx_wg_);
+
     // Lambda needs to be mutable so we can actually move out of it
     wg_.add_job([this, brs = std::move(brs)]() mutable {
       process_job(std::move(brs));
@@ -555,6 +575,7 @@ class block_cache_ final : public block_cache::impl {
   mutable std::atomic<size_t> total_block_bytes_{0};
   mutable std::atomic<size_t> total_decompressed_bytes_{0};
 
+  mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;

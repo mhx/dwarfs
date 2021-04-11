@@ -288,6 +288,7 @@ class filesystem_ final : public filesystem_v2::impl {
   folly::Expected<std::vector<std::future<block_range>>, int>
   readv(uint32_t inode, size_t size, off_t offset) const override;
   std::optional<folly::ByteRange> header() const override;
+  void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);

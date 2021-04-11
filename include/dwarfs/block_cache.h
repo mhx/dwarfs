@@ -49,6 +49,8 @@ class block_cache {
 
   void set_block_size(size_t size) { impl_->set_block_size(size); }
 
+  void set_num_workers(size_t num) { impl_->set_num_workers(num); }
+
   std::future<block_range>
   get(size_t block_no, size_t offset, size_t size) const {
     return impl_->get(block_no, offset, size);
@@ -61,6 +63,7 @@ class block_cache {
     virtual size_t block_count() const = 0;
     virtual void insert(fs_section const& section) = 0;
     virtual void set_block_size(size_t size) = 0;
+    virtual void set_num_workers(size_t num) = 0;
     virtual std::future<block_range>
     get(size_t block_no, size_t offset, size_t length) const = 0;
   };

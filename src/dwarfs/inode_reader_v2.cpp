@@ -68,6 +68,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   readv(size_t size, off_t offset, chunk_range chunks) const override;
   void dump(std::ostream& os, const std::string& indent,
             chunk_range chunks) const override;
+  void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
 
  private:
   folly::Expected<std::vector<std::future<block_range>>, int>

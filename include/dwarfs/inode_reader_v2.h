@@ -65,6 +65,8 @@ class inode_reader_v2 {
     impl_->dump(os, indent, chunks);
   }
 
+  void set_num_workers(size_t num) { impl_->set_num_workers(num); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -77,6 +79,7 @@ class inode_reader_v2 {
     readv(size_t size, off_t offset, chunk_range chunks) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
+    virtual void set_num_workers(size_t num) = 0;
   };
 
  private:

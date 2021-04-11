@@ -151,6 +151,8 @@ class filesystem_v2 {
 
   std::optional<folly::ByteRange> header() const { return impl_->header(); }
 
+  void set_num_workers(size_t num) { return impl_->set_num_workers(num); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -185,6 +187,7 @@ class filesystem_v2 {
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
     readv(uint32_t inode, size_t size, off_t offset) const = 0;
     virtual std::optional<folly::ByteRange> header() const = 0;
+    virtual void set_num_workers(size_t num) = 0;
   };
 
  private:
