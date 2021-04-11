@@ -20,19 +20,32 @@ set(VERSION_SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/dwarfs/version.cpp)
 set(VERSION_HDR_FILE ${CMAKE_CURRENT_SOURCE_DIR}/include/dwarfs/version.h)
 
 execute_process(
+  COMMAND git rev-parse --show-toplevel
+  OUTPUT_VARIABLE GIT_TOPLEVEL
+  OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+
+execute_process(
   COMMAND git log --pretty=format:%h -n 1
   OUTPUT_VARIABLE PRJ_GIT_REV
-  ERROR_QUIET)
+  OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
-if("${PRJ_GIT_REV}" STREQUAL "")
+if((NOT "${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${GIT_TOPLEVEL}")
+   OR ("${PRJ_GIT_REV}" STREQUAL ""))
   if(NOT EXISTS ${VERSION_SRC_FILE} OR NOT EXISTS ${VERSION_HDR_FILE})
     message(FATAL_ERROR "missing version files")
+    message("CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
+    message("GIT_TOPLEVEL: ${GIT_TOPLEVEL}")
+    message("PRJ_GIT_REV: ${PRJ_GIT_REV}")
   endif()
 else()
-  execute_process(COMMAND git describe --tags --match "v*" --dirty
-                  OUTPUT_VARIABLE PRJ_GIT_DESC)
-  execute_process(COMMAND git rev-parse --abbrev-ref HEAD
-                  OUTPUT_VARIABLE PRJ_GIT_BRANCH)
+  execute_process(
+    COMMAND git describe --tags --match "v*" --dirty
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    OUTPUT_VARIABLE PRJ_GIT_DESC)
+  execute_process(
+    COMMAND git rev-parse --abbrev-ref HEAD
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    OUTPUT_VARIABLE PRJ_GIT_BRANCH)
 
   string(STRIP "${PRJ_GIT_REV}" PRJ_GIT_REV)
   string(STRIP "${PRJ_GIT_DESC}" PRJ_GIT_DESC)
