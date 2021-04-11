@@ -1,5 +1,12 @@
 # Change Log
 
+## Version 0.5.4 - 2021-04-11
+
+- [fix] FUSE driver hangs when accessing files and the driver is
+  *not* started in foreground or debug mode. This bug is present
+  in both the 0.5.2 and 0.5.3 releases. Fixes github #44.
+
+
 ## Version 0.5.3 - 2021-04-11
 
 - [fix] Add `PREFER_SYSTEM_GTEST` for distributions (like Gentoo)
