@@ -50,6 +50,7 @@ compiler:
 before_script:
   - mkdir build
   - cd build
+  - ccache --set-config=compiler_check=content
   - cmake -DWITH_TESTS=1 -DWITH_BENCHMARKS=1 -DWITH_LEGACY_FUSE=1 ..
 
 script:
