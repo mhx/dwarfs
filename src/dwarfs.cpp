@@ -419,6 +419,38 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
   fuse_reply_err(req, err);
 }
 
+template <typename LoggerPolicy>
+void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
+                 size_t size) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size << ")";
+
+  static constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
+  int err = ENODATA;
+
+  try {
+    if (ino == FUSE_ROOT_ID && name == pid_xattr) {
+      auto pidstr = std::to_string(::getpid());
+      if (size > 0) {
+        fuse_reply_buf(req, pidstr.data(), pidstr.size());
+      } else {
+        fuse_reply_xattr(req, pidstr.size());
+      }
+      return;
+    }
+  } catch (dwarfs::system_error const& e) {
+    LOG_ERROR << e.what();
+    err = e.get_errno();
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    err = EIO;
+  }
+
+  fuse_reply_err(req, err);
+}
+
 void usage(const char* progname) {
   std::cerr
       << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
@@ -495,7 +527,7 @@ void init_lowlevel_ops(struct fuse_lowlevel_ops& ops) {
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
-  // ops.getxattr = &op_getxattr<LoggerPolicy>;
+  ops.getxattr = &op_getxattr<LoggerPolicy>;
   // ops.listxattr = &op_listxattr<LoggerPolicy>;
 }
 
