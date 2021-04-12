@@ -21,8 +21,11 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "dwarfs/os_access.h"
@@ -90,6 +93,8 @@ struct simplestat {
 };
 
 extern std::map<std::string, simplestat> statmap;
+
+std::optional<std::filesystem::path> find_binary(std::string_view name);
 
 } // namespace test
 } // namespace dwarfs

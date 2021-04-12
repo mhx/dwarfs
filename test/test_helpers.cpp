@@ -19,8 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cstdlib>
 #include <cstring>
 #include <map>
+
+#include <unistd.h>
+
+#include <folly/String.h>
 
 #include "loremipsum.h"
 #include "mmap_mock.h"
@@ -121,6 +126,25 @@ os_access_mock::map_file(const std::string& path, size_t size) const {
 }
 
 int os_access_mock::access(const std::string&, int) const { return 0; }
+
+std::optional<std::filesystem::path> find_binary(std::string_view name) {
+  auto path_str = std::getenv("PATH");
+  if (!path_str) {
+    return std::nullopt;
+  }
+
+  std::vector<std::string> path;
+  folly::split(':', path_str, path);
+
+  for (auto dir : path) {
+    auto cand = std::filesystem::path(dir) / name;
+    if (std::filesystem::exists(cand) and ::access(cand.c_str(), X_OK) == 0) {
+      return cand;
+    }
+  }
+
+  return std::nullopt;
+}
 
 } // namespace test
 } // namespace dwarfs

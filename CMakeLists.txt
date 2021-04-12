@@ -128,6 +128,11 @@ if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
   message(FATAL_ERROR "No FUSE or FUSE3 library found")
 endif()
 
+if(WITH_TESTS)
+  find_program(DIFF_BIN diff DOC "compare files line by line" REQUIRED)
+  find_program(TAR_BIN tar DOC "an archiving utility" REQUIRED)
+endif()
+
 find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
 
 if(USE_JEMALLOC)
@@ -306,22 +311,32 @@ if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
   add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
+  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
   target_link_libraries(dwarfs_badfs_test gtest gtest_main)
+  target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
 
-  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test)
+  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
+       dwarfs_tools_test)
 
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
   gtest_discover_tests(dwarfs_badfs_test)
+  gtest_discover_tests(dwarfs_tools_test)
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
   target_compile_definitions(dwarfs_badfs_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+
+  target_compile_definitions(
+    dwarfs_tools_test
+    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\"
+            DIFF_BIN=\"${DIFF_BIN}\" TAR_BIN=\"${TAR_BIN}\")
 endif()
 
 if(WITH_BENCHMARKS)
