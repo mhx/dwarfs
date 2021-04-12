@@ -51,31 +51,29 @@
 namespace dwarfs {
 
 struct options {
-  const char* progname;
+  const char* progname{nullptr};
   std::string fsimage;
-  int seen_mountpoint;
-  const char* cachesize_str;        // TODO: const?? -> use string?
-  const char* debuglevel_str;       // TODO: const?? -> use string?
-  const char* workers_str;          // TODO: const?? -> use string?
-  const char* mlock_str;            // TODO: const?? -> use string?
-  const char* decompress_ratio_str; // TODO: const?? -> use string?
-  const char* image_offset_str;     // TODO: const?? -> use string?
-  int enable_nlink;
-  int readonly;
-  int cache_image;
-  int cache_files;
-  size_t cachesize;
-  size_t workers;
-  mlock_mode lock_mode;
-  double decompress_ratio;
-  logger::level_type debuglevel;
+  int seen_mountpoint{0};
+  const char* cachesize_str{nullptr};        // TODO: const?? -> use string?
+  const char* debuglevel_str{nullptr};       // TODO: const?? -> use string?
+  const char* workers_str{nullptr};          // TODO: const?? -> use string?
+  const char* mlock_str{nullptr};            // TODO: const?? -> use string?
+  const char* decompress_ratio_str{nullptr}; // TODO: const?? -> use string?
+  const char* image_offset_str{nullptr};     // TODO: const?? -> use string?
+  int enable_nlink{0};
+  int readonly{0};
+  int cache_image{0};
+  int cache_files{0};
+  size_t cachesize{0};
+  size_t workers{0};
+  mlock_mode lock_mode{mlock_mode::NONE};
+  double decompress_ratio{0.0};
+  logger::level_type debuglevel{logger::level_type::ERROR};
 };
 
 struct dwarfs_userdata {
   dwarfs_userdata(std::ostream& os)
-      : lgr{os} {
-    ::memset(&opts, 0, sizeof(opts));
-  }
+      : lgr{os} {}
 
   options opts;
   stream_logger lgr;
