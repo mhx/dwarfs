@@ -14,9 +14,12 @@ addons:
       - bison
       - flex
       - ronn
+      - tar
+      - diffutils
       - fuse3
       - pkg-config
       - binutils-dev
+      - libbenchmark-dev
       - libboost-context-dev
       - libboost-filesystem-dev
       - libboost-program-options-dev
@@ -37,7 +40,8 @@ addons:
       - libfmt-dev
       - libfuse3-dev
       - libgoogle-glog-dev
-      - libsparsehash-dev
+
+cache: ccache
 
 compiler:
   - gcc
@@ -46,7 +50,7 @@ compiler:
 before_script:
   - mkdir build
   - cd build
-  - cmake -DWITH_TESTS=1 ..
+  - cmake -DWITH_TESTS=1 -DWITH_BENCHMARKS=1 -DWITH_LEGACY_FUSE=1 ..
 
 script:
   - make -j$(nproc)
