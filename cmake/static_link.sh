@@ -11,6 +11,14 @@ elif [[ "$target" == "dwarfs2" ]]; then
 	fuse="/usr/lib/x86_64-linux-gnu/libfuse.a"
 fi
 
+extra=""
+if [[ "$target" == *_test ]]; then
+	extra="lib/libgtest.a lib/libgtest_main.a"
+fi
+if [[ "$target" == "dwarfs_test" || "$target" == "dwarfs_tools_test" ]]; then
+	extra="$extra libtest_helpers.a"
+fi
+
 g++ -static "$@" -o "$target" \
 	libdwarfs.a \
 	libfsst.a \
@@ -20,6 +28,7 @@ g++ -static "$@" -o "$target" \
 	folly/libfolly.a \
 	zstd/build/cmake/lib/libzstd.a \
 	$fuse \
+	$extra \
 	/usr/lib/x86_64-linux-gnu/libfmt.a \
 	/usr/lib/x86_64-linux-gnu/libboost_context.a \
 	/usr/lib/x86_64-linux-gnu/libboost_regex.a \
@@ -30,8 +39,8 @@ g++ -static "$@" -o "$target" \
 	/usr/lib/x86_64-linux-gnu/libboost_program_options.a \
 	/usr/lib/x86_64-linux-gnu/libboost_system.a \
 	/usr/lib/x86_64-linux-gnu/libdouble-conversion.a \
-	/usr/lib/x86_64-linux-gnu/libgflags.a \
 	/usr/lib/x86_64-linux-gnu/libglog.a \
+	/usr/lib/x86_64-linux-gnu/libgflags.a \
 	/usr/lib/x86_64-linux-gnu/libevent.a \
 	/usr/local/lib/libarchive.a \
 	/usr/lib/libacl.a \
