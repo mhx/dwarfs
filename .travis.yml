@@ -19,6 +19,7 @@ addons:
       - fuse3
       - pkg-config
       - binutils-dev
+      - libarchive-dev
       - libbenchmark-dev
       - libboost-context-dev
       - libboost-filesystem-dev
