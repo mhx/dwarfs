@@ -59,7 +59,7 @@ class legacy_string_table : public string_table::impl {
 template <bool PackedData, bool PackedIndex>
 class packed_string_table : public string_table::impl {
  public:
-  packed_string_table(logger& lgr, std::string_view name,
+  packed_string_table(logger& lgr, [[maybe_unused]] std::string_view name,
                       string_table::PackedTableView v)
       : v_{v}
       , buffer_{v_.buffer().data()} {
