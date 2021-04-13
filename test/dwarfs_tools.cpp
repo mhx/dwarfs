@@ -176,6 +176,10 @@ bool wait_until_file_ready(std::filesystem::path const& path,
   return true;
 }
 
+bool is_writable(std::filesystem::path const& p) {
+  return ::access(p.c_str(), W_OK) == 0;
+}
+
 ::nlink_t num_hardlinks(std::filesystem::path const& p) {
   struct ::stat buf;
   if (::stat(p.c_str(), &buf) != 0) {
@@ -236,6 +240,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
+    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
   }
 
   {
@@ -244,6 +249,17 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
+    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
+  }
+
+  {
+    driver_runner driver(fuse3_bin, image, mountpoint, "-o",
+                         "enable_nlink,readonly");
+
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+
+    EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
+    EXPECT_FALSE(is_writable(mountpoint / "format.sh"));
   }
 
   if (std::filesystem::exists(fuse2_bin)) {
@@ -252,6 +268,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
+    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
   }
 
   {
@@ -272,6 +289,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
+    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
   }
 
   auto meta_export = td / "test.meta";
