@@ -230,8 +230,13 @@ TEST(tools, everything) {
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
   }
 
+  auto meta_export = td / "test.meta";
+
   run(dwarfsck_bin, image);
   run(dwarfsck_bin, image, "--check-integrity");
+  run(dwarfsck_bin, image, "--export-metadata", meta_export);
+
+  EXPECT_GT(std::filesystem::file_size(meta_export), 1000);
 
   ASSERT_TRUE(std::filesystem::create_directory(extracted));
 
