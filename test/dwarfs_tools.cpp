@@ -65,10 +65,19 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
   return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
 }
 
+void append_arg(std::vector<std::string>& args, std::string const& arg) {
+  args.emplace_back(arg);
+}
+
+void append_arg(std::vector<std::string>& args,
+                std::vector<std::string> const& more) {
+  args.insert(args.end(), more.begin(), more.end());
+}
+
 template <typename... Args>
 folly::Subprocess make_subprocess(Args&&... args) {
   std::vector<std::string> cmdline;
-  (cmdline.emplace_back(std::forward<Args>(args)), ...);
+  (append_arg(cmdline, std::forward<Args>(args)), ...);
   return folly::Subprocess(
       cmdline, folly::Subprocess::Options().pipeStdout().pipeStderr());
 }
@@ -187,7 +196,8 @@ bool check_readonly(std::filesystem::path const& p, bool readonly = false) {
   bool is_writable = (buf.st_mode & S_IWUSR) != 0;
 
   if (is_writable == readonly) {
-    std::cerr << "readonly=" << readonly << ", st_mode=" << fmt::format("{0:o}", buf.st_mode) << std::endl;
+    std::cerr << "readonly=" << readonly
+              << ", st_mode=" << fmt::format("{0:o}", buf.st_mode) << std::endl;
     return false;
   }
 
@@ -239,77 +249,70 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(std::filesystem::create_directory(mountpoint));
 
-  {
-    std::thread driver_thread(
-        [&] { check_run(fuse3_bin, image, mountpoint, "-f"); });
-
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
-
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
-
-    EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
-
-    driver_runner::umount(mountpoint);
-
-    driver_thread.join();
-  }
-
-  {
-    driver_runner driver(fuse3_bin, image, mountpoint);
-
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
-
-    EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
-  }
-
-  {
-    driver_runner driver(fuse3_bin, image, mountpoint, "-o", "enable_nlink");
-
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
-
-    EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
-  }
-
-  {
-    driver_runner driver(fuse3_bin, image, mountpoint, "-o",
-                         "enable_nlink,readonly");
-
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
-
-    EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(check_readonly(mountpoint / "format.sh", true));
-  }
+  std::vector<std::filesystem::path> drivers;
+  drivers.push_back(fuse3_bin);
 
   if (std::filesystem::exists(fuse2_bin)) {
-    driver_runner driver(fuse2_bin, image, mountpoint);
-
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
-
-    EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
+    drivers.push_back(fuse2_bin);
   }
 
-  {
-    auto proc =
-        make_subprocess(fuse3_bin, image_hdr, mountpoint, "-o", "enable_nlink");
+  std::vector<std::string> all_options{
+      "-s",          "-oenable_nlink",   "-oreadonly",
+      "-omlock=try", "-ono_cache_image", "-ocache_files",
+  };
 
-    const auto [out, err] = proc.communicate();
+  for (auto const& driver : drivers) {
+    {
+      std::thread driver_thread(
+          [&] { check_run(driver, image, mountpoint, "-f"); });
 
-    EXPECT_NE(0, proc.wait().exitStatus()) << "stdout:\n"
-                                           << out << "\nstderr:\n"
-                                           << err;
-  }
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
+      ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+      EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
 
-  {
-    driver_runner driver(fuse3_bin, image_hdr, mountpoint, "-o",
-                         "enable_nlink,offset=auto");
+      driver_runner::umount(mountpoint);
+      driver_thread.join();
+    }
 
-    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+    {
+      auto proc = make_subprocess(driver, image_hdr, mountpoint);
 
-    EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
+      const auto [out, err] = proc.communicate();
+
+      EXPECT_NE(0, proc.wait().exitStatus()) << "stdout:\n"
+                                             << out << "\nstderr:\n"
+                                             << err;
+    }
+
+    unsigned const combinations = 1 << all_options.size();
+
+    for (unsigned bitmask = 0; bitmask < combinations; ++bitmask) {
+      std::vector<std::string> args;
+      bool enable_nlink{false};
+      bool readonly{false};
+
+      for (size_t i = 0; i < all_options.size(); ++i) {
+        if ((1 << i) & bitmask) {
+          auto const& opt = all_options[i];
+          if (opt == "-oreadonly") {
+            readonly = true;
+          }
+          if (opt == "-oenable_nlink") {
+            enable_nlink = true;
+          }
+          args.push_back(opt);
+        }
+      }
+
+      {
+        driver_runner runner(driver, image, mountpoint, args);
+
+        ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+        EXPECT_EQ(enable_nlink ? 3 : 1,
+                  num_hardlinks(mountpoint / "format.sh"));
+        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+      }
+    }
   }
 
   auto meta_export = td / "test.meta";
