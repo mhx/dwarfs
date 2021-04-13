@@ -460,6 +460,15 @@ if(USE_JEMALLOC)
   list(APPEND INCLUDE_DIRS ${Jemalloc_INCLUDE_DIRS})
 endif()
 
+set(DWARFS_USE_EXCEPTION_TRACER OFF)
+if(NOT CMAKE_BUILD_TYPE STREQUAL Release)
+  if(NOT STATIC_BUILD_DO_NOT_USE)
+    if(TARGET folly_exception_tracer)
+      set(DWARFS_USE_EXCEPTION_TRACER ON)
+    endif()
+  endif()
+endif()
+
 add_library(
   thrift_light
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
@@ -509,6 +518,10 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
+
+  if(DWARFS_USE_EXCEPTION_TRACER)
+    target_compile_definitions(${tgt} PRIVATE DWARFS_USE_EXCEPTION_TRACER)
+  endif()
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
 
@@ -597,7 +610,7 @@ foreach(tgt ${BINARY_TARGETS})
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
   endif()
-  if(TARGET folly_exception_tracer)
+  if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(
       ${tgt} -Wl,--whole-archive folly_exception_tracer_base
       folly_exception_tracer -Wl,--no-whole-archive)

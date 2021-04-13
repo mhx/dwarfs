@@ -24,8 +24,11 @@
 #include <iostream>
 
 #include <folly/String.h>
-#include <folly/experimental/exception_tracer/ExceptionTracer.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
+
+#ifdef DWARFS_USE_EXCEPTION_TRACER
+#include <folly/experimental/exception_tracer/ExceptionTracer.h>
+#endif
 
 #include "dwarfs/error.h"
 
@@ -51,7 +54,7 @@ system_error::system_error(int err, char const* file, int line) noexcept
     , line_(line) {}
 
 void dump_exceptions() {
-#if !DWARFS_STATIC_BUILD && FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF
+#ifdef DWARFS_USE_EXCEPTION_TRACER
   auto exceptions = ::folly::exception_tracer::getCurrentExceptions();
   for (auto& exc : exceptions) {
     std::cerr << exc << std::endl;
