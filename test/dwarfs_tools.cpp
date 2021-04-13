@@ -37,6 +37,8 @@
 #include <folly/Subprocess.h>
 #include <folly/experimental/TestUtil.h>
 
+#include <fmt/format.h>
+
 #include "test_helpers.h"
 
 namespace {
@@ -176,8 +178,26 @@ bool wait_until_file_ready(std::filesystem::path const& path,
   return true;
 }
 
-bool is_writable(std::filesystem::path const& p) {
-  return ::access(p.c_str(), W_OK) == 0;
+bool check_readonly(std::filesystem::path const& p, bool readonly = false) {
+  struct ::stat buf;
+  if (::stat(p.c_str(), &buf) != 0) {
+    throw std::runtime_error("could not stat " + p.string());
+  }
+
+  bool is_writable = (buf.st_mode & S_IWUSR) != 0;
+
+  if (is_writable == readonly) {
+    std::cerr << "readonly=" << readonly << ", st_mode=" << fmt::format("{0:o}", buf.st_mode) << std::endl;
+    return false;
+  }
+
+  if (::access(p.c_str(), W_OK) == 0) {
+    // access(W_OK) should never succeed
+    ::perror("access");
+    return false;
+  }
+
+  return true;
 }
 
 ::nlink_t num_hardlinks(std::filesystem::path const& p) {
@@ -240,7 +260,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
+    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
   }
 
   {
@@ -249,7 +269,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
+    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
   }
 
   {
@@ -259,7 +279,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_FALSE(is_writable(mountpoint / "format.sh"));
+    EXPECT_TRUE(check_readonly(mountpoint / "format.sh", true));
   }
 
   if (std::filesystem::exists(fuse2_bin)) {
@@ -268,7 +288,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
+    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
   }
 
   {
@@ -289,7 +309,7 @@ TEST(tools, everything) {
     ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
-    EXPECT_TRUE(is_writable(mountpoint / "format.sh"));
+    EXPECT_TRUE(check_readonly(mountpoint / "format.sh"));
   }
 
   auto meta_export = td / "test.meta";

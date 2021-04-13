@@ -1288,15 +1288,9 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
   int access_mode = 0;
   int e_mode = iv.mode();
 
-  auto test = [this, e_mode, &access_mode](uint16_t r_bit, uint16_t w_bit,
-                                           uint16_t x_bit) {
+  auto test = [e_mode, &access_mode](uint16_t r_bit, uint16_t x_bit) {
     if (e_mode & r_bit) {
       access_mode |= R_OK;
-    }
-    if (e_mode & w_bit) {
-      if (!options_.readonly) {
-        access_mode |= W_OK;
-      }
     }
     if (e_mode & x_bit) {
       access_mode |= X_OK;
@@ -1304,14 +1298,14 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
   };
 
   // Let's build the inode's access mask
-  test(S_IROTH, S_IWOTH, S_IXOTH);
+  test(S_IROTH, S_IXOTH);
 
   if (iv.getgid() == gid) {
-    test(S_IRGRP, S_IWGRP, S_IXGRP);
+    test(S_IRGRP, S_IXGRP);
   }
 
   if (iv.getuid() == uid) {
-    test(S_IRUSR, S_IWUSR, S_IXUSR);
+    test(S_IRUSR, S_IXUSR);
   }
 
   return (access_mode & mode) == mode ? 0 : EACCES;
