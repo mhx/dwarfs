@@ -21,6 +21,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <iostream>
 #include <thread>
 
 #include <fcntl.h>
@@ -63,15 +64,22 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
 }
 
 template <typename... Args>
-void run(Args&&... args) {
+folly::Subprocess make_subprocess(Args&&... args) {
   std::vector<std::string> cmdline;
   (cmdline.emplace_back(std::forward<Args>(args)), ...);
-  folly::Subprocess proc(
+  return folly::Subprocess(
       cmdline, folly::Subprocess::Options().pipeStdout().pipeStderr());
+}
+
+template <typename... Args>
+std::optional<std::string> check_run(Args&&... args) {
+  auto proc = make_subprocess(std::forward<Args>(args)...);
   const auto [out, err] = proc.communicate();
-  ASSERT_EQ(0, proc.wait().exitStatus()) << "stdout:\n"
-                                         << out << "\nstderr:\n"
-                                         << err;
+  if (auto ec = proc.wait().exitStatus(); ec != 0) {
+    std::cerr << "stdout:\n" << out << "\nstderr:\n" << err << std::endl;
+    return std::nullopt;
+  }
+  return out;
 }
 
 class process_guard {
@@ -114,24 +122,29 @@ class process_guard {
 
 class driver_runner {
  public:
+  driver_runner()
+      : fusermount_{find_fusermount()} {}
+
   template <typename... Args>
   driver_runner(std::filesystem::path const& driver,
                 std::filesystem::path const& image,
                 std::filesystem::path const& mountpoint, Args&&... args)
       : fusermount_{find_fusermount()}
       , mountpoint_{mountpoint} {
-    run(driver, image, mountpoint, std::forward<Args>(args)...);
+    if (!check_run(driver, image, mountpoint, std::forward<Args>(args)...)) {
+      throw std::runtime_error("error running " + driver.string());
+    }
     auto dwarfs_pid = get_dwarfs_pid(mountpoint);
     dwarfs_guard_ = process_guard(dwarfs_pid);
   }
 
   ~driver_runner() {
-    run(fusermount_, "-u", mountpoint_);
+    check_run(fusermount_, "-u", mountpoint_);
     EXPECT_TRUE(dwarfs_guard_.check_exit(std::chrono::seconds(5)));
   }
 
-  static void umount(std::filesystem::path const& mountpoint) {
-    run(find_fusermount(), "-u", mountpoint);
+  static bool umount(std::filesystem::path const& mountpoint) {
+    return static_cast<bool>(check_run(find_fusermount(), "-u", mountpoint));
   }
 
  private:
@@ -178,13 +191,23 @@ TEST(tools, everything) {
   folly::test::TemporaryDirectory tempdir("dwarfs");
   auto td = std::filesystem::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
+  auto image_hdr = td / "test_hdr.dwarfs";
   auto data_dir = td / "data";
+  auto header_data = data_dir / "format.sh";
 
-  run(tar_bin, "xf", data_archive, "-C", td);
-  run(mkdwarfs_bin, "-i", data_dir, "-o", image, "--no-progress");
+  ASSERT_TRUE(check_run(tar_bin, "xf", data_archive, "-C", td));
+  ASSERT_TRUE(
+      check_run(mkdwarfs_bin, "-i", data_dir, "-o", image, "--no-progress"));
 
   ASSERT_TRUE(std::filesystem::exists(image));
   ASSERT_GT(std::filesystem::file_size(image), 1000);
+
+  ASSERT_TRUE(check_run(mkdwarfs_bin, "-i", image, "-o", image_hdr,
+                        "--no-progress", "--recompress=none", "--header",
+                        header_data));
+
+  ASSERT_TRUE(std::filesystem::exists(image_hdr));
+  ASSERT_GT(std::filesystem::file_size(image_hdr), 1000);
 
   auto mountpoint = td / "mnt";
   auto extracted = td / "extracted";
@@ -193,11 +216,12 @@ TEST(tools, everything) {
   ASSERT_TRUE(std::filesystem::create_directory(mountpoint));
 
   {
-    std::thread driver_thread([&] { run(fuse3_bin, image, mountpoint, "-f"); });
+    std::thread driver_thread(
+        [&] { check_run(fuse3_bin, image, mountpoint, "-f"); });
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
 
-    run(diff_bin, "-qruN", data_dir, mountpoint);
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
 
@@ -209,7 +233,7 @@ TEST(tools, everything) {
   {
     driver_runner driver(fuse3_bin, image, mountpoint);
 
-    run(diff_bin, "-qruN", data_dir, mountpoint);
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
   }
@@ -217,7 +241,7 @@ TEST(tools, everything) {
   {
     driver_runner driver(fuse3_bin, image, mountpoint, "-o", "enable_nlink");
 
-    run(diff_bin, "-qruN", data_dir, mountpoint);
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
   }
@@ -225,29 +249,61 @@ TEST(tools, everything) {
   if (std::filesystem::exists(fuse2_bin)) {
     driver_runner driver(fuse2_bin, image, mountpoint);
 
-    run(diff_bin, "-qruN", data_dir, mountpoint);
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
 
     EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
   }
 
+  {
+    auto proc =
+        make_subprocess(fuse3_bin, image_hdr, mountpoint, "-o", "enable_nlink");
+
+    const auto [out, err] = proc.communicate();
+
+    EXPECT_NE(0, proc.wait().exitStatus()) << "stdout:\n"
+                                           << out << "\nstderr:\n"
+                                           << err;
+  }
+
+  {
+    driver_runner driver(fuse3_bin, image_hdr, mountpoint, "-o",
+                         "enable_nlink,offset=auto");
+
+    ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+
+    EXPECT_EQ(3, num_hardlinks(mountpoint / "format.sh"));
+  }
+
   auto meta_export = td / "test.meta";
 
-  run(dwarfsck_bin, image);
-  run(dwarfsck_bin, image, "--check-integrity");
-  run(dwarfsck_bin, image, "--export-metadata", meta_export);
+  ASSERT_TRUE(check_run(dwarfsck_bin, image));
+  ASSERT_TRUE(check_run(dwarfsck_bin, image, "--check-integrity"));
+  ASSERT_TRUE(check_run(dwarfsck_bin, image, "--export-metadata", meta_export));
+
+  {
+    std::string header;
+    EXPECT_TRUE(folly::readFile(header_data.c_str(), header));
+
+    auto output = check_run(dwarfsck_bin, image_hdr, "-H");
+
+    ASSERT_TRUE(output);
+
+    EXPECT_EQ(header, *output);
+  }
 
   EXPECT_GT(std::filesystem::file_size(meta_export), 1000);
 
   ASSERT_TRUE(std::filesystem::create_directory(extracted));
 
-  run(dwarfsextract_bin, "-i", image, "-o", extracted);
-  run(diff_bin, "-qruN", data_dir, extracted);
+  ASSERT_TRUE(check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
+  ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, extracted));
 
   auto tarfile = td / "test.tar";
 
-  run(dwarfsextract_bin, "-i", image, "-f", "gnutar", "-o", tarfile);
+  ASSERT_TRUE(
+      check_run(dwarfsextract_bin, "-i", image, "-f", "gnutar", "-o", tarfile));
 
   ASSERT_TRUE(std::filesystem::create_directory(untared));
-  run(tar_bin, "xf", tarfile, "-C", untared);
-  run(diff_bin, "-qruN", data_dir, untared);
+  ASSERT_TRUE(check_run(tar_bin, "xf", tarfile, "-C", untared));
+  ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, untared));
 }
