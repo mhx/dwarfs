@@ -476,7 +476,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
 
 template <typename LoggerPolicy>
 void block_manager_<LoggerPolicy>::finish_blocks() {
-  if (!blocks_.empty()) {
+  if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
 

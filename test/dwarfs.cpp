@@ -523,3 +523,45 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(dwarfs, plain_tables_test,
                          ::testing::Combine(::testing::Bool(),
                                             ::testing::Bool()));
+
+TEST(block_manager, regression_block_boundary) {
+  block_manager::config cfg;
+
+  // make sure we don't actually segment anything
+  cfg.blockhash_window_size = 12;
+  cfg.block_size_bits = 10;
+
+  filesystem_options opts;
+  opts.block_cache.max_bytes = 1 << 20;
+  opts.metadata.check_consistency = true;
+
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  std::vector<size_t> fs_sizes;
+
+  for (auto size : {1023, 1024, 1025}) {
+    auto input = std::make_shared<test::os_access_mock>();
+
+    input->add_dir("");
+    input->add_file("test", size);
+
+    auto fsdata = build_dwarfs(lgr, input, "null", cfg);
+
+    fs_sizes.push_back(fsdata.size());
+
+    auto mm = std::make_shared<test::mmap_mock>(fsdata);
+
+    filesystem_v2 fs(lgr, mm, opts);
+
+    struct ::statvfs vfsbuf;
+    fs.statvfs(&vfsbuf);
+
+    EXPECT_EQ(2, vfsbuf.f_files);
+    EXPECT_EQ(size, vfsbuf.f_blocks);
+  }
+
+  EXPECT_TRUE(std::is_sorted(fs_sizes.begin(), fs_sizes.end()))
+      << folly::join(", ", fs_sizes);
+}
