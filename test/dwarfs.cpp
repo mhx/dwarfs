@@ -97,8 +97,9 @@ void basic_end_to_end_test(std::string const& compressor,
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
 
-  scanner s(lgr, wg, cfg, entry_factory::create(),
-            std::make_shared<test::os_access_mock>(),
+  auto input = test::os_access_mock::create_test_instance();
+
+  scanner s(lgr, wg, cfg, entry_factory::create(), input,
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
@@ -336,19 +337,17 @@ void basic_end_to_end_test(std::string const& compressor,
       EXPECT_TRUE(entries.emplace(path, stbuf).second);
     });
 
-    EXPECT_EQ(entries.size(), dwarfs::test::statmap.size() + 2 * with_devices +
-                                  with_specials - 3);
+    EXPECT_EQ(entries.size(),
+              input->size() + 2 * with_devices + with_specials - 3);
 
     for (auto const& [p, st] : entries) {
-      auto it = dwarfs::test::statmap.find(p);
-      EXPECT_TRUE(it != dwarfs::test::statmap.end()) << p;
-      if (it != dwarfs::test::statmap.end()) {
-        EXPECT_EQ(it->second.st_mode, st.st_mode) << p;
-        EXPECT_EQ(set_uid ? 0 : it->second.st_uid, st.st_uid) << p;
-        EXPECT_EQ(set_gid ? 0 : it->second.st_gid, st.st_gid) << p;
-        if (!S_ISDIR(st.st_mode)) {
-          EXPECT_EQ(it->second.st_size, st.st_size) << p;
-        }
+      struct ::stat ref;
+      input->lstat(p, &ref);
+      EXPECT_EQ(ref.st_mode, st.st_mode) << p;
+      EXPECT_EQ(set_uid ? 0 : ref.st_uid, st.st_uid) << p;
+      EXPECT_EQ(set_gid ? 0 : ref.st_gid, st.st_gid) << p;
+      if (!S_ISDIR(st.st_mode)) {
+        EXPECT_EQ(ref.st_size, st.st_size) << p;
       }
     }
   }

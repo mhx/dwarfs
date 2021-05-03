@@ -22,31 +22,42 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "dwarfs/os_access.h"
 #include "dwarfs/script.h"
 
+struct stat;
+
 namespace dwarfs {
 namespace test {
 
-class dir_reader_mock : public dir_reader {
- public:
-  dir_reader_mock(std::vector<std::string>&& files);
-
-  bool read(std::string& name) const override;
-
- private:
-  std::vector<std::string> m_files;
-  mutable size_t m_index;
-};
-
 class os_access_mock : public os_access {
  public:
+  os_access_mock();
+  ~os_access_mock();
+
+  static std::shared_ptr<os_access_mock> create_test_instance();
+
+  size_t size() const;
+
+  void add(std::filesystem::path const& path, struct ::stat const& st);
+  void add(std::filesystem::path const& path, struct ::stat const& st,
+           std::string const& contents);
+  void add(std::filesystem::path const& path, struct ::stat const& st,
+           std::function<std::string()> generator);
+
+  void add_dir(std::filesystem::path const& path);
+  void add_file(std::filesystem::path const& path, size_t size);
+  void add_file(std::filesystem::path const& path, std::string const& contents);
+
   std::shared_ptr<dir_reader> opendir(const std::string& path) const override;
 
   void lstat(const std::string& path, struct ::stat* st) const override;
@@ -57,6 +68,22 @@ class os_access_mock : public os_access {
   map_file(const std::string& path, size_t size) const override;
 
   int access(const std::string&, int) const override;
+
+ private:
+  struct mock_directory;
+  struct mock_dirent;
+
+  static std::vector<std::string> splitpath(std::filesystem::path const& path);
+  struct mock_dirent* find(std::filesystem::path const& path) const;
+  struct mock_dirent* find(std::vector<std::string> parts) const;
+  void add_internal(
+      std::filesystem::path const& path, struct ::stat const& st,
+      std::variant<std::monostate, std::string, std::function<std::string()>,
+                   std::unique_ptr<mock_directory>>
+          var);
+
+  std::unique_ptr<mock_dirent> root_;
+  size_t ino_{1000000};
 };
 
 class script_mock : public script {
