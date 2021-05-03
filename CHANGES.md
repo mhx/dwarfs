@@ -1,5 +1,38 @@
 # Change Log
 
+## Version 0.5.5 - 2021-05-03
+
+- [feature] If a filesystem block cannot be compressed to less
+  than the uncompressed size, it will be stored uncompressed.
+  This feature actually fixes the bug described below.
+
+- [fix] When building a filesystem from high entropy input data
+  (e.g. already compressed files), and when using LZMA compression
+  with block sizes >= 25, the LZMA algorithm could be unable to
+  pack a block into the worst-case allocated size. This behaviour
+  was not expected and crashed `mkdwarfs`, and seems to me like a
+  bug in LZMA's `lzma_stream_buffer_bound()` function. The issue
+  has been fixed by not compressing blocks at all if the compressed
+  size matches or exceeds the uncompressed size. This fixes part of
+  github #45.
+
+- [fix] Filesystems created such that after segmenting the total
+  data size was a multiple of the block size (i.e. the last block
+  was completely filled) had the last block written to the image
+  twice. Such a filesystem image is perfectly usable, but the
+  repeated block uses space unnecessarily. This is highly unlikely
+  to happen with real data.
+
+- [fix] Filesystems created with `-P shared_files`, but no shared
+  files in the source tree, were created correctly, but could not
+  be loaded. This has been fixed and the filesystems can now be
+  loaded correctly.
+
+- [test] Add tests for binaries and FUSE driver.
+
+- [other] Minor code cleanups.
+
+
 ## Version 0.5.4 - 2021-04-11
 
 - [fix] FUSE driver hangs when accessing files and the driver is
