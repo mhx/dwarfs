@@ -7,8 +7,6 @@ dist: focal
 addons:
   apt:
     packages:
-      - g++
-      - clang
       - cmake
       - make
       - bison
