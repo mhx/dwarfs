@@ -46,6 +46,28 @@ using namespace dwarfs;
 
 namespace {
 
+std::string
+build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
+             std::string const& compression,
+             block_manager::config const& cfg = block_manager::config(),
+             scanner_options const& options = scanner_options()) {
+  // force multithreading
+  worker_group wg("worker", 4);
+
+  scanner s(lgr, wg, cfg, entry_factory::create(), input,
+            std::make_shared<test::script_mock>(), options);
+
+  std::ostringstream oss;
+  progress prog([](const progress&, bool) {}, 1000);
+
+  block_compressor bc(compression);
+  filesystem_writer fsw(oss, lgr, wg, prog, bc);
+
+  s.scan(fsw, "", prog);
+
+  return oss.str();
+}
+
 void basic_end_to_end_test(std::string const& compressor,
                            unsigned block_size_bits, file_order_mode file_order,
                            bool with_devices, bool with_specials, bool set_uid,
@@ -90,27 +112,14 @@ void basic_end_to_end_test(std::string const& compressor,
     options.timestamp = 4711;
   }
 
-  // force multithreading
-  worker_group wg("writer", 4);
-
   std::ostringstream logss;
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
 
   auto input = test::os_access_mock::create_test_instance();
 
-  scanner s(lgr, wg, cfg, entry_factory::create(), input,
-            std::make_shared<test::script_mock>(), options);
-
-  std::ostringstream oss;
-  progress prog([](const progress&, bool) {}, 1000);
-
-  block_compressor bc(compressor);
-  filesystem_writer fsw(oss, lgr, wg, prog, bc);
-
-  s.scan(fsw, "", prog);
-
-  auto mm = std::make_shared<test::mmap_mock>(oss.str());
+  auto mm = std::make_shared<test::mmap_mock>(
+      build_dwarfs(lgr, input, compressor, cfg, options));
 
   filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
@@ -435,6 +444,60 @@ TEST_P(plain_tables_test, end_to_end) {
                         false, false, false, false, false, false, false, false,
                         false, false, false, false, plain_names_table,
                         plain_symlinks_table);
+}
+
+TEST_P(packing_test, regression_empty_fs) {
+  auto [pack_chunk_table, pack_directories, pack_shared_files_table, pack_names,
+        pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
+
+  block_manager::config cfg;
+  scanner_options options;
+
+  cfg.blockhash_window_size = 8;
+  cfg.block_size_bits = 10;
+
+  options.pack_chunk_table = pack_chunk_table;
+  options.pack_directories = pack_directories;
+  options.pack_shared_files_table = pack_shared_files_table;
+  options.pack_names = pack_names;
+  options.pack_names_index = pack_names_index;
+  options.pack_symlinks = pack_symlinks;
+  options.pack_symlinks_index = pack_symlinks_index;
+  options.force_pack_string_tables = true;
+
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add_dir("");
+
+  auto mm = std::make_shared<test::mmap_mock>(
+      build_dwarfs(lgr, input, "null", cfg, options));
+
+  filesystem_options opts;
+  opts.block_cache.max_bytes = 1 << 20;
+  opts.metadata.check_consistency = true;
+
+  filesystem_v2 fs(lgr, mm, opts);
+
+  struct ::statvfs vfsbuf;
+  fs.statvfs(&vfsbuf);
+
+  EXPECT_EQ(1, vfsbuf.f_files);
+  EXPECT_EQ(0, vfsbuf.f_blocks);
+
+  size_t num = 0;
+
+  fs.walk([&](dir_entry_view e) {
+    ++num;
+    struct ::stat stbuf;
+    ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
+    EXPECT_TRUE(S_ISDIR(stbuf.st_mode));
+  });
+
+  EXPECT_EQ(1, num);
 }
 
 INSTANTIATE_TEST_SUITE_P(

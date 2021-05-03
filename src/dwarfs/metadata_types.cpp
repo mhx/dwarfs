@@ -469,7 +469,9 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
                        "unpacked shared_files_table is not sorted");
         }
         num_reg_shared = sfp->size();
-        num_reg_unique -= sfp->back() + 1;
+        if (!sfp->empty()) {
+          num_reg_unique -= sfp->back() + 1;
+        }
       }
     }
 
