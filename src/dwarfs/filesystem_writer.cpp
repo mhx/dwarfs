@@ -93,21 +93,24 @@ class raw_fsblock : public fsblock::impl {
       , bc_{bc}
       , uncompressed_size_{data->size()}
       , data_{std::move(data)}
-      , number_{number} {}
+      , number_{number}
+      , comp_type_{bc_.type()} {}
 
   void compress(worker_group& wg) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom)]() mutable {
-      auto tmp = std::make_shared<block_data>(bc_.compress(data_->vec()));
+      try {
+        auto tmp = std::make_shared<block_data>(bc_.compress(data_->vec()));
 
-      {
-        std::lock_guard lock(mx_);
-        data_.swap(tmp);
+        {
+          std::lock_guard lock(mx_);
+          data_.swap(tmp);
+        }
+      } catch (bad_compression_ratio_error const& e) {
+        comp_type_ = compression_type::NONE;
       }
-
-      tmp.reset();
 
       fsblock::build_section_header(header_, *this);
 
@@ -119,7 +122,7 @@ class raw_fsblock : public fsblock::impl {
 
   section_type type() const override { return type_; }
 
-  compression_type compression() const override { return bc_.type(); }
+  compression_type compression() const override { return comp_type_; }
 
   folly::ByteRange data() const override { return data_->vec(); }
 
@@ -143,6 +146,7 @@ class raw_fsblock : public fsblock::impl {
   std::future<void> future_;
   uint32_t const number_;
   section_header_v2 header_;
+  compression_type comp_type_;
 };
 
 class compressed_fsblock : public fsblock::impl {

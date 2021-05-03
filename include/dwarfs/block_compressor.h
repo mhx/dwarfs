@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,6 +37,12 @@ enum class compression_type : uint8_t {
   ZSTD = 2,
   LZ4 = 3,
   LZ4HC = 4,
+};
+
+class bad_compression_ratio_error : public std::runtime_error {
+ public:
+  bad_compression_ratio_error()
+      : std::runtime_error{"bad compression ratio"} {}
 };
 
 class block_compressor {

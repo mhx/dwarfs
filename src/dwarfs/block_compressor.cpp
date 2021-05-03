@@ -238,7 +238,7 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 
   lzma_action action = LZMA_FINISH;
 
-  std::vector<uint8_t> compressed(lzma_stream_buffer_bound(data.size()));
+  std::vector<uint8_t> compressed(data.size() - 1);
 
   s.next_in = data.data();
   s.avail_in = data.size();
@@ -250,6 +250,10 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
   compressed.resize(compressed.size() - s.avail_out);
 
   lzma_end(&s);
+
+  if (ret == 0) {
+    throw bad_compression_ratio_error();
+  }
 
   if (ret == LZMA_STREAM_END) {
     compressed.shrink_to_fit();
@@ -320,6 +324,9 @@ class lz4_block_compressor final : public block_compressor::impl {
                          compressed.size() - sizeof(uint32_t), level_);
     if (csize == 0) {
       DWARFS_THROW(runtime_error, "error during compression");
+    }
+    if (sizeof(uint32_t) + csize >= data.size()) {
+      throw bad_compression_ratio_error();
     }
     compressed.resize(sizeof(uint32_t) + csize);
     return compressed;
@@ -440,6 +447,13 @@ zstd_block_compressor::compress(const std::vector<uint8_t>& data) const {
   scoped_context ctx(*ctxmgr_);
   auto size = ZSTD_compressCCtx(ctx.get(), compressed.data(), compressed.size(),
                                 data.data(), data.size(), level_);
+  if (ZSTD_isError(size)) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("ZSTD: {}", ZSTD_getErrorName(size)));
+  }
+  if (size >= data.size()) {
+    throw bad_compression_ratio_error();
+  }
   compressed.resize(size);
   compressed.shrink_to_fit();
   return compressed;

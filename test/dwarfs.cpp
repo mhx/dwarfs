@@ -21,6 +21,8 @@
 
 #include <algorithm>
 #include <map>
+#include <random>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <vector>
@@ -565,3 +567,94 @@ TEST(block_manager, regression_block_boundary) {
   EXPECT_TRUE(std::is_sorted(fs_sizes.begin(), fs_sizes.end()))
       << folly::join(", ", fs_sizes);
 }
+
+class compression_regression : public testing::TestWithParam<std::string> {};
+
+TEST_P(compression_regression, github45) {
+  auto compressor = GetParam();
+
+  block_manager::config cfg;
+
+  constexpr size_t block_size_bits = 18;
+  constexpr size_t file_size = 1 << block_size_bits;
+
+  cfg.blockhash_window_size = 0;
+  cfg.block_size_bits = block_size_bits;
+
+  filesystem_options opts;
+  opts.block_cache.max_bytes = 1 << 20;
+  opts.metadata.check_consistency = true;
+
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  std::independent_bits_engine<std::mt19937_64,
+                               std::numeric_limits<uint8_t>::digits, uint8_t>
+      rng;
+
+  std::string random;
+  random.resize(file_size);
+  std::generate(begin(random), end(random), std::ref(rng));
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add_dir("");
+  input->add_file("random", random);
+  input->add_file("test", file_size);
+
+  auto fsdata = build_dwarfs(lgr, input, compressor, cfg);
+
+  auto mm = std::make_shared<test::mmap_mock>(fsdata);
+
+  std::stringstream idss;
+  filesystem_v2::identify(lgr, mm, idss, 3);
+
+  std::string line;
+  std::regex const re("^SECTION num=\\d+, type=BLOCK, compression=(\\w+).*");
+  std::set<std::string> compressions;
+  while (std::getline(idss, line)) {
+    std::smatch m;
+    if (std::regex_match(line, m, re)) {
+      compressions.emplace(m[1]);
+    }
+  }
+
+  if (compressor == "null") {
+    EXPECT_EQ(1, compressions.size());
+  } else {
+    EXPECT_EQ(2, compressions.size());
+  }
+  EXPECT_EQ(1, compressions.count("NONE"));
+
+  filesystem_v2 fs(lgr, mm, opts);
+
+  struct ::statvfs vfsbuf;
+  fs.statvfs(&vfsbuf);
+
+  EXPECT_EQ(3, vfsbuf.f_files);
+  EXPECT_EQ(2 * file_size, vfsbuf.f_blocks);
+
+  auto check_file = [&](char const* name, std::string const& contents) {
+    auto entry = fs.find(name);
+    struct ::stat st;
+
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    EXPECT_EQ(st.st_size, file_size);
+
+    int inode = fs.open(*entry);
+    EXPECT_GE(inode, 0);
+
+    std::vector<char> buf(st.st_size);
+    ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
+    EXPECT_EQ(rv, st.st_size);
+    EXPECT_EQ(std::string(buf.begin(), buf.end()), contents);
+  };
+
+  check_file("random", random);
+  check_file("test", test::loremipsum(file_size));
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
+                         ::testing::ValuesIn(compressions));
