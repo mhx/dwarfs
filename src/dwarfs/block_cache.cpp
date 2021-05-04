@@ -40,7 +40,6 @@
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fs_section.h"
-#include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"

@@ -36,6 +36,7 @@
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
+#include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
 
 struct stat;
@@ -47,7 +48,6 @@ struct filesystem_options;
 struct rewrite_options;
 struct iovec_read_buf;
 
-class block_range;
 class filesystem_writer;
 class logger;
 class mmif;

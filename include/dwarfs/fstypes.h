@@ -44,14 +44,14 @@ class block_range {
   block_range(std::shared_ptr<cached_block const> block, size_t offset,
               size_t size);
 
-  const uint8_t* data() const { return begin_; }
-  const uint8_t* begin() const { return begin_; }
-  const uint8_t* end() const { return end_; }
+  uint8_t const* data() const { return begin_; }
+  uint8_t const* begin() const { return begin_; }
+  uint8_t const* end() const { return end_; }
   size_t size() const { return end_ - begin_; }
 
  private:
-  const uint8_t* const begin_;
-  const uint8_t* const end_;
+  uint8_t const* const begin_;
+  uint8_t const* const end_;
   std::shared_ptr<cached_block const> block_;
 };
 

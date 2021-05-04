@@ -28,6 +28,7 @@
 #include <memory>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/fstypes.h"
 
 namespace dwarfs {
 
