@@ -32,10 +32,10 @@ execute_process(
 if((NOT "${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${GIT_TOPLEVEL}")
    OR ("${PRJ_GIT_REV}" STREQUAL ""))
   if(NOT EXISTS ${VERSION_SRC_FILE} OR NOT EXISTS ${VERSION_HDR_FILE})
-    message(FATAL_ERROR "missing version files")
     message("CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
     message("GIT_TOPLEVEL: ${GIT_TOPLEVEL}")
     message("PRJ_GIT_REV: ${PRJ_GIT_REV}")
+    message(FATAL_ERROR "missing version files")
   endif()
 else()
   execute_process(
