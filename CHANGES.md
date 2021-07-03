@@ -1,5 +1,13 @@
 # Change Log
 
+## Version 0.5.6 - 2021-07-03
+
+- [fix] Build fixes for gcc-11
+
+- [fix] Use `REALPATH` in `version.cmake` to fix building in
+  symbolically linked repositories (fixes github #47).
+
+
 ## Version 0.5.5 - 2021-05-03
 
 - [feature] If a filesystem block cannot be compressed to less
