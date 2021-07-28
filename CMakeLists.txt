@@ -16,6 +16,10 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+# With "old" CMP077 policy on the first run in a new build tree the option() command gives the cache entry type BOOL 
+# and removes any normal (non-cached) variable of the same name thus overwritting command-line setting 
+cmake_policy(SET CMP0077 NEW)
+#
 project(dwarfs)
 
 cmake_minimum_required(VERSION 3.13.4)
@@ -270,12 +274,20 @@ endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
 
+if(STATIC_BUILD_DO_NOT_USE)
+   add_link_options(-static -static-libgcc)
+endif(STATIC_BUILD_DO_NOT_USE)
+
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
-add_executable(dwarfsextract src/dwarfsextract.cpp)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench)
+
+if(NOT STATIC_BUILD_DO_NOT_USE)
+ add_executable(dwarfsextract src/dwarfsextract.cpp)
+ list(APPEND BINARY_TARGETS  dwarfsextract)
+endif()
 
 if(FUSE3_FOUND)
   add_executable(dwarfs-bin src/dwarfs.cpp)
@@ -611,7 +623,7 @@ foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
-  endif()
+  endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(
       ${tgt} -Wl,--whole-archive folly_exception_tracer_base
@@ -620,11 +632,49 @@ foreach(tgt ${BINARY_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # This is a proper mess, but it does work somehow...
-  set(CMAKE_CXX_LINK_EXECUTABLE
-      "/bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/static_link.sh <TARGET> <OBJECTS>"
-  )
-endif()
+# ...................................................................
+# Each library name given to the NAMES option is first considered
+# as a library file name and then considered with platform-specific 
+# prefixes (e.g. lib) and suffixes (e.g. .so). Therefore one may 
+# specify library file names such as libfoo.a directly. This can be 
+# used to locate static libraries on UNIX-like systems.
+# ...................................................................
+
+  find_library(_LIBGLOG "libglog.a" REQUIRED)
+  find_library(_LIBFMT "libfmt.a" REQUIRED)
+  find_library(_LIBDC "libdouble-conversion.a" REQUIRED)
+  find_library(_LIBGFLAGS "libgflags.a" REQUIRED)
+  find_library(_LIBEVENT "libevent.a" REQUIRED)
+#  find_library(_LIBARCH "libarchive.a" REQUIRED)
+  find_library(_LIBACL "libacl.a" REQUIRED) 
+  find_library(_LIBXML2 "libxml2.a" REQUIRED) 
+  find_library(_LIBCRYPTO "libcrypto.a" REQUIRED) 
+  find_library(_LIBIBERTY "libiberty.a" REQUIRED) 
+#  find_library(_LIBLZ4 "liblz4.a" REQUIRED) 
+#  find_library(_LIBLZMA "liblzma.a" REQUIRED) 
+  find_library(_LIBZ "libz.a" REQUIRED) 
+  # 
+  find_library(_LIBPTHREAD "libpthread.a" REQUIRED) 
+#  find_library(_LIBFUSE "libfuse3.a" REQUIRED) 
+  find_library(_LIBDL "libdl.a" REQUIRED)   
+  find_library(_LIBC "libc.a" REQUIRED)  
+  find_library(_LIBM "libm.a" REQUIRED)
+  find_library(_LIBRT "librt.a" REQUIRED)
+  find_library(_LIBSSL "libssl.a" REQUIRED)
+  find_library(_LIBUNWIND "libunwind.a" REQUIRED)
+
+  foreach(tgt ${BINARY_TARGETS})
+# ...................................................................
+#  -static-libgcc above and gcc_eh below is all together an ugly trick to enforce static linking
+# ...................................................................
+    target_link_libraries(${tgt}
+      ${_LIBFMT}          ${_LIBDC}           ${_LIBGLOG}         ${_LIBGFLAGS}                
+      ${_LIBEVENT}        ${_LIBACL}          ${_LIBXML2}         ${_LIBSSL}
+      ${_LIBCRYPTO}       ${_LIBPTHREAD}      ${_LIBDL}           ${_LIBC} 
+      ${_LIBM}            ${_LIBRT}			  gcc_eh			  ${_LIBUNWIND}
+    )
+  endforeach()
+endif(STATIC_BUILD_DO_NOT_USE)
 
 add_custom_target(
   realclean
@@ -635,7 +685,7 @@ add_custom_target(
     compile_commands.json)
 
 install(
-  TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
+  TARGETS ${BINARY_TARGETS}
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
