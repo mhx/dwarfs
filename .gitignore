@@ -8,3 +8,9 @@
 /.gdb_history
 /include/dwarfs/version.h
 /src/dwarfs/version.cpp
+
+# VS build environment
+.vs/
+out/
+CMakeSettings.json
+fbthrift/

@@ -15,12 +15,9 @@
 # You should have received a copy of the GNU General Public License along with
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
-
-# With "old" CMP077 policy on the first run in a new build tree the option() command gives the cache entry type BOOL 
-# and removes any normal (non-cached) variable of the same name thus overwritting command-line setting 
-cmake_policy(SET CMP0077 NEW)
 #
 project(dwarfs)
+include(ExternalProject)
 
 cmake_minimum_required(VERSION 3.13.4)
 
@@ -281,13 +278,9 @@ endif(STATIC_BUILD_DO_NOT_USE)
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
+add_executable(dwarfsextract src/dwarfsextract.cpp)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench)
-
-if(NOT STATIC_BUILD_DO_NOT_USE)
- add_executable(dwarfsextract src/dwarfsextract.cpp)
- list(APPEND BINARY_TARGETS  dwarfsextract)
-endif()
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
 
 if(FUSE3_FOUND)
   add_executable(dwarfs-bin src/dwarfs.cpp)
@@ -597,9 +590,16 @@ target_link_libraries(
   folly
   fsst
   ${Boost_LIBRARIES}
-  PkgConfig::LIBARCHIVE
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
+
+
+if(NOT STATIC_BUILD_DO_NOT_USE)
+target_link_libraries(
+    dwarfs
+    PkgConfig::LIBARCHIVE)
+endif(NOT STATIC_BUILD_DO_NOT_USE)
+
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
   target_link_libraries(dwarfs PkgConfig::ZSTD)
@@ -632,12 +632,42 @@ foreach(tgt ${BINARY_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
+
+ set(_LIBARCHIVE_PRJ "libarchive")
+ set(__LIBARCHIVE    "${PROJECT_BINARY_DIR}/libarchive/lib/libarchive.a")
+
+ if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
+   set(_LIBARCHIVE_CMAKE_ARGS "")
+ else()
+   set(_LIBARCHIVE_CMAKE_ARGS -DZSTD_INCLUDE_DIR=${PROJECT_SOURCE_DIR}/zstd/lib -DCMAKE_LIBRARY_PATH=${PROJECT_BINARY_DIR}/zstd/build/cmake/lib/)
+ endif()
+
+
+ExternalProject_Add(${_LIBARCHIVE_PRJ}
+  PREFIX "${PROJECT_BINARY_DIR}/libarchive"
+  GIT_REPOSITORY "https://github.com/libarchive/libarchive.git"
+  GIT_TAG "v3.5.1"
+  CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS} -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive -DCMAKE_BUILD_TYPE=Release -DENABLE_ICONV:BOOL=OFF -DENABLE_LIBXML2:BOOL=OFF
+  BUILD_BYPRODUCTS ${__LIBARCHIVE}
+  TMP_DIR       "${PROJECT_BINARY_DIR}/libarchive/tmp"
+  STAMP_DIR     "${PROJECT_BINARY_DIR}/libarchive/stamp"
+  SOURCE_DIR    "${PROJECT_BINARY_DIR}/libarchive/src"
+  BINARY_DIR    "${PROJECT_BINARY_DIR}/libarchive/build"
+  INSTALL_DIR   ""
+)
+
+  if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
+    add_dependencies(${_LIBARCHIVE_PRJ} libzstd_static)
+  endif()
+
+add_library(_LIBARCHIVE STATIC IMPORTED)
+set_target_properties(_LIBARCHIVE PROPERTIES IMPORTED_LOCATION ${__LIBARCHIVE})
+add_dependencies(_LIBARCHIVE ${_LIBARCHIVE_PRJ})
+
 # ...................................................................
 # Each library name given to the NAMES option is first considered
 # as a library file name and then considered with platform-specific 
-# prefixes (e.g. lib) and suffixes (e.g. .so). Therefore one may 
-# specify library file names such as libfoo.a directly. This can be 
-# used to locate static libraries on UNIX-like systems.
+# prefixes (e.g. lib) and suffixes (e.g. .so). 
 # ...................................................................
 
   find_library(_LIBGLOG "libglog.a" REQUIRED)
@@ -645,17 +675,11 @@ if(STATIC_BUILD_DO_NOT_USE)
   find_library(_LIBDC "libdouble-conversion.a" REQUIRED)
   find_library(_LIBGFLAGS "libgflags.a" REQUIRED)
   find_library(_LIBEVENT "libevent.a" REQUIRED)
-#  find_library(_LIBARCH "libarchive.a" REQUIRED)
   find_library(_LIBACL "libacl.a" REQUIRED) 
   find_library(_LIBXML2 "libxml2.a" REQUIRED) 
   find_library(_LIBCRYPTO "libcrypto.a" REQUIRED) 
-  find_library(_LIBIBERTY "libiberty.a" REQUIRED) 
-#  find_library(_LIBLZ4 "liblz4.a" REQUIRED) 
-#  find_library(_LIBLZMA "liblzma.a" REQUIRED) 
   find_library(_LIBZ "libz.a" REQUIRED) 
-  # 
   find_library(_LIBPTHREAD "libpthread.a" REQUIRED) 
-#  find_library(_LIBFUSE "libfuse3.a" REQUIRED) 
   find_library(_LIBDL "libdl.a" REQUIRED)   
   find_library(_LIBC "libc.a" REQUIRED)  
   find_library(_LIBM "libm.a" REQUIRED)
@@ -664,18 +688,21 @@ if(STATIC_BUILD_DO_NOT_USE)
   find_library(_LIBUNWIND "libunwind.a" REQUIRED)
 
   foreach(tgt ${BINARY_TARGETS})
+
 # ...................................................................
-#  -static-libgcc above and gcc_eh below is all together an ugly trick to enforce static linking
+#  -static-libgcc above and gcc_eh below is all together 
+#   an ugly trick to enforce static linking
 # ...................................................................
     target_link_libraries(${tgt}
       ${_LIBFMT}          ${_LIBDC}           ${_LIBGLOG}         ${_LIBGFLAGS}                
-      ${_LIBEVENT}        ${_LIBACL}          ${_LIBXML2}         ${_LIBSSL}
-      ${_LIBCRYPTO}       ${_LIBPTHREAD}      ${_LIBDL}           ${_LIBC} 
-      ${_LIBM}            ${_LIBRT}			  gcc_eh			  ${_LIBUNWIND}
+      _LIBARCHIVE         ${_LIBEVENT}        ${_LIBACL}          ${_LIBXML2}         
+      ${_LIBSSL}          ${_LIBCRYPTO}       ${_LIBPTHREAD}      ${_LIBDL}
+      ${_LIBZ}            ${_LIBC}            ${_LIBM}            ${_LIBRT}
+      gcc_eh              ${_LIBUNWIND}             
     )
   endforeach()
 endif(STATIC_BUILD_DO_NOT_USE)
-
+# icui18n icuuc icudata
 add_custom_target(
   realclean
   COMMAND
