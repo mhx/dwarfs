@@ -632,6 +632,25 @@ foreach(tgt ${BINARY_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
+# ...................................................................
+# libarchive is the module that creates the real pain here
+# Its share version looks around to find  other shared libraries 
+# which can do the real work. For example, if liblzma.so is found then
+# libarchive supports lzma encoding
+# Static libary is compiled against predefined set of static archive 
+# libraries  at the time when binary distribution created. This is not
+# necessarily the set of libraries which is present at the system where
+# this script is executed.
+# There are two options to fix it:
+#  1) Build local version of libarchive.a
+#  2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS 
+#     that are set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
+# Method #1 is implemented here. This implementation is not pedantic -
+# it uses headers from system libarchive package but libararies from local build
+# Local build is based on default settings for v3.5.1 with xml and iconv support
+# turned off in order to reduce that set of libraries for futher linkage  
+# ...................................................................
+
 
  set(_LIBARCHIVE_PRJ "libarchive")
  set(__LIBARCHIVE    "${PROJECT_BINARY_DIR}/libarchive/lib/libarchive.a")
@@ -695,7 +714,7 @@ add_dependencies(_LIBARCHIVE ${_LIBARCHIVE_PRJ})
 # ...................................................................
     target_link_libraries(${tgt}
       ${_LIBFMT}          ${_LIBDC}           ${_LIBGLOG}         ${_LIBGFLAGS}                
-      _LIBARCHIVE         ${_LIBEVENT}        ${_LIBACL}          ${_LIBXML2}         
+      _LIBARCHIVE         ${_LIBEVENT}        ${_LIBACL}          
       ${_LIBSSL}          ${_LIBCRYPTO}       ${_LIBPTHREAD}      ${_LIBDL}
       ${_LIBZ}            ${_LIBC}            ${_LIBM}            ${_LIBRT}
       gcc_eh              ${_LIBUNWIND}             
