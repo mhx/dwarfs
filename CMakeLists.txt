@@ -721,7 +721,7 @@ add_dependencies(_LIBARCHIVE ${_LIBARCHIVE_PRJ})
     )
   endforeach()
 endif(STATIC_BUILD_DO_NOT_USE)
-# icui18n icuuc icudata
+
 add_custom_target(
   realclean
   COMMAND
