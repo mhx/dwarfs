@@ -15,8 +15,9 @@
 # You should have received a copy of the GNU General Public License along with
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
-
+#
 project(dwarfs)
+include(ExternalProject)
 
 cmake_minimum_required(VERSION 3.13.4)
 
@@ -269,6 +270,10 @@ if(WITH_PYTHON)
 endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
+
+if(STATIC_BUILD_DO_NOT_USE)
+   add_link_options(-static -static-libgcc)
+endif(STATIC_BUILD_DO_NOT_USE)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
@@ -585,9 +590,16 @@ target_link_libraries(
   folly
   fsst
   ${Boost_LIBRARIES}
-  PkgConfig::LIBARCHIVE
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
+
+
+if(NOT STATIC_BUILD_DO_NOT_USE)
+target_link_libraries(
+    dwarfs
+    PkgConfig::LIBARCHIVE)
+endif(NOT STATIC_BUILD_DO_NOT_USE)
+
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
   target_link_libraries(dwarfs PkgConfig::ZSTD)
@@ -611,7 +623,7 @@ foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
-  endif()
+  endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(
       ${tgt} -Wl,--whole-archive folly_exception_tracer_base
@@ -620,11 +632,95 @@ foreach(tgt ${BINARY_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # This is a proper mess, but it does work somehow...
-  set(CMAKE_CXX_LINK_EXECUTABLE
-      "/bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/static_link.sh <TARGET> <OBJECTS>"
-  )
-endif()
+# ...................................................................
+# libarchive is the module that creates the real pain here
+# Its share version looks around to find  other shared libraries 
+# which can do the real work. For example, if liblzma.so is found then
+# libarchive supports lzma encoding
+# Static libary is compiled against predefined set of static archive 
+# libraries  at the time when binary distribution created. This is not
+# necessarily the set of libraries which is present at the system where
+# this script is executed.
+# There are two options to fix it:
+#  1) Build local version of libarchive.a
+#  2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS 
+#     that are set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
+# Method #1 is implemented here. This implementation is not pedantic -
+# it uses headers from system libarchive package but libararies from local build
+# Local build is based on default settings for v3.5.1 with xml and iconv support
+# turned off in order to reduce that set of libraries for futher linkage  
+# ...................................................................
+
+
+ set(_LIBARCHIVE_PRJ "libarchive")
+ set(__LIBARCHIVE    "${PROJECT_BINARY_DIR}/libarchive/lib/libarchive.a")
+
+ if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
+   set(_LIBARCHIVE_CMAKE_ARGS "")
+ else()
+   set(_LIBARCHIVE_CMAKE_ARGS -DZSTD_INCLUDE_DIR=${PROJECT_SOURCE_DIR}/zstd/lib -DCMAKE_LIBRARY_PATH=${PROJECT_BINARY_DIR}/zstd/build/cmake/lib/)
+ endif()
+
+
+ExternalProject_Add(${_LIBARCHIVE_PRJ}
+  PREFIX "${PROJECT_BINARY_DIR}/libarchive"
+  GIT_REPOSITORY "https://github.com/libarchive/libarchive.git"
+  GIT_TAG "v3.5.1"
+  CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS} -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive -DCMAKE_BUILD_TYPE=Release -DENABLE_ICONV:BOOL=OFF -DENABLE_LIBXML2:BOOL=OFF
+  BUILD_BYPRODUCTS ${__LIBARCHIVE}
+  TMP_DIR       "${PROJECT_BINARY_DIR}/libarchive/tmp"
+  STAMP_DIR     "${PROJECT_BINARY_DIR}/libarchive/stamp"
+  SOURCE_DIR    "${PROJECT_BINARY_DIR}/libarchive/src"
+  BINARY_DIR    "${PROJECT_BINARY_DIR}/libarchive/build"
+  INSTALL_DIR   ""
+)
+
+  if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
+    add_dependencies(${_LIBARCHIVE_PRJ} libzstd_static)
+  endif()
+
+add_library(_LIBARCHIVE STATIC IMPORTED)
+set_target_properties(_LIBARCHIVE PROPERTIES IMPORTED_LOCATION ${__LIBARCHIVE})
+add_dependencies(_LIBARCHIVE ${_LIBARCHIVE_PRJ})
+
+# ...................................................................
+# Each library name given to the NAMES option is first considered
+# as a library file name and then considered with platform-specific 
+# prefixes (e.g. lib) and suffixes (e.g. .so). 
+# ...................................................................
+
+  find_library(_LIBGLOG "libglog.a" REQUIRED)
+  find_library(_LIBFMT "libfmt.a" REQUIRED)
+  find_library(_LIBDC "libdouble-conversion.a" REQUIRED)
+  find_library(_LIBGFLAGS "libgflags.a" REQUIRED)
+  find_library(_LIBEVENT "libevent.a" REQUIRED)
+  find_library(_LIBACL "libacl.a" REQUIRED) 
+  find_library(_LIBXML2 "libxml2.a" REQUIRED) 
+  find_library(_LIBCRYPTO "libcrypto.a" REQUIRED) 
+  find_library(_LIBZ "libz.a" REQUIRED) 
+  find_library(_LIBPTHREAD "libpthread.a" REQUIRED) 
+  find_library(_LIBDL "libdl.a" REQUIRED)   
+  find_library(_LIBC "libc.a" REQUIRED)  
+  find_library(_LIBM "libm.a" REQUIRED)
+  find_library(_LIBRT "librt.a" REQUIRED)
+  find_library(_LIBSSL "libssl.a" REQUIRED)
+  find_library(_LIBUNWIND "libunwind.a" REQUIRED)
+
+  foreach(tgt ${BINARY_TARGETS})
+
+# ...................................................................
+#  -static-libgcc above and gcc_eh below is all together 
+#   an ugly trick to enforce static linking
+# ...................................................................
+    target_link_libraries(${tgt}
+      ${_LIBFMT}          ${_LIBDC}           ${_LIBGLOG}         ${_LIBGFLAGS}                
+      _LIBARCHIVE         ${_LIBEVENT}        ${_LIBACL}          
+      ${_LIBSSL}          ${_LIBCRYPTO}       ${_LIBPTHREAD}      ${_LIBDL}
+      ${_LIBZ}            ${_LIBC}            ${_LIBM}            ${_LIBRT}
+      gcc_eh              ${_LIBUNWIND}             
+    )
+  endforeach()
+endif(STATIC_BUILD_DO_NOT_USE)
 
 add_custom_target(
   realclean
@@ -635,7 +731,7 @@ add_custom_target(
     compile_commands.json)
 
 install(
-  TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
+  TARGETS ${BINARY_TARGETS}
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
