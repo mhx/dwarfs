@@ -634,14 +634,24 @@ if(STATIC_BUILD_DO_NOT_USE)
   # Static libary is compiled against predefined set of static archive libraries
   # at the time when binary distribution created. This is not necessarily the
   # set of libraries which is present at the system where this script is
-  # executed. There are two options to fix it: 1) Build local version of
-  # libarchive.a 2) Use LIBARCHIVE_STATIC_LIBRARIES and
-  # LIBARCHIVE_STATIC_LDFLAGS that are set by pkg_check_modules(LIBARCHIVE
-  # IMPORTED_TARGET libarchive>=3.1.2) Method #1 is implemented here. This
-  # implementation is not pedantic - it uses headers from system libarchive
-  # package but libararies from local build Local build is based on default
-  # settings for v3.5.1 with xml and iconv support turned off in order to reduce
-  # that set of libraries for futher linkage
+  # executed.
+  #
+  # cmake-format: off
+  #
+  # There are two options to fix it:
+  #
+  #   1) Build local version of libarchive.a
+  #
+  #   2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS that are
+  #      set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
+  #
+  # cmake-format: on
+  #
+  # Method #1 is implemented here. This implementation is not pedantic - it uses
+  # headers from system libarchive package but libararies from local build.
+  # Local build is based on default settings for v3.5.1 with xml and iconv
+  # support turned off in order to reduce that set of libraries for futher
+  # linkage.
   # ...................................................................
 
   set(_LIBARCHIVE_PRJ "libarchive")
