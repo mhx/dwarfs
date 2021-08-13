@@ -2,6 +2,8 @@
 /*.*fs
 /tmp/
 /build*/
+/build-static*/
+/build-with-tests*/
 /man/*.1
 /man/*.1.html
 *.log

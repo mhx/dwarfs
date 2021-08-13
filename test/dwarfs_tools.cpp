@@ -250,8 +250,9 @@ TEST(tools, everything) {
   ASSERT_TRUE(std::filesystem::create_directory(mountpoint));
 
   std::vector<std::filesystem::path> drivers;
-  drivers.push_back(fuse3_bin);
-
+  if (std::filesystem::exists(fuse3_bin)) {
+    drivers.push_back(fuse3_bin);
+  }
   if (std::filesystem::exists(fuse2_bin)) {
     drivers.push_back(fuse2_bin);
   }

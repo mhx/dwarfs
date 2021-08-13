@@ -97,7 +97,7 @@ if(WITH_PYTHON)
   )
 endif()
 
-find_package(Boost 1.67 REQUIRED COMPONENTS ${DWARFS_BOOST_MODULES})
+find_package(Boost 1.65 REQUIRED COMPONENTS ${DWARFS_BOOST_MODULES})
 
 if(WITH_PYTHON)
   set(BOOST_PYTHON_LIBS ${Boost_LIBRARIES})
@@ -107,10 +107,10 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
+pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.7)
 pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
-pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.4)
+pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.2)
 pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
 pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.4.5)
 pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash)
@@ -129,7 +129,7 @@ if(XXHASH_FOUND)
 endif()
 
 if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
-  message(FATAL_ERROR "No FUSE or FUSE3 library found")
+  message(WARNING "No FUSE or FUSE3 library found")
 endif()
 
 if(WITH_TESTS)
@@ -710,7 +710,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libgflags "libgflags.a")
   import_static_lib(static_libevent "libevent.a")
   import_static_lib(static_libacl "libacl.a")
-  import_static_lib(static_libxml2 "libxml2.a")
   import_static_lib(static_libcrypto "libcrypto.a")
   import_static_lib(static_libz "libz.a")
   import_static_lib(static_libpthread "libpthread.a")
@@ -720,7 +719,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_librt "librt.a")
   import_static_lib(static_libssl "libssl.a")
   import_static_lib(static_libunwind "libunwind.a")
-
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     PkgConfig::LIBLZMA)
   set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES
@@ -729,7 +727,6 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                 static_libgflags)
 
   foreach(tgt ${BINARY_TARGETS})
-
     # ...................................................................
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking

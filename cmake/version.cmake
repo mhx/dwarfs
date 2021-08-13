@@ -42,7 +42,7 @@ if((NOT "${REAL_SOURCE_DIR}" STREQUAL "${GIT_TOPLEVEL}")
   endif()
 else()
   execute_process(
-    COMMAND git describe --tags --match "v*" --dirty
+    COMMAND git describe --always --tags --match "v*" --dirty
     OUTPUT_STRIP_TRAILING_WHITESPACE
     OUTPUT_VARIABLE PRJ_GIT_DESC)
   execute_process(
