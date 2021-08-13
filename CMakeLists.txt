@@ -616,7 +616,7 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
-  if(USE_JEMALLOC AND NOT STATIC_BUILD_DO_NOT_USE)
+  if(USE_JEMALLOC)
     target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
   endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -720,9 +720,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_librt "librt.a")
   import_static_lib(static_libssl "libssl.a")
   import_static_lib(static_libunwind "libunwind.a")
-  if(USE_JEMALLOC)
-    import_static_lib(static_libjemalloc "libjemalloc.a")
-  endif()
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     PkgConfig::LIBLZMA)
   set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES
@@ -731,9 +728,6 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                 static_libgflags)
 
   foreach(tgt ${BINARY_TARGETS})
-    if(USE_JEMALLOC)
-      target_link_libraries(${tgt} static_libjemalloc)
-    endif()
     # ...................................................................
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking
