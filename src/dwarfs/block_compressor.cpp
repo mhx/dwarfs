@@ -26,6 +26,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include <sys/types.h>
