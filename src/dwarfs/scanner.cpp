@@ -715,7 +715,7 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
 
   LOG_INFO << "saving directories...";
-  mv2.set_dir_entries(std::vector<thrift::metadata::dir_entry>());
+  mv2.dir_entries_ref() = std::vector<thrift::metadata::dir_entry>();
   mv2.inodes.resize(last_inode);
   mv2.directories.reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
@@ -762,10 +762,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     mv2.names = ge_data.get_names();
   } else {
     auto ti = LOG_TIMED_INFO;
-    mv2.set_compact_names(string_table::pack(
+    mv2.compact_names_ref() = string_table::pack(
         ge_data.get_names(), string_table::pack_options(
                                  options_.pack_names, options_.pack_names_index,
-                                 options_.force_pack_string_tables)));
+                                 options_.force_pack_string_tables));
     ti << "saving names table...";
   }
 
@@ -773,11 +773,11 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     mv2.symlinks = ge_data.get_symlinks();
   } else {
     auto ti = LOG_TIMED_INFO;
-    mv2.set_compact_symlinks(string_table::pack(
+    mv2.compact_symlinks_ref() = string_table::pack(
         ge_data.get_symlinks(),
         string_table::pack_options(options_.pack_symlinks,
                                    options_.pack_symlinks_index,
-                                   options_.force_pack_string_tables)));
+                                   options_.force_pack_string_tables));
     ti << "saving symlinks table...";
   }
 
