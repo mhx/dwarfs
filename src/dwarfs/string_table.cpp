@@ -271,7 +271,7 @@ string_table::pack_generic(folly::Range<T const*> input,
 
     buffer.resize(compressed_size);
     output.buffer.swap(buffer);
-    output.set_symtab(std::move(symtab));
+    output.symtab_ref() = std::move(symtab);
     output.index.resize(size);
     std::copy(out_len_vec.begin(), out_len_vec.end(), output.index.begin());
   } else {

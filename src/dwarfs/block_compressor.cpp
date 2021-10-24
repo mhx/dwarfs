@@ -26,6 +26,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include <sys/types.h>
@@ -733,10 +734,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
   lzma_stream s = LZMA_STREAM_INIT;
   off_t pos = size - LZMA_STREAM_HEADER_SIZE;
   const uint32_t* ptr = reinterpret_cast<const uint32_t*>(data + size) - 1;
-  lzma_vli stream_padding = 0;
 
   while (*ptr == 0) {
-    stream_padding += 4;
     pos -= 4;
     --ptr;
 
