@@ -166,12 +166,12 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     for (;;) {
       auto rv = ::read(fd, buf.data(), buf.size());
 
-      if (rv == 0) {
-        break;
-      }
+      if (rv <= 0) {
+        if (rv < 0) {
+          LOG_ERROR << "read(): " << ::strerror(errno);
+        }
 
-      if (rv < 0) {
-        LOG_ERROR << "read(): " << ::strerror(errno);
+        break;
       }
 
       os.write(buf.data(), rv);
