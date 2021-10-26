@@ -1170,7 +1170,7 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 template <typename LoggerPolicy>
 std::optional<inode_view>
 metadata_<LoggerPolicy>::find(const char* path) const {
-  while (*path and *path == '/') {
+  while (*path == '/') {
     ++path;
   }
 
