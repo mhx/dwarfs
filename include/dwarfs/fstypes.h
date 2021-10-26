@@ -114,6 +114,14 @@ struct section_header_v2 {
   void dump(std::ostream& os) const;
 };
 
+struct filesystem_info {
+  uint64_t block_count{0};
+  uint64_t compressed_block_size{0};
+  uint64_t uncompressed_block_size{0};
+  uint64_t compressed_metadata_size{0};
+  uint64_t uncompressed_metadata_size{0};
+};
+
 bool is_valid_compression_type(compression_type type);
 
 bool is_valid_section_type(section_type type);

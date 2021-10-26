@@ -191,6 +191,14 @@ class filesystem_parser {
 
 using section_map = std::unordered_map<section_type, fs_section>;
 
+size_t
+get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
+  std::vector<uint8_t> tmp;
+  block_decompressor bd(sec.compression(), mm->as<uint8_t>(sec.start()),
+                        sec.length(), tmp);
+  return bd.uncompressed_size();
+}
+
 folly::ByteRange
 get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
@@ -297,6 +305,7 @@ class filesystem_ final : public filesystem_v2::impl {
   inode_reader_v2 ir_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<folly::ByteRange> header_;
+  filesystem_info fsinfo_;
 };
 
 template <typename LoggerPolicy>
@@ -317,6 +326,9 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
               << s->length() << " bytes]";
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
+      ++fsinfo_.block_count;
+      fsinfo_.compressed_block_size += s->length();
+      fsinfo_.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
     } else {
       if (!s->check_fast(*mm_)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
@@ -324,6 +336,12 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
+      }
+
+      if (s->type() == section_type::METADATA_V2) {
+        fsinfo_.compressed_metadata_size += s->length();
+        fsinfo_.uncompressed_metadata_size +=
+            get_uncompressed_section_size(mm_, *s);
       }
     }
   }
@@ -344,14 +362,16 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
-  meta_.dump(os, detail_level, [&](const std::string& indent, uint32_t inode) {
-    if (auto chunks = meta_.get_chunks(inode)) {
-      os << indent << chunks->size() << " chunks in inode " << inode << "\n";
-      ir_.dump(os, indent + "  ", *chunks);
-    } else {
-      LOG_ERROR << "error reading chunks for inode " << inode;
-    }
-  });
+  meta_.dump(os, detail_level, fsinfo_,
+             [&](const std::string& indent, uint32_t inode) {
+               if (auto chunks = meta_.get_chunks(inode)) {
+                 os << indent << chunks->size() << " chunks in inode " << inode
+                    << "\n";
+                 ir_.dump(os, indent + "  ", *chunks);
+               } else {
+                 LOG_ERROR << "error reading chunks for inode " << inode;
+               }
+             });
 }
 
 template <typename LoggerPolicy>
@@ -612,14 +632,12 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     try {
       auto s = sf.get();
 
-      std::vector<uint8_t> tmp;
-      block_decompressor bd(s.compression(), mm->as<uint8_t>(s.start()),
-                            s.length(), tmp);
-      float compression_ratio = float(s.length()) / bd.uncompressed_size();
+      auto uncompressed_size = get_uncompressed_section_size(mm, s);
+      float compression_ratio = float(s.length()) / uncompressed_size;
 
       if (detail_level > 2) {
         os << "SECTION " << s.description()
-           << ", blocksize=" << bd.uncompressed_size()
+           << ", blocksize=" << uncompressed_size
            << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
            << std::endl;
       }
