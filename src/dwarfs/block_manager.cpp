@@ -396,7 +396,7 @@ class segment_match {
   active_block const* block_;
   uint32_t offset_;
   uint32_t size_{0};
-  uint8_t const* data_;
+  uint8_t const* data_{nullptr};
 };
 
 void active_block::append(uint8_t const* p, size_t size, bloom_filter* filter) {
