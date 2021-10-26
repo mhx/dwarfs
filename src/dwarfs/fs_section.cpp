@@ -20,6 +20,7 @@
  */
 
 #include <cstddef>
+#include <mutex>
 
 #include <fmt/format.h>
 
@@ -143,6 +144,41 @@ class fs_section_v2 : public fs_section::impl {
   section_header_v2 hdr_;
 };
 
+class fs_section_v2_lazy : public fs_section::impl {
+ public:
+  fs_section_v2_lazy(std::shared_ptr<mmif> mm, section_type type, size_t offset,
+                     size_t size);
+
+  size_t start() const override { return offset_ + sizeof(section_header_v2); }
+  size_t length() const override { return size_ - sizeof(section_header_v2); }
+
+  compression_type compression() const override {
+    return section().compression();
+  }
+
+  section_type type() const override { return type_; }
+
+  std::string name() const override { return get_section_name(type_); }
+
+  std::string description() const override { return section().description(); }
+
+  bool check_fast(mmif& mm) const override { return section().check_fast(mm); }
+
+  bool verify(mmif& mm) const override { return section().verify(mm); }
+
+  folly::ByteRange data(mmif& mm) const override { return section().data(mm); }
+
+ private:
+  fs_section::impl const& section() const;
+
+  std::mutex mutable mx_;
+  std::unique_ptr<fs_section::impl const> mutable sec_;
+  std::shared_ptr<mmif> mutable mm_;
+  section_type type_;
+  size_t offset_;
+  size_t size_;
+};
+
 fs_section::fs_section(mmif& mm, size_t offset, int version) {
   switch (version) {
   case 1:
@@ -160,6 +196,21 @@ fs_section::fs_section(mmif& mm, size_t offset, int version) {
   }
 }
 
+fs_section::fs_section(std::shared_ptr<mmif> mm, section_type type,
+                       size_t offset, size_t size, int version) {
+  switch (version) {
+  case 2:
+    impl_ =
+        std::make_shared<fs_section_v2_lazy>(std::move(mm), type, offset, size);
+    break;
+
+  default:
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unsupported section version {} [lazy]", version));
+    break;
+  }
+}
+
 fs_section_v1::fs_section_v1(mmif& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   check_section(*this);
@@ -168,6 +219,25 @@ fs_section_v1::fs_section_v1(mmif& mm, size_t offset) {
 fs_section_v2::fs_section_v2(mmif& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
   check_section(*this);
+}
+
+fs_section_v2_lazy::fs_section_v2_lazy(std::shared_ptr<mmif> mm,
+                                       section_type type, size_t offset,
+                                       size_t size)
+    : mm_{std::move(mm)}
+    , type_{type}
+    , offset_{offset}
+    , size_{size} {}
+
+fs_section::impl const& fs_section_v2_lazy::section() const {
+  std::lock_guard lock(mx_);
+
+  if (!sec_) {
+    sec_ = std::make_unique<fs_section_v2>(*mm_, offset_);
+    mm_.reset();
+  }
+
+  return *sec_;
 }
 
 } // namespace dwarfs

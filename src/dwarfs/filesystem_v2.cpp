@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -54,6 +55,9 @@ namespace dwarfs {
 namespace {
 
 class filesystem_parser {
+ private:
+  static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
+
  public:
   static off_t find_image_offset(mmif& mm, off_t image_offset) {
     if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
@@ -148,14 +152,31 @@ class filesystem_parser {
     major_ = fh->major;
     minor_ = fh->minor;
 
+    if (minor_ >= 4) {
+      find_index();
+    }
+
     rewind();
   }
 
   std::optional<fs_section> next_section() {
-    if (offset_ < static_cast<off_t>(mm_->size())) {
-      auto section = fs_section(*mm_, offset_, version_);
-      offset_ = section.end();
-      return section;
+    if (index_.empty()) {
+      if (offset_ < static_cast<off_t>(mm_->size())) {
+        auto section = fs_section(*mm_, offset_, version_);
+        offset_ = section.end();
+        return section;
+      }
+    } else {
+      if (offset_ < static_cast<off_t>(index_.size())) {
+        uint64_t id = index_[offset_++];
+        uint64_t offset = id & section_offset_mask;
+        uint64_t next_offset = offset_ < static_cast<off_t>(index_.size())
+                                   ? index_[offset_] & section_offset_mask
+                                   : mm_->size() - image_offset_;
+        return fs_section(mm_, static_cast<section_type>(id >> 48),
+                          image_offset_ + offset, next_offset - offset,
+                          version_);
+      }
     }
 
     return std::nullopt;
@@ -169,7 +190,14 @@ class filesystem_parser {
   }
 
   void rewind() {
-    offset_ = image_offset_ + (version_ == 1 ? sizeof(file_header) : 0);
+    if (index_.empty()) {
+      offset_ = image_offset_;
+      if (version_ == 1) {
+        offset_ += sizeof(file_header);
+      }
+    } else {
+      offset_ = 0;
+    }
   }
 
   std::string version() const {
@@ -180,13 +208,38 @@ class filesystem_parser {
 
   bool has_checksums() const { return version_ >= 2; }
 
+  bool has_index() const { return !index_.empty(); }
+
  private:
+  void find_index() {
+    uint64_t index_pos;
+
+    ::memcpy(&index_pos, mm_->as<void>(mm_->size() - sizeof(uint64_t)),
+             sizeof(uint64_t));
+
+    if ((index_pos >> 48) ==
+        static_cast<uint16_t>(section_type::SECTION_INDEX)) {
+      index_pos &= section_offset_mask;
+      index_pos += image_offset_;
+
+      if (index_pos < mm_->size()) {
+        auto section = fs_section(*mm_, index_pos, version_);
+
+        if (section.check_fast(*mm_)) {
+          index_.resize(section.length() / sizeof(uint64_t));
+          ::memcpy(index_.data(), section.data(*mm_).data(), section.length());
+        }
+      }
+    }
+  }
+
   std::shared_ptr<mmif> mm_;
   off_t const image_offset_;
   off_t offset_{0};
   int version_{0};
   uint8_t major_{0};
   uint8_t minor_{0};
+  std::vector<uint64_t> index_;
 };
 
 using section_map = std::unordered_map<section_type, fs_section>;
@@ -299,36 +352,68 @@ class filesystem_ final : public filesystem_v2::impl {
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
 
  private:
+  filesystem_info const& get_info() const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   std::shared_ptr<mmif> mm_;
   metadata_v2 meta_;
   inode_reader_v2 ir_;
+  mutable std::mutex mx_;
+  mutable filesystem_parser parser_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<folly::ByteRange> header_;
-  filesystem_info fsinfo_;
+  mutable std::unique_ptr<filesystem_info const> fsinfo_;
 };
+
+template <typename LoggerPolicy>
+filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
+  std::lock_guard lock(mx_);
+
+  if (!fsinfo_) {
+    filesystem_info info;
+
+    parser_.rewind();
+
+    while (auto s = parser_.next_section()) {
+      if (s->type() == section_type::BLOCK) {
+        ++info.block_count;
+        info.compressed_block_size += s->length();
+        info.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
+      } else if (s->type() == section_type::METADATA_V2) {
+        info.compressed_metadata_size += s->length();
+        info.uncompressed_metadata_size +=
+            get_uncompressed_section_size(mm_, *s);
+      }
+    }
+
+    fsinfo_ = std::make_unique<filesystem_info>(info);
+  }
+
+  return *fsinfo_;
+}
 
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
                                        const filesystem_options& options,
                                        int inode_offset)
     : LOG_PROXY_INIT(lgr)
-    , mm_(std::move(mm)) {
-  filesystem_parser parser(mm_, options.image_offset);
+    , mm_(std::move(mm))
+    , parser_(mm_, options.image_offset) {
   block_cache cache(lgr, mm_, options.block_cache);
 
-  header_ = parser.header();
+  if (parser_.has_index()) {
+    LOG_DEBUG << "found valid section index";
+  }
+
+  header_ = parser_.header();
 
   section_map sections;
 
-  while (auto s = parser.next_section()) {
-    LOG_DEBUG << "section " << s->description() << " @ " << s->start() << " ["
+  while (auto s = parser_.next_section()) {
+    LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
               << s->length() << " bytes]";
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
-      ++fsinfo_.block_count;
-      fsinfo_.compressed_block_size += s->length();
-      fsinfo_.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
     } else {
       if (!s->check_fast(*mm_)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
@@ -337,12 +422,6 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
-
-      if (s->type() == section_type::METADATA_V2) {
-        fsinfo_.compressed_metadata_size += s->length();
-        fsinfo_.uncompressed_metadata_size +=
-            get_uncompressed_section_size(mm_, *s);
-      }
     }
   }
 
@@ -350,7 +429,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
                         options.metadata, inode_offset, false,
-                        options.lock_mode, !parser.has_checksums());
+                        options.lock_mode, !parser_.has_checksums());
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -362,7 +441,7 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
-  meta_.dump(os, detail_level, fsinfo_,
+  meta_.dump(os, detail_level, get_info(),
              [&](const std::string& indent, uint32_t inode) {
                if (auto chunks = meta_.get_chunks(inode)) {
                  os << indent << chunks->size() << " chunks in inode " << inode
@@ -539,7 +618,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     prog.filesystem_size += s->length();
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
-    } else {
+    } else if (s->type() != section_type::SECTION_INDEX) {
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }

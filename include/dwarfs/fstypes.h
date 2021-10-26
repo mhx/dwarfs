@@ -65,7 +65,7 @@ struct iovec_read_buf {
 };
 
 constexpr uint8_t MAJOR_VERSION = 2;
-constexpr uint8_t MINOR_VERSION = 3;
+constexpr uint8_t MINOR_VERSION = 4;
 
 enum class section_type : uint16_t {
   BLOCK = 0,
@@ -76,6 +76,9 @@ enum class section_type : uint16_t {
 
   METADATA_V2 = 8,
   // Frozen metadata.
+
+  SECTION_INDEX = 9,
+  // Section index.
 };
 
 struct file_header {

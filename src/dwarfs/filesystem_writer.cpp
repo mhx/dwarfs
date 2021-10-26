@@ -255,6 +255,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void write(const T& obj);
   void write(folly::ByteRange range);
   void writer_thread();
+  void push_section_index(section_type type);
+  void write_section_index();
   size_t mem_used() const;
 
   std::ostream& os_;
@@ -272,6 +274,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   volatile bool flush_;
   std::thread writer_thread_;
   uint32_t section_number_{0};
+  std::vector<uint64_t> section_index_;
+  std::ostream::pos_type header_size_{0};
 };
 
 template <typename LoggerPolicy>
@@ -296,6 +300,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
       LOG_WARN << "header will not be written because remove_header is set";
     } else {
       os_ << header_->rdbuf();
+      header_size_ = os_.tellp();
     }
   }
 }
@@ -378,6 +383,8 @@ void filesystem_writer_<LoggerPolicy>::write(folly::ByteRange range) {
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(fsblock const& fsb) {
+  push_section_index(fsb.type());
+
   write(fsb.header());
   write(fsb.data());
 
@@ -434,6 +441,7 @@ void filesystem_writer_<LoggerPolicy>::copy_header(folly::ByteRange header) {
       LOG_WARN << "replacing old header";
     } else {
       write(header);
+      header_size_ = os_.tellp();
     }
   }
 }
@@ -471,6 +479,32 @@ void filesystem_writer_<LoggerPolicy>::flush() {
   cond_.notify_one();
 
   writer_thread_.join();
+
+  if (!options_.no_section_index) {
+    write_section_index();
+  }
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::push_section_index(section_type type) {
+  section_index_.push_back((static_cast<uint64_t>(type) << 48) |
+                           static_cast<uint64_t>(os_.tellp() - header_size_));
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_section_index() {
+  push_section_index(section_type::SECTION_INDEX);
+  auto data =
+      folly::ByteRange(reinterpret_cast<uint8_t*>(section_index_.data()),
+                       sizeof(section_index_[0]) * section_index_.size());
+
+  auto fsb = fsblock(section_type::SECTION_INDEX, compression_type::NONE, data,
+                     section_number_++);
+
+  fsb.compress(wg_);
+  fsb.wait_until_compressed();
+
+  write(fsb);
 }
 
 } // namespace

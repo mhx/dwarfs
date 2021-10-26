@@ -35,6 +35,8 @@ class mmif;
 class fs_section {
  public:
   fs_section(mmif& mm, size_t offset, int version);
+  fs_section(std::shared_ptr<mmif> mm, section_type type, size_t offset,
+             size_t size, int version);
 
   size_t start() const { return impl_->start(); }
   size_t length() const { return impl_->length(); }

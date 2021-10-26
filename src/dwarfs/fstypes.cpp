@@ -39,6 +39,7 @@ const std::map<section_type, std::string_view> sections{
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
     SECTION_TYPE_(METADATA_V2),
+    SECTION_TYPE_(SECTION_INDEX),
 #undef SECTION_TYPE_
 };
 

@@ -1202,7 +1202,27 @@ TEST_P(rewrite, filesystem_rewrite) {
     auto mm = std::make_shared<test::mmap_mock>(rewritten4.str());
     EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm))
-        << folly::hexDump(rewritten3.str().data(), rewritten3.str().size());
+        << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
+    filesystem_v2 fs(lgr, mm);
+    check_dynamic(version, fs);
+  }
+
+  std::ostringstream rewritten5;
+
+  {
+    filesystem_writer_options fsw_opts;
+    fsw_opts.no_section_index = true;
+    filesystem_writer fsw(rewritten5, lgr, wg, prog, bc, fsw_opts);
+    filesystem_v2::rewrite(lgr, prog,
+                           std::make_shared<test::mmap_mock>(rewritten4.str()),
+                           fsw, opts);
+  }
+
+  {
+    auto mm = std::make_shared<test::mmap_mock>(rewritten5.str());
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_FALSE(filesystem_v2::header(mm))
+        << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
     filesystem_v2 fs(lgr, mm);
     check_dynamic(version, fs);
   }

@@ -334,7 +334,7 @@ int mkdwarfs(int argc, char** argv) {
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers;
-  bool no_progress = false, remove_header = false;
+  bool no_progress = false, remove_header = false, no_section_index = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -439,6 +439,9 @@ int mkdwarfs(int argc, char** argv) {
         po::value<bool>(&remove_header)->zero_tokens(),
         "remove any header present before filesystem data"
         " (use with --recompress)")
+    ("no-section-index",
+        po::value<bool>(&no_section_index)->zero_tokens(),
+        "don't add section index to file system")
     ("log-level",
         po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
@@ -803,6 +806,7 @@ int mkdwarfs(int argc, char** argv) {
   filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
   fswopts.remove_header = remove_header;
+  fswopts.no_section_index = no_section_index;
 
   std::unique_ptr<std::ifstream> header_ifs;
 
