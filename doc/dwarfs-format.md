@@ -1,10 +1,8 @@
-dwarfs-format(5) -- DwarFS File System Format v2.3
-==================================================
+# dwarfs-format(5) -- DwarFS File System Format v2.3
 
 ## DESCRIPTION
 
 This document describes the DwarFS file system format, version 2.3.
-
 
 ## FILE STRUCTURE
 
@@ -65,25 +63,23 @@ A couple of notes:
   larger than the one it supports. However, a new program will still
   read all file systems with a smaller minor version number.
 
-
 ### Section Types
 
 There are currently 3 different section types.
 
-  * `BLOCK` (0):
-    A block of data. This is where all file data is stored. There can be
-    an arbitrary number of blocks of this type.
+- `BLOCK` (0):
+  A block of data. This is where all file data is stored. There can be
+  an arbitrary number of blocks of this type.
 
-  * `METADATA_V2_SCHEMA` (7):
-    The schema used to layout the `METADATA_V2` block contents. This is
-    stored in "compact" thrift encoding.
+- `METADATA_V2_SCHEMA` (7):
+  The schema used to layout the `METADATA_V2` block contents. This is
+  stored in "compact" thrift encoding.
 
-  * `METADATA_V2` (8):
-    This section contains the bulk of the metadata. It's essentially just
-    a collection of bit-packed arrays and structures. The exact layout of
-    each list and structure depends on the actual data and is stored
-    separately in `METADATA_V2_SCHEMA`.
-
+- `METADATA_V2` (8):
+  This section contains the bulk of the metadata. It's essentially just
+  a collection of bit-packed arrays and structures. The exact layout of
+  each list and structure depends on the actual data and is stored
+  separately in `METADATA_V2_SCHEMA`.
 
 ## METADATA FORMAT
 
@@ -169,17 +165,12 @@ list. The index into this list is the `inode_num` from `dir_entries`,
 but you can perform direct lookups based on the inode number as well.
 The `inodes` list is strictly in the following order:
 
-* directory inodes (`S_IFDIR`)
-
-* symlink inodes (`S_IFLNK`)
-
-* regular *unique* file inodes (`S_IREG`)
-
-* regular *shared* file inodes (`S_IREG`)
-
-* character/block device inodes (`S_IFCHR`, `S_IFBLK`)
-
-* socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
+- directory inodes (`S_IFDIR`)
+- symlink inodes (`S_IFLNK`)
+- regular *unique* file inodes (`S_IREG`)
+- regular *shared* file inodes (`S_IREG`)
+- character/block device inodes (`S_IFCHR`, `S_IFBLK`)
+- socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
 
 The offsets can thus be found by using a binary search with a
 predicate on the inode more. The shared file offset can be found
@@ -287,7 +278,7 @@ is true.
 
 The `directories` table, when stored in packed format, omits
 all `parent_entry` fields and uses delta compression for the
-`first_entry` fields. 
+`first_entry` fields.
 
 In order to unpack all information, you first have to delta-
 decompress the `first_entry` fields, then traverse the whole
