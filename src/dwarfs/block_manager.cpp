@@ -168,7 +168,7 @@ class bloom_filter {
   static constexpr size_t index_shift = bitcount(value_mask);
   static constexpr size_t alignment = 64;
 
-  bloom_filter(size_t size)
+  explicit bloom_filter(size_t size)
       : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
       , size_{std::max(size, value_mask + 1)} {
     if (size & (size - 1)) {

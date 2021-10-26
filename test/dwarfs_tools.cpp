@@ -97,7 +97,7 @@ class process_guard {
  public:
   process_guard() = default;
 
-  process_guard(pid_t pid)
+  explicit process_guard(pid_t pid)
       : pid_{pid} {
     auto proc_dir =
         std::filesystem::path("/proc") / folly::to<std::string>(pid);

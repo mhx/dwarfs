@@ -404,7 +404,7 @@ class zstd_block_compressor final : public block_compressor::impl {
 
   class scoped_context {
    public:
-    scoped_context(context_manager& mgr)
+    explicit scoped_context(context_manager& mgr)
         : mgr_{&mgr}
         , ctx_{mgr_->acquire()} {}
     ~scoped_context() { mgr_->release(ctx_); }

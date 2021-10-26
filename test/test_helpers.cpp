@@ -128,7 +128,7 @@ void os_access_mock::mock_directory::add(
 
 class dir_reader_mock : public dir_reader {
  public:
-  dir_reader_mock(std::vector<std::string>&& files)
+  explicit dir_reader_mock(std::vector<std::string>&& files)
       : files_(files)
       , index_(0) {}
 

@@ -65,7 +65,7 @@ bool has_callable(py::object obj, char const* method) {
 
 class py_logger {
  public:
-  py_logger(logger& lgr)
+  explicit py_logger(logger& lgr)
       : log_(lgr) {}
 
   void error(std::string const& msg) { LOG_ERROR << "[script] " << msg; }
@@ -82,7 +82,7 @@ class py_logger {
 template <typename T>
 class basic_entry_wrapper {
  public:
-  basic_entry_wrapper(T& entry)
+  explicit basic_entry_wrapper(T& entry)
       : entry_(&entry) {}
 
   size_t size() const { return entry_->size(); }
@@ -112,7 +112,7 @@ using mutable_entry_wrapper = basic_entry_wrapper<entry_interface>;
 
 class inode_wrapper {
  public:
-  inode_wrapper(inode const* ino)
+  explicit inode_wrapper(inode const* ino)
       : ino_(ino) {}
 
   size_t similarity_hash() const { return ino_->similarity_hash(); }
@@ -158,7 +158,7 @@ class python_script::impl {
 
   class timer {
    public:
-    timer(clock::duration& d)
+    explicit timer(clock::duration& d)
         : start_(clock::now())
         , d_(d) {}
 

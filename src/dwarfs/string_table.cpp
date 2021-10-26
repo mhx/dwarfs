@@ -34,7 +34,7 @@ namespace dwarfs {
 
 class legacy_string_table : public string_table::impl {
  public:
-  legacy_string_table(string_table::LegacyTableView v)
+  explicit legacy_string_table(string_table::LegacyTableView v)
       : v_{v} {}
 
   std::string lookup(size_t index) const override {

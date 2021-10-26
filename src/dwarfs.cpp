@@ -72,7 +72,7 @@ struct options {
 };
 
 struct dwarfs_userdata {
-  dwarfs_userdata(std::ostream& os)
+  explicit dwarfs_userdata(std::ostream& os)
       : lgr{os} {}
 
   options opts;
