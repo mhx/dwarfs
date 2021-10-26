@@ -206,10 +206,14 @@ template <unsigned MinLogLevel>
 class MinimumLogLevelPolicy {
  public:
   template <unsigned Level>
-  using logger = detail::logger_type<Level <= MinLogLevel>;
+  using logger_type = detail::logger_type<Level <= MinLogLevel>;
 
   template <unsigned Level>
-  using timed_logger = detail::timed_logger_type<Level <= MinLogLevel>;
+  using timed_logger_type = detail::timed_logger_type<Level <= MinLogLevel>;
+
+  static constexpr bool is_enabled_for(logger::level_type level) {
+    return level <= MinLogLevel;
+  }
 };
 
 template <typename LogPolicy>
@@ -218,78 +222,82 @@ class log_proxy {
   log_proxy(logger& lgr)
       : lgr_(lgr) {}
 
+  static constexpr bool is_enabled_for(logger::level_type level) {
+    return LogPolicy::is_enabled_for(level);
+  }
+
   auto error(char const* file, int line) const {
-    return typename LogPolicy::template logger<logger::ERROR>(
+    return typename LogPolicy::template logger_type<logger::ERROR>(
         lgr_, logger::ERROR, file, line);
   }
 
   auto warn(char const* file, int line) const {
-    return typename LogPolicy::template logger<logger::WARN>(lgr_, logger::WARN,
-                                                             file, line);
+    return typename LogPolicy::template logger_type<logger::WARN>(
+        lgr_, logger::WARN, file, line);
   }
 
   auto info(char const* file, int line) const {
-    return typename LogPolicy::template logger<logger::INFO>(lgr_, logger::INFO,
-                                                             file, line);
+    return typename LogPolicy::template logger_type<logger::INFO>(
+        lgr_, logger::INFO, file, line);
   }
 
   auto debug(char const* file, int line) const {
-    return typename LogPolicy::template logger<logger::DEBUG>(
+    return typename LogPolicy::template logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, file, line);
   }
 
   auto trace(char const* file, int line) const {
-    return typename LogPolicy::template logger<logger::TRACE>(
+    return typename LogPolicy::template logger_type<logger::TRACE>(
         lgr_, logger::TRACE, file, line);
   }
 
   auto timed_error(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::ERROR>(
+    return typename LogPolicy::template timed_logger_type<logger::ERROR>(
         lgr_, logger::ERROR, file, line);
   }
 
   auto timed_warn(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::WARN>(
+    return typename LogPolicy::template timed_logger_type<logger::WARN>(
         lgr_, logger::WARN, file, line);
   }
 
   auto timed_info(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::INFO>(
+    return typename LogPolicy::template timed_logger_type<logger::INFO>(
         lgr_, logger::INFO, file, line);
   }
 
   auto timed_debug(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::DEBUG>(
+    return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, file, line);
   }
 
   auto timed_trace(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::TRACE>(
+    return typename LogPolicy::template timed_logger_type<logger::TRACE>(
         lgr_, logger::TRACE, file, line);
   }
 
   auto cpu_timed_error(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::ERROR>(
+    return typename LogPolicy::template timed_logger_type<logger::ERROR>(
         lgr_, logger::ERROR, file, line, true);
   }
 
   auto cpu_timed_warn(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::WARN>(
+    return typename LogPolicy::template timed_logger_type<logger::WARN>(
         lgr_, logger::WARN, file, line, true);
   }
 
   auto cpu_timed_info(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::INFO>(
+    return typename LogPolicy::template timed_logger_type<logger::INFO>(
         lgr_, logger::INFO, file, line, true);
   }
 
   auto cpu_timed_debug(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::DEBUG>(
+    return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, file, line, true);
   }
 
   auto cpu_timed_trace(char const* file, int line) const {
-    return typename LogPolicy::template timed_logger<logger::TRACE>(
+    return typename LogPolicy::template timed_logger_type<logger::TRACE>(
         lgr_, logger::TRACE, file, line, true);
   }
 
@@ -299,15 +307,19 @@ class log_proxy {
   logger& lgr_;
 };
 
+#define LOG_DETAIL_LEVEL(level, lgr, method)                                   \
+  if (lgr.is_enabled_for(::dwarfs::logger::level))                             \
+  lgr.method(__FILE__, __LINE__)
+
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
 #define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
 #define LOG_PROXY_INIT(lgr) log_(lgr)
 #define LOG_GET_LOGGER log_.get_logger()
-#define LOG_ERROR log_.error(__FILE__, __LINE__)
-#define LOG_WARN log_.warn(__FILE__, __LINE__)
-#define LOG_INFO log_.info(__FILE__, __LINE__)
-#define LOG_DEBUG log_.debug(__FILE__, __LINE__)
-#define LOG_TRACE log_.trace(__FILE__, __LINE__)
+#define LOG_ERROR LOG_DETAIL_LEVEL(ERROR, log_, error)
+#define LOG_WARN LOG_DETAIL_LEVEL(WARN, log_, warn)
+#define LOG_INFO LOG_DETAIL_LEVEL(INFO, log_, info)
+#define LOG_DEBUG LOG_DETAIL_LEVEL(DEBUG, log_, debug)
+#define LOG_TRACE LOG_DETAIL_LEVEL(TRACE, log_, trace)
 #define LOG_TIMED_ERROR log_.timed_error(__FILE__, __LINE__)
 #define LOG_TIMED_WARN log_.timed_warn(__FILE__, __LINE__)
 #define LOG_TIMED_INFO log_.timed_info(__FILE__, __LINE__)
