@@ -42,9 +42,6 @@ class worker_group {
  public:
   using job_t = folly::Function<void()>;
 
-  static struct load_adaptive_tag {
-  } load_adaptive;
-
   /**
    * Create a worker group
    *
@@ -52,17 +49,6 @@ class worker_group {
    */
   explicit worker_group(
       const char* group_name, size_t num_workers = 1,
-      size_t max_queue_len = std::numeric_limits<size_t>::max(),
-      int niceness = 0);
-
-  /**
-   * Create a load adaptive worker group
-   *
-   * \param num_workers     Number of worker threads.
-   */
-  explicit worker_group(
-      load_adaptive_tag, const char* group_name = nullptr,
-      size_t max_num_workers = 1,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
       int niceness = 0);
 

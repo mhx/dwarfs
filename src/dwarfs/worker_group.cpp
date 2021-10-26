@@ -31,7 +31,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -249,112 +248,9 @@ class no_policy {
   };
 };
 
-class load_adaptive_policy {
- public:
-  class task {
-   public:
-    explicit task(load_adaptive_policy* policy)
-        : policy_(policy) {
-      policy_->start_task();
-
-      struct rusage usage;
-      getrusage(RUSAGE_THREAD, &usage);
-      utime_ = usage.ru_utime;
-      stime_ = usage.ru_stime;
-      clock_gettime(CLOCK_MONOTONIC, &wall_);
-    }
-
-    ~task();
-
-   private:
-    load_adaptive_policy* policy_;
-    struct timespec wall_;
-    struct timeval utime_, stime_;
-  };
-
-  explicit load_adaptive_policy(size_t workers)
-      : sem_(workers)
-      , max_throttled_(static_cast<int>(workers) - 1) {}
-
-  void start_task() { sem_.acquire(); }
-
-  void stop_task(uint64_t wall_ns, uint64_t cpu_ns);
-
- private:
-  semaphore sem_;
-  int max_throttled_;
-  std::mutex mx_;
-  uint64_t wall_ns_, cpu_ns_;
-  int throttled_;
-};
-
-load_adaptive_policy::task::~task() {
-  struct rusage usage;
-  getrusage(RUSAGE_THREAD, &usage);
-  struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
-
-  uint64_t wall_ns = UINT64_C(1000000000) * (now.tv_sec - wall_.tv_sec);
-  wall_ns += now.tv_nsec;
-  wall_ns -= wall_.tv_nsec;
-
-  uint64_t cpu_ns =
-      UINT64_C(1000000000) * (usage.ru_utime.tv_sec + usage.ru_stime.tv_sec -
-                              (utime_.tv_sec + stime_.tv_sec));
-  cpu_ns += UINT64_C(1000) * (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec);
-  cpu_ns -= UINT64_C(1000) * (utime_.tv_usec + stime_.tv_usec);
-
-  policy_->stop_task(wall_ns, cpu_ns);
-}
-
-void load_adaptive_policy::stop_task(uint64_t wall_ns, uint64_t cpu_ns) {
-  int adjust = 0;
-
-  {
-    std::unique_lock lock(mx_);
-
-    wall_ns_ += wall_ns;
-    cpu_ns_ += cpu_ns;
-
-    if (wall_ns_ >= 1000000000) {
-      auto load = float(cpu_ns_) / float(wall_ns_);
-      if (load > 0.75f) {
-        if (throttled_ > 0) {
-          --throttled_;
-          adjust = 1;
-        }
-      } else if (load < 0.25f) {
-        if (throttled_ < max_throttled_) {
-          ++throttled_;
-          adjust = -1;
-        }
-      }
-      wall_ns_ = 0;
-      cpu_ns_ = 0;
-    }
-  }
-
-  if (adjust < 0) {
-    return;
-  }
-
-  if (adjust > 0) {
-    sem_.release();
-  }
-
-  sem_.release();
-}
-
 worker_group::worker_group(const char* group_name, size_t num_workers,
                            size_t max_queue_len, int niceness)
     : impl_{std::make_unique<basic_worker_group<no_policy>>(
           group_name, num_workers, max_queue_len, niceness)} {}
-
-worker_group::worker_group(load_adaptive_tag, const char* group_name,
-                           size_t max_num_workers, size_t max_queue_len,
-                           int niceness)
-    : impl_{std::make_unique<basic_worker_group<load_adaptive_policy>>(
-          group_name, max_num_workers, max_queue_len, niceness,
-          max_num_workers)} {}
 
 } // namespace dwarfs
