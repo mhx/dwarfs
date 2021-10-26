@@ -68,11 +68,11 @@ class py_logger {
   py_logger(logger& lgr)
       : log_(lgr) {}
 
-  void error(std::string msg) { LOG_ERROR << "[script] " << msg; }
-  void warn(std::string msg) { LOG_WARN << "[script] " << msg; }
-  void info(std::string msg) { LOG_INFO << "[script] " << msg; }
-  void debug(std::string msg) { LOG_DEBUG << "[script] " << msg; }
-  void trace(std::string msg) { LOG_TRACE << "[script] " << msg; }
+  void error(std::string const& msg) { LOG_ERROR << "[script] " << msg; }
+  void warn(std::string const& msg) { LOG_WARN << "[script] " << msg; }
+  void info(std::string const& msg) { LOG_INFO << "[script] " << msg; }
+  void debug(std::string const& msg) { LOG_DEBUG << "[script] " << msg; }
+  void trace(std::string const& msg) { LOG_TRACE << "[script] " << msg; }
 
  private:
   using log_proxy_t = log_proxy<debug_logger_policy>;
