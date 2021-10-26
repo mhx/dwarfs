@@ -630,9 +630,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   std::vector<uint8_t> meta_raw;
 
   // force metadata check
-  auto meta =
-      make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(),
-                    0, true, mlock_mode::NONE, !parser.has_checksums());
+  make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(), 0,
+                true, mlock_mode::NONE, !parser.has_checksums());
 
   parser.rewind();
 
