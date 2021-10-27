@@ -20,8 +20,10 @@
  */
 
 #include <array>
+#include <charconv>
 #include <climits>
 #include <string>
+#include <string_view>
 
 #include <unistd.h>
 
@@ -50,7 +52,7 @@ std::string time_with_unit(double sec) {
   return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME, false));
 }
 
-size_t parse_size_with_unit(const std::string& str) {
+size_t parse_size_with_unit(std::string const& str) {
   size_t end = 0;
   size_t size = std::stoul(str, &end);
 
@@ -82,6 +84,40 @@ size_t parse_size_with_unit(const std::string& str) {
   }
 
   DWARFS_THROW(runtime_error, "invalid size suffix");
+}
+
+std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
+  uint64_t value;
+  auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
+
+  if (ec != std::errc()) {
+    DWARFS_THROW(runtime_error, "cannot parse time value");
+  }
+
+  switch (ptr[0]) {
+  case 'h':
+    if (ptr[1] == '\0') {
+      return std::chrono::hours(value);
+    }
+    break;
+
+  case 'm':
+    if (ptr[1] == '\0') {
+      return std::chrono::minutes(value);
+    } else if (ptr[1] == 's' && ptr[2] == '\0') {
+      return std::chrono::milliseconds(value);
+    }
+    break;
+
+  case '\0':
+  case 's':
+    return std::chrono::seconds(value);
+
+  default:
+    break;
+  }
+
+  DWARFS_THROW(runtime_error, "unsupported time suffix");
 }
 
 std::string get_program_path() {
