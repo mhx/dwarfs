@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <iosfwd>
 #include <optional>
@@ -31,12 +32,17 @@ namespace dwarfs {
 
 enum class mlock_mode { NONE, TRY, MUST };
 
+enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
+
 struct block_cache_options {
   size_t max_bytes{0};
   size_t num_workers{0};
   double decompress_ratio{1.0};
   bool mm_release{true};
   bool init_workers{true};
+  cache_tidy_strategy tidy_strategy{cache_tidy_strategy::NONE};
+  std::chrono::milliseconds tidy_interval;
+  std::chrono::milliseconds tidy_expiry_time;
 };
 
 struct metadata_options {

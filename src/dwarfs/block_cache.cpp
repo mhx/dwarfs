@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <exception>
 #include <future>
@@ -33,10 +35,14 @@
 #include <utility>
 #include <vector>
 
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <fmt/format.h>
 
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
+#include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fs_section.h"
@@ -98,6 +104,22 @@ class cached_block {
                          : range_end_.load();
   }
 
+  void touch() { last_access_ = std::chrono::steady_clock::now(); }
+
+  bool last_used_before(std::chrono::steady_clock::time_point tp) const {
+    return last_access_ < tp;
+  }
+
+  bool is_swapped_out(std::vector<uint8_t>& tmp) const {
+    auto page_size = ::sysconf(_SC_PAGESIZE);
+    tmp.resize((data_.size() + page_size) / page_size);
+    if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
+                  tmp.data()) == 0) {
+      return std::any_of(tmp.begin(), tmp.end(), [](auto i) { return i != 0; });
+    }
+    return false;
+  }
+
  private:
   void try_release() {
     if (release_) {
@@ -114,6 +136,7 @@ class cached_block {
   fs_section section_;
   LOG_PROXY_DECL(debug_logger_policy);
   bool const release_;
+  std::chrono::steady_clock::time_point last_access_;
 };
 
 class block_request {
@@ -214,10 +237,24 @@ class block_cache_ final : public block_cache::impl {
                                       : std::thread::hardware_concurrency(),
                                   static_cast<size_t>(1)));
     }
+
+    if (options.tidy_strategy != cache_tidy_strategy::NONE) {
+      tidy_running_ = true;
+      tidy_thread_ = std::thread(&block_cache_::tidy_thread, this);
+    }
   }
 
   ~block_cache_() noexcept override {
     LOG_DEBUG << "stopping cache workers";
+
+    if (tidy_running_) {
+      {
+        std::lock_guard lock(mx_);
+        tidy_running_ = false;
+      }
+      tidy_cond_.notify_all();
+      tidy_thread_.join();
+    }
 
     if (wg_) {
       wg_.stop();
@@ -250,6 +287,7 @@ class block_cache_ final : public block_cache::impl {
     // number of evicted blocks outgrow the number of created blocks.
     LOG_INFO << "blocks created: " << blocks_created_.load();
     LOG_INFO << "blocks evicted: " << blocks_evicted_.load();
+    LOG_INFO << "blocks tidied: " << blocks_tidied_.load();
     LOG_INFO << "request sets merged: " << sets_merged_.load();
     LOG_INFO << "total requests: " << range_requests_.load();
     LOG_INFO << "active hits (fast): " << active_hits_fast_.load();
@@ -544,12 +582,61 @@ class block_cache_ final : public block_cache::impl {
       }
     }
 
+    if (options_.tidy_strategy == cache_tidy_strategy::EXPIRY_TIME) {
+      block->touch();
+    }
+
     // Finally, put the block into the cache; it might already be
     // in there, in which case we just promote it to the front of
     // the LRU queue.
     {
       std::lock_guard lock(mx_);
       cache_.set(block_no, std::move(block));
+    }
+  }
+
+  template <typename Pred>
+  void tidy_collect(Pred const& predicate) {
+    auto it = cache_.begin();
+
+    while (it != cache_.end()) {
+      if (predicate(*it->second)) {
+        it = cache_.erase(it);
+        ++blocks_tidied_;
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  void tidy_thread() {
+    folly::setThreadName("cache-tidy");
+
+    std::unique_lock lock(mx_);
+
+    while (tidy_running_) {
+      if (tidy_cond_.wait_for(lock, options_.tidy_interval) ==
+          std::cv_status::timeout) {
+        switch (options_.tidy_strategy) {
+        case cache_tidy_strategy::EXPIRY_TIME:
+          tidy_collect(
+              [tp = std::chrono::steady_clock::now() -
+                    options_.tidy_expiry_time](cached_block const& blk) {
+                return blk.last_used_before(tp);
+              });
+          break;
+
+        case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
+          std::vector<uint8_t> tmp;
+          tidy_collect([&tmp](cached_block const& blk) {
+            return blk.is_swapped_out(tmp);
+          });
+        } break;
+
+        default:
+          break;
+        }
+      }
     }
   }
 
@@ -561,6 +648,9 @@ class block_cache_ final : public block_cache::impl {
   mutable folly::F14FastMap<size_t,
                             std::deque<std::weak_ptr<block_request_set>>>
       active_;
+  std::thread tidy_thread_;
+  std::condition_variable tidy_cond_;
+  bool tidy_running_{false};
 
   mutable std::mutex mx_dec_;
   mutable folly::F14FastMap<size_t, std::weak_ptr<block_request_set>>
@@ -577,6 +667,7 @@ class block_cache_ final : public block_cache::impl {
   mutable std::atomic<size_t> partially_decompressed_{0};
   mutable std::atomic<size_t> total_block_bytes_{0};
   mutable std::atomic<size_t> total_decompressed_bytes_{0};
+  mutable std::atomic<size_t> blocks_tidied_{0};
 
   mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;

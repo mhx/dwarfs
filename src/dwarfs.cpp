@@ -20,13 +20,16 @@
  */
 
 #include <array>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 
 #include <folly/Conv.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
@@ -54,12 +57,15 @@ struct options {
   const char* progname{nullptr};
   std::string fsimage;
   int seen_mountpoint{0};
-  const char* cachesize_str{nullptr};        // TODO: const?? -> use string?
-  const char* debuglevel_str{nullptr};       // TODO: const?? -> use string?
-  const char* workers_str{nullptr};          // TODO: const?? -> use string?
-  const char* mlock_str{nullptr};            // TODO: const?? -> use string?
-  const char* decompress_ratio_str{nullptr}; // TODO: const?? -> use string?
-  const char* image_offset_str{nullptr};     // TODO: const?? -> use string?
+  const char* cachesize_str{nullptr};           // TODO: const?? -> use string?
+  const char* debuglevel_str{nullptr};          // TODO: const?? -> use string?
+  const char* workers_str{nullptr};             // TODO: const?? -> use string?
+  const char* mlock_str{nullptr};               // TODO: const?? -> use string?
+  const char* decompress_ratio_str{nullptr};    // TODO: const?? -> use string?
+  const char* image_offset_str{nullptr};        // TODO: const?? -> use string?
+  const char* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
+  const char* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
+  const char* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
   int enable_nlink{0};
   int readonly{0};
   int cache_image{0};
@@ -69,6 +75,9 @@ struct options {
   mlock_mode lock_mode{mlock_mode::NONE};
   double decompress_ratio{0.0};
   logger::level_type debuglevel{logger::level_type::ERROR};
+  cache_tidy_strategy block_cache_tidy_strategy{cache_tidy_strategy::NONE};
+  std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
+  std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
 };
 
 struct dwarfs_userdata {
@@ -93,6 +102,9 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("offset=%s", image_offset_str, 0),
+    DWARFS_OPT("tidy_strategy=%s", cache_tidy_strategy_str, 0),
+    DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
+    DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("cache_image", cache_image, 1),
@@ -100,6 +112,13 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
     FUSE_OPT_END};
+
+std::unordered_map<std::string_view, cache_tidy_strategy> const
+    cache_tidy_strategy_map{
+        {"none", cache_tidy_strategy::NONE},
+        {"time", cache_tidy_strategy::EXPIRY_TIME},
+        {"swap", cache_tidy_strategy::BLOCK_SWAPPED_OUT},
+    };
 
 #define dUSERDATA                                                              \
   auto userdata = reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
@@ -465,6 +484,9 @@ void usage(const char* progname) {
       << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
       << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
       << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
+      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
+      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
+      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
       << std::endl;
 
 #if FUSE_USE_VERSION >= 30
@@ -624,6 +646,9 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
   fsopts.block_cache.mm_release = !opts.cache_image;
   fsopts.block_cache.init_workers = false;
+  fsopts.block_cache.tidy_strategy = opts.block_cache_tidy_strategy;
+  fsopts.block_cache.tidy_interval = opts.block_cache_tidy_interval;
+  fsopts.block_cache.tidy_expiry_time = opts.block_cache_tidy_max_age;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
 
@@ -700,6 +725,27 @@ int run_dwarfs(int argc, char** argv) {
     opts.decompress_ratio = opts.decompress_ratio_str
                                 ? folly::to<double>(opts.decompress_ratio_str)
                                 : 0.8;
+
+    if (opts.cache_tidy_strategy_str) {
+      if (auto it = cache_tidy_strategy_map.find(opts.cache_tidy_strategy_str);
+          it != cache_tidy_strategy_map.end()) {
+        opts.block_cache_tidy_strategy = it->second;
+      } else {
+        std::cerr << "error: no such cache tidy strategy: "
+                  << opts.cache_tidy_strategy_str << std::endl;
+        return 1;
+      }
+
+      if (opts.cache_tidy_interval_str) {
+        opts.block_cache_tidy_interval =
+            parse_time_with_unit(opts.cache_tidy_interval_str);
+      }
+
+      if (opts.cache_tidy_max_age_str) {
+        opts.block_cache_tidy_max_age =
+            parse_time_with_unit(opts.cache_tidy_max_age_str);
+      }
+    }
   } catch (runtime_error const& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;

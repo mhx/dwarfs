@@ -110,6 +110,37 @@ options:
     mainly meant for debugging and the `debug` and `trace` levels
     in particular will slow down the driver.
 
+* `-o tidy_strategy=`*name*:
+  Use one of the following strategies to tidy the block cache:
+
+  - `none`:
+    This is the default strategy that never tidies the cache.
+    Blocks will only be evicted from the cache if the cache is
+    full and a more recently used block is added to the cache.
+
+  - `time`:
+    Time based tidying strategy. Every `tidy_interval`, the block
+    cache is traversed and all blocks that have not been accessed
+    for more then `tidy_max_age` will be removed.
+
+  - `swap`:
+    Swap based tidying strategy. Every `tidy_interval`, the block
+    cache is traversed and all blocks that have been fully or
+    partially swapped out by the kernel will be removed.
+
+* `-o tidy_interval=`*time*:
+  Used only if `tidy_strategy` is not `none`. This is the interval
+  at which the cache tidying thread wakes up to look for blocks
+  that can be removed from the cache. This must be an integer value.
+  Suffixes `ms`, `s`, `m`, `h` are supported. If no suffix is given,
+  the value will be assumed to be in seconds.
+
+* `-o tidy_max_age=`*time*:
+  Used only if `tidy_strategy` is `time`. A block will be removed
+  from the cache if it hasn't been used for this time span. This must
+  be an integer value. Suffixes `ms`, `s`, `m`, `h` are supported.
+  If no suffix is given, the value will be assumed to be in seconds.
+
 There's two particular FUSE options that you'll likely need at some
 point, e.g. when trying to set up an `overlayfs` mount on top of
 a DwarFS image:
