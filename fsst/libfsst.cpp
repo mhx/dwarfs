@@ -17,6 +17,12 @@
 // You can contact the authors via the FSST source repository : https://github.com/cwida/fsst
 #include "libfsst.hpp"
 
+inline uint64_t fsst_unaligned_load(u8 const* V) {
+  uint64_t Ret;
+  memcpy(&Ret, V, sizeof(uint64_t)); // compiler will generate efficient code (unaligned load, where possible)
+  return Ret;
+}
+
 Symbol concat(Symbol a, Symbol b) {
    Symbol s;
    u32 length = a.length()+b.length();
@@ -109,7 +115,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
                if (st->symbols[pos1].length() != 1)
                   counters.count1Inc(*cur);
                if (cur<end-7) {
-                  size_t word = reinterpret_cast<const uint64_t*>(cur)[0];
+                  u64 word = fsst_unaligned_load(cur);
                   size_t pos = word & 0xFFFFFF;
                   size_t idx = FSST_HASH(pos)&(st->hashTabSize-1);
                   Symbol s = st->hashTab[idx];
@@ -321,8 +327,8 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
                   u8* end = symbolBase + job.end;
                   u8* out = codeBase + job.out;
                   while (cur < end) {
-                     u64 word = reinterpret_cast<const uint64_t*>(cur)[0];
-                     u64 code = symbolTable.shortCodes[word & 0xFFFF];
+                     u64 word = fsst_unaligned_load(cur);
+                     size_t code = symbolTable.shortCodes[word & 0xFFFF];
                      size_t pos = word & 0xFFFFFF;
                      size_t idx = FSST_HASH(pos)&(symbolTable.hashTabSize-1);
                      Symbol s = symbolTable.hashTab[idx];
@@ -376,7 +382,7 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, size_
    // three variants are possible. dead code falls away since the bool arguments are constants
    auto compressVariant = [&](bool noSuffixOpt, bool avoidBranch) {
       while (cur < end) {
-         u64 word = reinterpret_cast<const uint64_t*>(cur)[0];
+         u64 word = fsst_unaligned_load(cur);
          size_t code = symbolTable.shortCodes[word & 0xFFFF];
          if (noSuffixOpt && ((u8) code) < suffixLim) {
             // 2 byte code without having to worry about longer matches
