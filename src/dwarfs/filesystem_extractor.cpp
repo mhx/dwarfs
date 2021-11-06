@@ -164,6 +164,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     std::array<char, 1024> buf;
 
     for (;;) {
+      // This is fine, we're simply reusing the buffer.
+      // Flawfinder: ignore
       auto rv = ::read(fd, buf.data(), buf.size());
 
       if (rv <= 0) {

@@ -1178,7 +1178,7 @@ metadata_<LoggerPolicy>::find(const char* path) const {
 
   while (*path) {
     const char* next = ::strchr(path, '/');
-    size_t clen = next ? next - path : ::strlen(path);
+    size_t clen = next ? next - path : ::strlen(path); // Flawfinder: ignore
 
     iv = find(make_directory_view(*iv), std::string_view(path, clen));
 
