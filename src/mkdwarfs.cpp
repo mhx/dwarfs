@@ -23,7 +23,6 @@
 #include <array>
 #include <cerrno>
 #include <cstdio>
-#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -34,6 +33,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -215,12 +215,12 @@ size_t get_term_width() {
 
 struct level_defaults {
   unsigned block_size_bits;
-  char const* data_compression;
-  char const* schema_compression;
-  char const* metadata_compression;
+  std::string_view data_compression;
+  std::string_view schema_compression;
+  std::string_view metadata_compression;
   unsigned window_size;
   unsigned window_step;
-  char const* order;
+  std::string_view order;
 };
 
 #if defined(DWARFS_HAVE_LIBLZ4)
@@ -479,10 +479,10 @@ int mkdwarfs(int argc, char** argv) {
   if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
     size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
-      l_dc = std::max(l_dc, ::strlen(l.data_compression));
-      l_sc = std::max(l_sc, ::strlen(l.schema_compression));
-      l_mc = std::max(l_mc, ::strlen(l.metadata_compression));
-      l_or = std::max(l_or, ::strlen(l.order));
+      l_dc = std::max(l_dc, l.data_compression.size());
+      l_sc = std::max(l_sc, l.schema_compression.size());
+      l_mc = std::max(l_mc, l.metadata_compression.size());
+      l_or = std::max(l_or, l.order.size());
     }
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
