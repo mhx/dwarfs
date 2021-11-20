@@ -329,16 +329,21 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
       iovec_read_buf buf;
       ssize_t rv = userdata->fs.readv(ino, buf, size, off);
 
-      // std::cerr << ">>> " << rv << std::endl;
+      LOG_DEBUG << "readv(" << ino << ", " << size << ", " << off << ") -> "
+                << rv << " [size = " << buf.buf.size() << "]";
 
       if (rv >= 0) {
-        fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
-                       buf.buf.size());
+        int frv = fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
+                                 buf.buf.size());
 
-        return;
+        if (frv == 0) {
+          return;
+        }
+
+        err = -frv;
+      } else {
+        err = -rv;
       }
-
-      err = -rv;
     } else {
       err = EIO;
     }
