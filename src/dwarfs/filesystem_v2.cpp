@@ -350,6 +350,9 @@ class filesystem_ final : public filesystem_v2::impl {
   readv(uint32_t inode, size_t size, off_t offset) const override;
   std::optional<folly::ByteRange> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) override {
+    ir_.set_cache_tidy_config(cfg);
+  }
 
  private:
   filesystem_info const& get_info() const;

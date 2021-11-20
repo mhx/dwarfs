@@ -33,6 +33,7 @@
 namespace dwarfs {
 
 struct block_cache_options;
+struct cache_tidy_config;
 
 class block_range;
 class fs_section;
@@ -52,6 +53,10 @@ class block_cache {
 
   void set_num_workers(size_t num) { impl_->set_num_workers(num); }
 
+  void set_tidy_config(cache_tidy_config const& cfg) {
+    impl_->set_tidy_config(cfg);
+  }
+
   std::future<block_range>
   get(size_t block_no, size_t offset, size_t size) const {
     return impl_->get(block_no, offset, size);
@@ -65,6 +70,7 @@ class block_cache {
     virtual void insert(fs_section const& section) = 0;
     virtual void set_block_size(size_t size) = 0;
     virtual void set_num_workers(size_t num) = 0;
+    virtual void set_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual std::future<block_range>
     get(size_t block_no, size_t offset, size_t length) const = 0;
   };

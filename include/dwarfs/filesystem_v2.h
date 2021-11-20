@@ -44,6 +44,7 @@ struct statvfs;
 
 namespace dwarfs {
 
+struct cache_tidy_config;
 struct filesystem_options;
 struct rewrite_options;
 struct iovec_read_buf;
@@ -152,6 +153,9 @@ class filesystem_v2 {
   std::optional<folly::ByteRange> header() const { return impl_->header(); }
 
   void set_num_workers(size_t num) { return impl_->set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) {
+    return impl_->set_cache_tidy_config(cfg);
+  }
 
   class impl {
    public:
@@ -188,6 +192,7 @@ class filesystem_v2 {
     readv(uint32_t inode, size_t size, off_t offset) const = 0;
     virtual std::optional<folly::ByteRange> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
+    virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
   };
 
  private:

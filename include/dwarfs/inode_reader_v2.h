@@ -34,6 +34,7 @@
 
 namespace dwarfs {
 
+struct cache_tidy_config;
 class block_cache;
 class logger;
 struct iovec_read_buf;
@@ -67,6 +68,10 @@ class inode_reader_v2 {
 
   void set_num_workers(size_t num) { impl_->set_num_workers(num); }
 
+  void set_cache_tidy_config(cache_tidy_config const& cfg) {
+    impl_->set_cache_tidy_config(cfg);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -80,6 +85,7 @@ class inode_reader_v2 {
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
     virtual void set_num_workers(size_t num) = 0;
+    virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
   };
 
  private:

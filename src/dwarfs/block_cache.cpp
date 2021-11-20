@@ -237,23 +237,13 @@ class block_cache_ final : public block_cache::impl {
                                       : std::thread::hardware_concurrency(),
                                   static_cast<size_t>(1)));
     }
-
-    if (options.tidy_strategy != cache_tidy_strategy::NONE) {
-      tidy_running_ = true;
-      tidy_thread_ = std::thread(&block_cache_::tidy_thread, this);
-    }
   }
 
   ~block_cache_() noexcept override {
     LOG_DEBUG << "stopping cache workers";
 
     if (tidy_running_) {
-      {
-        std::lock_guard lock(mx_);
-        tidy_running_ = false;
-      }
-      tidy_cond_.notify_all();
-      tidy_thread_.join();
+      stop_tidy_thread();
     }
 
     if (wg_) {
@@ -345,6 +335,25 @@ class block_cache_ final : public block_cache::impl {
     }
 
     wg_ = worker_group("blkcache", num);
+  }
+
+  void set_tidy_config(cache_tidy_config const& cfg) override {
+    if (cfg.strategy == cache_tidy_strategy::NONE) {
+      if (tidy_running_) {
+        stop_tidy_thread();
+      }
+    } else {
+      std::lock_guard lock(mx_);
+
+      tidy_config_ = cfg;
+
+      if (tidy_running_) {
+        tidy_cond_.notify_all();
+      } else {
+        tidy_running_ = true;
+        tidy_thread_ = std::thread(&block_cache_::tidy_thread, this);
+      }
+    }
   }
 
   std::future<block_range>
@@ -492,6 +501,15 @@ class block_cache_ final : public block_cache::impl {
   }
 
  private:
+  void stop_tidy_thread() {
+    {
+      std::lock_guard lock(mx_);
+      tidy_running_ = false;
+    }
+    tidy_cond_.notify_all();
+    tidy_thread_.join();
+  }
+
   void update_block_stats(cached_block const& cb) {
     if (cb.range_end() < cb.uncompressed_size()) {
       ++partially_decompressed_;
@@ -582,15 +600,16 @@ class block_cache_ final : public block_cache::impl {
       }
     }
 
-    if (options_.tidy_strategy == cache_tidy_strategy::EXPIRY_TIME) {
-      block->touch();
-    }
-
     // Finally, put the block into the cache; it might already be
     // in there, in which case we just promote it to the front of
     // the LRU queue.
     {
       std::lock_guard lock(mx_);
+
+      if (tidy_config_.strategy == cache_tidy_strategy::EXPIRY_TIME) {
+        block->touch();
+      }
+
       cache_.set(block_no, std::move(block));
     }
   }
@@ -615,13 +634,13 @@ class block_cache_ final : public block_cache::impl {
     std::unique_lock lock(mx_);
 
     while (tidy_running_) {
-      if (tidy_cond_.wait_for(lock, options_.tidy_interval) ==
+      if (tidy_cond_.wait_for(lock, tidy_config_.interval) ==
           std::cv_status::timeout) {
-        switch (options_.tidy_strategy) {
+        switch (tidy_config_.strategy) {
         case cache_tidy_strategy::EXPIRY_TIME:
           tidy_collect(
               [tp = std::chrono::steady_clock::now() -
-                    options_.tidy_expiry_time](cached_block const& blk) {
+                    tidy_config_.expiry_time](cached_block const& blk) {
                 return blk.last_used_before(tp);
               });
           break;
@@ -675,6 +694,7 @@ class block_cache_ final : public block_cache::impl {
   std::shared_ptr<mmif> mm_;
   LOG_PROXY_DECL(LoggerPolicy);
   const block_cache_options options_;
+  cache_tidy_config tidy_config_;
 };
 
 block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,

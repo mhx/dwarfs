@@ -40,9 +40,12 @@ struct block_cache_options {
   double decompress_ratio{1.0};
   bool mm_release{true};
   bool init_workers{true};
-  cache_tidy_strategy tidy_strategy{cache_tidy_strategy::NONE};
-  std::chrono::milliseconds tidy_interval;
-  std::chrono::milliseconds tidy_expiry_time;
+};
+
+struct cache_tidy_config {
+  cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
+  std::chrono::milliseconds interval;
+  std::chrono::milliseconds expiry_time;
 };
 
 struct metadata_options {

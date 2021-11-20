@@ -132,6 +132,14 @@ void op_init(void* data, struct fuse_conn_info* /*conn*/) {
 
   // we must do this *after* the fuse driver has forked into background
   userdata->fs.set_num_workers(userdata->opts.workers);
+
+  cache_tidy_config tidy;
+  tidy.strategy = userdata->opts.block_cache_tidy_strategy;
+  tidy.interval = userdata->opts.block_cache_tidy_interval;
+  tidy.expiry_time = userdata->opts.block_cache_tidy_max_age;
+
+  // we must do this *after* the fuse driver has forked into background
+  userdata->fs.set_cache_tidy_config(tidy);
 }
 
 template <typename LoggerPolicy>
@@ -646,9 +654,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
   fsopts.block_cache.mm_release = !opts.cache_image;
   fsopts.block_cache.init_workers = false;
-  fsopts.block_cache.tidy_strategy = opts.block_cache_tidy_strategy;
-  fsopts.block_cache.tidy_interval = opts.block_cache_tidy_interval;
-  fsopts.block_cache.tidy_expiry_time = opts.block_cache_tidy_max_age;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
 
