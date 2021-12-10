@@ -20,12 +20,12 @@ set(VERSION_SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/dwarfs/version.cpp)
 set(VERSION_HDR_FILE ${CMAKE_CURRENT_SOURCE_DIR}/include/dwarfs/version.h)
 
 execute_process(
-  COMMAND git rev-parse --show-toplevel
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} git rev-parse --show-toplevel
   OUTPUT_VARIABLE GIT_TOPLEVEL_RAW
   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
 execute_process(
-  COMMAND git log --pretty=format:%h -n 1
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} git log --pretty=format:%h -n 1
   OUTPUT_VARIABLE PRJ_GIT_REV
   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
@@ -42,11 +42,11 @@ if((NOT "${REAL_SOURCE_DIR}" STREQUAL "${GIT_TOPLEVEL}")
   endif()
 else()
   execute_process(
-    COMMAND git describe --always --tags --match "v*" --dirty
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} git describe --always --tags --match "v*" --dirty
     OUTPUT_STRIP_TRAILING_WHITESPACE
     OUTPUT_VARIABLE PRJ_GIT_DESC)
   execute_process(
-    COMMAND git rev-parse --abbrev-ref HEAD
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} git rev-parse --abbrev-ref HEAD
     OUTPUT_STRIP_TRAILING_WHITESPACE
     OUTPUT_VARIABLE PRJ_GIT_BRANCH)
 

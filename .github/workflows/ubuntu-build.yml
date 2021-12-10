@@ -167,7 +167,7 @@ jobs:
         if: ${{ matrix.mode == 'static' }}
         run: | 
           cd build
-          ldd dwarfs2 2>&1 >/dev/null | grep -i 'not a dynamic executable'
-          ldd dwarfsck 2>&1 >/dev/null | grep -i 'not a dynamic executable'
-          ldd dwarfsextract 2>&1 >/dev/null | grep -i 'not a dynamic executable'
-          ldd mkdwarfs 2>&1 >/dev/null | grep -i 'not a dynamic executable'
+          ldd dwarfs2 2>&1  | grep -i 'not a dynamic executable'
+          ldd dwarfsck 2>&1  | grep -i 'not a dynamic executable'
+          ldd dwarfsextract 2>&1 | grep -i 'not a dynamic executable'
+          ldd mkdwarfs 2>&1 | grep -i 'not a dynamic executable'
