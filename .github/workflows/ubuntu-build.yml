@@ -1,0 +1,173 @@
+# Copyright (c) 2021, [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamitebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+# 
+# The purpose of this workflow is to check that build procedures work correctly 
+# in specific environment. Due to this reason there is no caching. It is done by 
+# intention. All caching is in upstream projects.
+#
+# Also this file contains comments that will be useful is dwarfs has to be build 
+# in different environment, not GHA.
+
+name: Ubuntu
+
+on:
+  push:
+    branches: [ main, ubuntu-18 ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+# Ruby  (this is required for for ronn)
+  RUBY_VER:   "2.7.4"
+
+jobs:
+  build:
+    name: ${{ matrix.os }} [CC ${{ matrix.env.CC }}, ${{ matrix.mode }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-18.04, ubuntu-latest ]
+# GTest does not allow static builds so we do it twice
+        mode: [ static, tests ]
+        env:
+          - CC: gcc
+            CXX: g++
+#          - CC: clang
+#            CXX: clang++
+    env: ${{ matrix.env }}
+    steps:
+      - name: Checkout 
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-README.md    
+# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu1804-README.md     
+# Already installed: bison flex pkg-config
+
+# gcc/g++ 9 is also there otherwise we would need:
+# sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+# sudo apt update
+# sudo apt install gcc-9 g++-9
+
+# cmake good enough is also at GHA. Otherswise:
+# sudo apt-get remove --purge --auto-remove cmake
+# sudo apt-get update 
+# sudo apt-get install -y software-properties-common lsb-release 
+# sudo apt-get clean all
+# wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+# sudo apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+# sudo apt update
+# sudo apt install kitware-archive-keyring
+# sudo rm /etc/apt/trusted.gpg.d/kitware.gpg
+# sudo apt update
+# sudo apt install cmake
+
+      - name: Switch to gcc-9
+        if: ${{ matrix.env.CC == 'gcc' }}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 100 --slave /usr/bin/g++ g++ /usr/bin/g++-9 --slave /usr/bin/gcov gcov /usr/bin/gcov-9
+          sudo update-alternatives --set gcc /usr/bin/gcc-9    
+
+      - name: Install packages Ubuntu
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install \
+          binutils-dev libarchive-dev libevent-dev libjemalloc-dev acl-dev \
+          libdouble-conversion-dev libiberty-dev liblz4-dev libssl-dev liblzma-dev \
+          libfuse-dev libunwind-dev libdwarf-dev libelf-dev libgoogle-glog-dev libgtest-dev \
+          libboost-context-dev libboost-filesystem-dev libboost-program-options-dev \
+          libboost-regex-dev libboost-system-dev libboost-thread-dev  
+
+      - name: Install libfmt 6 (bionic)
+        if: ${{ matrix.os == 'ubuntu-18.04' }}
+        run: |
+          sudo apt-get remove libfmt-dev
+          sudo apt-get install software-properties-common
+          sudo add-apt-repository ppa:team-xbmc/ppa 
+          sudo apt-get update
+          sudo apt-get install libfmt-dev
+
+      - name: Install libfmt 6 (focal)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: sudo apt-get install libfmt-dev
+
+# sudo apt install ronn does not work for bionic
+# On focal  it cannot process one of files, so we do it natively
+# Note that libruby-dev is required under the hood
+
+      - name: Install Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VER }}
+
+      - name: Install ronn
+        run: sudo gem install ronn
+
+      - name: Configure with tests
+        if: ${{ matrix.mode == 'tests' }}
+        run: | 
+          mkdir build
+          cd build
+          cmake .. -DWITH_TESTS=1 -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+
+      - name: Configure static
+        if: ${{ matrix.mode == 'static' }}
+        run: | 
+          mkdir build
+          cd build
+          cmake .. -DSTATIC_BUILD_DO_NOT_USE:BOOL=ON -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+
+      - name: Build
+        run: | 
+          cd build
+          make -j4
+
+      - name: Test
+        if: ${{ matrix.mode == 'tests' }}
+        run: | 
+          cd build
+          make test
+
+      - name: Verify static build with ldd
+        if: ${{ matrix.mode == 'static' }}
+        run: | 
+          cd build
+          ldd dwarfs2 2>&1 >/dev/null | grep -i 'not a dynamic executable'
+          ldd dwarfsck 2>&1 >/dev/null | grep -i 'not a dynamic executable'
+          ldd dwarfsextract 2>&1 >/dev/null | grep -i 'not a dynamic executable'
+          ldd mkdwarfs 2>&1 >/dev/null | grep -i 'not a dynamic executable'
