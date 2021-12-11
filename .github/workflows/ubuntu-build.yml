@@ -34,7 +34,7 @@ name: Ubuntu
 
 on:
   push:
-    branches: [ main, ubuntu-18 ]
+    branches: [ main, tebako ]
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
@@ -50,19 +50,24 @@ on:
   workflow_dispatch:
 
 env:
+  MAKEFLAGS: -j4
 # Ruby  (this is required for for ronn)
   RUBY_VER:   "2.7.4"
 
 jobs:
   build:
-    name: ${{ matrix.os }} [CC ${{ matrix.env.CC }}, ${{ matrix.mode }}]
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.cfg.os }} [CC ${{ matrix.env.CC }}, ${{ matrix.cfg.mode }}]
+    runs-on: ${{ matrix.cfg.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-18.04, ubuntu-latest ]
-# GTest does not allow static builds so we do it twice
-        mode: [ static, tests ]
+        cfg:
+          - os: ubuntu-18.04
+            mode: tests
+          - os: ubuntu-latest
+            mode: tests
+          - os: ubuntu-latest
+            mode: static
         env:
           - CC: gcc
             CXX: g++
@@ -79,11 +84,6 @@ jobs:
 # https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu1804-README.md     
 # Already installed: bison flex pkg-config
 
-# gcc/g++ 9 is also there otherwise we would need:
-# sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-# sudo apt update
-# sudo apt install gcc-9 g++-9
-
 # cmake good enough is also at GHA. Otherswise:
 # sudo apt-get remove --purge --auto-remove cmake
 # sudo apt-get update 
@@ -97,6 +97,12 @@ jobs:
 # sudo apt update
 # sudo apt install cmake
 
+# gcc/g++ 9 is required 
+# On GHA it is already there, otherwise:
+# sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+# sudo apt update
+# sudo apt install gcc-9 g++-9
+#
       - name: Switch to gcc-9
         if: ${{ matrix.env.CC == 'gcc' }}
         run: |
@@ -114,7 +120,7 @@ jobs:
           libboost-regex-dev libboost-system-dev libboost-thread-dev  
 
       - name: Install libfmt 6 (bionic)
-        if: ${{ matrix.os == 'ubuntu-18.04' }}
+        if: ${{ matrix.cfg.os == 'ubuntu-18.04' }}
         run: |
           sudo apt-get remove libfmt-dev
           sudo apt-get install software-properties-common
@@ -123,7 +129,7 @@ jobs:
           sudo apt-get install libfmt-dev
 
       - name: Install libfmt 6 (focal)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ matrix.cfg.os == 'ubuntu-latest' }}
         run: sudo apt-get install libfmt-dev
 
 # sudo apt install ronn does not work for bionic
@@ -139,14 +145,14 @@ jobs:
         run: sudo gem install ronn
 
       - name: Configure with tests
-        if: ${{ matrix.mode == 'tests' }}
+        if: ${{ matrix.cfg.mode == 'tests' }}
         run: | 
           mkdir build
           cd build
           cmake .. -DWITH_TESTS=1 -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
 
       - name: Configure static
-        if: ${{ matrix.mode == 'static' }}
+        if: ${{ matrix.cfg.mode == 'static' }}
         run: | 
           mkdir build
           cd build
@@ -158,13 +164,13 @@ jobs:
           make -j4
 
       - name: Test
-        if: ${{ matrix.mode == 'tests' }}
+        if: ${{ matrix.cfg.mode == 'tests' }}
         run: | 
           cd build
           make test
 
       - name: Verify static build with ldd
-        if: ${{ matrix.mode == 'static' }}
+        if: ${{ matrix.cfg.mode == 'static' }}
         run: | 
           cd build
           ldd dwarfs2 2>&1  | grep -i 'not a dynamic executable'

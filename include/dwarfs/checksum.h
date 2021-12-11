@@ -49,7 +49,7 @@ class checksum {
     case algorithm::XXH3_128:
       return 16;
     }
-    DWARFS_CHECK(false, "unknown algorithm");
+    DWARFS_CHECK(false, "unknown algorithm"); 
   }
 
   static bool
