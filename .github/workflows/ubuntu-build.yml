@@ -66,6 +66,8 @@ jobs:
             mode: tests
           - os: ubuntu-latest
             mode: tests
+          - os: ubuntu-18.04
+            mode: tebako
           - os: ubuntu-latest
             mode: static
         env:
@@ -157,6 +159,13 @@ jobs:
           mkdir build
           cd build
           cmake .. -DSTATIC_BUILD_DO_NOT_USE:BOOL=ON -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+
+      - name: Configure static
+        if: ${{ matrix.cfg.mode == 'tebako' }}
+        run: | 
+          mkdir build
+          cd build
+          cmake .. -DTEBAKO_PREFERRED_CFG:BOOL=ON -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
 
       - name: Build
         run: | 
