@@ -69,6 +69,8 @@ jobs:
           - os: ubuntu-18.04
             mode: tebako
           - os: ubuntu-latest
+            mode: tebako
+          - os: ubuntu-latest
             mode: static
         env:
           - CC: gcc
