@@ -35,6 +35,7 @@ option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
+option(TEBAKO_PREFERRED_CFG "minimal set of shared libraries" OFF)
 
 set(default_build_type "Release")
 
@@ -62,7 +63,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
-if(STATIC_BUILD_DO_NOT_USE)
+if(STATIC_BUILD_DO_NOT_USE OR TEBAKO_PREFERRED_CFG)
   if(WITH_PYTHON)
     message(FATAL_ERROR "python is not supported in static builds")
   endif()
@@ -274,6 +275,11 @@ if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
+if(TEBAKO_PREFERRED_CFG)
+  add_link_options(-static-libstdc++)
+endif(TEBAKO_PREFERRED_CFG)
+
+
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
@@ -469,7 +475,7 @@ if(USE_JEMALLOC)
 endif()
 
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
-if(NOT STATIC_BUILD_DO_NOT_USE)
+if(NOT STATIC_BUILD_DO_NOT_USE AND NOT TEBAKO_PREFERRED_CFG)
   if(TARGET folly_exception_tracer)
     set(DWARFS_USE_EXCEPTION_TRACER ON)
   endif()
@@ -516,10 +522,15 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+  if (STATIC_BUILD_DO_NOT_USE OR TEBAKO_PREFERRED_CFG) 
+    set(STATIC_BUILD ON)
+  else()
+    set(STATIC_BUILD OFF)
+  endif()
   target_compile_definitions(
     ${tgt}
     PRIVATE DWARFS_HAVE_LIBZSTD
-            DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
+            DWARFS_STATIC_BUILD=${STATIC_BUILD}
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
@@ -592,9 +603,9 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
-if(NOT STATIC_BUILD_DO_NOT_USE)
+if(NOT STATIC_BUILD_DO_NOT_USE AND NOT TEBAKO_PREFERRED_CFG)
   target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
-endif(NOT STATIC_BUILD_DO_NOT_USE)
+endif(NOT STATIC_BUILD_DO_NOT_USE AND NOT TEBAKO_PREFERRED_CFG)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
   target_link_libraries(dwarfs PkgConfig::ZSTD)
@@ -626,7 +637,7 @@ foreach(tgt ${BINARY_TARGETS})
   endif()
 endforeach()
 
-if(STATIC_BUILD_DO_NOT_USE)
+if(STATIC_BUILD_DO_NOT_USE OR TEBAKO_PREFERRED_CFG)
   # ...................................................................
   # libarchive is the module that creates the real pain here Its share version
   # looks around to find  other shared libraries which can do the real work. For
@@ -712,6 +723,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libacl "libacl.a")
   import_static_lib(static_libcrypto "libcrypto.a")
   import_static_lib(static_libz "libz.a")
+  import_static_lib(static_liblzma "liblzma.a")
   import_static_lib(static_libpthread "libpthread.a")
   import_static_lib(static_libdl "libdl.a")
   import_static_lib(static_libc "libc.a")
@@ -731,27 +743,48 @@ if(STATIC_BUILD_DO_NOT_USE)
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking
     # ...................................................................
-    target_link_libraries(
-      ${tgt}
-      static_libfmt
-      static_libdoubleconv
-      static_libglog
-      static_libgflags
-      static_libarchive
-      static_libevent
-      static_libacl
-      static_libssl
-      static_libcrypto
-      static_libpthread
-      static_libdl
-      static_libz
-      static_libc
-      static_libm
-      static_librt
-      gcc_eh
-      static_libunwind)
+  
+    if (TEBAKO_PREFERRED_CFG)  
+      target_link_libraries(
+        ${tgt}
+        static_libunwind
+        static_libfmt
+        static_libdoubleconv
+        static_libglog
+        static_libgflags
+        static_libarchive
+        static_libevent
+        static_libacl
+        static_libssl
+        static_libcrypto
+        libzstd_static
+        static_libz
+        static_liblzma
+      )
+    else()
+      target_link_libraries(
+        ${tgt}
+        static_libfmt
+        static_libdoubleconv
+        static_libglog
+        static_libgflags
+        static_libarchive
+        static_libevent
+        static_libacl
+        static_libssl
+        static_libcrypto
+        static_libpthread
+        static_libdl
+        static_libz
+        static_libc
+        static_libm
+        static_librt
+        gcc_eh
+        static_libunwind
+      )
+   endif()
   endforeach()
-endif(STATIC_BUILD_DO_NOT_USE)
+endif(STATIC_BUILD_DO_NOT_USE OR TEBAKO_PREFERRED_CFG)
 
 add_custom_target(
   realclean
