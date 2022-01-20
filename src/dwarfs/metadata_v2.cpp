@@ -48,6 +48,7 @@
 #include <fsst.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
@@ -375,7 +376,7 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  void dump(std::ostream& os, int detail_level,
+  void dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
@@ -795,7 +796,7 @@ void metadata_<LoggerPolicy>::dump(
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, int detail_level,
+    std::ostream& os, int detail_level, filesystem_info const& fsinfo,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   struct ::statvfs stbuf;
   statvfs(&stbuf);
@@ -814,9 +815,24 @@ void metadata_<LoggerPolicy>::dump(
 
   if (detail_level > 0) {
     os << "block size: " << size_with_unit(stbuf.f_bsize) << std::endl;
+    os << "block count: " << fsinfo.block_count << std::endl;
     os << "inode count: " << stbuf.f_files << std::endl;
     os << "original filesystem size: " << size_with_unit(stbuf.f_blocks)
        << std::endl;
+    os << "compressed block size: "
+       << size_with_unit(fsinfo.compressed_block_size)
+       << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
+                                         fsinfo.uncompressed_block_size)
+       << std::endl;
+    os << "uncompressed block size: "
+       << size_with_unit(fsinfo.uncompressed_block_size) << std::endl;
+    os << "compressed metadata size: "
+       << size_with_unit(fsinfo.compressed_metadata_size)
+       << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_metadata_size) /
+                                         fsinfo.uncompressed_metadata_size)
+       << std::endl;
+    os << "uncompressed metadata size: "
+       << size_with_unit(fsinfo.uncompressed_metadata_size) << std::endl;
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       auto boolopt = [&](auto const& name, bool value) {

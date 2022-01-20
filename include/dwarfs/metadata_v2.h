@@ -48,6 +48,8 @@ class logger;
 
 struct metadata_options;
 
+struct filesystem_info;
+
 namespace thrift::metadata {
 class metadata;
 }
@@ -63,9 +65,9 @@ class metadata_v2 {
   metadata_v2& operator=(metadata_v2&&) = default;
 
   void
-  dump(std::ostream& os, int detail_level,
+  dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
        std::function<void(const std::string&, uint32_t)> const& icb) const {
-    impl_->dump(os, detail_level, icb);
+    impl_->dump(os, detail_level, fsinfo, icb);
   }
 
   folly::dynamic as_dynamic() const { return impl_->as_dynamic(); }
@@ -141,7 +143,7 @@ class metadata_v2 {
     virtual ~impl() = default;
 
     virtual void dump(
-        std::ostream& os, int detail_level,
+        std::ostream& os, int detail_level, filesystem_info const& fsinfo,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
     virtual folly::dynamic as_dynamic() const = 0;
