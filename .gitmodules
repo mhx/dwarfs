@@ -3,7 +3,7 @@
 	url = https://github.com/facebook/folly
 [submodule "fbthrift"]
 	path = fbthrift
-	url = https://github.com/facebook/fbthrift/
+	url = https://github.com/facebook/fbthrift
 [submodule "zstd"]
 	path = zstd
 	url = https://github.com/facebook/zstd
