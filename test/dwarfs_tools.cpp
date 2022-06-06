@@ -249,11 +249,19 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(std::filesystem::create_directory(mountpoint));
 
-  std::vector<std::filesystem::path> drivers;
-  drivers.push_back(fuse3_bin);
+  bool w_fuse3 = (system("fusermount3 -V") == 0);
+  bool w_fuse2 = !w_fuse3 && (system("fusermount -V") == 0);
 
+  std::vector<std::filesystem::path> drivers;
+  if (std::filesystem::exists(fuse3_bin)) {
+    if (w_fuse3) {
+      drivers.push_back(fuse3_bin);
+    }
+  }
   if (std::filesystem::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
+    if (w_fuse2) {
+      drivers.push_back(fuse2_bin);
+    }
   }
 
   std::vector<std::string> all_options{

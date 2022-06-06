@@ -27,7 +27,7 @@
 #include <memory>
 #include <string>
 
-#include <bits/types/struct_iovec.h>
+#include <sys/uio.h>
 
 #include <folly/small_vector.h>
 

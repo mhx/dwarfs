@@ -37,6 +37,6 @@
 #endif
 #endif
 
-#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__)
+#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__) && defined(__gnu_linux__) && !defined(__musl__)
 #define DWARFS_MULTIVERSIONING 1
 #endif

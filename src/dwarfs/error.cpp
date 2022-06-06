@@ -33,6 +33,13 @@
 #include "dwarfs/error.h"
 
 namespace dwarfs {
+error::error(std::string const& s, char const* file, int line) noexcept
+      : what_(s)
+      , file_(file)
+      , line_(line) {}
+
+runtime_error::runtime_error(std::string const& s, char const* file, int line) noexcept
+      : error(s, file, line) {}
 
 system_error::system_error(char const* file, int line) noexcept
     : system_error(errno, file, line) {}

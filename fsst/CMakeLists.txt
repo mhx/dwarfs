@@ -27,8 +27,8 @@ else()
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL Release)
-set_source_files_properties( 
-    fsst_avx512.cpp 
+set_source_files_properties(
+    fsst_avx512.cpp
     PROPERTIES
     COMPILE_FLAGS -O1
 )

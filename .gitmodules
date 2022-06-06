@@ -1,9 +1,6 @@
 [submodule "folly"]
 	path = folly
 	url = https://github.com/facebook/folly
-[submodule "fbthrift"]
-	path = fbthrift
-	url = https://github.com/facebook/fbthrift
 [submodule "zstd"]
 	path = zstd
 	url = https://github.com/facebook/zstd
@@ -13,3 +10,6 @@
 [submodule "parallel-hashmap"]
 	path = parallel-hashmap
 	url = https://github.com/greg7mdp/parallel-hashmap
+[submodule "tools"]
+	path = tools
+	url = https://github.com/tamatebako/macos-cross-compile

@@ -1,0 +1,124 @@
+# Copyright (c) 2022, [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# The purpose of this workflow is to check that build procedures work correctly
+# in specific environment. Due to this reason there is no caching. It is done by
+# intention. All caching is in upstream projects.
+#
+# Also this file contains comments that will be useful is dwarfs has to be build
+# in different environment, not GHA.
+name: Alpine
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/alpine.yml'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/alpine.yml'
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: alpine:latest [${{ matrix.env.CC }}, ${{ matrix.setup.scope }}]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+#  We are running two configurations:
+#   - ALL in order to run regression tests
+#   - MKD just to be sure that it build ok
+        setup:
+          - scope: 'ALL'
+            tests: 'ON'
+          - scope: 'MKD'
+            tests: 'OFF'
+        env:
+          - CC: gcc
+            CXX: g++
+          - CC: clang
+            CXX: clang++
+    env: ${{ matrix.env }}
+    container:
+      image: alpine:latest
+
+    steps:
+      - name: Install packages
+        run: |
+          apk --no-cache --upgrade add cmake git bash build-base   \
+            autoconf boost-static boost-dev fmt-dev flex-dev bison \
+            binutils-dev libarchive-dev libevent-dev acl-dev       \
+            double-conversion-dev lz4-dev openssl-dev xz-dev       \
+            libunwind-dev libdwarf-dev glog-dev elfutils-dev       \
+            fuse3-dev clang-dev
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Declare directory safe
+        run: git config --global --add safe.directory "$(pwd)"
+
+      - name: Patch system includes
+        if: ${{ matrix.env.CC == 'clang' }}
+        run: tools/ci-scripts/patch-system-includes.sh
+
+      - name: Build libjemalloc
+        run: |
+          wget -q https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2
+          tar -xf jemalloc-5.2.1.tar.bz2
+          cd jemalloc-5.2.1
+          ./configure
+          make -j4
+          make install
+
+      - name: Configure
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DWITH_TESTS=${{ matrix.setup.tests }} -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
+
+      - name: Build
+        run: |
+          cd build
+          make -j4
+
+      - name: Test
+        if: ${{ matrix.setup.tests == 'ON' }}
+        run: |
+          cd build
+          make test

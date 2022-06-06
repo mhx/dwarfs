@@ -45,9 +45,51 @@
 #include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
 
+#if __MACH__
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_info.h>
+#include <mach/mach_vm.h>
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
+#include <mach/thread_act.h>
+#endif
+
 namespace dwarfs {
 
 namespace {
+
+static int getrusage_thread(struct rusage *rusage)
+{
+    int ret = -1;
+#if __MACH__
+    thread_basic_info_data_t info;
+    memset(&info, 0, sizeof(info));
+    mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
+    kern_return_t kern_err;
+
+    mach_port_t port = mach_thread_self();
+    kern_err = thread_info(port,
+                           THREAD_BASIC_INFO,
+                           (thread_info_t)&info,
+                           &info_count);
+    mach_port_deallocate(mach_task_self(), port);
+
+    if (kern_err == KERN_SUCCESS) {
+        memset(rusage, 0, sizeof(struct rusage));
+        rusage->ru_utime.tv_sec = info.user_time.seconds;
+        rusage->ru_utime.tv_usec = info.user_time.microseconds;
+        rusage->ru_stime.tv_sec = info.system_time.seconds;
+        rusage->ru_stime.tv_usec = info.system_time.microseconds;
+        ret = 0;
+    } else {
+        errno = EINVAL;
+    }
+#else
+    ret = getrusage(RUSAGE_THREAD, rusage);
+#endif
+    return ret;
+}
 
 pthread_t std_to_pthread_id(std::thread::id tid) {
   static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
@@ -177,14 +219,25 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     double t = 0.0;
 
     for (auto const& w : workers_) {
+#if __MACH__
+//  https://www.programcreek.com/cpp/?CodeExample=thread+cpu+usage
+      mach_msg_type_number_t count;
+      thread_basic_info_data_t info;
+      count = THREAD_BASIC_INFO_COUNT;
+      mach_port_t thread = pthread_mach_thread_np(std_to_pthread_id(w.get_id()));
+      if (::thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count) == KERN_SUCCESS) {
+        t += info.user_time.seconds + info.user_time.microseconds * 1e-6;
+        t += info.system_time.seconds + info.system_time.microseconds * 1e-6;
+      }
+#else
       ::clockid_t cid;
       struct ::timespec ts;
       if (::pthread_getcpuclockid(std_to_pthread_id(w.get_id()), &cid) == 0 &&
           ::clock_gettime(cid, &ts) == 0) {
         t += ts.tv_sec + 1e-9 * ts.tv_nsec;
       }
+#endif
     }
-
     return t;
   }
 
@@ -258,7 +311,7 @@ class load_adaptive_policy {
       policy_->start_task();
 
       struct rusage usage;
-      getrusage(RUSAGE_THREAD, &usage);
+      getrusage_thread(&usage);
       utime_ = usage.ru_utime;
       stime_ = usage.ru_stime;
       clock_gettime(CLOCK_MONOTONIC, &wall_);
@@ -290,7 +343,7 @@ class load_adaptive_policy {
 
 load_adaptive_policy::task::~task() {
   struct rusage usage;
-  getrusage(RUSAGE_THREAD, &usage);
+  getrusage_thread(&usage);
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
 

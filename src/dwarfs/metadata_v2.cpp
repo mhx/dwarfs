@@ -40,8 +40,13 @@
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
+#include <fmt/core.h>
 #include <fmt/format.h>
+#if FMT_VERSION>=80000
+#include <fmt/xchar.h>
+#else
 #include <fmt/locale.h>
+#endif
 
 #include <folly/container/F14Set.h>
 
