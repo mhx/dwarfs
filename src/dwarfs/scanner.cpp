@@ -100,7 +100,7 @@ class file_scanner {
 
     p->create_data();
 
-    wg_.add_job([=] {
+    wg_.add_job([this, p] {
       auto const size = p->size();
       std::shared_ptr<mmif> mm;
 
