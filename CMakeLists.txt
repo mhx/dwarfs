@@ -678,7 +678,7 @@ if(STATIC_BUILD_DO_NOT_USE)
     ${_LIBARCHIVE_PRJ}
     PREFIX "${PROJECT_BINARY_DIR}/libarchive"
     GIT_REPOSITORY "https://github.com/libarchive/libarchive.git"
-    GIT_TAG "v3.5.1"
+    GIT_TAG "v3.6.1"
     CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS}
                -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive
                -DCMAKE_BUILD_TYPE=Release
