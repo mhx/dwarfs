@@ -13,6 +13,7 @@ A fast high compression read-only file system
   - [Building](#building)
   - [Installing](#installing)
   - [Experimental Python Scripting Support](#experimental-python-scripting-support)
+  - [Static Builds](#static-builds)
 - [Usage](#usage)
 - [Comparison](#comparison)
   - [With SquashFS](#with-squashfs)
