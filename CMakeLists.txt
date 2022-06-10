@@ -81,6 +81,9 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(GFLAGS_SHARED
       OFF
       CACHE BOOL "static")
+  set(FOLLY_NO_EXCEPTION_TRACER
+      ON
+      CACHE BOOL "disable exception tracer")
 endif()
 
 list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
