@@ -23,7 +23,12 @@
 #include <iostream>
 #include <string>
 
+#if __has_include(<sys/statvfs.h>)
 #include <sys/statvfs.h>
+#define HAVE_STATVFS 1
+#else
+#define HAVE_STATVFS 0
+#endif
 
 #include <boost/program_options.hpp>
 
@@ -113,6 +118,7 @@ int dwarfsextract(int argc, char** argv) {
 
     size_t max_queued_bytes = 0;
 
+#if HAVE_STATVFS
     {
       struct ::statvfs buf;
       fs.statvfs(&buf);
@@ -120,6 +126,9 @@ int dwarfsextract(int argc, char** argv) {
         max_queued_bytes = fsopts.block_cache.max_bytes - buf.f_bsize;
       }
     }
+#else
+    max_queued_bytes = fsopts.block_cache.max_bytes;
+#endif
 
     if (format.empty()) {
       fsx.open_disk(output);
