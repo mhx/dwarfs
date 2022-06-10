@@ -114,6 +114,9 @@ const std::map<std::string, uint32_t> time_resolutions{
     {"day", 86400},
 };
 
+constexpr size_t min_block_size_bits{10};
+constexpr size_t max_block_size_bits{30};
+
 } // namespace
 
 namespace dwarfs {
@@ -364,7 +367,7 @@ int mkdwarfs(int argc, char** argv) {
         "compression level (0=fast, 9=best, please see man page for details)")
     ("block-size-bits,S",
         po::value<unsigned>(&cfg.block_size_bits),
-        "block size bits (size = 2^bits)")
+        "block size bits (size = 2^arg bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of scanner/writer worker threads")
@@ -571,6 +574,13 @@ int mkdwarfs(int argc, char** argv) {
 
   if (!vm.count("order")) {
     order = defaults.order;
+  }
+
+  if (cfg.block_size_bits < min_block_size_bits ||
+      cfg.block_size_bits > max_block_size_bits) {
+    std::cerr << "error: block size must be between " << min_block_size_bits
+              << " and " << max_block_size_bits << std::endl;
+    return 1;
   }
 
   bool recompress = vm.count("recompress");
@@ -829,13 +839,13 @@ int mkdwarfs(int argc, char** argv) {
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 
-  size_t min_memory_req = num_workers * (1 << cfg.block_size_bits);
+  auto min_memory_req = num_workers * (UINT64_C(1) << cfg.block_size_bits);
 
   if (mem_limit < min_memory_req && compression != "null") {
     LOG_WARN << "low memory limit (" << size_with_unit(mem_limit) << "), need "
              << size_with_unit(min_memory_req) << " to efficiently compress "
-             << size_with_unit(1 << cfg.block_size_bits) << " blocks with "
-             << num_workers << " threads";
+             << size_with_unit(UINT64_C(1) << cfg.block_size_bits)
+             << " blocks with " << num_workers << " threads";
   }
 
   filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
