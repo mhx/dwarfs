@@ -239,6 +239,38 @@ Note that only Python 3 is supported. You can take a look at
 [scripts/example.py](scripts/example.py) to get an idea for
 what can currently be done with the interface.
 
+### Static Builds
+
+Attempting to build statically linked binaries is highly discouraged
+and not officially supported. That being said, here's how to set up
+an environment where you *might* be able to build static binaries.
+
+This has been tested with `ubuntu-22.04-live-server-amd64.iso`. First,
+install all the packages listed as dependencies above. Also install:
+
+```
+$ apt install ccache ninja libacl1-dev
+```
+
+`ccache` and `ninja` are optional, but help with a speedy compile.
+Next, we need to build and install a static library for libfmt:
+
+```
+$ git clone https://github.com/fmtlib/fmt
+$ cd fmt && mkdir build && cd build
+$ cmake .. -GNinja && ninja && sudo ninja install
+```
+
+That's it! Now you can try building static binaries for DwarFS:
+
+```
+$ git clone --recurse-submodules https://github.com/mhx/dwarfs
+$ cd dwarfs && mkdir build && cd build
+$ cmake .. -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 -GNinja
+$ ninja
+$ ninja test
+```
+
 ## Usage
 
 Please check out the man pages for [mkdwarfs](doc/mkdwarfs.md),
