@@ -318,7 +318,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS)
   add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
                            test/loremipsum.cpp)
   target_link_libraries(test_helpers dwarfs folly)
-  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 17)
+  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
 if(WITH_TESTS)
@@ -498,7 +498,7 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
-set_property(TARGET thrift_light PROPERTY CXX_STANDARD 17)
+set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
 
 target_include_directories(thrift_light PRIVATE ${INCLUDE_DIRS})
 
@@ -508,7 +508,7 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp)
 
-set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 17)
+set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 20)
 
 target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
@@ -537,7 +537,7 @@ foreach(tgt dwarfs ${BINARY_TARGETS})
 
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
 
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 17)
+  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
