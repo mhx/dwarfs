@@ -311,7 +311,7 @@ class save_directories_visitor : public visitor_base {
   void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
     for (auto p : directories_) {
       if (!p->has_parent()) {
-        p->set_entry_index(mv2.dir_entries_ref()->size());
+        p->set_entry_index(mv2.dir_entries()->size());
         p->pack_entry(mv2, ge_data);
       }
 
@@ -319,9 +319,9 @@ class save_directories_visitor : public visitor_base {
     }
 
     thrift::metadata::directory dummy;
-    dummy.parent_entry = 0;
-    dummy.first_entry = mv2.dir_entries_ref()->size();
-    mv2.directories.push_back(dummy);
+    dummy.parent_entry() = 0;
+    dummy.first_entry() = mv2.dir_entries()->size();
+    mv2.directories()->push_back(dummy);
 
     directories_.clear();
   }
@@ -627,13 +627,13 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
 
-  mv2.symlink_table.resize(first_file_inode - first_link_inode);
+  mv2.symlink_table()->resize(first_file_inode - first_link_inode);
 
   LOG_INFO << "assigning device inodes...";
   uint32_t first_pipe_inode = first_device_inode;
   device_set_inode_visitor devsiv(first_pipe_inode);
   root->accept(devsiv);
-  mv2.devices_ref() = std::move(devsiv.device_ids());
+  mv2.devices() = std::move(devsiv.device_ids());
 
   LOG_INFO << "assigning pipe/socket inodes...";
   uint32_t last_inode = first_pipe_inode;
@@ -653,8 +653,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        DWARFS_NOTHROW(
-            mv2.symlink_table.at(ep->inode_num().value() - first_link_inode)) =
+        DWARFS_NOTHROW(mv2.symlink_table()->at(ep->inode_num().value() -
+                                               first_link_inode)) =
             ge_data.get_symlink_table_entry(lp->linkname());
       }
     });
@@ -699,25 +699,25 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   root->set_name(std::string());
 
   LOG_INFO << "saving chunks...";
-  mv2.chunk_table.resize(im.count() + 1);
+  mv2.chunk_table()->resize(im.count() + 1);
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
   im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
-    DWARFS_NOTHROW(mv2.chunk_table.at(ino->num())) = mv2.chunks.size();
-    ino->append_chunks_to(mv2.chunks);
+    DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = mv2.chunks()->size();
+    ino->append_chunks_to(mv2.chunks().value());
   });
 
   // insert dummy inode to help determine number of chunks per inode
-  DWARFS_NOTHROW(mv2.chunk_table.at(im.count())) = mv2.chunks.size();
+  DWARFS_NOTHROW(mv2.chunk_table()->at(im.count())) = mv2.chunks()->size();
 
   LOG_DEBUG << "total number of unique files: " << im.count();
-  LOG_DEBUG << "total number of chunks: " << mv2.chunks.size();
+  LOG_DEBUG << "total number of chunks: " << mv2.chunks()->size();
 
   LOG_INFO << "saving directories...";
-  mv2.dir_entries_ref() = std::vector<thrift::metadata::dir_entry>();
-  mv2.inodes.resize(last_inode);
-  mv2.directories.reserve(first_link_inode + 1);
+  mv2.dir_entries() = std::vector<thrift::metadata::dir_entry>();
+  mv2.inodes()->resize(last_inode);
+  mv2.directories()->reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
   sdv.pack(mv2, ge_data);
@@ -726,18 +726,19 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     // pack directories
     uint32_t last_first_entry = 0;
 
-    for (auto& d : mv2.directories) {
-      d.parent_entry = 0; // this will be recovered
-      auto delta = d.first_entry - last_first_entry;
-      last_first_entry = d.first_entry;
-      d.first_entry = delta;
+    for (auto& d : mv2.directories().value()) {
+      d.parent_entry() = 0; // this will be recovered
+      auto delta = d.first_entry().value() - last_first_entry;
+      last_first_entry = d.first_entry().value();
+      d.first_entry() = delta;
     }
   }
 
   if (options_.pack_chunk_table) {
     // delta-compress chunk table
-    std::adjacent_difference(mv2.chunk_table.begin(), mv2.chunk_table.end(),
-                             mv2.chunk_table.begin());
+    std::adjacent_difference(mv2.chunk_table()->begin(),
+                             mv2.chunk_table()->end(),
+                             mv2.chunk_table()->begin());
   }
 
   LOG_INFO << "saving shared files table...";
@@ -747,22 +748,22 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   if (options_.pack_shared_files_table) {
     ssfv.pack_shared_files();
   }
-  mv2.shared_files_table_ref() = std::move(ssfv.get_shared_files());
+  mv2.shared_files_table() = std::move(ssfv.get_shared_files());
 
   thrift::metadata::fs_options fsopts;
-  fsopts.mtime_only = !options_.keep_all_times;
+  fsopts.mtime_only() = !options_.keep_all_times;
   if (options_.time_resolution_sec > 1) {
-    fsopts.time_resolution_sec_ref() = options_.time_resolution_sec;
+    fsopts.time_resolution_sec() = options_.time_resolution_sec;
   }
-  fsopts.packed_chunk_table = options_.pack_chunk_table;
-  fsopts.packed_directories = options_.pack_directories;
-  fsopts.packed_shared_files_table = options_.pack_shared_files_table;
+  fsopts.packed_chunk_table() = options_.pack_chunk_table;
+  fsopts.packed_directories() = options_.pack_directories;
+  fsopts.packed_shared_files_table() = options_.pack_shared_files_table;
 
   if (options_.plain_names_table) {
-    mv2.names = ge_data.get_names();
+    mv2.names() = ge_data.get_names();
   } else {
     auto ti = LOG_TIMED_INFO;
-    mv2.compact_names_ref() = string_table::pack(
+    mv2.compact_names() = string_table::pack(
         ge_data.get_names(), string_table::pack_options(
                                  options_.pack_names, options_.pack_names_index,
                                  options_.force_pack_string_tables));
@@ -770,10 +771,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   }
 
   if (options_.plain_symlinks_table) {
-    mv2.symlinks = ge_data.get_symlinks();
+    mv2.symlinks() = ge_data.get_symlinks();
   } else {
     auto ti = LOG_TIMED_INFO;
-    mv2.compact_symlinks_ref() = string_table::pack(
+    mv2.compact_symlinks() = string_table::pack(
         ge_data.get_symlinks(),
         string_table::pack_options(options_.pack_symlinks,
                                    options_.pack_symlinks_index,
@@ -781,16 +782,16 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
     ti << "saving symlinks table...";
   }
 
-  mv2.uids = ge_data.get_uids();
-  mv2.gids = ge_data.get_gids();
-  mv2.modes = ge_data.get_modes();
-  mv2.timestamp_base = ge_data.get_timestamp_base();
-  mv2.block_size = UINT32_C(1) << cfg_.block_size_bits;
-  mv2.total_fs_size = prog.original_size;
-  mv2.total_hardlink_size_ref() = prog.hardlink_size;
-  mv2.options_ref() = fsopts;
-  mv2.dwarfs_version_ref() = std::string("libdwarfs ") + PRJ_GIT_ID;
-  mv2.create_timestamp_ref() = std::time(nullptr);
+  mv2.uids() = ge_data.get_uids();
+  mv2.gids() = ge_data.get_gids();
+  mv2.modes() = ge_data.get_modes();
+  mv2.timestamp_base() = ge_data.get_timestamp_base();
+  mv2.block_size() = UINT32_C(1) << cfg_.block_size_bits;
+  mv2.total_fs_size() = prog.original_size;
+  mv2.total_hardlink_size() = prog.hardlink_size;
+  mv2.options() = fsopts;
+  mv2.dwarfs_version() = std::string("libdwarfs ") + PRJ_GIT_ID;
+  mv2.create_timestamp() = std::time(nullptr);
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 

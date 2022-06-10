@@ -165,9 +165,9 @@ class inode_ : public inode {
 
   void add_chunk(size_t block, size_t offset, size_t size) override {
     chunk_type c;
-    c.block = block;
-    c.offset = offset;
-    c.size = size;
+    c.block() = block;
+    c.offset() = offset;
+    c.size() = size;
     chunks_.push_back(c);
   }
 

@@ -41,7 +41,6 @@
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
-#include <fmt/locale.h>
 
 #include <folly/container/F14Set.h>
 
@@ -100,23 +99,23 @@ void check_schema(folly::ByteRange data) {
   if (schemaSize != data.size()) {
     DWARFS_THROW(runtime_error, "invalid schema size");
   }
-  if (schema.layouts_ref()->count(*schema.rootLayout_ref()) == 0) {
+  if (schema.layouts()->count(*schema.rootLayout()) == 0) {
     DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
   }
-  for (auto const& kvl : *schema.layouts_ref()) {
+  for (auto const& kvl : *schema.layouts()) {
     auto const& layout = kvl.second;
-    if (kvl.first >= static_cast<int64_t>(schema.layouts_ref()->size())) {
+    if (kvl.first >= static_cast<int64_t>(schema.layouts()->size())) {
       DWARFS_THROW(runtime_error, "invalid layout key in schema");
     }
-    if (*layout.size_ref() < 0) {
+    if (*layout.size() < 0) {
       DWARFS_THROW(runtime_error, "negative size in schema");
     }
-    if (*layout.bits_ref() < 0) {
+    if (*layout.bits() < 0) {
       DWARFS_THROW(runtime_error, "negative bits in schema");
     }
-    for (auto const& kvf : *layout.fields_ref()) {
+    for (auto const& kvf : *layout.fields()) {
       auto const& field = kvf.second;
-      if (schema.layouts_ref()->count(*field.layoutId_ref()) == 0) {
+      if (schema.layouts()->count(*field.layoutId()) == 0) {
         DWARFS_THROW(runtime_error, "invalid layoutId in field");
       }
     }
@@ -980,27 +979,27 @@ template <typename LoggerPolicy>
 thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
   auto meta = meta_.thaw();
 
-  if (auto opts = meta.options_ref()) {
-    if (opts->packed_chunk_table) {
-      meta.chunk_table = chunk_table_;
+  if (auto opts = meta.options()) {
+    if (opts->packed_chunk_table().value()) {
+      meta.chunk_table() = chunk_table_;
     }
-    if (opts->packed_directories) {
-      meta.directories = global_.directories();
+    if (opts->packed_directories().value()) {
+      meta.directories() = global_.directories();
     }
-    if (opts->packed_shared_files_table) {
-      meta.shared_files_table_ref() = shared_files_;
+    if (opts->packed_shared_files_table().value()) {
+      meta.shared_files_table() = shared_files_;
     }
     if (auto const& names = global_.names(); names.is_packed()) {
-      meta.names = names.unpack();
-      meta.compact_names_ref().reset();
+      meta.names() = names.unpack();
+      meta.compact_names().reset();
     }
     if (symlinks_.is_packed()) {
-      meta.symlinks = symlinks_.unpack();
-      meta.compact_symlinks_ref().reset();
+      meta.symlinks() = symlinks_.unpack();
+      meta.compact_symlinks().reset();
     }
-    opts->packed_chunk_table = false;
-    opts->packed_directories = false;
-    opts->packed_shared_files_table = false;
+    opts->packed_chunk_table() = false;
+    opts->packed_directories() = false;
+    opts->packed_shared_files_table() = false;
   }
 
   return meta;

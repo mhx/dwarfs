@@ -51,11 +51,11 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
     directories.resize(metadir.size());
 
     // delta-decode first entries first
-    directories[0].first_entry = metadir[0].first_entry();
+    directories[0].first_entry() = metadir[0].first_entry();
 
     for (size_t i = 1; i < directories.size(); ++i) {
-      directories[i].first_entry =
-          directories[i - 1].first_entry + metadir[i].first_entry();
+      directories[i].first_entry() =
+          directories[i - 1].first_entry().value() + metadir[i].first_entry();
     }
 
     // then traverse to recover parent entries
@@ -68,13 +68,13 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
 
       auto p_ino = dirent[parent].inode_num();
 
-      auto beg = directories[p_ino].first_entry;
-      auto end = directories[p_ino + 1].first_entry;
+      auto beg = directories[p_ino].first_entry().value();
+      auto end = directories[p_ino + 1].first_entry().value();
 
       for (auto e = beg; e < end; ++e) {
         if (auto e_ino = dirent[e].inode_num();
             e_ino < (directories.size() - 1)) {
-          directories[e_ino].parent_entry = parent;
+          directories[e_ino].parent_entry() = parent;
           queue.push(e);
         }
       }
@@ -523,12 +523,12 @@ global_metadata::global_metadata(logger& lgr, Meta const* meta,
                  : string_table(meta_->names())} {}
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].first_entry
+  return directories_ ? directories_[ino].first_entry().value()
                       : meta_->directories()[ino].first_entry();
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].parent_entry
+  return directories_ ? directories_[ino].parent_entry().value()
                       : meta_->directories()[ino].parent_entry();
 }
 

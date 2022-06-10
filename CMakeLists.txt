@@ -151,6 +151,12 @@ set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
 
+# TODO: this is due to a bug in fbthrift's CMakeLists.txt
+find_package(fmt CONFIG REQUIRED)
+
+# TODO: this is due to a bug in folly's Portability.h
+add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
+
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))

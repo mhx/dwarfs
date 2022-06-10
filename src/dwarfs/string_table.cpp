@@ -270,26 +270,26 @@ string_table::pack_generic(folly::Range<T const*> input,
                  "string table compression pointer mismatch");
 
     buffer.resize(compressed_size);
-    output.buffer.swap(buffer);
-    output.symtab_ref() = std::move(symtab);
-    output.index.resize(size);
-    std::copy(out_len_vec.begin(), out_len_vec.end(), output.index.begin());
+    output.buffer()->swap(buffer);
+    output.symtab() = std::move(symtab);
+    output.index()->resize(size);
+    std::copy(out_len_vec.begin(), out_len_vec.end(), output.index()->begin());
   } else {
     // store uncompressed
-    output.buffer.reserve(total_input_size);
-    output.index.reserve(size);
+    output.buffer()->reserve(total_input_size);
+    output.index()->reserve(size);
     for (auto const& s : input) {
-      output.buffer += s;
-      output.index.emplace_back(s.size());
+      output.buffer().value() += s;
+      output.index()->emplace_back(s.size());
     }
   }
 
-  output.packed_index = options.pack_index;
+  output.packed_index() = options.pack_index;
 
   if (!options.pack_index) {
-    output.index.insert(output.index.begin(), 0);
-    std::partial_sum(output.index.begin(), output.index.end(),
-                     output.index.begin());
+    output.index()->insert(output.index()->begin(), 0);
+    std::partial_sum(output.index()->begin(), output.index()->end(),
+                     output.index()->begin());
   }
 
   return output;

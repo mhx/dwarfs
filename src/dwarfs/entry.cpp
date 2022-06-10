@@ -103,12 +103,12 @@ void entry::update(global_entry_data& data) const {
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
-  entry_v2.mode_index = data.get_mode_index(stat_.st_mode & 0xFFFF);
-  entry_v2.owner_index = data.get_uid_index(stat_.st_uid);
-  entry_v2.group_index = data.get_gid_index(stat_.st_gid);
-  entry_v2.atime_offset = data.get_atime_offset(stat_.st_atime);
-  entry_v2.mtime_offset = data.get_mtime_offset(stat_.st_mtime);
-  entry_v2.ctime_offset = data.get_ctime_offset(stat_.st_ctime);
+  entry_v2.mode_index() = data.get_mode_index(stat_.st_mode & 0xFFFF);
+  entry_v2.owner_index() = data.get_uid_index(stat_.st_uid);
+  entry_v2.group_index() = data.get_gid_index(stat_.st_gid);
+  entry_v2.atime_offset() = data.get_atime_offset(stat_.st_atime);
+  entry_v2.mtime_offset() = data.get_mtime_offset(stat_.st_mtime);
+  entry_v2.ctime_offset() = data.get_ctime_offset(stat_.st_ctime);
 }
 
 entry::type_t file::type() const { return E_FILE; }
@@ -265,10 +265,10 @@ void dir::scan(os_access&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
-  auto& de = mv2.dir_entries_ref()->emplace_back();
-  de.name_index = has_parent() ? data.get_name_index(name()) : 0;
-  de.inode_num = DWARFS_NOTHROW(inode_num().value());
-  entry::pack(DWARFS_NOTHROW(mv2.inodes.at(de.inode_num)), data);
+  auto& de = mv2.dir_entries()->emplace_back();
+  de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
+  de.inode_num() = DWARFS_NOTHROW(inode_num().value());
+  entry::pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
@@ -279,18 +279,18 @@ void dir::pack(thrift::metadata::metadata& mv2,
     DWARFS_CHECK(pd, "unexpected parent entry (not a directory)");
     auto pe = pd->entry_index();
     DWARFS_CHECK(pe, "parent entry index not set");
-    d.parent_entry = *pe;
+    d.parent_entry() = *pe;
   } else {
-    d.parent_entry = 0;
+    d.parent_entry() = 0;
   }
-  d.first_entry = mv2.dir_entries_ref()->size();
-  mv2.directories.push_back(d);
+  d.first_entry() = mv2.dir_entries()->size();
+  mv2.directories()->push_back(d);
   for (entry_ptr const& e : entries_) {
-    e->set_entry_index(mv2.dir_entries_ref()->size());
-    auto& de = mv2.dir_entries_ref()->emplace_back();
-    de.name_index = data.get_name_index(e->name());
-    de.inode_num = DWARFS_NOTHROW(e->inode_num().value());
-    e->pack(DWARFS_NOTHROW(mv2.inodes.at(de.inode_num)), data);
+    e->set_entry_index(mv2.dir_entries()->size());
+    auto& de = mv2.dir_entries()->emplace_back();
+    de.name_index() = data.get_name_index(e->name());
+    de.inode_num() = DWARFS_NOTHROW(e->inode_num().value());
+    e->pack(DWARFS_NOTHROW(mv2.inodes()->at(de.inode_num().value())), data);
   }
 }
 
