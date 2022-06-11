@@ -42,6 +42,9 @@ addons:
 
 cache: ccache
 
+git:
+  depth: false
+
 branches:
   only:
   - main
