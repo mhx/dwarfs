@@ -26,6 +26,7 @@ option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_PYTHON "build with Python scripting support" OFF)
 option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
+option(WITH_MAN_PAGES "build man pages using ronn" ON)
 option(ENABLE_ASAN "enable address sanitizer" OFF)
 option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
@@ -86,35 +87,37 @@ if(STATIC_BUILD_DO_NOT_USE)
       CACHE BOOL "disable exception tracer")
 endif()
 
-find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+if(WITH_MAN_PAGES)
+  find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
 
-foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
-  string(REGEX MATCH "^[^.]*" docname "${man}")
-  string(REGEX MATCH "[^.]*$" section "${man}")
-  set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
-  set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
-  set(man_output "${man_dir}/${man}")
+  foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
+    string(REGEX MATCH "^[^.]*" docname "${man}")
+    string(REGEX MATCH "[^.]*$" section "${man}")
+    set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
+    set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
+    set(man_output "${man_dir}/${man}")
 
-  execute_process(
-    COMMAND ${RONN_EXE}
-    INPUT_FILE "${man_input}"
-    RESULT_VARIABLE ronn_result
-    OUTPUT_VARIABLE ronn_output
-    ERROR_VARIABLE ronn_error)
+    execute_process(
+      COMMAND ${RONN_EXE}
+      INPUT_FILE "${man_input}"
+      RESULT_VARIABLE ronn_result
+      OUTPUT_VARIABLE ronn_output
+      ERROR_VARIABLE ronn_error)
 
-  if(${ronn_result} EQUAL 0)
-    add_custom_command(
-      OUTPUT "${man_output}"
-      COMMAND mkdir -p "${man_dir}"
-      COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
-      DEPENDS "${man_input}")
-    list(APPEND MAN_PAGES "${man_output}")
-    list(APPEND MAN_DIRS "${man_dir}")
-  else()
-    message(WARNING "${RONN_EXE} failed to process ${man_input} -> ${man}")
-    message(WARNING "error: ${ronn_error}")
-  endif()
-endforeach()
+    if(${ronn_result} EQUAL 0)
+      add_custom_command(
+        OUTPUT "${man_output}"
+        COMMAND mkdir -p "${man_dir}"
+        COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
+        DEPENDS "${man_input}")
+      list(APPEND MAN_PAGES "${man_output}")
+      list(APPEND MAN_DIRS "${man_dir}")
+    else()
+      message(WARNING "${RONN_EXE} failed to process ${man_input} -> ${man}")
+      message(WARNING "error: ${ronn_error}")
+    endif()
+  endforeach()
+endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   find_package(fmt 8 CONFIG)
@@ -413,9 +416,11 @@ if(WITH_BENCHMARKS)
   list(APPEND BINARY_TARGETS dwarfs_benchmark)
 endif()
 
-list(REMOVE_DUPLICATES MAN_DIRS)
-add_custom_target(manpages DEPENDS ${MAN_PAGES})
-add_dependencies(mkdwarfs manpages)
+if(WITH_MAN_PAGES)
+  list(REMOVE_DUPLICATES MAN_DIRS)
+  add_custom_target(manpages DEPENDS ${MAN_PAGES})
+  add_dependencies(mkdwarfs manpages)
+endif()
 
 list(
   APPEND
