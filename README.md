@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/mhx/dwarfs.svg?branch=main)](https://travis-ci.com/mhx/dwarfs)
+[![Build Status](https://app.travis-ci.com/mhx/dwarfs.svg?branch=main)](https://app.travis-ci.com/github/mhx/dwarfs)
 
 # DwarFS
 
