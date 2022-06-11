@@ -55,8 +55,8 @@ Distinct features of DwarFS are:
   using the compressed file system and thus potentially allows for
   higher cache hit rates as more data can be kept in the cache.
 
-- Highly multi-threaded implementation. Both the file
-  [system creation tool](doc/mkdwarfs.md) as well as the
+- Highly multi-threaded implementation. Both the
+  [file system creation tool](doc/mkdwarfs.md) as well as the
   [FUSE driver](doc/dwarfs.md) are able to make good use of the
   many cores of your system.
 
