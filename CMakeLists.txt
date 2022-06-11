@@ -86,6 +86,36 @@ if(STATIC_BUILD_DO_NOT_USE)
       CACHE BOOL "disable exception tracer")
 endif()
 
+find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+
+foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
+  string(REGEX MATCH "^[^.]*" docname "${man}")
+  string(REGEX MATCH "[^.]*$" section "${man}")
+  set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
+  set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
+  set(man_output "${man_dir}/${man}")
+
+  execute_process(
+    COMMAND ${RONN_EXE}
+    INPUT_FILE "${man_input}"
+    RESULT_VARIABLE ronn_result
+    OUTPUT_VARIABLE ronn_output
+    ERROR_VARIABLE ronn_error)
+
+  if(${ronn_result} EQUAL 0)
+    add_custom_command(
+      OUTPUT "${man_output}"
+      COMMAND mkdir -p "${man_dir}"
+      COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
+      DEPENDS "${man_input}")
+    list(APPEND MAN_PAGES "${man_output}")
+    list(APPEND MAN_DIRS "${man_dir}")
+  else()
+    message(WARNING "${RONN_EXE} failed to process ${man_input} -> ${man}")
+    message(WARNING "error: ${ronn_error}")
+  endif()
+endforeach()
+
 if(NOT STATIC_BUILD_DO_NOT_USE)
   find_package(fmt 8 CONFIG)
 endif()
@@ -164,8 +194,6 @@ if(WITH_TESTS)
   find_program(DIFF_BIN diff DOC "compare files line by line" REQUIRED)
   find_program(TAR_BIN tar DOC "an archiving utility" REQUIRED)
 endif()
-
-find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
 
 if(USE_JEMALLOC)
   find_package(Jemalloc REQUIRED)
@@ -384,33 +412,6 @@ if(WITH_BENCHMARKS)
   target_link_libraries(dwarfs_benchmark test_helpers PkgConfig::BENCHMARK)
   list(APPEND BINARY_TARGETS dwarfs_benchmark)
 endif()
-
-foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
-  string(REGEX MATCH "^[^.]*" docname "${man}")
-  string(REGEX MATCH "[^.]*$" section "${man}")
-  set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
-  set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
-  set(man_output "${man_dir}/${man}")
-
-  execute_process(
-    COMMAND ${RONN_EXE}
-    INPUT_FILE "${man_input}"
-    RESULT_VARIABLE ronn_result
-    OUTPUT_VARIABLE ronn_output
-    ERROR_VARIABLE ronn_error)
-
-  if(${ronn_result} EQUAL 0)
-    add_custom_command(
-      OUTPUT "${man_output}"
-      COMMAND mkdir -p "${man_dir}"
-      COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
-      DEPENDS "${man_input}")
-    list(APPEND MAN_PAGES "${man_output}")
-    list(APPEND MAN_DIRS "${man_dir}")
-  else()
-    message(WARNING "${RONN_EXE} failed to process ${man}")
-  endif()
-endforeach()
 
 list(REMOVE_DUPLICATES MAN_DIRS)
 add_custom_target(manpages DEPENDS ${MAN_PAGES})
