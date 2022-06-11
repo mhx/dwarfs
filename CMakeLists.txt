@@ -813,6 +813,7 @@ if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   set(CPACK_SOURCE_IGNORE_FILES "\\.git/" "${CMAKE_SOURCE_DIR}/build.*"
                                 "${CMAKE_SOURCE_DIR}/@" "/\\." ".*~$")
   set(CPACK_VERBATIM_VARIABLES YES)
+  set(CPACK_STRIP_FILES YES)
 
   include(CPack)
 endif()
