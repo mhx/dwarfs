@@ -1,5 +1,27 @@
 # Change Log
 
+## Version 0.6.0 - 2022-06-11
+
+- (fix) Fix and simplify static builds as much as possible.
+  Document how to set up a static build environment. This
+  also fixes github #75 and github #54. Huge shoutout to
+  Maxim Samsonov for implementing most of this!
+
+- (fix) Fix github #71: driver hangs when unmounting
+
+- (fix) Fix github #67: dwarfs I/O hangs if call to to
+  `fuse_reply_iov` fails
+
+- (fix) Fix github #86: block size bits config issues
+
+- (fix) Various build fixes.
+
+- (feature) Add support for cache tidying, which releases
+  cache memory when the mounted file system is unused.
+
+- (feature) Section index support for speeding up mount times
+  (fixes github #48).
+
 ## Version 0.5.6 - 2021-07-03
 
 - (fix) Build fixes for gcc-11
