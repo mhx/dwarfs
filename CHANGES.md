@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.6.1 - 2022-06-11
+
+- (fix) Fix binary installation
+
 ## Version 0.6.0 - 2022-06-11
 
 - (fix) Fix and simplify static builds as much as possible.
