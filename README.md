@@ -254,14 +254,6 @@ $ apt install ccache ninja libacl1-dev
 ```
 
 `ccache` and `ninja` are optional, but help with a speedy compile.
-Next, we need to build and install a static library for libfmt:
-
-```
-$ git clone https://github.com/fmtlib/fmt
-$ cd fmt && mkdir build && cd build
-$ cmake .. -GNinja && ninja && sudo ninja install
-```
-
 That's it! Now you can try building static binaries for DwarFS:
 
 ```

@@ -86,6 +86,31 @@ if(STATIC_BUILD_DO_NOT_USE)
       CACHE BOOL "disable exception tracer")
 endif()
 
+if(NOT STATIC_BUILD_DO_NOT_USE)
+  find_package(fmt 8 CONFIG)
+endif()
+
+if(STATIC_BUILD_DO_NOT_USE OR NOT fmt_FOUND)
+  configure_file(CMakeLists.txt.fmtlib fmtlib-download/CMakeLists.txt)
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+    RESULT_VARIABLE result
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fmtlib-download)
+  if(result)
+    message(FATAL_ERROR "CMake step for fmtlib failed: ${result}")
+  endif()
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} --build .
+    RESULT_VARIABLE result
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fmtlib-download)
+  if(result)
+    message(FATAL_ERROR "Build step for fmtlib failed: ${result}")
+  endif()
+  set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install;${CMAKE_PREFIX_PATH}")
+  include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install/include")
+  find_package(fmt 8 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
+endif()
+
 list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
 
 if(WITH_PYTHON)
@@ -153,9 +178,6 @@ set(ZSTD_INCLUDE_DIR
 set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
-
-# TODO: this is due to a bug in fbthrift's CMakeLists.txt
-find_package(fmt CONFIG REQUIRED)
 
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
@@ -771,7 +793,7 @@ add_custom_target(
     rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
     thrift zstd dwarfs* mkdwarfs mount.dwarfs mount.dwarfs2 lib*.a *.cmake
     googletest-* _CPack_Packages install_manifest.txt share build.ninja
-    compile_commands.json .ninja_* man1 man5 libarchive)
+    compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*)
 
 install(
   TARGETS ${BINARY_TARGETS}
