@@ -341,6 +341,8 @@ add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
 
+install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
+
 list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
 
 if(FUSE3_FOUND)
@@ -801,11 +803,6 @@ add_custom_target(
     googletest-* _CPack_Packages install_manifest.txt share build.ninja
     compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*)
 
-install(
-  TARGETS ${BINARY_TARGETS}
-  RUNTIME DESTINATION bin
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)
 foreach(man_dir ${MAN_DIRS})
   install(DIRECTORY "${man_dir}" DESTINATION share/man)
 endforeach()
