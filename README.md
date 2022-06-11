@@ -1,4 +1,5 @@
 [![Build Status](https://app.travis-ci.com/mhx/dwarfs.svg?branch=main)](https://app.travis-ci.com/github/mhx/dwarfs)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/53489f77755248c999e380500267e889)](https://www.codacy.com/gh/mhx/dwarfs/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=mhx/dwarfs&amp;utm_campaign=Badge_Grade)
 
 # DwarFS
 
