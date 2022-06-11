@@ -42,6 +42,10 @@ addons:
 
 cache: ccache
 
+branches:
+  only:
+  - main
+
 compiler:
   - gcc
 
