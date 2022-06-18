@@ -35,6 +35,7 @@ option(USE_JEMALLOC "build with jemalloc" ON)
 option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
+option(PREFER_SYSTEM_PARALLEL_HASHMAP "use system parallel-hashmap if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
@@ -550,8 +551,13 @@ add_dependencies(metadata_thrift thrift_light)
 foreach(tgt dwarfs ${BINARY_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
-    PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
-            ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
+    PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS})
+
+  if(NOT PREFER_SYSTEM_PARALLEL_HASHMAP)
+    target_include_directories(
+      ${tgt} SYSTEM
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
+  endif()
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
