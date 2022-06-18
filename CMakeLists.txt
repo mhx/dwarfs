@@ -35,6 +35,7 @@ option(USE_JEMALLOC "build with jemalloc" ON)
 option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
+option(PREFER_SYSTEM_FOLLY "use system folly if available" OFF)
 option(PREFER_SYSTEM_PARALLEL_HASHMAP "use system parallel-hashmap if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
@@ -203,29 +204,37 @@ if(USE_JEMALLOC)
   find_package(Jemalloc REQUIRED)
 endif()
 
-set(ZSTD_INCLUDE_DIR
-    ""
-    CACHE PATH "don't build folly with zstd" FORCE)
+if(PREFER_SYSTEM_FOLLY)
+  find_package(Folly REQUIRED)
+  set(FOLLY_DEPS Folly::folly)
+else()
+  set(ZSTD_INCLUDE_DIR
+      ""
+      CACHE PATH "don't build folly with zstd" FORCE)
+  set(ZSTD_LIBRARY_RELEASE
+      "ZSTD_LIBRARY_RELEASE-NOTFOUND"
+      CACHE FILEPATH "don't build folly with zstd" FORCE)
+  set(ZSTD_LIBRARY_DEBUG
+      "ZSTD_LIBRARY_DEBUG-NOTFOUND"
+      CACHE FILEPATH "don't build folly with zstd" FORCE)
+
+  # TODO: this is due to a bug in folly's Portability.h
+  add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
+
+  add_subdirectory(folly EXCLUDE_FROM_ALL)
+
+  set(FOLLY_DEPS folly)
+endif()
 
 set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
 
-# TODO: this is due to a bug in folly's Portability.h
-add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
-
-add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
+
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 endif()
-
-set(ZSTD_LIBRARY_RELEASE
-    "ZSTD_LIBRARY_RELEASE-NOTFOUND"
-    CACHE FILEPATH "don't build folly with zstd" FORCE)
-set(ZSTD_LIBRARY_DEBUG
-    "ZSTD_LIBRARY_DEBUG-NOTFOUND"
-    CACHE FILEPATH "don't build folly with zstd" FORCE)
 
 if(WITH_TESTS)
   if(NOT PREFER_SYSTEM_GTEST)
@@ -376,7 +385,7 @@ endif()
 if(WITH_TESTS OR WITH_BENCHMARKS)
   add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
                            test/loremipsum.cpp)
-  target_link_libraries(test_helpers dwarfs folly)
+  target_link_libraries(test_helpers dwarfs ${FOLLY_DEPS})
   set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
@@ -484,12 +493,18 @@ add_custom_command(
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
           ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift)
 
+if(NOT PREFER_SYSTEM_FOLLY)
 list(
   APPEND
   INCLUDE_DIRS
   ${CMAKE_CURRENT_BINARY_DIR}/folly
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly)
+endif()
+
+list(
+  APPEND
+  INCLUDE_DIRS
   ${CMAKE_CURRENT_BINARY_DIR}/thrift
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
   ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -631,7 +646,7 @@ target_link_libraries(
   dwarfs
   metadata_thrift
   thrift_light
-  folly
+  ${FOLLY_DEPS}
   fsst
   ${Boost_LIBRARIES}
   PkgConfig::LIBLZ4
