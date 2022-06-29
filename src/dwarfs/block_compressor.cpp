@@ -27,6 +27,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #include <sys/types.h>
@@ -114,6 +115,7 @@ class option_map {
 
 #ifdef DWARFS_HAVE_LIBLZMA
 std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
+    {LZMA_STREAM_END, "end of stream was reached"},
     {LZMA_NO_CHECK, "input stream has no integrity check"},
     {LZMA_UNSUPPORTED_CHECK, "cannot calculate the integrity check"},
     {LZMA_GET_CHECK, "integrity check type is now available"},
@@ -125,6 +127,14 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
     {LZMA_BUF_ERROR, "no progress is possible"},
     {LZMA_PROG_ERROR, "programming error"},
 };
+
+std::string get_lzma_error_desc(lzma_ret r) {
+  if (auto it = lzma_error_desc.find(r); it != lzma_error_desc.end()) {
+    return it->second;
+  }
+  return fmt::format("unknown error {}", r);
+}
+
 #endif
 
 } // namespace
@@ -133,7 +143,10 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
 class lzma_block_compressor final : public block_compressor::impl {
  public:
   lzma_block_compressor(unsigned level, bool extreme,
-                        const std::string& binary_mode, unsigned dict_size);
+                        const std::string& binary_mode, unsigned dict_size,
+                        unsigned lc, unsigned lp, unsigned pb,
+                        std::string const& compression_mode, unsigned nice_len,
+                        std::string const& mf, unsigned depth);
   lzma_block_compressor(const lzma_block_compressor& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
@@ -182,6 +195,53 @@ class lzma_block_compressor final : public block_compressor::impl {
     return i->second;
   }
 
+  static std::optional<lzma_mode> get_mode(const std::string& mode) {
+    if (mode.empty()) {
+      return std::nullopt;
+    }
+
+    std::unordered_map<std::string, lzma_mode> vm{
+        {"fast", LZMA_MODE_FAST},
+        {"normal", LZMA_MODE_NORMAL},
+    };
+
+    auto i = vm.find(mode);
+
+    if (i == vm.end()) {
+      DWARFS_THROW(runtime_error, "unknown compression mode");
+    }
+
+    if (!lzma_mode_is_supported(i->second)) {
+      DWARFS_THROW(runtime_error, "unsupported compression mode");
+    }
+
+    return i->second;
+  }
+
+  static std::optional<lzma_match_finder>
+  get_match_finder(const std::string& mf) {
+    if (mf.empty()) {
+      return std::nullopt;
+    }
+
+    std::unordered_map<std::string, lzma_match_finder> vm{
+        {"hc3", LZMA_MF_HC3}, {"hc4", LZMA_MF_HC4}, {"bt2", LZMA_MF_BT2},
+        {"bt3", LZMA_MF_BT3}, {"bt4", LZMA_MF_BT4},
+    };
+
+    auto i = vm.find(mf);
+
+    if (i == vm.end()) {
+      DWARFS_THROW(runtime_error, "unknown match finder");
+    }
+
+    if (!lzma_mf_is_supported(i->second)) {
+      DWARFS_THROW(runtime_error, "unsupported match finder");
+    }
+
+    return i->second;
+  }
+
   lzma_options_lzma opt_lzma_;
   std::array<lzma_filter, 3> filters_;
 };
@@ -209,15 +269,37 @@ class null_block_compressor final : public block_compressor::impl {
 };
 
 #ifdef DWARFS_HAVE_LIBLZMA
-lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
-                                             const std::string& binary_mode,
-                                             unsigned dict_size) {
+lzma_block_compressor::lzma_block_compressor(
+    unsigned level, bool extreme, std::string const& binary_mode,
+    unsigned dict_size, unsigned lc, unsigned lp, unsigned pb,
+    std::string const& compression_mode, unsigned nice_len,
+    std::string const& mf, unsigned depth) {
   if (lzma_lzma_preset(&opt_lzma_, get_preset(level, extreme))) {
     DWARFS_THROW(runtime_error, "unsupported preset, possibly a bug");
   }
 
   if (dict_size > 0) {
     opt_lzma_.dict_size = 1 << dict_size;
+  }
+
+  opt_lzma_.lc = lc;
+  opt_lzma_.lp = lp;
+  opt_lzma_.pb = pb;
+
+  if (auto cm = get_mode(compression_mode)) {
+    opt_lzma_.mode = *cm;
+  }
+
+  if (nice_len > 0) {
+    opt_lzma_.nice_len = nice_len;
+  }
+
+  if (auto finder = get_match_finder(mf)) {
+    opt_lzma_.mf = *finder;
+  }
+
+  if (depth > 0) {
+    opt_lzma_.depth = depth;
   }
 
   filters_[0].id = get_vli(binary_mode);
@@ -233,8 +315,10 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
                                 const lzma_filter* filters) const {
   lzma_stream s = LZMA_STREAM_INIT;
 
-  if (lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64)) {
-    DWARFS_THROW(runtime_error, "lzma_stream_encoder");
+  if (auto r = lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64);
+      r != LZMA_OK) {
+    DWARFS_THROW(runtime_error, fmt::format("lzma_stream_encoder: {}",
+                                            get_lzma_error_desc(r)));
   }
 
   lzma_action action = LZMA_FINISH;
@@ -259,11 +343,8 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
   if (ret == LZMA_STREAM_END) {
     compressed.shrink_to_fit();
   } else {
-    if (auto it = lzma_error_desc.find(ret); it != lzma_error_desc.end()) {
-      DWARFS_THROW(runtime_error, fmt::format("LZMA error: {}", it->second));
-    } else {
-      DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}", ret));
-    }
+    DWARFS_THROW(runtime_error,
+                 fmt::format("LZMA error: {}", get_lzma_error_desc(ret)));
   }
 
   return compressed;
@@ -470,7 +551,12 @@ block_compressor::block_compressor(const std::string& spec) {
   } else if (om.choice() == "lzma") {
     impl_ = std::make_unique<lzma_block_compressor>(
         om.get<unsigned>("level", 9u), om.get<bool>("extreme", false),
-        om.get<std::string>("binary"), om.get<unsigned>("dict_size", 0u));
+        om.get<std::string>("binary"), om.get<unsigned>("dict_size", 0u),
+        om.get<unsigned>("lc", LZMA_LC_DEFAULT),
+        om.get<unsigned>("lp", LZMA_LP_DEFAULT),
+        om.get<unsigned>("pb", LZMA_PB_DEFAULT), om.get<std::string>("mode"),
+        om.get<unsigned>("nice", 0), om.get<std::string>("mf"),
+        om.get<unsigned>("depth", 0));
 #endif
 #ifdef DWARFS_HAVE_LIBLZ4
   } else if (om.choice() == "lz4") {
@@ -592,12 +678,8 @@ class lzma_block_decompressor final : public block_decompressor::impl {
     if (ret != (action == LZMA_RUN ? LZMA_OK : LZMA_STREAM_END) ||
         stream_.avail_out != 0) {
       decompressed_.clear();
-      auto it = lzma_error_desc.find(ret);
-      if (it != lzma_error_desc.end()) {
-        error_ = fmt::format("LZMA: decompression failed ({})", it->second);
-      } else {
-        error_ = fmt::format("LZMA: decompression failed (error {})", ret);
-      }
+      error_ = fmt::format("LZMA: decompression failed ({})",
+                           get_lzma_error_desc(ret));
       DWARFS_THROW(runtime_error, error_);
     }
 

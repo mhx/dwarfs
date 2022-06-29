@@ -535,6 +535,13 @@ int mkdwarfs(int argc, char** argv) {
                  "               dict_size=[12..30]\n"
                  "               extreme\n"
                  "               binary={x86,powerpc,ia64,arm,armthumb,sparc}\n"
+                 "               lc=[0..4]\n"
+                 "               lp=[0..4]\n"
+                 "               pb=[0..4]\n"
+                 "               mf={hc3,hc4,bt2,bt3,bt4}\n"
+                 "               mode={fast,normal}\n"
+                 "               nice=[2..273]\n"
+                 "               depth=[4..1000]\n"
 #endif
               << std::endl;
 
