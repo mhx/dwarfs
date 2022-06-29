@@ -110,6 +110,9 @@ class raw_fsblock : public fsblock::impl {
         }
       } catch (bad_compression_ratio_error const& e) {
         comp_type_ = compression_type::NONE;
+      } catch (...) {
+        prom.set_exception(std::current_exception());
+        return;
       }
 
       fsblock::build_section_header(header_, *this);
@@ -118,7 +121,7 @@ class raw_fsblock : public fsblock::impl {
     });
   }
 
-  void wait_until_compressed() override { future_.wait(); }
+  void wait_until_compressed() override { future_.get(); }
 
   section_type type() const override { return type_; }
 
@@ -168,7 +171,7 @@ class compressed_fsblock : public fsblock::impl {
     });
   }
 
-  void wait_until_compressed() override { future_.wait(); }
+  void wait_until_compressed() override { future_.get(); }
 
   section_type type() const override { return type_; }
   compression_type compression() const override { return compression_; }
@@ -271,7 +274,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   std::deque<std::unique_ptr<fsblock>> queue_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
-  volatile bool flush_;
+  bool flush_;
+  std::exception_ptr error_;
   std::thread writer_thread_;
   uint32_t section_number_{0};
   std::vector<uint64_t> section_index_;
@@ -342,7 +346,14 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
 
     cond_.notify_one();
 
-    fsb->wait_until_compressed();
+    try {
+      fsb->wait_until_compressed();
+    } catch (...) {
+      std::unique_lock lock(mx_);
+      if (!error_) {
+        error_ = std::current_exception();
+      }
+    }
 
     LOG_DEBUG << get_section_name(fsb->type()) << " compressed from "
               << size_with_unit(fsb->uncompressed_size()) << " to "
@@ -400,6 +411,10 @@ void filesystem_writer_<LoggerPolicy>::write_section(
   {
     std::unique_lock lock(mx_);
 
+    if (error_) {
+      return;
+    }
+
     while (mem_used() > options_.max_queue_size) {
       cond_.wait(lock);
     }
@@ -421,6 +436,14 @@ void filesystem_writer_<LoggerPolicy>::write_section(
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
     section_type type, compression_type compression, folly::ByteRange data) {
+  {
+    std::unique_lock lock(mx_);
+
+    if (error_) {
+      return;
+    }
+  }
+
   auto fsb =
       std::make_unique<fsblock>(type, compression, data, section_number_++);
 
@@ -479,6 +502,14 @@ void filesystem_writer_<LoggerPolicy>::flush() {
   cond_.notify_one();
 
   writer_thread_.join();
+
+  {
+    std::lock_guard lock(mx_);
+
+    if (error_) {
+      std::rethrow_exception(error_);
+    }
+  }
 
   if (!options_.no_section_index) {
     write_section_index();
