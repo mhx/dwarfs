@@ -24,8 +24,6 @@ include(ExternalProject)
 include(FetchContent)
 include(CheckCXXSourceCompiles)
 
-include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
-
 # THis is the default that will be overwritten for MacOS and MSys
 set(GNU_BASH "bash")
 
@@ -116,35 +114,16 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
       CACHE STRING "Build Type" FORCE)
 endif()
 
-add_compile_options(-O0 -g)
-
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
   # For gcc, -O3 is *much* worse than -O2
-#  set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
-#  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
+  set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
+  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "12.0.0")
   # for some reason, clang-10 and clang-11 binaries crash upon throwing exceptions
     add_compile_options(-fno-omit-frame-pointer)
-  endif()
-  execute_process(
-    COMMAND "${GNU_BASH}"
-            "-c"
-            "echo \$OSTYPE"
-    RESULT_VARIABLE OSTYPE_RES
-    OUTPUT_VARIABLE OSTYPE_TXT
-  )
-  if(OSTYPE_RES EQUAL 0)
-    message(STATUS "OSTYPE: '${OSTYPE_TXT}'")
-  else(OSTYPE_RES EQUAL 0)
-    message(FATAL_ERROR "Failed to detect OSTYPE: ${OSTYPE_TXT}")
-  endif(OSTYPE_RES EQUAL 0)
-
-  if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
-    message(STATUS "Adding __musl__ compile definition")
-    add_compile_definitions(__musl__)
   endif()
 endif()
 
@@ -180,6 +159,7 @@ endif()
 
 add_compile_options(-fno-omit-frame-pointer)
 
+include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/modules/SetupFbThrift.cmake)
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -744,12 +724,6 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs)
-#  if(USE_JEMALLOC)
-#    target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
-#  endif(USE_JEMALLOC)
-#  if (IS_MSYS)
-#    target_link_libraries(${tgt} wsock32 ws2_32)
-#  endif(IS_MSYS)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
