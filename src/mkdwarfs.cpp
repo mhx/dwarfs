@@ -19,6 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/Unistd.h>
+
+#ifndef _WIN32
+#include <sys/ioctl.h>
+#endif
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -37,9 +43,6 @@
 #include <thread>
 #include <utility>
 #include <vector>
-
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
@@ -208,9 +211,15 @@ int parse_order_option(std::string const& ordname, std::string const& opt,
 }
 
 size_t get_term_width() {
+#ifndef _WIN32
   struct ::winsize w;
   ::ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   return w.ws_col;
+#else
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(GetStdHandle( STD_OUTPUT_HANDLE ),&csbi);
+  return csbi.dwSize.X ;
+#endif
 }
 
 struct level_defaults {

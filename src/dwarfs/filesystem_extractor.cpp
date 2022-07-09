@@ -19,13 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include <folly/portability/Unistd.h>
+#include <folly/portability/SysStat.h>
+#include <folly/portability/Windows.h>
+#endif
+
 #include <array>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <thread>
-
-#include <unistd.h>
 
 #include <archive.h>
 #include <archive_entry.h>

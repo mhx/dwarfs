@@ -31,6 +31,7 @@ name: MacOS-arm64
 
 on:
   push:
+    branches: [ main ]
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
@@ -52,8 +53,33 @@ env:
   CXX: clang++
 
 jobs:
+ # https://wildwolf.name/github-actions-how-to-avoid-running-the-same-workflow-multiple-times/
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      head_tag: ${{ steps.check.outputs.head_tag }}
+      foreign_pr: ${{ steps.check.outputs.foreign_pr }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.4
+
+      - name: Retrieve tags
+        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* || true
+      - name: Set output variables
+        id: check
+        run: |
+          fpr="no"
+          tag=""
+          if [[ "${{ github.ref }}" == refs/heads/* ]]; then
+            tag="$(git tag --points-at HEAD)"
+          elif [[ "${{ github.ref }}" == refs/pull/* ]] && [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.event.pull_request.base.repo.full_name }}" ]; then
+            fpr="yes"
+          fi
+          echo "::set-output name=foreign_pr::${fpr}"
+          echo "::set-output name=head_tag::${tag}"
   build:
     name: "macos-${{ matrix.setup.version }} [target:${{ matrix.setup.target }}, scope:${{ matrix.setup.scope }}]"
+    needs: prepare
     runs-on: macos-${{ matrix.setup.version }}
     strategy:
       fail-fast: false

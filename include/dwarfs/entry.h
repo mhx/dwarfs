@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <folly/portability/SysStat.h>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -30,8 +31,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <sys/stat.h>
 
 #include "dwarfs/entry_interface.h"
 

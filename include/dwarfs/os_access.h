@@ -21,10 +21,10 @@
 
 #pragma once
 
+#include <folly/portability/SysStat.h>
+
 #include <memory>
 #include <string>
-
-#include <sys/stat.h>
 
 namespace dwarfs {
 

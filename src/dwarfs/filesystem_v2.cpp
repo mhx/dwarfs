@@ -19,13 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/SysMman.h>
+#ifndef _WIN32
+#include <sys/statvfs.h>
+#else
+#include <pro-statvfs.h>
+#endif
+
 #include <cstddef>
 #include <cstring>
 #include <unordered_map>
 #include <vector>
-
-#include <sys/mman.h>
-#include <sys/statvfs.h>
 
 #include <boost/system/system_error.hpp>
 
@@ -48,6 +52,37 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/worker_group.h"
+
+#ifdef __MINGW32__
+/* Return the first occurrence of NEEDLE in HAYSTACK.  */
+void *
+memmem (const void *haystack, size_t haystack_len, const void *needle,
+	size_t needle_len)
+{
+  const char *begin;
+  const char *const last_possible
+    = (const char *) haystack + haystack_len - needle_len;
+
+  if (needle_len == 0)
+    /* The first occurrence of the empty string is deemed to occur at
+       the beginning of the string.  */
+    return (void *) haystack;
+
+  /* Sanity check, otherwise the loop might search through the whole
+     memory.  */
+  if (haystack_len < needle_len)
+    return NULL;
+
+  for (begin = (const char *) haystack; begin <= last_possible; ++begin)
+    if (begin[0] == ((const char *) needle)[0] &&
+	!memcmp ((const void *) &begin[1],
+		 (const void *) ((const char *) needle + 1),
+		 needle_len - 1))
+      return (void *) begin;
+
+  return NULL;
+}
+#endif
 
 namespace dwarfs {
 

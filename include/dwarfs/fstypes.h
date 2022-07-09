@@ -21,13 +21,13 @@
 
 #pragma once
 
+#include <folly/portability/SysUio.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
 #include <memory>
 #include <string>
-
-#include <sys/uio.h>
 
 #include <folly/small_vector.h>
 

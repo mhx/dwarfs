@@ -21,11 +21,11 @@
 
 #pragma once
 
+#include <folly/portability/SysTypes.h>
+
 #include <cstddef>
 #include <iosfwd>
 #include <optional>
-
-#include <sys/types.h>
 
 namespace dwarfs {
 

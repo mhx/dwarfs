@@ -19,6 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include <folly/portability/SysStat.h>
+#endif
+
 #include <algorithm>
 #include <numeric>
 #include <queue>

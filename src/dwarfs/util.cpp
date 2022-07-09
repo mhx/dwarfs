@@ -19,11 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+
+#include <folly/portability/Unistd.h>
+
 #include <array>
 #include <climits>
 #include <string>
-
-#include <unistd.h>
 
 #include <folly/String.h>
 
@@ -94,7 +95,7 @@ std::string get_program_path() {
   for (auto cand : paths) {
     std::array<char, PATH_MAX> linkname;
 
-    auto r = ::readlink(cand, linkname.data(), PATH_MAX);
+    auto r = readlink(cand, linkname.data(), PATH_MAX);
 
     if (r == -1) {
       continue;

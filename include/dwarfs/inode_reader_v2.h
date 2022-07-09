@@ -21,12 +21,12 @@
 
 #pragma once
 
+#include <folly/portability/SysTypes.h>
+
 #include <cstddef>
 #include <iosfwd>
 #include <memory>
 #include <string>
-
-#include <sys/types.h>
 
 #include <folly/Expected.h>
 

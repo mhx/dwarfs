@@ -27,7 +27,12 @@
 #include <sstream>
 #include <vector>
 
+#ifndef _WIN32
 #include <sys/statvfs.h>
+#else
+#include <pro-statvfs.h>
+#include <folly/portability/SysStat.h>
+#endif
 
 #include <gtest/gtest.h>
 
@@ -139,7 +144,11 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(1, vfsbuf.f_frsize);
   EXPECT_EQ(enable_nlink ? 2056934 : 2080390, vfsbuf.f_blocks);
   EXPECT_EQ(9 + 2 * with_devices + with_specials, vfsbuf.f_files);
+#ifdef _WIN32
+  EXPECT_EQ(ST_RDONLY|ST_NOSUID, vfsbuf.f_flag);
+#else
   EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
+#endif
   EXPECT_GT(vfsbuf.f_namemax, 0);
 
   std::ostringstream dumpss;

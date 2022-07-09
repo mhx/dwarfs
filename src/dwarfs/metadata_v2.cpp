@@ -19,6 +19,16 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/Fcntl.h>
+#ifndef _WIN32
+#include <sys/statvfs.h>
+#else
+#include <pro-statvfs.h>
+#include <folly/portability/SysStat.h>
+#endif
+#include <folly/portability/Time.h>
+#include <folly/portability/Unistd.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
@@ -27,12 +37,6 @@
 #include <ctime>
 #include <numeric>
 #include <ostream>
-
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/statvfs.h>
-#include <time.h>
-#include <unistd.h>
 
 #include <boost/algorithm/string.hpp>
 
@@ -143,7 +147,11 @@ void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
+#ifdef _WIN32
+  std::locale loc("C");
+#else
   std::locale loc("");
+#endif
   std::ostringstream oss;
   stream_logger lgr(oss);
 
@@ -472,7 +480,9 @@ class metadata_ final : public metadata_v2::impl {
     case S_IFBLK:
     case S_IFCHR:
       return inode_rank::INO_DEV;
+#ifndef _WIN32
     case S_IFSOCK:
+#endif
     case S_IFIFO:
       return inode_rank::INO_OTH;
     default:
@@ -493,8 +503,10 @@ class metadata_ final : public metadata_v2::impl {
       return 'b';
     case S_IFCHR:
       return 'c';
+#ifndef _WIN32
     case S_IFSOCK:
       return 's';
+#endif
     case S_IFIFO:
       return 'p';
     default:
@@ -777,8 +789,10 @@ void metadata_<LoggerPolicy>::dump(
     os << " (char device: " << get_device_id(inode) << ")\n";
   } else if (S_ISFIFO(mode)) {
     os << " (named pipe)\n";
+#ifndef _WIN32
   } else if (S_ISSOCK(mode)) {
     os << " (socket)\n";
+#endif
   }
 }
 
@@ -814,7 +828,7 @@ void metadata_<LoggerPolicy>::dump(
     time_t tp = *ts;
     std::string str(32, '\0');
     str.resize(
-        std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
+        std::strftime(str.data(), str.size(), "%Y-%m-%d %H:%M:%S", std::localtime(&tp)));
     os << "created on: " << str << std::endl;
   }
 
@@ -959,8 +973,10 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
     obj["device_id"] = get_device_id(inode);
   } else if (S_ISFIFO(mode)) {
     obj["type"] = "fifo";
+#ifndef _WIN32
   } else if (S_ISSOCK(mode)) {
     obj["type"] = "socket";
+#endif
   }
 
   return obj;
@@ -1028,9 +1044,13 @@ template <typename LoggerPolicy>
 std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
   std::ostringstream oss;
 
+#ifndef _WIN32
   oss << (mode & S_ISUID ? 'U' : '-');
   oss << (mode & S_ISGID ? 'G' : '-');
   oss << (mode & S_ISVTX ? 'S' : '-');
+#else
+  oss << "---";
+#endif
   oss << get_filetype_label(mode);
   oss << (mode & S_IRUSR ? 'r' : '-');
   oss << (mode & S_IWUSR ? 'w' : '-');
@@ -1240,7 +1260,9 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv,
   stbuf->st_size = S_ISDIR(mode) ? make_directory_view(iv).entry_count()
                                  : file_size(iv, mode);
   stbuf->st_ino = inode + inode_offset_;
+#ifndef _WIN32
   stbuf->st_blocks = (stbuf->st_size + 511) / 512;
+#endif
   stbuf->st_uid = iv.getuid();
   stbuf->st_gid = iv.getgid();
   stbuf->st_mtime = resolution * (timebase + iv.mtime_offset());
@@ -1347,7 +1369,6 @@ int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
     buf->assign(link_value(iv));
     return 0;
   }
-
   return -EINVAL;
 }
 
@@ -1357,7 +1378,6 @@ metadata_<LoggerPolicy>::readlink(inode_view iv) const {
   if (S_ISLNK(iv.mode())) {
     return link_value(iv);
   }
-
   return folly::makeUnexpected(-EINVAL);
 }
 
@@ -1376,6 +1396,13 @@ int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
   stbuf->f_files = inode_count_;
   stbuf->f_flag = ST_RDONLY;
   stbuf->f_namemax = PATH_MAX;
+
+#ifdef _WIN32
+// Does not support the semantics of the ST_ISUID and ST_ISGID file mode bits.
+// [The set-user-ID and set-group-ID bits are ignored by
+//  exec(3) for executable files on this filesystem]
+  stbuf->f_flag |= ST_NOSUID;
+#endif
 
   return 0;
 }

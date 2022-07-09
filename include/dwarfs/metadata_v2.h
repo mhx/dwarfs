@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <folly/portability/SysTypes.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -30,8 +32,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <sys/types.h>
 
 #include <folly/Expected.h>
 #include <folly/Range.h>

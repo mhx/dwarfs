@@ -19,14 +19,14 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/Unistd.h>
+
 #include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-
-#include <unistd.h>
 
 #include "dwarfs/terminal.h"
 

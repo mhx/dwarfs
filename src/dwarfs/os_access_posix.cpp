@@ -19,12 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/Dirent.h>
+#include <folly/portability/SysStat.h>
+#include <folly/portability/Unistd.h>
+
 #include <stdexcept>
 #include <vector>
-
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include <fmt/format.h>
 
@@ -84,7 +84,11 @@ void os_access_posix::lstat(const std::string& path, struct ::stat* st) const {
 std::string
 os_access_posix::readlink(const std::string& path, size_t size) const {
   std::vector<char> linkname(size);
+#ifndef _WIN32
   ssize_t rv = ::readlink(path.c_str(), &linkname[0], size);
+#else
+  ssize_t rv = folly::portability::unistd::readlink(path.c_str(), &linkname[0], size);
+#endif
 
   if (rv == static_cast<ssize_t>(size)) {
     return std::string(linkname.begin(), linkname.end());

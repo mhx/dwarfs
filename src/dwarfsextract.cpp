@@ -23,8 +23,11 @@
 #include <iostream>
 #include <string>
 
+#ifndef _WIN32
 #include <sys/statvfs.h>
-
+#else
+#include <pro-statvfs.h>
+#endif
 #include <boost/program_options.hpp>
 
 #include <folly/String.h>

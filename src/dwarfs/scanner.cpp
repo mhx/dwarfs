@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/Unistd.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -32,8 +34,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <unistd.h>
 
 #include <boost/system/system_error.hpp>
 

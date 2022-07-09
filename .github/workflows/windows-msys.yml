@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, [Ribose Inc](https://www.ribose.com).
+# Copyright (c) 2022, [Ribose Inc](https://www.ribose.com).
 # All rights reserved.
 # This file is a part of tamatebako
 #
@@ -29,7 +29,7 @@
 #
 # Also this file contains comments that will be useful is dwarfs has to be build
 # in different environment, not GHA.
-name: MacOS
+name: Windows-MSys
 
 on:
   push:
@@ -39,21 +39,18 @@ on:
       - '**.adoc'
       - '**.md'
       - '.github/workflows/*.yml'
-      - '!.github/workflows/macos.yml'
+      - '!.github/workflows/windows-msys.yml'
   pull_request:
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
       - '.github/workflows/*.yml'
-      - '!.github/workflows/macos.yml'
+      - '!.github/workflows/windows-msys.yml'
   workflow_dispatch:
 
 env:
-  MAKEFLAGS: -j4
-  CC: clang
-  CXX: clang++
-  CXXFLAGS: -std=gnu++14 -DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0
+  BUILD_TYPE: Release
 
 jobs:
  # https://wildwolf.name/github-actions-how-to-avoid-running-the-same-workflow-multiple-times/
@@ -82,64 +79,76 @@ jobs:
           echo "::set-output name=head_tag::${tag}"
 
   build:
-    name: "macos-${{ matrix.setup.version }} [ scope:${{ matrix.setup.scope }} ]"
+    name: windows-msys [${{ matrix.env.CC }}, ${{ matrix.setup.scope }}]
     needs: prepare
-    runs-on: macos-${{ matrix.setup.version }}
+    runs-on: windows-latest
     strategy:
       fail-fast: false
+      matrix:
 #  We are running two configurations:
 #   - ALL in order to run regression tests
-#   - MKD just to be sure that it build ok
-      matrix:
+#   - MKD just to be sure that configuration needed for teabako builds without issues
         setup:
-          - version: '10.15'
-            xcode: '12.1.1'
-            scope: 'ALL'
+          - scope: 'ALL'
             tests: 'ON'
-          - version: '10.15'
-            xcode: '12.1.1'
-            scope: 'MKD'
+          - scope: 'MKD'
             tests: 'OFF'
-          - version: '11.0'
-            xcode: '12.4'
-            scope: 'ALL'
-            tests: 'ON'
-          - version: '11.0'
-            xcode: '12.4'
-            scope: 'MKD'
-            tests: 'OFF'
+        env:
+          - sys: mingw64
+            CC: gcc
+            CXX: g++
+#          - CC: clang
+#            CXX: clang++
+    env: ${{ matrix.env }}
+
+    defaults:
+      run:
+        shell: msys2 {0}
 
     steps:
-      - name: Select XCode version
-        uses: maxim-lobanov/setup-xcode@v1
+      - name: Setup MSys
+        uses: msys2/setup-msys2@v2
         with:
-          xcode-version: ${{ matrix.setup.xcode }}
+          msystem: ${{matrix.env.sys}}
+          path-type: minimal
+          update: true
+          install: >-
+            git
+            tar
+            bison
+            flex
+          pacboy: >-
+            toolchain:p
+            openssl:p
+            cmake:p
+            boost:p
+            make:p
+            diffutils:p
+            libevent:p
+            double-conversion:p
+            glog:p
+            fmt:p
+            dlfcn:p
+            gtest:p
 
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: true
 
-      - name: Install packages
-        run: |
-          brew install  \
-          bison flex gnu-sed bash boost libarchive double-conversion jemalloc fmt glog
-
       - name: Configure
         run: |
           mkdir build
           cd build
-          cmake .. -DWITH_TESTS=${{ matrix.setup.tests }}         \
-                   -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} \
-                   -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+          cmake .. -DWITH_TESTS=${{ matrix.setup.tests }} -DUSE_JEMALLOC=OFF -DPREFER_SYSTEM_GTEST=ON -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
 
       - name: Build
         run: |
           cd build
-          make -j4
+          cmake --build .
 
       - name: Test
         if: ${{ matrix.setup.tests == 'ON' }}
         run: |
           cd build
-          make test
+          ninja test

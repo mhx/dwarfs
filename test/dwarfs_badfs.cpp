@@ -40,7 +40,7 @@ std::vector<std::string> files;
 void find_all_filesystems() {
   for (auto const& e : std::filesystem::directory_iterator(testdata)) {
     if (e.is_regular_file()) {
-      files.push_back(e.path().filename());
+      files.push_back(e.path().filename().string().c_str());
     }
   }
 }
@@ -59,7 +59,7 @@ TEST_P(bad_fs, test) {
 
   try {
     nerror =
-        filesystem_v2::identify(lgr, std::make_shared<mmap>(filename), oss2, 9,
+        filesystem_v2::identify(lgr, std::make_shared<mmap>(filename.string().c_str()), oss2, 9,
                                 1, true, filesystem_options::IMAGE_OFFSET_AUTO);
   } catch (std::exception const&) {
     nerror = 1;

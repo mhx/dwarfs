@@ -27,6 +27,10 @@
 #include <memory>
 #include <utility>
 
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#endif
+
 #include <folly/Function.h>
 
 namespace dwarfs {
@@ -49,11 +53,18 @@ class worker_group {
    * Create a worker group
    *
    * \param num_workers     Number of worker threads.
+   * \param niceness Priority adjustment factor or Windows thread priority
+   *  https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority
    */
   explicit worker_group(
       const char* group_name, size_t num_workers = 1,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
-      int niceness = 0);
+#ifndef _WIN32
+      int niceness = 0
+#else
+      int nPriority = THREAD_PRIORITY_NORMAL
+#endif
+  );
 
   /**
    * Create a load adaptive worker group
@@ -64,7 +75,12 @@ class worker_group {
       load_adaptive_tag, const char* group_name = nullptr,
       size_t max_num_workers = 1,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
-      int niceness = 0);
+#ifndef _WIN32
+      int niceness = 0
+#else
+      int nPriority = THREAD_PRIORITY_NORMAL
+#endif
+  );
 
   worker_group() = default;
   ~worker_group() = default;

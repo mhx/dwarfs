@@ -19,14 +19,20 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <unistd.h>
+#else
+#include <folly/portability/SysStat.h>
+#include <folly/portability/Unistd.h>
+#endif
+
+
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
-
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include <folly/String.h>
 
@@ -262,7 +268,7 @@ size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 std::vector<std::string>
 os_access_mock::splitpath(std::filesystem::path const& path) {
   std::vector<std::string> parts;
-  folly::split('/', path.native(), parts);
+  folly::split('/', path.string().c_str(), parts);
   while (!parts.empty() && parts.front().empty()) {
     parts.erase(parts.begin());
   }
@@ -339,16 +345,15 @@ void os_access_mock::lstat(const std::string& path, struct ::stat* st) const {
 }
 
 std::string
-os_access_mock::readlink(const std::string& path, size_t size) const {
+os_access_mock::readlink(const std::string& path, size_t /* size */ ) const {
   if (auto de = find(path); de && S_ISLNK(de->stat.st_mode)) {
     return std::get<std::string>(de->v);
   }
-
   throw std::runtime_error("oops");
 }
 
 std::shared_ptr<mmif>
-os_access_mock::map_file(const std::string& path, size_t size) const {
+os_access_mock::map_file(const std::string& path, size_t /* size */ ) const {
   if (auto de = find(path); de && S_ISREG(de->stat.st_mode)) {
     return std::make_shared<mmap_mock>(std::visit(
         overloaded{
@@ -377,7 +382,7 @@ std::optional<std::filesystem::path> find_binary(std::string_view name) {
 
   for (auto dir : path) {
     auto cand = std::filesystem::path(dir) / name;
-    if (std::filesystem::exists(cand) and ::access(cand.c_str(), X_OK) == 0) {
+    if (std::filesystem::exists(cand) and ::access(cand.string().c_str(), X_OK) == 0) {
       return cand;
     }
   }

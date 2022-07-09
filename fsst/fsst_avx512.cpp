@@ -20,7 +20,7 @@
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 bool fsst_hasAVX512() {
    int info[4];
    __cpuidex(info, 0x00000007, 0);

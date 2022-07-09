@@ -19,12 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cerrno>
+#include <folly/portability/Fcntl.h>
+#include <folly/portability/SysMman.h>
+#include <folly/portability/SysStat.h>
+#include <folly/portability/Unistd.h>
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <cerrno>
 
 #include <boost/system/error_code.hpp>
 

@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <folly/portability/SysTypes.h>
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -28,8 +30,6 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
-
-#include <sys/types.h>
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/join.hpp>

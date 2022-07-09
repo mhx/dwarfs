@@ -21,6 +21,13 @@
 
 #pragma once
 
+#include <folly/portability/SysTypes.h>
+#ifndef _WIN32
+#include <sys/statvfs.h>
+#else
+#include <pro-statvfs.h>
+#endif
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -31,16 +38,11 @@
 #include <string>
 #include <utility>
 
-#include <sys/types.h>
-
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
-
-struct stat;
-struct statvfs;
 
 namespace dwarfs {
 

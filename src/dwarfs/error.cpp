@@ -24,10 +24,12 @@
 #include <iostream>
 
 #include <folly/String.h>
-#include <folly/experimental/symbolizer/SignalHandler.h>
 
+#ifndef _WIN32
+#include <folly/experimental/symbolizer/SignalHandler.h>
 #ifdef DWARFS_USE_EXCEPTION_TRACER
 #include <folly/experimental/exception_tracer/ExceptionTracer.h>
+#endif
 #endif
 
 #include "dwarfs/error.h"
@@ -87,7 +89,9 @@ void assertion_failed(char const* expr, std::string const& msg,
 
 int safe_main(std::function<int(void)> fn) {
   try {
+#ifndef _WIN32
     folly::symbolizer::installFatalSignalHandler();
+#endif
     return fn();
   } catch (system_error const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
