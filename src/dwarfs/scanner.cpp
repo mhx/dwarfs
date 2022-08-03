@@ -150,20 +150,31 @@ class file_scanner {
 
     hardlinked_.clear();
 
+    std::vector<std::pair<std::string_view, inode::files_vector>> ent;
+    ent.reserve(hash_.size());
+    hash_.eraseInto(hash_.begin(), hash_.end(),
+                    [&ent](std::string_view&& h, inode::files_vector&& fv) {
+                      ent.emplace_back(std::move(h), std::move(fv));
+                    });
+    std::sort(ent.begin(), ent.end(),
+              [](auto& left, auto& right) { return left.first < right.first; });
+
+    DWARFS_CHECK(hash_.empty(), "expected hash to be empty");
+
     uint32_t obj_num = 0;
 
-    finalize_inodes<true>(inode_num, obj_num);
-    finalize_inodes<false>(inode_num, obj_num);
-
-    hash_.clear();
+    finalize_inodes<true>(ent, inode_num, obj_num);
+    finalize_inodes<false>(ent, inode_num, obj_num);
   }
 
   uint32_t num_unique() const { return num_unique_; }
 
  private:
   template <bool Unique>
-  void finalize_inodes(uint32_t& inode_num, uint32_t& obj_num) {
-    for (auto& p : hash_) {
+  void finalize_inodes(
+      std::vector<std::pair<std::string_view, inode::files_vector>>& ent,
+      uint32_t& inode_num, uint32_t& obj_num) {
+    for (auto& p : ent) {
       auto& files = p.second;
 
       if constexpr (Unique) {
