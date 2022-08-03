@@ -111,6 +111,9 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
             while (true) {
 	       u8* old = cur;
                counters.count1Inc(pos1);
+               if (cur==end) {
+                  break;
+               }
                // count single symbol (i.e. an option is not extending it)
                if (st->symbols[pos1].length() != 1)
                   counters.count1Inc(*cur);
@@ -130,8 +133,6 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
                      pos2 = st->byteCodes[word & 0xFF] & FSST_CODE_MASK;
                      cur += 1;
                   }
-               } else if (cur==end) { 
-                  break;
                } else {
                   assert(cur<end);
                   pos2 = st->findLongestSymbol(cur, end);
