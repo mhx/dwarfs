@@ -791,7 +791,9 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   mv2.total_hardlink_size() = prog.hardlink_size;
   mv2.options() = fsopts;
   mv2.dwarfs_version() = std::string("libdwarfs ") + PRJ_GIT_ID;
-  mv2.create_timestamp() = std::time(nullptr);
+  if (!options_.no_create_timestamp) {
+    mv2.create_timestamp() = std::time(nullptr);
+  }
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 

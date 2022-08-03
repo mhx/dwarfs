@@ -106,6 +106,7 @@ struct scanner_options {
   bool pack_symlinks{false};
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
+  bool no_create_timestamp{true};
 };
 
 struct rewrite_options {

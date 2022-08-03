@@ -445,6 +445,9 @@ int mkdwarfs(int argc, char** argv) {
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
+    ("no-create-timestamp",
+        po::value<bool>(&options.no_create_timestamp)->zero_tokens(),
+        "don't add create timestamp to file system")
     ("log-level",
         po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
