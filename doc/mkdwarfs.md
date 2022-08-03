@@ -33,6 +33,9 @@ There two mandatory options for specifying the input and output:
 - `-o`, `--output=`*file*:
   File name of the output filesystem.
 
+- `-f`, `--force`:
+  Force the output file to be overwritten if it already exists.
+
 Most other options are concerned with compression tuning:
 
 - `-l`, `--compress-level=`*value*:

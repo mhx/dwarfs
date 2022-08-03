@@ -24,6 +24,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -337,7 +338,8 @@ int mkdwarfs(int argc, char** argv) {
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata;
   size_t num_workers;
-  bool no_progress = false, remove_header = false, no_section_index = false;
+  bool no_progress = false, remove_header = false, no_section_index = false,
+       force_overwrite = false;
   unsigned level;
   uint16_t uid, gid;
 
@@ -362,6 +364,9 @@ int mkdwarfs(int argc, char** argv) {
     ("output,o",
         po::value<std::string>(&output),
         "filesystem output name")
+    ("force,f",
+        po::value<bool>(&force_overwrite)->zero_tokens(),
+        "force overwrite of existing output image")
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
@@ -808,14 +813,6 @@ int mkdwarfs(int argc, char** argv) {
           ? 2000
           : 200;
 
-  std::ofstream ofs(output, std::ios::binary);
-
-  if (ofs.bad() || !ofs.is_open()) {
-    std::cerr << "error: cannot open output file '" << output
-              << "': " << strerror(errno) << std::endl;
-    return 1;
-  }
-
   filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
   fswopts.remove_header = remove_header;
@@ -849,6 +846,20 @@ int mkdwarfs(int argc, char** argv) {
              << size_with_unit(min_memory_req) << " to efficiently compress "
              << size_with_unit(UINT64_C(1) << cfg.block_size_bits)
              << " blocks with " << num_workers << " threads";
+  }
+
+  if (std::filesystem::exists(output) && !force_overwrite) {
+    std::cerr << "error: output file already exists, use --force to overwrite"
+              << std::endl;
+    return 1;
+  }
+
+  std::ofstream ofs(output, std::ios::binary | std::ios::trunc);
+
+  if (ofs.bad() || !ofs.is_open()) {
+    std::cerr << "error: cannot open output file '" << output
+              << "': " << strerror(errno) << std::endl;
+    return 1;
   }
 
   filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
