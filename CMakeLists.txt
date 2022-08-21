@@ -18,7 +18,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 cmake_policy(SET CMP0048 NEW)
-project(tebako-dwarfs VERSION 0.2.0)
+project(tebako-dwarfs VERSION 0.3.1)
 
 include(ExternalProject)
 include(FetchContent)

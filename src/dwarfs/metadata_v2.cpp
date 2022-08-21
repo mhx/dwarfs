@@ -143,6 +143,42 @@ MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
   return ret;
 }
 
+#if FMT_VERSION >= 70000
+#define DWARFS_FMT_L "L"
+#else
+#define DWARFS_FMT_L "n"
+#endif
+
+static std::string fmt_size(const char * name, size_t count, size_t size,
+                     size_t total_size, std::locale& loc) {
+  return fmt::format(loc,
+                     "{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
+                     "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
+                     count, name, size, 100.0 * size / total_size,
+                     count > 0 ? static_cast<double>(size) / count : 0.0);
+}
+
+static std::string fmt_detail(const char * name, size_t count, size_t size,
+                       std::string num, std::locale& loc) {
+  return fmt::format(
+        loc,
+        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
+        "{3:5.1f} bytes/item\n",
+        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
+}
+
+static std::string fmt_detail_pct(const char * name, size_t count, size_t size,
+                    size_t total_size, std::locale& loc) {
+  return fmt_detail(name, count, size,
+                    fmt::format("{0:5.1f}%", 100.0 * size / total_size),
+                    loc);
+}
+
+static std::string fmt_u_size(size_t unpacked_size, size_t data_size) {
+  return  fmt::format("{0:5.2f}x",
+                        static_cast<double>(unpacked_size) / data_size);
+}
+
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
@@ -161,36 +197,8 @@ void analyze_frozen(std::ostream& os,
   auto& l = *layout;
   std::vector<std::pair<size_t, std::string>> usage;
 
-#if FMT_VERSION >= 70000
-#define DWARFS_FMT_L "L"
-#else
-#define DWARFS_FMT_L "n"
-#endif
-
-  auto fmt_size = [&](auto const& name, size_t count, size_t size) {
-    return fmt::format(loc,
-                       "{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
-                       "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
-                       count, name, size, 100.0 * size / total_size,
-                       count > 0 ? static_cast<double>(size) / count : 0.0);
-  };
-
-  auto fmt_detail = [&](auto const& name, size_t count, size_t size,
-                        std::string num) {
-    return fmt::format(
-        loc,
-        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
-        "{3:5.1f} bytes/item\n",
-        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
-  };
-
-  auto fmt_detail_pct = [&](auto const& name, size_t count, size_t size) {
-    return fmt_detail(name, count, size,
-                      fmt::format("{0:5.1f}%", 100.0 * size / total_size));
-  };
-
   auto add_size = [&](auto const& name, size_t count, size_t size) {
-    usage.emplace_back(size, fmt_size(name, count, size));
+    usage.emplace_back(size, fmt_size(name, count, size, total_size, loc));
   };
 
   auto list_size = [&](auto const& list, auto const& field) {
@@ -209,9 +217,9 @@ void analyze_frozen(std::ostream& os,
       auto index_size = list_size(list, field);
       auto data_size = list.back().end() - list.front().begin();
       auto size = index_size + data_size;
-      auto fmt = fmt_size(name, count, size) +
-                 fmt_detail_pct("|- data", count, data_size) +
-                 fmt_detail_pct("'- index", count, index_size);
+      auto fmt = fmt_size(name, count, size, total_size, loc) +
+                 fmt_detail_pct("|- data", count, data_size, total_size, loc) +
+                 fmt_detail_pct("'- index", count, index_size, total_size, loc);
       usage.emplace_back(size, fmt);
     }
   };
@@ -224,18 +232,16 @@ void analyze_frozen(std::ostream& os,
       auto index_size = list_size(table.index(), field.layout.indexField);
       auto size = index_size + data_size + dict_size;
       auto count = table.index().size() - (table.packed_index() ? 0 : 1);
-      auto fmt = fmt_size(name, count, size) +
-                 fmt_detail_pct("|- data", count, data_size);
+      auto fmt = fmt_size(name, count, size, total_size, loc) +
+                 fmt_detail_pct("|- data", count, data_size, total_size, loc);
       if (table.symtab()) {
         string_table st(lgr, "tmp", table);
         auto unpacked_size = st.unpacked_size();
-        fmt += fmt_detail(
-            "|- unpacked", count, unpacked_size,
-            fmt::format("{0:5.2f}x",
-                        static_cast<double>(unpacked_size) / data_size));
-        fmt += fmt_detail_pct("|- dict", count, dict_size);
+        fmt += fmt_detail("|- unpacked", count, unpacked_size,
+                          fmt_u_size(unpacked_size, data_size), loc);
+        fmt += fmt_detail_pct("|- dict", count, dict_size, total_size, loc);
       }
-      fmt += fmt_detail_pct("'- index", count, index_size);
+      fmt += fmt_detail_pct("'- index", count, index_size, total_size, loc);
       usage.emplace_back(size, fmt);
     }
   };
