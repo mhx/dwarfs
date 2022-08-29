@@ -70,14 +70,6 @@ jobs:
 #   - MKD just to be sure that it build ok
       matrix:
         setup:
-          - version: '10.15'
-            xcode: '12.1.1'
-            scope: 'ALL'
-            tests: 'ON'
-          - version: '10.15'
-            xcode: '12.1.1'
-            scope: 'MKD'
-            tests: 'OFF'
           - version: '11.0'
             xcode: '12.4'
             scope: 'ALL'
