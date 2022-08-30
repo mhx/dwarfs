@@ -100,7 +100,6 @@ jobs:
             openssl:p
             cmake:p
             boost:p
-            make:p
             diffutils:p
             libevent:p
             double-conversion:p
