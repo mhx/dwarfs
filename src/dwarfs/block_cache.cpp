@@ -112,10 +112,11 @@ class cached_block {
 
   bool is_swapped_out(std::vector<uint8_t>& tmp) const {
     auto page_size = ::sysconf(_SC_PAGESIZE);
-    tmp.resize((data_.size() + page_size) / page_size);
+    tmp.resize((data_.size() + page_size - 1) / page_size);
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
                   tmp.data()) == 0) {
-      return std::any_of(tmp.begin(), tmp.end(), [](auto i) { return i != 0; });
+      // i&1 == 1 means resident in memory
+      return std::any_of(tmp.begin(), tmp.end(), [](auto i) { return (i&1) == 0; });
     }
     return false;
   }
