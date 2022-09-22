@@ -380,7 +380,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
         std::vector<char> buf(size);
         size_t written = 0;
 
-        while (off < lastoff) {
+        while (off < lastoff && written < size) {
           auto res = userdata->fs.readdir(*dir, off);
           assert(res);
 
