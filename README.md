@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/mhx/dwarfs.svg?branch=main)](https://travis-ci.com/mhx/dwarfs)
+[![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)   [![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml) [![MacOS-arm64](https://github.com/tamatebako/dwarfs/actions/workflows/macos-arm64.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos-arm64.yml) [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml) [![Windows-MSys](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml)
 
 # DwarFS
 
@@ -263,7 +263,7 @@ SquashFS that is the default setting for DwarFS:
     Parallel mksquashfs: Using 16 processors
     Creating 4.0 filesystem on perl-install-zstd.squashfs, block size 131072.
     [=========================================================/] 2107401/2107401 100%
-    
+
     Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
             compressed data, compressed metadata, compressed fragments,
             compressed xattrs, compressed ids
@@ -288,7 +288,7 @@ SquashFS that is the default setting for DwarFS:
             mhx (1000)
     Number of gids 1
             users (100)
-    
+
     real    32m54.713s
     user    501m46.382s
     sys     0m58.528s
@@ -329,7 +329,7 @@ For DwarFS, I'm sticking to the defaults:
     filesystem: 4.261 GiB in 273 blocks (319178 chunks, 144675/144675 inodes)
     compressed filesystem: 273 blocks/430.9 MiB written [depth: 20000]
     █████████████████████████████████████████████████████████████████████████████▏100% |
-    
+
     real    5m23.030s
     user    78m7.554s
     sys     1m47.968s
@@ -352,13 +352,13 @@ the original space**.
 Here's another comparison using `lzma` compression instead of `zstd`:
 
     $ time mksquashfs install perl-install-lzma.squashfs -comp lzma
-    
+
     real    13m42.825s
     user    205m40.851s
     sys     3m29.088s
 
     $ time mkdwarfs -i install -o perl-install-lzma.dwarfs -l9
-    
+
     real    3m43.937s
     user    49m45.295s
     sys     1m44.550s
@@ -384,13 +384,13 @@ or even 64MiB blocks with `-l9`. When using identical block sizes for both
 file systems, the difference, quite expectedly, becomes a lot less dramatic:
 
     $ time mksquashfs install perl-install-lzma-1M.squashfs -comp lzma -b 1M
-    
+
     real    15m43.319s
     user    139m24.533s
     sys     0m45.132s
 
     $ time mkdwarfs -i install -o perl-install-lzma-1M.dwarfs -l9 -S20 -B3
-    
+
     real    4m25.973s
     user    52m15.100s
     sys     7m41.889s
@@ -419,7 +419,7 @@ system with the best possible compression (`-l 9`):
     filesystem: 4.261 GiB in 273 blocks (0 chunks, 0 inodes)
     compressed filesystem: 273/273 blocks/372.7 MiB written
     ████████████████████████████████████████████████████████████████████▏100% \
-    
+
     real    2m28.279s
     user    37m8.825s
     sys     0m43.256s
@@ -442,15 +442,15 @@ each of the 1139 `perl` executables to print their version.
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P5 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      1.810 s ±  0.013 s    [User: 1.847 s, System: 0.623 s]
       Range (min … max):    1.788 s …  1.825 s    10 runs
-     
+
     Benchmark #2: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      1.333 s ±  0.009 s    [User: 1.993 s, System: 0.656 s]
       Range (min … max):    1.321 s …  1.354 s    10 runs
-     
+
     Benchmark #3: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P15 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      1.181 s ±  0.018 s    [User: 2.086 s, System: 0.712 s]
       Range (min … max):    1.165 s …  1.214 s    10 runs
-     
+
     Benchmark #4: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      1.149 s ±  0.015 s    [User: 2.128 s, System: 0.781 s]
       Range (min … max):    1.136 s …  1.186 s    10 runs
@@ -466,19 +466,19 @@ and the original XFS (at `install`). DwarFS is around 15% slower here:
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     347.0 ms ±   7.2 ms    [User: 1.755 s, System: 0.452 s]
       Range (min … max):   341.3 ms … 365.2 ms    10 runs
-     
+
     Benchmark #2: ls -1 install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     302.5 ms ±   3.3 ms    [User: 1.656 s, System: 0.377 s]
       Range (min … max):   297.1 ms … 308.7 ms    10 runs
-     
+
     Benchmark #3: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     342.2 ms ±   4.1 ms    [User: 1.766 s, System: 0.451 s]
       Range (min … max):   336.0 ms … 349.7 ms    10 runs
-     
+
     Benchmark #4: ls -1 install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     302.0 ms ±   3.0 ms    [User: 1.659 s, System: 0.374 s]
       Range (min … max):   297.0 ms … 305.4 ms    10 runs
-     
+
     Summary
       'ls -1 install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'' ran
         1.00 ± 0.01 times faster than 'ls -1 install/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null''
@@ -492,15 +492,15 @@ considerably worse (about an order of magnitude):
     Benchmark #1: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P5 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):     10.660 s ±  0.057 s    [User: 1.952 s, System: 0.729 s]
       Range (min … max):   10.615 s … 10.811 s    10 runs
-     
+
     Benchmark #2: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P10 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      9.092 s ±  0.021 s    [User: 1.979 s, System: 0.680 s]
       Range (min … max):    9.059 s …  9.126 s    10 runs
-     
+
     Benchmark #3: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P15 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      9.012 s ±  0.188 s    [User: 2.077 s, System: 0.702 s]
       Range (min … max):    8.839 s …  9.277 s    10 runs
-     
+
     Benchmark #4: ls -1 mnt/*/*/bin/perl5* | xargs -d $'\n' -n1 -P20 sh -c '$0 -v >/dev/null'
       Time (mean ± σ):      9.004 s ±  0.298 s    [User: 2.134 s, System: 0.736 s]
       Range (min … max):    8.611 s …  9.555 s    10 runs
@@ -515,11 +515,11 @@ Now here's a comparison with the SquashFS filesystem:
     Benchmark #1: dwarfs-zstd
       Time (mean ± σ):      1.151 s ±  0.015 s    [User: 2.147 s, System: 0.769 s]
       Range (min … max):    1.118 s …  1.174 s    10 runs
-     
+
     Benchmark #2: squashfs-zstd
       Time (mean ± σ):      6.733 s ±  0.007 s    [User: 3.188 s, System: 17.015 s]
       Range (min … max):    6.721 s …  6.743 s    10 runs
-     
+
     Summary
       'dwarfs-zstd' ran
         5.85 ± 0.08 times faster than 'squashfs-zstd'
@@ -530,7 +530,7 @@ shown above for DwarFS obviously don't include the time spent in the
 `dwarfs` process, so I repeated the test outside of hyperfine:
 
     $ time dwarfs perl-install.dwarfs mnt -o cachesize=1g -o workers=4 -f
-    
+
     real    0m4.569s
     user    0m2.154s
     sys     0m1.846s
@@ -636,7 +636,7 @@ so in order to preserve those, we pass `--with-devices` to `mkdwarfs`:
     filesystem: 928.4 MiB in 59 blocks (38890 chunks, 32965/32965 inodes)
     compressed filesystem: 59 blocks/287 MiB written [depth: 20000]
     ████████████████████████████████████████████████████████████████████▏100% |
-    
+
     real    0m46.711s
     user    10m39.038s
     sys     0m8.123s
@@ -647,7 +647,7 @@ Again, SquashFS uses the same compression options:
     Parallel mksquashfs: Using 16 processors
     Creating 4.0 filesystem on raspbian.squashfs, block size 131072.
     [===============================================================\] 39232/39232 100%
-    
+
     Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
             compressed data, compressed metadata, compressed fragments,
             compressed xattrs, compressed ids
@@ -690,7 +690,7 @@ Again, SquashFS uses the same compression options:
             nobody (65534)
             adm (4)
             mem (8)
-    
+
     real    0m50.124s
     user    9m41.708s
     sys     0m1.727s
@@ -709,7 +709,7 @@ better than DwarFS.
 We can even again try to increase the DwarFS compression level:
 
     $ time sudo mkdwarfs -i raspbian -o raspbian-9.dwarfs --with-devices -l9
-    
+
     real    0m54.161s
     user    8m40.109s
     sys     0m7.101s
@@ -727,7 +727,7 @@ match the DwarFS image size:
 
     $ time sudo tar cf - raspbian | xz -9 -vT 0 >raspbian.tar.xz
       100 %     246.9 MiB / 1,037.2 MiB = 0.238    13 MiB/s       1:18
-    
+
     real    1m18.226s
     user    6m35.381s
     sys     0m2.205s
@@ -740,13 +740,13 @@ that allows extraction of a filesystem image without the FUSE driver.
 So here's a comparison of the extraction speed:
 
     $ time sudo tar xf raspbian.tar.xz -C out1
-    
+
     real    0m12.846s
     user    0m12.313s
     sys     0m1.616s
 
     $ time sudo dwarfsextract -i raspbian-9.dwarfs -o out2
-    
+
     real    0m3.825s
     user    0m13.234s
     sys     0m1.382s
@@ -785,14 +785,14 @@ beat DwarFS. So let's take a look. `lrzip` operates on a single file,
 so it's necessary to first build a tarball:
 
     $ time tar cf perl-install.tar install
-    
+
     real    2m9.568s
     user    0m3.757s
     sys     0m26.623s
 
 Now we can run `lrzip`:
 
-    $ time lrzip -vL9 -o perl-install.tar.lrzip perl-install.tar 
+    $ time lrzip -vL9 -o perl-install.tar.lrzip perl-install.tar
     The following options are in effect for this COMPRESSION.
     Threading is ENABLED. Number of CPUs detected: 16
     Detected 67106172928 bytes ram
@@ -810,7 +810,7 @@ Now we can run `lrzip`:
     Beginning rzip pre-processing phase
     perl-install.tar - Compression Ratio: 100.378. Average Compression Speed: 14.536MB/s.
     Total time: 00:57:32.47
-    
+
     real    57m32.472s
     user    81m44.104s
     sys     4m50.221s
@@ -831,7 +831,7 @@ That being said, it *is* better than just using `xz` on the tarball:
     $ time xz -T0 -v9 -c perl-install.tar >perl-install.tar.xz
     perl-install.tar (1/1)
       100 %      4,317.0 MiB / 49.0 GiB = 0.086    24 MiB/s      34:55
-    
+
     real    34m55.450s
     user    543m50.810s
     sys     0m26.533s
@@ -855,10 +855,10 @@ Anyway, how does it fare in terms of speed and compression performance?
 After a few million lines of output that (I think) cannot be turned off:
 
     2258234 +added, 0 -removed.
-    
+
     0.000000 + (51161.953159 -> 8932.000297 -> 490.227707) = 490.227707 MB
     2828.082 seconds (all OK)
-    
+
     real    47m8.104s
     user    714m44.286s
     sys     3m6.751s
@@ -878,7 +878,7 @@ archive again:
 
     $ time zpaq x perl-install.zpaq
     2798.097 seconds (all OK)
-    
+
     real    46m38.117s
     user    711m18.734s
     sys     3m47.876s
@@ -901,7 +901,7 @@ I first tried `wimcapture` on the perl dataset:
     47 GiB scanned (1927501 files, 330733 directories)
     Using LZMS compression with 16 threads
     Archiving file data: 19 GiB of 19 GiB (100%) done
-    
+
     real    15m23.310s
     user    174m29.274s
     sys     0m42.921s
@@ -923,7 +923,7 @@ of time:
 
     $ time wimmount perl-install.wim mnt
     [WARNING] Mounting a WIM file containing solid-compressed data; file access may be slow.
-    
+
     real    0m2.038s
     user    0m1.764s
     sys     0m0.242s
@@ -932,7 +932,7 @@ Mounting the DwarFS image takes almost no time in comparison:
 
     $ time git/github/dwarfs/build-clang-11/dwarfs perl-install-default.dwarfs mnt
     I 00:23:39.238182 dwarfs (v0.4.0, fuse version 35)
-    
+
     real    0m0.003s
     user    0m0.003s
     sys     0m0.000s
@@ -987,7 +987,7 @@ the image as a mounted file system. So I tried again without `--solid`:
     47 GiB scanned (1927501 files, 330733 directories)
     Using LZX compression with 16 threads
     Archiving file data: 19 GiB of 19 GiB (100%) done
-    
+
     real    8m39.034s
     user    64m58.575s
     sys     0m32.003s
@@ -1002,7 +1002,7 @@ and comparable in size to the SquashFS image:
 This *still* takes surprisingly long to mount:
 
     $ time wimmount perl-install-nonsolid.wim mnt
-    
+
     real    0m1.603s
     user    0m1.327s
     sys     0m0.275s
@@ -1014,11 +1014,11 @@ However, it's really usable as a file system, even though it's about
     Benchmark #1: dwarfs
       Time (mean ± σ):      1.149 s ±  0.019 s    [User: 2.147 s, System: 0.739 s]
       Range (min … max):    1.122 s …  1.187 s    10 runs
-     
+
     Benchmark #2: wimlib
       Time (mean ± σ):      7.542 s ±  0.069 s    [User: 2.787 s, System: 0.694 s]
       Range (min … max):    7.490 s …  7.732 s    10 runs
-     
+
     Summary
       'dwarfs' ran
         6.56 ± 0.12 times faster than 'wimlib'
@@ -1046,7 +1046,7 @@ speed up compression:
     Beginning task for Files and directories: Blockifying
     Blockifying:  0.04% (140017/2724970) idx(siz=80423,del=0) rawin(20.97 MB)rawout(20.97 MB)diff(1956 bytes)
     Termination signalled, cleaning up temporaries
-    
+
     real    29m9.634s
     user    201m37.816s
     sys     2m15.005s
@@ -1084,11 +1084,11 @@ a lot less redundancy:
     Compressing 9828 block records (4 bytes each, total 39312 bytes)
      compressed into 15890 bytes
     Compressing and writing 16 fblocks...
-    
+
     16 fblocks were written: 35.31 MB = 13.90 % of 254.01 MB
     Filesystem size: 35.33 MB = 5.50 % of original 642.22 MB
     End
-    
+
     real    27m38.833s
     user    277m36.208s
     sys     11m36.945s
@@ -1125,7 +1125,7 @@ And repeating the same task with `mkdwarfs`:
     filesystem: 222.5 MiB in 14 blocks (7177 chunks, 3559/3559 inodes)
     compressed filesystem: 14 blocks/24.01 MiB written
     ██████████████████████████████████████████████████████████████████████▏100% \
-    
+
     real    0m33.007s
     user    3m43.324s
     sys     0m4.015s
@@ -1175,7 +1175,7 @@ LZMA compression (which is what `mkcromfs` uses by default):
     filesystem: 221.8 MiB in 4 blocks (7304 chunks, 3559/3559 inodes)
     compressed filesystem: 4 blocks/17.44 MiB written
     ██████████████████████████████████████████████████████████████████████▏100% /
-    
+
     real    0m48.683s
     user    2m24.905s
     sys     0m3.292s
@@ -1209,7 +1209,7 @@ I was feeling lucky and decided to run it on the full Perl dataset:
             c_dbg_lvl:           [       2]
             c_dry_run:           [       0]
     ^C
-    
+
     real    912m42.601s
     user    903m2.777s
     sys     1m52.812s
@@ -1217,7 +1217,7 @@ I was feeling lucky and decided to run it on the full Perl dataset:
 As you can tell, after more than 15 hours I just gave up. In those
 15 hours, `mkfs.erofs` had produced a 13 GiB output file:
 
-    $ ll -h perl-install.erofs 
+    $ ll -h perl-install.erofs
     -rw-r--r-- 1 mhx users 13G Dec  9 14:42 perl-install.erofs
 
 I don't think this would have been very useful to compare with DwarFS.
@@ -1229,7 +1229,7 @@ Just as for Cromfs, I re-ran with the smaller Perl dataset:
             c_version:           [     1.2]
             c_dbg_lvl:           [       2]
             c_dry_run:           [       0]
-    
+
     real    0m27.844s
     user    0m20.570s
     sys     0m1.848s
@@ -1277,7 +1277,7 @@ parameters, we get:
     filesystem: 344 MiB in 88073 blocks (91628 chunks, 3559/3559 inodes)
     compressed filesystem: 88073 blocks/140.7 MiB written
     ████████████████████████████████████████████████████████████████▏100% |
-    
+
     real    0m9.075s
     user    0m37.718s
     sys     0m2.427s
