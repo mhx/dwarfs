@@ -364,7 +364,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")";
 
   int err = ENOENT;
 
@@ -389,11 +389,13 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
           userdata->fs.getattr(entry, &stbuf);
 
+          assert(written < buf.size());
+
           size_t needed =
               fuse_add_direntry(req, &buf[written], buf.size() - written,
                                 name.c_str(), &stbuf, off + 1);
 
-          if (written + needed > size) {
+          if (written + needed > buf.size()) {
             break;
           }
 
