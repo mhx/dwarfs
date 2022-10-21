@@ -62,7 +62,8 @@ class cached_block {
       , mm_(std::move(mm))
       , section_(b)
       , LOG_PROXY_INIT(lgr)
-      , release_(release) {
+      , release_(release)
+      , uncompressed_size_{decompressor_->uncompressed_size()} {
     if (!section_.check_fast(*mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
@@ -99,10 +100,7 @@ class cached_block {
     }
   }
 
-  size_t uncompressed_size() const {
-    return decompressor_ ? decompressor_->uncompressed_size()
-                         : range_end_.load();
-  }
+  size_t uncompressed_size() const { return uncompressed_size_; }
 
   void touch() { last_access_ = std::chrono::steady_clock::now(); }
 
@@ -136,6 +134,7 @@ class cached_block {
   fs_section section_;
   LOG_PROXY_DECL(debug_logger_policy);
   bool const release_;
+  size_t const uncompressed_size_;
   std::chrono::steady_clock::time_point last_access_;
 };
 
