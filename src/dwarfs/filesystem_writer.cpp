@@ -383,7 +383,9 @@ void filesystem_writer_<LoggerPolicy>::write(folly::ByteRange range) {
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(fsblock const& fsb) {
-  push_section_index(fsb.type());
+  if (fsb.type() != section_type::SECTION_INDEX) {
+    push_section_index(fsb.type());
+  }
 
   write(fsb.header());
   write(fsb.data());
