@@ -116,20 +116,6 @@ int dwarfsextract(int argc, char** argv) {
     filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts);
     filesystem_extractor fsx(lgr);
 
-    size_t max_queued_bytes = 0;
-
-#if HAVE_STATVFS
-    {
-      struct ::statvfs buf;
-      fs.statvfs(&buf);
-      if (fsopts.block_cache.max_bytes > buf.f_bsize) {
-        max_queued_bytes = fsopts.block_cache.max_bytes - buf.f_bsize;
-      }
-    }
-#else
-    max_queued_bytes = fsopts.block_cache.max_bytes;
-#endif
-
     if (format.empty()) {
       fsx.open_disk(output);
     } else {
@@ -139,7 +125,7 @@ int dwarfsextract(int argc, char** argv) {
       fsx.open_archive(output, format);
     }
 
-    fsx.extract(fs, max_queued_bytes);
+    fsx.extract(fs, fsopts.block_cache.max_bytes);
 
     fsx.close();
   } catch (runtime_error const& e) {
