@@ -23,13 +23,6 @@
 #include <iostream>
 #include <string>
 
-#if __has_include(<sys/statvfs.h>)
-#include <sys/statvfs.h>
-#define HAVE_STATVFS 1
-#else
-#define HAVE_STATVFS 0
-#endif
-
 #include <boost/program_options.hpp>
 
 #include <folly/String.h>
