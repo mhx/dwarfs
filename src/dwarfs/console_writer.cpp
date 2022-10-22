@@ -34,6 +34,7 @@
 #include "dwarfs/entry.h"
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/terminal.h"
 #include "dwarfs/util.h"
@@ -120,7 +121,7 @@ void console_writer::write(level_type level, const std::string& output,
     std::string context;
 
     if (with_context_ && file) {
-      context = fmt::format("[{0}:{1}] ", ::strrchr(file, '/') + 1, line);
+      context = get_logger_context(file, line);
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,

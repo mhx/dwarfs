@@ -411,4 +411,6 @@ std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
                                                             args)...);
 }
 
+std::string get_logger_context(char const* path, int line);
+
 } // namespace dwarfs

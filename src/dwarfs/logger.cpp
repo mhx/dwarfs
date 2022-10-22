@@ -114,7 +114,7 @@ void stream_logger::write(level_type level, const std::string& output,
     std::string context;
 
     if (with_context_ && file) {
-      context = fmt::format("[{0}:{1}] ", ::strrchr(file, '/') + 1, line);
+      context = get_logger_context(file, line);
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,
@@ -143,4 +143,10 @@ void stream_logger::set_threshold(level_type threshold) {
     set_policy<prod_logger_policy>();
   }
 }
+
+std::string get_logger_context(char const* path, int line) {
+  auto base = ::strrchr(path, '/');
+  return fmt::format("[{0}:{1}] ", base ? base + 1 : path, line);
+}
+
 } // namespace dwarfs
