@@ -267,6 +267,15 @@ Most other options are concerned with compression tuning:
 - `--remove-header`:
   Remove header from a filesystem image. Only useful with `--recompress`.
 
+- `--no-section-index`:
+  Don't add section index to file system. The section index is usually tiny
+  and is used to speed up mount times for large file systems, as it avoids
+  a full scan through the file system blocks to figure out their location.
+
+- `--no-create-timestamp`:
+  Don't add a creation timestamp. This is useful when bit-identical file
+  system images are required to be produced from the same input.
+
 - `--log-level=`*name*:
   Specifiy a logging level.
 
