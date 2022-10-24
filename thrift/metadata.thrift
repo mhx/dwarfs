@@ -36,9 +36,9 @@ typedef i64 (cpp2.type = "uint64_t") UInt64
  * block.
  */
 struct chunk {
-   1: required UInt32 block,       // file system block number
-   2: required UInt32 offset,      // offset from start of block, in bytes
-   3: required UInt32 size,        // size of chunk, in bytes
+   1: UInt32 block,       // file system block number
+   2: UInt32 offset,      // offset from start of block, in bytes
+   3: UInt32 size,        // size of chunk, in bytes
 }
 
 /**
@@ -63,9 +63,9 @@ struct chunk {
  * fields.
  */
 struct directory {
-   1: required UInt32 parent_entry,     // indexes into `dir_entries`
+   1: UInt32 parent_entry,     // indexes into `dir_entries`
 
-   2: required UInt32 first_entry,      // indexes into `dir_entries`
+   2: UInt32 first_entry,      // indexes into `dir_entries`
 }
 
 /**
@@ -77,22 +77,22 @@ struct directory {
  */
 struct inode_data {
    // index into `metadata.modes[]`
-   2: required UInt16 mode_index,
+   2: UInt16 mode_index,
 
    // index into `metadata.uids[]`
-   4: required UInt16 owner_index,
+   4: UInt16 owner_index,
 
    // index into `metadata.gids[]`
-   5: required UInt16 group_index,
+   5: UInt16 group_index,
 
    // atime relative to `metadata.timestamp_base`
-   6: required UInt64 atime_offset,
+   6: UInt64 atime_offset,
 
    // mtime relative to `metadata.timestamp_base`
-   7: required UInt64 mtime_offset,
+   7: UInt64 mtime_offset,
 
    // ctime relative to `metadata.timestamp_base`
-   8: required UInt64 ctime_offset,
+   8: UInt64 ctime_offset,
 
    /**
     * ==================================================================
@@ -102,10 +102,10 @@ struct inode_data {
     */
 
    // index into `metadata.names[]`
-   1: required UInt32 name_index_v2_2,
+   1: UInt32 name_index_v2_2,
 
    // inode number
-   3: required UInt32 inode_v2_2,
+   3: UInt32 inode_v2_2,
 
    /* ==================================================================
     */
@@ -120,10 +120,10 @@ struct inode_data {
  */
 struct dir_entry {
    // index into metadata.names
-   1: required UInt32 name_index,
+   1: UInt32 name_index,
 
    // index into metadata.entries
-   2: required UInt32 inode_num,
+   2: UInt32 inode_num,
 }
 
 /**
@@ -131,15 +131,15 @@ struct dir_entry {
  */
 struct fs_options {
    // file system contains only mtime time stamps
-   1: required bool   mtime_only,
+   1: bool   mtime_only,
 
    // time base and offsets are stored with this resolution
    // 1 = seconds, 60 = minutes, 3600 = hours, ...
    2: optional UInt32 time_resolution_sec,
 
-   3: required bool   packed_chunk_table,
-   4: required bool   packed_directories,
-   5: required bool   packed_shared_files_table,
+   3: bool   packed_chunk_table,
+   4: bool   packed_directories,
+   5: bool   packed_shared_files_table,
 }
 
 /**
@@ -148,7 +148,7 @@ struct fs_options {
 struct string_table {
    // raw buffer containing the concatenation of all individual,
    // potentially compressed, strings
-   1: required string buffer,
+   1: string buffer,
 
    // symbol table for fsst compression; if fsst is not used, this
    // will not be set and `buffer` will contain uncompressed strings
@@ -156,10 +156,10 @@ struct string_table {
 
    // the (optionally packed) index; if packed, the index is stored
    // delta-compressed
-   3: required list<UInt32> index,
+   3: list<UInt32> index,
 
    // indicates if the index is packed
-   4: required bool packed_index,
+   4: bool packed_index,
 }
 
 /**
@@ -183,7 +183,7 @@ struct metadata {
     * Note that here `shared_files` is the unpacked version of
     * `shared_files_table`.
     */
-   1: required list<chunk>      chunks,
+   1: list<chunk>      chunks,
 
    /**
     * All directories, indexed by inode number. There's one extra
@@ -195,7 +195,7 @@ struct metadata {
     * if `options.packed_directories` is `true` and must be unpacked
     * before use. See the documentation for the `directory` struct.
     */
-   2: required list<directory>  directories,
+   2: list<directory>  directories,
 
    /**
     * Inode metadata, indexed by inode number.
@@ -218,7 +218,7 @@ struct metadata {
     * The number of shared regular files can be determined from
     * `shared_files_table`.
     */
-   3: required list<inode_data> inodes,
+   3: list<inode_data> inodes,
 
    /**
     * Chunk lookup table, indexed by `inode - file_inode_offset`.
@@ -229,37 +229,37 @@ struct metadata {
     * if `options.packed_chunk_table` is `true` and must be unpacked
     * before use.
     */
-   4: required list<UInt32>     chunk_table,
+   4: list<UInt32>     chunk_table,
 
    /**
     * =========================================================================
     * NOTE: This has been deprecated with filesystem version 2.3
     *       It is still being used to read older filesystem versions.
     */
-   5: required list<UInt32>     entry_table_v2_2,
+   5: list<UInt32>     entry_table_v2_2,
    /* =========================================================================
     */
 
    // symlink lookup table, indexed by `inode - symlink_inode_offset`
-   6: required list<UInt32>     symlink_table,
+   6: list<UInt32>     symlink_table,
 
    // user ids, for lookup by `inode.owner_index`
-   7: required list<UInt16>     uids,
+   7: list<UInt16>     uids,
 
    // group ids, for lookup by `inode.group_index`
-   8: required list<UInt16>     gids,
+   8: list<UInt16>     gids,
 
    // inode modes, for lookup by `inode.mode_index`
-   9: required list<UInt16>     modes,
+   9: list<UInt16>     modes,
 
    // directory entry names, for lookup by `dir_entry.name_index`
-  10: required list<string>     names,
+  10: list<string>     names,
 
    // symlink targets, for lookup by index from `symlink_table`
-  11: required list<string>     symlinks,
+  11: list<string>     symlinks,
 
    // timestamp base for all inode timestamps
-  12: required UInt64           timestamp_base,
+  12: UInt64           timestamp_base,
 
   /************************ DEPRECATED **********************
    *
@@ -267,16 +267,16 @@ struct metadata {
    * with a simple binary search. Compatibility is not
    * affected.
    *
-   *   13: required UInt32          chunk_inode_offset;
-   *   14: required UInt32          link_inode_offset;
+   *   13: UInt32          chunk_inode_offset;
+   *   14: UInt32          link_inode_offset;
    *
    *********************************************************/
 
    // file system block size in bytes
-  15: required UInt32           block_size,
+  15: UInt32           block_size,
 
    // total file system size in bytes
-  16: required UInt64           total_fs_size,
+  16: UInt64           total_fs_size,
 
   //=========================================================//
   // fields added with dwarfs-0.3.0, file system version 2.1 //
