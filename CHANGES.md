@@ -1,5 +1,31 @@
 # Change Log
 
+## Version 0.6.2 - 2022-10-24
+
+- (fix) Fix github #91: image creation reproducibility.
+  Add `--no-create-timestamp` option, produce deterministic
+  inode numbers and fix `fsst` bug that causes symbol tables
+  to be non-deterministic. Images built while omitting create
+  timestamps will now be bit-identical.
+
+- (fix) Fix github #93: only overwrite existing output file
+  when `--force` option given on command line.
+
+- (fix) Fix github #104: extracting large files was causing
+  `dwarfsextract` to OOM. This was fixed by extracting large
+  files in chunks rather than all at once.
+
+- (fix) Fix github #105: handle `strrchr()` return `NULL`.
+
+- (fix) Fix out-of-bounds access (PR #106).
+
+- (fix) Fix swapped-out cached block detection (PR #107).
+
+- (fix) Fix data race in cached block that was triggered by
+  statistics collection and could cause the process to crash.
+
+- (fix) Fix heap-use-after-free when writing section index.
+
 ## Version 0.6.1 - 2022-06-11
 
 - (fix) Fix binary installation
