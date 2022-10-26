@@ -108,7 +108,7 @@ class cached_block {
     return last_access_ < tp;
   }
 
-  bool is_swapped_out(std::vector<uint8_t>& tmp) const {
+  bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const {
     auto page_size = ::sysconf(_SC_PAGESIZE);
     tmp.resize((data_.size() + page_size - 1) / page_size);
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
@@ -616,7 +616,7 @@ class block_cache_ final : public block_cache::impl {
   }
 
   template <typename Pred>
-  void tidy_collect(Pred const& predicate) {
+  void remove_block_if(Pred const& predicate) {
     auto it = cache_.begin();
 
     while (it != cache_.end()) {
@@ -639,7 +639,7 @@ class block_cache_ final : public block_cache::impl {
           std::cv_status::timeout) {
         switch (tidy_config_.strategy) {
         case cache_tidy_strategy::EXPIRY_TIME:
-          tidy_collect(
+          remove_block_if(
               [tp = std::chrono::steady_clock::now() -
                     tidy_config_.expiry_time](cached_block const& blk) {
                 return blk.last_used_before(tp);
@@ -648,8 +648,8 @@ class block_cache_ final : public block_cache::impl {
 
         case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
           std::vector<uint8_t> tmp;
-          tidy_collect([&tmp](cached_block const& blk) {
-            return blk.is_swapped_out(tmp);
+          remove_block_if([&tmp](cached_block const& blk) {
+            return blk.any_pages_swapped_out(tmp);
           });
         } break;
 
