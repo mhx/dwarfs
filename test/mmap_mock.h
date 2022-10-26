@@ -33,15 +33,9 @@ class mmap_mock : public mmif {
 
   size_t size() const override { return m_data.size(); }
 
-  boost::system::error_code lock(off_t, size_t) override {
-    return boost::system::error_code();
-  }
-  boost::system::error_code release(off_t, size_t) override {
-    return boost::system::error_code();
-  }
-  boost::system::error_code release_until(off_t) override {
-    return boost::system::error_code();
-  }
+  std::error_code lock(off_t, size_t) override { return std::error_code(); }
+  std::error_code release(off_t, size_t) override { return std::error_code(); }
+  std::error_code release_until(off_t) override { return std::error_code(); }
 
  private:
   const std::string m_data;

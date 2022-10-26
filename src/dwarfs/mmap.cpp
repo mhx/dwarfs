@@ -26,8 +26,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <boost/system/error_code.hpp>
-
 #include <fmt/format.h>
 
 #include "dwarfs/error.h"
@@ -71,17 +69,17 @@ void* safe_mmap(int fd, size_t size) {
 
 } // namespace
 
-boost::system::error_code mmap::lock(off_t offset, size_t size) {
-  boost::system::error_code ec;
+std::error_code mmap::lock(off_t offset, size_t size) {
+  std::error_code ec;
   auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
   if (::mlock(addr, size) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+    ec.assign(errno, std::generic_category());
   }
   return ec;
 }
 
-boost::system::error_code mmap::release(off_t offset, size_t size) {
-  boost::system::error_code ec;
+std::error_code mmap::release(off_t offset, size_t size) {
+  std::error_code ec;
   auto misalign = offset % page_size_;
 
   offset -= misalign;
@@ -90,18 +88,18 @@ boost::system::error_code mmap::release(off_t offset, size_t size) {
 
   auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
   if (::madvise(addr, size, MADV_DONTNEED) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+    ec.assign(errno, std::generic_category());
   }
   return ec;
 }
 
-boost::system::error_code mmap::release_until(off_t offset) {
-  boost::system::error_code ec;
+std::error_code mmap::release_until(off_t offset) {
+  std::error_code ec;
 
   offset -= offset % page_size_;
 
   if (::madvise(addr_, offset, MADV_DONTNEED) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+    ec.assign(errno, std::generic_category());
   }
   return ec;
 }

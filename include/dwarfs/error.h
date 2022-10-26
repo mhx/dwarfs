@@ -24,9 +24,7 @@
 #include <exception>
 #include <functional>
 #include <string>
-
-#include <boost/system/error_code.hpp>
-#include <boost/system/system_error.hpp>
+#include <system_error>
 
 namespace dwarfs {
 
@@ -56,7 +54,7 @@ class runtime_error : public error {
       : error(s, file, line) {}
 };
 
-class system_error : public boost::system::system_error {
+class system_error : public std::system_error {
  public:
   system_error(char const* file, int line) noexcept;
   system_error(std::string const& s, char const* file, int line) noexcept;

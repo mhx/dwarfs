@@ -43,13 +43,12 @@ system_error::system_error(std::string const& s, char const* file,
 
 system_error::system_error(std::string const& s, int err, char const* file,
                            int line) noexcept
-    : boost::system::system_error(err, boost::system::generic_category(),
-                                  s.c_str())
+    : std::system_error(err, std::generic_category(), s.c_str())
     , file_(file)
     , line_(line) {}
 
 system_error::system_error(int err, char const* file, int line) noexcept
-    : boost::system::system_error(err, boost::system::generic_category())
+    : std::system_error(err, std::generic_category())
     , file_(file)
     , line_(line) {}
 

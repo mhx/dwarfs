@@ -28,8 +28,6 @@
 #include <sys/mman.h>
 #include <sys/statvfs.h>
 
-#include <boost/system/system_error.hpp>
-
 #include <folly/Range.h>
 
 #include <fmt/format.h>

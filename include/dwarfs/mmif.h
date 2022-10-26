@@ -22,9 +22,9 @@
 #pragma once
 
 #include <string>
+#include <system_error>
 
 #include <boost/noncopyable.hpp>
-#include <boost/system/system_error.hpp>
 
 #include <folly/Range.h>
 
@@ -47,8 +47,8 @@ class mmif : public boost::noncopyable {
   virtual void const* addr() const = 0;
   virtual size_t size() const = 0;
 
-  virtual boost::system::error_code lock(off_t offset, size_t size) = 0;
-  virtual boost::system::error_code release(off_t offset, size_t size) = 0;
-  virtual boost::system::error_code release_until(off_t offset) = 0;
+  virtual std::error_code lock(off_t offset, size_t size) = 0;
+  virtual std::error_code release(off_t offset, size_t size) = 0;
+  virtual std::error_code release_until(off_t offset) = 0;
 };
 } // namespace dwarfs

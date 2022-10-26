@@ -30,12 +30,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
 #include <unistd.h>
-
-#include <boost/system/system_error.hpp>
 
 #include <folly/ExceptionString.h>
 #include <folly/container/F14Map.h>
@@ -575,7 +574,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
               break;
             }
           }
-        } catch (const boost::system::system_error& e) {
+        } catch (const std::system_error& e) {
           LOG_ERROR << "error reading entry: " << e.what();
           prog.errors++;
         }
@@ -584,7 +583,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
       queue.insert(queue.begin(), subdirs.begin(), subdirs.end());
 
       prog.dirs_scanned++;
-    } catch (const boost::system::system_error& e) {
+    } catch (const std::system_error& e) {
       LOG_ERROR << "cannot open directory: " << e.what();
       prog.errors++;
     }
