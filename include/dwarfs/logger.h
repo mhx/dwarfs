@@ -412,5 +412,6 @@ std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
 }
 
 std::string get_logger_context(char const* path, int line);
+std::string get_current_time_string();
 
 } // namespace dwarfs

@@ -25,8 +25,6 @@
 #include <locale>
 #include <stdexcept>
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-
 #include <folly/Conv.h>
 
 #ifndef NDEBUG
@@ -36,6 +34,7 @@
 #define DWARFS_SYMBOLIZE 0
 #endif
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 #include "dwarfs/logger.h"
@@ -67,15 +66,13 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold,
     : os_(os)
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context) {
-  os_.imbue(std::locale(os_.getloc(),
-                        new boost::posix_time::time_facet("%H:%M:%S.%f")));
   set_threshold(threshold);
 }
 
 void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
   if (level <= threshold_) {
-    auto t = boost::posix_time::microsec_clock::local_time();
+    auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
 
@@ -147,6 +144,12 @@ void stream_logger::set_threshold(level_type threshold) {
 std::string get_logger_context(char const* path, int line) {
   auto base = ::strrchr(path, '/');
   return fmt::format("[{0}:{1}] ", base ? base + 1 : path, line);
+}
+
+std::string get_current_time_string() {
+  using namespace std::chrono;
+  auto now = floor<microseconds>(system_clock::now());
+  return fmt::format("{:%H:%M:%S}", now);
 }
 
 } // namespace dwarfs

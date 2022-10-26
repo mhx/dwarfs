@@ -120,7 +120,7 @@ if(WITH_MAN_PAGES)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
-  find_package(fmt 8 CONFIG)
+  find_package(fmt 9.1 CONFIG)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR NOT fmt_FOUND)
@@ -141,7 +141,7 @@ if(STATIC_BUILD_DO_NOT_USE OR NOT fmt_FOUND)
   endif()
   set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install;${CMAKE_PREFIX_PATH}")
   include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install/include")
-  find_package(fmt 8 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
+  find_package(fmt 9.1 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
 endif()
 
 list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)

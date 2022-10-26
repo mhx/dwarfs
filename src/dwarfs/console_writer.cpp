@@ -24,8 +24,6 @@
 #include <locale>
 #include <sstream>
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-
 #include <folly/Conv.h>
 
 #include <fmt/format.h>
@@ -71,8 +69,6 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context)
     , debug_progress_(is_debug_progress()) {
-  os_.imbue(std::locale(os_.getloc(),
-                        new boost::posix_time::time_facet("%H:%M:%S.%f")));
   if (threshold > level_type::INFO) {
     set_policy<debug_logger_policy>();
   } else {
@@ -96,7 +92,7 @@ void console_writer::rewind() {
 void console_writer::write(level_type level, const std::string& output,
                            char const* file, int line) {
   if (level <= threshold_) {
-    auto t = boost::posix_time::microsec_clock::local_time();
+    auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
 
@@ -248,7 +244,7 @@ void console_writer::update(const progress& p, bool last) {
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
                     p.blocks_written, size_with_unit(p.compressed_size));
     if (tmp != statebuf_) {
-      auto t = boost::posix_time::microsec_clock::local_time();
+      auto t = get_current_time_string();
       statebuf_ = tmp;
       std::lock_guard lock(mx_);
       os_ << "- " << t << statebuf_ << "\n";
