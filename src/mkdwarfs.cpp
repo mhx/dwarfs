@@ -100,13 +100,15 @@ const std::map<std::string, file_order_mode> order_choices{
     {"script", file_order_mode::SCRIPT},
 #endif
     {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA}};
+    {"nilsimsa", file_order_mode::NILSIMSA},
+};
 
 const std::map<std::string, console_writer::progress_mode> progress_modes{
     {"none", console_writer::NONE},
     {"simple", console_writer::SIMPLE},
     {"ascii", console_writer::ASCII},
-    {"unicode", console_writer::UNICODE}};
+    {"unicode", console_writer::UNICODE},
+};
 
 const std::map<std::string, uint32_t> time_resolutions{
     {"sec", 1},
@@ -336,7 +338,8 @@ int mkdwarfs(int argc, char** argv) {
   block_manager::config cfg;
   std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
-      time_resolution, order, progress_mode, recompress_opts, pack_metadata;
+      time_resolution, order, progress_mode, recompress_opts, pack_metadata,
+      file_hash_algo;
   size_t num_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -354,6 +357,11 @@ int mkdwarfs(int argc, char** argv) {
   auto resolution_desc = "time resolution in seconds or (" +
                          (from(time_resolutions) | get<0>() | unsplit(", ")) +
                          ")";
+
+  auto hash_list = checksum::available_algorithms();
+
+  auto file_hash_desc = "choice of file hashing function (none, " +
+                        (from(hash_list) | unsplit(", ")) + ")";
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -453,6 +461,9 @@ int mkdwarfs(int argc, char** argv) {
     ("no-create-timestamp",
         po::value<bool>(&options.no_create_timestamp)->zero_tokens(),
         "don't add create timestamp to file system")
+    ("file-hash",
+        po::value<std::string>(&file_hash_algo)->default_value("xxh3-128"),
+        file_hash_desc.c_str())
     ("log-level",
         po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
@@ -654,6 +665,16 @@ int mkdwarfs(int argc, char** argv) {
     }
   } else {
     std::cerr << "error: invalid inode order mode: " << order << std::endl;
+    return 1;
+  }
+
+  if (file_hash_algo == "none") {
+    options.file_hash_algorithm.reset();
+  } else if (checksum::is_available(file_hash_algo)) {
+    options.file_hash_algorithm = file_hash_algo;
+  } else {
+    std::cerr << "error: unknown file hash function '" << file_hash_algo
+              << "'\n";
     return 1;
   }
 

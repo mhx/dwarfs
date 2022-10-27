@@ -276,6 +276,10 @@ Most other options are concerned with compression tuning:
   Don't add a creation timestamp. This is useful when bit-identical file
   system images are required to be produced from the same input.
 
+- `--file-hash=none`|*name*:
+  Select the hashing function to be used for file deduplication. If `none`
+  is chosen, file deduplication is disabled.
+
 - `--log-level=`*name*:
   Specifiy a logging level.
 

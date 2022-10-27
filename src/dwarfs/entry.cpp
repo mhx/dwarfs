@@ -142,7 +142,7 @@ void entry::set_ctime(uint64_t ctime) { stat_.st_atime = ctime; }
 
 std::string_view file::hash() const {
   auto& h = data_->hash;
-  return std::string_view(&h[0], h.size());
+  return std::string_view(h.data(), h.size());
 }
 
 void file::set_inode(std::shared_ptr<inode> ino) {
@@ -164,32 +164,35 @@ void file::scan(os_access& os, progress& prog) {
     mm = os.map_file(path(), s);
   }
 
-  scan(mm, prog);
+  scan(mm, prog, "xxh3-128");
 }
 
-void file::scan(std::shared_ptr<mmif> const& mm, progress& prog) {
-  constexpr auto alg = checksum::algorithm::XXH3_128;
-  static_assert(checksum::digest_size(alg) == sizeof(data::hash_type));
+void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
+                std::optional<std::string> const& hash_alg) {
+  if (hash_alg) {
+    checksum cs(*hash_alg);
 
-  if (size_t s = size(); s > 0) {
-    constexpr size_t chunk_size = 32 << 20;
-    prog.original_size += s;
-    checksum cs(alg);
-    size_t offset = 0;
+    if (size_t s = size(); s > 0) {
+      constexpr size_t chunk_size = 32 << 20;
+      prog.original_size += s;
+      size_t offset = 0;
 
-    while (s >= chunk_size) {
-      cs.update(mm->as<void>(offset), chunk_size);
-      mm->release_until(offset);
-      offset += chunk_size;
-      s -= chunk_size;
+      while (s >= chunk_size) {
+        cs.update(mm->as<void>(offset), chunk_size);
+        mm->release_until(offset);
+        offset += chunk_size;
+        s -= chunk_size;
+      }
+
+      cs.update(mm->as<void>(offset), s);
     }
 
-    cs.update(mm->as<void>(offset), s);
+    data_->hash.resize(cs.digest_size());
 
-    DWARFS_CHECK(cs.finalize(&data_->hash[0]), "checksum computation failed");
-  } else {
-    DWARFS_CHECK(checksum::compute(alg, nullptr, 0, &data_->hash[0]),
+    DWARFS_CHECK(cs.finalize(data_->hash.data()),
                  "checksum computation failed");
+  } else {
+    prog.original_size += size();
   }
 }
 

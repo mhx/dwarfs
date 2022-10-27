@@ -108,11 +108,6 @@ struct section_header_v2 {
   uint16_t compression;     // [54] compression
   uint64_t length;          // [56] length of section
 
-  static_assert(checksum::digest_size(checksum::algorithm::XXH3_64) ==
-                sizeof(xxh3_64));
-  static_assert(checksum::digest_size(checksum::algorithm::SHA2_512_256) ==
-                sizeof(sha2_512_256));
-
   std::string to_string() const;
   void dump(std::ostream& os) const;
 };

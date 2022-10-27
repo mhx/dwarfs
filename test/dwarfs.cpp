@@ -50,6 +50,8 @@ using namespace dwarfs;
 
 namespace {
 
+std::string const default_file_hash_algo{"xxh3-128"};
+
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
@@ -80,7 +82,8 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool pack_directories, bool pack_shared_files_table,
                            bool pack_names, bool pack_names_index,
                            bool pack_symlinks, bool pack_symlinks_index,
-                           bool plain_names_table, bool plain_symlinks_table) {
+                           bool plain_names_table, bool plain_symlinks_table,
+                           std::optional<std::string> file_hash_algo) {
   block_manager::config cfg;
   scanner_options options;
 
@@ -88,6 +91,7 @@ void basic_end_to_end_test(std::string const& compressor,
   cfg.block_size_bits = block_size_bits;
 
   options.file_order.mode = file_order;
+  options.file_hash_algorithm = file_hash_algo;
   options.with_devices = with_devices;
   options.with_specials = with_specials;
   options.inode.with_similarity = file_order == file_order_mode::SIMILARITY;
@@ -397,8 +401,10 @@ class compression_test
           std::tuple<std::string, unsigned, file_order_mode>> {};
 
 class scanner_test : public testing::TestWithParam<
-                         std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
-};
+                         std::tuple<bool, bool, bool, bool, bool, bool, bool,
+                                    std::optional<std::string>>> {};
+
+class hashing_test : public testing::TestWithParam<std::string> {};
 
 class packing_test : public testing::TestWithParam<
                          std::tuple<bool, bool, bool, bool, bool, bool, bool>> {
@@ -417,17 +423,24 @@ TEST_P(compression_test, end_to_end) {
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, false, true, true, true,
-                        true, true, true, true, false, false);
+                        true, true, true, true, false, false,
+                        default_file_hash_algo);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        enable_nlink] = GetParam();
+        enable_nlink, file_hash_algo] = GetParam();
 
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
                         with_devices, with_specials, set_uid, set_gid, set_time,
                         keep_all_times, enable_nlink, true, true, true, true,
-                        true, true, true, false, false);
+                        true, true, true, false, false, file_hash_algo);
+}
+
+TEST_P(hashing_test, end_to_end) {
+  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
+                        true, true, true, true, true, true, true, true, true,
+                        true, true, true, false, false, GetParam());
 }
 
 TEST_P(packing_test, end_to_end) {
@@ -438,7 +451,7 @@ TEST_P(packing_test, end_to_end) {
                         false, false, false, false, false, pack_chunk_table,
                         pack_directories, pack_shared_files_table, pack_names,
                         pack_names_index, pack_symlinks, pack_symlinks_index,
-                        false, false);
+                        false, false, default_file_hash_algo);
 }
 
 TEST_P(plain_tables_test, end_to_end) {
@@ -447,7 +460,7 @@ TEST_P(plain_tables_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
                         false, false, false, false, false, false, false, false,
                         false, false, false, false, plain_names_table,
-                        plain_symlinks_table);
+                        plain_symlinks_table, default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -516,7 +529,11 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
-                       ::testing::Bool()));
+                       ::testing::Bool(),
+                       ::testing::Values(std::nullopt, "xxh3-128", "sha512")));
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, hashing_test,
+                         ::testing::ValuesIn(checksum::available_algorithms()));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, packing_test,
@@ -661,7 +678,12 @@ TEST_P(compression_regression, github45) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
                          ::testing::ValuesIn(compressions));
 
-TEST(scanner, inode_ordering) {
+class file_scanner : public testing::TestWithParam<std::optional<std::string>> {
+};
+
+TEST_P(file_scanner, inode_ordering) {
+  auto file_hash_algo = GetParam();
+
   std::ostringstream logss;
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
@@ -670,9 +692,10 @@ TEST(scanner, inode_ordering) {
   auto opts = scanner_options();
 
   opts.file_order.mode = file_order_mode::PATH;
+  opts.file_hash_algorithm = file_hash_algo;
 
   auto input = std::make_shared<test::os_access_mock>();
-  constexpr int dim = 15;
+  constexpr int dim = 14;
 
   input->add_dir("");
 
@@ -693,3 +716,6 @@ TEST(scanner, inode_ordering) {
     EXPECT_EQ(ref, build_dwarfs(lgr, input, "null", bmcfg, opts));
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, file_scanner,
+                         ::testing::Values(std::nullopt, "xxh3-128"));

@@ -87,6 +87,7 @@ struct file_order_options {
 
 struct scanner_options {
   file_order_options file_order;
+  std::optional<std::string> file_hash_algorithm{"xxh3-128"};
   std::optional<uint16_t> uid;
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;

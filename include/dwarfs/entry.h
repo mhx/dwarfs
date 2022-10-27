@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -32,6 +31,8 @@
 #include <vector>
 
 #include <sys/stat.h>
+
+#include <folly/small_vector.h>
 
 #include "dwarfs/entry_interface.h"
 
@@ -126,7 +127,8 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
-  void scan(std::shared_ptr<mmif> const& mm, progress& prog);
+  void scan(std::shared_ptr<mmif> const& mm, progress& prog,
+            std::optional<std::string> const& hash_alg);
   void create_data();
   void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;
@@ -138,8 +140,8 @@ class file : public entry {
 
  private:
   struct data {
-    using hash_type = std::array<char, 16>;
-    hash_type hash{0};
+    using hash_type = folly::small_vector<char, 16>;
+    hash_type hash;
     uint32_t refcount{1};
     std::optional<uint32_t> inode_num;
   };

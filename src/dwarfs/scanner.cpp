@@ -77,22 +77,23 @@ class visitor_base : public entry_visitor {
 class file_scanner {
  public:
   file_scanner(worker_group& wg, os_access& os, inode_manager& im,
-               inode_options const& ino_opts, progress& prog)
+               inode_options const& ino_opts,
+               std::optional<std::string> const& hash_algo, progress& prog)
       : wg_(wg)
       , os_(os)
       , im_(im)
       , ino_opts_(ino_opts)
+      , hash_algo_{hash_algo}
       , prog_(prog) {}
 
   void scan(file* p) {
     if (p->num_hard_links() > 1) {
-      auto ino = p->raw_inode_num();
-      auto [it, is_new] = hardlink_cache_.emplace(ino, p);
+      auto& vec = hardlinks_[p->raw_inode_num()];
+      vec.push_back(p);
 
-      if (!is_new) {
-        p->hardlink(it->second, prog_);
+      if (vec.size() > 1) {
+        p->hardlink(vec[0], prog_);
         ++prog_.files_scanned;
-        hardlinked_.push_back(p);
         return;
       }
     }
@@ -108,20 +109,26 @@ class file_scanner {
       }
 
       prog_.current.store(p);
-      p->scan(mm, prog_);
+      p->scan(mm, prog_, hash_algo_);
       ++prog_.files_scanned;
       std::shared_ptr<inode> inode;
 
       {
         std::lock_guard lock(mx_);
-        auto& ref = hash_[p->hash()];
-        if (ref.empty()) {
+        if (hash_algo_) {
+          auto& ref = hash_[p->hash()];
+          if (ref.empty()) {
+            inode = im_.create_inode();
+            p->set_inode(inode);
+          } else {
+            p->set_inode(ref.front()->get_inode());
+          }
+          ref.push_back(p);
+        } else {
+          files_[p->raw_inode_num()].push_back(p);
           inode = im_.create_inode();
           p->set_inode(inode);
-        } else {
-          p->set_inode(ref.front()->get_inode());
         }
-        ref.push_back(p);
       }
 
       if (inode) {
@@ -139,26 +146,50 @@ class file_scanner {
   }
 
   void finalize(uint32_t& inode_num) {
-    hardlink_cache_.clear();
+    if (hash_algo_) {
+      finalize_hardlinks(hash_, [](file const* p) { return p->hash(); });
+      finalize_files(hash_, inode_num);
+    } else {
+      finalize_hardlinks(files_,
+                         [](file const* p) { return p->raw_inode_num(); });
+      finalize_files(files_, inode_num);
+    }
+  }
 
-    for (auto p : hardlinked_) {
-      auto& fv = hash_[p->hash()];
-      p->set_inode(fv.front()->get_inode());
-      fv.push_back(p);
+  uint32_t num_unique() const { return num_unique_; }
+
+ private:
+  template <typename KeyType, typename Lookup>
+  void finalize_hardlinks(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
+                          Lookup&& lookup) {
+    for (auto& kv : hardlinks_) {
+      auto& hlv = kv.second;
+      if (hlv.size() > 1) {
+        auto& fv = fmap[lookup(hlv.front())];
+        // TODO: for (auto p : hlv | std::views::drop(1)) {
+        std::for_each(hlv.begin() + 1, hlv.end(), [&fv](auto p) {
+          p->set_inode(fv.front()->get_inode());
+          fv.push_back(p);
+        });
+      }
     }
 
-    hardlinked_.clear();
+    hardlinks_.clear();
+  }
 
-    std::vector<std::pair<std::string_view, inode::files_vector>> ent;
-    ent.reserve(hash_.size());
-    hash_.eraseInto(hash_.begin(), hash_.end(),
-                    [&ent](std::string_view&& h, inode::files_vector&& fv) {
-                      ent.emplace_back(std::move(h), std::move(fv));
-                    });
+  template <typename KeyType>
+  void finalize_files(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
+                      uint32_t& inode_num) {
+    std::vector<std::pair<KeyType, inode::files_vector>> ent;
+    ent.reserve(fmap.size());
+    fmap.eraseInto(fmap.begin(), fmap.end(),
+                   [&ent](KeyType&& k, inode::files_vector&& fv) {
+                     ent.emplace_back(std::move(k), std::move(fv));
+                   });
     std::sort(ent.begin(), ent.end(),
               [](auto& left, auto& right) { return left.first < right.first; });
 
-    DWARFS_CHECK(hash_.empty(), "expected hash to be empty");
+    DWARFS_CHECK(fmap.empty(), "expected file map to be empty");
 
     uint32_t obj_num = 0;
 
@@ -166,13 +197,10 @@ class file_scanner {
     finalize_inodes<false>(ent, inode_num, obj_num);
   }
 
-  uint32_t num_unique() const { return num_unique_; }
-
- private:
-  template <bool Unique>
-  void finalize_inodes(
-      std::vector<std::pair<std::string_view, inode::files_vector>>& ent,
-      uint32_t& inode_num, uint32_t& obj_num) {
+  template <bool Unique, typename KeyType>
+  void
+  finalize_inodes(std::vector<std::pair<KeyType, inode::files_vector>>& ent,
+                  uint32_t& inode_num, uint32_t& obj_num) {
     for (auto& p : ent) {
       auto& files = p.second;
 
@@ -217,12 +245,13 @@ class file_scanner {
   os_access& os_;
   inode_manager& im_;
   inode_options const& ino_opts_;
+  std::optional<std::string> const hash_algo_;
   progress& prog_;
   uint32_t num_unique_{0};
-  std::vector<file*> hardlinked_;
-  folly::F14FastMap<uint64_t, file*> hardlink_cache_;
+  folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
   std::mutex mx_;
   folly::F14FastMap<std::string_view, inode::files_vector> hash_;
+  folly::F14FastMap<uint64_t, inode::files_vector> files_;
 };
 
 class dir_set_inode_visitor : public visitor_base {
@@ -600,7 +629,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   prog.set_status_function(status_string);
 
   inode_manager im(lgr_, prog);
-  file_scanner fs(wg_, *os_, im, options_.inode, prog);
+  file_scanner fs(wg_, *os_, im, options_.inode, options_.file_hash_algorithm,
+                  prog);
 
   auto root = scan_tree(path, prog, fs);
 

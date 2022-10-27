@@ -19,8 +19,11 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
+#include <functional>
+#include <unordered_set>
 
 #include <openssl/evp.h>
 
@@ -35,46 +38,29 @@ namespace dwarfs {
 
 namespace {
 
-bool compute_evp(const EVP_MD* algorithm, void const* data, size_t size,
-                 void* digest, unsigned int* digest_size) {
-  return EVP_Digest(data, size, reinterpret_cast<unsigned char*>(digest),
-                    digest_size, algorithm, nullptr);
-}
-
-bool compute_xxh3_64(void const* data, size_t size, void* digest) {
-  auto hash = XXH3_64bits(data, size);
-  static_assert(checksum::digest_size(checksum::algorithm::XXH3_64) ==
-                sizeof(hash));
-  ::memcpy(digest, &hash, sizeof(hash));
-  return true;
-}
-
-bool compute_xxh3_128(void const* data, size_t size, void* digest) {
-  auto hash = XXH3_128bits(data, size);
-  static_assert(checksum::digest_size(checksum::algorithm::XXH3_128) ==
-                sizeof(hash));
-  ::memcpy(digest, &hash, sizeof(hash));
-  return true;
-}
+std::unordered_set<std::string> supported_algorithms{
+    "xxh3-64",
+    "xxh3-128",
+};
 
 class checksum_evp : public checksum::impl {
  public:
-  checksum_evp(EVP_MD const* evp, checksum::algorithm alg)
-      : context_(EVP_MD_CTX_new())
-      , dig_size_(checksum::digest_size(alg)) {
-    EVP_DigestInit_ex(context_, evp, nullptr);
+  checksum_evp(::EVP_MD const* evp)
+      : context_(::EVP_MD_CTX_new())
+      , dig_size_(::EVP_MD_size(evp)) {
+    ::EVP_DigestInit_ex(context_, evp, nullptr);
   }
 
-  ~checksum_evp() override { EVP_MD_CTX_destroy(context_); }
+  ~checksum_evp() override { ::EVP_MD_CTX_destroy(context_); }
 
   void update(void const* data, size_t size) override {
-    DWARFS_CHECK(EVP_DigestUpdate(context_, data, size),
+    DWARFS_CHECK(::EVP_DigestUpdate(context_, data, size),
                  "EVP_DigestUpdate() failed");
   }
 
   bool finalize(void* digest) override {
     unsigned int dig_size = 0;
-    bool rv = EVP_DigestFinal_ex(
+    bool rv = ::EVP_DigestFinal_ex(
         context_, reinterpret_cast<unsigned char*>(digest), &dig_size);
 
     if (rv) {
@@ -86,8 +72,27 @@ class checksum_evp : public checksum::impl {
     return rv;
   }
 
+  static std::vector<std::string> available_algorithms() {
+    std::vector<std::string> available;
+    ::EVP_MD_do_all(
+        [](const ::EVP_MD*, const char* from, const char* to, void* vec) {
+          if (!to) {
+            reinterpret_cast<std::vector<std::string>*>(vec)->emplace_back(
+                from);
+          }
+        },
+        &available);
+    return available;
+  }
+
+  static bool is_available(std::string const& algo) {
+    return ::EVP_get_digestbyname(algo.c_str()) != nullptr;
+  }
+
+  size_t digest_size() override { return dig_size_; }
+
  private:
-  EVP_MD_CTX* context_;
+  ::EVP_MD_CTX* context_;
   size_t const dig_size_;
 };
 
@@ -111,6 +116,10 @@ class checksum_xxh3_64 : public checksum::impl {
     auto hash = XXH3_64bits_digest(state_);
     ::memcpy(digest, &hash, sizeof(hash));
     return true;
+  }
+
+  size_t digest_size() override {
+    return sizeof(decltype(std::function{XXH3_64bits_digest})::result_type);
   }
 
  private:
@@ -139,57 +148,47 @@ class checksum_xxh3_128 : public checksum::impl {
     return true;
   }
 
+  size_t digest_size() override {
+    return sizeof(decltype(std::function{XXH3_128bits_digest})::result_type);
+  }
+
  private:
   XXH3_state_t* state_;
 };
 
 } // namespace
 
-bool checksum::compute(algorithm alg, void const* data, size_t size,
-                       void* digest) {
-  bool rv = false;
-  unsigned int dig_size = 0;
+bool checksum::is_available(std::string const& algo) {
+  return supported_algorithms.count(algo) or checksum_evp::is_available(algo);
+}
 
-  switch (alg) {
-  case algorithm::SHA1:
-    rv = compute_evp(EVP_sha1(), data, size, digest, &dig_size);
-    break;
-  case algorithm::SHA2_512_256:
-    rv = compute_evp(EVP_sha512_256(), data, size, digest, &dig_size);
-    break;
-  case algorithm::XXH3_64:
-    rv = compute_xxh3_64(data, size, digest);
-    break;
-  case algorithm::XXH3_128:
-    rv = compute_xxh3_128(data, size, digest);
-    break;
-  }
-
-  if (rv && dig_size > 0) {
-    DWARFS_CHECK(digest_size(alg) == dig_size,
-                 fmt::format("digest size mismatch: {0} != {1} [{2}]",
-                             digest_size(alg), dig_size,
-                             static_cast<int>(alg)));
-  }
-
-  return rv;
+std::vector<std::string> checksum::available_algorithms() {
+  auto available_evp = checksum_evp::available_algorithms();
+  std::vector<std::string> available;
+  available.insert(available.end(), supported_algorithms.begin(),
+                   supported_algorithms.end());
+  available.insert(available.end(), available_evp.begin(), available_evp.end());
+  std::sort(available.begin(), available.end());
+  return available;
 }
 
 bool checksum::verify(algorithm alg, void const* data, size_t size,
-                      const void* digest) {
+                      const void* digest, size_t digest_size) {
   std::array<char, EVP_MAX_MD_SIZE> tmp;
-  return compute(alg, data, size, tmp.data()) &&
-         ::memcmp(digest, tmp.data(), digest_size(alg)) == 0;
+  checksum cs(alg);
+  DWARFS_CHECK(digest_size == cs.digest_size(), "digest size mismatch");
+  cs.update(data, size);
+  return cs.finalize(tmp.data()) &&
+         ::memcmp(digest, tmp.data(), digest_size) == 0;
 }
 
-checksum::checksum(algorithm alg)
-    : alg_(alg) {
+checksum::checksum(algorithm alg) {
   switch (alg) {
   case algorithm::SHA1:
-    impl_ = std::make_unique<checksum_evp>(EVP_sha1(), alg);
+    impl_ = std::make_unique<checksum_evp>(::EVP_sha1());
     break;
   case algorithm::SHA2_512_256:
-    impl_ = std::make_unique<checksum_evp>(EVP_sha512_256(), alg);
+    impl_ = std::make_unique<checksum_evp>(::EVP_sha512_256());
     break;
   case algorithm::XXH3_64:
     impl_ = std::make_unique<checksum_xxh3_64>();
@@ -203,10 +202,22 @@ checksum::checksum(algorithm alg)
   }
 }
 
+checksum::checksum(std::string const& alg) {
+  if (alg == "xxh3-64") {
+    impl_ = std::make_unique<checksum_xxh3_64>();
+  } else if (alg == "xxh3-128") {
+    impl_ = std::make_unique<checksum_xxh3_128>();
+  } else if (auto md = ::EVP_get_digestbyname(alg.c_str())) {
+    impl_ = std::make_unique<checksum_evp>(md);
+  } else {
+    DWARFS_CHECK(false, "unknown algorithm");
+  }
+}
+
 bool checksum::verify(void const* digest) const {
   std::array<char, EVP_MAX_MD_SIZE> tmp;
   return impl_->finalize(tmp.data()) &&
-         ::memcmp(digest, tmp.data(), digest_size(alg_)) == 0;
+         ::memcmp(digest, tmp.data(), impl_->digest_size()) == 0;
 }
 
 } // namespace dwarfs
