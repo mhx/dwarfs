@@ -116,7 +116,7 @@ class file_scanner {
       {
         std::lock_guard lock(mx_);
         if (hash_algo_) {
-          auto& ref = hash_[p->hash()];
+          auto& ref = by_hash_[p->hash()];
           if (ref.empty()) {
             inode = im_.create_inode();
             p->set_inode(inode);
@@ -125,7 +125,7 @@ class file_scanner {
           }
           ref.push_back(p);
         } else {
-          files_[p->raw_inode_num()].push_back(p);
+          by_raw_inode_[p->raw_inode_num()].push_back(p);
           inode = im_.create_inode();
           p->set_inode(inode);
         }
@@ -147,12 +147,12 @@ class file_scanner {
 
   void finalize(uint32_t& inode_num) {
     if (hash_algo_) {
-      finalize_hardlinks(hash_, [](file const* p) { return p->hash(); });
-      finalize_files(hash_, inode_num);
+      finalize_hardlinks(by_hash_, [](file const* p) { return p->hash(); });
+      finalize_files(by_hash_, inode_num);
     } else {
-      finalize_hardlinks(files_,
+      finalize_hardlinks(by_raw_inode_,
                          [](file const* p) { return p->raw_inode_num(); });
-      finalize_files(files_, inode_num);
+      finalize_files(by_raw_inode_, inode_num);
     }
   }
 
@@ -250,8 +250,8 @@ class file_scanner {
   uint32_t num_unique_{0};
   folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
   std::mutex mx_;
-  folly::F14FastMap<std::string_view, inode::files_vector> hash_;
-  folly::F14FastMap<uint64_t, inode::files_vector> files_;
+  folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
+  folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
 };
 
 class dir_set_inode_visitor : public visitor_base {
