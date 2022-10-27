@@ -169,12 +169,15 @@ void file::scan(os_access& os, progress& prog) {
 
 void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
+  size_t s = size();
+
+  prog.original_size += s;
+
   if (hash_alg) {
     checksum cs(*hash_alg);
 
-    if (size_t s = size(); s > 0) {
+    if (s > 0) {
       constexpr size_t chunk_size = 32 << 20;
-      prog.original_size += s;
       size_t offset = 0;
 
       while (s >= chunk_size) {
@@ -191,8 +194,6 @@ void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
 
     DWARFS_CHECK(cs.finalize(data_->hash.data()),
                  "checksum computation failed");
-  } else {
-    prog.original_size += size();
   }
 }
 
