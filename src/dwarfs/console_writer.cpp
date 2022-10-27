@@ -221,7 +221,7 @@ void console_writer::update(const progress& p, bool last) {
     return;
   }
 
-  size_t orig = p.original_size - p.saved_by_deduplication;
+  size_t orig = p.original_size - (p.saved_by_deduplication + p.symlink_size);
   double frac_fs =
       orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
                : 0.0;

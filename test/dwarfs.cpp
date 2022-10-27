@@ -56,7 +56,8 @@ std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              block_manager::config const& cfg = block_manager::config(),
-             scanner_options const& options = scanner_options()) {
+             scanner_options const& options = scanner_options(),
+             progress* prog = nullptr) {
   // force multithreading
   worker_group wg("worker", 4);
 
@@ -64,12 +65,16 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
-  progress prog([](const progress&, bool) {}, 1000);
+  std::unique_ptr<progress> local_prog;
+  if (!prog) {
+    local_prog = std::make_unique<progress>([](const progress&, bool) {}, 1000);
+    prog = local_prog.get();
+  }
 
   block_compressor bc(compression);
-  filesystem_writer fsw(oss, lgr, wg, prog, bc);
+  filesystem_writer fsw(oss, lgr, wg, *prog, bc);
 
-  s.scan(fsw, "", prog);
+  s.scan(fsw, "", *prog);
 
   return oss.str();
 }
@@ -126,8 +131,40 @@ void basic_end_to_end_test(std::string const& compressor,
 
   auto input = test::os_access_mock::create_test_instance();
 
-  auto mm = std::make_shared<test::mmap_mock>(
-      build_dwarfs(lgr, input, compressor, cfg, options));
+  auto prog = progress([](const progress&, bool) {}, 1000);
+
+  auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog);
+  auto image_size = fsimage.size();
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  EXPECT_EQ(6, prog.files_found);
+  EXPECT_EQ(6, prog.files_scanned);
+  EXPECT_EQ(2, prog.dirs_found);
+  EXPECT_EQ(2, prog.dirs_scanned);
+  EXPECT_EQ(2, prog.symlinks_found);
+  EXPECT_EQ(2, prog.symlinks_scanned);
+  EXPECT_EQ(2 * with_devices + with_specials, prog.specials_found);
+  EXPECT_EQ(file_hash_algo ? 1 : 0, prog.duplicate_files);
+  EXPECT_EQ(1, prog.hardlinks);
+  EXPECT_GE(prog.block_count, 1);
+  EXPECT_GE(prog.chunk_count, 100);
+  EXPECT_EQ(options.inode.with_similarity || options.inode.with_nilsimsa ? 4
+                                                                         : 0,
+            prog.inodes_scanned);
+  EXPECT_EQ(file_hash_algo ? 4 : 5, prog.inodes_written);
+  EXPECT_EQ(prog.files_found - prog.duplicate_files - prog.hardlinks,
+            prog.inodes_written);
+  EXPECT_EQ(prog.block_count, prog.blocks_written);
+  EXPECT_EQ(0, prog.errors);
+  EXPECT_EQ(2056934, prog.original_size);
+  EXPECT_EQ(23456, prog.hardlink_size);
+  EXPECT_EQ(file_hash_algo ? 23456 : 0, prog.saved_by_deduplication);
+  EXPECT_GE(prog.saved_by_segmentation, block_size_bits == 12 ? 0 : 1000000);
+  EXPECT_EQ(prog.original_size -
+                (prog.saved_by_deduplication + prog.saved_by_segmentation +
+                 prog.symlink_size),
+            prog.filesystem_size);
+  EXPECT_EQ(image_size, prog.compressed_size);
 
   filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;

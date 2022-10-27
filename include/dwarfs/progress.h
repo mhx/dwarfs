@@ -75,6 +75,7 @@ class progress {
   std::atomic<size_t> compress_queue{0};
   std::atomic<uint64_t> original_size{0};
   std::atomic<uint64_t> hardlink_size{0};
+  std::atomic<uint64_t> symlink_size{0};
   std::atomic<uint64_t> saved_by_deduplication{0};
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};

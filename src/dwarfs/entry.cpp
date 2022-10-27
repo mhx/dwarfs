@@ -324,6 +324,7 @@ void link::accept(entry_visitor& v, bool) { v.visit(this); }
 void link::scan(os_access& os, progress& prog) {
   link_ = os.readlink(path(), size());
   prog.original_size += size();
+  prog.symlink_size += size();
 }
 
 entry::type_t device::type() const {
