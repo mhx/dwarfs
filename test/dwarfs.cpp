@@ -31,6 +31,8 @@
 
 #include <gtest/gtest.h>
 
+#include <fmt/format.h>
+
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_v2.h"
@@ -658,3 +660,36 @@ TEST_P(compression_regression, github45) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
                          ::testing::ValuesIn(compressions));
+
+TEST(scanner, inode_ordering) {
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  auto bmcfg = block_manager::config();
+  auto opts = scanner_options();
+
+  opts.file_order.mode = file_order_mode::PATH;
+
+  auto input = std::make_shared<test::os_access_mock>();
+  constexpr int dim = 15;
+
+  input->add_dir("");
+
+  for (int x = 0; x < dim; ++x) {
+    input->add_dir(fmt::format("{}", x));
+    for (int y = 0; y < dim; ++y) {
+      input->add_dir(fmt::format("{}/{}", x, y));
+      for (int z = 0; z < dim; ++z) {
+        input->add_file(fmt::format("{}/{}/{}", x, y, z),
+                        (x + 1) * (y + 1) * (z + 1));
+      }
+    }
+  }
+
+  auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts);
+
+  for (int i = 0; i < 50; ++i) {
+    EXPECT_EQ(ref, build_dwarfs(lgr, input, "null", bmcfg, opts));
+  }
+}
