@@ -466,7 +466,7 @@ share the same data in the final DwarFS image. If a file is found not
 to be a duplicate, it will now potentially be scanned again (by the
 same worker threads and using the same memory mapping) to generate a
 similarity hash value. This only happens if `--order` is set to one
-of the two similary order modes.
+of the two similarity order modes.
 
 Once all file contents have been scanned by the worker threads, all
 unique files will be assigned an internal inode number.
