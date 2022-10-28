@@ -48,7 +48,7 @@ class checksum_evp : public checksum::impl {
   checksum_evp(::EVP_MD const* evp)
       : context_(::EVP_MD_CTX_new())
       , dig_size_(::EVP_MD_size(evp)) {
-    ::EVP_DigestInit_ex(context_, evp, nullptr);
+    DWARFS_CHECK(::EVP_DigestInit(context_, evp), "EVP_DigestInit() failed");
   }
 
   ~checksum_evp() override { ::EVP_MD_CTX_destroy(context_); }
@@ -82,11 +82,20 @@ class checksum_evp : public checksum::impl {
           }
         },
         &available);
+    available.erase(std::remove_if(available.begin(), available.end(),
+                                   std::not_fn(is_available)),
+                    available.end());
     return available;
   }
 
   static bool is_available(std::string const& algo) {
-    return ::EVP_get_digestbyname(algo.c_str()) != nullptr;
+    if (auto md = ::EVP_get_digestbyname(algo.c_str())) {
+      ::EVP_MD_CTX* cx = ::EVP_MD_CTX_new();
+      bool success = ::EVP_DigestInit(cx, md);
+      ::EVP_MD_CTX_destroy(cx);
+      return success;
+    }
+    return false;
   }
 
   size_t digest_size() override { return dig_size_; }
