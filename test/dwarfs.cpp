@@ -137,21 +137,22 @@ void basic_end_to_end_test(std::string const& compressor,
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  EXPECT_EQ(6, prog.files_found);
-  EXPECT_EQ(6, prog.files_scanned);
+  bool similarity =
+      options.inode.with_similarity || options.inode.with_nilsimsa;
+
+  EXPECT_EQ(8, prog.files_found);
+  EXPECT_EQ(8, prog.files_scanned);
   EXPECT_EQ(2, prog.dirs_found);
   EXPECT_EQ(2, prog.dirs_scanned);
   EXPECT_EQ(2, prog.symlinks_found);
   EXPECT_EQ(2, prog.symlinks_scanned);
   EXPECT_EQ(2 * with_devices + with_specials, prog.specials_found);
-  EXPECT_EQ(file_hash_algo ? 1 : 0, prog.duplicate_files);
+  EXPECT_EQ(file_hash_algo ? 3 : 0, prog.duplicate_files);
   EXPECT_EQ(1, prog.hardlinks);
   EXPECT_GE(prog.block_count, 1);
   EXPECT_GE(prog.chunk_count, 100);
-  EXPECT_EQ(options.inode.with_similarity || options.inode.with_nilsimsa ? 4
-                                                                         : 0,
-            prog.inodes_scanned);
-  EXPECT_EQ(file_hash_algo ? 4 : 5, prog.inodes_written);
+  EXPECT_EQ(7 - prog.duplicate_files, prog.inodes_scanned);
+  EXPECT_EQ(file_hash_algo ? 4 : 7, prog.inodes_written);
   EXPECT_EQ(prog.files_found - prog.duplicate_files - prog.hardlinks,
             prog.inodes_written);
   EXPECT_EQ(prog.block_count, prog.blocks_written);
@@ -164,6 +165,13 @@ void basic_end_to_end_test(std::string const& compressor,
                 (prog.saved_by_deduplication + prog.saved_by_segmentation +
                  prog.symlink_size),
             prog.filesystem_size);
+  EXPECT_EQ(prog.similarity_scans, similarity ? prog.inodes_scanned.load() : 0);
+  EXPECT_EQ(prog.similarity_bytes,
+            similarity ? prog.original_size -
+                             (prog.saved_by_deduplication + prog.symlink_size)
+                       : 0);
+  EXPECT_EQ(prog.hash_scans, file_hash_algo ? 5 : 0);
+  EXPECT_EQ(prog.hash_bytes, file_hash_algo ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
   filesystem_options opts;
@@ -181,7 +189,7 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(1 << block_size_bits, vfsbuf.f_bsize);
   EXPECT_EQ(1, vfsbuf.f_frsize);
   EXPECT_EQ(enable_nlink ? 2056934 : 2080390, vfsbuf.f_blocks);
-  EXPECT_EQ(9 + 2 * with_devices + with_specials, vfsbuf.f_files);
+  EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.f_files);
   EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
   EXPECT_GT(vfsbuf.f_namemax, 0);
 
@@ -297,14 +305,14 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   auto dir = fs.opendir(*entry);
   ASSERT_TRUE(dir);
-  EXPECT_EQ(9, fs.dirsize(*dir));
+  EXPECT_EQ(10, fs.dirsize(*dir));
 
   entry = fs.find("/somedir");
 
   ASSERT_TRUE(entry);
   dir = fs.opendir(*entry);
   ASSERT_TRUE(dir);
-  EXPECT_EQ(4 + 2 * with_devices + with_specials, fs.dirsize(*dir));
+  EXPECT_EQ(5 + 2 * with_devices + with_specials, fs.dirsize(*dir));
 
   std::vector<std::string> names;
   for (size_t i = 0; i < fs.dirsize(*dir); ++i) {
@@ -315,10 +323,7 @@ void basic_end_to_end_test(std::string const& compressor,
   }
 
   std::vector<std::string> expected{
-      ".",
-      "..",
-      "bad",
-      "ipsum.py",
+      ".", "..", "bad", "empty", "ipsum.py",
   };
 
   if (with_devices) {
@@ -434,8 +439,9 @@ std::vector<std::string> const compressions{"null",
 } // namespace
 
 class compression_test
-    : public testing::TestWithParam<
-          std::tuple<std::string, unsigned, file_order_mode>> {};
+    : public testing::TestWithParam<std::tuple<
+          std::string, unsigned, file_order_mode, std::optional<std::string>>> {
+};
 
 class scanner_test : public testing::TestWithParam<
                          std::tuple<bool, bool, bool, bool, bool, bool, bool,
@@ -451,7 +457,7 @@ class plain_tables_test
     : public testing::TestWithParam<std::tuple<bool, bool>> {};
 
 TEST_P(compression_test, end_to_end) {
-  auto [compressor, block_size_bits, file_order] = GetParam();
+  auto [compressor, block_size_bits, file_order, file_hash_algo] = GetParam();
 
   if (compressor.find("lzma") == 0 && block_size_bits < 16) {
     // these are notoriously slow, so just skip them
@@ -460,8 +466,7 @@ TEST_P(compression_test, end_to_end) {
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, false, true, true, true,
-                        true, true, true, true, false, false,
-                        default_file_hash_algo);
+                        true, true, true, true, false, false, file_hash_algo);
 }
 
 TEST_P(scanner_test, end_to_end) {
@@ -560,7 +565,8 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
         ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
                           file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
-                          file_order_mode::SIMILARITY)));
+                          file_order_mode::SIMILARITY),
+        ::testing::Values(std::nullopt, "xxh3-128")));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,

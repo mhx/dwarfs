@@ -170,6 +170,9 @@ std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
       {"somedir/zero",
        {14, S_IFCHR | 0666, 1, 0, 0, 0, 261, 4000010001, 4000020002,
         4000030003}},
+      {"somedir/empty",
+       {212, S_IFREG | 0644, 1, 1000, 100, 0, 0, 8101, 8102, 8103}},
+      {"empty", {210, S_IFREG | 0644, 3, 1337, 0, 0, 0, 8201, 8202, 8203}},
   };
 
   static std::map<std::string, std::string> linkmap{

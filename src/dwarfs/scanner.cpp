@@ -100,73 +100,235 @@ class file_scanner {
 
     p->create_data();
 
-    wg_.add_job([this, p] {
-      auto const size = p->size();
-      std::shared_ptr<mmif> mm;
+    prog_.original_size += p->size();
 
-      if (size > 0) {
-        mm = os_.map_file(p->path(), size);
-      }
-
+    if (hash_algo_) {
+      scan_dedupe(p);
+    } else {
       prog_.current.store(p);
-      p->scan(mm, prog_, hash_algo_);
-      ++prog_.files_scanned;
-      std::shared_ptr<inode> inode;
+      p->scan(nullptr, prog_, hash_algo_); // TODO
 
-      {
-        std::lock_guard lock(mx_);
-        if (hash_algo_) {
-          auto& ref = by_hash_[p->hash()];
-          if (ref.empty()) {
-            inode = im_.create_inode();
-            p->set_inode(inode);
-          } else {
-            p->set_inode(ref.front()->get_inode());
-          }
-          ref.push_back(p);
-        } else {
-          by_raw_inode_[p->raw_inode_num()].push_back(p);
-          inode = im_.create_inode();
-          p->set_inode(inode);
-        }
-      }
+      by_raw_inode_[p->raw_inode_num()].push_back(p);
 
-      if (inode) {
-        if (ino_opts_.needs_scan()) {
-          if (mm) {
-            inode->scan(mm, ino_opts_);
-          }
-          ++prog_.inodes_scanned;
-        }
-      } else {
-        ++prog_.duplicate_files;
-        prog_.saved_by_deduplication += size;
-      }
-    });
+      add_inode(p);
+    }
   }
 
   void finalize(uint32_t& inode_num) {
+    uint32_t obj_num = 0;
+
+    assert(first_file_hashed_.empty());
+
     if (hash_algo_) {
-      finalize_hardlinks(by_hash_, [](file const* p) { return p->hash(); });
-      finalize_files(by_hash_, inode_num);
+      finalize_hardlinks([this](file const* p) -> inode::files_vector& {
+        auto it = by_hash_.find(p->hash());
+        if (it != by_hash_.end()) {
+          return it->second;
+        }
+        return unique_size_.at(p->size());
+      });
+      finalize_files<true>(unique_size_, inode_num, obj_num);
+      finalize_files(by_hash_, inode_num, obj_num);
     } else {
-      finalize_hardlinks(by_raw_inode_,
-                         [](file const* p) { return p->raw_inode_num(); });
-      finalize_files(by_raw_inode_, inode_num);
+      finalize_hardlinks([this](file const* p) -> inode::files_vector& {
+        return by_raw_inode_.at(p->raw_inode_num());
+      });
+      finalize_files(by_raw_inode_, inode_num, obj_num);
     }
   }
 
   uint32_t num_unique() const { return num_unique_; }
 
  private:
-  template <typename KeyType, typename Lookup>
-  void finalize_hardlinks(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
-                          Lookup&& lookup) {
+  class condition_barrier {
+   public:
+    void set() { ready_ = true; }
+
+    void notify() { cv_.notify_all(); }
+
+    void wait(std::unique_lock<std::mutex>& lock) {
+      cv_.wait(lock, [this] { return ready_; });
+    }
+
+   private:
+    std::condition_variable cv_;
+    bool ready_{false};
+  };
+
+  void scan_dedupe(file* p) {
+    // The `unique_size_` table holds an entry for each file size we
+    // discover:
+    //
+    // - When we first discover a new file size, we know for sure that
+    //   this file is *not* a duplicate of a file we've seen before.
+    //   Thus, we can immediately create a new inode, and we can
+    //   immediately start similarity scanning for this inode.
+    //
+    // - When we discover the second file of particular size, we must
+    //   hash both files to see if they're identical. We already have
+    //   an inode for the first file, so we must delay the creation of
+    //   a new inode until we know that the second file is not a
+    //   duplicate.
+    //
+    // - Exactly the same applies for subsequent files.
+    //
+    // - We must ensure that the presence of a hash is checked in
+    //   `by_hash_` for subsequent files only if the first file's
+    //   hash has been computed and stored. Otherwise, if a subsequent
+    //   file's hash computation finishes before the first file, we
+    //   assume (potentially wrongly) that the subsequent file is not
+    //   a duplicate.
+    //
+    // - So subsequent files must wait for the first file unless we
+    //   know up front that the first file's hash has already been
+    //   stored. As long as the first file's hash has not been stored,
+    //   it is still present in `unique_size_`. It will be removed
+    //   from `unique_size_` after its hash has been stored.
+
+    // We need no lock yet, as `unique_size_` is only manipulated from
+    // this thread.
+    auto size = p->size();
+    auto [it, is_new] = unique_size_.emplace(size, inode::files_vector());
+
+    if (is_new) {
+      // A file size that has never been seen before. We can safely
+      // create a new inode and we'll keep track of the file.
+      it->second.push_back(p);
+
+      {
+        std::lock_guard lock(mx_);
+        add_inode(p);
+      }
+    } else {
+      // This file size has been seen before, so this is potentially
+      // a duplicate.
+
+      std::shared_ptr<condition_barrier> cv;
+
+      if (it->second.empty()) {
+        // This is any file of this size after the second file
+        std::lock_guard lock(mx_);
+
+        if (auto ffi = first_file_hashed_.find(size);
+            ffi != first_file_hashed_.end()) {
+          cv = ffi->second;
+        }
+      } else {
+        // This is the second file of this size. We now need to hash
+        // both the first and second file and ensure that the first
+        // file's hash is stored to `by_hash_` first. We set up a
+        // condition variable to synchronize insertion into `by_hash_`.
+
+        cv = std::make_shared<condition_barrier>();
+
+        {
+          std::lock_guard lock(mx_);
+          first_file_hashed_.emplace(size, cv);
+        }
+
+        // Add a job for the first file
+        wg_.add_job([this, p = it->second.front(), cv] {
+          hash_file(p);
+
+          {
+            std::lock_guard lock(mx_);
+
+            auto& ref = by_hash_[p->hash()];
+
+            assert(ref.empty());
+            assert(p->get_inode());
+
+            ref.push_back(p);
+
+            cv->set();
+
+            first_file_hashed_.erase(p->size());
+          }
+
+          cv->notify();
+        });
+
+        it->second.clear();
+      }
+
+      // Add a job for any subsequent files
+      wg_.add_job([this, p, cv] {
+        hash_file(p);
+
+        {
+          std::unique_lock lock(mx_);
+
+          if (cv) {
+            // Wait until the first file of this size has been added to
+            // `by_hash_`.
+            cv->wait(lock);
+          }
+
+          auto& ref = by_hash_[p->hash()];
+
+          if (ref.empty()) {
+            // This is *not* a duplicate. We must allocate a new inode.
+            add_inode(p);
+          } else {
+            auto inode = ref.front()->get_inode();
+            assert(inode);
+            p->set_inode(inode);
+            ++prog_.files_scanned;
+            ++prog_.duplicate_files;
+            prog_.saved_by_deduplication += p->size();
+          }
+
+          ref.push_back(p);
+        }
+      });
+    }
+  }
+
+  void hash_file(file* p) {
+    auto const size = p->size();
+    std::shared_ptr<mmif> mm;
+
+    if (size > 0) {
+      mm = os_.map_file(p->path(), size);
+    }
+
+    prog_.current.store(p);
+    p->scan(mm, prog_, hash_algo_);
+  }
+
+  void add_inode(file* p) {
+    assert(!p->get_inode());
+
+    auto inode = im_.create_inode();
+
+    p->set_inode(inode);
+
+    if (ino_opts_.needs_scan()) {
+      wg_.add_job([this, p, inode = std::move(inode)] {
+        std::shared_ptr<mmif> mm;
+        auto const size = p->size();
+        if (size > 0) {
+          mm = os_.map_file(p->path(), size);
+        }
+        inode->scan(mm, ino_opts_);
+        ++prog_.similarity_scans;
+        prog_.similarity_bytes += size;
+        ++prog_.inodes_scanned;
+        ++prog_.files_scanned;
+      });
+    } else {
+      ++prog_.inodes_scanned;
+      ++prog_.files_scanned;
+    }
+  }
+
+  template <typename Lookup>
+  void finalize_hardlinks(Lookup&& lookup) {
     for (auto& kv : hardlinks_) {
       auto& hlv = kv.second;
       if (hlv.size() > 1) {
-        auto& fv = fmap[lookup(hlv.front())];
-        // TODO: for (auto p : hlv | std::views::drop(1)) {
+        auto& fv = lookup(hlv.front());
+        // TODO: for (auto p : hlv | std::views::drop(1))
         std::for_each(hlv.begin() + 1, hlv.end(), [&fv](auto p) {
           p->set_inode(fv.front()->get_inode());
           fv.push_back(p);
@@ -177,24 +339,30 @@ class file_scanner {
     hardlinks_.clear();
   }
 
-  template <typename KeyType>
+  template <bool UniqueOnly = false, typename KeyType>
   void finalize_files(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
-                      uint32_t& inode_num) {
+                      uint32_t& inode_num, uint32_t& obj_num) {
     std::vector<std::pair<KeyType, inode::files_vector>> ent;
     ent.reserve(fmap.size());
     fmap.eraseInto(fmap.begin(), fmap.end(),
                    [&ent](KeyType&& k, inode::files_vector&& fv) {
-                     ent.emplace_back(std::move(k), std::move(fv));
+                     if (!fv.empty()) {
+                       if constexpr (UniqueOnly) {
+                         DWARFS_CHECK(fv.size() == fv.front()->refcount(),
+                                      "internal error");
+                       }
+                       ent.emplace_back(std::move(k), std::move(fv));
+                     }
                    });
     std::sort(ent.begin(), ent.end(),
               [](auto& left, auto& right) { return left.first < right.first; });
 
     DWARFS_CHECK(fmap.empty(), "expected file map to be empty");
 
-    uint32_t obj_num = 0;
-
     finalize_inodes<true>(ent, inode_num, obj_num);
-    finalize_inodes<false>(ent, inode_num, obj_num);
+    if constexpr (!UniqueOnly) {
+      finalize_inodes<false>(ent, inode_num, obj_num);
+    }
   }
 
   template <bool Unique, typename KeyType>
@@ -234,6 +402,7 @@ class file_scanner {
 
       auto fp = files.front();
       auto inode = fp->get_inode();
+      assert(inode);
       inode->set_num(obj_num);
       inode->set_files(std::move(files));
 
@@ -250,6 +419,9 @@ class file_scanner {
   uint32_t num_unique_{0};
   folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
   std::mutex mx_;
+  folly::F14FastMap<uint64_t, inode::files_vector> unique_size_;
+  folly::F14FastMap<uint64_t, std::shared_ptr<condition_barrier>>
+      first_file_hashed_;
   folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
   folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
 };

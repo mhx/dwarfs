@@ -171,8 +171,6 @@ void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
   size_t s = size();
 
-  prog.original_size += s;
-
   if (hash_alg) {
     checksum cs(*hash_alg);
 
@@ -191,6 +189,9 @@ void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
     }
 
     data_->hash.resize(cs.digest_size());
+
+    ++prog.hash_scans;
+    prog.hash_bytes += s;
 
     DWARFS_CHECK(cs.finalize(data_->hash.data()),
                  "checksum computation failed");

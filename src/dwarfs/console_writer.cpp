@@ -80,7 +80,7 @@ void console_writer::rewind() {
   if (!statebuf_.empty()) {
     switch (mode_) {
     case NORMAL:
-      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
       break;
     case REWRITE:
       os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A";
@@ -175,10 +175,14 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "original size: " << size_with_unit(p.original_size)
-          << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
-          << p.duplicate_files
-          << " files), segment: " << size_with_unit(p.saved_by_segmentation)
-          << newline
+          << ", scanned: " << size_with_unit(p.similarity_bytes)
+          << ", hashed: " << size_with_unit(p.hash_bytes) << " ("
+          << p.hash_scans << " files)" << newline
+
+          << "saved by deduplication: "
+          << size_with_unit(p.saved_by_deduplication) << " ("
+          << p.duplicate_files << " files), saved by segmenting: "
+          << size_with_unit(p.saved_by_segmentation) << newline
 
           << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
           << p.block_count << " blocks (" << p.chunk_count << " chunks, "

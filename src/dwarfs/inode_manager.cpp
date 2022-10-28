@@ -103,6 +103,7 @@ class inode_ : public inode {
   uint32_t num() const override { return num_.value(); }
 
   uint32_t similarity_hash() const override {
+    assert(similarity_valid_);
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file");
     }
@@ -110,6 +111,7 @@ class inode_ : public inode {
   }
 
   nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
+    assert(nilsimsa_valid_);
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file");
     }
@@ -126,39 +128,50 @@ class inode_ : public inode {
 
   void
   scan(std::shared_ptr<mmif> const& mm, inode_options const& opts) override {
+    assert(!similarity_valid_);
+    assert(!nilsimsa_valid_);
+
     if (opts.needs_scan()) {
       similarity sc;
       nilsimsa nc;
 
-      auto update_hashes = [&](uint8_t const* data, size_t size) {
-        if (opts.with_similarity) {
-          sc.update(data, size);
+      if (mm) {
+        auto update_hashes = [&](uint8_t const* data, size_t size) {
+          if (opts.with_similarity) {
+            sc.update(data, size);
+          }
+
+          if (opts.with_nilsimsa) {
+            nc.update(data, size);
+          }
+        };
+
+        constexpr size_t chunk_size = 32 << 20;
+        size_t offset = 0;
+        size_t size = mm->size();
+
+        while (size >= chunk_size) {
+          update_hashes(mm->as<uint8_t>(offset), chunk_size);
+          mm->release_until(offset);
+          offset += chunk_size;
+          size -= chunk_size;
         }
 
-        if (opts.with_nilsimsa) {
-          nc.update(data, size);
-        }
-      };
-
-      constexpr size_t chunk_size = 32 << 20;
-      size_t offset = 0;
-      size_t size = mm->size();
-
-      while (size >= chunk_size) {
-        update_hashes(mm->as<uint8_t>(offset), chunk_size);
-        mm->release_until(offset);
-        offset += chunk_size;
-        size -= chunk_size;
+        update_hashes(mm->as<uint8_t>(offset), size);
       }
-
-      update_hashes(mm->as<uint8_t>(offset), size);
 
       if (opts.with_similarity) {
         similarity_hash_ = sc.finalize();
+#ifndef NDEBUG
+        similarity_valid_ = true;
+#endif
       }
 
       if (opts.with_nilsimsa) {
         nc.finalize(nilsimsa_similarity_hash_);
+#ifndef NDEBUG
+        nilsimsa_valid_ = true;
+#endif
       }
     }
   }
@@ -192,6 +205,10 @@ class inode_ : public inode {
   files_vector files_;
   std::vector<chunk_type> chunks_;
   nilsimsa::hash_type nilsimsa_similarity_hash_;
+#ifndef NDEBUG
+  bool similarity_valid_{false};
+  bool nilsimsa_valid_{false};
+#endif
 };
 
 } // namespace
@@ -405,8 +422,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
     return fn(inodes_.back());
   };
 
-  if (empty != index.end()) {
-    assert(empty + 1 == index.end());
+  for (auto n = std::distance(empty, index.end()); n > 0; --n) {
     finalize_inode();
   }
 

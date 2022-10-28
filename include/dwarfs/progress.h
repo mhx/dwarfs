@@ -80,6 +80,10 @@ class progress {
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};
   std::atomic<uint64_t> compressed_size{0};
+  std::atomic<size_t> similarity_scans{0};
+  std::atomic<uint64_t> similarity_bytes{0};
+  std::atomic<size_t> hash_scans{0};
+  std::atomic<uint64_t> hash_bytes{0};
 
  private:
   std::atomic<bool> running_;
