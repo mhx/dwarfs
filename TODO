@@ -1,3 +1,8 @@
+- similarity size limit to avoid similarity computation for huge files
+- store files without similarity hash first, sorted descending by size
+- allow ordering by *reverse* path
+
+
 - use streaming interface for zstd decompressor
 - json metadata recovery
 - add --chmod, --chown
