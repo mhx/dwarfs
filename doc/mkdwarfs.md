@@ -245,6 +245,18 @@ Most other options are concerned with compression tuning:
   Last but not least, if scripting support is built into `mkdwarfs`, you can
   choose `script` to let the script determine the order.
 
+- `-F`, `--filter=`*rule*:
+  Add a filter rule. This option can be specified multiple times.
+  See [FILTER RULES](#filter-rules) for more details.
+
+- `--debug-filter`[`=all`|`=excluded`|`=excluded-files`|`=files`|`=included`|`=included-files`]:
+  Show the effect of the filter rules without creating a file system.
+  If no argument is passed to the option, all included/excluded files and
+  directories are shown (same as with `all`). `files` will omit all
+  directories. `included` and `excluded` will only show the corresponding
+  set of files/directories. `included-files` and `excluded-files` work
+  as before, but again omit all directories.
+
 - `--remove-empty-dirs`:
   Removes all empty directories from the output file system, recursively.
   This is particularly useful when using scripts that filter out a lot of
@@ -444,6 +456,67 @@ reduce the size much more. However, it *does* help if you want to
 further compress the block. So if you're really desperately trying
 to reduce the image size, enabling `all` packing would be an option
 at the cost of using a lot more memory when using the filesystem.
+
+## FILTER RULES
+
+The filter rules have been inspired by the `rsync` utility. They
+look very similar, but there are differences. These rules are quite
+powerful, yet they're somewhat hard to get used to.
+
+There are only 3 different kinds of rules:
+
+- `+ `pattern
+  An "include" rule.
+
+- `- `pattern
+  An "exclude" rule.
+
+- `. `file
+  A merge file rule. Rules are read (recursively) from the
+  specified file.
+
+Ultimately, only include and exclude rules remain in the rule set
+as file rules are merged in at the place where they occur.
+
+The most important rule to remember when building a rule set is that
+all rules are applied strictly in order and processing stops at the
+first matching rule. If no rules match, the default is to include the
+entry.
+
+Patterns can be anchored or floating. Anchored patterns are patterns
+that start with a `/`. These patterns match relative to the file
+system root (i.e. the `--input` path). Floating patterns match in
+any directory in the hierarchy.
+
+Patterns ending with a `/` only match directories. All other patterns
+only match non-directories.
+
+Patterns support `?` and `*` wildcards matching a single character
+and any number of characters, respectively. These patterns don't match
+across directory separators (`/`).
+
+Patterns also support the `**` wildcard, which matches across directory
+separators.
+
+Patterns also support character classes.
+
+Here's an example rule set:
+```
++ File/Spec/[EM]*.pm
+- unicore/**.pl
++ *.pl
+- *
+```
+This set of rules will include all files matching `File/Spec/[EM]*.pm`
+anywhere in the hierarchy. It will also include all `*.pl` files, except
+for those anywhere below a `unicore` directory. The last rule excludes
+all other files.
+
+This will likely leave a lot of empty directories around, but these can
+be removed using `--remove-empty-dirs`.
+
+You can use the `--debug-filter` option to show the sets of included
+and excluded files without building an actual file system.
 
 ## INTERNAL OPERATION
 

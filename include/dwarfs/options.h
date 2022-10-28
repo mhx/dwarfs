@@ -23,12 +23,15 @@
 
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <iosfwd>
 #include <optional>
 
 #include <sys/types.h>
 
 namespace dwarfs {
+
+class entry;
 
 enum class mlock_mode { NONE, TRY, MUST };
 
@@ -108,6 +111,7 @@ struct scanner_options {
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
   bool no_create_timestamp{true};
+  std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
 };
 
 struct rewrite_options {

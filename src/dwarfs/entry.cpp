@@ -66,6 +66,14 @@ std::string entry::path() const {
   return name_;
 }
 
+std::string entry::dpath() const {
+  auto p = path();
+  if (type() == E_DIR) {
+    p += '/';
+  }
+  return p;
+}
+
 std::string entry::type_string() const {
   auto mode = stat_.st_mode;
 

@@ -24,6 +24,7 @@
 #include <cstring>
 #include <ctime>
 #include <deque>
+#include <iostream>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -676,6 +677,7 @@ std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
                                   file_scanner& fs) {
   auto root = entry_->create(*os_, path);
+  bool const debug_filter = options_.debug_filter_function.has_value();
 
   if (root->type() != entry::E_DIR) {
     DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
@@ -704,16 +706,26 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 
         try {
           auto pe = entry_->create(*os_, name, parent);
+          bool exclude = false;
 
           if (script_) {
             if (script_->has_filter() && !script_->filter(*pe)) {
-              LOG_DEBUG << "skipping " << pe->path();
-              continue;
-            }
-
-            if (script_->has_transform()) {
+              exclude = true;
+            } else if (script_->has_transform()) {
               script_->transform(*pe);
             }
+          }
+
+          if (debug_filter) {
+            (*options_.debug_filter_function)(exclude, pe.get());
+          }
+
+          if (exclude) {
+            if (!debug_filter) {
+              LOG_DEBUG << "excluding " << pe->dpath();
+            }
+
+            continue;
           }
 
           if (pe) {
@@ -748,25 +760,33 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
             case entry::E_DIR:
               // prog.current.store(pe.get());
               prog.dirs_found++;
-              pe->scan(*os_, prog);
+              if (!debug_filter) {
+                pe->scan(*os_, prog);
+              }
               subdirs.push_back(pe);
               break;
 
             case entry::E_FILE:
               prog.files_found++;
-              fs.scan(dynamic_cast<file*>(pe.get()));
+              if (!debug_filter) {
+                fs.scan(dynamic_cast<file*>(pe.get()));
+              }
               break;
 
             case entry::E_LINK:
               prog.symlinks_found++;
-              pe->scan(*os_, prog);
+              if (!debug_filter) {
+                pe->scan(*os_, prog);
+              }
               prog.symlinks_scanned++;
               break;
 
             case entry::E_DEVICE:
             case entry::E_OTHER:
               prog.specials_found++;
-              pe->scan(*os_, prog);
+              if (!debug_filter) {
+                pe->scan(*os_, prog);
+              }
               break;
 
             default:
@@ -796,7 +816,9 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                                   const std::string& path, progress& prog) {
-  LOG_INFO << "scanning " << path;
+  if (!options_.debug_filter_function) {
+    LOG_INFO << "scanning " << path;
+  }
 
   prog.set_status_function(status_string);
 
@@ -805,6 +827,10 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
                   prog);
 
   auto root = scan_tree(path, prog, fs);
+
+  if (options_.debug_filter_function) {
+    return;
+  }
 
   if (options_.remove_empty_dirs) {
     LOG_INFO << "removing empty directories...";

@@ -57,6 +57,7 @@
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_manager.h"
+#include "dwarfs/builtin_script.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -93,6 +94,16 @@ namespace {
 #endif
 #endif
 
+enum class debug_filter_mode {
+  OFF,
+  INCLUDED,
+  INCLUDED_FILES,
+  EXCLUDED,
+  EXCLUDED_FILES,
+  FILES,
+  ALL
+};
+
 const std::map<std::string, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
@@ -110,6 +121,15 @@ const std::map<std::string, console_writer::progress_mode> progress_modes{
     {"unicode", console_writer::UNICODE},
 };
 
+const std::map<std::string, debug_filter_mode> debug_filter_modes{
+    {"included", debug_filter_mode::INCLUDED},
+    {"included-files", debug_filter_mode::INCLUDED_FILES},
+    {"excluded", debug_filter_mode::EXCLUDED},
+    {"excluded-files", debug_filter_mode::EXCLUDED_FILES},
+    {"files", debug_filter_mode::FILES},
+    {"all", debug_filter_mode::ALL},
+};
+
 const std::map<std::string, uint32_t> time_resolutions{
     {"sec", 1},
     {"min", 60},
@@ -119,6 +139,32 @@ const std::map<std::string, uint32_t> time_resolutions{
 
 constexpr size_t min_block_size_bits{10};
 constexpr size_t max_block_size_bits{30};
+
+void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
+                         debug_filter_mode mode) {
+  if (exclude ? mode == debug_filter_mode::INCLUDED or
+                    mode == debug_filter_mode::INCLUDED_FILES
+              : mode == debug_filter_mode::EXCLUDED or
+                    mode == debug_filter_mode::EXCLUDED_FILES) {
+    return;
+  }
+
+  bool const files_only = mode == debug_filter_mode::FILES or
+                          mode == debug_filter_mode::INCLUDED_FILES or
+                          mode == debug_filter_mode::EXCLUDED_FILES;
+
+  if (files_only and pe->type() == entry::E_DIR) {
+    return;
+  }
+
+  char const* prefix = "";
+
+  if (mode == debug_filter_mode::FILES or mode == debug_filter_mode::ALL) {
+    prefix = exclude ? "- " : "+ ";
+  }
+
+  os << prefix << pe->dpath() << "\n";
+}
 
 } // namespace
 
@@ -339,7 +385,8 @@ int mkdwarfs(int argc, char** argv) {
   std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
-      file_hash_algo;
+      file_hash_algo, debug_filter;
+  std::vector<std::string> filter;
   size_t num_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -353,6 +400,10 @@ int mkdwarfs(int argc, char** argv) {
 
   auto progress_desc = "progress mode (" +
                        (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
+
+  auto debug_filter_desc =
+      "show effect of filter rules without producing an image (" +
+      (from(debug_filter_modes) | get<0>() | unsplit(", ")) + ")";
 
   auto resolution_desc = "time resolution in seconds or (" +
                          (from(time_resolutions) | get<0>() | unsplit(", ")) +
@@ -439,6 +490,12 @@ int mkdwarfs(int argc, char** argv) {
         po::value<std::string>(&script_arg),
         "Python script for customization")
 #endif
+    ("filter,F",
+        po::value<std::vector<std::string>>(&filter)->multitoken(),
+        "add filter rule")
+    ("debug-filter",
+        po::value<std::string>(&debug_filter)->implicit_value("all"),
+        debug_filter_desc.c_str())
     ("remove-empty-dirs",
         po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
         "remove empty directories in file system")
@@ -498,7 +555,8 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  if (vm.count("help") or !vm.count("input") or !vm.count("output")) {
+  if (vm.count("help") or !vm.count("input") or
+      (!vm.count("output") and !vm.count("debug-filter"))) {
     size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, l.data_compression.size());
@@ -683,6 +741,21 @@ int mkdwarfs(int argc, char** argv) {
   worker_group wg_compress("compress", num_workers);
   worker_group wg_scanner("scanner", num_workers);
 
+  if (vm.count("debug-filter")) {
+    if (auto it = debug_filter_modes.find(debug_filter);
+        it != debug_filter_modes.end()) {
+      options.debug_filter_function = [mode = it->second](bool exclude,
+                                                          entry const* pe) {
+        debug_filter_output(std::cout, exclude, pe, mode);
+      };
+      no_progress = true;
+    } else {
+      std::cerr << "error: invalid filter debug mode '" << debug_filter
+                << "'\n";
+      return 1;
+    }
+  }
+
   if (no_progress) {
     progress_mode = "none";
   }
@@ -727,6 +800,30 @@ int mkdwarfs(int argc, char** argv) {
     }
   }
 #endif
+
+  if (!filter.empty()) {
+    if (script) {
+      std::cerr
+          << "error: scripts and filters are not simultaneously supported\n";
+      return 1;
+    }
+
+    auto bs = std::make_shared<builtin_script>(lgr);
+
+    bs->set_root_path(path);
+
+    for (auto const& rule : filter) {
+      try {
+        bs->add_filter_rule(rule);
+      } catch (std::exception const& e) {
+        std::cerr << "error: could not parse filter rule '" << rule
+                  << "': " << e.what() << "\n";
+        return 1;
+      }
+    }
+
+    script = bs;
+  }
 
   bool force_similarity = false;
 
@@ -853,8 +950,15 @@ int mkdwarfs(int argc, char** argv) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
-  progress prog([&](const progress& p, bool last) { lgr.update(p, last); },
-                interval_ms);
+  folly::Function<void(const progress&, bool)> updater;
+
+  if (options.debug_filter_function) {
+    updater = [](const progress&, bool) {};
+  } else {
+    updater = [&](const progress& p, bool last) { lgr.update(p, last); };
+  }
+
+  progress prog(std::move(updater), interval_ms);
 
   block_compressor bc(compression);
   block_compressor schema_bc(schema_compression);
@@ -869,21 +973,30 @@ int mkdwarfs(int argc, char** argv) {
              << " blocks with " << num_workers << " threads";
   }
 
-  if (std::filesystem::exists(output) && !force_overwrite) {
-    std::cerr << "error: output file already exists, use --force to overwrite"
-              << std::endl;
-    return 1;
+  std::unique_ptr<std::ostream> os;
+
+  if (!options.debug_filter_function) {
+    if (std::filesystem::exists(output) && !force_overwrite) {
+      std::cerr << "error: output file already exists, use --force to overwrite"
+                << std::endl;
+      return 1;
+    }
+
+    auto ofs = std::make_unique<std::ofstream>(output, std::ios::binary |
+                                                           std::ios::trunc);
+
+    if (ofs->bad() || !ofs->is_open()) {
+      std::cerr << "error: cannot open output file '" << output
+                << "': " << strerror(errno) << std::endl;
+      return 1;
+    }
+
+    os = std::move(ofs);
+  } else {
+    os = std::make_unique<std::ostringstream>();
   }
 
-  std::ofstream ofs(output, std::ios::binary | std::ios::trunc);
-
-  if (ofs.bad() || !ofs.is_open()) {
-    std::cerr << "error: cannot open output file '" << output
-              << "': " << strerror(errno) << std::endl;
-    return 1;
-  }
-
-  filesystem_writer fsw(ofs, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
+  filesystem_writer fsw(*os, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
                         fswopts, header_ifs.get());
 
   auto ti = LOG_TIMED_INFO;
@@ -914,29 +1027,42 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  LOG_INFO << "compression CPU time: "
-           << time_with_unit(wg_compress.get_cpu_time());
-
-  ofs.close();
-
-  if (ofs.bad()) {
-    LOG_ERROR << "failed to close output file '" << output
-              << "': " << strerror(errno);
-    return 1;
+  if (!options.debug_filter_function) {
+    LOG_INFO << "compression CPU time: "
+             << time_with_unit(wg_compress.get_cpu_time());
   }
 
-  std::ostringstream err;
+  if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
+    ofs->close();
 
-  if (prog.errors) {
-    err << "with " << prog.errors << " error";
-    if (prog.errors > 1) {
-      err << "s";
+    if (ofs->bad()) {
+      LOG_ERROR << "failed to close output file '" << output
+                << "': " << strerror(errno);
+      return 1;
     }
+  } else if (auto oss = dynamic_cast<std::ostringstream*>(os.get())) {
+    assert(oss->str().empty());
   } else {
-    err << "without errors";
+    assert(false);
   }
 
-  ti << "filesystem " << (recompress ? "rewritten " : "created ") << err.str();
+  os.reset();
+
+  if (!options.debug_filter_function) {
+    std::ostringstream err;
+
+    if (prog.errors) {
+      err << "with " << prog.errors << " error";
+      if (prog.errors > 1) {
+        err << "s";
+      }
+    } else {
+      err << "without errors";
+    }
+
+    ti << "filesystem " << (recompress ? "rewritten " : "created ")
+       << err.str();
+  }
 
   return prog.errors > 0;
 }

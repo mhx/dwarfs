@@ -298,6 +298,7 @@ list(
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_manager.cpp
+  src/dwarfs/builtin_script.cpp
   src/dwarfs/checksum.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
