@@ -707,7 +707,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 
           if (script_) {
             if (script_->has_filter() && !script_->filter(*pe)) {
-              LOG_DEBUG << "skipping " << name;
+              LOG_DEBUG << "skipping " << pe->path();
               continue;
             }
 
