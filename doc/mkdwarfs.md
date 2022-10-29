@@ -465,13 +465,13 @@ powerful, yet they're somewhat hard to get used to.
 
 There are only 3 different kinds of rules:
 
-- `+ `pattern
+- `+ `*pattern*:
   An "include" rule.
 
-- `- `pattern
+- `- `*pattern*:
   An "exclude" rule.
 
-- `. `file
+- `. `*file*:
   A merge file rule. Rules are read (recursively) from the
   specified file.
 
