@@ -50,13 +50,13 @@ with open(image, "rb") as image:
             "<6sBB32s8sLHHQ", header
         )
         if ident != b"DWARFS":
-            printf(f"error: expected dwarfs header")
+            print(f"error: expected dwarfs header")
             raise SystemExit(1)
         if sectype not in sectypes:
-            printf(f"error: unexpected section type ({sectype})")
+            print(f"error: unexpected section type ({sectype})")
             raise SystemExit(1)
         if compalg not in compalgs:
-            printf(f"error: unexpected compression algorithm ({compalg})")
+            print(f"error: unexpected compression algorithm ({compalg})")
             raise SystemExit(1)
         print(
             f"{ident.decode('ascii')} v{major}.{minor} [{secno}] {sectypes[sectype]} ({compalgs[compalg]}) {blocklen} bytes"
