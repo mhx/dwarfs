@@ -302,6 +302,7 @@ list(
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp
+  src/dwarfs/file_scanner.cpp
   src/dwarfs/filesystem_extractor.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
