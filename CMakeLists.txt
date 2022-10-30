@@ -32,6 +32,7 @@ option(ENABLE_TSAN "enable thread sanitizer" OFF)
 option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
 option(ENABLE_COVERAGE "enable code coverage" OFF)
 option(USE_JEMALLOC "build with jemalloc" ON)
+option(PREFER_SYSTEM_LIBFMT "use system libfmt if available" OFF)
 option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
 option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
@@ -119,11 +120,9 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-if(NOT STATIC_BUILD_DO_NOT_USE)
+if(PREFER_SYSTEM_GTEST)
   find_package(fmt 9.1 CONFIG)
-endif()
-
-if(STATIC_BUILD_DO_NOT_USE OR NOT fmt_FOUND)
+else()
   configure_file(CMakeLists.txt.fmtlib fmtlib-download/CMakeLists.txt)
   execute_process(
     COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
