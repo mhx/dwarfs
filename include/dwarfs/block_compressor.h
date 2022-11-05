@@ -33,18 +33,11 @@
 #include <utility>
 #include <vector>
 
+#include "dwarfs/compression.h"
+
 namespace dwarfs {
 
 class option_map;
-
-// TODO: move this to fstypes.h?
-enum class compression_type : uint8_t {
-  NONE = 0,
-  LZMA = 1,
-  ZSTD = 2,
-  LZ4 = 3,
-  LZ4HC = 4,
-};
 
 class bad_compression_ratio_error : public std::runtime_error {
  public:
