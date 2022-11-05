@@ -424,15 +424,20 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(json.size(), 1000) << json;
 }
 
-std::vector<std::string> const compressions{"null",
+std::vector<std::string> const compressions{
+    "null",
 #ifdef DWARFS_HAVE_LIBLZ4
-                                            "lz4", "lz4hc:level=4",
+    "lz4",
+    "lz4hc:level=4",
 #endif
 #ifdef DWARFS_HAVE_LIBZSTD
-                                            "zstd:level=1",
+    "zstd:level=1",
 #endif
 #ifdef DWARFS_HAVE_LIBLZMA
-                                            "lzma:level=1"
+    "lzma:level=1",
+#endif
+#ifdef DWARFS_HAVE_LIBBROTLI
+    "brotli:quality=2",
 #endif
 };
 

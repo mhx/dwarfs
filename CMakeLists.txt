@@ -171,6 +171,8 @@ pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
 pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
+pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
+pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
 pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
 pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
 pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
@@ -341,6 +343,10 @@ endif()
 
 if(LIBLZ4_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lz4.cpp)
+endif()
+
+if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
+  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
 endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
@@ -577,6 +583,7 @@ foreach(tgt dwarfs dwarfs_compression ${BINARY_TARGETS})
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
+            $<$<BOOL:${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND}>:DWARFS_HAVE_LIBBROTLI>
             $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
 
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -644,7 +651,9 @@ target_link_libraries(
   fsst
   ${Boost_LIBRARIES}
   PkgConfig::LIBLZ4
-  PkgConfig::LIBLZMA)
+  PkgConfig::LIBLZMA
+  PkgConfig::LIBBROTLIENC
+  PkgConfig::LIBBROTLIDEC)
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
