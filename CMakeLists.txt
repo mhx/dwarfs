@@ -165,7 +165,15 @@ if(WITH_PYTHON)
   list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
 endif()
 
+if(STATIC_BUILD_DO_NOT_USE)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+endif()
+
 find_package(PkgConfig REQUIRED)
+
+if(STATIC_BUILD_DO_NOT_USE)
+  list(APPEND PKG_CONFIG_EXECUTABLE "--static")
+endif()
 
 pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
 pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
@@ -200,7 +208,7 @@ if(WITH_TESTS)
 endif()
 
 if(USE_JEMALLOC)
-  find_package(Jemalloc REQUIRED)
+  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=5.2.1)
 endif()
 
 set(ZSTD_INCLUDE_DIR
@@ -523,10 +531,6 @@ if(NOT
   list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/xxHash)
 endif()
 
-if(USE_JEMALLOC)
-  list(APPEND INCLUDE_DIRS ${Jemalloc_INCLUDE_DIRS})
-endif()
-
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
 if(NOT STATIC_BUILD_DO_NOT_USE)
   if(TARGET folly_exception_tracer)
@@ -681,7 +685,7 @@ foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} -Wl,--whole-archive dwarfs_compression
                                -Wl,--no-whole-archive dwarfs)
   if(USE_JEMALLOC)
-    target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
+    target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(
@@ -779,7 +783,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libz "libz.a")
   import_static_lib(static_libpthread "libpthread.a")
   import_static_lib(static_libdl "libdl.a")
-  import_static_lib(static_libc "libc.a")
   import_static_lib(static_libm "libm.a")
   import_static_lib(static_librt "librt.a")
   import_static_lib(static_libssl "libssl.a")
@@ -812,7 +815,6 @@ if(STATIC_BUILD_DO_NOT_USE)
       static_libpthread
       static_libdl
       static_libz
-      static_libc
       static_libm
       static_librt
       gcc_eh
