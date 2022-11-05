@@ -23,14 +23,21 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace dwarfs {
 
+class option_map;
+
+// TODO: move this to fstypes.h?
 enum class compression_type : uint8_t {
   NONE = 0,
   LZMA = 1,
@@ -117,4 +124,80 @@ class block_decompressor {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+class compression_info {
+ public:
+  virtual ~compression_info() = default;
+
+  virtual std::string_view name() const = 0;
+  virtual std::string_view description() const = 0;
+  virtual std::vector<std::string> const& options() const = 0;
+};
+
+class compression_factory : public compression_info {
+ public:
+  virtual std::unique_ptr<block_compressor::impl>
+  make_compressor(option_map& om) const = 0;
+  virtual std::unique_ptr<block_decompressor::impl>
+  make_decompressor(std::span<uint8_t const> data,
+                    std::vector<uint8_t>& target) const = 0;
+};
+
+namespace detail {
+
+template <typename T>
+class compression_factory_registrar {
+ public:
+  compression_factory_registrar(compression_type type);
+};
+
+} // namespace detail
+
+class compression_registry {
+ public:
+  template <typename T>
+  friend class detail::compression_factory_registrar;
+
+  static compression_registry& instance();
+
+  std::unique_ptr<block_compressor::impl>
+  make_compressor(std::string_view spec) const;
+  std::unique_ptr<block_decompressor::impl>
+  make_decompressor(compression_type type, std::span<uint8_t const> data,
+                    std::vector<uint8_t>& target) const;
+
+  void for_each_algorithm(
+      std::function<void(compression_type, compression_info const&)> const& fn)
+      const;
+
+ private:
+  compression_registry();
+  ~compression_registry();
+
+  void register_factory(compression_type type,
+                        std::unique_ptr<compression_factory const>&& factory);
+
+  std::unordered_map<compression_type,
+                     std::unique_ptr<compression_factory const>>
+      factories_;
+  std::unordered_map<std::string, compression_type> names_;
+};
+
+namespace detail {
+
+template <typename T>
+compression_factory_registrar<T>::compression_factory_registrar(
+    compression_type type) {
+  ::dwarfs::compression_registry::instance().register_factory(
+      type, std::make_unique<T>());
+}
+
+} // namespace detail
+
+#define REGISTER_COMPRESSION_FACTORY(type, factory)                            \
+  namespace {                                                                  \
+  ::dwarfs::detail::compression_factory_registrar<factory>                     \
+      the_##factory##_registrar(type);                                         \
+  }
+
 } // namespace dwarfs

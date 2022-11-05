@@ -51,10 +51,6 @@
 
 #include <fmt/format.h>
 
-#ifdef DWARFS_HAVE_LIBZSTD
-#include <zstd.h>
-#endif
-
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
@@ -84,15 +80,6 @@ namespace po = boost::program_options;
 using namespace dwarfs;
 
 namespace {
-
-#ifdef DWARFS_HAVE_LIBZSTD
-#if ZSTD_VERSION_MAJOR > 1 ||                                                  \
-    (ZSTD_VERSION_MAJOR == 1 && ZSTD_VERSION_MINOR >= 4)
-#define ZSTD_MIN_LEVEL ZSTD_minCLevel()
-#else
-#define ZSTD_MIN_LEVEL 1
-#endif
-#endif
 
 enum class debug_filter_mode {
   OFF,
@@ -592,28 +579,18 @@ int mkdwarfs(int argc, char** argv) {
 
     std::cout << "  " << sep << std::endl;
 
-    std::cout << "\nCompression algorithms:\n"
-                 "  null     no compression at all\n"
-#ifdef DWARFS_HAVE_LIBLZ4
-                 "  lz4      LZ4 compression\n"
-                 "               level=[0..9]\n"
-                 "  lz4hc    LZ4 HC compression\n"
-                 "               level=[0..9]\n"
-#endif
-#ifdef DWARFS_HAVE_LIBZSTD
-                 "  zstd     ZSTD compression\n"
-                 "               level=["
-              << ZSTD_MIN_LEVEL << ".." << ZSTD_maxCLevel()
-              << "]\n"
-#endif
-#ifdef DWARFS_HAVE_LIBLZMA
-                 "  lzma     LZMA compression\n"
-                 "               level=[0..9]\n"
-                 "               dict_size=[12..30]\n"
-                 "               extreme\n"
-                 "               binary={x86,powerpc,ia64,arm,armthumb,sparc}\n"
-#endif
-              << std::endl;
+    std::cout << "\nCompression algorithms:\n";
+
+    compression_registry::instance().for_each_algorithm(
+        [](compression_type, compression_info const& info) {
+          std::cout << fmt::format("  {:9}{}\n", info.name(),
+                                   info.description());
+          for (auto const& opt : info.options()) {
+            std::cout << fmt::format("               {}\n", opt);
+          }
+        });
+
+    std::cout << "\n";
 
     return 0;
   }

@@ -316,6 +316,7 @@ list(
   src/dwarfs/metadata_v2.cpp
   src/dwarfs/mmap.cpp
   src/dwarfs/nilsimsa.cpp
+  src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_posix.cpp
   src/dwarfs/progress.cpp
@@ -331,7 +332,19 @@ if(WITH_PYTHON)
   list(APPEND LIBDWARFS_SRC src/dwarfs/python_script.cpp)
 endif()
 
+list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/null.cpp)
+list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/zstd.cpp)
+
+if(LIBLZMA_FOUND)
+  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lzma.cpp)
+endif()
+
+if(LIBLZ4_FOUND)
+  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lz4.cpp)
+endif()
+
 add_library(dwarfs ${LIBDWARFS_SRC})
+add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
@@ -549,7 +562,7 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
 add_dependencies(metadata_thrift thrift_light)
 
-foreach(tgt dwarfs ${BINARY_TARGETS})
+foreach(tgt dwarfs dwarfs_compression ${BINARY_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
@@ -656,7 +669,8 @@ if(WITH_PYTHON)
 endif()
 
 foreach(tgt ${BINARY_TARGETS})
-  target_link_libraries(${tgt} dwarfs)
+  target_link_libraries(${tgt} -Wl,--whole-archive dwarfs_compression
+                               -Wl,--no-whole-archive dwarfs)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
   endif(USE_JEMALLOC)
