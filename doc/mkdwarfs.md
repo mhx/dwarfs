@@ -27,8 +27,16 @@ There two mandatory options for specifying the input and output:
 
 - `-i`, `--input=`*path*|*file*:
   Path to the root directory containing the files from which you want to
-  build a filesystem. If the `--recompress` option is given, this argument
+  build a file system. If the `--recompress` option is given, this argument
   is the source filesystem.
+
+- `--input-list=`*file*|`-`:
+  Read list of paths to add to the file system from this file or from stdin.
+  The pathames will be interpreted relative to the path given with `--input`.
+  If `--input` is omitted, the pathames will be interpreted relative to the
+  current directory. If you want files to be stored in the exact same order
+  as read from this list (because, for example, you have already sorted them
+  by similarity or access frequency), you must also pass `--order=none`.
 
 - `-o`, `--output=`*file*:
   File name of the output filesystem.

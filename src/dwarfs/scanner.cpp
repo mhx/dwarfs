@@ -284,12 +284,22 @@ class scanner_ final : public scanner::impl {
            std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
            std::shared_ptr<script> scr, const scanner_options& options);
 
-  void scan(filesystem_writer& fsw, const std::string& path,
-            progress& prog) override;
+  void
+  scan(filesystem_writer& fsw, const std::string& path, progress& prog,
+       std::optional<std::span<std::filesystem::path const>> list) override;
 
  private:
   std::shared_ptr<entry>
   scan_tree(const std::string& path, progress& prog, detail::file_scanner& fs);
+
+  std::shared_ptr<entry> scan_list(const std::string& path,
+                                   std::span<std::filesystem::path const> list,
+                                   progress& prog, detail::file_scanner& fs);
+
+  std::shared_ptr<entry>
+  add_entry(std::string const& name, std::shared_ptr<dir> parent,
+            progress& prog, detail::file_scanner& fs,
+            bool debug_filter = false);
 
   const block_manager::config& cfg_;
   const scanner_options& options_;
@@ -316,6 +326,111 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , wg_(wg)
     , lgr_(lgr)
     , LOG_PROXY_INIT(lgr_) {}
+
+template <typename LoggerPolicy>
+std::shared_ptr<entry>
+scanner_<LoggerPolicy>::add_entry(std::string const& name,
+                                  std::shared_ptr<dir> parent, progress& prog,
+                                  detail::file_scanner& fs, bool debug_filter) {
+  try {
+    auto pe = entry_->create(*os_, name, parent);
+    bool exclude = false;
+
+    if (script_) {
+      if (script_->has_filter() && !script_->filter(*pe)) {
+        exclude = true;
+      } else if (script_->has_transform()) {
+        script_->transform(*pe);
+      }
+    }
+
+    if (debug_filter) {
+      (*options_.debug_filter_function)(exclude, pe.get());
+    }
+
+    if (exclude) {
+      if (!debug_filter) {
+        LOG_DEBUG << "excluding " << pe->dpath();
+      }
+
+      return nullptr;
+    }
+
+    if (pe) {
+      switch (pe->type()) {
+      case entry::E_FILE:
+        if (os_->access(pe->path(), R_OK)) {
+          LOG_ERROR << "cannot access: " << pe->path();
+          prog.errors++;
+          return nullptr;
+        }
+        break;
+
+      case entry::E_DEVICE:
+        if (!options_.with_devices) {
+          return nullptr;
+        }
+        break;
+
+      case entry::E_OTHER:
+        if (!options_.with_specials) {
+          return nullptr;
+        }
+        break;
+
+      default:
+        break;
+      }
+
+      parent->add(pe);
+
+      switch (pe->type()) {
+      case entry::E_DIR:
+        // prog.current.store(pe.get());
+        prog.dirs_found++;
+        if (!debug_filter) {
+          pe->scan(*os_, prog);
+        }
+        break;
+
+      case entry::E_FILE:
+        prog.files_found++;
+        if (!debug_filter) {
+          fs.scan(dynamic_cast<file*>(pe.get()));
+        }
+        break;
+
+      case entry::E_LINK:
+        prog.symlinks_found++;
+        if (!debug_filter) {
+          pe->scan(*os_, prog);
+        }
+        prog.symlinks_scanned++;
+        break;
+
+      case entry::E_DEVICE:
+      case entry::E_OTHER:
+        prog.specials_found++;
+        if (!debug_filter) {
+          pe->scan(*os_, prog);
+        }
+        break;
+
+      default:
+        LOG_ERROR << "unsupported entry type: " << int(pe->type());
+        prog.errors++;
+        break;
+      }
+    }
+
+    return pe;
+  } catch (const std::system_error& e) {
+    LOG_ERROR << "error reading entry: " << e.what();
+    prog.errors++;
+  }
+
+  return nullptr;
+}
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
@@ -349,100 +464,10 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
           continue;
         }
 
-        try {
-          auto pe = entry_->create(*os_, name, parent);
-          bool exclude = false;
-
-          if (script_) {
-            if (script_->has_filter() && !script_->filter(*pe)) {
-              exclude = true;
-            } else if (script_->has_transform()) {
-              script_->transform(*pe);
-            }
+        if (auto pe = add_entry(name, parent, prog, fs, debug_filter)) {
+          if (pe->type() == entry::E_DIR) {
+            subdirs.push_back(pe);
           }
-
-          if (debug_filter) {
-            (*options_.debug_filter_function)(exclude, pe.get());
-          }
-
-          if (exclude) {
-            if (!debug_filter) {
-              LOG_DEBUG << "excluding " << pe->dpath();
-            }
-
-            continue;
-          }
-
-          if (pe) {
-            switch (pe->type()) {
-            case entry::E_FILE:
-              if (os_->access(pe->path(), R_OK)) {
-                LOG_ERROR << "cannot access: " << pe->path();
-                prog.errors++;
-                continue;
-              }
-              break;
-
-            case entry::E_DEVICE:
-              if (!options_.with_devices) {
-                continue;
-              }
-              break;
-
-            case entry::E_OTHER:
-              if (!options_.with_specials) {
-                continue;
-              }
-              break;
-
-            default:
-              break;
-            }
-
-            parent->add(pe);
-
-            switch (pe->type()) {
-            case entry::E_DIR:
-              // prog.current.store(pe.get());
-              prog.dirs_found++;
-              if (!debug_filter) {
-                pe->scan(*os_, prog);
-              }
-              subdirs.push_back(pe);
-              break;
-
-            case entry::E_FILE:
-              prog.files_found++;
-              if (!debug_filter) {
-                fs.scan(dynamic_cast<file*>(pe.get()));
-              }
-              break;
-
-            case entry::E_LINK:
-              prog.symlinks_found++;
-              if (!debug_filter) {
-                pe->scan(*os_, prog);
-              }
-              prog.symlinks_scanned++;
-              break;
-
-            case entry::E_DEVICE:
-            case entry::E_OTHER:
-              prog.specials_found++;
-              if (!debug_filter) {
-                pe->scan(*os_, prog);
-              }
-              break;
-
-            default:
-              LOG_ERROR << "unsupported entry type: " << int(pe->type());
-              prog.errors++;
-              break;
-            }
-          }
-        } catch (const std::system_error& e) {
-          LOG_ERROR << "error reading entry: " << e.what();
-          prog.errors++;
         }
       }
 
@@ -459,8 +484,88 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 }
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
-                                  const std::string& path, progress& prog) {
+std::shared_ptr<entry>
+scanner_<LoggerPolicy>::scan_list(const std::string& path,
+                                  std::span<std::filesystem::path const> list,
+                                  progress& prog, detail::file_scanner& fs) {
+  if (script_ && script_->has_filter()) {
+    DWARFS_THROW(runtime_error, "cannot use filters with file lists");
+  }
+
+  auto ti = LOG_TIMED_INFO;
+
+  auto root = entry_->create(*os_, path);
+  auto root_path = std::filesystem::path(path);
+
+  if (root->type() != entry::E_DIR) {
+    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
+  }
+
+  auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
+                                        std::shared_ptr<entry> root) {
+    for (auto const& p : path) {
+      if (auto d = std::dynamic_pointer_cast<dir>(root)) {
+        if (auto e = d->find(p.string())) {
+          root = e;
+        } else {
+          root = add_entry(p.string(), d, prog, fs);
+          if (root && root->type() == entry::E_DIR) {
+            prog.dirs_scanned++;
+          } else {
+            DWARFS_THROW(runtime_error,
+                         fmt::format("invalid path '{}'", path.string()));
+          }
+        }
+      } else {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("invalid path '{}'", path.string()));
+      }
+    }
+
+    return root;
+  };
+
+  std::unordered_map<std::string, std::shared_ptr<dir>> dir_cache;
+
+  for (auto const& p : list) {
+    auto pp = p.parent_path();
+    std::shared_ptr<dir> pd;
+
+    if (auto it = dir_cache.find(pp.string()); it != dir_cache.end()) {
+      pd = it->second;
+    } else {
+      pd = std::dynamic_pointer_cast<dir>(ensure_path(pp, root));
+
+      if (pd) {
+        dir_cache.emplace(pp.string(), pd);
+      } else {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("invalid path '{}'", p.string()));
+      }
+    }
+
+    auto const& fname = p.filename().string();
+
+    if (auto pe = pd->find(fname)) {
+      continue;
+    }
+
+    if (auto pe = add_entry(fname, pd, prog, fs)) {
+      if (pe->type() == entry::E_DIR) {
+        prog.dirs_scanned++;
+      }
+    }
+  }
+
+  ti << "scanned input list";
+
+  return root;
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::scan(
+    filesystem_writer& fsw, const std::string& path, progress& prog,
+    std::optional<std::span<std::filesystem::path const>> list) {
   if (!options_.debug_filter_function) {
     LOG_INFO << "scanning " << path;
   }
@@ -471,7 +576,8 @@ void scanner_<LoggerPolicy>::scan(filesystem_writer& fsw,
   detail::file_scanner fs(wg_, *os_, im, options_.inode,
                           options_.file_hash_algorithm, prog);
 
-  auto root = scan_tree(path, prog, fs);
+  auto root =
+      list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
 
   if (options_.debug_filter_function) {
     return;

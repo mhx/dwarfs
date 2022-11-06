@@ -174,11 +174,17 @@ class dir : public entry {
     return inode_num_;
   }
 
+  std::shared_ptr<entry> find(std::string_view name);
+
  private:
   using entry_ptr = std::shared_ptr<entry>;
+  using lookup_table = std::unordered_map<std::string_view, entry_ptr>;
+
+  void populate_lookup_table();
 
   std::vector<std::shared_ptr<entry>> entries_;
   std::optional<uint32_t> inode_num_;
+  std::unique_ptr<lookup_table> lookup_;
 };
 
 class link : public entry {

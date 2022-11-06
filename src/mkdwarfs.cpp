@@ -372,7 +372,7 @@ int mkdwarfs(int argc, char** argv) {
   std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
-      file_hash_algo, debug_filter, max_similarity_size;
+      file_hash_algo, debug_filter, max_similarity_size, input_list_str;
   std::vector<std::string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
@@ -413,6 +413,9 @@ int mkdwarfs(int argc, char** argv) {
     ("force,f",
         po::value<bool>(&force_overwrite)->zero_tokens(),
         "force overwrite of existing output image")
+    ("input-list",
+        po::value<std::string>(&input_list_str),
+        "file containing list of paths relative to root directory")
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
@@ -548,7 +551,7 @@ int mkdwarfs(int argc, char** argv) {
     return 1;
   }
 
-  if (vm.count("help") or !vm.count("input") or
+  if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
       (!vm.count("output") and !vm.count("debug-filter"))) {
     size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
@@ -641,6 +644,42 @@ int mkdwarfs(int argc, char** argv) {
     std::cerr << "error: block size must be between " << min_block_size_bits
               << " and " << max_block_size_bits << std::endl;
     return 1;
+  }
+
+  std::optional<std::vector<std::filesystem::path>> input_list;
+
+  if (vm.count("input-list")) {
+    if (vm.count("filter")) {
+      std::cerr << "error: cannot use --input-list and --filter\n";
+      return 1;
+    }
+
+    if (!vm.count("input")) {
+      path = std::filesystem::current_path().string();
+    }
+
+    std::unique_ptr<std::ifstream> ifs;
+    std::istream* is;
+
+    if (input_list_str == "-") {
+      is = &std::cin;
+    } else {
+      ifs = std::make_unique<std::ifstream>(input_list_str);
+
+      if (!ifs->is_open()) {
+        throw std::runtime_error(
+            fmt::format("error opening file: {}", input_list_str));
+      }
+
+      is = ifs.get();
+    }
+
+    std::string line;
+    input_list.emplace();
+
+    while (std::getline(*is, line)) {
+      input_list->emplace_back(line);
+    }
   }
 
   bool recompress = vm.count("recompress");
@@ -1011,7 +1050,11 @@ int mkdwarfs(int argc, char** argv) {
                 std::make_shared<os_access_posix>(), std::move(script),
                 options);
 
-      s.scan(fsw, path, prog);
+      if (input_list) {
+        s.scan(fsw, path, prog, *input_list);
+      } else {
+        s.scan(fsw, path, prog);
+      }
     }
   } catch (runtime_error const& e) {
     LOG_ERROR << e.what();

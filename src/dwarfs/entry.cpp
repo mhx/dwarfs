@@ -235,7 +235,13 @@ void file::hardlink(file* other, progress& prog) {
 
 entry::type_t dir::type() const { return E_DIR; }
 
-void dir::add(std::shared_ptr<entry> e) { entries_.emplace_back(std::move(e)); }
+void dir::add(std::shared_ptr<entry> e) {
+  if (lookup_) {
+    auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
+    assert(r.second);
+  }
+  entries_.emplace_back(std::move(e));
+}
 
 void dir::walk(std::function<void(entry*)> const& f) {
   f(this);
@@ -322,6 +328,40 @@ void dir::remove_empty_dirs(progress& prog) {
     prog.dirs_scanned -= num;
     prog.dirs_found -= num;
     entries_.erase(last, entries_.end());
+  }
+
+  lookup_.reset();
+}
+
+std::shared_ptr<entry> dir::find(std::string_view name) {
+  if (!lookup_ && entries_.size() >= 16) {
+    populate_lookup_table();
+  }
+
+  if (lookup_) {
+    if (auto it = lookup_->find(name); it != lookup_->end()) {
+      return it->second;
+    }
+  } else {
+    auto it = std::find_if(entries_.begin(), entries_.end(),
+                           [name](auto& e) { return e->name() == name; });
+    if (it != entries_.end()) {
+      return *it;
+    }
+  }
+
+  return nullptr;
+}
+
+void dir::populate_lookup_table() {
+  assert(!lookup_);
+
+  lookup_ = std::make_unique<lookup_table>();
+  lookup_->reserve(entries_.size());
+
+  for (auto const& e : entries_) {
+    auto r [[maybe_unused]] = lookup_->emplace(e->name(), e);
+    assert(r.second);
   }
 }
 
