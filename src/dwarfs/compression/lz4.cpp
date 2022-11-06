@@ -170,6 +170,9 @@ class lz4_compression_factory : public compression_factory {
 
 class lz4hc_compression_factory : public compression_factory {
  public:
+  lz4hc_compression_factory()
+      : options_{fmt::format("level=[{}..{}]", 0, LZ4HC_CLEVEL_MAX)} {}
+
   std::string_view name() const override { return "lz4hc"; }
 
   std::string_view description() const override { return "LZ4 HC compression"; }
@@ -179,7 +182,7 @@ class lz4hc_compression_factory : public compression_factory {
   std::unique_ptr<block_compressor::impl>
   make_compressor(option_map& om) const override {
     return std::make_unique<lz4_block_compressor<lz4hc_compression_policy>>(
-        om.get<int>("level", 9));
+        om.get<int>("level", LZ4HC_CLEVEL_DEFAULT));
   }
 
   std::unique_ptr<block_decompressor::impl>
@@ -190,9 +193,7 @@ class lz4hc_compression_factory : public compression_factory {
   }
 
  private:
-  std::vector<std::string> const options_{
-      "level=[0..9]",
-  };
+  std::vector<std::string> const options_;
 };
 
 } // namespace
