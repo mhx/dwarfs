@@ -374,7 +374,7 @@ int mkdwarfs(int argc, char** argv) {
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter;
   std::vector<std::string> filter;
-  size_t num_workers;
+  size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
   unsigned level;
@@ -421,7 +421,10 @@ int mkdwarfs(int argc, char** argv) {
         "block size bits (size = 2^arg bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
-        "number of scanner/writer worker threads")
+        "number of writer (compression) worker threads")
+    ("num-scanner-workers",
+        po::value<size_t>(&num_scanner_workers),
+        "number of scanner (hashing) worker threads")
     ("max-lookback-blocks,B",
         po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
         "how many blocks to scan for segments")
@@ -715,8 +718,12 @@ int mkdwarfs(int argc, char** argv) {
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
 
+  if (!vm.count("num-scanner-workers")) {
+    num_scanner_workers = num_workers;
+  }
+
   worker_group wg_compress("compress", num_workers);
-  worker_group wg_scanner("scanner", num_workers);
+  worker_group wg_scanner("scanner", num_scanner_workers);
 
   if (vm.count("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);

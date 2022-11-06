@@ -66,16 +66,23 @@ Most other options are concerned with compression tuning:
 - `-N`, `--num-workers=`*value*:
   Number of worker threads used for building the filesystem. This defaults
   to the number of processors available on your system. Use this option if
-  you want to limit the resources used by `mkdwarfs`.
-  This option affects both the scanning phase and the compression phase.
+  you want to limit the resources used by `mkdwarfs` or to optimize build
+  speed. This option affects only the compression phase.
+  In the compression phase, the worker threads are used to compress the
+  individual filesystem blocks in the background. Ordering, segmenting
+  and block building are, again, single-threaded and run independently.
+
+- `--num-scanner-workers=`*value*:
+  Number of worker threads used for building the filesystem. This defaults
+  to the number of processors available on your system. Use this option if
+  you want to limit the resources used by `mkdwarfs` or to optimize build
+  speed. This option affects only the scanning phase. By default, the same
+  value is used as for `--num-workers`.
   In the scanning phase, the worker threads are used to scan files in the
   background as they are discovered. File scanning includes checksumming
   for de-duplication as well as (optionally) checksumming for similarity
   computation, depending on the `--order` option. File discovery itself
   is single-threaded and runs independently from the scanning threads.
-  In the compression phase, the worker threads are used to compress the
-  individual filesystem blocks in the background. Ordering, segmenting
-  and block building are, again, single-threaded and run independently.
 
 - `-B`, `--max-lookback-blocks=`*value*:
   Specify how many of the most recent blocks to scan for duplicate segments.
