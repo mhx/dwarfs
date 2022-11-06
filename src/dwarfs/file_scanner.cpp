@@ -308,7 +308,7 @@ void file_scanner_::add_inode(file* p) {
 
   p->set_inode(inode);
 
-  if (ino_opts_.needs_scan()) {
+  if (inode->needs_scan(ino_opts_, p->size())) {
     wg_.add_job([this, p, inode = std::move(inode)] {
       std::shared_ptr<mmif> mm;
       auto const size = p->size();
@@ -322,6 +322,7 @@ void file_scanner_::add_inode(file* p) {
       ++prog_.files_scanned;
     });
   } else {
+    inode->set_similarity_valid(ino_opts_);
     ++prog_.inodes_scanned;
     ++prog_.files_scanned;
   }

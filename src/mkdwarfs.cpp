@@ -372,7 +372,7 @@ int mkdwarfs(int argc, char** argv) {
   std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
-      file_hash_algo, debug_filter;
+      file_hash_algo, debug_filter, max_similarity_size;
   std::vector<std::string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
@@ -475,6 +475,9 @@ int mkdwarfs(int argc, char** argv) {
     ("order",
         po::value<std::string>(&order),
         order_desc.c_str())
+    ("max-similarity-size",
+        po::value<std::string>(&max_similarity_size),
+        "maximum file size to compute similarity")
 #ifdef DWARFS_HAVE_PYTHON
     ("script",
         po::value<std::string>(&script_arg),
@@ -714,6 +717,13 @@ int mkdwarfs(int argc, char** argv) {
     std::cerr << "error: unknown file hash function '" << file_hash_algo
               << "'\n";
     return 1;
+  }
+
+  if (vm.count("max-similarity-size")) {
+    auto size = parse_size_with_unit(max_similarity_size);
+    if (size > 0) {
+      options.inode.max_similarity_scan_size = size;
+    }
   }
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
@@ -1024,7 +1034,8 @@ int mkdwarfs(int argc, char** argv) {
                 << "': " << strerror(errno);
       return 1;
     }
-  } else if (auto oss = dynamic_cast<std::ostringstream*>(os.get())) {
+  } else if (auto oss [[maybe_unused]] =
+                 dynamic_cast<std::ostringstream*>(os.get())) {
     assert(oss->str().empty());
   } else {
     assert(false);

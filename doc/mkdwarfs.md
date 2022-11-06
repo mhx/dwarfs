@@ -252,6 +252,13 @@ Most other options are concerned with compression tuning:
   Last but not least, if scripting support is built into `mkdwarfs`, you can
   choose `script` to let the script determine the order.
 
+- `--max-similarity-size=`*value*:
+  Don't perform similarity ordering for files larger than this size. This
+  helps speed up scanning, especially on slow file systems. For large files,
+  the gains from similarity ordering are relatively small. When this option
+  is set to a non-zero value, files larger than the limit will be stored first,
+  ordered by size in descending order.
+
 - `-F`, `--filter=`*rule*:
   Add a filter rule. This option can be specified multiple times.
   See [FILTER RULES](#filter-rules) for more details.

@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
 #include <limits>
@@ -105,7 +106,7 @@ class inode_ : public inode {
   uint32_t similarity_hash() const override {
     assert(similarity_valid_);
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (similarity)");
     }
     return similarity_hash_;
   }
@@ -113,7 +114,7 @@ class inode_ : public inode {
   nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
     assert(nilsimsa_valid_);
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (nilsimsa)");
     }
     return nilsimsa_similarity_hash_;
   }
@@ -126,53 +127,66 @@ class inode_ : public inode {
     files_ = std::move(fv);
   }
 
+  bool needs_scan(inode_options const& opts, size_t size) const override {
+    return opts.needs_scan() && (!opts.max_similarity_scan_size ||
+                                 size <= opts.max_similarity_scan_size.value());
+  }
+
+  void
+  set_similarity_valid(inode_options const& opts [[maybe_unused]]) override {
+#ifndef NDEBUG
+    assert(!similarity_valid_);
+    assert(!nilsimsa_valid_);
+    similarity_valid_ = opts.with_similarity;
+    nilsimsa_valid_ = opts.with_nilsimsa;
+#endif
+  }
+
   void
   scan(std::shared_ptr<mmif> const& mm, inode_options const& opts) override {
     assert(!similarity_valid_);
     assert(!nilsimsa_valid_);
 
-    if (opts.needs_scan()) {
-      similarity sc;
-      nilsimsa nc;
+    similarity sc;
+    nilsimsa nc;
 
-      if (mm) {
-        auto update_hashes = [&](uint8_t const* data, size_t size) {
-          if (opts.with_similarity) {
-            sc.update(data, size);
-          }
-
-          if (opts.with_nilsimsa) {
-            nc.update(data, size);
-          }
-        };
-
-        constexpr size_t chunk_size = 32 << 20;
-        size_t offset = 0;
-        size_t size = mm->size();
-
-        while (size >= chunk_size) {
-          update_hashes(mm->as<uint8_t>(offset), chunk_size);
-          mm->release_until(offset);
-          offset += chunk_size;
-          size -= chunk_size;
+    if (mm) {
+      auto update_hashes = [&](uint8_t const* data, size_t size) {
+        if (opts.with_similarity) {
+          sc.update(data, size);
         }
 
-        update_hashes(mm->as<uint8_t>(offset), size);
+        if (opts.with_nilsimsa) {
+          nc.update(data, size);
+        }
+      };
+
+      constexpr size_t chunk_size = 32 << 20;
+      size_t offset = 0;
+      size_t size = mm->size();
+
+      while (size >= chunk_size) {
+        update_hashes(mm->as<uint8_t>(offset), chunk_size);
+        mm->release_until(offset);
+        offset += chunk_size;
+        size -= chunk_size;
       }
 
-      if (opts.with_similarity) {
-        similarity_hash_ = sc.finalize();
-#ifndef NDEBUG
-        similarity_valid_ = true;
-#endif
-      }
+      update_hashes(mm->as<uint8_t>(offset), size);
+    }
 
-      if (opts.with_nilsimsa) {
-        nc.finalize(nilsimsa_similarity_hash_);
+    if (opts.with_similarity) {
+      similarity_hash_ = sc.finalize();
 #ifndef NDEBUG
-        nilsimsa_valid_ = true;
+      similarity_valid_ = true;
 #endif
-      }
+    }
+
+    if (opts.with_nilsimsa) {
+      nc.finalize(nilsimsa_similarity_hash_);
+#ifndef NDEBUG
+      nilsimsa_valid_ = true;
+#endif
     }
   }
 
@@ -190,7 +204,7 @@ class inode_ : public inode {
 
   file const* any() const override {
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (any)");
     }
     return files_.front();
   }
@@ -413,17 +427,46 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   index.resize(count);
   std::iota(index.begin(), index.end(), 0);
 
-  auto empty = std::partition(index.begin(), index.end(),
-                              [&](auto i) { return inodes[i]->size() > 0; });
-
   auto finalize_inode = [&]() {
     inodes_.push_back(std::move(inodes[index.back()]));
     index.pop_back();
     return fn(inodes_.back());
   };
 
-  for (auto n = std::distance(empty, index.end()); n > 0; --n) {
-    finalize_inode();
+  {
+    auto empty = std::partition(index.begin(), index.end(),
+                                [&](auto i) { return inodes[i]->size() > 0; });
+
+    if (empty != index.end()) {
+      auto count = std::distance(empty, index.end());
+
+      LOG_DEBUG << "finalizing " << count << " empty inodes...";
+
+      for (auto n = count; n > 0; --n) {
+        finalize_inode();
+      }
+    }
+  }
+
+  {
+    auto unhashed = std::partition(index.begin(), index.end(), [&](auto i) {
+      auto const& sh = inodes[i]->nilsimsa_similarity_hash();
+      return std::any_of(sh.begin(), sh.end(), [](auto v) { return v != 0; });
+    });
+
+    if (unhashed != index.end()) {
+      auto count = std::distance(unhashed, index.end());
+
+      std::sort(unhashed, index.end(), [&inodes](auto a, auto b) {
+        return inodes[a]->size() < inodes[b]->size();
+      });
+
+      LOG_INFO << "finalizing " << count << " unhashed inodes...";
+
+      for (auto n = count; n > 0; --n) {
+        finalize_inode();
+      }
+    }
   }
 
   if (!index.empty()) {

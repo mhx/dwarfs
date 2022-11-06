@@ -75,6 +75,7 @@ struct filesystem_writer_options {
 struct inode_options {
   bool with_similarity{false};
   bool with_nilsimsa{false};
+  std::optional<size_t> max_similarity_scan_size;
 
   bool needs_scan() const { return with_similarity || with_nilsimsa; }
 };
