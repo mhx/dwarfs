@@ -32,8 +32,8 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/tool.h"
 #include "dwarfs/util.h"
-#include "dwarfs/version.h"
 
 namespace po = boost::program_options;
 
@@ -85,8 +85,7 @@ int dwarfsextract(int argc, char** argv) {
   }
 
   if (vm.count("help") or !vm.count("input")) {
-    std::cerr << "dwarfsextract (" << PRJ_GIT_ID << ")\n\n"
-              << opts << std::endl;
+    std::cerr << tool_header("dwarfsextract") << opts << "\n";
     return 0;
   }
 

@@ -31,6 +31,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <fmt/format.h>
+
 #include <folly/Conv.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
@@ -48,6 +50,7 @@
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
 
@@ -485,8 +488,8 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
 
 void usage(const char* progname) {
   std::cerr
-      << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
-      << ")\n\n"
+      << tool_header("dwarfs",
+                     fmt::format(", fuse version {}", FUSE_USE_VERSION))
       << "usage: " << progname << " image mountpoint [options]\n\n"
       << "DWARFS options:\n"
       << "    -o cachesize=SIZE      set size of block cache (512M)\n"

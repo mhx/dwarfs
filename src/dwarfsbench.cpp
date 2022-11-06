@@ -31,8 +31,8 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/tool.h"
 #include "dwarfs/util.h"
-#include "dwarfs/version.h"
 #include "dwarfs/worker_group.h"
 
 namespace po = boost::program_options;
@@ -86,7 +86,7 @@ int dwarfsbench(int argc, char** argv) {
   }
 
   if (vm.count("help") or !vm.count("filesystem")) {
-    std::cout << "dwarfsbench (" << PRJ_GIT_ID << ")\n\n" << opts << std::endl;
+    std::cout << tool_header("dwarfsbench") << opts << "\n";
     return 0;
   }
 

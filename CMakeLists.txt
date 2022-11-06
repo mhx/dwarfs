@@ -359,6 +359,13 @@ endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
+add_library(dwarfs_tool src/dwarfs/tool.cpp)
+
+target_compile_definitions(
+  dwarfs_tool PRIVATE PRJ_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
+)
+
+target_link_libraries(dwarfs_tool dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
@@ -572,7 +579,7 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
 add_dependencies(metadata_thrift thrift_light)
 
-foreach(tgt dwarfs dwarfs_compression ${BINARY_TARGETS})
+foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
@@ -683,7 +690,7 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} -Wl,--whole-archive dwarfs_compression
-                               -Wl,--no-whole-archive dwarfs)
+                               -Wl,--no-whole-archive dwarfs dwarfs_tool)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
