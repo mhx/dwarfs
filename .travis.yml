@@ -2,7 +2,7 @@ language: cpp
 
 os: linux
 
-dist: focal
+dist: jammy
 
 addons:
   apt:
@@ -26,6 +26,7 @@ addons:
       - libboost-regex-dev
       - libboost-system-dev
       - libboost-thread-dev
+      - libbrotli-dev
       - libevent-dev
       - libjemalloc-dev
       - libdouble-conversion-dev
