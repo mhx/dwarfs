@@ -49,7 +49,7 @@ std::string size_with_unit(size_t size) {
 }
 
 std::string time_with_unit(double sec) {
-  return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME, false));
+  return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME_HMS, false));
 }
 
 size_t parse_size_with_unit(std::string const& str) {
