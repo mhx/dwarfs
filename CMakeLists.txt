@@ -120,8 +120,8 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-if(PREFER_SYSTEM_GTEST)
-  find_package(fmt 9.1 CONFIG)
+if(PREFER_SYSTEM_LIBFMT)
+  find_package(fmt 9.0 CONFIG)
 else()
   configure_file(CMakeLists.txt.fmtlib fmtlib-download/CMakeLists.txt)
   execute_process(
