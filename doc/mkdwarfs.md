@@ -37,6 +37,7 @@ There two mandatory options for specifying the input and output:
   current directory. If you want files to be stored in the exact same order
   as read from this list (because, for example, you have already sorted them
   by similarity or access frequency), you must also pass `--order=none`.
+  This option implicitly enables both `--with-devices` and `--with-specials`.
 
 - `-o`, `--output=`*file*:
   File name of the output filesystem.

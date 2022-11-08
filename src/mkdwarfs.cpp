@@ -654,6 +654,10 @@ int mkdwarfs(int argc, char** argv) {
       return 1;
     }
 
+    // implicitly turn on
+    options.with_devices = true;
+    options.with_specials = true;
+
     if (!vm.count("input")) {
       path = std::filesystem::current_path().string();
     }
