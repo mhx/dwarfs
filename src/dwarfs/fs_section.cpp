@@ -84,7 +84,9 @@ class fs_section_v1 : public fs_section::impl {
   section_type type() const override { return hdr_.type; }
 
   std::string name() const override { return get_section_name(hdr_.type); }
-  std::string description() const override { return hdr_.to_string(); }
+  std::string description() const override {
+    return fmt::format("{}, offset={}", hdr_.to_string(), start());
+  }
 
   bool check_fast(mmif&) const override { return true; }
   bool verify(mmif&) const override { return true; }
@@ -117,7 +119,9 @@ class fs_section_v2 : public fs_section::impl {
     return get_section_name(static_cast<section_type>(hdr_.type));
   }
 
-  std::string description() const override { return hdr_.to_string(); }
+  std::string description() const override {
+    return fmt::format("{}, offset={}", hdr_.to_string(), start());
+  }
 
   bool check_fast(mmif& mm) const override {
     auto hdr_cs_len =
