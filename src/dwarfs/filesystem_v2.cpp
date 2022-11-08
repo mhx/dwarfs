@@ -732,7 +732,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  if (errors == 0 and detail_level > 0) {
+  if (detail_level > 0) {
     filesystem_options fsopts;
     fsopts.metadata.check_consistency = true;
     fsopts.metadata.enable_nlink = true;
