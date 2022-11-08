@@ -484,6 +484,21 @@ further compress the block. So if you're really desperately trying
 to reduce the image size, enabling `all` packing would be an option
 at the cost of using a lot more memory when using the filesystem.
 
+### Producing bit-identical images
+
+By default, images produced by `mkdwarfs` will not be identical
+over multiple runs. There are two reasons for this:
+
+- A creation timestamp is embedded in the image.
+
+- The `nilsimsa` ordering algorithm is not deterministic by
+  default.
+
+In order to produce bit-identical images, you need to pass
+`--no-create-timestamp` and set `--order` to `path` or `similarity`.
+You could also set `--order=none` and pass in files explicitly
+using `--input-list`.
+
 ## FILTER RULES
 
 The filter rules have been inspired by the `rsync` utility. They
