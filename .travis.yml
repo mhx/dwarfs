@@ -49,6 +49,7 @@ git:
 branches:
   only:
   - main
+  - wip
 
 compiler:
   - gcc
