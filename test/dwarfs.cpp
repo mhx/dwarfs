@@ -60,13 +60,11 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              block_manager::config const& cfg = block_manager::config(),
              scanner_options const& options = scanner_options(),
-             progress* prog = nullptr, std::shared_ptr<script> scr = nullptr) {
+             progress* prog = nullptr, std::shared_ptr<script> scr = nullptr,
+             std::optional<std::span<std::filesystem::path const>> input_list =
+                 std::nullopt) {
   // force multithreading
   worker_group wg("worker", 4);
-
-  if (!scr) {
-    scr = std::make_shared<test::script_mock>();
-  }
 
   scanner s(lgr, wg, cfg, entry_factory::create(), input, scr, options);
 
@@ -80,7 +78,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   block_compressor bc(compression);
   filesystem_writer fsw(oss, lgr, wg, *prog, bc);
 
-  s.scan(fsw, "", *prog);
+  s.scan(fsw, "", *prog, input_list);
 
   return oss.str();
 }
@@ -139,7 +137,12 @@ void basic_end_to_end_test(std::string const& compressor,
 
   auto prog = progress([](const progress&, bool) {}, 1000);
 
-  auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog);
+  std::shared_ptr<script> scr;
+  if (file_order == file_order_mode::SCRIPT) {
+    scr = std::make_shared<test::script_mock>();
+  }
+
+  auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog, scr);
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
@@ -846,3 +849,41 @@ TEST_P(filter, filesystem) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
+
+TEST(file_scanner, input_list) {
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  auto bmcfg = block_manager::config();
+  auto opts = scanner_options();
+
+  opts.file_order.mode = file_order_mode::NONE;
+
+  auto input = test::os_access_mock::create_test_instance();
+
+  std::vector<std::filesystem::path> input_list{
+      "somedir/ipsum.py",
+      "foo.pl",
+  };
+
+  auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, nullptr, nullptr,
+                              input_list);
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, mm);
+
+  std::unordered_set<std::string> got;
+
+  fs.walk([&got](dir_entry_view e) { got.emplace(e.path()); });
+
+  std::unordered_set<std::string> expected{
+      "",
+      "somedir",
+      "somedir/ipsum.py",
+      "foo.pl",
+  };
+
+  EXPECT_EQ(expected, got);
+}
