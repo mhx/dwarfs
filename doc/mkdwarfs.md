@@ -3,6 +3,7 @@
 ## SYNOPSIS
 
 `mkdwarfs` `-i` *path* `-o` *file* [*options*...]  
+`mkdwarfs` `--input-list=`*file*|`-` `-o` *file* [*options*...]
 `mkdwarfs` `-i` *file* `-o` *file* `--recompress` [*options*...]
 
 ## DESCRIPTION
