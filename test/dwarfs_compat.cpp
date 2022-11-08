@@ -972,7 +972,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   std::ostringstream oss;
 
   EXPECT_NO_THROW(ext.open_stream(oss, "mtree"));
-  EXPECT_NO_THROW(ext.extract(fs, 4096));
+  EXPECT_NO_THROW(ext.extract(fs));
   EXPECT_NO_THROW(ext.close());
 
   std::istringstream iss(oss.str());

@@ -43,6 +43,7 @@ struct block_cache_options {
   double decompress_ratio{1.0};
   bool mm_release{true};
   bool init_workers{true};
+  bool disable_block_integrity_check{false};
 };
 
 struct cache_tidy_config {

@@ -45,6 +45,7 @@ int dwarfsextract(int argc, char** argv) {
   std::string filesystem, output, format, cache_size_str, log_level,
       image_offset;
   size_t num_workers;
+  bool continue_on_error{false}, disable_integrity_check{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -61,6 +62,12 @@ int dwarfsextract(int argc, char** argv) {
     ("format,f",
         po::value<std::string>(&format),
         "output format")
+    ("continue-on-error",
+        po::value<bool>(&continue_on_error)->zero_tokens(),
+        "continue if errors are encountered")
+    ("disable-integrity-check",
+        po::value<bool>(&disable_integrity_check)->zero_tokens(),
+        "disable file system image block integrity check (dangerous)")
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(4),
         "number of worker threads")
@@ -89,6 +96,8 @@ int dwarfsextract(int argc, char** argv) {
     return 0;
   }
 
+  int rv = 0;
+
   try {
     auto level = logger::parse_level(log_level);
     stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
@@ -103,6 +112,7 @@ int dwarfsextract(int argc, char** argv) {
 
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
+    fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;
     fsopts.metadata.enable_nlink = true;
 
     filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts);
@@ -117,7 +127,12 @@ int dwarfsextract(int argc, char** argv) {
       fsx.open_archive(output, format);
     }
 
-    fsx.extract(fs, fsopts.block_cache.max_bytes);
+    filesystem_extractor_options fsx_opts;
+
+    fsx_opts.max_queued_bytes = fsopts.block_cache.max_bytes;
+    fsx_opts.continue_on_error = continue_on_error;
+
+    rv = fsx.extract(fs, fsx_opts) ? 0 : 2;
 
     fsx.close();
   } catch (runtime_error const& e) {
@@ -131,7 +146,7 @@ int dwarfsextract(int argc, char** argv) {
     return 1;
   }
 
-  return 0;
+  return rv;
 }
 
 } // namespace

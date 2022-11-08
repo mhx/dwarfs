@@ -72,6 +72,11 @@ class cache_semaphore {
   int64_t size_{0};
 };
 
+class archive_error : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -146,7 +151,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     closefd(pipefd_[0]);
   }
 
-  void extract(filesystem_v2 const& fs, size_t max_queued_bytes) override;
+  bool extract(filesystem_v2 const& fs,
+               filesystem_extractor_options const& opts) override;
 
  private:
   void closefd(int& fd) {
@@ -189,7 +195,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       break;
     case ARCHIVE_RETRY:
     case ARCHIVE_FATAL:
-      DWARFS_THROW(runtime_error, std::string(archive_error_string(a_)));
+      throw archive_error(std::string(archive_error_string(a_)));
     }
   }
 
@@ -200,8 +206,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 };
 
 template <typename LoggerPolicy>
-void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
-                                                  size_t max_queued_bytes) {
+bool filesystem_extractor_<LoggerPolicy>::extract(
+    filesystem_v2 const& fs, filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto lr = ::archive_entry_linkresolver_new();
@@ -217,11 +223,13 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
   worker_group archiver("archiver", 1);
   cache_semaphore sem;
 
-  LOG_DEBUG << "extractor semaphore size: " << max_queued_bytes << " bytes";
+  LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
+            << " bytes";
 
-  sem.post(max_queued_bytes);
+  sem.post(opts.max_queued_bytes);
 
-  std::atomic<bool> abort{false};
+  std::atomic<size_t> hard_error{0};
+  std::atomic<size_t> soft_error{0};
 
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
@@ -232,14 +240,16 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
       size_t pos = 0;
       size_t remain = size;
 
-      while (remain > 0 && !abort) {
-        size_t bs = remain < max_queued_bytes ? remain : max_queued_bytes;
+      while (remain > 0 && hard_error == 0) {
+        size_t bs =
+            remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
 
         sem.wait(bs);
 
         if (auto ranges = fs.readv(fd, bs, pos)) {
-          archiver.add_job([this, &sem, &abort, ranges = std::move(*ranges), ae,
-                            pos, remain, bs, size]() mutable {
+          archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
+                            ranges = std::move(*ranges), ae, pos, remain, bs,
+                            size]() mutable {
             try {
               if (pos == 0) {
                 LOG_DEBUG << "extracting " << ::archive_entry_pathname(ae)
@@ -256,9 +266,17 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
                 archive_entry_free(ae);
               }
               sem.post(bs);
+            } catch (archive_error const& e) {
+              LOG_ERROR << folly::exceptionStr(e);
+              ++hard_error;
             } catch (...) {
-              LOG_ERROR << folly::exceptionStr(std::current_exception());
-              abort = true;
+              if (opts.continue_on_error) {
+                LOG_WARN << folly::exceptionStr(std::current_exception());
+                ++soft_error;
+              } else {
+                LOG_ERROR << folly::exceptionStr(std::current_exception());
+                ++hard_error;
+              }
               archive_entry_free(ae);
             }
           });
@@ -273,13 +291,13 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
         remain -= bs;
       }
     } else {
-      archiver.add_job([this, ae, &abort] {
+      archiver.add_job([this, ae, &hard_error] {
         SCOPE_EXIT { ::archive_entry_free(ae); };
         try {
           check_result(::archive_write_header(a_, ae));
         } catch (...) {
           LOG_ERROR << folly::exceptionStr(std::current_exception());
-          abort = true;
+          hard_error = true;
         }
       });
     }
@@ -287,7 +305,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
 
   fs.walk_data_order([&](auto entry) {
     // TODO: we can surely early abort walk() somehow
-    if (entry.is_root() || abort) {
+    if (entry.is_root() || hard_error) {
       return;
     }
 
@@ -329,7 +347,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
 
   archiver.wait();
 
-  if (abort) {
+  if (hard_error) {
     DWARFS_THROW(runtime_error, "extraction aborted");
   }
 
@@ -340,6 +358,15 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
   if (ae) {
     DWARFS_THROW(runtime_error, "unexpected deferred entry");
   }
+
+  if (soft_error > 0) {
+    LOG_ERROR << "extraction finished with " << soft_error << " error(s)";
+    return false;
+  }
+
+  LOG_INFO << "extraction finished without errors";
+
+  return true;
 }
 
 filesystem_extractor::filesystem_extractor(logger& lgr)

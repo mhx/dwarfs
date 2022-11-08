@@ -56,7 +56,7 @@ namespace dwarfs {
 class cached_block {
  public:
   cached_block(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-               bool release)
+               bool release, bool disable_integrity_check)
       : decompressor_(std::make_unique<block_decompressor>(
             b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_))
       , mm_(std::move(mm))
@@ -64,7 +64,7 @@ class cached_block {
       , LOG_PROXY_INIT(lgr)
       , release_(release)
       , uncompressed_size_{decompressor_->uncompressed_size()} {
-    if (!section_.check_fast(*mm_)) {
+    if (!disable_integrity_check && !section_.check_fast(*mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
   }
@@ -483,7 +483,7 @@ class block_cache_ final : public block_cache::impl {
 
       auto block = std::make_shared<cached_block>(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
-          options_.mm_release);
+          options_.mm_release, options_.disable_block_integrity_check);
       ++blocks_created_;
 
       // Make a new set for the block

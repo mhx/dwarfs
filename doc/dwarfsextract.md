@@ -56,6 +56,18 @@ to disk:
   if no output directory is specified). For a full list of supported formats,
   see libarchive-formats(5).
 
+- `--continue-on-error`:
+  Try to continue with extraction even when errors are encountered. This
+  only applies to errors when reading from the file system image. Errors
+  when writing the extracted files will still be fatal.
+
+- `--disable-integrity-check`:
+  This option disables all block integrity checks on the file system data.
+  There is a non-zero chance that this allows further data to be read from
+  corrupted file systems. However, there's also a non-zero chance that it
+  will completely crash the program. So please don't use this unless you
+  know what you're doing.
+
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for extracting the filesystem.
 
