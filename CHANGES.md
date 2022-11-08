@@ -1,5 +1,53 @@
 # Change Log
 
+## Version 0.7.0-RC1 - 2022-11-08
+
+- (fix) Fixed `extract_block.py`, which was incorrectly using `printf`
+  instead of `print`.
+
+- (fix) Support LZ4 compression levels above 9.
+
+- (feature) Added `--filter` option to support simple (rsync-like)
+  filter rules. This was driven by a discussion on github #6.
+
+- (feature) Added `--input-list` option to support reading a list
+  of input files from a file or stdin. At least partially fixes
+  github #6.
+
+- (feature) The compression code has been made more modular. This
+  should make it much easier to add support for more compression
+  algorithms in the future.
+
+- (feature) Added support for Brotli compression. This is generally much
+  slower at compression than ZSTD or LZMA, but faster than LZMA, while
+  offering a compression ratio better than ZSTD. Fixes github #76.
+
+- (feature) Added support for choosing the file hashing algorithm using
+  the `--file-hash` option. This allows you to pick a secure hash
+  instead of the default XXH3. Also fixes github #92.
+
+- (feature) Improved de-duplication algorithm to only hash files with
+  the same size. File hashing is delayed until at least one more file
+  with the same size is discovered. This happens automatically and
+  should improve scanning speed, especially on slow file systems.
+
+- (feature) Added `--max-similarity-size` option to prevent similarity
+  hashing of huge files. This saves scanning time, especially on slow
+  file systems, while it shouldn't affect compression ratio too much.
+
+- (feature) Honour user locale when formatting numbers.
+
+- (feature) Added `--num-scanner-workers` option.
+
+- (feature) Added support for extracting corrupted file systems with
+  `dwarfsextract`. This is enabled using the `--continue-on-error`
+  and, if really needed, `--disable-integrity-check` options. Fixes
+  github #51.
+
+- (test) Added unit tests for progress class.
+
+- (other) Lots of internal cleanups.
+
 ## Version 0.6.2 - 2022-10-24
 
 - (fix) Fix github #91: image creation reproducibility.
