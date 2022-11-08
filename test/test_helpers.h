@@ -26,6 +26,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -36,8 +37,7 @@
 
 struct stat;
 
-namespace dwarfs {
-namespace test {
+namespace dwarfs::test {
 
 class os_access_mock : public os_access {
  public:
@@ -123,5 +123,6 @@ extern std::map<std::string, simplestat> statmap;
 
 std::optional<std::filesystem::path> find_binary(std::string_view name);
 
-} // namespace test
-} // namespace dwarfs
+std::span<std::pair<simplestat, std::string_view> const> test_dirtree();
+
+} // namespace dwarfs::test

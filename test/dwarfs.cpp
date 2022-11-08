@@ -34,6 +34,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/builtin_script.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -42,6 +43,8 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
+
+#include "filter_test_data.h"
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
@@ -57,12 +60,15 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              block_manager::config const& cfg = block_manager::config(),
              scanner_options const& options = scanner_options(),
-             progress* prog = nullptr) {
+             progress* prog = nullptr, std::shared_ptr<script> scr = nullptr) {
   // force multithreading
   worker_group wg("worker", 4);
 
-  scanner s(lgr, wg, cfg, entry_factory::create(), input,
-            std::make_shared<test::script_mock>(), options);
+  if (!scr) {
+    scr = std::make_shared<test::script_mock>();
+  }
+
+  scanner s(lgr, wg, cfg, entry_factory::create(), input, scr, options);
 
   std::ostringstream oss;
   std::unique_ptr<progress> local_prog;
@@ -767,3 +773,76 @@ TEST_P(file_scanner, inode_ordering) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, file_scanner,
                          ::testing::Values(std::nullopt, "xxh3-128"));
+
+class filter : public testing::TestWithParam<dwarfs::test::filter_test_data> {};
+
+TEST_P(filter, filesystem) {
+  auto spec = GetParam();
+
+  block_manager::config cfg;
+  scanner_options options;
+
+  options.remove_empty_dirs = true;
+
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  auto scr = std::make_shared<builtin_script>(lgr);
+
+  scr->set_root_path("");
+  {
+    std::istringstream iss(spec.filter());
+    scr->add_filter_rules(iss);
+  }
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
+    struct ::stat st;
+
+    std::memset(&st, 0, sizeof(st));
+
+    st.st_ino = stat.st_ino;
+    st.st_mode = stat.st_mode;
+    st.st_nlink = stat.st_nlink;
+    st.st_uid = stat.st_uid;
+    st.st_gid = stat.st_gid;
+    st.st_size = stat.st_size;
+    st.st_atime = stat.atime;
+    st.st_mtime = stat.mtime;
+    st.st_ctime = stat.ctime;
+    st.st_rdev = stat.st_rdev;
+
+    auto path = name.substr(name.size() == 5 ? 5 : 6);
+
+    if (S_ISREG(st.st_mode)) {
+      input->add(path, st,
+                 [size = st.st_size] { return test::loremipsum(size); });
+    } else if (S_ISLNK(st.st_mode)) {
+      input->add(path, st, test::loremipsum(st.st_size));
+    } else {
+      input->add(path, st);
+    }
+  }
+
+  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr, scr);
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_options opts;
+  opts.block_cache.max_bytes = 1 << 20;
+  opts.metadata.enable_nlink = true;
+  opts.metadata.check_consistency = true;
+
+  filesystem_v2 fs(lgr, mm, opts);
+
+  std::unordered_set<std::string> got;
+
+  fs.walk([&got](dir_entry_view e) { got.emplace(e.path()); });
+
+  EXPECT_EQ(spec.expected_files(), got);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
+                         ::testing::ValuesIn(dwarfs::test::get_filter_tests()));

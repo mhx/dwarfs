@@ -58,6 +58,7 @@ class builtin_script_ : public builtin_script::impl {
 
   void set_root_path(std::string const& path) override;
   void add_filter_rule(std::string const& rule) override;
+  void add_filter_rules(std::istream& is) override;
 
   bool filter(entry_interface const& ei) override;
 
@@ -66,6 +67,9 @@ class builtin_script_ : public builtin_script::impl {
  private:
   void add_filter_rule(std::unordered_set<std::string>& seen_files,
                        std::string const& rule);
+
+  void add_filter_rules(std::unordered_set<std::string>& seen_files,
+                        std::istream& is);
 
   filter_rule compile_filter_rule(std::string const& rule);
 
@@ -181,6 +185,12 @@ void builtin_script_<LoggerPolicy>::add_filter_rule(std::string const& rule) {
 }
 
 template <typename LoggerPolicy>
+void builtin_script_<LoggerPolicy>::add_filter_rules(std::istream& is) {
+  std::unordered_set<std::string> seen_files;
+  add_filter_rules(seen_files, is);
+}
+
+template <typename LoggerPolicy>
 void builtin_script_<LoggerPolicy>::add_filter_rule(
     std::unordered_set<std::string>& seen_files, std::string const& rule) {
   if (rule.starts_with('.')) {
@@ -197,21 +207,27 @@ void builtin_script_<LoggerPolicy>::add_filter_rule(
       throw std::runtime_error(fmt::format("error opening file: {}", file));
     }
 
-    std::string line;
-
-    while (std::getline(ifs, line)) {
-      if (line.starts_with('#')) {
-        continue;
-      }
-      if (line.find_first_not_of(" \t") == std::string::npos) {
-        continue;
-      }
-      add_filter_rule(seen_files, line);
-    }
+    add_filter_rules(seen_files, ifs);
 
     seen_files.erase(file);
   } else {
     filter_.push_back(compile_filter_rule(rule));
+  }
+}
+
+template <typename LoggerPolicy>
+void builtin_script_<LoggerPolicy>::add_filter_rules(
+    std::unordered_set<std::string>& seen_files, std::istream& is) {
+  std::string line;
+
+  while (std::getline(is, line)) {
+    if (line.starts_with('#')) {
+      continue;
+    }
+    if (line.find_first_not_of(" \t") == std::string::npos) {
+      continue;
+    }
+    add_filter_rule(seen_files, line);
   }
 }
 

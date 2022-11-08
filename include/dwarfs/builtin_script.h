@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <iosfwd>
 #include <memory>
 #include <string>
 
@@ -40,6 +41,7 @@ class builtin_script : public script {
   void add_filter_rule(std::string const& rule) {
     impl_->add_filter_rule(rule);
   };
+  void add_filter_rules(std::istream& is) { impl_->add_filter_rules(is); };
 
   bool has_configure() const override;
   bool has_filter() const override;
@@ -57,6 +59,7 @@ class builtin_script : public script {
 
     virtual void set_root_path(std::string const& path) = 0;
     virtual void add_filter_rule(std::string const& rule) = 0;
+    virtual void add_filter_rules(std::istream& is) = 0;
     virtual bool filter(entry_interface const& ei) = 0;
     virtual bool has_filter() const = 0;
   };
