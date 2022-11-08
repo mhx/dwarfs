@@ -558,23 +558,32 @@ input directory recursively and builds an internal representation of the
 directory structure. Traversal is breadth-first and single-threaded.
 
 When a regular file is discovered, its hardlink count is checked and
-if non-zero, its inode is looked up in a hardlink cache. If the inode
-has not been scanned yet, a scanning job will be added to a pool of
-`--num-workers` worker threads. These will perform a SHA1 checksum scan
-first, which is then used to determine duplicate files, as these will
-share the same data in the final DwarFS image. If a file is found not
-to be a duplicate, it will now potentially be scanned again (by the
-same worker threads and using the same memory mapping) to generate a
-similarity hash value. This only happens if `--order` is set to one
-of the two similarity order modes.
+if greater than one, its inode is looked up in a hardlink cache. Another
+lookup is performed to see if this is the first file/inode of a particular
+size. If it's the first file, we just keep track of the file. If it's not
+the first file, we add a jobs to a pool of `--num-scanner-workers` worker
+threads to compute a hash (determined by the the `--file-hash` option)
+of the file. We also add a hash-computing job for the first file. These
+hashes will be used for de-duplicating files. If `--order` is set to one
+of the similarity order modes, for each unique file, a further job is
+added to the pool to compute a similarity hash. This happens immediately
+for each inode of a unique size, but it is guaranteed that duplicates
+don't trigger another similarity hash scan (the implementation for this
+is indeed a bit tricky).
 
 Once all file contents have been scanned by the worker threads, all
 unique files will be assigned an internal inode number.
 
+This behaviour can be customized. When using `--file-hash=none`,
+de-duplication is completely disabled. Using `--max-similarity-size`,
+it is possible to prevent computation of similarity hashes for huge
+files. These huge files will then be stored separately before all other
+files in the image.
+
 ### Building
 
-Building the filesystem image uses a number of separate threads. If
-`nilsimsa` ordering is selected, the ordering algorithm runs in its
+Building the filesystem image uses a `--num-workers` separate threads.
+If `nilsimsa` ordering is selected, the ordering algorithm runs in its
 own thread and continuously emits file inodes. These will be picked
 up by the segmenter thread, which scans the inode contents using a
 cyclic hash and determines overlapping segments between previously
@@ -594,6 +603,10 @@ When all data has been segmented, the filesystem metadata is being
 finalized and frozen into a compact representation. If metadata
 compression is enabled, the metadata is sent to the worker thread
 pool.
+
+When using different ordering schemes, the file inodes will be
+either sorted upfront, or just sent to the segmenter in the order
+in which they were discovered.
 
 ## AUTHOR
 
