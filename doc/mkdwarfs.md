@@ -313,7 +313,11 @@ Most other options are concerned with compression tuning:
 
 - `--file-hash=none`|*name*:
   Select the hashing function to be used for file deduplication. If `none`
-  is chosen, file deduplication is disabled.
+  is chosen, file deduplication is disabled. By default, the built-in
+  `XXH3-128` hash is used. This is not a secure hash function, but it is
+  significantly faster. The full list of supported hash function depends
+  on the version of OpenSSL that the binary is linked against and is shown
+  in the output of `mkdwarfs -h`.
 
 - `--log-level=`*name*:
   Specifiy a logging level.
