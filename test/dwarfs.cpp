@@ -735,11 +735,12 @@ TEST_P(compression_regression, github45) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
                          ::testing::ValuesIn(compressions));
 
-class file_scanner : public testing::TestWithParam<std::optional<std::string>> {
-};
+class file_scanner
+    : public testing::TestWithParam<
+          std::tuple<file_order_mode, std::optional<std::string>>> {};
 
 TEST_P(file_scanner, inode_ordering) {
-  auto file_hash_algo = GetParam();
+  auto [order_mode, file_hash_algo] = GetParam();
 
   std::ostringstream logss;
   stream_logger lgr(logss); // TODO: mock
@@ -748,7 +749,7 @@ TEST_P(file_scanner, inode_ordering) {
   auto bmcfg = block_manager::config();
   auto opts = scanner_options();
 
-  opts.file_order.mode = file_order_mode::PATH;
+  opts.file_order.mode = order_mode;
   opts.file_hash_algorithm = file_hash_algo;
 
   auto input = std::make_shared<test::os_access_mock>();
@@ -774,8 +775,11 @@ TEST_P(file_scanner, inode_ordering) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, file_scanner,
-                         ::testing::Values(std::nullopt, "xxh3-128"));
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, file_scanner,
+    ::testing::Combine(::testing::Values(file_order_mode::PATH,
+                                         file_order_mode::SIMILARITY),
+                       ::testing::Values(std::nullopt, "xxh3-128")));
 
 class filter : public testing::TestWithParam<dwarfs::test::filter_test_data> {};
 
