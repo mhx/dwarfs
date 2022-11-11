@@ -407,15 +407,15 @@ int mkdwarfs(int argc, char** argv) {
     ("input,i",
         po::value<std::string>(&path),
         "path to root directory or source filesystem")
+    ("input-list",
+        po::value<std::string>(&input_list_str),
+        "file containing list of paths relative to root directory")
     ("output,o",
         po::value<std::string>(&output),
         "filesystem output name")
     ("force,f",
         po::value<bool>(&force_overwrite)->zero_tokens(),
         "force overwrite of existing output image")
-    ("input-list",
-        po::value<std::string>(&input_list_str),
-        "file containing list of paths relative to root directory")
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
