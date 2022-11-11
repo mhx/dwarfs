@@ -595,7 +595,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS})
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
-            $<$<BOOL:${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND}>:DWARFS_HAVE_LIBBROTLI>
+            $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
             $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
 
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -661,11 +661,19 @@ target_link_libraries(
   thrift_light
   folly
   fsst
-  ${Boost_LIBRARIES}
-  PkgConfig::LIBLZ4
-  PkgConfig::LIBLZMA
-  PkgConfig::LIBBROTLIENC
-  PkgConfig::LIBBROTLIDEC)
+  ${Boost_LIBRARIES})
+
+if(LIBLZ4_FOUND)
+  target_link_libraries(dwarfs PkgConfig::LIBLZ4)
+endif()
+
+if(LIBLZMA_FOUND)
+  target_link_libraries(dwarfs PkgConfig::LIBLZMA)
+endif()
+
+if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
+  target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
