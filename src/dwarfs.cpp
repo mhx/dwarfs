@@ -501,7 +501,7 @@ void usage(const char* progname) {
       << "    -o readonly            show read-only file system\n"
       << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
       << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
-      << "    -o debuglevel=NAME     error, warn, (info), debug, trace\n"
+      << "    -o debuglevel=NAME     error, warn, info, debug, trace\n"
       << "    -o tidy_strategy=NAME  (none)|time|swap\n"
       << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
       << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
@@ -724,9 +724,11 @@ int run_dwarfs(int argc, char** argv) {
 
     opts.fsimage = std::filesystem::canonical(opts.fsimage).native();
 
-    opts.debuglevel = opts.debuglevel_str
-                          ? logger::parse_level(opts.debuglevel_str)
-                          : logger::INFO;
+    if (opts.debuglevel_str) {
+      opts.debuglevel = logger::parse_level(opts.debuglevel_str);
+    } else {
+      opts.debuglevel = fuse_opts.foreground ? logger::INFO : logger::WARN;
+    }
 
     userdata.lgr.set_threshold(opts.debuglevel);
     userdata.lgr.set_with_context(opts.debuglevel >= logger::DEBUG);

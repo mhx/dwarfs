@@ -109,7 +109,8 @@ options:
   the `-f` or `-d` FUSE options. This can give you some insight
   over what the file system driver is doing internally, but it's
   mainly meant for debugging and the `debug` and `trace` levels
-  in particular will slow down the driver.
+  in particular will slow down the driver. This defaults to `info`
+  in foreground mode (`-f`, `-d`) and to `warn` in background mode.
 
 - `-o tidy_strategy=`*name*:
   Use one of the following strategies to tidy the block cache:
