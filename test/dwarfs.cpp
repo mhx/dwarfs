@@ -92,6 +92,7 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool pack_names, bool pack_names_index,
                            bool pack_symlinks, bool pack_symlinks_index,
                            bool plain_names_table, bool plain_symlinks_table,
+                           bool access_fail,
                            std::optional<std::string> file_hash_algo) {
   block_manager::config cfg;
   scanner_options options;
@@ -135,6 +136,10 @@ void basic_end_to_end_test(std::string const& compressor,
 
   auto input = test::os_access_mock::create_test_instance();
 
+  if (access_fail) {
+    input->set_access_fail("/somedir/ipsum.py");
+  }
+
   auto prog = progress([](const progress&, bool) {}, 1000);
 
   std::shared_ptr<script> scr;
@@ -149,6 +154,8 @@ void basic_end_to_end_test(std::string const& compressor,
   bool similarity =
       options.inode.with_similarity || options.inode.with_nilsimsa;
 
+  size_t const num_fail_empty = access_fail ? 1 : 0;
+
   EXPECT_EQ(8, prog.files_found);
   EXPECT_EQ(8, prog.files_scanned);
   EXPECT_EQ(2, prog.dirs_found);
@@ -156,17 +163,17 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(2, prog.symlinks_found);
   EXPECT_EQ(2, prog.symlinks_scanned);
   EXPECT_EQ(2 * with_devices + with_specials, prog.specials_found);
-  EXPECT_EQ(file_hash_algo ? 3 : 0, prog.duplicate_files);
+  EXPECT_EQ(file_hash_algo ? 3 + num_fail_empty : 0, prog.duplicate_files);
   EXPECT_EQ(1, prog.hardlinks);
   EXPECT_GE(prog.block_count, 1);
   EXPECT_GE(prog.chunk_count, 100);
   EXPECT_EQ(7 - prog.duplicate_files, prog.inodes_scanned);
-  EXPECT_EQ(file_hash_algo ? 4 : 7, prog.inodes_written);
+  EXPECT_EQ(file_hash_algo ? 4 - num_fail_empty : 7, prog.inodes_written);
   EXPECT_EQ(prog.files_found - prog.duplicate_files - prog.hardlinks,
             prog.inodes_written);
   EXPECT_EQ(prog.block_count, prog.blocks_written);
-  EXPECT_EQ(0, prog.errors);
-  EXPECT_EQ(2056934, prog.original_size);
+  EXPECT_EQ(num_fail_empty, prog.errors);
+  EXPECT_EQ(access_fail ? 2046934 : 2056934, prog.original_size);
   EXPECT_EQ(23456, prog.hardlink_size);
   EXPECT_EQ(file_hash_algo ? 23456 : 0, prog.saved_by_deduplication);
   EXPECT_GE(prog.saved_by_segmentation, block_size_bits == 12 ? 0 : 1000000);
@@ -179,7 +186,7 @@ void basic_end_to_end_test(std::string const& compressor,
             similarity ? prog.original_size -
                              (prog.saved_by_deduplication + prog.symlink_size)
                        : 0);
-  EXPECT_EQ(prog.hash_scans, file_hash_algo ? 5 : 0);
+  EXPECT_EQ(prog.hash_scans, file_hash_algo ? 5 + num_fail_empty : 0);
   EXPECT_EQ(prog.hash_bytes, file_hash_algo ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
@@ -197,7 +204,11 @@ void basic_end_to_end_test(std::string const& compressor,
 
   EXPECT_EQ(1 << block_size_bits, vfsbuf.f_bsize);
   EXPECT_EQ(1, vfsbuf.f_frsize);
-  EXPECT_EQ(enable_nlink ? 2056934 : 2080390, vfsbuf.f_blocks);
+  if (enable_nlink) {
+    EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.f_blocks);
+  } else {
+    EXPECT_EQ(access_fail ? 2070390 : 2080390, vfsbuf.f_blocks);
+  }
   EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.f_files);
   EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
   EXPECT_GT(vfsbuf.f_namemax, 0);
@@ -384,7 +395,7 @@ void basic_end_to_end_test(std::string const& compressor,
   entry = fs.find(st2.st_ino, "ipsum.py");
   ASSERT_TRUE(entry);
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
-  EXPECT_EQ(10000, st1.st_size);
+  EXPECT_EQ(access_fail ? 0 : 10000, st1.st_size);
   EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
@@ -415,7 +426,11 @@ void basic_end_to_end_test(std::string const& compressor,
       EXPECT_EQ(set_uid ? 0 : ref.st_uid, st.st_uid) << p;
       EXPECT_EQ(set_gid ? 0 : ref.st_gid, st.st_gid) << p;
       if (!S_ISDIR(st.st_mode)) {
-        EXPECT_EQ(ref.st_size, st.st_size) << p;
+        if (input->access(p, R_OK) == 0) {
+          EXPECT_EQ(ref.st_size, st.st_size) << p;
+        } else {
+          EXPECT_EQ(0, st.st_size) << p;
+        }
       }
     }
   }
@@ -459,7 +474,7 @@ class compression_test
 
 class scanner_test : public testing::TestWithParam<
                          std::tuple<bool, bool, bool, bool, bool, bool, bool,
-                                    std::optional<std::string>>> {};
+                                    bool, std::optional<std::string>>> {};
 
 class hashing_test : public testing::TestWithParam<std::string> {};
 
@@ -480,23 +495,24 @@ TEST_P(compression_test, end_to_end) {
 
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, false, true, true, true,
-                        true, true, true, true, false, false, file_hash_algo);
+                        true, true, true, true, false, false, false,
+                        file_hash_algo);
 }
 
 TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
-        enable_nlink, file_hash_algo] = GetParam();
+        enable_nlink, access_fail, file_hash_algo] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
-                        with_devices, with_specials, set_uid, set_gid, set_time,
-                        keep_all_times, enable_nlink, true, true, true, true,
-                        true, true, true, false, false, file_hash_algo);
+  basic_end_to_end_test(
+      compressions[0], 15, file_order_mode::NONE, with_devices, with_specials,
+      set_uid, set_gid, set_time, keep_all_times, enable_nlink, true, true,
+      true, true, true, true, true, false, false, access_fail, file_hash_algo);
 }
 
 TEST_P(hashing_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
                         true, true, true, true, true, true, true, true, true,
-                        true, true, true, false, false, GetParam());
+                        true, true, true, false, false, false, GetParam());
 }
 
 TEST_P(packing_test, end_to_end) {
@@ -507,7 +523,7 @@ TEST_P(packing_test, end_to_end) {
                         false, false, false, false, false, pack_chunk_table,
                         pack_directories, pack_shared_files_table, pack_names,
                         pack_names_index, pack_symlinks, pack_symlinks_index,
-                        false, false, default_file_hash_algo);
+                        false, false, false, default_file_hash_algo);
 }
 
 TEST_P(plain_tables_test, end_to_end) {
@@ -516,7 +532,7 @@ TEST_P(plain_tables_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
                         false, false, false, false, false, false, false, false,
                         false, false, false, false, plain_names_table,
-                        plain_symlinks_table, default_file_hash_algo);
+                        plain_symlinks_table, false, default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -586,7 +602,7 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
                        ::testing::Bool(), ::testing::Bool(), ::testing::Bool(),
-                       ::testing::Bool(),
+                       ::testing::Bool(), ::testing::Bool(),
                        ::testing::Values(std::nullopt, "xxh3-128", "sha512")));
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, hashing_test,

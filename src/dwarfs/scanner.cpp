@@ -360,9 +360,10 @@ scanner_<LoggerPolicy>::add_entry(std::string const& name,
       switch (pe->type()) {
       case entry::E_FILE:
         if (os_->access(pe->path(), R_OK)) {
-          LOG_ERROR << "cannot access: " << pe->path();
+          LOG_ERROR << "cannot access " << pe->path()
+                    << ", creating empty file";
+          pe->override_size(0);
           prog.errors++;
-          return nullptr;
         }
         break;
 

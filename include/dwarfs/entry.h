@@ -109,6 +109,8 @@ class entry : public entry_interface {
   uint64_t get_ctime() const override;
   void set_ctime(uint64_t ctime) override;
 
+  void override_size(size_t size) { stat_.st_size = size; }
+
  private:
   std::string name_;
   std::weak_ptr<entry> parent_;

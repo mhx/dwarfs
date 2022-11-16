@@ -29,6 +29,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -58,6 +59,8 @@ class os_access_mock : public os_access {
   void add_file(std::filesystem::path const& path, size_t size);
   void add_file(std::filesystem::path const& path, std::string const& contents);
 
+  void set_access_fail(std::filesystem::path const& path);
+
   std::shared_ptr<dir_reader> opendir(const std::string& path) const override;
 
   void lstat(const std::string& path, struct ::stat* st) const override;
@@ -84,6 +87,7 @@ class os_access_mock : public os_access {
 
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
+  std::unordered_set<std::string> access_fail_set_;
 };
 
 class script_mock : public script {

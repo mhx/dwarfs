@@ -260,6 +260,10 @@ void os_access_mock::add_file(std::filesystem::path const& path,
   add(path, st, contents);
 }
 
+void os_access_mock::set_access_fail(std::filesystem::path const& path) {
+  access_fail_set_.emplace(path.string());
+}
+
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string>
@@ -367,7 +371,9 @@ os_access_mock::map_file(const std::string& path, size_t size) const {
   throw std::runtime_error("oops");
 }
 
-int os_access_mock::access(const std::string&, int) const { return 0; }
+int os_access_mock::access(const std::string& path, int) const {
+  return access_fail_set_.count(path) ? -1 : 0;
+}
 
 std::optional<std::filesystem::path> find_binary(std::string_view name) {
   auto path_str = std::getenv("PATH");
