@@ -706,6 +706,8 @@ int run_dwarfs(int argc, char** argv) {
   if (fuse_opts.foreground) {
     folly::symbolizer::installFatalSignalHandler();
   }
+
+  bool foreground = fuse_opts.foreground;
 #else
   char* mountpoint = nullptr;
   int mt, fg;
@@ -717,6 +719,8 @@ int run_dwarfs(int argc, char** argv) {
   if (fg) {
     folly::symbolizer::installFatalSignalHandler();
   }
+
+  bool foreground = fg;
 #endif
 
   try {
@@ -727,7 +731,7 @@ int run_dwarfs(int argc, char** argv) {
     if (opts.debuglevel_str) {
       opts.debuglevel = logger::parse_level(opts.debuglevel_str);
     } else {
-      opts.debuglevel = fuse_opts.foreground ? logger::INFO : logger::WARN;
+      opts.debuglevel = foreground ? logger::INFO : logger::WARN;
     }
 
     userdata.lgr.set_threshold(opts.debuglevel);
