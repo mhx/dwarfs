@@ -444,6 +444,10 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
     DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
   }
 
+  if (script_ && script_->has_transform()) {
+    script_->transform(*root);
+  }
+
   std::deque<std::shared_ptr<entry>> queue({root});
   prog.dirs_found++;
 
@@ -500,6 +504,10 @@ scanner_<LoggerPolicy>::scan_list(const std::string& path,
 
   if (root->type() != entry::E_DIR) {
     DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
+  }
+
+  if (script_ && script_->has_transform()) {
+    script_->transform(*root);
   }
 
   auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
