@@ -34,6 +34,7 @@ class entry_interface : public object {
   virtual std::string const& name() const = 0;
   virtual std::string type_string() const = 0;
   virtual size_t size() const = 0;
+  virtual bool is_directory() const = 0;
 
   virtual uint16_t get_permissions() const = 0;
   virtual void set_permissions(uint16_t perm) = 0;

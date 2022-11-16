@@ -96,6 +96,8 @@ std::string entry::type_string() const {
   DWARFS_THROW(runtime_error, fmt::format("unknown file type: {:#06x}", mode));
 }
 
+bool entry::is_directory() const { return S_ISDIR(stat_.st_mode); }
+
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
