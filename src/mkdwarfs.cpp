@@ -40,6 +40,7 @@
 #include <vector>
 
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <boost/algorithm/string.hpp>
@@ -54,6 +55,7 @@
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
+#include "dwarfs/chmod_transformer.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -372,7 +374,8 @@ int mkdwarfs(int argc, char** argv) {
   std::string path, output, memory_limit, script_arg, compression, header,
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
-      file_hash_algo, debug_filter, max_similarity_size, input_list_str;
+      file_hash_algo, debug_filter, max_similarity_size, input_list_str,
+      chmod_str;
   std::vector<std::string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
@@ -475,6 +478,9 @@ int mkdwarfs(int argc, char** argv) {
     ("time-resolution",
         po::value<std::string>(&time_resolution)->default_value("sec"),
         resolution_desc.c_str())
+    ("chmod",
+        po::value<std::string>(&chmod_str),
+        "recursively apply permission changes")
     ("order",
         po::value<std::string>(&order),
         order_desc.c_str())
@@ -838,7 +844,7 @@ int mkdwarfs(int argc, char** argv) {
   }
 #endif
 
-  if (!filter.empty()) {
+  if (!filter.empty() or vm.count("chmod")) {
     if (script) {
       std::cerr
           << "error: scripts and filters are not simultaneously supported\n";
@@ -847,15 +853,32 @@ int mkdwarfs(int argc, char** argv) {
 
     auto bs = std::make_shared<builtin_script>(lgr);
 
-    bs->set_root_path(path);
+    if (!filter.empty()) {
+      bs->set_root_path(path);
 
-    for (auto const& rule : filter) {
-      try {
-        bs->add_filter_rule(rule);
-      } catch (std::exception const& e) {
-        std::cerr << "error: could not parse filter rule '" << rule
-                  << "': " << e.what() << "\n";
-        return 1;
+      for (auto const& rule : filter) {
+        try {
+          bs->add_filter_rule(rule);
+        } catch (std::exception const& e) {
+          std::cerr << "error: could not parse filter rule '" << rule
+                    << "': " << e.what() << "\n";
+          return 1;
+        }
+      }
+    }
+
+    if (vm.count("chmod")) {
+      if (chmod_str == "norm") {
+        chmod_str = "ug-st,=Xr";
+      }
+
+      std::vector<std::string_view> chmod_exprs;
+      boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
+      auto mask = ::umask(0);
+      ::umask(mask);
+
+      for (auto expr : chmod_exprs) {
+        bs->add_transformer(create_chmod_transformer(expr, mask));
       }
     }
 

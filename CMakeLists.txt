@@ -309,6 +309,7 @@ list(
   src/dwarfs/block_manager.cpp
   src/dwarfs/builtin_script.cpp
   src/dwarfs/checksum.cpp
+  src/dwarfs/chmod_transformer.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp

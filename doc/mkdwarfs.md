@@ -235,6 +235,14 @@ Most other options are concerned with compression tuning:
   entirely possible. Moving from second to minute resolution, for example,
   will save roughly 6 bits per file system entry in the metadata block.
 
+- `--chmod=`*mode*[`,`*mode*]...|`norm`:
+  Recursively changes the mode bits of all entries in the generated file system.
+  Accepts the same mode specifications as the `chmod` utility and additionally
+  supports the `D` and `F` modifiers to limit a specification to directories
+  or non-directories. As a special case, you can pass `--chmod=norm` to
+  "normalize" the permissions across the file system; this is equivalent to
+  using `--chmod=ug-st,=Xr`.
+
 - `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*[`:`*mindepth*]]]|`script`:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
