@@ -1,5 +1,24 @@
 # Change Log
 
+## Version 0.7.0-RC2 - 2022-11-17
+
+- (fix) Fix linking against compression libs. Fixes github #112.
+
+- (fix) Default FUSE driver debuglevel to `warn` in background
+  mode. Fixes github #113.
+
+- (feature) Add `--chmod` option. Fixes github #7.
+
+- (feature) Add unreadable files as empty files. Fixes github #40.
+
+- (doc) Document how to produce bit-identical images
+
+- (doc) Update internal operation section of mkdwarfs manpage
+
+- (doc) Add more documentation details for `--file-hash` option
+
+- (test) Test image reproducibility for path and similarity ordering
+
 ## Version 0.7.0-RC1 - 2022-11-08
 
 - (fix) Fixed `extract_block.py`, which was incorrectly using `printf`
