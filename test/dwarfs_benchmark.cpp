@@ -119,7 +119,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   lgr.set_policy<prod_logger_policy>();
 
   scanner s(lgr, wg, cfg, entry_factory::create(),
-            std::make_shared<test::os_access_mock>(),
+            test::os_access_mock::create_test_instance(),
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
