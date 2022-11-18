@@ -28,7 +28,7 @@
 
 namespace dwarfs::test {
 
-constexpr size_t NUM_STRINGS = 65536;
+constexpr size_t NUM_STRINGS = 16384;
 
 extern std::array<std::string_view, NUM_STRINGS> test_strings;
 
