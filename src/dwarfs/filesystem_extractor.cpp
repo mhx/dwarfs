@@ -137,7 +137,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   void close() override {
     if (a_) {
-      check_result(::archive_write_free(a_));
+      check_result(::archive_write_close(a_));
+      ::archive_write_free(a_);
       a_ = nullptr;
     }
 
