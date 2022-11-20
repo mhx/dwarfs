@@ -1,5 +1,17 @@
 # Change Log
 
+## Version 0.7.0-RC3 - 2022-11-20
+
+- (fix) Fix heap-use-after-free in dwarfsextract.
+
+- (fix) Fix dwarfs benchmark binary.
+
+- (feature) Add `--stdout-progress` option to `dwarfsextract`.
+  Fixes github #117.
+
+- (test) Reduce amount of test data to speed up compiles and avoid
+  timeouts on travis.
+
 ## Version 0.7.0-RC2 - 2022-11-17
 
 - (fix) Fix linking against compression libs. Fixes github #112.
