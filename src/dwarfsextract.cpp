@@ -45,7 +45,8 @@ int dwarfsextract(int argc, char** argv) {
   std::string filesystem, output, format, cache_size_str, log_level,
       image_offset;
   size_t num_workers;
-  bool continue_on_error{false}, disable_integrity_check{false};
+  bool continue_on_error{false}, disable_integrity_check{false},
+      stdout_progress{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -68,6 +69,9 @@ int dwarfsextract(int argc, char** argv) {
     ("disable-integrity-check",
         po::value<bool>(&disable_integrity_check)->zero_tokens(),
         "disable file system image block integrity check (dangerous)")
+    ("stdout-progress",
+        po::value<bool>(&stdout_progress)->zero_tokens(),
+        "write percentage progress to stdout")
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(4),
         "number of worker threads")
@@ -122,6 +126,10 @@ int dwarfsextract(int argc, char** argv) {
       fsx.open_disk(output);
     } else {
       if (output == "-") {
+        if (stdout_progress) {
+          DWARFS_THROW(runtime_error,
+                       "cannot use --stdout-progress with --output=-");
+        }
         output.clear();
       }
       fsx.open_archive(output, format);
@@ -131,6 +139,21 @@ int dwarfsextract(int argc, char** argv) {
 
     fsx_opts.max_queued_bytes = fsopts.block_cache.max_bytes;
     fsx_opts.continue_on_error = continue_on_error;
+    int prog{-1};
+    if (stdout_progress) {
+      fsx_opts.progress = [&prog](std::string_view, uint64_t extracted,
+                                  uint64_t total) {
+        int p = 100 * extracted / total;
+        if (p > prog) {
+          prog = p;
+          std::cout << "\r" << prog << "%";
+          std::cout.flush();
+        }
+        if (extracted == total) {
+          std::cout << "\n";
+        }
+      };
+    }
 
     rv = fsx.extract(fs, fsx_opts) ? 0 : 2;
 

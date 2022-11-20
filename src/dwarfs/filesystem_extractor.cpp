@@ -25,6 +25,7 @@
 #include <mutex>
 #include <thread>
 
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include <archive.h>
@@ -229,15 +230,20 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   sem.post(opts.max_queued_bytes);
 
+  struct ::statvfs vfs;
+  fs.statvfs(&vfs);
+
   std::atomic<size_t> hard_error{0};
   std::atomic<size_t> soft_error{0};
+  std::atomic<uint64_t> bytes_written{0};
+  uint64_t const bytes_total{vfs.f_blocks};
 
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
         S_ISREG(entry.mode()) && size > 0) {
       auto fd = fs.open(entry);
-
+      std::string_view path{::archive_entry_pathname(ae)};
       size_t pos = 0;
       size_t remain = size;
 
@@ -250,18 +256,21 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         if (auto ranges = fs.readv(fd, bs, pos)) {
           archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
                             ranges = std::move(*ranges), ae, pos, remain, bs,
-                            size]() mutable {
+                            size, path, &bytes_written, bytes_total]() mutable {
             try {
               if (pos == 0) {
-                LOG_DEBUG << "extracting " << ::archive_entry_pathname(ae)
-                          << " (" << size << " bytes)";
+                LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
                 check_result(::archive_write_header(a_, ae));
               }
               for (auto& r : ranges) {
                 auto br = r.get();
                 LOG_TRACE << "[" << pos << "] writing " << br.size()
-                          << " bytes for " << ::archive_entry_pathname(ae);
+                          << " bytes for " << path;
                 check_result(::archive_write_data(a_, br.data(), br.size()));
+                if (opts.progress) {
+                  bytes_written += br.size();
+                  opts.progress(path, bytes_written, bytes_total);
+                }
               }
               if (bs == remain) {
                 archive_entry_free(ae);
@@ -326,6 +335,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       std::string link;
       if (fs.readlink(inode, &link) != 0) {
         LOG_ERROR << "readlink() failed";
+      }
+      if (opts.progress) {
+        bytes_written += link.size();
       }
       ::archive_entry_set_symlink(ae, link.c_str());
     }

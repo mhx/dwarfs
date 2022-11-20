@@ -24,6 +24,9 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
+
+#include <folly/Function.h>
 
 namespace dwarfs {
 
@@ -33,6 +36,7 @@ class logger;
 struct filesystem_extractor_options {
   size_t max_queued_bytes{4096};
   bool continue_on_error{false};
+  folly::Function<void(std::string_view, uint64_t, uint64_t) const> progress;
 };
 
 class filesystem_extractor {

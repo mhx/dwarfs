@@ -68,6 +68,10 @@ to disk:
   will completely crash the program. So please don't use this unless you
   know what you're doing.
 
+- `--stdout-progress`:
+  Write progress percentage to stdout. Useful for piping to tools like
+  `zenity`.
+
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for extracting the filesystem.
 
