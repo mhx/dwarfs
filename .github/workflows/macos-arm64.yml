@@ -114,7 +114,8 @@ jobs:
                    -DWITH_TESTS=${{ matrix.setup.tests }}                                                  \
                    -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}                                          \
                    -DTEBAKO_BUILD_TARGET=${{ matrix.setup.target }}-apple-macos${{ matrix.setup.version }} \
-                   -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+                   -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install                                    \
+                   -DCMAKE_OCX_ARCHITECTURES=${{ matrix.setup.target }}
 
       - name: Build
         run: |

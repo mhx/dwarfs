@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-18.04, ubuntu-20.04 ]
+        os: [ ubuntu-20.04 ]
 #  We are running two configurations:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
@@ -119,59 +119,21 @@ jobs:
         run: |
           sudo apt-get -y update
           sudo apt-get -y install \
-          binutils-dev libarchive-dev libevent-dev acl-dev \
+          binutils-dev libevent-dev acl-dev libfmt-dev libjemalloc-dev \
           libdouble-conversion-dev libiberty-dev liblz4-dev libssl-dev liblzma-dev \
           libunwind-dev libdwarf-dev libelf-dev libgoogle-glog-dev \
           libboost-filesystem-dev libboost-program-options-dev libboost-system-dev \
           libboost-date-time-dev libboost-context-dev libboost-regex-dev libboost-thread-dev
 
-      - name: Install libfuse 2 (bionic)
-        if: ${{ matrix.os == 'ubuntu-18.04' && matrix.setup.scope == 'ALL' }}
-        run: |
-          sudo apt-get install libfuse-dev
-
-      - name: Install libfuse 3 (focal)
-        if: ${{ matrix.os == 'ubuntu-20.04' && matrix.mode == 'ALL' }}
+      - name: Install libfuse 3 (Full mode)
+        if: ${{ matrix.mode == 'ALL' }}
         run: |
           sudo apt-get install libfuse3-dev
 
-      - name: Remove libfuse 2 (bionic, tebako-optimized mode)
-        if: ${{ matrix.os == 'ubuntu-18.04' && matrix.mode == 'MKD' }}
-        run: |
-          sudo apt-get remove fuse libfuse-dev
-
-      - name: Remove libfuse 3 (focal, tebako-optimized mode)
-        if: ${{ matrix.os == 'ubuntu-20.04' && matrix.mode == 'MKD' }}
+      - name: Remove libfuse 3 (tebako-optimized mode)
+        if: ${{ matrix.mode == 'MKD' }}
         run: |
           sudo apt-get remove fuse3 libfuse3-dev fuse libfuse-dev
-
-      - name: Install libfmt 6 (bionic)
-        if: ${{ matrix.os == 'ubuntu-18.04' }}
-        run: |
-          sudo apt-get remove libfmt-dev
-          sudo apt-get install software-properties-common
-          sudo add-apt-repository ppa:team-xbmc/ppa
-          sudo apt-get update
-          sudo apt-get install libfmt-dev
-
-      - name: Install libfmt 6 (focal)
-        if: ${{ matrix.os == 'ubuntu-20.04' }}
-        run: sudo apt-get install libfmt-dev
-
-      - name: Install libjemalloc (not bionic or not clang)
-        if: ${{ matrix.os != 'ubuntu-18.04' || matrix.env.CC != 'clang' }}
-        run: sudo apt-get -y install libjemalloc-dev
-
-      - name: Build libjemalloc 5 (bionic and clang)
-        if: ${{ matrix.os == 'ubuntu-18.04' && matrix.env.CC == 'clang' }}
-        run: |
-          sudo apt-get remove libjemalloc-dev
-          wget -q https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2
-          tar -xf jemalloc-5.2.1.tar.bz2
-          cd jemalloc-5.2.1
-          ./configure
-          make
-          sudo make install
 
 # sudo apt install ronn does not work for bionic
 # On focal  it cannot process one of files, so we do it natively as well

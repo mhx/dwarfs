@@ -18,7 +18,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 cmake_policy(SET CMP0048 NEW)
-project(tebako-dwarfs VERSION 0.3.2)
+project(tebako-dwarfs VERSION 0.3.3)
 
 include(ExternalProject)
 include(FetchContent)
@@ -78,7 +78,7 @@ link_directories(${DEPS_LIB_DIR})
 # -------------------------------------------------------------------------------------------------------------------------------
 
 if(TEBAKO_BUILD_TARGET)
-  message("Building dwarfs for ${TEBAKO_BUILD_TARGET}")
+  message(STATUS "Building dwarfs for ${TEBAKO_BUILD_TARGET}")
   add_compile_options("--target=${TEBAKO_BUILD_TARGET}")
   add_link_options("--target=${TEBAKO_BUILD_TARGET}")
 
@@ -94,7 +94,7 @@ endif()
 
 if(NOT TEBAKO_BUILD_SCOPE)
   set(TEBAKO_BUILD_SCOPE "ALL")
-  message(STATUS "Tebako build scope is not specified and has been set to ALL")
+  message(STATUS "Tebako build scope was not specified and has been set to ALL")
 endif()
 if((WITH_TESTS OR WITH_BENCHMARKS) AND NOT "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL" )
   set(TEBAKO_BUILD_SCOPE "ALL")
@@ -205,13 +205,14 @@ if(WITH_PYTHON)
   list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
 endif()
 
+include(${CMAKE_SOURCE_DIR}/cmake/modules/SetupLibarchive.cmake)
+
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.7)
 pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.4.1)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.8.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.2)
-pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
 pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.4.5)
 pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash)
 
@@ -693,17 +694,6 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
-if(USE_JEMALLOC)
-  target_link_libraries(dwarfs ${Jemalloc_LIBRARIES})
-endif(USE_JEMALLOC)
-if (IS_MSYS)
-  target_link_libraries(dwarfs wsock32 ws2_32)
-endif(IS_MSYS)
-
-if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
-endif(NOT STATIC_BUILD_DO_NOT_USE)
-
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
   target_link_libraries(dwarfs PkgConfig::ZSTD)
 else()
@@ -723,7 +713,10 @@ if(WITH_PYTHON)
 endif()
 
 foreach(tgt ${BINARY_TARGETS})
-  target_link_libraries(${tgt} dwarfs)
+  target_link_libraries(${tgt} dwarfs _LIBARCHIVE)
+  if(USE_JEMALLOC)
+    target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
+  endif(USE_JEMALLOC)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -764,24 +757,6 @@ if(STATIC_BUILD_DO_NOT_USE)
         -DZSTD_INCLUDE_DIR=${PROJECT_SOURCE_DIR}/zstd/lib
         -DCMAKE_LIBRARY_PATH=${PROJECT_BINARY_DIR}/zstd/build/cmake/lib/)
   endif()
-
-  ExternalProject_Add(
-    ${_LIBARCHIVE_PRJ}
-    PREFIX "${PROJECT_BINARY_DIR}/libarchive"
-    GIT_REPOSITORY "https://github.com/libarchive/libarchive.git"
-    GIT_TAG "v3.5.1"
-    CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS}
-               -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive
-               -DCMAKE_BUILD_TYPE=Release
-               -DENABLE_ICONV:BOOL=OFF
-               -DENABLE_LIBXML2:BOOL=OFF
-               -DENABLE_TEST:BOOL=OFF
-    BUILD_BYPRODUCTS ${__LIBARCHIVE}
-    TMP_DIR "${PROJECT_BINARY_DIR}/libarchive/tmp"
-    STAMP_DIR "${PROJECT_BINARY_DIR}/libarchive/stamp"
-    SOURCE_DIR "${PROJECT_BINARY_DIR}/libarchive/src"
-    BINARY_DIR "${PROJECT_BINARY_DIR}/libarchive/build"
-    INSTALL_DIR "")
 
   if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
     add_dependencies(${_LIBARCHIVE_PRJ} libzstd_static)
