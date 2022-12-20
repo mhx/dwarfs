@@ -114,7 +114,8 @@ jobs:
                    -DWITH_TESTS=${{ matrix.setup.tests }}                                                  \
                    -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}                                          \
                    -DTEBAKO_BUILD_TARGET=${{ matrix.setup.target }}-apple-macos${{ matrix.setup.version }} \
-                   -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+                   -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install                                    \
+                   -DCMAKE_OCX_ARCHITECTURES=${{ matrix.setup.target }}
 
       - name: Build
         run: |
@@ -127,7 +128,7 @@ jobs:
 
       - name: Upload test app
         if: ${{ matrix.setup.scope == 'ALL' }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: arm64-mkdwarfs
           path: ${{github.workspace}}/build/mkdwarfs

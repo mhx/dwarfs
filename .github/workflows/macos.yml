@@ -93,7 +93,7 @@ jobs:
       - name: Install packages
         run: |
           brew install  \
-          bison flex gnu-sed bash boost libarchive double-conversion jemalloc fmt glog
+          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog
 
       - name: Configure
         run: |
