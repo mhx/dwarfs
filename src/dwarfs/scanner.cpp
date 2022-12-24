@@ -661,29 +661,39 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "building blocks...";
   block_manager bm(lgr_, prog, cfg_, os_, fsw);
 
-  worker_group blockify("blockify", 1, 1 << 20);
+  {
+    worker_group blockify("blockify", 1, 1 << 20);
 
-  im.order_inodes(script_, options_.file_order,
-                  [&](std::shared_ptr<inode> const& ino) {
-                    blockify.add_job([&] {
-                      prog.current.store(ino.get());
-                      bm.add_inode(ino);
-                      prog.inodes_written++;
-                    });
-                    auto queued_files = blockify.queue_size();
-                    auto queued_blocks = fsw.queue_fill();
-                    prog.blockify_queue = queued_files;
-                    prog.compress_queue = queued_blocks;
-                    return INT64_C(500) * queued_blocks +
-                           static_cast<int64_t>(queued_files);
-                  });
+    {
+      worker_group ordering("ordering", 1);
 
-  LOG_INFO << "waiting for segmenting/blockifying to finish...";
+      ordering.add_job([&] {
+        im.order_inodes(script_, options_.file_order,
+                        [&](std::shared_ptr<inode> const& ino) {
+                          blockify.add_job([&] {
+                            prog.current.store(ino.get());
+                            bm.add_inode(ino);
+                            prog.inodes_written++;
+                          });
+                          auto queued_files = blockify.queue_size();
+                          auto queued_blocks = fsw.queue_fill();
+                          prog.blockify_queue = queued_files;
+                          prog.compress_queue = queued_blocks;
+                          return INT64_C(500) * queued_blocks +
+                                 static_cast<int64_t>(queued_files);
+                        });
+      });
 
-  blockify.wait();
+      ordering.wait();
+    }
 
-  LOG_INFO << "segmenting/blockifying CPU time: "
-           << time_with_unit(blockify.get_cpu_time());
+    LOG_INFO << "waiting for segmenting/blockifying to finish...";
+
+    blockify.wait();
+
+    LOG_INFO << "segmenting/blockifying CPU time: "
+             << time_with_unit(blockify.get_cpu_time());
+  }
 
   bm.finish_blocks();
   wg_.wait();
