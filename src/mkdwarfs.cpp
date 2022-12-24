@@ -381,6 +381,7 @@ int mkdwarfs(int argc, char** argv) {
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
   unsigned level;
+  int compress_niceness;
   uint16_t uid, gid;
 
   scanner_options options;
@@ -428,6 +429,9 @@ int mkdwarfs(int argc, char** argv) {
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of writer (compression) worker threads")
+    ("compress-niceness",
+        po::value<int>(&compress_niceness)->default_value(5),
+        "compression worker threads niceness")
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers),
         "number of scanner (hashing) worker threads")
@@ -781,7 +785,9 @@ int mkdwarfs(int argc, char** argv) {
     num_scanner_workers = num_workers;
   }
 
-  worker_group wg_compress("compress", num_workers);
+  worker_group wg_compress("compress", num_workers,
+                           std::numeric_limits<size_t>::max(),
+                           compress_niceness);
   worker_group wg_scanner("scanner", num_scanner_workers);
 
   if (vm.count("debug-filter")) {

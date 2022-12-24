@@ -82,6 +82,11 @@ Most other options are concerned with compression tuning:
   individual filesystem blocks in the background. Ordering, segmenting
   and block building are, again, single-threaded and run independently.
 
+- `--compress-niceness=`*value*:
+  Set the niceness of compression worker threads. Defaults to 5. This makes
+  sure the ordering and segmenting threads are prioritised over compression
+  as they provide the data to the compression workers.
+
 - `--num-scanner-workers=`*value*:
   Number of worker threads used for building the filesystem. This defaults
   to the number of processors available on your system. Use this option if
