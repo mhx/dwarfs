@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.7.0-RC4 - 2022-12-24
+
+- (feature) Add `--compress-niceness` option to `mkdwarfs`.
+
 ## Version 0.7.0-RC3 - 2022-11-20
 
 - (fix) Fix heap-use-after-free in dwarfsextract.
