@@ -126,12 +126,12 @@ jobs:
           libboost-date-time-dev libboost-context-dev libboost-regex-dev libboost-thread-dev
 
       - name: Install libfuse 3 (Full mode)
-        if: ${{ matrix.mode == 'ALL' }}
+        if: ${{ matrix.setup.scope == 'ALL' }}
         run: |
           sudo apt-get install libfuse3-dev
 
       - name: Remove libfuse 3 (tebako-optimized mode)
-        if: ${{ matrix.mode == 'MKD' }}
+        if: ${{ matrix.setup.scope == 'MKD' }}
         run: |
           sudo apt-get remove fuse3 libfuse3-dev fuse libfuse-dev
 
@@ -140,13 +140,13 @@ jobs:
 # Note that libruby-dev is required under the hood
 
       - name: Install Ruby
-        if: ${{ matrix.mode == 'ALL' }}
+        if: ${{ matrix.setup.scope == 'ALL' }}
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VER }}
 
       - name: Install ronn
-        if: ${{ matrix.mode == 'ALL' }}
+        if: ${{ matrix.setup.scope == 'ALL' }}
         run: sudo gem install ronn
 
       - name: Configure

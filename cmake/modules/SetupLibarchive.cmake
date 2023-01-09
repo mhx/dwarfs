@@ -30,6 +30,7 @@ message(STATUS "Collecting libarchive - " v${LIBARCHIVE_VER} " at " ${LIBARCHIVE
 set(CMAKE_ARGUMENTS -DCMAKE_INSTALL_PREFIX=${DEPS}
                     -DCMAKE_BUILD_TYPE=Release
                     -DENABLE_ACL:BOOL=OFF
+                    -DENABLE_CNG:BOOL=OFF
                     -DENABLE_ICONV:BOOL=OFF
                     -DENABLE_LIBXML2:BOOL=OFF
                     -DENABLE_TEST:BOOL=OFF
@@ -43,7 +44,11 @@ if(TEBAKO_BUILD_TARGET)
   list(APPEND CMAKE_ARGUMENTS  -DCMAKE_SHARED_LINKER_FLAGS=--target=${TEBAKO_BUILD_TARGET})
 endif(TEBAKO_BUILD_TARGET)
 
-set(__LIBARCHIVE "${DEPS}/lib/libarchive.a")
+if(${IS_MSYS})
+  set(__LIBARCHIVE "${DEPS}/lib/libarchive_static.a")
+else(${IS_MSYS})
+  set(__LIBARCHIVE "${DEPS}/lib/libarchive.a")
+endif(${IS_MSYS})
 
 ExternalProject_Add(${LIBARCHIVE_PRJ}
   PREFIX "${DEPS}"
@@ -54,6 +59,7 @@ ExternalProject_Add(${LIBARCHIVE_PRJ}
   CMAKE_ARGS ${CMAKE_ARGUMENTS}
   SOURCE_DIR ${LIBARCHIVE_SOURCE_DIR}
   BINARY_DIR ${LIBARCHIVE_BINARY_DIR}
+  BUILD_BYPRODUCTS ${__LIBARCHIVE}
 )
 
 add_library(_LIBARCHIVE STATIC IMPORTED)

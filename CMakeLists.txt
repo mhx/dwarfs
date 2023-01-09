@@ -134,6 +134,7 @@ execute_process(
   RESULT_VARIABLE OSTYPE_RES
   OUTPUT_VARIABLE OSTYPE_TXT
   OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_STRIP_TRAILING_WHITESPACE
 )
 
 if(OSTYPE_RES EQUAL 0)
@@ -160,7 +161,7 @@ endif()
 add_compile_options(-fno-omit-frame-pointer)
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/modules/SetupFbThrift.cmake)
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 if(STATIC_BUILD_DO_NOT_USE)
   if(WITH_PYTHON)
@@ -256,6 +257,8 @@ if (${PATCH_FOLLY})
             "${FOLLY_ROOT}"
     RESULT_VARIABLE PATCH_FOLLY_RES
     OUTPUT_VARIABLE PATCH_FOLLY_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
   )
 
   if(PATCH_FOLLY_RES EQUAL 0)
@@ -507,6 +510,8 @@ else()
   message(WARNING "ronn was not found, skipping generation of manpages")
 endif()
 
+include(${CMAKE_SOURCE_DIR}/cmake/modules/SetupFbThrift.cmake)
+
 list(
   APPEND
   FROZEN_THRIFT_SRC
@@ -694,6 +699,13 @@ target_link_libraries(
   PkgConfig::LIBLZ4
   PkgConfig::LIBLZMA)
 
+if(USE_JEMALLOC)
+  target_link_libraries(dwarfs ${Jemalloc_LIBRARIES})
+endif(USE_JEMALLOC)
+if (IS_MSYS)
+  target_link_libraries(dwarfs wsock32 ws2_32)
+endif(IS_MSYS)
+
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
   target_link_libraries(dwarfs PkgConfig::ZSTD)
 else()
@@ -714,9 +726,6 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs _LIBARCHIVE)
-  if(USE_JEMALLOC)
-    target_link_libraries(${tgt} ${Jemalloc_LIBRARIES})
-  endif(USE_JEMALLOC)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)

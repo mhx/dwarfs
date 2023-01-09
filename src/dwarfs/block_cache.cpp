@@ -244,6 +244,10 @@ class block_cache_ final : public block_cache::impl {
     double avg_decompression =
         100.0 * total_decompressed_bytes_ / total_block_bytes_;
 
+    // The same block can be evicted multiple times. Active requests may hold
+    // on to a block that has been evicted from the cache and re-insert the
+    // block after the request is complete. So it's not a bug to see the
+    // number of evicted blocks outgrow the number of created blocks.
     LOG_INFO << "blocks created: " << blocks_created_.load();
     LOG_INFO << "blocks evicted: " << blocks_evicted_.load();
     LOG_INFO << "request sets merged: " << sets_merged_.load();

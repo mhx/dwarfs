@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload test app
         if: ${{ matrix.setup.scope == 'ALL' }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: arm64-mkdwarfs
           path: ${{github.workspace}}/build/mkdwarfs
