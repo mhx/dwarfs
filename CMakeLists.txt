@@ -776,18 +776,17 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                      ${__LIBARCHIVE})
   add_dependencies(static_libarchive ${_LIBARCHIVE_PRJ})
 
-  # ...................................................................
-  # Each library name given to the NAMES option is first considered as a library
-  # file name and then considered with platform-specific prefixes (e.g. lib) and
-  # suffixes (e.g. .so).
-  # ...................................................................
+# ...................................................................
+# Each library name given to the NAMES option is first considered as a library
+# file name and then considered with platform-specific prefixes (e.g. lib) and
+# suffixes (e.g. .so).
+# ...................................................................
 
-  function(IMPORT_STATIC_LIB TARGET NAME)
-    find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
-    add_library(${TARGET} STATIC IMPORTED)
-    set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION
-                                               ${_TMP_LIB_LOC_${TARGET}})
-  endfunction()
+function(IMPORT_STATIC_LIB TARGET NAME)
+  find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
+  add_library(${TARGET} STATIC IMPORTED)
+  set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION ${_TMP_LIB_LOC_${TARGET}})
+endfunction()
 
   import_static_lib(static_libglog "libglog.a")
   import_static_lib(static_libfmt "libfmt.a")
