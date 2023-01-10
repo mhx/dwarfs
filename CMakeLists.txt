@@ -739,10 +739,17 @@ function(IMPORT_STATIC_LIB TARGET NAME)
 endfunction()
 
 if(FORCE_STATIC_LIBS)
-  import_static_lib(static_libglog "libglog.a")
   import_static_lib(static_libfmt "libfmt.a")
+  import_static_lib(static_libglog "libglog.a")
   import_static_lib(static_libgflags "libgflags.a")
   set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES static_libgflags)
+  target_link_libraries(
+    dwarfs
+    static_libfmt
+    static_libglog
+    static_libgflags
+  )
+
 endif(FORCE_STATIC_LIBS)
 
 foreach(tgt ${BINARY_TARGETS})
