@@ -44,6 +44,29 @@ if(TEBAKO_BUILD_TARGET)
   list(APPEND CMAKE_ARGUMENTS  -DCMAKE_SHARED_LINKER_FLAGS=--target=${TEBAKO_BUILD_TARGET})
 endif(TEBAKO_BUILD_TARGET)
 
+  # ...................................................................
+  # libarchive is the module that creates the real pain here Its share version
+  # looks around to find  other shared libraries which can do the real work. For
+  # example, if liblzma.so is found then libarchive supports lzma encoding
+  # Static libary is compiled against predefined set of static archive libraries
+  # at the time when binary distribution created. This is not necessarily the
+  # set of libraries which is present at the system where this script is
+  # executed.
+  #
+  # cmake-format: off
+  #
+  # There are two options to fix it:
+  #
+  #   1) Build local version of libarchive.a
+  #
+  #   2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS that are
+  #      set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
+  #
+  # cmake-format: on
+  #
+  # Method #1 is implemented here.
+  # ...................................................................
+
 if(${IS_MSYS})
   set(__LIBARCHIVE "${DEPS}/lib/libarchive_static.a")
 else(${IS_MSYS})
