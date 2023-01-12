@@ -56,16 +56,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if (NOT DEPS)
   set(DEPS "${CMAKE_CURRENT_SOURCE_DIR}/deps")
   message(STATUS "Using local setting for DEPS folder: ${DEPS}")
-  set(FORCE_STATIC_LIBS OFF)
+  set(EXTERNAL_DEPS OFF)
 else()
   message(STATUS "Using upstream setting for DEPS folder: ${DEPS}")
-  set(FORCE_STATIC_LIBS ON)
+  set(EXTERNAL_DEPS ON)
 endif()
 
 set(DEPS_INCLUDE_DIR ${DEPS}/include)
 set(DEPS_LIB_DIR ${DEPS}/lib)
 set(DEPS_BIN_DIR ${DEPS}/bin)
 set(DEPS_SBIN_DIR ${DEPS}/sbin)
+set(FORCE_STATIC_LIBS OFF)
 
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
@@ -158,6 +159,10 @@ elseif("${OSTYPE_TXT}" MATCHES "^msys*")
   include_directories(${CMAKE_SOURCE_DIR}/tools/include)
   set(PATCH_FOLLY ON)
   set(IS_MSYS ON)
+  if(EXTERNAL_DEPS)
+    message(STATUS "Forcing static linkage for fmt, glog, gtest")
+    set(FORCE_STATIC_LIBS ON)
+  endif(EXTERNAL_DEPS)
 endif()
 
 add_compile_options(-fno-omit-frame-pointer)
@@ -749,7 +754,6 @@ if(FORCE_STATIC_LIBS)
     static_libglog
     static_libgflags
   )
-
 endif(FORCE_STATIC_LIBS)
 
 foreach(tgt ${BINARY_TARGETS})
