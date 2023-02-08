@@ -56,14 +56,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if (NOT DEPS)
   set(DEPS "${CMAKE_CURRENT_SOURCE_DIR}/deps")
   message(STATUS "Using local setting for DEPS folder: ${DEPS}")
+  set(EXTERNAL_DEPS OFF)
 else()
   message(STATUS "Using upstream setting for DEPS folder: ${DEPS}")
+  set(EXTERNAL_DEPS ON)
 endif()
 
 set(DEPS_INCLUDE_DIR ${DEPS}/include)
 set(DEPS_LIB_DIR ${DEPS}/lib)
 set(DEPS_BIN_DIR ${DEPS}/bin)
 set(DEPS_SBIN_DIR ${DEPS}/sbin)
+set(FORCE_STATIC_LIBS OFF)
 
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
@@ -156,6 +159,10 @@ elseif("${OSTYPE_TXT}" MATCHES "^msys*")
   include_directories(${CMAKE_SOURCE_DIR}/tools/include)
   set(PATCH_FOLLY ON)
   set(IS_MSYS ON)
+  if(EXTERNAL_DEPS)
+    message(STATUS "Forcing static linkage for fmt, glog, gtest")
+    set(FORCE_STATIC_LIBS ON)
+  endif(EXTERNAL_DEPS)
 endif()
 
 add_compile_options(-fno-omit-frame-pointer)
@@ -724,37 +731,44 @@ if(WITH_PYTHON)
   target_link_libraries(dwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
 endif()
 
+# ...................................................................
+# Each library name given to the NAMES option is first considered as a library
+# file name and then considered with platform-specific prefixes (e.g. lib) and
+# suffixes (e.g. .so).
+# ...................................................................
+
+function(IMPORT_STATIC_LIB TARGET NAME)
+  find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
+  add_library(${TARGET} STATIC IMPORTED)
+  set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION ${_TMP_LIB_LOC_${TARGET}})
+endfunction()
+
+if(FORCE_STATIC_LIBS)
+  import_static_lib(static_libfmt "libfmt.a")
+  import_static_lib(static_libglog "libglog.a")
+  import_static_lib(static_libgflags "libgflags.a")
+  set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES static_libgflags)
+  target_link_libraries(
+    dwarfs
+    static_libfmt
+    static_libglog
+    static_libgflags
+  )
+endif(FORCE_STATIC_LIBS)
+
 foreach(tgt ${BINARY_TARGETS})
   target_link_libraries(${tgt} dwarfs _LIBARCHIVE)
+  if(FORCE_STATIC_LIBS)
+    target_link_libraries(
+      ${tgt}
+      static_libfmt
+      static_libglog
+      static_libgflags
+    )
+  endif(FORCE_STATIC_LIBS)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # ...................................................................
-  # libarchive is the module that creates the real pain here Its share version
-  # looks around to find  other shared libraries which can do the real work. For
-  # example, if liblzma.so is found then libarchive supports lzma encoding
-  # Static libary is compiled against predefined set of static archive libraries
-  # at the time when binary distribution created. This is not necessarily the
-  # set of libraries which is present at the system where this script is
-  # executed.
-  #
-  # cmake-format: off
-  #
-  # There are two options to fix it:
-  #
-  #   1) Build local version of libarchive.a
-  #
-  #   2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS that are
-  #      set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
-  #
-  # cmake-format: on
-  #
-  # Method #1 is implemented here. This implementation is not pedantic - it uses
-  # headers from system libarchive package but libararies from local build.
-  # Local build is based on default settings for v3.5.1 with xml and iconv
-  # support turned off in order to reduce that set of libraries for futher
-  # linkage.
-  # ...................................................................
 
   set(_LIBARCHIVE_PRJ "libarchive")
   set(__LIBARCHIVE "${PROJECT_BINARY_DIR}/libarchive/lib/libarchive.a")
@@ -775,19 +789,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   set_target_properties(static_libarchive PROPERTIES IMPORTED_LOCATION
                                                      ${__LIBARCHIVE})
   add_dependencies(static_libarchive ${_LIBARCHIVE_PRJ})
-
-  # ...................................................................
-  # Each library name given to the NAMES option is first considered as a library
-  # file name and then considered with platform-specific prefixes (e.g. lib) and
-  # suffixes (e.g. .so).
-  # ...................................................................
-
-  function(IMPORT_STATIC_LIB TARGET NAME)
-    find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
-    add_library(${TARGET} STATIC IMPORTED)
-    set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION
-                                               ${_TMP_LIB_LOC_${TARGET}})
-  endfunction()
 
   import_static_lib(static_libglog "libglog.a")
   import_static_lib(static_libfmt "libfmt.a")

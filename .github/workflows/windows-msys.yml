@@ -32,9 +32,6 @@
 name: Windows-MSys
 
 on:
-#  schedule:
-# Every Thursday at 11PM UTC
-#      - cron: "0 23 * * 4"
   push:
     branches: [ main ]
     paths-ignore:
