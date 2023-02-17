@@ -30,6 +30,8 @@
 name: MacOS-arm64
 
 on:
+  schedule:
+    - cron: "0 8 * * 6"   
   push:
     branches: [ main ]
     paths-ignore:

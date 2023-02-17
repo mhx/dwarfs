@@ -32,6 +32,8 @@
 name: Ubuntu
 
 on:
+  schedule:
+    - cron: "0 6 * * 6" 
   push:
     branches: [ main ]
     paths-ignore:
