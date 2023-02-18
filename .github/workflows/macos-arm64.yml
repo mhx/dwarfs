@@ -31,7 +31,7 @@ name: MacOS-arm64
 
 on:
   schedule:
-    - cron: "0 8 * * 6"   
+    - cron: "0 8 * * 6"
   push:
     branches: [ main ]
     paths-ignore:
@@ -99,7 +99,7 @@ jobs:
 
       - name: Install packages for build host architecture
         run: |
-          brew install bison flex gnu-sed bash glog gflags icu4c boost
+          brew install bison flex gnu-sed bash glog gflags icu4c boost pkg-config
 
       - name: Install packages for target host architecture
         run: |
