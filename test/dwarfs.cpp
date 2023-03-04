@@ -767,6 +767,8 @@ TEST_P(file_scanner, inode_ordering) {
 
   opts.file_order.mode = order_mode;
   opts.file_hash_algorithm = file_hash_algo;
+  opts.inode.with_similarity = order_mode == file_order_mode::SIMILARITY;
+  opts.inode.with_nilsimsa = order_mode == file_order_mode::NILSIMSA;
 
   auto input = std::make_shared<test::os_access_mock>();
   constexpr int dim = 14;
