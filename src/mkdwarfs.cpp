@@ -49,6 +49,7 @@
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
 #include <folly/gen/String.h>
+#include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
 
@@ -368,7 +369,7 @@ constexpr unsigned default_level = 7;
 int mkdwarfs(int argc, char** argv) {
   using namespace folly::gen;
 
-  const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
+  const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   block_manager::config cfg;
   std::string path, output, memory_limit, script_arg, compression, header,

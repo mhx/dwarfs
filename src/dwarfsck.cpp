@@ -29,6 +29,7 @@
 #include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/json.h>
+#include <folly/system/HardwareConcurrency.h>
 
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
@@ -42,7 +43,7 @@ namespace dwarfs {
 namespace po = boost::program_options;
 
 int dwarfsck(int argc, char** argv) {
-  const size_t num_cpu = std::max(std::thread::hardware_concurrency(), 1u);
+  const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   std::string log_level, input, export_metadata, image_offset;
   size_t num_workers;

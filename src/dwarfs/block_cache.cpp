@@ -42,6 +42,7 @@
 
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
+#include <folly/system/HardwareConcurrency.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_cache.h"
@@ -232,11 +233,11 @@ class block_cache_ final : public block_cache::impl {
       , LOG_PROXY_INIT(lgr)
       , options_(options) {
     if (options.init_workers) {
-      wg_ = worker_group("blkcache",
-                         std::max(options.num_workers > 0
-                                      ? options.num_workers
-                                      : std::thread::hardware_concurrency(),
-                                  static_cast<size_t>(1)));
+      wg_ =
+          worker_group("blkcache", std::max(options.num_workers > 0
+                                                ? options.num_workers
+                                                : folly::hardware_concurrency(),
+                                            static_cast<size_t>(1)));
     }
   }
 
