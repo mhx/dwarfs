@@ -258,6 +258,7 @@ size_t get_term_width() {
 struct level_defaults {
   unsigned block_size_bits;
   std::string_view data_compression;
+  std::string_view early_abort_compression;
   std::string_view schema_compression;
   std::string_view metadata_compression;
   unsigned window_size;
@@ -284,6 +285,16 @@ struct level_defaults {
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_SKIP_1 "null"
+#define ALG_SKIP_2 "zstd:level=1"
+#define ALG_SKIP_3 "zstd:level=1"
+#else
+#define ALG_SKIP_1 "null"
+#define ALG_SKIP_2 "null"
+#define ALG_SKIP_3 "null"
+#endif
+
+#if defined(DWARFS_HAVE_LIBZSTD)
 #define ALG_DATA_4 "zstd:level=11"
 #define ALG_DATA_5 "zstd:level=19"
 #define ALG_DATA_6 "zstd:level=22"
@@ -305,6 +316,18 @@ struct level_defaults {
 #define ALG_DATA_7 "null"
 #endif
 
+#if defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_SKIP_4 "zstd:level=4"
+#define ALG_SKIP_5 "zstd:level=4"
+#define ALG_SKIP_6 "zstd:level=4"
+#define ALG_SKIP_7 "zstd:level=4"
+#else
+#define ALG_SKIP_4 "null"
+#define ALG_SKIP_5 "null"
+#define ALG_SKIP_6 "null"
+#define ALG_SKIP_7 "null"
+#endif
+
 #if defined(DWARFS_HAVE_LIBLZMA)
 #define ALG_DATA_8 "lzma:level=9"
 #define ALG_DATA_9 "lzma:level=9"
@@ -317,6 +340,14 @@ struct level_defaults {
 #else
 #define ALG_DATA_8 "null"
 #define ALG_DATA_9 "null"
+#endif
+
+#if defined(DWARFS_HAVE_LIBZSTD)
+#define ALG_SKIP_8 "zstd:level=10"
+#define ALG_SKIP_9 "zstd:level=10"
+#else
+#define ALG_SKIP_8 "null"
+#define ALG_SKIP_9 "null"
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
@@ -351,16 +382,16 @@ struct level_defaults {
 
 constexpr std::array<level_defaults, 10> levels{{
     // clang-format off
-    /* 0 */ {20, "null",     "null"    , "null",          0, 0, "none"},
-    /* 1 */ {20, ALG_DATA_1, ALG_SCHEMA, "null",          0, 0, "path"},
-    /* 2 */ {20, ALG_DATA_2, ALG_SCHEMA, "null",          0, 0, "path"},
-    /* 3 */ {21, ALG_DATA_3, ALG_SCHEMA, "null",         12, 1, "similarity"},
-    /* 4 */ {22, ALG_DATA_4, ALG_SCHEMA, "null",         12, 2, "similarity"},
-    /* 5 */ {23, ALG_DATA_5, ALG_SCHEMA, "null",         12, 2, "similarity"},
-    /* 6 */ {24, ALG_DATA_6, ALG_SCHEMA, "null",         12, 3, "nilsimsa"},
-    /* 7 */ {24, ALG_DATA_7, ALG_SCHEMA, ALG_METADATA_7, 12, 3, "nilsimsa"},
-    /* 8 */ {24, ALG_DATA_8, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
-    /* 9 */ {26, ALG_DATA_9, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
+    /* 0 */ {20, "null",     "null",     "null",     "null",          0, 0, "none"},
+    /* 1 */ {20, ALG_DATA_1, ALG_SKIP_1, ALG_SCHEMA, "null",          0, 0, "path"},
+    /* 2 */ {20, ALG_DATA_2, ALG_SKIP_2, ALG_SCHEMA, "null",          0, 0, "path"},
+    /* 3 */ {21, ALG_DATA_3, ALG_SKIP_3, ALG_SCHEMA, "null",         12, 1, "similarity"},
+    /* 4 */ {22, ALG_DATA_4, ALG_SKIP_4, ALG_SCHEMA, "null",         12, 2, "similarity"},
+    /* 5 */ {23, ALG_DATA_5, ALG_SKIP_5, ALG_SCHEMA, "null",         12, 2, "similarity"},
+    /* 6 */ {24, ALG_DATA_6, ALG_SKIP_6, ALG_SCHEMA, "null",         12, 3, "nilsimsa"},
+    /* 7 */ {24, ALG_DATA_7, ALG_SKIP_7, ALG_SCHEMA, ALG_METADATA_7, 12, 3, "nilsimsa"},
+    /* 8 */ {24, ALG_DATA_8, ALG_SKIP_8, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
+    /* 9 */ {26, ALG_DATA_9, ALG_SKIP_9, ALG_SCHEMA, ALG_METADATA_9, 12, 4, "nilsimsa"},
     // clang-format on
 }};
 
@@ -376,7 +407,7 @@ int mkdwarfs(int argc, char** argv) {
       schema_compression, metadata_compression, log_level_str, timestamp,
       time_resolution, order, progress_mode, recompress_opts, pack_metadata,
       file_hash_algo, debug_filter, max_similarity_size, input_list_str,
-      chmod_str;
+      chmod_str, early_abort_compression;
   std::vector<std::string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
@@ -454,6 +485,9 @@ int mkdwarfs(int argc, char** argv) {
     ("compression,C",
         po::value<std::string>(&compression),
         "block compression algorithm")
+    ("early-abort-compression",
+        po::value<std::string>(&early_abort_compression)->implicit_value("default"),
+        "block compression algorithm for early abort")
     ("schema-compression",
         po::value<std::string>(&schema_compression),
         "metadata schema compression algorithm")
@@ -564,36 +598,40 @@ int mkdwarfs(int argc, char** argv) {
 
   if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
       (!vm.count("output") and !vm.count("debug-filter"))) {
-    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
+    size_t l_dc = 0, l_ec = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, l.data_compression.size());
+      l_ec = std::max(l_ec, l.early_abort_compression.size());
       l_sc = std::max(l_sc, l.schema_compression.size());
       l_mc = std::max(l_mc, l.metadata_compression.size());
       l_or = std::max(l_or, l.order.size());
     }
 
-    std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
+    std::string sep(30 + l_dc + l_ec + l_sc + l_mc + l_or, '-');
 
-    std::cout << tool_header("mkdwarfs") << opts << "\n"
-              << "Compression level defaults:\n"
-              << "  " << sep << "\n"
-              << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
-                             "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
-                             "Window")
-              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
-                             "Block Data", l_dc, "Schema", l_sc, "Metadata",
-                             l_mc, "Size/Step  Order")
-              << "  " << sep << std::endl;
+    std::cout
+      << tool_header("mkdwarfs") << opts << "\n"
+      << "Compression level defaults:\n"
+      << "  " << sep << "\n"
+      << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
+                      "Compression Algorithm", 6 + l_dc + l_ec + l_sc + l_mc,
+                      "Window")
+      << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s}  {:{}s} {:6s}\n",
+                      "Block Data", l_dc, "Early Abort", l_ec,
+                      "Schema", l_sc, "Metadata", l_mc, "Size/Step  Order")
+      << "  " << sep << std::endl;
 
     int level = 0;
     for (auto const& l : levels) {
-      std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
-                               "  {:2d} / {:1d}    {:{}s}",
-                               level, l.block_size_bits, l.data_compression,
-                               l_dc, l.schema_compression, l_sc,
-                               l.metadata_compression, l_mc, l.window_size,
-                               l.window_step, l.order, l_or)
-                << std::endl;
+      std::cout <<
+        fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}  {:{}s}"
+                    "  {:2d} / {:1d}    {:{}s}",
+                    level, l.block_size_bits, l.data_compression, l_dc,
+                    l.early_abort_compression, l_ec,
+                    l.schema_compression, l_sc,
+                    l.metadata_compression, l_mc,
+                    l.window_size, l.window_step, l.order, l_or)
+        << std::endl;
       ++level;
     }
 
@@ -628,6 +666,10 @@ int mkdwarfs(int argc, char** argv) {
 
   if (!vm.count("compression")) {
     compression = defaults.data_compression;
+  }
+
+  if (early_abort_compression == "default") {
+    early_abort_compression = defaults.early_abort_compression;
   }
 
   if (!vm.count("schema-compression")) {
@@ -1027,7 +1069,7 @@ int mkdwarfs(int argc, char** argv) {
 
   progress prog(std::move(updater), interval_ms);
 
-  block_compressor bc(compression);
+  block_compressor bc(compression, early_abort_compression);
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 

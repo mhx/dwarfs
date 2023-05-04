@@ -49,6 +49,9 @@ class block_compressor {
  public:
   block_compressor(const std::string& spec);
 
+  block_compressor(const std::string& spec,
+                   const std::string& early_abort_spec);
+
   block_compressor(const block_compressor& bc)
       : impl_(bc.impl_->clone()) {}
 
@@ -56,6 +59,12 @@ class block_compressor {
   block_compressor& operator=(block_compressor&& rhs) = default;
 
   std::vector<uint8_t> compress(std::vector<uint8_t> const& data) const {
+    if (early_abort_impl_) {
+      // If `bad_compression_ratio_error` is thrown by the quick compression,
+      // we save the effort of the normal compression since it's unlikely
+      // to be much better.
+      early_abort_impl_->compress(data);
+    }
     return impl_->compress(data);
   }
 
@@ -80,7 +89,7 @@ class block_compressor {
   };
 
  private:
-  std::unique_ptr<impl> impl_;
+  std::unique_ptr<impl> impl_, early_abort_impl_;
 };
 
 class block_decompressor {

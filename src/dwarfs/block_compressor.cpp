@@ -39,6 +39,15 @@ block_compressor::block_compressor(const std::string& spec) {
   impl_ = compression_registry::instance().make_compressor(spec);
 }
 
+block_compressor::block_compressor(const std::string& spec,
+                                   const std::string& early_abort_spec) {
+  impl_ = compression_registry::instance().make_compressor(spec);
+  if (!early_abort_spec.empty() && early_abort_spec != "null") {
+    early_abort_impl_ =
+      compression_registry::instance().make_compressor(early_abort_spec);
+  }
+}
+
 block_decompressor::block_decompressor(compression_type type,
                                        const uint8_t* data, size_t size,
                                        std::vector<uint8_t>& target) {
