@@ -1,0 +1,103 @@
+# Copyright (c) 2023 [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+env:
+  CIRRUS_CLONE_SUBMODULES: true
+
+build_and_test_task_template: &BUILD_AND_TEST_TASK_TEMPLATE
+  configure_script: |
+    cmake -B build -DWITH_TESTS="$SETUP_TESTS"         \
+                   -DTEBAKO_BUILD_SCOPE="$SETUP_SCOPE" \
+                   -DCMAKE_INSTALL_PREFIX=install
+
+  build_script: |
+    cmake --build build --parallel 4
+
+  test_script: |
+    if [[ "$SETUP_TESTS" == 'ON' ]]; then
+      ctest --test-dir build --output-on-failure
+    fi
+
+task:
+  name: macos-arm64
+  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != '' || $CIRRUS_TAG != ''
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-monterey-base:latest
+  env:
+    matrix:
+      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON'  }
+      - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF' }
+
+  install_script: |
+    brew install \
+      bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config \
+      libevent libsodium lz4 xz zlib
+
+  pre_configure_script:
+    echo CXX_FLAGS='-std=gnu++14 -DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0' >> $CIRRUS_ENV
+
+  << : *BUILD_AND_TEST_TASK_TEMPLATE
+
+task:
+  name: ubuntu-aarch64
+  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != '' || $CIRRUS_TAG != ''
+  arm_container:
+    image: ubuntu:20.04
+  env:
+    matrix:
+      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON'  }
+      - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF' }
+
+  pre_install_script: |
+    echo DEBIAN_FRONTEND=noninteractive >> $CIRRUS_ENV
+    echo CMAKE_VERSION=3.20.5 >> $CIRRUS_ENV
+    echo  LC_ALL=C >> $CIRRUS_ENV
+
+  install_script: |
+    apt-get -y update
+    apt-get -y install sudo git curl build-essential pkg-config bison flex autoconf \
+      binutils-dev libevent-dev acl-dev libfmt-dev libjemalloc-dev libiberty-dev    \
+      libdouble-conversion-dev liblz4-dev liblzma-dev libssl-dev libunwind-dev      \
+      libboost-context-dev libboost-filesystem-dev libboost-program-options-dev     \
+      libboost-regex-dev libboost-system-dev libboost-thread-dev libdwarf-dev       \
+      libelf-dev libgoogle-glog-dev
+
+
+  setup_fuse_script: |
+    if [[ "$SETUP_SCOPE" == 'ALL' ]]; then
+      apt-get -y install libfuse3-dev
+    else
+      apt-get remove fuse3 libfuse3-dev fuse libfuse-dev
+    fi
+
+  setup-cmake_script: |
+    mkdir -p cmake-install
+    pushd cmake-install
+    curl -L -o cmake.sh \
+    https://github.com/Kitware/CMake/releases/download/v"$CMAKE_VERSION"/cmake-"$CMAKE_VERSION"-linux-aarch64.sh
+    sudo sh cmake.sh --skip-license --prefix="/usr/local"
+    popd
+
+  << : *BUILD_AND_TEST_TASK_TEMPLATE

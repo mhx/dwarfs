@@ -33,13 +33,14 @@ name: Alpine
 
 on:
   schedule:
-    - cron: "0 9 * * 6" 
+    - cron: "0 9 * * 6"
   push:
     branches: [ main ]
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
+      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/alpine.yml'
   pull_request:
@@ -47,6 +48,7 @@ on:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
+      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/alpine.yml'
   workflow_dispatch:
@@ -80,7 +82,7 @@ jobs:
             CXX: clang++
     env: ${{ matrix.env }}
     container:
-      image: alpine:latest
+      image: alpine:3.16
 
     steps:
       - name: Install packages
@@ -114,18 +116,11 @@ jobs:
           make install
 
       - name: Configure
-        run: |
-          mkdir build
-          cd build
-          cmake .. -DWITH_TESTS=${{ matrix.setup.tests }} -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
+        run: cmake -B build -DWITH_TESTS=${{ matrix.setup.tests }} -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
 
       - name: Build
-        run: |
-          cd build
-          make -j4
+        run: cmake --build build --parallel 4
 
       - name: Test
         if: ${{ matrix.setup.tests == 'ON' }}
-        run: |
-          cd build
-          make test
+        run: ctest --test-dir build --output-on-failure

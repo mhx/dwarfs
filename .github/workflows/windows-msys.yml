@@ -33,13 +33,14 @@ name: Windows-MSys
 
 on:
   schedule:
-    - cron: "0 5 * * 6"   
+    - cron: "0 5 * * 6"
   push:
     branches: [ main ]
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
+      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/windows-msys.yml'
   pull_request:
@@ -47,6 +48,7 @@ on:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
+      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/windows-msys.yml'
   workflow_dispatch:
@@ -117,17 +119,15 @@ jobs:
 
       - name: Configure
         run: |
-          mkdir build
-          cd build
-          cmake .. -DWITH_TESTS=${{ matrix.setup.tests }} -DUSE_JEMALLOC=OFF -DPREFER_SYSTEM_GTEST=ON -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
+          cmake -B build -DWITH_TESTS=${{ matrix.setup.tests }}         \
+                         -DUSE_JEMALLOC=OFF                             \
+                         -DPREFER_SYSTEM_GTEST=ON                       \
+                         -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} \
+                         -DCMAKE_INSTALL_PREFIX=install
 
       - name: Build
-        run: |
-          cd build
-          cmake --build .
+        run: cmake --build build --parallel 4
 
       - name: Test
         if: ${{ matrix.setup.tests == 'ON' }}
-        run: |
-          cd build
-          ninja test
+        run: ctest --test-dir build --output-on-failure
