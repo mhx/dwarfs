@@ -228,7 +228,7 @@ set(ZSTD_INCLUDE_DIR
     ""
     CACHE PATH "don't build folly with zstd" FORCE)
 
-set(compiler_only
+set(THRIFT_COMPILER_ONLY
     ON
     CACHE BOOL "only build thrift compiler")
 
