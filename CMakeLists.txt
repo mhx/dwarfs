@@ -40,6 +40,9 @@ option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
 set(default_build_type "Release")
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}'")
   set(CMAKE_BUILD_TYPE
@@ -222,11 +225,20 @@ set(compiler_only
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
 
+set(
+  CXX_STD "gnu++20"
+  CACHE STRING
+  "The C++ standard argument to pass to the compiler."
+)
+
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 endif()
+
+set_property(TARGET folly PROPERTY CXX_STANDARD 20)
+set_property(TARGET folly_base PROPERTY CXX_STANDARD 20)
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
