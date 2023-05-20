@@ -38,6 +38,16 @@ option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
 option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
 option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 
+if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
+  set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
+  set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
+  set(LIBARCHIVE_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/libarchive)
+else()
+  set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
+  set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
+  set(LIBARCHIVE_GIT_REPO https://github.com/libarchive/libarchive.git)
+endif()
+
 set(default_build_type "Release")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -765,7 +775,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   ExternalProject_Add(
     ${_LIBARCHIVE_PRJ}
     PREFIX "${PROJECT_BINARY_DIR}/libarchive"
-    GIT_REPOSITORY "https://github.com/libarchive/libarchive.git"
+    GIT_REPOSITORY ${LIBARCHIVE_GIT_REPO}
     GIT_TAG "v3.6.1"
     CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS}
                -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive
