@@ -312,6 +312,17 @@ TEST(tools, everything) {
                   num_hardlinks(mountpoint / "format.sh"));
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
       }
+
+      args.push_back("-ooffset=auto");
+
+      {
+        driver_runner runner(driver, image_hdr, mountpoint, args);
+
+        ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+        EXPECT_EQ(enable_nlink ? 3 : 1,
+                  num_hardlinks(mountpoint / "format.sh"));
+        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+      }
     }
   }
 
