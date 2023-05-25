@@ -57,7 +57,7 @@ namespace dwarfs {
 /**
  * Block Manager Strategy
  *
- * For each *block*, start new rolling hash. The the hashes are associcated
+ * For each *block*, start new rolling hash. The hashes are associcated
  * with the block, new hash-offset-pairs will only be added as the block
  * grows. We only need to store a hash-offset-pair every N bytes, with N
  * being configurable (typically half of the window size so we find all
