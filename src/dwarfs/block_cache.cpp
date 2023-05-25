@@ -365,6 +365,28 @@ class block_cache_ final : public block_cache::impl {
     std::promise<block_range> promise;
     auto future = promise.get_future();
 
+    // First, let's see if it's an uncompressed block, in which case we
+    // can completely bypass the cache
+    try {
+      if (block_no >= block_.size()) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("block number out of range {0} >= {1}",
+                                 block_no, block_.size()));
+      }
+
+      auto const& section = DWARFS_NOTHROW(block_.at(block_no));
+
+      if (section.compression() == compression_type::NONE) {
+        LOG_TRACE << "block " << block_no
+                  << " is uncompressed, bypassing cache";
+        promise.set_value(block_range(section.data(*mm_).data(), offset, size));
+        return future;
+      }
+    } catch (...) {
+      promise.set_exception(std::current_exception());
+      return future;
+    }
+
     // That is a mighty long lock, let's see how it works...
     std::lock_guard lock(mx_);
 
@@ -474,12 +496,6 @@ class block_cache_ final : public block_cache::impl {
     // Bummer. We don't know anything about the block.
 
     try {
-      if (block_no >= block_.size()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("block number out of range {0} >= {1}",
-                                 block_no, block_.size()));
-      }
-
       LOG_TRACE << "block " << block_no << " not found";
 
       auto block = std::make_shared<cached_block>(
@@ -705,6 +721,14 @@ block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,
           lgr, std::move(mm), options)) {}
 
 // TODO: clean up: this is defined in fstypes.h...
+block_range::block_range(uint8_t const* data, size_t offset, size_t size)
+    : begin_(data + offset)
+    , end_(begin_ + size) {
+  if (!data) {
+    DWARFS_THROW(runtime_error, "block_range: block data is null");
+  }
+}
+
 block_range::block_range(std::shared_ptr<cached_block const> block,
                          size_t offset, size_t size)
     : begin_(block->data() + offset)

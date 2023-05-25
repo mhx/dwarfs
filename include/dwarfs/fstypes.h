@@ -41,6 +41,7 @@ class cached_block;
 // TODO: move elsewhere
 class block_range {
  public:
+  block_range(uint8_t const* data, size_t offset, size_t size);
   block_range(std::shared_ptr<cached_block const> block, size_t offset,
               size_t size);
 
