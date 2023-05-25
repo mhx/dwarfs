@@ -185,7 +185,7 @@ string_table::string_table(logger& lgr, std::string_view name,
 
 template <typename T>
 thrift::metadata::string_table
-string_table::pack_generic(folly::Range<T const*> input,
+string_table::pack_generic(std::span<T const> input,
                            pack_options const& options) {
   auto size = input.size();
   bool pack_data = options.pack_data;
@@ -296,13 +296,13 @@ string_table::pack_generic(folly::Range<T const*> input,
 }
 
 thrift::metadata::string_table
-string_table::pack(folly::Range<std::string const*> input,
+string_table::pack(std::span<std::string const> input,
                    pack_options const& options) {
   return pack_generic(input, options);
 }
 
 thrift::metadata::string_table
-string_table::pack(folly::Range<std::string_view const*> input,
+string_table::pack(std::span<std::string_view const> input,
                    pack_options const& options) {
   return pack_generic(input, options);
 }
