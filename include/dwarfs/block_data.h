@@ -35,6 +35,8 @@ class block_data {
   std::vector<uint8_t> const& vec() const { return vec_; }
   std::vector<uint8_t>& vec() { return vec_; }
 
+  void reserve(size_t size) { vec_.reserve(size); }
+
   uint8_t const* data() const { return vec_.data(); }
   uint8_t* data() { return vec_.data(); }
 

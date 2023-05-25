@@ -239,7 +239,7 @@ class active_block {
       , data_{std::make_shared<block_data>()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
-    data_->vec().reserve(capacity_);
+    data_->reserve(capacity_);
   }
 
   size_t num() const { return num_; }
@@ -251,7 +251,7 @@ class active_block {
   void append(uint8_t const* p, size_t size, bloom_filter* filter);
 
   size_t next_hash_distance() const {
-    return window_step_mask_ + 1 - (data_->vec().size() & window_step_mask_);
+    return window_step_mask_ + 1 - (data_->size() & window_step_mask_);
   }
 
   template <typename F>
