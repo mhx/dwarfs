@@ -91,8 +91,8 @@ class fs_section_v1 : public fs_section::impl {
   bool check_fast(mmif const&) const override { return true; }
   bool verify(mmif const&) const override { return true; }
 
-  folly::ByteRange data(mmif const& mm) const override {
-    return folly::ByteRange(mm.as<uint8_t>(start_), hdr_.length);
+  std::span<uint8_t const> data(mmif const& mm) const override {
+    return mm.span(start_, hdr_.length);
   }
 
  private:
@@ -140,8 +140,8 @@ class fs_section_v2 : public fs_section::impl {
                             sizeof(hdr_.sha2_512_256));
   }
 
-  folly::ByteRange data(mmif const& mm) const override {
-    return folly::ByteRange(mm.as<uint8_t>(start_), hdr_.length);
+  std::span<uint8_t const> data(mmif const& mm) const override {
+    return mm.span(start_, hdr_.length);
   }
 
  private:
@@ -173,7 +173,7 @@ class fs_section_v2_lazy : public fs_section::impl {
 
   bool verify(mmif const& mm) const override { return section().verify(mm); }
 
-  folly::ByteRange data(mmif const& mm) const override {
+  std::span<uint8_t const> data(mmif const& mm) const override {
     return section().data(mm);
   }
 
