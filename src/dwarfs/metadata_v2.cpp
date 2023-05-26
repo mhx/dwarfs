@@ -91,7 +91,7 @@ freeze_to_buffer(const T& x) {
   return {schema_buffer, data_buffer};
 }
 
-void check_schema(folly::ByteRange data) {
+void check_schema(std::span<uint8_t const> data) {
   using namespace ::apache::thrift;
   frozen::schema::Schema schema;
   size_t schemaSize = CompactSerializer::deserialize(data, schema);
@@ -123,12 +123,14 @@ void check_schema(folly::ByteRange data) {
 }
 
 template <typename T>
-MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
+MappedFrozen<T>
+map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
   using namespace ::apache::thrift::frozen;
   check_schema(schema);
   auto layout = std::make_unique<Layout<T>>();
-  deserializeRootLayout(schema, *layout);
-  MappedFrozen<T> ret(layout->view({data.begin(), 0}));
+  folly::ByteRange tmp(schema.data(), schema.size());
+  deserializeRootLayout(tmp, *layout);
+  MappedFrozen<T> ret(layout->view({data.data(), 0}));
   ret.hold(std::move(layout));
   return ret;
 }
@@ -298,9 +300,9 @@ const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
 template <typename LoggerPolicy>
 class metadata_ final : public metadata_v2::impl {
  public:
-  metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-            metadata_options const& options, int inode_offset,
-            bool force_consistency_check)
+  metadata_(logger& lgr, std::span<uint8_t const> schema,
+            std::span<uint8_t const> data, metadata_options const& options,
+            int inode_offset, bool force_consistency_check)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , global_(lgr, &meta_,
@@ -719,7 +721,7 @@ class metadata_ final : public metadata_v2::impl {
     return nlinks;
   }
 
-  folly::ByteRange data_;
+  std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   const global_metadata global_;
   dir_entry_view root_;
@@ -1385,9 +1387,10 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
   return freeze_to_buffer(data);
 }
 
-metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
-                         folly::ByteRange data, metadata_options const& options,
-                         int inode_offset, bool force_consistency_check)
+metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
+                         std::span<uint8_t const> data,
+                         metadata_options const& options, int inode_offset,
+                         bool force_consistency_check)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
           lgr, schema, data, options, inode_offset, force_consistency_check)) {}

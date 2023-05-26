@@ -27,6 +27,7 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +35,6 @@
 #include <sys/types.h>
 
 #include <folly/Expected.h>
-#include <folly/Range.h>
 #include <folly/dynamic.h>
 
 #include "dwarfs/metadata_types.h"
@@ -58,9 +58,9 @@ class metadata_v2 {
  public:
   metadata_v2() = default;
 
-  metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-              metadata_options const& options, int inode_offset = 0,
-              bool force_consistency_check = false);
+  metadata_v2(logger& lgr, std::span<uint8_t const> schema,
+              std::span<uint8_t const> data, metadata_options const& options,
+              int inode_offset = 0, bool force_consistency_check = false);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 
