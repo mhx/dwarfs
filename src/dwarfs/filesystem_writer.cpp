@@ -28,7 +28,6 @@
 #include <mutex>
 #include <thread>
 
-#include <folly/Range.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_compressor.h"
@@ -51,13 +50,13 @@ class fsblock {
           std::shared_ptr<block_data>&& data, uint32_t number);
 
   fsblock(section_type type, compression_type compression,
-          folly::ByteRange data, uint32_t number);
+          std::span<uint8_t const> data, uint32_t number);
 
   void compress(worker_group& wg) { impl_->compress(wg); }
   void wait_until_compressed() { impl_->wait_until_compressed(); }
   section_type type() const { return impl_->type(); }
   compression_type compression() const { return impl_->compression(); }
-  folly::ByteRange data() const { return impl_->data(); }
+  std::span<uint8_t const> data() const { return impl_->data(); }
   size_t uncompressed_size() const { return impl_->uncompressed_size(); }
   size_t size() const { return impl_->size(); }
   uint32_t number() const { return impl_->number(); }
@@ -71,7 +70,7 @@ class fsblock {
     virtual void wait_until_compressed() = 0;
     virtual section_type type() const = 0;
     virtual compression_type compression() const = 0;
-    virtual folly::ByteRange data() const = 0;
+    virtual std::span<uint8_t const> data() const = 0;
     virtual size_t uncompressed_size() const = 0;
     virtual size_t size() const = 0;
     virtual uint32_t number() const = 0;
@@ -124,7 +123,7 @@ class raw_fsblock : public fsblock::impl {
 
   compression_type compression() const override { return comp_type_; }
 
-  folly::ByteRange data() const override { return data_->vec(); }
+  std::span<uint8_t const> data() const override { return data_->vec(); }
 
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
@@ -152,7 +151,7 @@ class raw_fsblock : public fsblock::impl {
 class compressed_fsblock : public fsblock::impl {
  public:
   compressed_fsblock(section_type type, compression_type compression,
-                     folly::ByteRange range, uint32_t number)
+                     std::span<uint8_t const> range, uint32_t number)
       : type_{type}
       , compression_{compression}
       , range_{range}
@@ -173,7 +172,7 @@ class compressed_fsblock : public fsblock::impl {
   section_type type() const override { return type_; }
   compression_type compression() const override { return compression_; }
 
-  folly::ByteRange data() const override { return range_; }
+  std::span<uint8_t const> data() const override { return range_; }
 
   size_t uncompressed_size() const override { return range_.size(); }
   size_t size() const override { return range_.size(); }
@@ -185,7 +184,7 @@ class compressed_fsblock : public fsblock::impl {
  private:
   section_type const type_;
   compression_type const compression_;
-  folly::ByteRange range_;
+  std::span<uint8_t const> range_;
   std::future<void> future_;
   uint32_t const number_;
   section_header_v2 header_;
@@ -196,7 +195,7 @@ fsblock::fsblock(section_type type, block_compressor const& bc,
     : impl_(std::make_unique<raw_fsblock>(type, bc, std::move(data), number)) {}
 
 fsblock::fsblock(section_type type, compression_type compression,
-                 folly::ByteRange data, uint32_t number)
+                 std::span<uint8_t const> data, uint32_t number)
     : impl_(std::make_unique<compressed_fsblock>(type, compression, data,
                                                  number)) {}
 
@@ -236,12 +235,12 @@ class filesystem_writer_ final : public filesystem_writer::impl {
                      std::istream* header);
   ~filesystem_writer_() noexcept override;
 
-  void copy_header(folly::ByteRange header) override;
+  void copy_header(std::span<uint8_t const> header) override;
   void write_block(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
   void write_compressed_section(section_type type, compression_type compression,
-                                folly::ByteRange data) override;
+                                std::span<uint8_t const> data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
   int queue_fill() const override { return static_cast<int>(wg_.queue_size()); }
@@ -253,7 +252,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void write(const char* data, size_t size);
   template <typename T>
   void write(const T& obj);
-  void write(folly::ByteRange range);
+  void write(std::span<uint8_t const> range);
   void writer_thread();
   void push_section_index(section_type type);
   void write_section_index();
@@ -377,7 +376,7 @@ void filesystem_writer_<LoggerPolicy>::write(const T& obj) {
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write(folly::ByteRange range) {
+void filesystem_writer_<LoggerPolicy>::write(std::span<uint8_t const> range) {
   write(reinterpret_cast<const char*>(range.data()), range.size());
 }
 
@@ -422,7 +421,8 @@ void filesystem_writer_<LoggerPolicy>::write_section(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
-    section_type type, compression_type compression, folly::ByteRange data) {
+    section_type type, compression_type compression,
+    std::span<uint8_t const> data) {
   auto fsb =
       std::make_unique<fsblock>(type, compression, data, section_number_++);
 
@@ -437,7 +437,8 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::copy_header(folly::ByteRange header) {
+void filesystem_writer_<LoggerPolicy>::copy_header(
+    std::span<uint8_t const> header) {
   if (!options_.remove_header) {
     if (header_) {
       LOG_WARN << "replacing old header";
@@ -496,9 +497,8 @@ void filesystem_writer_<LoggerPolicy>::push_section_index(section_type type) {
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_section_index() {
   push_section_index(section_type::SECTION_INDEX);
-  auto data =
-      folly::ByteRange(reinterpret_cast<uint8_t*>(section_index_.data()),
-                       sizeof(section_index_[0]) * section_index_.size());
+  auto data = std::span(reinterpret_cast<uint8_t*>(section_index_.data()),
+                        sizeof(section_index_[0]) * section_index_.size());
 
   auto fsb = fsblock(section_type::SECTION_INDEX, compression_type::NONE, data,
                      section_number_++);
