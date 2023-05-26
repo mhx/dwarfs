@@ -28,8 +28,6 @@
 #include <sys/mman.h>
 #include <sys/statvfs.h>
 
-#include <folly/Range.h>
-
 #include <fmt/format.h>
 
 #include "dwarfs/block_cache.h"
@@ -180,11 +178,11 @@ class filesystem_parser {
     return std::nullopt;
   }
 
-  std::optional<folly::ByteRange> header() const {
+  std::optional<std::span<uint8_t const>> header() const {
     if (image_offset_ == 0) {
       return std::nullopt;
     }
-    return folly::ByteRange(mm_->as<uint8_t>(), image_offset_);
+    return mm_->span(0, image_offset_);
   }
 
   void rewind() {
@@ -250,7 +248,7 @@ get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
   return bd.uncompressed_size();
 }
 
-folly::ByteRange
+std::span<uint8_t const>
 get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
   auto compression = section.compression();
@@ -258,7 +256,7 @@ get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
   auto length = section.length();
 
   if (!force_buffer && compression == compression_type::NONE) {
-    return mm->range(start, length);
+    return mm->span(start, length);
   }
 
   buffer = block_decompressor::decompress(compression, mm->as<uint8_t>(start),
@@ -346,7 +344,7 @@ class filesystem_ final : public filesystem_v2::impl {
                 off_t offset) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
   readv(uint32_t inode, size_t size, off_t offset) const override;
-  std::optional<folly::ByteRange> header() const override;
+  std::optional<std::span<uint8_t const>> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
     ir_.set_cache_tidy_config(cfg);
@@ -362,7 +360,7 @@ class filesystem_ final : public filesystem_v2::impl {
   mutable std::mutex mx_;
   mutable filesystem_parser parser_;
   std::vector<uint8_t> meta_buffer_;
-  std::optional<folly::ByteRange> header_;
+  std::optional<std::span<uint8_t const>> header_;
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
 };
 
@@ -575,7 +573,8 @@ filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
 }
 
 template <typename LoggerPolicy>
-std::optional<folly::ByteRange> filesystem_<LoggerPolicy>::header() const {
+std::optional<std::span<uint8_t const>>
+filesystem_<LoggerPolicy>::header() const {
   return header_;
 }
 
@@ -743,12 +742,12 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   return errors;
 }
 
-std::optional<folly::ByteRange>
+std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm) {
   return header(std::move(mm), filesystem_options::IMAGE_OFFSET_AUTO);
 }
 
-std::optional<folly::ByteRange>
+std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, off_t image_offset) {
   return filesystem_parser(mm, image_offset).header();
 }

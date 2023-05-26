@@ -21,12 +21,11 @@
 
 #pragma once
 
+#include <span>
 #include <string>
 #include <system_error>
 
 #include <boost/noncopyable.hpp>
-
-#include <folly/Range.h>
 
 namespace dwarfs {
 
@@ -40,8 +39,8 @@ class mmif : public boost::noncopyable {
         reinterpret_cast<char const*>(this->addr()) + offset);
   }
 
-  folly::ByteRange range(off_t offset, size_t length) const {
-    return folly::ByteRange(this->as<uint8_t>(offset), length);
+  std::span<uint8_t const> span(off_t offset, size_t length) const {
+    return std::span(this->as<uint8_t>(offset), length);
   }
 
   virtual void const* addr() const = 0;

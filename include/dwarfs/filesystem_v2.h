@@ -28,6 +28,7 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -70,9 +71,10 @@ class filesystem_v2 {
                       int detail_level = 0, size_t num_readers = 1,
                       bool check_integrity = false, off_t image_offset = 0);
 
-  static std::optional<folly::ByteRange> header(std::shared_ptr<mmif> mm);
+  static std::optional<std::span<uint8_t const>>
+  header(std::shared_ptr<mmif> mm);
 
-  static std::optional<folly::ByteRange>
+  static std::optional<std::span<uint8_t const>>
   header(std::shared_ptr<mmif> mm, off_t image_offset);
 
   void dump(std::ostream& os, int detail_level) const {
@@ -150,7 +152,9 @@ class filesystem_v2 {
     return impl_->readv(inode, size, offset);
   }
 
-  std::optional<folly::ByteRange> header() const { return impl_->header(); }
+  std::optional<std::span<uint8_t const>> header() const {
+    return impl_->header();
+  }
 
   void set_num_workers(size_t num) { return impl_->set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) {
@@ -190,7 +194,7 @@ class filesystem_v2 {
                           off_t offset) const = 0;
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
     readv(uint32_t inode, size_t size, off_t offset) const = 0;
-    virtual std::optional<folly::ByteRange> header() const = 0;
+    virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
   };
