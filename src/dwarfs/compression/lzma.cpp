@@ -41,7 +41,15 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
     {LZMA_DATA_ERROR, "data is corrupt"},
     {LZMA_BUF_ERROR, "no progress is possible"},
     {LZMA_PROG_ERROR, "programming error"},
+    {LZMA_SEEK_NEEDED, "request to change the input file position"},
 };
+
+std::string lzma_error_string(lzma_ret err) {
+  if (auto it = lzma_error_desc.find(err); it != lzma_error_desc.end()) {
+    return it->second;
+  }
+  return fmt::format("unknown error {}", static_cast<int>(err));
+}
 
 class lzma_block_compressor final : public block_compressor::impl {
  public:
@@ -149,12 +157,8 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
   if (ret == LZMA_STREAM_END) {
     compressed.shrink_to_fit();
   } else {
-    if (auto it = lzma_error_desc.find(ret); it != lzma_error_desc.end()) {
-      DWARFS_THROW(runtime_error, fmt::format("LZMA error: {}", it->second));
-    } else {
-      DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}",
-                                              static_cast<int>(ret)));
-    }
+    DWARFS_THROW(runtime_error, fmt::format("LZMA compression failed: {}",
+                                            lzma_error_string(ret)));
   }
 
   return compressed;
@@ -231,13 +235,8 @@ class lzma_block_decompressor final : public block_decompressor::impl {
     if (ret != (action == LZMA_RUN ? LZMA_OK : LZMA_STREAM_END) ||
         stream_.avail_out != 0) {
       decompressed_.clear();
-      auto it = lzma_error_desc.find(ret);
-      if (it != lzma_error_desc.end()) {
-        error_ = fmt::format("LZMA: decompression failed ({})", it->second);
-      } else {
-        error_ = fmt::format("LZMA: decompression failed (error {})",
-                             static_cast<int>(ret));
-      }
+      error_ =
+          fmt::format("LZMA decompression failed: {}", lzma_error_string(ret));
       DWARFS_THROW(runtime_error, error_);
     }
 
@@ -297,8 +296,9 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_ret ret = lzma_code(&s, LZMA_RUN);
   if (ret != LZMA_STREAM_END || s.avail_in != 0) {
-    DWARFS_THROW(runtime_error, fmt::format("lzma_code(): {} (avail_in={})",
-                                            static_cast<int>(ret), s.avail_in));
+    DWARFS_THROW(runtime_error,
+                 fmt::format("lzma_code(): {} (avail_in={})",
+                             lzma_error_string(ret), s.avail_in));
   }
 
   pos -= LZMA_STREAM_HEADER_SIZE;
