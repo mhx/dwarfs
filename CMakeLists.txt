@@ -134,7 +134,7 @@ if(WITH_MAN_PAGES)
 endif()
 
 if(PREFER_SYSTEM_LIBFMT)
-  find_package(fmt 9.0 CONFIG)
+  find_package(fmt 10.0 CONFIG)
 else()
   configure_file(CMakeLists.txt.fmtlib fmtlib-download/CMakeLists.txt)
   execute_process(

@@ -249,7 +249,7 @@ void console_writer::update(const progress& p, bool last) {
   if (pg_mode_ == SIMPLE) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
-                    p.blocks_written, size_with_unit(p.compressed_size));
+                    p.blocks_written.load(), size_with_unit(p.compressed_size));
     if (tmp != statebuf_) {
       auto t = get_current_time_string();
       statebuf_ = tmp;
