@@ -869,6 +869,16 @@ add_custom_target(
     googletest-* _CPack_Packages install_manifest.txt share build.ninja
     compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*)
 
+file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp)
+
+add_custom_target(
+  format
+  COMMAND clang-format -i ${ALL_SOURCES})
+
 foreach(man_dir ${MAN_DIRS})
   install(DIRECTORY "${man_dir}" DESTINATION share/man)
 endforeach()
