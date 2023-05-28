@@ -19,10 +19,34 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <filesystem>
+#include <string_view>
+#include <unordered_map>
+
 #include "dwarfs/error.h"
 #include "dwarfs_tool_main.h"
 
+namespace {
+
+using namespace dwarfs;
+
+std::unordered_map<std::string_view, int (*)(int, char**)> const functions{
+    {"mkdwarfs", &mkdwarfs_main},
+    {"dwarfsck", &dwarfsck_main},
+    {"dwarfsextract", &dwarfsextract_main},
+    {"dwarfsbench", &dwarfsbench_main},
+};
+
+} // namespace
+
 int main(int argc, char** argv) {
-  return dwarfs::safe_main(
-      [&] { return dwarfs::dwarfsextract_main(argc, argv); });
+  auto fun = &dwarfs::dwarfs_main;
+  auto path = std::filesystem::path(argv[0]);
+
+  if (auto it = functions.find(path.filename().string());
+      it != functions.end()) {
+    fun = it->second;
+  }
+
+  return dwarfs::safe_main([&] { return fun(argc, argv); });
 }

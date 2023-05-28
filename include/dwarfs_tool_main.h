@@ -19,10 +19,14 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/error.h"
-#include "dwarfs_tool_main.h"
+#pragma once
 
-int main(int argc, char** argv) {
-  return dwarfs::safe_main(
-      [&] { return dwarfs::dwarfsextract_main(argc, argv); });
-}
+namespace dwarfs {
+
+int mkdwarfs_main(int argc, char** argv);
+int dwarfsck_main(int argc, char** argv);
+int dwarfsextract_main(int argc, char** argv);
+int dwarfsbench_main(int argc, char** argv);
+int dwarfs_main(int argc, char** argv);
+
+} // namespace dwarfs

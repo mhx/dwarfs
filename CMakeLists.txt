@@ -394,41 +394,81 @@ if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
+add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
+add_library(dwarfsck_main src/dwarfsck_main.cpp)
+add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
+add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
+
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
+add_executable(dwarfsuniversal src/universal.cpp)
+
+target_link_libraries(mkdwarfs mkdwarfs_main)
+target_link_libraries(dwarfsck dwarfsck_main)
+target_link_libraries(dwarfsbench dwarfsbench_main)
+target_link_libraries(dwarfsextract dwarfsextract_main)
+target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
+        dwarfsbench_main dwarfsextract_main)
+set_target_properties(dwarfsuniversal PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY universal
+        OUTPUT_NAME dwarfs)
+foreach(bin mkdwarfs dwarfsck dwarfsextract dwarfsbench)
+  add_custom_command(OUTPUT  universal/${bin}
+                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs universal/${bin}
+                     DEPENDS dwarfsuniversal)
+  list(APPEND SYMLINKS ${CMAKE_CURRENT_BINARY_DIR}/universal/${bin})
+endforeach()
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
+        dwarfsuniversal)
+list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
+        dwarfsextract_main)
 
 if(FUSE3_FOUND)
+  add_library(dwarfs_main src/dwarfs_main.cpp)
+  target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64
+                                                 FUSE_USE_VERSION=35)
+  target_link_libraries(dwarfs_main PkgConfig::FUSE3)
   add_executable(dwarfs-bin src/dwarfs.cpp)
-  target_compile_definitions(dwarfs-bin PRIVATE _FILE_OFFSET_BITS=64
-                                                FUSE_USE_VERSION=35)
+  target_link_libraries(dwarfs-bin dwarfs_main)
+  target_link_libraries(dwarfsuniversal dwarfs_main)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-  target_link_libraries(dwarfs-bin PkgConfig::FUSE3)
-  add_custom_target(mount.dwarfs ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
-                                             dwarfs mount.dwarfs)
+  add_custom_command(OUTPUT  mount.dwarfs
+                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
+                     DEPENDS dwarfs)
+  list(APPEND SYMLINKS mount.dwarfs)
   install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
   list(APPEND BINARY_TARGETS dwarfs-bin)
+  list(APPEND MAIN_TARGETS dwarfs_main)
 endif()
 
 if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+  add_library(dwarfs2_main src/dwarfs_main.cpp)
+  target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
+                                                  FUSE_USE_VERSION=29)
+  target_link_libraries(dwarfs2_main PkgConfig::FUSE)
   add_executable(dwarfs2-bin src/dwarfs.cpp)
-  target_compile_definitions(dwarfs2-bin PRIVATE _FILE_OFFSET_BITS=64
-                                                 FUSE_USE_VERSION=29)
+  target_link_libraries(dwarfs2-bin dwarfs2_main)
+  if(NOT FUSE3_FOUND)
+    target_link_libraries(dwarfsuniversal dwarfs2_main)
+  endif()
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-  target_link_libraries(dwarfs2-bin PkgConfig::FUSE)
-  add_custom_target(
-    mount.dwarfs2 ALL COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2
-                              mount.dwarfs2)
+  add_custom_command(OUTPUT  mount.dwarfs2
+                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs2
+                     DEPENDS dwarfs2)
+  list(APPEND SYMLINKS mount.dwarfs2)
   install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
   list(APPEND BINARY_TARGETS dwarfs2-bin)
+  list(APPEND MAIN_TARGETS dwarfs2_main)
 endif()
+
+add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS)
   add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
@@ -479,8 +519,7 @@ endif()
 
 if(WITH_MAN_PAGES)
   list(REMOVE_DUPLICATES MAN_DIRS)
-  add_custom_target(manpages DEPENDS ${MAN_PAGES})
-  add_dependencies(mkdwarfs manpages)
+  add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
 endif()
 
 list(
@@ -603,7 +642,7 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
 add_dependencies(metadata_thrift thrift_light)
 
-foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS})
+foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
@@ -867,7 +906,8 @@ add_custom_target(
     rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
     thrift zstd dwarfs* mkdwarfs mount.dwarfs mount.dwarfs2 lib*.a *.cmake
     googletest-* _CPack_Packages install_manifest.txt share build.ninja
-    compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*)
+    compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*
+    universal)
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
