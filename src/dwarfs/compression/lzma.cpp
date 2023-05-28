@@ -41,7 +41,8 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
     {LZMA_DATA_ERROR, "data is corrupt"},
     {LZMA_BUF_ERROR, "no progress is possible"},
     {LZMA_PROG_ERROR, "programming error"},
-    {LZMA_SEEK_NEEDED, "request to change the input file position"},
+    // TODO: re-add when this has arrived in the mainstream...
+    // {LZMA_SEEK_NEEDED, "request to change the input file position"},
 };
 
 std::string lzma_error_string(lzma_ret err) {
