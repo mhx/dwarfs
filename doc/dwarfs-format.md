@@ -1,8 +1,8 @@
-# dwarfs-format(5) -- DwarFS File System Format v2.3
+# dwarfs-format(5) -- DwarFS File System Format v2.4
 
 ## DESCRIPTION
 
-This document describes the DwarFS file system format, version 2.3.
+This document describes the DwarFS file system format, version 2.4.
 
 ## FILE STRUCTURE
 
@@ -11,7 +11,7 @@ prefixed by a "header", which is typically some sort of shell script.
 Each block has the following format:
 
          ┌───┬───┬───┬───┬───┬───┬───┬───┐
-    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x03 for v2.3
+    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x04 for v2.4
          ├───┴───┴───┴───┴───┴───┴───┴───┤
     0x08 │                               │  Used for full (slow) integrity
          ├─ SHA-512/256 integrity hash  ─┤  check with `dwarfsck`.
@@ -120,7 +120,7 @@ Here is a high-level overview of how all the bits and pieces relate
 to each other:
 
     ═════════════           ┌─────────────────────────────────────────────────────────────────────────┐
-     DwarFS v2.3            │                                                                         │
+     DwarFS v2.4            │                                                                         │
     ═════════════           │         ┌───────────────────────────────────────────┐                   │
                             │         │                                           │                   │
               dir_entries[] ▼         │              inodes[]                     │   directories[]   │
