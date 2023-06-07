@@ -78,7 +78,11 @@ struct inode_options {
   bool with_nilsimsa{false};
   std::optional<size_t> max_similarity_scan_size;
 
-  bool needs_scan() const { return with_similarity || with_nilsimsa; }
+  bool needs_scan(size_t size) const {
+    return (with_similarity || with_nilsimsa) &&
+           (!max_similarity_scan_size ||
+            size <= max_similarity_scan_size.value());
+  }
 };
 
 enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };

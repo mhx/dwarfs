@@ -127,11 +127,6 @@ class inode_ : public inode {
     files_ = std::move(fv);
   }
 
-  bool needs_scan(inode_options const& opts, size_t size) const override {
-    return opts.needs_scan() && (!opts.max_similarity_scan_size ||
-                                 size <= opts.max_similarity_scan_size.value());
-  }
-
   void
   set_similarity_valid(inode_options const& opts [[maybe_unused]]) override {
 #ifndef NDEBUG
