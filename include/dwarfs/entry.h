@@ -133,8 +133,8 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
-  void scan(std::shared_ptr<mmif> const& mm, progress& prog,
-            std::optional<std::string> const& hash_alg);
+  void
+  scan(mmif* mm, progress& prog, std::optional<std::string> const& hash_alg);
   void create_data();
   void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;

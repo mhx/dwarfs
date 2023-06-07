@@ -196,10 +196,10 @@ void file::scan(os_access& os, progress& prog) {
     mm = os.map_file(fs_path(), s);
   }
 
-  scan(mm, prog, "xxh3-128");
+  scan(mm.get(), prog, "xxh3-128");
 }
 
-void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
+void file::scan(mmif* mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
   size_t s = size();
 
@@ -209,6 +209,8 @@ void file::scan(std::shared_ptr<mmif> const& mm, progress& prog,
     if (s > 0) {
       constexpr size_t chunk_size = 32 << 20;
       size_t offset = 0;
+
+      assert(mm);
 
       while (s >= chunk_size) {
         cs.update(mm->as<void>(offset), chunk_size);

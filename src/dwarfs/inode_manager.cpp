@@ -142,8 +142,7 @@ class inode_ : public inode {
 #endif
   }
 
-  void
-  scan(std::shared_ptr<mmif> const& mm, inode_options const& opts) override {
+  void scan(mmif* mm, inode_options const& opts) override {
     assert(!similarity_valid_);
     assert(!nilsimsa_valid_);
 

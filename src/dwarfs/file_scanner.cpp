@@ -298,7 +298,7 @@ void file_scanner_::hash_file(file* p) {
   }
 
   prog_.current.store(p);
-  p->scan(mm, prog_, hash_algo_);
+  p->scan(mm.get(), prog_, hash_algo_);
 }
 
 void file_scanner_::add_inode(file* p) {
@@ -315,7 +315,7 @@ void file_scanner_::add_inode(file* p) {
       if (size > 0) {
         mm = os_.map_file(p->fs_path(), size);
       }
-      inode->scan(mm, ino_opts_);
+      inode->scan(mm.get(), ino_opts_);
       ++prog_.similarity_scans;
       prog_.similarity_bytes += size;
       ++prog_.inodes_scanned;
