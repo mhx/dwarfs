@@ -161,7 +161,7 @@ Most other options are concerned with compression tuning:
   algorithms, so if you're short on memory it might be worth tweaking the
   compression options.
 
-- `-C`, `--compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
+- `-C`, `--compression=`*algorithm*[`:`*algopt*[`=`*value*][`:`...]]:
   The compression algorithm and configuration used for file system data.
   The value for this option is a colon-separated list. The first item is
   the compression algorithm, the remaining item are its options. Options
