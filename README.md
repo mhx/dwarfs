@@ -1,4 +1,4 @@
-[![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)   [![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml) [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml) [![Windows-MSys](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml)
+[![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)   [![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml) [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml) [!
 
 [![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
 [![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
@@ -9,22 +9,24 @@ A fast high compression read-only file system
 
 ## Table of contents
 
-* [Overview](#overview)
-* [History](#history)
-* [Building and Installing](#building-and-installing)
-   * [Dependencies](#dependencies)
-   * [Building](#building)
-   * [Installing](#installing)
-   * [Experimental Python Scripting Support](#experimental-python-scripting-support)
-* [Usage](#usage)
-* [Comparison](#comparison)
-   * [With SquashFS](#with-squashfs)
-   * [With SquashFS &amp; xz](#with-squashfs--xz)
-   * [With lrzip](#with-lrzip)
-   * [With zpaq](#with-zpaq)
-   * [With wimlib](#with-wimlib)
-   * [With Cromfs](#with-cromfs)
-   * [With EROFS](#with-erofs)
+- [DwarFS](#dwarfs)
+  - [Table of contents](#table-of-contents)
+  - [Overview](#overview)
+  - [History](#history)
+  - [Building and Installing](#building-and-installing)
+    - [Dependencies](#dependencies)
+    - [Building](#building)
+    - [Installing](#installing)
+    - [Experimental Python Scripting Support](#experimental-python-scripting-support)
+  - [Usage](#usage)
+  - [Comparison](#comparison)
+    - [With SquashFS](#with-squashfs)
+    - [With SquashFS \& xz](#with-squashfs--xz)
+    - [With lrzip](#with-lrzip)
+    - [With zpaq](#with-zpaq)
+    - [With wimlib](#with-wimlib)
+    - [With Cromfs](#with-cromfs)
+    - [With EROFS](#with-erofs)
 
 ## Overview
 
