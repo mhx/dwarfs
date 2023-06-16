@@ -682,7 +682,21 @@ class zstd_block_decompressor final : public block_decompressor::impl {
       : decompressed_(target)
       , data_(data)
       , size_(size)
-      , uncompressed_size_(ZSTD_getDecompressedSize(data, size)) {
+      , uncompressed_size_(ZSTD_getFrameContentSize(data, size)) {
+
+    switch (uncompressed_size_) {
+    case ZSTD_CONTENTSIZE_UNKNOWN:
+      DWARFS_THROW(runtime_error, "ZSTD content size unknown");
+      break;
+
+    case ZSTD_CONTENTSIZE_ERROR:
+      DWARFS_THROW(runtime_error, "ZSTD content size error");
+      break;
+
+    default:
+      break;
+    }
+
     try {
       decompressed_.reserve(uncompressed_size_);
     } catch (std::bad_alloc const&) {
@@ -719,7 +733,7 @@ class zstd_block_decompressor final : public block_decompressor::impl {
   std::vector<uint8_t>& decompressed_;
   const uint8_t* const data_;
   const size_t size_;
-  const size_t uncompressed_size_;
+  const unsigned long long  uncompressed_size_;
   std::string error_;
 };
 #endif
