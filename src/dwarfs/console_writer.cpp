@@ -245,7 +245,11 @@ void console_writer::update(const progress& p, bool last) {
   if (pg_mode_ == SIMPLE) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
+#if FMT_VERSION >= 100000
+                    p.blocks_written.load(), size_with_unit(p.compressed_size));
+#else
                     p.blocks_written, size_with_unit(p.compressed_size));
+#endif
     if (tmp != statebuf_) {
       auto t = boost::posix_time::microsec_clock::local_time();
       statebuf_ = tmp;

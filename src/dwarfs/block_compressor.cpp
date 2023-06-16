@@ -262,7 +262,12 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
     if (auto it = lzma_error_desc.find(ret); it != lzma_error_desc.end()) {
       DWARFS_THROW(runtime_error, fmt::format("LZMA error: {}", it->second));
     } else {
+#if FMT_VERSION>=100000
+      DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}",
+                                              static_cast<int>(ret)));
+#else
       DWARFS_THROW(runtime_error, fmt::format("LZMA: unknown error {}", ret));
+#endif
     }
   }
 
@@ -596,7 +601,12 @@ class lzma_block_decompressor final : public block_decompressor::impl {
       if (it != lzma_error_desc.end()) {
         error_ = fmt::format("LZMA: decompression failed ({})", it->second);
       } else {
+#if FMT_VERSION >= 100000
+      error_ = fmt::format("LZMA: decompression failed (error {})",
+                             static_cast<int>(ret));
+#else
         error_ = fmt::format("LZMA: decompression failed (error {})", ret);
+#endif
       }
       DWARFS_THROW(runtime_error, error_);
     }
@@ -781,8 +791,13 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_ret ret = lzma_code(&s, LZMA_RUN);
   if (ret != LZMA_STREAM_END || s.avail_in != 0) {
+#if FMT_VERSION >= 100000
+    DWARFS_THROW(runtime_error, fmt::format("lzma_code(): {} (avail_in={})",
+                                            static_cast<int>(ret), s.avail_in));
+#else
     DWARFS_THROW(runtime_error,
                  fmt::format("lzma_code(): {} (avail_in={})", ret, s.avail_in));
+#endif
   }
 
   pos -= LZMA_STREAM_HEADER_SIZE;
