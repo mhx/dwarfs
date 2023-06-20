@@ -186,21 +186,25 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 endif()
 
-find_package(PkgConfig REQUIRED)
+find_package(PkgConfig)
 
 if(STATIC_BUILD_DO_NOT_USE)
-  list(APPEND PKG_CONFIG_EXECUTABLE "--static")
+  if (PKG_CONFIG_FOUND)
+    list(APPEND PKG_CONFIG_EXECUTABLE "--static")
+  endif()
 endif()
 
-pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
-pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
-pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
-pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
-pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
-pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
-pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
-pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
-pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
+if(PKG_CONFIG_FOUND)
+  pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
+  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
+  pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
+  pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
+  pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
+  pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
+  pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
+  pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
+  pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
+endif()
 
 if(XXHASH_FOUND)
   list(APPEND CMAKE_REQUIRED_LIBRARIES PkgConfig::XXHASH)
@@ -215,8 +219,12 @@ if(XXHASH_FOUND)
     XXHASH_VERSION_OK)
 endif()
 
-if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
-  message(FATAL_ERROR "No FUSE or FUSE3 library found")
+if(WIN32)
+  # TODO
+else()
+  if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
+    message(FATAL_ERROR "No FUSE or FUSE3 library found")
+  endif()
 endif()
 
 if(WITH_TESTS)
@@ -303,28 +311,31 @@ if(NOT
     AND PREFER_SYSTEM_XXHASH))
   add_library(xxhash xxHash/xxhash.c)
 
-  target_compile_options(
-    xxhash
-    PRIVATE -Wall
-            -Wextra
-            -Wconversion
-            -Wcast-qual
-            -Wcast-align
-            -Wshadow
-            -Wstrict-aliasing=1
-            -Wswitch-enum
-            -Wdeclaration-after-statement
-            -Wstrict-prototypes
-            -Wundef
-            -Wpointer-arith
-            -Wformat-security
-            -Wvla
-            -Wformat=2
-            -Winit-self
-            -Wfloat-equal
-            -Wwrite-strings
-            -Wredundant-decls
-            -Wstrict-overflow=2)
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    target_compile_options(
+      xxhash
+      PRIVATE -Wall
+              -Wextra
+              -Wconversion
+              -Wcast-qual
+              -Wcast-align
+              -Wshadow
+              -Wstrict-aliasing=1
+              -Wswitch-enum
+              -Wdeclaration-after-statement
+              -Wstrict-prototypes
+              -Wundef
+              -Wpointer-arith
+              -Wformat-security
+              -Wvla
+              -Wformat=2
+              -Winit-self
+              -Wfloat-equal
+              -Wwrite-strings
+              -Wredundant-decls
+              -Wstrict-overflow=2)
+  endif()
 endif()
 
 list(
@@ -567,26 +578,31 @@ list(
 
 add_custom_command(
   OUTPUT ${FROZEN_THRIFT_SRC}
-  COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
-  COMMAND
-    cp ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
-    ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
-  COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift &&
-          ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1 --gen mstch_cpp2 frozen.thrift
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
+              ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
+	      --gen mstch_cpp2
+	      frozen.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift)
+          ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
+)
 
 add_custom_command(
   OUTPUT ${METADATA_THRIFT_SRC}
-  COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-  COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
-          thrift/dwarfs/metadata.thrift
-  COMMAND
-    cd ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs &&
-    ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1 --gen mstch_cpp2:frozen2
-    metadata.thrift
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
+              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/metadata.thrift
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+	      --gen mstch_cpp2:frozen2
+              metadata.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift)
+          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+)
 
 list(
   APPEND
@@ -634,6 +650,7 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
+target_link_libraries(thrift_light folly)
 
 target_include_directories(thrift_light PRIVATE ${INCLUDE_DIRS})
 
@@ -671,7 +688,10 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGE
     target_compile_definitions(${tgt} PRIVATE DWARFS_USE_EXCEPTION_TRACER)
   endif()
 
-  target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
+  endif()
 
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
@@ -745,7 +765,9 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  if(LIBARCHIVE_FOUND)
+    target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  endif()
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
