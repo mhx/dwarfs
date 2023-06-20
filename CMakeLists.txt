@@ -160,7 +160,7 @@ else()
   find_package(fmt 10.0 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
 endif()
 
-list(APPEND DWARFS_BOOST_MODULES date_time filesystem program_options system)
+list(APPEND DWARFS_BOOST_MODULES chrono date_time filesystem program_options system)
 
 if(WITH_PYTHON)
   # TODO: would be nicer to be able to support a range of python versions

@@ -38,6 +38,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <boost/chrono/thread_clock.hpp>
+
 #include "dwarfs/error.h"
 #include "dwarfs/util.h"
 
@@ -131,6 +133,8 @@ class level_logger {
 
 class timed_level_logger {
  public:
+  using thread_clock = boost::chrono::thread_clock;
+
   timed_level_logger(logger& lgr, logger::level_type level,
                      char const* file = nullptr, int line = 0,
                      bool with_cpu = false)
@@ -142,7 +146,7 @@ class timed_level_logger {
       , line_(line) {
     oss_.imbue(lgr_.locale());
     if (with_cpu) {
-      ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_start_time_);
+      cpu_start_time_ = thread_clock::now();
     }
   }
 
@@ -154,11 +158,9 @@ class timed_level_logger {
           std::chrono::high_resolution_clock::now() - start_time_;
       oss_ << " [" << time_with_unit(sec.count());
       if (with_cpu_) {
-        struct ::timespec cpu_end_time;
-        ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_end_time);
-        auto cpu_time = timespec_to_double(cpu_end_time) -
-                        timespec_to_double(cpu_start_time_);
-        oss_ << ", " << time_with_unit(cpu_time) << " CPU";
+        boost::chrono::duration<double> cpu_time_sec =
+            thread_clock::now() - cpu_start_time_;
+        oss_ << ", " << time_with_unit(cpu_time_sec.count()) << " CPU";
       }
       oss_ << "]";
       lgr_.write(level_, oss_.str(), file_, line_);
@@ -173,15 +175,11 @@ class timed_level_logger {
   }
 
  private:
-  static double timespec_to_double(struct ::timespec const& ts) {
-    return ts.tv_sec + 1e-9 * ts.tv_nsec;
-  }
-
   logger& lgr_;
   std::ostringstream oss_;
   logger::level_type const level_;
   std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
-  struct ::timespec cpu_start_time_;
+  thread_clock::time_point cpu_start_time_;
   bool output_{false};
   bool const with_cpu_;
   char const* const file_;
