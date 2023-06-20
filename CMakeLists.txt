@@ -48,6 +48,10 @@ else()
   set(LIBARCHIVE_GIT_REPO https://github.com/libarchive/libarchive.git)
 endif()
 
+if(DEFINED ENV{CCACHE_PREFIX})
+  add_compile_options(-Wno-gnu-line-marker)
+endif()
+
 set(default_build_type "Release")
 
 set(CMAKE_CXX_STANDARD 20)
