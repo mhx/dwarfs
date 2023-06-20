@@ -19,109 +19,84 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cassert>
 #include <cerrno>
 
-#include <fcntl.h>
+#ifndef _WIN32
 #include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include <fmt/format.h>
+#endif
 
 #include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
 
 namespace dwarfs {
 
-namespace {
-
-int safe_open(const std::string& path) {
-  int fd = ::open(path.c_str(), O_RDONLY);
-
-  if (fd == -1) {
-    DWARFS_THROW(system_error, fmt::format("open('{}')", path));
-  }
-
-  return fd;
-}
-
-size_t safe_size(int fd) {
-  struct stat st;
-  if (::fstat(fd, &st) == -1) {
-    DWARFS_THROW(system_error, "fstat");
-  }
-  return st.st_size;
-}
-
-void* safe_mmap(int fd, size_t size) {
-  if (size == 0) {
-    DWARFS_THROW(runtime_error, "empty file");
-  }
-
-  void* addr = ::mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-
-  if (addr == MAP_FAILED) {
-    DWARFS_THROW(system_error, "mmap");
-  }
-
-  return addr;
-}
-
-} // namespace
-
-std::error_code mmap::lock(off_t offset, size_t size) {
+std::error_code
+mmap::lock(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
-  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
-  if (::mlock(addr, size) != 0) {
+
+#ifndef _WIN32
+  if (::mlock(mf_.const_data() + offset, size) != 0) {
     ec.assign(errno, std::generic_category());
   }
+#endif
+
   return ec;
 }
 
-std::error_code mmap::release(off_t offset, size_t size) {
+std::error_code
+mmap::release(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
+
+#ifndef _WIN32
   auto misalign = offset % page_size_;
 
   offset -= misalign;
   size += misalign;
   size -= size % page_size_;
 
-  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
-  if (::madvise(addr, size, MADV_DONTNEED) != 0) {
+  if (::madvise(mf_.data() + offset, size, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
+#endif
+
   return ec;
 }
 
-std::error_code mmap::release_until(off_t offset) {
+std::error_code mmap::release_until(off_t offset [[maybe_unused]]) {
   std::error_code ec;
 
+#ifndef _WIN32
   offset -= offset % page_size_;
 
-  if (::madvise(addr_, offset, MADV_DONTNEED) != 0) {
+  if (::madvise(mf_.data(), offset, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
+#endif
+
   return ec;
 }
 
-void const* mmap::addr() const { return addr_; }
+void const* mmap::addr() const { return mf_.const_data(); }
 
-size_t mmap::size() const { return size_; }
+size_t mmap::size() const { return mf_.size(); }
 
 mmap::mmap(const std::string& path)
-    : fd_(safe_open(path))
-    , size_(safe_size(fd_))
-    , addr_(safe_mmap(fd_, size_))
-    , page_size_(::sysconf(_SC_PAGESIZE)) {}
+    : mf_(path, boost::iostreams::mapped_file::readonly)
+#ifndef _WIN32
+    , page_size_(::sysconf(_SC_PAGESIZE))
+#endif
+{
+  assert(mf_.is_open());
+}
 
 mmap::mmap(const std::string& path, size_t size)
-    : fd_(safe_open(path))
-    , size_(size)
-    , addr_(safe_mmap(fd_, size_))
-    , page_size_(::sysconf(_SC_PAGESIZE)) {}
-
-mmap::~mmap() noexcept {
-  ::munmap(addr_, size_);
-  ::close(fd_);
+    : mf_(path, boost::iostreams::mapped_file::readonly, size)
+#ifndef _WIN32
+    , page_size_(::sysconf(_SC_PAGESIZE))
+#endif
+{
+  assert(mf_.is_open());
 }
+
 } // namespace dwarfs

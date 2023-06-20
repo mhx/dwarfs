@@ -24,6 +24,8 @@
 #include <cstddef>
 #include <string>
 
+#include <boost/iostreams/device/mapped_file.hpp>
+
 #include "dwarfs/mmif.h"
 
 namespace dwarfs {
@@ -33,8 +35,6 @@ class mmap : public mmif {
   explicit mmap(const std::string& path);
   mmap(const std::string& path, size_t size);
 
-  ~mmap() noexcept override;
-
   void const* addr() const override;
   size_t size() const override;
 
@@ -43,9 +43,9 @@ class mmap : public mmif {
   std::error_code release_until(off_t offset) override;
 
  private:
-  int fd_;
-  size_t size_;
-  void* addr_;
+  boost::iostreams::mapped_file mutable mf_;
+#ifndef _WIN32
   off_t const page_size_;
+#endif
 };
 } // namespace dwarfs
