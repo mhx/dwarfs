@@ -31,10 +31,18 @@
 #include <type_traits>
 #include <vector>
 
+#ifdef _WIN32
+
+#include <folly/portability/Windows.h>
+
+#else
+
 #include <sys/time.h>
 #include <unistd.h>
 
 #include <pthread.h>
+
+#endif
 
 #include <folly/Conv.h>
 #include <folly/system/ThreadName.h>
@@ -48,6 +56,28 @@ namespace dwarfs {
 
 namespace {
 
+#ifdef _WIN32
+
+double get_thread_cpu_time(std::thread const& t) {
+  static_assert(sizeof(std::thread::id) == sizeof(DWORD),
+                "Win32 thread id type mismatch");
+  auto tid = t.get_id();
+  DWORD id;
+  std::memcpy(&id, &tid, sizeof(id));
+  HANDLE h = ::OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, id);
+  FILETIME t_create, t_exit, t_sys, t_user;
+  if (::GetThreadTimes(h, &t_create, &t_exit, &t_sys, &t_user)) {
+    uint64_t sys = (static_cast<uint64_t>(t_sys.dwHighDateTime) << 32) +
+                   t_sys.dwLowDateTime;
+    uint64_t user = (static_cast<uint64_t>(t_user.dwHighDateTime) << 32) +
+                    t_user.dwLowDateTime;
+    return 1e-7 * (sys + user);
+  }
+  throw std::runtime_error("get_thread_cpu_time");
+}
+
+#else
+
 pthread_t std_to_pthread_id(std::thread::id tid) {
   static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
   static_assert(sizeof(std::thread::id) ==
@@ -56,6 +86,18 @@ pthread_t std_to_pthread_id(std::thread::id tid) {
   std::memcpy(&id, &tid, sizeof(id));
   return id;
 }
+
+double get_thread_cpu_time(std::thread const& t) {
+  ::clockid_t cid;
+  struct ::timespec ts;
+  if (::pthread_getcpuclockid(std_to_pthread_id(t.get_id()), &cid) == 0 &&
+      ::clock_gettime(cid, &ts) == 0) {
+    return ts.tv_sec + 1e-9 * ts.tv_nsec;
+  }
+  throw std::runtime_error("get_thread_cpu_time");
+}
+
+#endif
 
 } // namespace
 
@@ -175,13 +217,11 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     std::lock_guard lock(mx_);
     double t = 0.0;
 
+    // TODO:
+    // return workers_ | std::views::transform(get_thread_cpu_time) |
+    // std::ranges::accumulate;
     for (auto const& w : workers_) {
-      ::clockid_t cid;
-      struct ::timespec ts;
-      if (::pthread_getcpuclockid(std_to_pthread_id(w.get_id()), &cid) == 0 &&
-          ::clock_gettime(cid, &ts) == 0) {
-        t += ts.tv_sec + 1e-9 * ts.tv_nsec;
-      }
+      t += get_thread_cpu_time(w);
     }
 
     return t;
