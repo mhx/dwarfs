@@ -32,23 +32,19 @@
 #include <utility>
 #include <vector>
 
-#include <sys/types.h>
-
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
 #include "dwarfs/metadata_types.h"
-
-struct stat;
-struct statvfs;
 
 namespace dwarfs {
 
 class logger;
 
 struct metadata_options;
-
 struct filesystem_info;
+struct file_stat;
+struct vfs_stat;
 
 namespace thrift::metadata {
 class metadata;
@@ -98,7 +94,7 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view iv, struct ::stat* stbuf) const {
+  int getattr(inode_view iv, file_stat* stbuf) const {
     return impl_->getattr(iv, stbuf);
   }
 
@@ -127,7 +123,7 @@ class metadata_v2 {
     return impl_->readlink(iv);
   }
 
-  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
+  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
 
   std::optional<chunk_range> get_chunks(int inode) const {
     return impl_->get_chunks(inode);
@@ -163,7 +159,7 @@ class metadata_v2 {
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
 
-    virtual int getattr(inode_view iv, struct ::stat* stbuf) const = 0;
+    virtual int getattr(inode_view iv, file_stat* stbuf) const = 0;
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 
@@ -180,7 +176,7 @@ class metadata_v2 {
 
     virtual folly::Expected<std::string, int> readlink(inode_view iv) const = 0;
 
-    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
+    virtual int statvfs(vfs_stat* stbuf) const = 0;
 
     virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
 

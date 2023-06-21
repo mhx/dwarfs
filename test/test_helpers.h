@@ -33,12 +33,28 @@
 #include <variant>
 #include <vector>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/script.h"
 
-struct stat;
-
 namespace dwarfs::test {
+
+struct simplestat {
+  file_stat::ino_type ino;
+  file_stat::mode_type mode;
+  file_stat::nlink_type nlink;
+  file_stat::uid_type uid;
+  file_stat::gid_type gid;
+  file_stat::off_type size;
+  file_stat::dev_type rdev;
+  file_stat::time_type atime;
+  file_stat::time_type mtime;
+  file_stat::time_type ctime;
+
+  posix_file_type::value type() const {
+    return static_cast<posix_file_type::value>(mode & posix_file_type::mask);
+  }
+};
 
 class os_access_mock : public os_access {
  public:
@@ -49,10 +65,10 @@ class os_access_mock : public os_access {
 
   size_t size() const;
 
-  void add(std::filesystem::path const& path, struct ::stat const& st);
-  void add(std::filesystem::path const& path, struct ::stat const& st,
+  void add(std::filesystem::path const& path, simplestat const& st);
+  void add(std::filesystem::path const& path, simplestat const& st,
            std::string const& contents);
-  void add(std::filesystem::path const& path, struct ::stat const& st,
+  void add(std::filesystem::path const& path, simplestat const& st,
            std::function<std::string()> generator);
 
   void add_dir(std::filesystem::path const& path);
@@ -61,16 +77,15 @@ class os_access_mock : public os_access {
 
   void set_access_fail(std::filesystem::path const& path);
 
-  std::shared_ptr<dir_reader> opendir(const std::string& path) const override;
+  std::shared_ptr<dir_reader> opendir(std::string const& path) const override;
 
-  void lstat(const std::string& path, struct ::stat* st) const override;
-
-  std::string readlink(const std::string& path, size_t size) const override;
+  file_stat symlink_info(std::string const& path) const override;
+  std::string read_symlink(std::string const& path) const override;
 
   std::shared_ptr<mmif>
-  map_file(const std::string& path, size_t size) const override;
+  map_file(std::string const& path, size_t size) const override;
 
-  int access(const std::string&, int) const override;
+  int access(std::string const&, int) const override;
 
  private:
   struct mock_directory;
@@ -80,7 +95,7 @@ class os_access_mock : public os_access {
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
   void add_internal(
-      std::filesystem::path const& path, struct ::stat const& st,
+      std::filesystem::path const& path, simplestat const& st,
       std::variant<std::monostate, std::string, std::function<std::string()>,
                    std::unique_ptr<mock_directory>>
           var);
@@ -108,19 +123,6 @@ class script_mock : public script {
   void order(inode_vector& /*iv*/) override {
     // do nothing
   }
-};
-
-struct simplestat {
-  ::ino_t st_ino;
-  ::mode_t st_mode;
-  ::nlink_t st_nlink;
-  ::uid_t st_uid;
-  ::gid_t st_gid;
-  ::off_t st_size;
-  ::dev_t st_rdev;
-  uint64_t atime;
-  uint64_t mtime;
-  uint64_t ctime;
 };
 
 extern std::map<std::string, simplestat> statmap;

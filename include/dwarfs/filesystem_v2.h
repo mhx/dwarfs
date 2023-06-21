@@ -32,16 +32,11 @@
 #include <string>
 #include <utility>
 
-#include <sys/types.h>
-
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
-
-struct stat;
-struct statvfs;
 
 namespace dwarfs {
 
@@ -49,6 +44,8 @@ struct cache_tidy_config;
 struct filesystem_options;
 struct rewrite_options;
 struct iovec_read_buf;
+struct file_stat;
+struct vfs_stat;
 
 class filesystem_writer;
 class logger;
@@ -107,7 +104,7 @@ class filesystem_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view entry, struct ::stat* stbuf) const {
+  int getattr(inode_view entry, file_stat* stbuf) const {
     return impl_->getattr(entry, stbuf);
   }
 
@@ -134,7 +131,7 @@ class filesystem_v2 {
     return impl_->readlink(entry);
   }
 
-  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
+  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
 
   int open(inode_view entry) const { return impl_->open(entry); }
 
@@ -176,7 +173,7 @@ class filesystem_v2 {
     virtual std::optional<inode_view> find(int inode) const = 0;
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
-    virtual int getattr(inode_view entry, struct ::stat* stbuf) const = 0;
+    virtual int getattr(inode_view entry, file_stat* stbuf) const = 0;
     virtual int
     access(inode_view entry, int mode, uid_t uid, gid_t gid) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
@@ -186,7 +183,7 @@ class filesystem_v2 {
     virtual int readlink(inode_view entry, std::string* buf) const = 0;
     virtual folly::Expected<std::string, int>
     readlink(inode_view entry) const = 0;
-    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
+    virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual ssize_t
     read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;

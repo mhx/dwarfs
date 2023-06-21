@@ -188,6 +188,7 @@ bool wait_until_file_ready(std::filesystem::path const& path,
 }
 
 bool check_readonly(std::filesystem::path const& p, bool readonly = false) {
+  // TODO: std::filesystem
   struct ::stat buf;
   if (::stat(p.c_str(), &buf) != 0) {
     throw std::runtime_error("could not stat " + p.string());
@@ -211,6 +212,7 @@ bool check_readonly(std::filesystem::path const& p, bool readonly = false) {
 }
 
 ::nlink_t num_hardlinks(std::filesystem::path const& p) {
+  // TODO: std::filesystem
   struct ::stat buf;
   if (::stat(p.c_str(), &buf) != 0) {
     throw std::runtime_error("could not stat " + p.string());

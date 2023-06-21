@@ -351,6 +351,7 @@ list(
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp
   src/dwarfs/file_scanner.cpp
+  src/dwarfs/file_type.cpp
   src/dwarfs/filesystem_extractor.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
@@ -366,7 +367,7 @@ list(
   src/dwarfs/nilsimsa.cpp
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
-  src/dwarfs/os_access_posix.cpp
+  src/dwarfs/os_access_generic.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/similarity.cpp

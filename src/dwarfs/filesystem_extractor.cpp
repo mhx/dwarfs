@@ -25,9 +25,6 @@
 #include <mutex>
 #include <thread>
 
-#include <sys/statvfs.h>
-#include <unistd.h>
-
 #include <archive.h>
 #include <archive_entry.h>
 
@@ -35,11 +32,13 @@
 #include <folly/ScopeGuard.h>
 #include <folly/system/ThreadName.h>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options.h"
+#include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
@@ -230,13 +229,13 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   sem.post(opts.max_queued_bytes);
 
-  struct ::statvfs vfs;
+  vfs_stat vfs;
   fs.statvfs(&vfs);
 
   std::atomic<size_t> hard_error{0};
   std::atomic<size_t> soft_error{0};
   std::atomic<uint64_t> bytes_written{0};
-  uint64_t const bytes_total{vfs.f_blocks};
+  uint64_t const bytes_total{vfs.blocks};
 
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
@@ -322,14 +321,19 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     auto inode = entry.inode();
 
     auto ae = ::archive_entry_new();
-    struct ::stat stbuf;
+    file_stat stbuf;
 
     if (fs.getattr(inode, &stbuf) != 0) {
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
+    struct ::stat st;
+
+    ::memset(&st, 0, sizeof(st));
+    copy_file_stat(&st, stbuf);
+
     ::archive_entry_set_pathname(ae, entry.path().c_str());
-    ::archive_entry_copy_stat(ae, &stbuf);
+    ::archive_entry_copy_stat(ae, &st);
 
     if (S_ISLNK(inode.mode())) {
       std::string link;

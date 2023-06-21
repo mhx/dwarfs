@@ -44,6 +44,7 @@
 #endif
 
 #include "dwarfs/error.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
@@ -53,6 +54,7 @@
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
+#include "dwarfs/vfs_stat.h"
 #include "dwarfs_tool_main.h"
 
 namespace dwarfs {
@@ -159,11 +161,14 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     auto entry = userdata->fs.find(parent, name);
 
     if (entry) {
-      struct ::fuse_entry_param e;
+      file_stat stbuf;
 
-      err = userdata->fs.getattr(*entry, &e.attr);
+      err = userdata->fs.getattr(*entry, &stbuf);
 
       if (err == 0) {
+        struct ::fuse_entry_param e;
+
+        copy_file_stat(&e.attr, stbuf);
         e.generation = 1;
         e.ino = e.attr.st_ino;
         e.attr_timeout = std::numeric_limits<double>::max();
@@ -199,12 +204,17 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
     auto entry = userdata->fs.find(ino);
 
     if (entry) {
-      struct ::stat stbuf;
+      file_stat stbuf;
 
       err = userdata->fs.getattr(*entry, &stbuf);
 
       if (err == 0) {
-        fuse_reply_attr(req, &stbuf, std::numeric_limits<double>::max());
+        struct ::stat st;
+
+        ::memset(&st, 0, sizeof(st));
+        copy_file_stat(&st, stbuf);
+
+        fuse_reply_attr(req, &st, std::numeric_limits<double>::max());
 
         return;
       }
@@ -380,9 +390,12 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
       if (dir) {
         off_t lastoff = userdata->fs.dirsize(*dir);
-        struct stat stbuf;
+        file_stat stbuf;
+        struct ::stat st;
         std::vector<char> buf(size);
         size_t written = 0;
+
+        ::memset(&st, 0, sizeof(st));
 
         while (off < lastoff && written < size) {
           auto res = userdata->fs.readdir(*dir, off);
@@ -392,12 +405,13 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
           std::string name(name_view);
 
           userdata->fs.getattr(entry, &stbuf);
+          copy_file_stat(&st, stbuf);
 
           assert(written < buf.size());
 
           size_t needed =
               fuse_add_direntry(req, &buf[written], buf.size() - written,
-                                name.c_str(), &stbuf, off + 1);
+                                name.c_str(), &st, off + 1);
 
           if (written + needed > buf.size()) {
             break;
@@ -435,12 +449,21 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
   int err = EIO;
 
   try {
-    struct ::statvfs buf;
+    vfs_stat stbuf;
 
-    err = userdata->fs.statvfs(&buf);
+    err = userdata->fs.statvfs(&stbuf);
 
     if (err == 0) {
-      fuse_reply_statfs(req, &buf);
+      struct ::statvfs st;
+
+      ::memset(&st, 0, sizeof(st));
+      copy_vfs_stat(&st, stbuf);
+
+      if (stbuf.readonly) {
+        st.f_flag |= ST_RDONLY;
+      }
+
+      fuse_reply_statfs(req, &st);
 
       return;
     }

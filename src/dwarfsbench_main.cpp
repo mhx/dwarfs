@@ -26,6 +26,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
@@ -109,9 +110,9 @@ int dwarfsbench_main(int argc, char** argv) {
       if (S_ISREG(inode_data.mode())) {
         wg.add_job([&fs, inode_data] {
           try {
-            struct ::stat stbuf;
+            file_stat stbuf;
             if (fs.getattr(inode_data, &stbuf) == 0) {
-              std::vector<char> buf(stbuf.st_size);
+              std::vector<char> buf(stbuf.size);
               int fh = fs.open(inode_data);
               fs.read(fh, buf.data(), buf.size());
             }

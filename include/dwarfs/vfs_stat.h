@@ -21,33 +21,29 @@
 
 #pragma once
 
-#include <filesystem>
-#include <memory>
-#include <string>
-
-#include "dwarfs/file_stat.h"
+#include <cstdint>
 
 namespace dwarfs {
 
-class mmif;
+struct vfs_stat {
+  using blkcnt_type = uint64_t;
+  using filcnt_type = uint64_t;
 
-class dir_reader {
- public:
-  virtual ~dir_reader() = default;
-
-  virtual bool read(std::string& name) = 0;
+  uint64_t bsize;
+  uint64_t frsize;
+  blkcnt_type blocks;
+  filcnt_type files;
+  uint64_t namemax;
+  bool readonly;
 };
 
-class os_access {
- public:
-  virtual ~os_access() = default;
+template <typename T>
+void copy_vfs_stat(T* out, vfs_stat const& in) {
+  out->f_bsize = in.bsize;
+  out->f_frsize = in.frsize;
+  out->f_blocks = in.blocks;
+  out->f_files = in.files;
+  out->f_namemax = in.namemax;
+}
 
-  virtual std::shared_ptr<dir_reader>
-  opendir(std::string const& path) const = 0;
-  virtual file_stat symlink_info(std::string const& path) const = 0;
-  virtual std::string read_symlink(std::string const& path) const = 0;
-  virtual std::shared_ptr<mmif>
-  map_file(std::string const& path, size_t size) const = 0;
-  virtual int access(std::string const& path, int mode) const = 0;
-};
 } // namespace dwarfs

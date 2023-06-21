@@ -25,9 +25,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <sys/mman.h>
-#include <sys/statvfs.h>
-
 #include <fmt/format.h>
 
 #include "dwarfs/block_cache.h"
@@ -328,7 +325,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<inode_view> find(const char* path) const override;
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
-  int getattr(inode_view entry, struct ::stat* stbuf) const override;
+  int getattr(inode_view entry, file_stat* stbuf) const override;
   int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
   std::optional<std::pair<inode_view, std::string>>
@@ -336,7 +333,7 @@ class filesystem_ final : public filesystem_v2::impl {
   size_t dirsize(directory_view dir) const override;
   int readlink(inode_view entry, std::string* buf) const override;
   folly::Expected<std::string, int> readlink(inode_view entry) const override;
-  int statvfs(struct ::statvfs* stbuf) const override;
+  int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
   ssize_t
   read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
@@ -494,7 +491,7 @@ filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::getattr(inode_view entry,
-                                       struct ::stat* stbuf) const {
+                                       file_stat* stbuf) const {
   return meta_.getattr(entry, stbuf);
 }
 
@@ -534,7 +531,7 @@ filesystem_<LoggerPolicy>::readlink(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   // TODO: not sure if that's the right abstraction...
   return meta_.statvfs(stbuf);
 }

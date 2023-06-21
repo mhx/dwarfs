@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <filesystem>
 #include <map>
 #include <random>
 #include <regex>
@@ -36,6 +37,8 @@
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/entry.h"
+#include "dwarfs/file_stat.h"
+#include "dwarfs/file_type.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
@@ -43,6 +46,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
+#include "dwarfs/vfs_stat.h"
 
 #include "filter_test_data.h"
 #include "loremipsum.h"
@@ -50,6 +54,8 @@
 #include "test_helpers.h"
 
 using namespace dwarfs;
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -199,19 +205,19 @@ void basic_end_to_end_test(std::string const& compressor,
 
   // fs.dump(std::cerr, 9);
 
-  struct ::statvfs vfsbuf;
+  vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1 << block_size_bits, vfsbuf.f_bsize);
-  EXPECT_EQ(1, vfsbuf.f_frsize);
+  EXPECT_EQ(1 << block_size_bits, vfsbuf.bsize);
+  EXPECT_EQ(1, vfsbuf.frsize);
   if (enable_nlink) {
-    EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.f_blocks);
+    EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.blocks);
   } else {
-    EXPECT_EQ(access_fail ? 2070390 : 2080390, vfsbuf.f_blocks);
+    EXPECT_EQ(access_fail ? 2070390 : 2080390, vfsbuf.blocks);
   }
-  EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.f_files);
-  EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
-  EXPECT_GT(vfsbuf.f_namemax, 0);
+  EXPECT_EQ(11 + 2 * with_devices + with_specials, vfsbuf.files);
+  EXPECT_TRUE(vfsbuf.readonly);
+  EXPECT_GT(vfsbuf.namemax, 0);
 
   std::ostringstream dumpss;
 
@@ -220,36 +226,36 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/foo.pl");
-  struct ::stat st;
+  file_stat st;
 
   ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 23456);
-  EXPECT_EQ(st.st_uid, set_uid ? 0 : 1337);
-  EXPECT_EQ(st.st_gid, 0);
-  EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 4001 : 4002);
-  EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 4002 : 4002);
-  EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 4003 : 4002);
+  EXPECT_EQ(st.size, 23456);
+  EXPECT_EQ(st.uid, set_uid ? 0 : 1337);
+  EXPECT_EQ(st.gid, 0);
+  EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 4001 : 4002);
+  EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 4002 : 4002);
+  EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 4003 : 4002);
 
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
 
-  std::vector<char> buf(st.st_size);
-  ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
-  EXPECT_EQ(rv, st.st_size);
-  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.st_size));
+  std::vector<char> buf(st.size);
+  ssize_t rv = fs.read(inode, &buf[0], st.size, 0);
+  EXPECT_EQ(rv, st.size);
+  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.size));
 
   entry = fs.find("/somelink");
 
   ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 16);
-  EXPECT_EQ(st.st_uid, set_uid ? 0 : 1000);
-  EXPECT_EQ(st.st_gid, set_gid ? 0 : 100);
-  EXPECT_EQ(st.st_rdev, 0);
-  EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 2001 : 2002);
-  EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 2002 : 2002);
-  EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 2003 : 2002);
+  EXPECT_EQ(st.size, 16);
+  EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
+  EXPECT_EQ(st.gid, set_gid ? 0 : 100);
+  EXPECT_EQ(st.rdev, 0);
+  EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 2001 : 2002);
+  EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 2002 : 2002);
+  EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
   std::string link;
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
@@ -261,7 +267,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   ASSERT_TRUE(entry);
   EXPECT_EQ(fs.getattr(*entry, &st), 0);
-  EXPECT_EQ(st.st_size, 6);
+  EXPECT_EQ(st.size, 6);
 
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
   EXPECT_EQ(link, "../foo");
@@ -271,14 +277,14 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_specials) {
     ASSERT_TRUE(entry);
     EXPECT_EQ(fs.getattr(*entry, &st), 0);
-    EXPECT_EQ(st.st_size, 0);
-    EXPECT_EQ(st.st_uid, set_uid ? 0 : 1000);
-    EXPECT_EQ(st.st_gid, set_gid ? 0 : 100);
-    EXPECT_TRUE(S_ISFIFO(st.st_mode));
-    EXPECT_EQ(st.st_rdev, 0);
-    EXPECT_EQ(st.st_atime, set_time ? 4711 : keep_all_times ? 8001 : 8002);
-    EXPECT_EQ(st.st_mtime, set_time ? 4711 : keep_all_times ? 8002 : 8002);
-    EXPECT_EQ(st.st_ctime, set_time ? 4711 : keep_all_times ? 8003 : 8002);
+    EXPECT_EQ(st.size, 0);
+    EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
+    EXPECT_EQ(st.gid, set_gid ? 0 : 100);
+    EXPECT_EQ(st.type(), posix_file_type::fifo);
+    EXPECT_EQ(st.rdev, 0);
+    EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 8001 : 8002);
+    EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 8002 : 8002);
+    EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 8003 : 8002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -288,11 +294,11 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_devices) {
     ASSERT_TRUE(entry);
     EXPECT_EQ(fs.getattr(*entry, &st), 0);
-    EXPECT_EQ(st.st_size, 0);
-    EXPECT_EQ(st.st_uid, 0);
-    EXPECT_EQ(st.st_gid, 0);
-    EXPECT_TRUE(S_ISCHR(st.st_mode));
-    EXPECT_EQ(st.st_rdev, 259);
+    EXPECT_EQ(st.size, 0);
+    EXPECT_EQ(st.uid, 0);
+    EXPECT_EQ(st.gid, 0);
+    EXPECT_EQ(st.type(), posix_file_type::character);
+    EXPECT_EQ(st.rdev, 259);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -302,20 +308,20 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_devices) {
     ASSERT_TRUE(entry);
     EXPECT_EQ(fs.getattr(*entry, &st), 0);
-    EXPECT_EQ(st.st_size, 0);
-    EXPECT_EQ(st.st_uid, 0);
-    EXPECT_EQ(st.st_gid, 0);
-    EXPECT_TRUE(S_ISCHR(st.st_mode));
-    EXPECT_EQ(st.st_rdev, 261);
-    EXPECT_EQ(st.st_atime, set_time         ? 4711
-                           : keep_all_times ? 4000010001
-                                            : 4000020002);
-    EXPECT_EQ(st.st_mtime, set_time         ? 4711
-                           : keep_all_times ? 4000020002
-                                            : 4000020002);
-    EXPECT_EQ(st.st_ctime, set_time         ? 4711
-                           : keep_all_times ? 4000030003
-                                            : 4000020002);
+    EXPECT_EQ(st.size, 0);
+    EXPECT_EQ(st.uid, 0);
+    EXPECT_EQ(st.gid, 0);
+    EXPECT_EQ(st.type(), posix_file_type::character);
+    EXPECT_EQ(st.rdev, 261);
+    EXPECT_EQ(st.atime, set_time         ? 4711
+                        : keep_all_times ? 4000010001
+                                         : 4000020002);
+    EXPECT_EQ(st.mtime, set_time         ? 4711
+                        : keep_all_times ? 4000020002
+                                         : 4000020002);
+    EXPECT_EQ(st.ctime, set_time         ? 4711
+                        : keep_all_times ? 4000030003
+                                         : 4000020002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -368,14 +374,14 @@ void basic_end_to_end_test(std::string const& compressor,
 
   EXPECT_EQ(entry->inode_num(), e2->inode_num());
 
-  struct ::stat st1, st2;
+  file_stat st1, st2;
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
   ASSERT_EQ(0, fs.getattr(*e2, &st2));
 
-  EXPECT_EQ(st1.st_ino, st2.st_ino);
+  EXPECT_EQ(st1.ino, st2.ino);
   if (enable_nlink) {
-    EXPECT_EQ(2, st1.st_nlink);
-    EXPECT_EQ(2, st2.st_nlink);
+    EXPECT_EQ(2, st1.nlink);
+    EXPECT_EQ(2, st2.nlink);
   }
 
   entry = fs.find("/");
@@ -388,27 +394,27 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_GT(entry->inode_num(), 0);
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
-  EXPECT_EQ(23456, st1.st_size);
+  EXPECT_EQ(23456, st1.size);
   e2 = fs.find(0, "somedir");
   ASSERT_TRUE(e2);
   ASSERT_EQ(0, fs.getattr(*e2, &st2));
-  entry = fs.find(st2.st_ino, "ipsum.py");
+  entry = fs.find(st2.ino, "ipsum.py");
   ASSERT_TRUE(entry);
   ASSERT_EQ(0, fs.getattr(*entry, &st1));
-  EXPECT_EQ(access_fail ? 0 : 10000, st1.st_size);
+  EXPECT_EQ(access_fail ? 0 : 10000, st1.size);
   EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
   EXPECT_EQ(set_uid ? EACCES : 0, fs.access(*entry, R_OK, 1337, 0));
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
-    std::map<std::string, struct ::stat> entries;
+    std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
 
     (fs.*mp)([&](dir_entry_view e) {
-      struct ::stat stbuf;
+      file_stat stbuf;
       ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
-      inodes.push_back(stbuf.st_ino);
+      inodes.push_back(stbuf.ino);
       auto path = e.path();
       if (!path.empty()) {
         path = "/" + path;
@@ -420,16 +426,15 @@ void basic_end_to_end_test(std::string const& compressor,
               input->size() + 2 * with_devices + with_specials - 3);
 
     for (auto const& [p, st] : entries) {
-      struct ::stat ref;
-      input->lstat(p, &ref);
-      EXPECT_EQ(ref.st_mode, st.st_mode) << p;
-      EXPECT_EQ(set_uid ? 0 : ref.st_uid, st.st_uid) << p;
-      EXPECT_EQ(set_gid ? 0 : ref.st_gid, st.st_gid) << p;
-      if (!S_ISDIR(st.st_mode)) {
+      auto ref = input->symlink_info(p);
+      EXPECT_EQ(ref.mode, st.mode) << p;
+      EXPECT_EQ(set_uid ? 0 : ref.uid, st.uid) << p;
+      EXPECT_EQ(set_gid ? 0 : ref.gid, st.gid) << p;
+      if (!st.is_directory()) {
         if (input->access(p, R_OK) == 0) {
-          EXPECT_EQ(ref.st_size, st.st_size) << p;
+          EXPECT_EQ(ref.size, st.size) << p;
         } else {
-          EXPECT_EQ(0, st.st_size) << p;
+          EXPECT_EQ(0, st.size) << p;
         }
       }
     }
@@ -571,19 +576,19 @@ TEST_P(packing_test, regression_empty_fs) {
 
   filesystem_v2 fs(lgr, mm, opts);
 
-  struct ::statvfs vfsbuf;
+  vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1, vfsbuf.f_files);
-  EXPECT_EQ(0, vfsbuf.f_blocks);
+  EXPECT_EQ(1, vfsbuf.files);
+  EXPECT_EQ(0, vfsbuf.blocks);
 
   size_t num = 0;
 
   fs.walk([&](dir_entry_view e) {
     ++num;
-    struct ::stat stbuf;
+    file_stat stbuf;
     ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
-    EXPECT_TRUE(S_ISDIR(stbuf.st_mode));
+    EXPECT_TRUE(stbuf.is_directory());
   });
 
   EXPECT_EQ(1, num);
@@ -649,11 +654,11 @@ TEST(block_manager, regression_block_boundary) {
 
     filesystem_v2 fs(lgr, mm, opts);
 
-    struct ::statvfs vfsbuf;
+    vfs_stat vfsbuf;
     fs.statvfs(&vfsbuf);
 
-    EXPECT_EQ(2, vfsbuf.f_files);
-    EXPECT_EQ(size, vfsbuf.f_blocks);
+    EXPECT_EQ(2, vfsbuf.files);
+    EXPECT_EQ(size, vfsbuf.blocks);
   }
 
   EXPECT_TRUE(std::is_sorted(fs_sizes.begin(), fs_sizes.end()))
@@ -721,26 +726,26 @@ TEST_P(compression_regression, github45) {
 
   filesystem_v2 fs(lgr, mm, opts);
 
-  struct ::statvfs vfsbuf;
+  vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(3, vfsbuf.f_files);
-  EXPECT_EQ(2 * file_size, vfsbuf.f_blocks);
+  EXPECT_EQ(3, vfsbuf.files);
+  EXPECT_EQ(2 * file_size, vfsbuf.blocks);
 
   auto check_file = [&](char const* name, std::string const& contents) {
     auto entry = fs.find(name);
-    struct ::stat st;
+    file_stat st;
 
     ASSERT_TRUE(entry);
     EXPECT_EQ(fs.getattr(*entry, &st), 0);
-    EXPECT_EQ(st.st_size, file_size);
+    EXPECT_EQ(st.size, file_size);
 
     int inode = fs.open(*entry);
     EXPECT_GE(inode, 0);
 
-    std::vector<char> buf(st.st_size);
-    ssize_t rv = fs.read(inode, &buf[0], st.st_size, 0);
-    EXPECT_EQ(rv, st.st_size);
+    std::vector<char> buf(st.size);
+    ssize_t rv = fs.read(inode, &buf[0], st.size, 0);
+    EXPECT_EQ(rv, st.size);
     EXPECT_EQ(std::string(buf.begin(), buf.end()), contents);
   };
 
@@ -824,30 +829,19 @@ TEST_P(filter, filesystem) {
   auto input = std::make_shared<test::os_access_mock>();
 
   for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
-    struct ::stat st;
-
-    std::memset(&st, 0, sizeof(st));
-
-    st.st_ino = stat.st_ino;
-    st.st_mode = stat.st_mode;
-    st.st_nlink = stat.st_nlink;
-    st.st_uid = stat.st_uid;
-    st.st_gid = stat.st_gid;
-    st.st_size = stat.st_size;
-    st.st_atime = stat.atime;
-    st.st_mtime = stat.mtime;
-    st.st_ctime = stat.ctime;
-    st.st_rdev = stat.st_rdev;
-
     auto path = name.substr(name.size() == 5 ? 5 : 6);
 
-    if (S_ISREG(st.st_mode)) {
-      input->add(path, st,
-                 [size = st.st_size] { return test::loremipsum(size); });
-    } else if (S_ISLNK(st.st_mode)) {
-      input->add(path, st, test::loremipsum(st.st_size));
-    } else {
-      input->add(path, st);
+    switch (stat.type()) {
+    case posix_file_type::regular:
+      input->add(path, stat,
+                 [size = stat.size] { return test::loremipsum(size); });
+      break;
+    case posix_file_type::symlink:
+      input->add(path, stat, test::loremipsum(stat.size));
+      break;
+    default:
+      input->add(path, stat);
+      break;
     }
   }
 

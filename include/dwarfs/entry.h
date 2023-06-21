@@ -30,11 +30,10 @@
 #include <string_view>
 #include <vector>
 
-#include <sys/stat.h>
-
 #include <folly/small_vector.h>
 
 #include "dwarfs/entry_interface.h"
+#include "dwarfs/file_stat.h"
 
 namespace dwarfs {
 
@@ -68,16 +67,16 @@ class entry : public entry_interface {
  public:
   enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
-  entry(const std::string& name, std::shared_ptr<entry> parent,
-        const struct ::stat& st);
+  entry(std::string const& name, std::shared_ptr<entry> parent,
+        file_stat const& st);
 
   bool has_parent() const;
   std::shared_ptr<entry> parent() const;
-  void set_name(const std::string& name);
+  void set_name(std::string const& name);
   std::string path() const override;
   std::string dpath() const override;
-  const std::string& name() const override { return name_; }
-  size_t size() const override { return stat_.st_size; }
+  std::string const& name() const override { return name_; }
+  size_t size() const override { return stat_.size; }
   virtual type_t type() const = 0;
   std::string type_string() const override;
   bool is_directory() const override;
@@ -88,11 +87,11 @@ class entry : public entry_interface {
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual void scan(os_access& os, progress& prog) = 0;
-  const struct ::stat& status() const { return stat_; }
+  file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  uint64_t raw_inode_num() const { return stat_.st_ino; }
-  uint64_t num_hard_links() const { return stat_.st_nlink; }
+  uint64_t raw_inode_num() const { return stat_.ino; }
+  uint64_t num_hard_links() const { return stat_.nlink; }
   virtual void set_inode_num(uint32_t ino) = 0;
   virtual std::optional<uint32_t> const& inode_num() const = 0;
 
@@ -110,19 +109,19 @@ class entry : public entry_interface {
   uint64_t get_ctime() const override;
   void set_ctime(uint64_t ctime) override;
 
-  void override_size(size_t size) { stat_.st_size = size; }
+  void override_size(size_t size) { stat_.size = size; }
 
  private:
   std::string name_;
   std::weak_ptr<entry> parent_;
-  struct ::stat stat_;
+  file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
 
 class file : public entry {
  public:
   file(const std::string& name, std::shared_ptr<entry> parent,
-       const struct ::stat& st)
+       file_stat const& st)
       : entry(name, std::move(parent), st) {}
 
   type_t type() const override;

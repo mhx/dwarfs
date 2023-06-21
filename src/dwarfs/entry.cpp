@@ -28,6 +28,7 @@
 #include "dwarfs/checksum.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
+#include "dwarfs/file_type.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/mmif.h"
@@ -40,11 +41,11 @@
 
 namespace dwarfs {
 
-entry::entry(const std::string& name, std::shared_ptr<entry> parent,
-             const struct ::stat& st)
-    : name_(name)
-    , parent_(std::move(parent))
-    , stat_(st) {}
+entry::entry(std::string const& name, std::shared_ptr<entry> parent,
+             file_stat const& st)
+    : name_{name}
+    , parent_{std::move(parent)}
+    , stat_{st} {}
 
 bool entry::has_parent() const {
   if (parent_.lock()) {
@@ -75,80 +76,79 @@ std::string entry::dpath() const {
 }
 
 std::string entry::type_string() const {
-  auto mode = stat_.st_mode;
-
-  if (S_ISREG(mode)) {
+  switch (stat_.type()) {
+  case posix_file_type::regular:
     return "file";
-  } else if (S_ISDIR(mode)) {
+  case posix_file_type::directory:
     return "directory";
-  } else if (S_ISLNK(mode)) {
+  case posix_file_type::symlink:
     return "link";
-  } else if (S_ISCHR(mode)) {
+  case posix_file_type::character:
     return "chardev";
-  } else if (S_ISBLK(mode)) {
+  case posix_file_type::block:
     return "blockdev";
-  } else if (S_ISFIFO(mode)) {
+  case posix_file_type::fifo:
     return "fifo";
-  } else if (S_ISSOCK(mode)) {
+  case posix_file_type::socket:
     return "socket";
+  default:
+    break;
   }
 
-  DWARFS_THROW(runtime_error, fmt::format("unknown file type: {:#06x}", mode));
+  DWARFS_THROW(runtime_error, fmt::format("unknown file type: {:#06x}",
+                                          fmt::underlying(stat_.type())));
 }
 
-bool entry::is_directory() const { return S_ISDIR(stat_.st_mode); }
+bool entry::is_directory() const { return stat_.is_directory(); }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
 
 void entry::update(global_entry_data& data) const {
-  data.add_uid(stat_.st_uid);
-  data.add_gid(stat_.st_gid);
-  data.add_mode(stat_.st_mode & 0xFFFF);
-  data.add_atime(stat_.st_atime);
-  data.add_mtime(stat_.st_mtime);
-  data.add_ctime(stat_.st_ctime);
+  data.add_uid(stat_.uid);
+  data.add_gid(stat_.gid);
+  data.add_mode(stat_.mode);
+  data.add_atime(stat_.atime);
+  data.add_mtime(stat_.mtime);
+  data.add_ctime(stat_.ctime);
 }
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
-  entry_v2.mode_index() = data.get_mode_index(stat_.st_mode & 0xFFFF);
-  entry_v2.owner_index() = data.get_uid_index(stat_.st_uid);
-  entry_v2.group_index() = data.get_gid_index(stat_.st_gid);
-  entry_v2.atime_offset() = data.get_atime_offset(stat_.st_atime);
-  entry_v2.mtime_offset() = data.get_mtime_offset(stat_.st_mtime);
-  entry_v2.ctime_offset() = data.get_ctime_offset(stat_.st_ctime);
+  entry_v2.mode_index() = data.get_mode_index(stat_.mode);
+  entry_v2.owner_index() = data.get_uid_index(stat_.uid);
+  entry_v2.group_index() = data.get_gid_index(stat_.gid);
+  entry_v2.atime_offset() = data.get_atime_offset(stat_.atime);
+  entry_v2.mtime_offset() = data.get_mtime_offset(stat_.mtime);
+  entry_v2.ctime_offset() = data.get_ctime_offset(stat_.ctime);
 }
 
 entry::type_t file::type() const { return E_FILE; }
 
-uint16_t entry::get_permissions() const { return stat_.st_mode & 07777; }
+uint16_t entry::get_permissions() const { return stat_.permissions(); }
 
-void entry::set_permissions(uint16_t perm) {
-  stat_.st_mode &= ~07777;
-  stat_.st_mode |= perm;
-}
+void entry::set_permissions(uint16_t perm) { stat_.set_permissions(perm); }
 
-uint16_t entry::get_uid() const { return stat_.st_uid; }
+uint16_t entry::get_uid() const { return stat_.uid; }
 
-void entry::set_uid(uint16_t uid) { stat_.st_uid = uid; }
+void entry::set_uid(uint16_t uid) { stat_.uid = uid; }
 
-uint16_t entry::get_gid() const { return stat_.st_gid; }
+uint16_t entry::get_gid() const { return stat_.gid; }
 
-void entry::set_gid(uint16_t gid) { stat_.st_gid = gid; }
+void entry::set_gid(uint16_t gid) { stat_.gid = gid; }
 
-uint64_t entry::get_atime() const { return stat_.st_atime; }
+uint64_t entry::get_atime() const { return stat_.atime; }
 
-void entry::set_atime(uint64_t atime) { stat_.st_atime = atime; }
+void entry::set_atime(uint64_t atime) { stat_.atime = atime; }
 
-uint64_t entry::get_mtime() const { return stat_.st_mtime; }
+uint64_t entry::get_mtime() const { return stat_.mtime; }
 
-void entry::set_mtime(uint64_t mtime) { stat_.st_atime = mtime; }
+void entry::set_mtime(uint64_t mtime) { stat_.mtime = mtime; }
 
-uint64_t entry::get_ctime() const { return stat_.st_ctime; }
+uint64_t entry::get_ctime() const { return stat_.ctime; }
 
-void entry::set_ctime(uint64_t ctime) { stat_.st_atime = ctime; }
+void entry::set_ctime(uint64_t ctime) { stat_.ctime = ctime; }
 
 std::string_view file::hash() const {
   auto& h = data_->hash;
@@ -374,43 +374,54 @@ const std::string& link::linkname() const { return link_; }
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access& os, progress& prog) {
-  link_ = os.readlink(path(), size());
+  link_ = os.read_symlink(path());
   prog.original_size += size();
   prog.symlink_size += size();
 }
 
 entry::type_t device::type() const {
-  auto mode = status().st_mode;
-  return S_ISCHR(mode) || S_ISBLK(mode) ? E_DEVICE : E_OTHER;
+  switch (status().type()) {
+  case posix_file_type::character:
+  case posix_file_type::block:
+    return E_DEVICE;
+  default:
+    return E_OTHER;
+  }
 }
 
 void device::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void device::scan(os_access&, progress&) {}
 
-uint64_t device::device_id() const { return status().st_rdev; }
+uint64_t device::device_id() const { return status().rdev; }
 
 class entry_factory_ : public entry_factory {
  public:
   std::shared_ptr<entry> create(os_access& os, const std::string& name,
                                 std::shared_ptr<entry> parent) override {
-    const std::string& p = parent ? parent->path() + "/" + name : name;
-    struct ::stat st;
+    // TODO: std::filesystem::path
+    std::string const& p = parent ? parent->path() + "/" + name : name;
 
-    os.lstat(p, &st);
-    auto mode = st.st_mode;
+    auto st = os.symlink_info(p);
 
-    if (S_ISREG(mode)) {
+    switch (st.type()) {
+    case posix_file_type::regular:
       return std::make_shared<file>(name, std::move(parent), st);
-    } else if (S_ISDIR(mode)) {
+
+    case posix_file_type::directory:
       return std::make_shared<dir>(name, std::move(parent), st);
-    } else if (S_ISLNK(mode)) {
+
+    case posix_file_type::symlink:
       return std::make_shared<link>(name, std::move(parent), st);
-    } else if (S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode) ||
-               S_ISSOCK(mode)) {
+
+    case posix_file_type::character:
+    case posix_file_type::block:
+    case posix_file_type::fifo:
+    case posix_file_type::socket:
       return std::make_shared<device>(name, std::move(parent), st);
-    } else {
+    default:
       // TODO: warn
+      break;
     }
 
     return nullptr;

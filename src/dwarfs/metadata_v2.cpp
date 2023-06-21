@@ -47,12 +47,14 @@
 #include <fsst.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
+#include "dwarfs/vfs_stat.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
@@ -403,7 +405,7 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
 
-  int getattr(inode_view iv, struct ::stat* stbuf) const override;
+  int getattr(inode_view iv, file_stat* stbuf) const override;
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
@@ -422,7 +424,7 @@ class metadata_ final : public metadata_v2::impl {
 
   folly::Expected<std::string, int> readlink(inode_view iv) const override;
 
-  int statvfs(struct ::statvfs* stbuf) const override;
+  int statvfs(vfs_stat* stbuf) const override;
 
   std::optional<chunk_range> get_chunks(int inode) const override;
 
@@ -799,7 +801,7 @@ template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, int detail_level, filesystem_info const& fsinfo,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  struct ::statvfs stbuf;
+  vfs_stat stbuf;
   statvfs(&stbuf);
 
   if (auto version = meta_.dwarfs_version()) {
@@ -815,10 +817,10 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 0) {
-    os << "block size: " << size_with_unit(stbuf.f_bsize) << std::endl;
+    os << "block size: " << size_with_unit(stbuf.bsize) << std::endl;
     os << "block count: " << fsinfo.block_count << std::endl;
-    os << "inode count: " << stbuf.f_files << std::endl;
-    os << "original filesystem size: " << size_with_unit(stbuf.f_blocks)
+    os << "inode count: " << stbuf.files << std::endl;
+    os << "original filesystem size: " << size_with_unit(stbuf.blocks)
        << std::endl;
     os << "compressed block size: "
        << size_with_unit(fsinfo.compressed_block_size)
@@ -966,11 +968,11 @@ template <typename LoggerPolicy>
 folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
   folly::dynamic obj = folly::dynamic::object;
 
-  struct ::statvfs stbuf;
+  vfs_stat stbuf;
   statvfs(&stbuf);
 
-  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.f_bsize)(
-      "f_files", stbuf.f_files)("f_blocks", stbuf.f_blocks);
+  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.bsize)(
+      "f_files", stbuf.files)("f_blocks", stbuf.blocks);
 
   obj["root"] = as_dynamic(root_);
 
@@ -1211,8 +1213,7 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(inode_view iv,
-                                     struct ::stat* stbuf) const {
+int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = iv.mode();
@@ -1227,31 +1228,32 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv,
     }
   }
 
-  stbuf->st_mode = mode;
+  stbuf->mode = mode;
 
   if (options_.readonly) {
-    stbuf->st_mode &= READ_ONLY_MASK;
+    stbuf->mode &= READ_ONLY_MASK;
   }
 
-  stbuf->st_size = S_ISDIR(mode) ? make_directory_view(iv).entry_count()
-                                 : file_size(iv, mode);
-  stbuf->st_ino = inode + inode_offset_;
-  stbuf->st_blocks = (stbuf->st_size + 511) / 512;
-  stbuf->st_uid = iv.getuid();
-  stbuf->st_gid = iv.getgid();
-  stbuf->st_mtime = resolution * (timebase + iv.mtime_offset());
+  stbuf->size = stbuf->is_directory() ? make_directory_view(iv).entry_count()
+                                      : file_size(iv, mode);
+  stbuf->ino = inode + inode_offset_;
+  stbuf->blksize = 512;
+  stbuf->blocks = (stbuf->size + 511) / 512;
+  stbuf->uid = iv.getuid();
+  stbuf->gid = iv.getgid();
+  stbuf->mtime = resolution * (timebase + iv.mtime_offset());
   if (mtime_only) {
-    stbuf->st_atime = stbuf->st_ctime = stbuf->st_mtime;
+    stbuf->atime = stbuf->ctime = stbuf->mtime;
   } else {
-    stbuf->st_atime = resolution * (timebase + iv.atime_offset());
-    stbuf->st_ctime = resolution * (timebase + iv.ctime_offset());
+    stbuf->atime = resolution * (timebase + iv.atime_offset());
+    stbuf->ctime = resolution * (timebase + iv.ctime_offset());
   }
-  stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
-                        ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                        : 1;
+  stbuf->nlink = options_.enable_nlink && stbuf->is_regular_file()
+                     ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
+                     : 1;
 
-  if (S_ISBLK(mode) || S_ISCHR(mode)) {
-    stbuf->st_rdev = get_device_id(inode);
+  if (stbuf->is_device()) {
+    stbuf->rdev = get_device_id(inode);
   }
 
   return 0;
@@ -1358,20 +1360,20 @@ metadata_<LoggerPolicy>::readlink(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  stbuf->f_bsize = meta_.block_size();
-  stbuf->f_frsize = 1UL;
-  stbuf->f_blocks = meta_.total_fs_size();
+  stbuf->bsize = meta_.block_size();
+  stbuf->frsize = 1UL;
+  stbuf->blocks = meta_.total_fs_size();
   if (!options_.enable_nlink) {
     if (auto ths = meta_.total_hardlink_size()) {
-      stbuf->f_blocks += *ths;
+      stbuf->blocks += *ths;
     }
   }
-  stbuf->f_files = inode_count_;
-  stbuf->f_flag = ST_RDONLY;
-  stbuf->f_namemax = PATH_MAX;
+  stbuf->files = inode_count_;
+  stbuf->readonly = true;
+  stbuf->namemax = PATH_MAX;
 
   return 0;
 }

@@ -1,10 +1,12 @@
+#include <array>
+
 #include "test_helpers.h"
 
 namespace dwarfs::test {
 
 std::span<std::pair<simplestat, std::string_view> const> test_dirtree() {
   // clang-format off
-  static std::vector<std::pair<simplestat, std::string_view>> const dt{
+  static std::array<std::pair<simplestat, std::string_view>, 337> const dt{{
     {{46193947, 040755, 1, 0, 0, 10, 27, 1667125429, 1666544836, 1666894334}, "stage"},
     {{46193949, 040755, 1, 0, 0, 10, 27, 1667125429, 1666544836, 1666894334}, "stage/run"},
     {{46193951, 040755, 1, 0, 0, 10, 27, 1667125429, 1666544836, 1666894334}, "stage/boot"},
@@ -342,7 +344,7 @@ std::span<std::pair<simplestat, std::string_view> const> test_dirtree() {
     {{46255143, 060640, 1, 0, 6, 0, 27, 1666894345, 1666544853, 1666894345}, "stage/dev/hda20"},
     {{46255250, 060640, 1, 0, 6, 0, 27, 1666894345, 1666544853, 1666894345}, "stage/dev/sdd"},
     {{46255234, 020600, 1, 0, 0, 0, 27, 1666894345, 1666544853, 1666894345}, "stage/dev/input/event23"},
-  };
+  }};
   // clang-format on
   return dt;
 }

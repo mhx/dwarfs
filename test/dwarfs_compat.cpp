@@ -31,13 +31,12 @@
 #include <tuple>
 #include <vector>
 
-#include <sys/statvfs.h>
-
 #include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -45,6 +44,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
 
 #include "mmap_mock.h"
@@ -797,11 +797,12 @@ std::vector<std::string> headers_v2{
     "DWARFS\x02" + format_sh + "DWARFS\x02",
 };
 
-struct ::stat make_stat(::mode_t mode, ::off_t size) {
-  struct ::stat st;
+file_stat make_stat(posix_file_type::value type, file_stat::perms_type perms,
+                    file_stat::off_type size) {
+  file_stat st;
   std::memset(&st, 0, sizeof(st));
-  st.st_mode = mode;
-  st.st_size = size;
+  st.mode = type | perms;
+  st.size = size;
   return st;
 }
 
@@ -810,15 +811,15 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   bool has_devices = not(version == "0.2.0" or version == "0.2.3");
   bool has_ac_time = version == "0.2.0" or version == "0.2.3";
 
-  struct ::statvfs vfsbuf;
+  vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1024, vfsbuf.f_bsize);
-  EXPECT_EQ(1, vfsbuf.f_frsize);
-  EXPECT_EQ(10614, vfsbuf.f_blocks);
-  EXPECT_EQ(33 + 3 * has_devices, vfsbuf.f_files);
-  EXPECT_EQ(ST_RDONLY, vfsbuf.f_flag);
-  EXPECT_GT(vfsbuf.f_namemax, 0);
+  EXPECT_EQ(1024, vfsbuf.bsize);
+  EXPECT_EQ(1, vfsbuf.frsize);
+  EXPECT_EQ(10614, vfsbuf.blocks);
+  EXPECT_EQ(33 + 3 * has_devices, vfsbuf.files);
+  EXPECT_TRUE(vfsbuf.readonly);
+  EXPECT_GT(vfsbuf.namemax, 0);
 
   auto json = fs.serialize_metadata_as_json(true);
   EXPECT_GT(json.size(), 1000) << json;
@@ -828,18 +829,18 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/format.sh");
-  struct ::stat st;
+  file_stat st;
 
   ASSERT_TRUE(entry);
   EXPECT_EQ(0, fs.getattr(*entry, &st));
-  EXPECT_EQ(94, st.st_size);
-  EXPECT_EQ(S_IFREG | 0755, st.st_mode);
-  EXPECT_EQ(1000, st.st_uid);
-  EXPECT_EQ(100, st.st_gid);
-  EXPECT_EQ(1606256045, st.st_mtime);
+  EXPECT_EQ(94, st.size);
+  EXPECT_EQ(S_IFREG | 0755, st.mode);
+  EXPECT_EQ(1000, st.uid);
+  EXPECT_EQ(100, st.gid);
+  EXPECT_EQ(1606256045, st.mtime);
   if (has_ac_time) {
-    EXPECT_EQ(1616013831, st.st_atime);
-    EXPECT_EQ(1616013816, st.st_ctime);
+    EXPECT_EQ(1616013831, st.atime);
+    EXPECT_EQ(1616013816, st.ctime);
   }
 
   EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 0));
@@ -847,9 +848,9 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   auto inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
 
-  std::vector<char> buf(st.st_size);
-  auto rv = fs.read(inode, &buf[0], st.st_size, 0);
-  EXPECT_EQ(rv, st.st_size);
+  std::vector<char> buf(st.size);
+  auto rv = fs.read(inode, &buf[0], st.size, 0);
+  EXPECT_EQ(rv, st.size);
   EXPECT_EQ(format_sh, std::string(buf.begin(), buf.end()));
 
   entry = fs.find("/foo/bad");
@@ -883,69 +884,71 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
   EXPECT_EQ(expected, names);
 
-  std::map<std::string, struct ::stat> ref_entries{
-      {"", make_stat(S_IFDIR | 0755, 8)},
-      {"bench.sh", make_stat(S_IFREG | 0644, 1517)},
-      {"dev", make_stat(S_IFDIR | 0755, 2)},
-      {"dev/null", make_stat(S_IFCHR | 0666, 0)},
-      {"dev/zero", make_stat(S_IFCHR | 0666, 0)},
-      {"empty", make_stat(S_IFDIR | 0755, 1)},
-      {"empty/alsoempty", make_stat(S_IFDIR | 0755, 0)},
-      {"foo", make_stat(S_IFDIR | 0755, 5)},
-      {"foo/1", make_stat(S_IFDIR | 0755, 2)},
-      {"foo/1/2", make_stat(S_IFDIR | 0755, 2)},
-      {"foo/1/2/3", make_stat(S_IFDIR | 0755, 3)},
-      {"foo/1/2/3/4", make_stat(S_IFDIR | 0755, 2)},
-      {"foo/1/2/3/4/5", make_stat(S_IFDIR | 0755, 2)},
-      {"foo/1/2/3/4/5/6", make_stat(S_IFDIR | 0755, 1)},
-      {"foo/1/2/3/4/5/6/7", make_stat(S_IFDIR | 0755, 1)},
-      {"foo/1/2/3/4/5/6/7/8", make_stat(S_IFDIR | 0755, 1)},
-      {"foo/1/2/3/4/5/6/7/8/9", make_stat(S_IFDIR | 0755, 13)},
-      {"foo/1/2/3/4/5/6/7/8/9/a", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/b", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/blubb", make_stat(S_IFREG | 0644, 1517)},
-      {"foo/1/2/3/4/5/6/7/8/9/c", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/d", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/e", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/f", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/g", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/h", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/i", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/j", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/k", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/6/7/8/9/l", make_stat(S_IFREG | 0644, 2)},
-      {"foo/1/2/3/4/5/z", make_stat(S_IFREG | 0644, 1517)},
-      {"foo/1/2/3/4/y", make_stat(S_IFREG | 0644, 1517)},
-      {"foo/1/2/3/copy.sh", make_stat(S_IFREG | 0755, 94)},
-      {"foo/1/2/3/x", make_stat(S_IFREG | 0644, 1517)},
-      {"foo/1/2/xxx.sh", make_stat(S_IFREG | 0755, 94)},
-      {"foo/1/fmt.sh", make_stat(S_IFREG | 0755, 94)},
-      {"foo/bad", make_stat(S_IFLNK | 0777, 6)},
-      {"foo/bar", make_stat(S_IFREG | 0644, 0)},
-      {"foo/bla.sh", make_stat(S_IFREG | 0644, 1517)},
-      {"foo/pipe", make_stat(S_IFIFO | 0644, 0)},
-      {"foobar", make_stat(S_IFLNK | 0777, 7)},
-      {"format.sh", make_stat(S_IFREG | 0755, 94)},
-      {"perl-exec.sh", make_stat(S_IFREG | 0644, 87)},
-      {"test.py", make_stat(S_IFREG | 0644, 1012)},
+  std::map<std::string, file_stat> ref_entries{
+      {"", make_stat(posix_file_type::directory, 0755, 8)},
+      {"bench.sh", make_stat(posix_file_type::regular, 0644, 1517)},
+      {"dev", make_stat(posix_file_type::directory, 0755, 2)},
+      {"dev/null", make_stat(posix_file_type::character, 0666, 0)},
+      {"dev/zero", make_stat(posix_file_type::character, 0666, 0)},
+      {"empty", make_stat(posix_file_type::directory, 0755, 1)},
+      {"empty/alsoempty", make_stat(posix_file_type::directory, 0755, 0)},
+      {"foo", make_stat(posix_file_type::directory, 0755, 5)},
+      {"foo/1", make_stat(posix_file_type::directory, 0755, 2)},
+      {"foo/1/2", make_stat(posix_file_type::directory, 0755, 2)},
+      {"foo/1/2/3", make_stat(posix_file_type::directory, 0755, 3)},
+      {"foo/1/2/3/4", make_stat(posix_file_type::directory, 0755, 2)},
+      {"foo/1/2/3/4/5", make_stat(posix_file_type::directory, 0755, 2)},
+      {"foo/1/2/3/4/5/6", make_stat(posix_file_type::directory, 0755, 1)},
+      {"foo/1/2/3/4/5/6/7", make_stat(posix_file_type::directory, 0755, 1)},
+      {"foo/1/2/3/4/5/6/7/8", make_stat(posix_file_type::directory, 0755, 1)},
+      {"foo/1/2/3/4/5/6/7/8/9",
+       make_stat(posix_file_type::directory, 0755, 13)},
+      {"foo/1/2/3/4/5/6/7/8/9/a", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/b", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/blubb",
+       make_stat(posix_file_type::regular, 0644, 1517)},
+      {"foo/1/2/3/4/5/6/7/8/9/c", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/d", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/e", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/f", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/g", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/h", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/i", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/j", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/k", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/6/7/8/9/l", make_stat(posix_file_type::regular, 0644, 2)},
+      {"foo/1/2/3/4/5/z", make_stat(posix_file_type::regular, 0644, 1517)},
+      {"foo/1/2/3/4/y", make_stat(posix_file_type::regular, 0644, 1517)},
+      {"foo/1/2/3/copy.sh", make_stat(posix_file_type::regular, 0755, 94)},
+      {"foo/1/2/3/x", make_stat(posix_file_type::regular, 0644, 1517)},
+      {"foo/1/2/xxx.sh", make_stat(posix_file_type::regular, 0755, 94)},
+      {"foo/1/fmt.sh", make_stat(posix_file_type::regular, 0755, 94)},
+      {"foo/bad", make_stat(posix_file_type::symlink, 0777, 6)},
+      {"foo/bar", make_stat(posix_file_type::regular, 0644, 0)},
+      {"foo/bla.sh", make_stat(posix_file_type::regular, 0644, 1517)},
+      {"foo/pipe", make_stat(posix_file_type::fifo, 0644, 0)},
+      {"foobar", make_stat(posix_file_type::symlink, 0777, 7)},
+      {"format.sh", make_stat(posix_file_type::regular, 0755, 94)},
+      {"perl-exec.sh", make_stat(posix_file_type::regular, 0644, 87)},
+      {"test.py", make_stat(posix_file_type::regular, 0644, 1012)},
   };
 
   if (!has_devices) {
     for (auto special : {"dev/null", "dev/zero", "foo/pipe"}) {
       ref_entries.erase(special);
     }
-    ref_entries["dev"].st_size -= 2;
-    ref_entries["foo"].st_size -= 1;
+    ref_entries["dev"].size -= 2;
+    ref_entries["foo"].size -= 1;
   }
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
-    std::map<std::string, struct ::stat> entries;
+    std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
 
     (fs.*mp)([&](dir_entry_view e) {
-      struct ::stat stbuf;
+      file_stat stbuf;
       ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
-      inodes.push_back(stbuf.st_ino);
+      inodes.push_back(stbuf.ino);
       EXPECT_TRUE(entries.emplace(e.path(), stbuf).second);
     });
 
@@ -955,15 +958,15 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
       auto it = ref_entries.find(p);
       EXPECT_TRUE(it != ref_entries.end()) << p;
       if (it != ref_entries.end()) {
-        EXPECT_EQ(it->second.st_mode, st.st_mode) << p;
-        if (S_ISCHR(st.st_mode)) {
-          EXPECT_EQ(0, st.st_uid) << p;
-          EXPECT_EQ(0, st.st_gid) << p;
+        EXPECT_EQ(it->second.mode, st.mode) << p;
+        if (st.type() == posix_file_type::character) {
+          EXPECT_EQ(0, st.uid) << p;
+          EXPECT_EQ(0, st.gid) << p;
         } else {
-          EXPECT_EQ(1000, st.st_uid) << p;
-          EXPECT_EQ(100, st.st_gid) << p;
+          EXPECT_EQ(1000, st.uid) << p;
+          EXPECT_EQ(100, st.gid) << p;
         }
-        EXPECT_EQ(it->second.st_size, st.st_size) << p;
+        EXPECT_EQ(it->second.size, st.size) << p;
       }
     }
   }
@@ -1005,12 +1008,12 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     if (ri != ref_entries.end()) {
       auto const& st = ri->second;
 
-      EXPECT_EQ(kv["mode"], fmt::format("{0:o}", st.st_mode & 0777));
+      EXPECT_EQ(kv["mode"], fmt::format("{0:o}", st.mode & 0777));
       EXPECT_EQ(std::stoi(kv["uid"]), kv["type"] == "char" ? 0 : 1000);
       EXPECT_EQ(std::stoi(kv["gid"]), kv["type"] == "char" ? 0 : 100);
 
       if (kv["type"] == "file") {
-        EXPECT_EQ(std::stoi(kv["size"]), st.st_size);
+        EXPECT_EQ(std::stoi(kv["size"]), st.size);
       }
     }
   }

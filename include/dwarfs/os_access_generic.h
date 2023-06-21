@@ -21,33 +21,23 @@
 
 #pragma once
 
-#include <filesystem>
+#include <cstddef>
 #include <memory>
 #include <string>
 
-#include "dwarfs/file_stat.h"
+#include "dwarfs/os_access.h"
 
 namespace dwarfs {
 
 class mmif;
 
-class dir_reader {
+class os_access_generic : public os_access {
  public:
-  virtual ~dir_reader() = default;
-
-  virtual bool read(std::string& name) = 0;
-};
-
-class os_access {
- public:
-  virtual ~os_access() = default;
-
-  virtual std::shared_ptr<dir_reader>
-  opendir(std::string const& path) const = 0;
-  virtual file_stat symlink_info(std::string const& path) const = 0;
-  virtual std::string read_symlink(std::string const& path) const = 0;
-  virtual std::shared_ptr<mmif>
-  map_file(std::string const& path, size_t size) const = 0;
-  virtual int access(std::string const& path, int mode) const = 0;
+  std::shared_ptr<dir_reader> opendir(std::string const& path) const override;
+  file_stat symlink_info(std::string const& path) const override;
+  std::string read_symlink(std::string const& path) const override;
+  std::shared_ptr<mmif>
+  map_file(std::string const& path, size_t size) const override;
+  int access(std::string const& path, int mode) const override;
 };
 } // namespace dwarfs

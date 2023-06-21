@@ -21,23 +21,25 @@
 
 #pragma once
 
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "dwarfs/os_access.h"
+#include <cstdint>
+#include <filesystem>
 
 namespace dwarfs {
 
-class mmif;
-
-class os_access_posix : public os_access {
- public:
-  std::shared_ptr<dir_reader> opendir(const std::string& path) const override;
-  void lstat(const std::string& path, struct ::stat* st) const override;
-  std::string readlink(const std::string& path, size_t size) const override;
-  std::shared_ptr<mmif>
-  map_file(const std::string& path, size_t size) const override;
-  int access(const std::string& path, int mode) const override;
+struct posix_file_type {
+  enum value : uint16_t {
+    mask = 0170000,
+    socket = 0140000,
+    symlink = 0120000,
+    regular = 0100000,
+    block = 0060000,
+    directory = 0040000,
+    character = 0020000,
+    fifo = 0010000,
+  };
 };
+
+std::filesystem::file_status file_mode_to_status(uint16_t mode);
+uint16_t file_status_to_mode(std::filesystem::file_status status);
+
 } // namespace dwarfs

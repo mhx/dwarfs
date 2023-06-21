@@ -66,7 +66,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
-#include "dwarfs/os_access_posix.h"
+#include "dwarfs/os_access_generic.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
@@ -1076,7 +1076,7 @@ int mkdwarfs_main(int argc, char** argv) {
           options.file_order.mode == file_order_mode::NILSIMSA;
 
       scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
-                std::make_shared<os_access_posix>(), std::move(script),
+                std::make_shared<os_access_generic>(), std::move(script),
                 options);
 
       if (input_list) {
