@@ -27,7 +27,7 @@
 #include <iosfwd>
 #include <optional>
 
-#include <sys/types.h>
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
@@ -59,10 +59,10 @@ struct metadata_options {
 };
 
 struct filesystem_options {
-  static constexpr off_t IMAGE_OFFSET_AUTO{-1};
+  static constexpr file_off_t IMAGE_OFFSET_AUTO{-1};
 
   mlock_mode lock_mode{mlock_mode::NONE};
-  off_t image_offset{0};
+  file_off_t image_offset{0};
   block_cache_options block_cache;
   metadata_options metadata;
 };
@@ -119,7 +119,7 @@ struct scanner_options {
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
-  off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
+  file_off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

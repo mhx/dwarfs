@@ -52,7 +52,7 @@ class filesystem_parser {
   static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
 
  public:
-  static off_t find_image_offset(mmif& mm, off_t image_offset) {
+  static file_off_t find_image_offset(mmif& mm, file_off_t image_offset) {
     if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
       return image_offset;
     }
@@ -60,7 +60,7 @@ class filesystem_parser {
     static constexpr std::array<char, 7> magic{
         {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
 
-    off_t start = 0;
+    file_off_t start = 0;
     for (;;) {
       if (start + magic.size() >= mm.size()) {
         break;
@@ -73,8 +73,8 @@ class filesystem_parser {
         break;
       }
 
-      off_t pos = start + static_cast<uint8_t const*>(pc) -
-                  static_cast<uint8_t const*>(ps);
+      file_off_t pos = start + static_cast<uint8_t const*>(pc) -
+                       static_cast<uint8_t const*>(ps);
 
       if (pos + sizeof(file_header) >= mm.size()) {
         break;
@@ -120,7 +120,8 @@ class filesystem_parser {
     DWARFS_THROW(runtime_error, "no filesystem found");
   }
 
-  explicit filesystem_parser(std::shared_ptr<mmif> mm, off_t image_offset = 0)
+  explicit filesystem_parser(std::shared_ptr<mmif> mm,
+                             file_off_t image_offset = 0)
       : mm_{mm}
       , image_offset_{find_image_offset(*mm_, image_offset)} {
     if (mm_->size() < image_offset_ + sizeof(file_header)) {
@@ -154,16 +155,16 @@ class filesystem_parser {
 
   std::optional<fs_section> next_section() {
     if (index_.empty()) {
-      if (offset_ < static_cast<off_t>(mm_->size())) {
+      if (offset_ < static_cast<file_off_t>(mm_->size())) {
         auto section = fs_section(*mm_, offset_, version_);
         offset_ = section.end();
         return section;
       }
     } else {
-      if (offset_ < static_cast<off_t>(index_.size())) {
+      if (offset_ < static_cast<file_off_t>(index_.size())) {
         uint64_t id = index_[offset_++];
         uint64_t offset = id & section_offset_mask;
-        uint64_t next_offset = offset_ < static_cast<off_t>(index_.size())
+        uint64_t next_offset = offset_ < static_cast<file_off_t>(index_.size())
                                    ? index_[offset_] & section_offset_mask
                                    : mm_->size() - image_offset_;
         return fs_section(mm_, static_cast<section_type>(id >> 48),
@@ -197,7 +198,7 @@ class filesystem_parser {
     return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
   }
 
-  off_t image_offset() const { return image_offset_; }
+  file_off_t image_offset() const { return image_offset_; }
 
   bool has_checksums() const { return version_ >= 2; }
 
@@ -227,8 +228,8 @@ class filesystem_parser {
   }
 
   std::shared_ptr<mmif> mm_;
-  off_t const image_offset_;
-  off_t offset_{0};
+  file_off_t const image_offset_;
+  file_off_t offset_{0};
   int version_{0};
   uint8_t major_{0};
   uint8_t minor_{0};
@@ -335,12 +336,12 @@ class filesystem_ final : public filesystem_v2::impl {
   folly::Expected<std::string, int> readlink(inode_view entry) const override;
   int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
-  ssize_t
-  read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
+  ssize_t read(uint32_t inode, char* buf, size_t size,
+               file_off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                off_t offset) const override;
+                file_off_t offset) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(uint32_t inode, size_t size, off_t offset) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset) const override;
   std::optional<std::span<uint8_t const>> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
@@ -543,7 +544,7 @@ int filesystem_<LoggerPolicy>::open(inode_view entry) const {
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
-                                        off_t offset) const {
+                                        file_off_t offset) const {
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.read(buf, size, offset, *chunks);
   }
@@ -552,7 +553,7 @@ ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
-                                         size_t size, off_t offset) const {
+                                         size_t size, file_off_t offset) const {
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.readv(buf, size, offset, *chunks);
   }
@@ -562,7 +563,7 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
 template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
-                                 off_t offset) const {
+                                 file_off_t offset) const {
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.readv(size, offset, *chunks);
   }
@@ -664,7 +665,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,
                             size_t num_readers, bool check_integrity,
-                            off_t image_offset) {
+                            file_off_t image_offset) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm, image_offset);
@@ -745,7 +746,7 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 }
 
 std::optional<std::span<uint8_t const>>
-filesystem_v2::header(std::shared_ptr<mmif> mm, off_t image_offset) {
+filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return filesystem_parser(mm, image_offset).header();
 }
 

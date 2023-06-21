@@ -49,7 +49,7 @@ uint64_t get_page_size() {
 } // namespace
 
 std::error_code
-mmap::lock(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
+mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
 
 #ifdef _WIN32
@@ -65,8 +65,8 @@ mmap::lock(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   return ec;
 }
 
-std::error_code
-mmap::release(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
+std::error_code mmap::release(file_off_t offset [[maybe_unused]],
+                              size_t size [[maybe_unused]]) {
   std::error_code ec;
 
   auto misalign = offset % page_size_;
@@ -88,7 +88,7 @@ mmap::release(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   return ec;
 }
 
-std::error_code mmap::release_until(off_t offset [[maybe_unused]]) {
+std::error_code mmap::release_until(file_off_t offset [[maybe_unused]]) {
   std::error_code ec;
 
   offset -= offset % page_size_;

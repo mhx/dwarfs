@@ -26,11 +26,10 @@
 #include <memory>
 #include <string>
 
-#include <sys/types.h>
-
 #include <folly/Expected.h>
 
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
@@ -47,17 +46,18 @@ class inode_reader_v2 {
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
-  ssize_t read(char* buf, size_t size, off_t offset, chunk_range chunks) const {
+  ssize_t
+  read(char* buf, size_t size, file_off_t offset, chunk_range chunks) const {
     return impl_->read(buf, size, offset, chunks);
   }
 
-  ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
+  ssize_t readv(iovec_read_buf& buf, size_t size, file_off_t offset,
                 chunk_range chunks) const {
     return impl_->readv(buf, size, offset, chunks);
   }
 
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(size_t size, off_t offset, chunk_range chunks) const {
+  readv(size_t size, file_off_t offset, chunk_range chunks) const {
     return impl_->readv(size, offset, chunks);
   }
 
@@ -76,12 +76,12 @@ class inode_reader_v2 {
    public:
     virtual ~impl() = default;
 
-    virtual ssize_t
-    read(char* buf, size_t size, off_t offset, chunk_range chunks) const = 0;
-    virtual ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
+    virtual ssize_t read(char* buf, size_t size, file_off_t offset,
+                         chunk_range chunks) const = 0;
+    virtual ssize_t readv(iovec_read_buf& buf, size_t size, file_off_t offset,
                           chunk_range chunks) const = 0;
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
-    readv(size_t size, off_t offset, chunk_range chunks) const = 0;
+    readv(size_t size, file_off_t offset, chunk_range chunks) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
     virtual void set_num_workers(size_t num) = 0;

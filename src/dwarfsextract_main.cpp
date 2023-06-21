@@ -108,7 +108,7 @@ int dwarfsextract_main(int argc, char** argv) {
     try {
       fsopts.image_offset = image_offset == "auto"
                                 ? filesystem_options::IMAGE_OFFSET_AUTO
-                                : folly::to<off_t>(image_offset);
+                                : folly::to<file_off_t>(image_offset);
     } catch (...) {
       DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
     }

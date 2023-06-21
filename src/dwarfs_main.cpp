@@ -329,7 +329,7 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 }
 
 template <typename LoggerPolicy>
-void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
              struct fuse_file_info* fi) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
@@ -373,7 +373,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 }
 
 template <typename LoggerPolicy>
-void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
                 struct fuse_file_info* /*fi*/) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
@@ -389,7 +389,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
       auto dir = userdata->fs.opendir(*dirent);
 
       if (dir) {
-        off_t lastoff = userdata->fs.dirsize(*dir);
+        file_off_t lastoff = userdata->fs.dirsize(*dir);
         file_stat stbuf;
         struct ::stat st;
         std::vector<char> buf(size);
@@ -697,7 +697,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
     try {
       fsopts.image_offset = image_offset == "auto"
                                 ? filesystem_options::IMAGE_OFFSET_AUTO
-                                : folly::to<off_t>(image_offset);
+                                : folly::to<file_off_t>(image_offset);
     } catch (...) {
       DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
     }

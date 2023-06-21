@@ -37,6 +37,7 @@
 
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
@@ -64,15 +65,16 @@ class filesystem_v2 {
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
                       filesystem_writer& writer, rewrite_options const& opts);
 
-  static int identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
-                      int detail_level = 0, size_t num_readers = 1,
-                      bool check_integrity = false, off_t image_offset = 0);
+  static int
+  identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
+           int detail_level = 0, size_t num_readers = 1,
+           bool check_integrity = false, file_off_t image_offset = 0);
 
   static std::optional<std::span<uint8_t const>>
   header(std::shared_ptr<mmif> mm);
 
   static std::optional<std::span<uint8_t const>>
-  header(std::shared_ptr<mmif> mm, off_t image_offset);
+  header(std::shared_ptr<mmif> mm, file_off_t image_offset);
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);
@@ -135,17 +137,18 @@ class filesystem_v2 {
 
   int open(inode_view entry) const { return impl_->open(entry); }
 
-  ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset = 0) const {
+  ssize_t
+  read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
     return impl_->read(inode, buf, size, offset);
   }
 
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                off_t offset = 0) const {
+                file_off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
   }
 
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(uint32_t inode, size_t size, off_t offset = 0) const {
+  readv(uint32_t inode, size_t size, file_off_t offset = 0) const {
     return impl_->readv(inode, size, offset);
   }
 
@@ -186,11 +189,11 @@ class filesystem_v2 {
     virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual ssize_t
-    read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
+    read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                          off_t offset) const = 0;
+                          file_off_t offset) const = 0;
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
-    readv(uint32_t inode, size_t size, off_t offset) const = 0;
+    readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
     virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;

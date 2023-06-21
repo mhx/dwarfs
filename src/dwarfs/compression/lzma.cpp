@@ -25,6 +25,7 @@
 #include "dwarfs/error.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/option_map.h"
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
@@ -262,7 +263,7 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
   }
 
   lzma_stream s = LZMA_STREAM_INIT;
-  off_t pos = size - LZMA_STREAM_HEADER_SIZE;
+  file_off_t pos = size - LZMA_STREAM_HEADER_SIZE;
   const uint32_t* ptr = reinterpret_cast<const uint32_t*>(data + size) - 1;
 
   while (*ptr == 0) {

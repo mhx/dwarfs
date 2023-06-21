@@ -21,29 +21,10 @@
 
 #pragma once
 
-#include <cstddef>
-#include <string>
-
-#include <boost/iostreams/device/mapped_file.hpp>
-
-#include "dwarfs/mmif.h"
+#include <cstdint>
 
 namespace dwarfs {
 
-class mmap : public mmif {
- public:
-  explicit mmap(const std::string& path);
-  mmap(const std::string& path, size_t size);
+using file_off_t = int64_t;
 
-  void const* addr() const override;
-  size_t size() const override;
-
-  std::error_code lock(file_off_t offset, size_t size) override;
-  std::error_code release(file_off_t offset, size_t size) override;
-  std::error_code release_until(file_off_t offset) override;
-
- private:
-  boost::iostreams::mapped_file mutable mf_;
-  uint64_t const page_size_;
-};
 } // namespace dwarfs
