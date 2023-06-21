@@ -35,8 +35,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include <fmt/format.h>
 
@@ -109,7 +111,8 @@ class cached_block {
     return last_access_ < tp;
   }
 
-  bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const {
+  bool any_pages_swapped_out(std::vector<uint8_t>& tmp [[maybe_unused]]) const {
+#ifndef _WIN32
     auto page_size = ::sysconf(_SC_PAGESIZE);
     tmp.resize((data_.size() + page_size - 1) / page_size);
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
@@ -118,6 +121,7 @@ class cached_block {
       return std::any_of(tmp.begin(), tmp.end(),
                          [](auto i) { return (i & 1) == 0; });
     }
+#endif
     return false;
   }
 

@@ -21,10 +21,11 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <tuple>
 
-#include <sys/stat.h>
+// #include <sys/stat.h>
 
 #include <fmt/format.h>
 
@@ -33,10 +34,13 @@
 
 namespace dwarfs {
 
+namespace fs = std::filesystem;
+
 namespace {
 
 uint16_t constexpr all_perm_bits = 07777;
-uint16_t constexpr all_exec_bits = S_IXUSR | S_IXGRP | S_IXOTH;
+uint16_t constexpr all_exec_bits = uint16_t(
+    fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec);
 
 enum class oper { NONE, ADD_BITS, SUB_BITS, SET_BITS, OCT_BITS };
 
@@ -66,7 +70,8 @@ compute_perm_and_or(oper op, uint16_t hi_bits, uint16_t setid_bits,
     break;
 
   case oper::SET_BITS:
-    perm_and = all_perm_bits & ~((affected * S_IRWXO) | setid_bits);
+    perm_and = all_perm_bits &
+               ~((affected * uint16_t(fs::perms::others_all)) | setid_bits);
     perm_or = op_bits;
     break;
 
@@ -190,17 +195,17 @@ chmod_transformer::chmod_transformer(std::string_view spec, uint16_t umask) {
         break;
 
       case 'u':
-        affected |= S_IXUSR;
-        setid_bits |= S_ISUID;
+        affected |= uint16_t(fs::perms::owner_exec);
+        setid_bits |= uint16_t(fs::perms::set_uid);
         break;
 
       case 'g':
-        affected |= S_IXGRP;
-        setid_bits |= S_ISGID;
+        affected |= uint16_t(fs::perms::group_exec);
+        setid_bits |= uint16_t(fs::perms::set_gid);
         break;
 
       case 'o':
-        affected |= S_IXOTH;
+        affected |= uint16_t(fs::perms::others_exec);
         break;
 
       case 'a':
@@ -249,11 +254,11 @@ chmod_transformer::chmod_transformer(std::string_view spec, uint16_t umask) {
     case state::PARSE_PERMS:
       switch (c) {
       case 'r':
-        perms |= S_IROTH;
+        perms |= uint16_t(fs::perms::others_read);
         break;
 
       case 'w':
-        perms |= S_IWOTH;
+        perms |= uint16_t(fs::perms::others_write);
         break;
 
       case 'X':
@@ -261,16 +266,16 @@ chmod_transformer::chmod_transformer(std::string_view spec, uint16_t umask) {
         [[fallthrough]];
 
       case 'x':
-        perms |= S_IXOTH;
+        perms |= uint16_t(fs::perms::others_exec);
         break;
 
       case 's':
-        // default to S_ISUID unless explicitly specified
-        hi_bits |= setid_bits ? setid_bits : S_ISUID;
+        // default to fs::perms::set_uid unless explicitly specified
+        hi_bits |= setid_bits ? setid_bits : uint16_t(fs::perms::set_uid);
         break;
 
       case 't':
-        hi_bits |= S_ISVTX;
+        hi_bits |= uint16_t(fs::perms::sticky_bit);
         break;
 
       case 'u':

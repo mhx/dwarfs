@@ -26,13 +26,19 @@
 #include <cstring>
 #include <iostream>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
-bool stream_is_fancy_terminal(std::ostream& os) {
+bool stream_is_fancy_terminal(std::ostream& os [[maybe_unused]]) {
+#ifdef _WIN32
+  // TODO
+  return false;
+#else
   if (&os == &std::cout && !::isatty(::fileno(stdout))) {
     return false;
   }
@@ -41,6 +47,7 @@ bool stream_is_fancy_terminal(std::ostream& os) {
   }
   auto term = ::getenv("TERM");
   return term && term[0] != '\0' && ::strcmp(term, "dumb") != 0;
+#endif
 }
 
 char const* terminal_color(termcolor color) {

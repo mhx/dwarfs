@@ -32,8 +32,6 @@
 #include <utility>
 #include <vector>
 
-#include <unistd.h>
-
 #include <folly/ExceptionString.h>
 
 #include <fmt/format.h>

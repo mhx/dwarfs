@@ -24,8 +24,6 @@
 #include <cstdint>
 #include <iostream>
 
-#include <sys/types.h>
-
 #include <folly/gen/Base.h>
 
 #include "dwarfs/block_compressor.h"

@@ -25,8 +25,6 @@
 #include <string>
 #include <string_view>
 
-#include <unistd.h>
-
 #include <folly/String.h>
 
 #include "dwarfs/error.h"
@@ -118,28 +116,6 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "unsupported time suffix");
-}
-
-std::string get_program_path() {
-  static const std::array<const char*, 3> paths = {{
-      "/proc/self/exe",
-      "/proc/curproc/file",
-      "/proc/self/path/a.out",
-  }};
-
-  for (auto cand : paths) {
-    std::array<char, PATH_MAX> linkname;
-
-    auto r = ::readlink(cand, linkname.data(), PATH_MAX);
-
-    if (r == -1) {
-      continue;
-    }
-
-    return std::string(linkname.data(), r);
-  }
-
-  return std::string();
 }
 
 } // namespace dwarfs
