@@ -22,8 +22,11 @@
 #include <cassert>
 #include <cerrno>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#else
 #include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 #include "dwarfs/error.h"
@@ -31,11 +34,29 @@
 
 namespace dwarfs {
 
+namespace {
+
+uint64_t get_page_size() {
+#ifdef _WIN32
+  ::SYSTEM_INFO info;
+  ::GetSystemInfo(&info);
+  return info.dwPageSize;
+#else
+  return ::sysconf(_SC_PAGESIZE);
+#endif
+}
+
+} // namespace
+
 std::error_code
 mmap::lock(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
 
-#ifndef _WIN32
+#ifdef _WIN32
+  if (::VirtualLock(mf_.const_data() + offset, size) == 0) {
+    ec.assign(::GetLastError(), std::system_category());
+  }
+#else
   if (::mlock(mf_.const_data() + offset, size) != 0) {
     ec.assign(errno, std::generic_category());
   }
@@ -48,13 +69,17 @@ std::error_code
 mmap::release(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
 
-#ifndef _WIN32
   auto misalign = offset % page_size_;
 
   offset -= misalign;
   size += misalign;
   size -= size % page_size_;
 
+#ifdef _WIN32
+  if (::VirtualFree(mf_.data() + offset, size, MEM_DECOMMIT) == 0) {
+    ec.assign(::GetLastError(), std::system_category());
+  }
+#else
   if (::madvise(mf_.data() + offset, size, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
@@ -66,9 +91,13 @@ mmap::release(off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
 std::error_code mmap::release_until(off_t offset [[maybe_unused]]) {
   std::error_code ec;
 
-#ifndef _WIN32
   offset -= offset % page_size_;
 
+#ifdef _WIN32
+  if (::VirtualFree(mf_.data(), offset, MEM_DECOMMIT) == 0) {
+    ec.assign(::GetLastError(), std::system_category());
+  }
+#else
   if (::madvise(mf_.data(), offset, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
@@ -83,19 +112,13 @@ size_t mmap::size() const { return mf_.size(); }
 
 mmap::mmap(const std::string& path)
     : mf_(path, boost::iostreams::mapped_file::readonly)
-#ifndef _WIN32
-    , page_size_(::sysconf(_SC_PAGESIZE))
-#endif
-{
+    , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
 
 mmap::mmap(const std::string& path, size_t size)
     : mf_(path, boost::iostreams::mapped_file::readonly, size)
-#ifndef _WIN32
-    , page_size_(::sysconf(_SC_PAGESIZE))
-#endif
-{
+    , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
 

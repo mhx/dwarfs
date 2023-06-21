@@ -44,8 +44,6 @@ class mmap : public mmif {
 
  private:
   boost::iostreams::mapped_file mutable mf_;
-#ifndef _WIN32
-  off_t const page_size_;
-#endif
+  uint64_t const page_size_;
 };
 } // namespace dwarfs
