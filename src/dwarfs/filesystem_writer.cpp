@@ -107,7 +107,7 @@ class raw_fsblock : public fsblock::impl {
           std::lock_guard lock(mx_);
           data_.swap(tmp);
         }
-      } catch (bad_compression_ratio_error const& e) {
+      } catch (bad_compression_ratio_error const&) {
         comp_type_ = compression_type::NONE;
       }
 
