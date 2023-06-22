@@ -18,7 +18,7 @@
 project(dwarfs)
 include(ExternalProject)
 
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.24.0)
 
 include(CheckCXXSourceCompiles)
 
@@ -76,6 +76,20 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     # for some reason, clang-10 binaries crash upon throwing exceptions
     add_compile_options(-fno-omit-frame-pointer)
   endif()
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "-force_load <LIB_ITEM>")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE
+    "LINKER:--push-state,--whole-archive"
+    "<LINK_ITEM>"
+    "LINKER:--pop-state"
+  )
+else()
+  message(FATAL_ERROR "WHOLE_ARCHIVE is unsupported on this platform")
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
@@ -814,15 +828,13 @@ if(WITH_PYTHON)
 endif()
 
 foreach(tgt ${BINARY_TARGETS})
-  target_link_libraries(${tgt} -Wl,--whole-archive dwarfs_compression
-                               -Wl,--no-whole-archive dwarfs dwarfs_tool)
+  target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
+  target_link_libraries(${tgt} dwarfs dwarfs_tool)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
-    target_link_libraries(
-      ${tgt} -Wl,--whole-archive folly_exception_tracer_base
-      folly_exception_tracer -Wl,--no-whole-archive)
+    target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,folly_exception_tracer_base>")
   endif()
 endforeach()
 
