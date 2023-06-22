@@ -31,20 +31,8 @@
 #include <type_traits>
 #include <vector>
 
-#ifdef _WIN32
-
-#include <folly/portability/Windows.h>
-
-#else
-
-#include <sys/time.h>
-#include <unistd.h>
-
-#include <pthread.h>
-
-#endif
-
 #include <folly/Conv.h>
+#include <folly/portability/PThread.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/error.h"
