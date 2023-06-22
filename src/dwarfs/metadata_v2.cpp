@@ -25,6 +25,7 @@
 #include <climits>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
 #include <numeric>
 #include <ostream>
 
@@ -37,6 +38,7 @@
 #include <fmt/format.h>
 
 #include <folly/container/F14Set.h>
+#include <folly/portability/Unistd.h>
 
 #include <fsst.h>
 
@@ -56,6 +58,8 @@
 #include "thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h"
 
 namespace dwarfs {
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -289,7 +293,8 @@ void analyze_frozen(std::ostream& os,
   }
 }
 
-const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
+const uint16_t READ_ONLY_MASK = ~uint16_t(
+    fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
 } // namespace
 
@@ -453,19 +458,20 @@ class metadata_ final : public metadata_v2::impl {
     INO_OTH,
   };
 
+  // TODO: merge with mode_rank in metadata_types
   static inode_rank get_inode_rank(uint16_t mode) {
-    switch (mode & S_IFMT) {
-    case S_IFDIR:
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::directory:
       return inode_rank::INO_DIR;
-    case S_IFLNK:
+    case posix_file_type::symlink:
       return inode_rank::INO_LNK;
-    case S_IFREG:
+    case posix_file_type::regular:
       return inode_rank::INO_REG;
-    case S_IFBLK:
-    case S_IFCHR:
+    case posix_file_type::block:
+    case posix_file_type::character:
       return inode_rank::INO_DEV;
-    case S_IFSOCK:
-    case S_IFIFO:
+    case posix_file_type::socket:
+    case posix_file_type::fifo:
       return inode_rank::INO_OTH;
     default:
       DWARFS_THROW(runtime_error,
@@ -474,21 +480,21 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   static char get_filetype_label(uint16_t mode) {
-    switch ((mode)&S_IFMT) {
-    case S_IFDIR:
-      return 'd';
-    case S_IFLNK:
-      return 'l';
-    case S_IFREG:
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::regular:
       return '-';
-    case S_IFBLK:
+    case posix_file_type::directory:
+      return 'd';
+    case posix_file_type::symlink:
+      return 'l';
+    case posix_file_type::block:
       return 'b';
-    case S_IFCHR:
+    case posix_file_type::character:
       return 'c';
-    case S_IFSOCK:
-      return 's';
-    case S_IFIFO:
+    case posix_file_type::fifo:
       return 'p';
+    case posix_file_type::socket:
+      return 's';
     default:
       DWARFS_THROW(runtime_error,
                    fmt::format("unknown file type: {:#06x}", mode));
@@ -589,11 +595,12 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t file_size(inode_view iv, uint16_t mode) const {
-    if (S_ISREG(mode)) {
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::regular:
       return reg_file_size(iv);
-    } else if (S_ISLNK(mode)) {
+    case posix_file_type::symlink:
       return link_value(iv).size();
-    } else {
+    default:
       return 0;
     }
   }
@@ -750,7 +757,8 @@ void metadata_<LoggerPolicy>::dump(
     os << " " << entry.name();
   }
 
-  if (S_ISREG(mode)) {
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::regular: {
     auto cr = get_chunk_range(inode);
     DWARFS_CHECK(cr, "invalid chunk range");
     os << " [" << cr->begin_ << ", " << cr->end_ << "]";
@@ -758,19 +766,32 @@ void metadata_<LoggerPolicy>::dump(
     if (detail_level > 4) {
       icb(indent + "  ", inode);
     }
-  } else if (S_ISDIR(mode)) {
+  } break;
+
+  case posix_file_type::directory:
     dump(os, indent + "  ", make_directory_view(iv), entry, detail_level,
          std::move(icb));
-  } else if (S_ISLNK(mode)) {
+    break;
+
+  case posix_file_type::symlink:
     os << " -> " << link_value(iv) << "\n";
-  } else if (S_ISBLK(mode)) {
+    break;
+
+  case posix_file_type::block:
     os << " (block device: " << get_device_id(inode) << ")\n";
-  } else if (S_ISCHR(mode)) {
+    break;
+
+  case posix_file_type::character:
     os << " (char device: " << get_device_id(inode) << ")\n";
-  } else if (S_ISFIFO(mode)) {
+    break;
+
+  case posix_file_type::fifo:
     os << " (named pipe)\n";
-  } else if (S_ISSOCK(mode)) {
+    break;
+
+  case posix_file_type::socket:
     os << " (socket)\n";
+    break;
   }
 }
 
@@ -934,25 +955,39 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
     obj["name"] = std::string(entry.name());
   }
 
-  if (S_ISREG(mode)) {
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::regular:
     obj["type"] = "file";
     obj["size"] = file_size(iv, mode);
-  } else if (S_ISDIR(mode)) {
+    break;
+
+  case posix_file_type::directory:
     obj["type"] = "directory";
     obj["inodes"] = as_dynamic(make_directory_view(iv), entry);
-  } else if (S_ISLNK(mode)) {
+    break;
+
+  case posix_file_type::symlink:
     obj["type"] = "link";
     obj["target"] = std::string(link_value(iv));
-  } else if (S_ISBLK(mode)) {
+    break;
+
+  case posix_file_type::block:
     obj["type"] = "blockdev";
     obj["device_id"] = get_device_id(inode);
-  } else if (S_ISCHR(mode)) {
+    break;
+
+  case posix_file_type::character:
     obj["type"] = "chardev";
     obj["device_id"] = get_device_id(inode);
-  } else if (S_ISFIFO(mode)) {
+    break;
+
+  case posix_file_type::fifo:
     obj["type"] = "fifo";
-  } else if (S_ISSOCK(mode)) {
+    break;
+
+  case posix_file_type::socket:
     obj["type"] = "socket";
+    break;
   }
 
   return obj;
@@ -1020,19 +1055,19 @@ template <typename LoggerPolicy>
 std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
   std::ostringstream oss;
 
-  oss << (mode & S_ISUID ? 'U' : '-');
-  oss << (mode & S_ISGID ? 'G' : '-');
-  oss << (mode & S_ISVTX ? 'S' : '-');
+  oss << (mode & uint16_t(fs::perms::set_uid) ? 'U' : '-');
+  oss << (mode & uint16_t(fs::perms::set_gid) ? 'G' : '-');
+  oss << (mode & uint16_t(fs::perms::sticky_bit) ? 'S' : '-');
   oss << get_filetype_label(mode);
-  oss << (mode & S_IRUSR ? 'r' : '-');
-  oss << (mode & S_IWUSR ? 'w' : '-');
-  oss << (mode & S_IXUSR ? 'x' : '-');
-  oss << (mode & S_IRGRP ? 'r' : '-');
-  oss << (mode & S_IWGRP ? 'w' : '-');
-  oss << (mode & S_IXGRP ? 'x' : '-');
-  oss << (mode & S_IROTH ? 'r' : '-');
-  oss << (mode & S_IWOTH ? 'w' : '-');
-  oss << (mode & S_IXOTH ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_exec) ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::group_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::group_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::group_exec) ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::others_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::others_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::others_exec) ? 'x' : '-');
 
   return oss.str();
 }
@@ -1046,7 +1081,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
   auto entry = make_dir_entry_view(self_index, parent_index);
   auto iv = entry.inode();
 
-  if (S_ISDIR(iv.mode())) {
+  if (iv.is_directory()) {
     auto inode = iv.inode_num();
 
     if (!seen.emplace(inode).second) {
@@ -1258,7 +1293,7 @@ std::optional<directory_view>
 metadata_<LoggerPolicy>::opendir(inode_view iv) const {
   std::optional<directory_view> rv;
 
-  if (S_ISDIR(iv.mode())) {
+  if (iv.is_directory()) {
     rv = make_directory_view(iv);
   }
 
@@ -1299,26 +1334,26 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
   }
 
   int access_mode = 0;
-  int e_mode = iv.mode();
 
-  auto test = [e_mode, &access_mode](uint16_t r_bit, uint16_t x_bit) {
-    if (e_mode & r_bit) {
+  auto test = [e_mode = iv.mode(), &access_mode](fs::perms r_bit,
+                                                 fs::perms x_bit) {
+    if (e_mode & uint16_t(r_bit)) {
       access_mode |= R_OK;
     }
-    if (e_mode & x_bit) {
+    if (e_mode & uint16_t(x_bit)) {
       access_mode |= X_OK;
     }
   };
 
   // Let's build the inode's access mask
-  test(S_IROTH, S_IXOTH);
+  test(fs::perms::others_read, fs::perms::others_exec);
 
   if (iv.getgid() == gid) {
-    test(S_IRGRP, S_IXGRP);
+    test(fs::perms::group_read, fs::perms::group_exec);
   }
 
   if (iv.getuid() == uid) {
-    test(S_IRUSR, S_IXUSR);
+    test(fs::perms::owner_read, fs::perms::owner_exec);
   }
 
   return (access_mode & mode) == mode ? 0 : EACCES;
@@ -1326,7 +1361,7 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
 
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::open(inode_view iv) const {
-  if (S_ISREG(iv.mode())) {
+  if (iv.is_regular_file()) {
     return iv.inode_num();
   }
 
@@ -1335,7 +1370,7 @@ int metadata_<LoggerPolicy>::open(inode_view iv) const {
 
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
-  if (S_ISLNK(iv.mode())) {
+  if (iv.is_symlink()) {
     buf->assign(link_value(iv));
     return 0;
   }
@@ -1346,7 +1381,7 @@ int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
 template <typename LoggerPolicy>
 folly::Expected<std::string, int>
 metadata_<LoggerPolicy>::readlink(inode_view iv) const {
-  if (S_ISLNK(iv.mode())) {
+  if (iv.is_symlink()) {
     return link_value(iv);
   }
 

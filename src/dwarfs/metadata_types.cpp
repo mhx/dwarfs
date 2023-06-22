@@ -86,16 +86,17 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
   return directories;
 }
 
+// TODO: merge with inode_rank in metadata_v2
 int mode_rank(uint16_t mode) {
-  switch (mode & S_IFMT) {
-  case S_IFDIR:
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::directory:
     return 0;
-  case S_IFLNK:
+  case posix_file_type::symlink:
     return 1;
-  case S_IFREG:
+  case posix_file_type::regular:
     return 2;
-  case S_IFBLK:
-  case S_IFCHR:
+  case posix_file_type::block:
+  case posix_file_type::character:
     return 3;
   default:
     return 4;

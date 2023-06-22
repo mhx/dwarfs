@@ -27,8 +27,9 @@
 namespace dwarfs {
 
 struct posix_file_type {
+  static constexpr uint16_t mask = 0170000;
+
   enum value : uint16_t {
-    mask = 0170000,
     socket = 0140000,
     symlink = 0120000,
     regular = 0100000,
@@ -37,6 +38,10 @@ struct posix_file_type {
     character = 0020000,
     fifo = 0010000,
   };
+
+  static constexpr value from_mode(uint16_t mode) {
+    return static_cast<value>(mode & mask);
+  }
 };
 
 std::filesystem::file_status file_mode_to_status(uint16_t mode);
