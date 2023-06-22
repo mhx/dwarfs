@@ -172,8 +172,10 @@ os_access_generic::map_file(std::string const& path, size_t size) const {
 }
 
 int os_access_generic::access(std::string const& path, int mode) const {
+#ifdef _WIN32
   // TODO
-#ifndef _WIN32
+  return 0;
+#else
   return ::access(path.c_str(), mode);
 #endif
 }
