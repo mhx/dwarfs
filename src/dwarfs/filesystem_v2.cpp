@@ -19,8 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -66,15 +68,16 @@ class filesystem_parser {
         break;
       }
 
-      auto ps = mm.as<void>(start);
-      auto pc = ::memmem(ps, mm.size() - start, magic.data(), magic.size());
+      auto ss = mm.span(start);
+      auto it = std::search(
+          ss.begin(), ss.end(),
+          std::boyer_moore_horspool_searcher(magic.begin(), magic.end()));
 
-      if (!pc) {
+      if (it == ss.end()) {
         break;
       }
 
-      file_off_t pos = start + static_cast<uint8_t const*>(pc) -
-                       static_cast<uint8_t const*>(ps);
+      file_off_t pos = start + std::distance(ss.begin(), it);
 
       if (pos + sizeof(file_header) >= mm.size()) {
         break;
@@ -106,7 +109,7 @@ class filesystem_parser {
           break;
         }
 
-        ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
+        auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
 
         if (::memcmp(ps, magic.data(), magic.size()) == 0 and
             reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
