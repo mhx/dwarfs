@@ -246,7 +246,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
-        S_ISREG(entry.mode()) && size > 0) {
+        entry.is_regular_file() && size > 0) {
       auto fd = fs.open(entry);
       std::string_view path{::archive_entry_pathname(ae)};
       size_t pos = 0;
@@ -333,7 +333,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
-    struct ::stat st;
+    struct stat st;
 
     ::memset(&st, 0, sizeof(st));
     copy_file_stat(&st, stbuf);
@@ -341,7 +341,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     ::archive_entry_set_pathname(ae, entry.path().c_str());
     ::archive_entry_copy_stat(ae, &st);
 
-    if (S_ISLNK(inode.mode())) {
+    if (inode.is_symlink()) {
       std::string link;
       if (fs.readlink(inode, &link) != 0) {
         LOG_ERROR << "readlink() failed";
