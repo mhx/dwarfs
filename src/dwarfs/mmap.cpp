@@ -53,7 +53,7 @@ mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
 
 #ifdef _WIN32
-  if (::VirtualLock(mf_.const_data() + offset, size) == 0) {
+  if (::VirtualLock(mf_.data() + offset, size) == 0) {
     ec.assign(::GetLastError(), std::system_category());
   }
 #else
