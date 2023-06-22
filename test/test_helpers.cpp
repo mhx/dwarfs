@@ -418,7 +418,7 @@ std::optional<fs::path> find_binary(std::string_view name) {
 
   for (auto dir : path) {
     auto cand = fs::path(dir) / name;
-    if (fs::exists(cand) and ::access(cand.c_str(), X_OK) == 0) {
+    if (fs::exists(cand) and ::access(cand.string().c_str(), X_OK) == 0) {
       return cand;
     }
   }

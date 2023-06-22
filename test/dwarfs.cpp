@@ -685,7 +685,7 @@ TEST_P(compression_regression, github45) {
   lgr.set_policy<prod_logger_policy>();
 
   std::independent_bits_engine<std::mt19937_64,
-                               std::numeric_limits<uint8_t>::digits, uint8_t>
+                               std::numeric_limits<uint8_t>::digits, uint16_t>
       rng;
 
   std::string random;
