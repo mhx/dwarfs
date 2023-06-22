@@ -43,7 +43,6 @@
 #include <folly/portability/Windows.h>
 #else
 #include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -53,6 +52,7 @@
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
 #include <folly/gen/String.h>
+#include <folly/portability/SysStat.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
