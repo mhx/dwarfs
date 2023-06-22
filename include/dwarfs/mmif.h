@@ -41,12 +41,14 @@ class mmif : public boost::noncopyable {
         reinterpret_cast<char const*>(this->addr()) + offset);
   }
 
-  std::span<uint8_t const> span(file_off_t offset, size_t length) const {
-    return std::span(this->as<uint8_t>(offset), length);
+  template <typename T = uint8_t>
+  std::span<T const> span(file_off_t offset, size_t length) const {
+    return std::span(this->as<T>(offset), length);
   }
 
-  std::span<uint8_t const> span(file_off_t offset = 0) const {
-    return span(offset, size() - offset);
+  template <typename T = uint8_t>
+  std::span<T const> span(file_off_t offset = 0) const {
+    return span<T>(offset, size() - offset);
   }
 
   virtual void const* addr() const = 0;
