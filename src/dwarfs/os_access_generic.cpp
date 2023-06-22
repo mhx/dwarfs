@@ -62,6 +62,8 @@ file_stat make_file_stat(std::string const& path) {
 
   file_stat rv;
   rv.mode = file_status_to_mode(status);
+  rv.blksize = 0;
+  rv.blocks = 0;
 
   if (status.type() == fs::file_type::symlink) {
     ::WIN32_FILE_ATTRIBUTE_DATA info;
@@ -78,8 +80,6 @@ file_stat make_file_stat(std::string const& path) {
     rv.rdev = 0;
     rv.size =
         (static_cast<uint64_t>(info.nFileSizeHigh) << 32) + info.nFileSizeLow;
-    rv.blksize = 0;
-    rv.blocks = 0;
     rv.atime = time_from_filetime(info.ftLastAccessTime);
     rv.mtime = time_from_filetime(info.ftLastWriteTime);
     rv.ctime = time_from_filetime(info.ftCreationTime);
@@ -95,8 +95,6 @@ file_stat make_file_stat(std::string const& path) {
     rv.gid = st.st_gid;
     rv.rdev = st.st_rdev;
     rv.size = st.st_size;
-    rv.blksize = st.st_blksize;
-    rv.blocks = st.st_blocks;
     rv.atime = st.st_atime;
     rv.mtime = st.st_mtime;
     rv.ctime = st.st_ctime;
