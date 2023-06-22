@@ -107,7 +107,7 @@ int dwarfsbench_main(int argc, char** argv) {
 
     fs.walk([&](auto entry) {
       auto inode_data = entry.inode();
-      if (S_ISREG(inode_data.mode())) {
+      if (inode_data.is_regular_file()) {
         wg.add_job([&fs, inode_data] {
           try {
             file_stat stbuf;
