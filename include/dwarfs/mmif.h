@@ -45,6 +45,10 @@ class mmif : public boost::noncopyable {
     return std::span(this->as<uint8_t>(offset), length);
   }
 
+  std::span<uint8_t const> span(file_off_t offset = 0) const {
+    return span(offset, size() - offset);
+  }
+
   virtual void const* addr() const = 0;
   virtual size_t size() const = 0;
 
