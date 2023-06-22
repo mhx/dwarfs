@@ -297,7 +297,7 @@ size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
   std::vector<std::string> parts;
-  folly::split('/', path.native(), parts);
+  folly::split('/', path.string(), parts);
   while (!parts.empty() && parts.front().empty()) {
     parts.erase(parts.begin());
   }
