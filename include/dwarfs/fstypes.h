@@ -27,8 +27,7 @@
 #include <memory>
 #include <string>
 
-#include <bits/types/struct_iovec.h>
-
+#include <folly/portability/IOVec.h>
 #include <folly/small_vector.h>
 
 #include "dwarfs/block_compressor.h" // TODO: or the other way round?
