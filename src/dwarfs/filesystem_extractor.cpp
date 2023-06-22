@@ -111,9 +111,15 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   }
 
   void open_stream(std::ostream& os, std::string const& format) override {
+#ifdef _WIN32
+    if (::_pipe(pipefd_, 8192, _O_BINARY) != 0) {
+      DWARFS_THROW(system_error, "_pipe()");
+    }
+#else
     if (::pipe(pipefd_) != 0) {
       DWARFS_THROW(system_error, "pipe()");
     }
+#endif
 
     iot_ = std::make_unique<std::thread>(
         [this, &os, fd = pipefd_[0]] { pump(os, fd); });
