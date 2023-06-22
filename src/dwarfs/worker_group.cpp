@@ -106,7 +106,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
   basic_worker_group(const char* group_name, size_t num_workers,
-                     size_t max_queue_len, int niceness, Args&&... args)
+                     size_t max_queue_len, int niceness [[maybe_unused]],
+                     Args&&... args)
       : Policy(std::forward<Args>(args)...)
       , running_(true)
       , pending_(0)
@@ -120,9 +121,10 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     }
 
     for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([this, niceness, group_name, i] {
+      workers_.emplace_back([this, /*niceness,*/ group_name, i] {
         folly::setThreadName(folly::to<std::string>(group_name, i + 1));
-        [[maybe_unused]] auto rv = ::nice(niceness);
+        // TODO: FIXME: this is broken
+        // [[maybe_unused]] auto rv = ::nice(niceness);
         do_work();
       });
     }
