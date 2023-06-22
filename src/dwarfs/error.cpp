@@ -79,7 +79,9 @@ void assertion_failed(char const* expr, std::string const& msg,
 
 int safe_main(std::function<int(void)> fn) {
   try {
+#ifndef _WIN32
     folly::symbolizer::installFatalSignalHandler();
+#endif
     return fn();
   } catch (system_error const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
