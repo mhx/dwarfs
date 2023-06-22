@@ -160,7 +160,7 @@ constexpr uint64_t pow2ceil(uint64_t n) {
  *   extremely cheap, so we can't afford e.g. using two hashes instead
  *   of one.
  */
-class bloom_filter {
+class alignas(64) bloom_filter {
  public:
   using bits_type = uint64_t;
 
@@ -221,7 +221,7 @@ class bloom_filter {
   bits_type* bits_;
   size_t const index_mask_;
   size_t const size_;
-} __attribute__((aligned(64)));
+};
 
 class active_block {
  private:
