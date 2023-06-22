@@ -38,6 +38,7 @@
 #include <fmt/format.h>
 
 #include <folly/container/F14Set.h>
+#include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 
 #include <fsst.h>
