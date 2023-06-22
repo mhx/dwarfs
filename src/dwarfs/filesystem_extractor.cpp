@@ -25,6 +25,12 @@
 #include <mutex>
 #include <thread>
 
+// This is required to avoid Windows.h being pulled in by libarchive
+// and polluting our environment with all sorts of shit.
+#if _WIN32
+#include <folly/portability/Windows.h>
+#endif
+
 #include <archive.h>
 #include <archive_entry.h>
 
