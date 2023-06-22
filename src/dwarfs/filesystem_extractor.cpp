@@ -336,7 +336,11 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     struct stat st;
 
     ::memset(&st, 0, sizeof(st));
-    copy_file_stat(&st, stbuf);
+#ifdef _WIN32
+    copy_file_stat<false>(&st, stbuf);
+#else
+    copy_file_stat<true>(&st, stbuf);
+#endif
 
     ::archive_entry_set_pathname(ae, entry.path().c_str());
     ::archive_entry_copy_stat(ae, &st);

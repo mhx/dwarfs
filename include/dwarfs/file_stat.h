@@ -81,7 +81,7 @@ struct file_stat {
   time_type ctime;
 };
 
-template <typename T>
+template <bool with_block_info = true, typename T>
 void copy_file_stat(T* out, file_stat const& in) {
   out->st_dev = in.dev;
   out->st_ino = in.ino;
@@ -91,8 +91,10 @@ void copy_file_stat(T* out, file_stat const& in) {
   out->st_gid = in.gid;
   out->st_rdev = in.rdev;
   out->st_size = in.size;
-  out->st_blksize = in.blksize;
-  out->st_blocks = in.blocks;
+  if constexpr (with_block_info) {
+    out->st_blksize = in.blksize;
+    out->st_blocks = in.blocks;
+  }
   out->st_atime = in.atime;
   out->st_mtime = in.mtime;
   out->st_ctime = in.ctime;
