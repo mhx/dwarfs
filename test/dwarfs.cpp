@@ -28,8 +28,6 @@
 #include <sstream>
 #include <vector>
 
-#include <sys/statvfs.h>
-
 #include <gtest/gtest.h>
 
 #include <fmt/format.h>

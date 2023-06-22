@@ -40,7 +40,7 @@ std::vector<std::string> files;
 void find_all_filesystems() {
   for (auto const& e : std::filesystem::directory_iterator(testdata)) {
     if (e.is_regular_file()) {
-      files.push_back(e.path().filename());
+      files.push_back(e.path().filename().string());
     }
   }
 }

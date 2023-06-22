@@ -26,6 +26,7 @@
 #include <iostream>
 
 #include <folly/String.h>
+#include <folly/portability/Unistd.h>
 
 #include "dwarfs/overloaded.h"
 #include "loremipsum.h"
