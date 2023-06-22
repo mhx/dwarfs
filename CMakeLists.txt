@@ -424,6 +424,7 @@ target_compile_definitions(
   dwarfs_tool PRIVATE PRJ_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
+target_link_libraries(dwarfs_compression folly)
 target_link_libraries(dwarfs_tool dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -434,6 +435,11 @@ add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
 add_library(dwarfsck_main src/dwarfsck_main.cpp)
 add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
 add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
+
+target_link_libraries(mkdwarfs_main folly)
+target_link_libraries(dwarfsck_main folly)
+target_link_libraries(dwarfsbench_main folly)
+target_link_libraries(dwarfsextract_main folly)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
@@ -604,8 +610,8 @@ add_custom_command(
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
               -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
-	      --gen mstch_cpp2
-	      frozen.thrift
+              --gen mstch_cpp2
+              frozen.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
           ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
@@ -618,7 +624,7 @@ add_custom_command(
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/metadata.thrift
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
               -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-	      --gen mstch_cpp2:frozen2
+              --gen mstch_cpp2:frozen2
               metadata.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
           ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
@@ -685,7 +691,7 @@ set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 20)
 
 target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
-add_dependencies(metadata_thrift thrift_light)
+target_link_libraries(metadata_thrift thrift_light)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_include_directories(
