@@ -110,16 +110,22 @@ void const* mmap::addr() const { return mf_.const_data(); }
 
 size_t mmap::size() const { return mf_.size(); }
 
-mmap::mmap(const std::string& path)
+mmap::mmap(std::string const& path)
     : mf_(path, boost::iostreams::mapped_file::readonly)
     , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
 
-mmap::mmap(const std::string& path, size_t size)
+mmap::mmap(std::filesystem::path const& path)
+    : mmap(path.string()) {}
+
+mmap::mmap(std::string const& path, size_t size)
     : mf_(path, boost::iostreams::mapped_file::readonly, size)
     , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
+
+mmap::mmap(std::filesystem::path const& path, size_t size)
+    : mmap(path.string(), size) {}
 
 } // namespace dwarfs

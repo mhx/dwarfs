@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 #include <string>
 
 #include <boost/iostreams/device/mapped_file.hpp>
@@ -32,8 +33,10 @@ namespace dwarfs {
 
 class mmap : public mmif {
  public:
-  explicit mmap(const std::string& path);
-  mmap(const std::string& path, size_t size);
+  explicit mmap(std::filesystem::path const& path);
+  explicit mmap(std::string const& path);
+  mmap(std::filesystem::path const& path, size_t size);
+  mmap(std::string const& path, size_t size);
 
   void const* addr() const override;
   size_t size() const override;
