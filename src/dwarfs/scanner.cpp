@@ -478,7 +478,8 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 
       prog.dirs_scanned++;
     } catch (const std::system_error& e) {
-      LOG_ERROR << "cannot open directory: " << e.what();
+      LOG_ERROR << "cannot read directory `" << path
+                << "`: " << folly::exceptionStr(e);
       prog.errors++;
     }
   }
