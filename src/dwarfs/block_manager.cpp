@@ -330,7 +330,7 @@ class block_manager_ final : public block_manager::impl {
   static size_t bloom_filter_size(const block_manager::config& cfg) {
     auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
                       (block_size(cfg) / window_step(cfg));
-    return (1 << cfg.bloom_filter_size) * hash_count;
+    return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
   }
 
   static size_t window_size(const block_manager::config& cfg) {
