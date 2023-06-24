@@ -36,11 +36,21 @@
 #include <folly/Conv.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
+#ifndef DWARFS_FUSE_LOWLEVEL
+#define DWARFS_FUSE_LOWLEVEL 1
+#endif
+
 #if FUSE_USE_VERSION >= 30
+#if DWARFS_FUSE_LOWLEVEL
 #include <fuse3/fuse_lowlevel.h>
 #else
+#include <fuse3/fuse.h>
+#endif
+#else
 #include <fuse.h>
+#if DWARFS_FUSE_LOWLEVEL
 #include <fuse/fuse_lowlevel.h>
+#endif
 #endif
 
 #include "dwarfs/error.h"
@@ -60,18 +70,18 @@
 namespace dwarfs {
 
 struct options {
-  const char* progname{nullptr};
+  char const* progname{nullptr};
   std::string fsimage;
   int seen_mountpoint{0};
-  const char* cachesize_str{nullptr};           // TODO: const?? -> use string?
-  const char* debuglevel_str{nullptr};          // TODO: const?? -> use string?
-  const char* workers_str{nullptr};             // TODO: const?? -> use string?
-  const char* mlock_str{nullptr};               // TODO: const?? -> use string?
-  const char* decompress_ratio_str{nullptr};    // TODO: const?? -> use string?
-  const char* image_offset_str{nullptr};        // TODO: const?? -> use string?
-  const char* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
-  const char* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
-  const char* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
+  char const* cachesize_str{nullptr};           // TODO: const?? -> use string?
+  char const* debuglevel_str{nullptr};          // TODO: const?? -> use string?
+  char const* workers_str{nullptr};             // TODO: const?? -> use string?
+  char const* mlock_str{nullptr};               // TODO: const?? -> use string?
+  char const* decompress_ratio_str{nullptr};    // TODO: const?? -> use string?
+  char const* image_offset_str{nullptr};        // TODO: const?? -> use string?
+  char const* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
+  char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
+  char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
   int enable_nlink{0};
   int readonly{0};
   int cache_image{0};
@@ -126,11 +136,17 @@ std::unordered_map<std::string_view, cache_tidy_strategy> const
         {"swap", cache_tidy_strategy::BLOCK_SWAPPED_OUT},
     };
 
+#if DWARFS_FUSE_LOWLEVEL
 #define dUSERDATA                                                              \
   auto userdata = reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
+#else
+#define dUSERDATA                                                              \
+  auto userdata =                                                              \
+      reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
+#endif
 
 template <typename LoggerPolicy>
-void op_init(void* data, struct fuse_conn_info* /*conn*/) {
+void op_init_common(void* data) {
   auto userdata = reinterpret_cast<dwarfs_userdata*>(data);
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
@@ -148,8 +164,24 @@ void op_init(void* data, struct fuse_conn_info* /*conn*/) {
   userdata->fs.set_cache_tidy_config(tidy);
 }
 
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
+void op_init(void* data, struct fuse_conn_info* /*conn*/) {
+  op_init_common<LoggerPolicy>(data);
+}
+#else
+template <typename LoggerPolicy>
+void* op_init(struct fuse_conn_info* /*conn*/, struct fuse_config* /*cfg*/) {
+  // TODO: config?
+  auto userdata = fuse_get_context()->private_data;
+  op_init_common<LoggerPolicy>(userdata);
+  return userdata;
+}
+#endif
+
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
@@ -189,19 +221,15 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
 
   fuse_reply_err(req, err);
 }
+#endif
 
-template <typename LoggerPolicy>
-void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
-  dUSERDATA;
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
-
-  LOG_DEBUG << __func__ << "(" << ino << ")";
-
+template <typename LogProxy, typename Find>
+int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
+                      struct stat* st, Find const& find) {
   int err = ENOENT;
 
-  // TODO: merge with op_lookup
   try {
-    auto entry = userdata->fs.find(ino);
+    auto entry = find();
 
     if (entry) {
       file_stat stbuf;
@@ -209,14 +237,8 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
       err = userdata->fs.getattr(*entry, &stbuf);
 
       if (err == 0) {
-        struct ::stat st;
-
-        ::memset(&st, 0, sizeof(st));
-        copy_file_stat(&st, stbuf);
-
-        fuse_reply_attr(req, &st, std::numeric_limits<double>::max());
-
-        return;
+        ::memset(st, 0, sizeof(*st));
+        copy_file_stat(st, stbuf);
       }
     }
   } catch (dwarfs::system_error const& e) {
@@ -227,25 +249,49 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
     err = EIO;
   }
 
-  fuse_reply_err(req, err);
+  return err;
 }
 
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
+void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ")";
 
+  struct stat st;
+
+  int err = op_getattr_common(
+      log_, userdata, &st, [userdata, ino] { return userdata->fs.find(ino); });
+
+  if (err == 0) {
+    fuse_reply_attr(req, &st, std::numeric_limits<double>::max());
+  } else {
+    fuse_reply_err(req, err);
+  }
+}
+#else
+template <typename LoggerPolicy>
+int op_getattr(char const* path, struct stat* st, struct fuse_file_info*) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ")";
+
+  return -op_getattr_common(
+      log_, userdata, st, [userdata, path] { return userdata->fs.find(path); });
+}
+#endif
+
+template <typename LogProxy, typename Find>
+int op_access_common(LogProxy& log_, dwarfs_userdata* userdata, int mode,
+                     uid_t uid, gid_t gid, Find const& find) {
   int err = ENOENT;
 
-  // TODO: merge with op_lookup
   try {
-    auto entry = userdata->fs.find(ino);
-
-    if (entry) {
-      auto ctx = fuse_req_ctx(req);
-      err = userdata->fs.access(*entry, mode, ctx->uid, ctx->gid);
+    if (auto entry = find()) {
+      err = userdata->fs.access(*entry, mode, uid, gid);
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -255,9 +301,62 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
     err = EIO;
   }
 
-  fuse_reply_err(req, err);
+  return err;
 }
 
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << ino << ")";
+
+  auto ctx = fuse_req_ctx(req);
+
+  int err =
+      op_access_common(log_, userdata, mode, ctx->uid, ctx->gid,
+                       [userdata, ino] { return userdata->fs.find(ino); });
+
+  fuse_reply_err(req, err);
+}
+#else
+template <typename LoggerPolicy>
+int op_access(char const* path, int mode) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ")";
+
+  auto ctx = fuse_get_context();
+
+  return -op_access_common(
+      log_, userdata, mode, ctx->uid, ctx->gid,
+      [userdata, path] { return userdata->fs.find(path); });
+}
+#endif
+
+template <typename LogProxy, typename Find>
+int op_readlink_common(LogProxy& log_, dwarfs_userdata* userdata,
+                       std::string* str, Find const& find) {
+  int err = ENOENT;
+
+  try {
+    if (auto entry = find()) {
+      err = userdata->fs.readlink(*entry, str);
+    }
+  } catch (dwarfs::system_error const& e) {
+    LOG_ERROR << e.what();
+    err = e.get_errno();
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    err = EIO;
+  }
+
+  return err;
+}
+
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   dUSERDATA;
@@ -265,20 +364,58 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
 
   LOG_DEBUG << __func__;
 
+  std::string symlink;
+
+  auto err = op_readlink_common(log_, userdata, &symlink, [userdata, ino] {
+    return userdata->fs.find(ino);
+  });
+
+  if (err == 0) {
+    fuse_reply_readlink(req, symlink.c_str());
+  } else {
+    fuse_reply_err(req, err);
+  }
+}
+#else
+template <typename LoggerPolicy>
+int op_readlink(char const* path, char* buf, size_t buflen) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__;
+
+  std::string symlink;
+
+  auto err = op_readlink_common(log_, userdata, &symlink, [userdata, path] {
+    return userdata->fs.find(path);
+  });
+
+  if (err == 0) {
+    ::strncpy(buf, symlink.data(), buflen);
+  }
+
+  return -err;
+}
+#endif
+
+template <typename LogProxy, typename Find>
+int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
+                   struct fuse_file_info* fi, Find const& find) {
   int err = ENOENT;
 
   try {
-    auto entry = userdata->fs.find(ino);
+    auto entry = find();
 
     if (entry) {
-      std::string str;
-
-      err = userdata->fs.readlink(*entry, &str);
-
-      if (err == 0) {
-        fuse_reply_readlink(req, str.c_str());
-
-        return;
+      if (entry->is_directory()) {
+        err = EISDIR;
+      } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
+        err = EACCES;
+      } else {
+        fi->fh = entry->inode_num();
+        fi->direct_io = !userdata->opts.cache_files;
+        fi->keep_cache = userdata->opts.cache_files;
+        return 0;
       }
     }
   } catch (dwarfs::system_error const& e) {
@@ -289,9 +426,10 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
     err = EIO;
   }
 
-  fuse_reply_err(req, err);
+  return err;
 }
 
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   dUSERDATA;
@@ -299,35 +437,29 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 
   LOG_DEBUG << __func__;
 
-  int err = ENOENT;
+  auto err = op_open_common(log_, userdata, fi,
+                            [userdata, ino] { return userdata->fs.find(ino); });
 
-  try {
-    auto entry = userdata->fs.find(ino);
-
-    if (entry) {
-      if (S_ISDIR(entry->mode())) {
-        err = EISDIR;
-      } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
-        err = EACCES;
-      } else {
-        fi->fh = FUSE_ROOT_ID + entry->inode_num();
-        fi->direct_io = !userdata->opts.cache_files;
-        fi->keep_cache = userdata->opts.cache_files;
-        fuse_reply_open(req, fi);
-        return;
-      }
-    }
-  } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
-    err = e.get_errno();
-  } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
-    err = EIO;
+  if (err == 0) {
+    fuse_reply_open(req, fi);
+  } else {
+    fuse_reply_err(req, err);
   }
-
-  fuse_reply_err(req, err);
 }
+#else
+template <typename LoggerPolicy>
+int op_open(char const* path, struct fuse_file_info* fi) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
 
+  LOG_DEBUG << __func__;
+
+  return -op_open_common(log_, userdata, fi,
+                         [userdata, path] { return userdata->fs.find(path); });
+}
+#endif
+
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
              struct fuse_file_info* fi) {
@@ -339,7 +471,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   int err = ENOENT;
 
   try {
-    if (fi->fh == ino) {
+    if (FUSE_ROOT_ID + fi->fh == ino) {
       iovec_read_buf buf;
       ssize_t rv = userdata->fs.readv(ino, buf, size, off);
 
@@ -371,7 +503,41 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 
   fuse_reply_err(req, err);
 }
+#else
+template <typename LoggerPolicy>
+int op_read(char const* path, char* buf, size_t size, off_t off,
+            struct fuse_file_info* fi) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
 
+  LOG_DEBUG << __func__;
+
+  int err = -ENOENT;
+
+  try {
+    ssize_t rv = userdata->fs.read(fi->fh, buf, size, off);
+
+    LOG_DEBUG << "read(" << path << " [" << fi->fh << "], " << size << ", "
+              << off << ") -> " << rv;
+
+    if (rv >= 0) {
+      return rv;
+    }
+
+    err = rv;
+  } catch (dwarfs::system_error const& e) {
+    LOG_ERROR << e.what();
+    err = -e.get_errno();
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    err = -EIO;
+  }
+
+  return err;
+}
+#endif
+
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
                 struct fuse_file_info* /*fi*/) {
@@ -391,7 +557,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       if (dir) {
         file_off_t lastoff = userdata->fs.dirsize(*dir);
         file_stat stbuf;
-        struct ::stat st;
+        struct stat st;
         std::vector<char> buf(size);
         size_t written = 0;
 
@@ -438,14 +604,69 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 
   fuse_reply_err(req, err);
 }
-
+#else
 template <typename LoggerPolicy>
-void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
+int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, off_t off,
+               struct fuse_file_info* /*fi*/,
+               enum fuse_readdir_flags /*flags*/) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << path << ")";
 
+  int err = -ENOENT;
+
+  try {
+    auto dirent = userdata->fs.find(path);
+
+    if (dirent) {
+      auto dir = userdata->fs.opendir(*dirent);
+
+      if (dir) {
+        file_off_t lastoff = userdata->fs.dirsize(*dir);
+        file_stat stbuf;
+        struct stat st;
+
+        ::memset(&st, 0, sizeof(st));
+
+        while (off < lastoff) {
+          auto res = userdata->fs.readdir(*dir, off);
+          assert(res);
+
+          auto [entry, name_view] = *res;
+          std::string name(name_view);
+
+          userdata->fs.getattr(entry, &stbuf);
+          copy_file_stat(&st, stbuf);
+
+          if (filler(buf, name.c_str(), &st, off + 1, FUSE_FILL_DIR_PLUS) !=
+              0) {
+            break;
+          }
+
+          ++off;
+        }
+
+        return 0;
+      }
+
+      err = -ENOTDIR;
+    }
+  } catch (dwarfs::system_error const& e) {
+    LOG_ERROR << e.what();
+    err = -e.get_errno();
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    err = -EIO;
+  }
+
+  return err;
+}
+#endif
+
+template <typename LogProxy>
+int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
+                     struct statvfs* st) {
   int err = EIO;
 
   try {
@@ -454,18 +675,12 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
     err = userdata->fs.statvfs(&stbuf);
 
     if (err == 0) {
-      struct ::statvfs st;
-
-      ::memset(&st, 0, sizeof(st));
-      copy_vfs_stat(&st, stbuf);
+      ::memset(st, 0, sizeof(*st));
+      copy_vfs_stat(st, stbuf);
 
       if (stbuf.readonly) {
-        st.f_flag |= ST_RDONLY;
+        st->f_flag |= ST_RDONLY;
       }
-
-      fuse_reply_statfs(req, &st);
-
-      return;
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -475,9 +690,41 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
     err = EIO;
   }
 
-  fuse_reply_err(req, err);
+  return err;
 }
 
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__;
+
+  struct ::statvfs st;
+
+  int err = op_statfs_common(log_, userdata, &st);
+
+  if (err == 0) {
+    fuse_reply_statfs(req, &st);
+  } else {
+    fuse_reply_err(req, err);
+  }
+}
+#else
+template <typename LoggerPolicy>
+int op_statfs(char const* path, struct statvfs* st) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ")";
+
+  return -op_statfs_common(log_, userdata, st);
+}
+
+#endif
+
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
                  size_t size) {
@@ -509,11 +756,49 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
 
   fuse_reply_err(req, err);
 }
+#else
+template <typename LoggerPolicy>
+int op_getxattr(char const* path, char const* name, char* value, size_t size) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
 
-void usage(const char* progname) {
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
+
+  static constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
+  int err = -ENODATA;
+
+  try {
+    std::string_view pv(path);
+
+    if ((pv == "" || pv == "/") && name == pid_xattr) {
+      auto pidstr = std::to_string(::getpid());
+      if (size == 0) {
+        return pidstr.size();
+      } else if (size < pidstr.size()) {
+        return -ERANGE;
+      }
+      ::strncpy(value, pidstr.c_str(), size);
+      return pidstr.size();
+    }
+  } catch (dwarfs::system_error const& e) {
+    LOG_ERROR << e.what();
+    err = -e.get_errno();
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    err = -EIO;
+  }
+
+  return err;
+}
+#endif
+
+void usage(char const* progname) {
   std::cerr
       << tool_header("dwarfs",
                      fmt::format(", fuse version {}", FUSE_USE_VERSION))
+#if !DWARFS_FUSE_LOWLEVEL
+      << "USING HIGH-LEVEL FUSE API\n\n"
+#endif
       << "usage: " << progname << " image mountpoint [options]\n\n"
       << "DWARFS options:\n"
       << "    -o cachesize=SIZE      set size of block cache (512M)\n"
@@ -531,12 +816,12 @@ void usage(const char* progname) {
       << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
       << std::endl;
 
-#if FUSE_USE_VERSION >= 30
+#if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
   fuse_cmdline_help();
 #else
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_opt_add_arg(&args, progname);
-  fuse_opt_add_arg(&args, "-ho");
+  fuse_opt_add_arg(&args, "");
+  fuse_opt_add_arg(&args, "-h");
   struct fuse_operations fsops;
   ::memset(&fsops, 0, sizeof(fsops));
   fuse_main(args.argc, args.argv, &fsops, nullptr);
@@ -546,7 +831,7 @@ void usage(const char* progname) {
   ::exit(1);
 }
 
-int option_hdl(void* data, const char* arg, int key,
+int option_hdl(void* data, char const* arg, int key,
                struct fuse_args* /*outargs*/) {
   auto* opts = reinterpret_cast<options*>(data);
 
@@ -578,8 +863,9 @@ int option_hdl(void* data, const char* arg, int key,
   return 1;
 }
 
+#if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void init_lowlevel_ops(struct fuse_lowlevel_ops& ops) {
+void init_fuse_ops(struct fuse_lowlevel_ops& ops) {
   ops.init = &op_init<LoggerPolicy>;
   ops.lookup = &op_lookup<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
@@ -592,23 +878,45 @@ void init_lowlevel_ops(struct fuse_lowlevel_ops& ops) {
   ops.getxattr = &op_getxattr<LoggerPolicy>;
   // ops.listxattr = &op_listxattr<LoggerPolicy>;
 }
+#else
+template <typename LoggerPolicy>
+void init_fuse_ops(struct fuse_operations& ops) {
+  ops.init = &op_init<LoggerPolicy>;
+  ops.getattr = &op_getattr<LoggerPolicy>;
+  ops.access = &op_access<LoggerPolicy>;
+  ops.readlink = &op_readlink<LoggerPolicy>;
+  ops.open = &op_open<LoggerPolicy>;
+  ops.read = &op_read<LoggerPolicy>;
+  ops.readdir = &op_readdir<LoggerPolicy>;
+  ops.statfs = &op_statfs<LoggerPolicy>;
+  ops.getxattr = &op_getxattr<LoggerPolicy>;
+}
+#endif
 
 #if FUSE_USE_VERSION > 30
 
-int run_fuse(struct fuse_args& args, struct fuse_cmdline_opts const& fuse_opts,
+int run_fuse(struct fuse_args& args,
+#if DWARFS_FUSE_LOWLEVEL
+             struct fuse_cmdline_opts const& fuse_opts,
+#endif
              dwarfs_userdata& userdata) {
+#if DWARFS_FUSE_LOWLEVEL
   struct fuse_lowlevel_ops fsops;
+#else
+  struct fuse_operations fsops;
+#endif
 
   ::memset(&fsops, 0, sizeof(fsops));
 
   if (userdata.opts.debuglevel >= logger::DEBUG) {
-    init_lowlevel_ops<debug_logger_policy>(fsops);
+    init_fuse_ops<debug_logger_policy>(fsops);
   } else {
-    init_lowlevel_ops<prod_logger_policy>(fsops);
+    init_fuse_ops<prod_logger_policy>(fsops);
   }
 
   int err = 1;
 
+#if DWARFS_FUSE_LOWLEVEL
   if (auto session =
           fuse_session_new(&args, &fsops, sizeof(fsops), &userdata)) {
     if (fuse_set_signal_handlers(session) == 0) {
@@ -631,6 +939,10 @@ int run_fuse(struct fuse_args& args, struct fuse_cmdline_opts const& fuse_opts,
   }
 
   ::free(fuse_opts.mountpoint);
+#else
+  err = fuse_main(args.argc, args.argv, &fsops, &userdata);
+#endif
+
   fuse_opt_free_args(&args);
 
   return err;
@@ -645,9 +957,9 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
   ::memset(&fsops, 0, sizeof(fsops));
 
   if (userdata.opts.debuglevel >= logger::DEBUG) {
-    init_lowlevel_ops<debug_logger_policy>(fsops);
+    init_fuse_ops<debug_logger_policy>(fsops);
   } else {
-    init_lowlevel_ops<prod_logger_policy>(fsops);
+    init_fuse_ops<prod_logger_policy>(fsops);
   }
 
   int err = 1;
@@ -703,8 +1015,16 @@ void load_filesystem(dwarfs_userdata& userdata) {
     }
   }
 
+  constexpr int inode_offset =
+#ifdef FUSE_ROOT_ID
+      FUSE_ROOT_ID
+#else
+      0
+#endif
+      ;
+
   userdata.fs = filesystem_v2(
-      userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts, FUSE_ROOT_ID);
+      userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts, inode_offset);
 
   ti << "file system initialized";
 }
@@ -720,6 +1040,7 @@ int dwarfs_main(int argc, char** argv) {
 
   fuse_opt_parse(&args, &opts, dwarfs_opts, option_hdl);
 
+#if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
   struct fuse_cmdline_opts fuse_opts;
 
@@ -746,6 +1067,7 @@ int dwarfs_main(int argc, char** argv) {
 
   bool foreground = fg;
 #endif
+#endif
 
   try {
     // TODO: foreground mode, stderr vs. syslog?
@@ -755,7 +1077,11 @@ int dwarfs_main(int argc, char** argv) {
     if (opts.debuglevel_str) {
       opts.debuglevel = logger::parse_level(opts.debuglevel_str);
     } else {
+#if DWARFS_FUSE_LOWLEVEL
       opts.debuglevel = foreground ? logger::INFO : logger::WARN;
+#else
+      opts.debuglevel = logger::WARN;
+#endif
     }
 
     userdata.lgr.set_threshold(opts.debuglevel);
@@ -825,7 +1151,11 @@ int dwarfs_main(int argc, char** argv) {
   }
 
 #if FUSE_USE_VERSION >= 30
+#if DWARFS_FUSE_LOWLEVEL
   return run_fuse(args, fuse_opts, userdata);
+#else
+  return run_fuse(args, userdata);
+#endif
 #else
   return run_fuse(args, mountpoint, mt, fg, userdata);
 #endif
