@@ -53,6 +53,14 @@
 #endif
 #endif
 
+#ifdef _WIN32
+#include <fuse3/winfsp_fuse.h>
+#define st_atime st_atim.tv_sec
+#define st_ctime st_ctim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define DWARFS_FSP_COMPAT
+#endif
+
 #include "dwarfs/error.h"
 #include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
@@ -66,6 +74,18 @@
 #include "dwarfs/version.h"
 #include "dwarfs/vfs_stat.h"
 #include "dwarfs_tool_main.h"
+
+namespace {
+#ifdef DWARFS_FSP_COMPAT
+using native_stat = struct ::fuse_stat;
+using native_statvfs = struct ::fuse_statvfs;
+using native_off_t = ::fuse_off_t;
+#else
+using native_stat = struct ::stat;
+using native_statvfs = struct ::statvfs;
+using native_off_t = ::off_t;
+#endif
+}
 
 namespace dwarfs {
 
@@ -225,7 +245,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
 
 template <typename LogProxy, typename Find>
 int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
-                      struct stat* st, Find const& find) {
+                      native_stat* st, Find const& find) {
   int err = ENOENT;
 
   try {
@@ -260,7 +280,7 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
 
-  struct stat st;
+  native_stat st;
 
   int err = op_getattr_common(
       log_, userdata, &st, [userdata, ino] { return userdata->fs.find(ino); });
@@ -273,7 +293,7 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 }
 #else
 template <typename LoggerPolicy>
-int op_getattr(char const* path, struct stat* st, struct fuse_file_info*) {
+int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
@@ -505,7 +525,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 }
 #else
 template <typename LoggerPolicy>
-int op_read(char const* path, char* buf, size_t size, off_t off,
+int op_read(char const* path, char* buf, size_t size, native_off_t off,
             struct fuse_file_info* fi) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
@@ -557,7 +577,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       if (dir) {
         file_off_t lastoff = userdata->fs.dirsize(*dir);
         file_stat stbuf;
-        struct stat st;
+        native_stat st;
         std::vector<char> buf(size);
         size_t written = 0;
 
@@ -606,7 +626,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 }
 #else
 template <typename LoggerPolicy>
-int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, off_t off,
+int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, native_off_t off,
                struct fuse_file_info* /*fi*/,
                enum fuse_readdir_flags /*flags*/) {
   dUSERDATA;
@@ -625,7 +645,7 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, off_t off,
       if (dir) {
         file_off_t lastoff = userdata->fs.dirsize(*dir);
         file_stat stbuf;
-        struct stat st;
+        native_stat st;
 
         ::memset(&st, 0, sizeof(st));
 
@@ -666,7 +686,7 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, off_t off,
 
 template <typename LogProxy>
 int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
-                     struct statvfs* st) {
+                     native_statvfs* st) {
   int err = EIO;
 
   try {
@@ -678,9 +698,11 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
       ::memset(st, 0, sizeof(*st));
       copy_vfs_stat(st, stbuf);
 
+#ifndef _WIN32
       if (stbuf.readonly) {
         st->f_flag |= ST_RDONLY;
       }
+#endif
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -713,7 +735,7 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 }
 #else
 template <typename LoggerPolicy>
-int op_statfs(char const* path, struct statvfs* st) {
+int op_statfs(char const* path, native_statvfs* st) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
@@ -1072,7 +1094,7 @@ int dwarfs_main(int argc, char** argv) {
   try {
     // TODO: foreground mode, stderr vs. syslog?
 
-    opts.fsimage = std::filesystem::canonical(opts.fsimage).native();
+    opts.fsimage = std::filesystem::canonical(opts.fsimage).string();
 
     if (opts.debuglevel_str) {
       opts.debuglevel = logger::parse_level(opts.debuglevel_str);
