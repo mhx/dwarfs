@@ -816,6 +816,26 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
 
   return err;
 }
+
+template <typename LoggerPolicy>
+int op_listxattr(char const* path, char* list, size_t size) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
+
+  const std::string all_xattr = std::string(pid_xattr) + '\0';
+
+  if (size > 0) {
+    if (size < all_xattr.size()) {
+      return -ERANGE;
+    }
+
+    ::memcpy(list, all_xattr.data(), all_xattr.size());
+  }
+
+  return all_xattr.size();
+}
 #endif
 
 void usage(char const* progname) {
@@ -916,6 +936,7 @@ void init_fuse_ops(struct fuse_operations& ops) {
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
   ops.getxattr = &op_getxattr<LoggerPolicy>;
+  ops.listxattr = &op_listxattr<LoggerPolicy>;
 }
 #endif
 
