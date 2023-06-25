@@ -85,7 +85,7 @@ using native_stat = struct ::stat;
 using native_statvfs = struct ::statvfs;
 using native_off_t = ::off_t;
 #endif
-}
+} // namespace
 
 namespace dwarfs {
 
@@ -155,6 +155,12 @@ std::unordered_map<std::string_view, cache_tidy_strategy> const
         {"time", cache_tidy_strategy::EXPIRY_TIME},
         {"swap", cache_tidy_strategy::BLOCK_SWAPPED_OUT},
     };
+
+namespace {
+
+constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
+
+}
 
 #if DWARFS_FUSE_LOWLEVEL
 #define dUSERDATA                                                              \
@@ -626,8 +632,8 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 }
 #else
 template <typename LoggerPolicy>
-int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler, native_off_t off,
-               struct fuse_file_info* /*fi*/,
+int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
+               native_off_t off, struct fuse_file_info* /*fi*/,
                enum fuse_readdir_flags /*flags*/) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata->lgr);
@@ -755,7 +761,6 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size << ")";
 
-  static constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
   int err = ENODATA;
 
   try {
@@ -786,7 +791,6 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
 
   LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
 
-  static constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
   int err = -ENODATA;
 
   try {
