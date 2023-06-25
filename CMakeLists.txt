@@ -25,6 +25,7 @@ include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
+option(WITH_FTXUI "build with FTXUI library" OFF)
 if(WIN32)
   set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_LIBARCHIVE ON)
@@ -52,10 +53,12 @@ if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(LIBARCHIVE_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/libarchive)
+  set(FTXUI_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/FTXUI)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(LIBARCHIVE_GIT_REPO https://github.com/libarchive/libarchive.git)
+  set(FTXUI_GIT_REPO https://github.com/ArthurSonzogni/FTXUI.git)
 endif()
 
 if(NOT DISABLE_CCACHE)
@@ -171,6 +174,21 @@ if(WITH_MAN_PAGES)
       message(WARNING "error: ${ronn_error}")
     endif()
   endforeach()
+endif()
+
+if(WITH_FTXUI)
+  ExternalProject_Add(
+    FTXUI
+    PREFIX "${CMAKE_CURRENT_BINARY_DIR}/FTXUI"
+    GIT_REPOSITORY ${FTXUI_GIT_REPO}
+    GIT_TAG "v4.1.1"
+    CMAKE_ARGS -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
+               -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+               -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/FTXUI-install
+               -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+               -DFTXUI_BUILD_EXAMPLES=OFF
+               -DFTXUI_BUILD_DOCS=OFF
+  )
 endif()
 
 if(PREFER_SYSTEM_LIBFMT)
