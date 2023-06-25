@@ -21,8 +21,10 @@
 
 #include <chrono>
 #include <filesystem>
+#include <future>
 #include <iostream>
 #include <thread>
+#include <tuple>
 
 #include <fcntl.h>
 #include <signal.h>
@@ -30,11 +32,14 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#include <boost/asio/io_service.hpp>
+#include <boost/process.hpp>
+
 #include <gtest/gtest.h>
 
 #include <folly/Conv.h>
+#include <folly/FileUtil.h>
 #include <folly/ScopeGuard.h>
-#include <folly/Subprocess.h>
 #include <folly/experimental/TestUtil.h>
 
 #include <fmt/format.h>
@@ -65,8 +70,9 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
   return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
 }
 
-void append_arg(std::vector<std::string>& args, std::string const& arg) {
-  args.emplace_back(arg);
+void append_arg(std::vector<std::string>& args,
+                std::filesystem::path const& arg) {
+  args.emplace_back(arg.string());
 }
 
 void append_arg(std::vector<std::string>& args,
@@ -74,22 +80,39 @@ void append_arg(std::vector<std::string>& args,
   args.insert(args.end(), more.begin(), more.end());
 }
 
+template <typename T>
+void append_arg(std::vector<std::string>& args, T const& arg) {
+  args.emplace_back(arg);
+}
+
 template <typename... Args>
-folly::Subprocess make_subprocess(Args&&... args) {
+std::tuple<std::string, std::string, int> run(Args&&... args) {
+  namespace bp = boost::process;
+
   std::vector<std::string> cmdline;
   (append_arg(cmdline, std::forward<Args>(args)), ...);
-  return folly::Subprocess(
-      cmdline, folly::Subprocess::Options().pipeStdout().pipeStderr());
+
+  boost::asio::io_service ios;
+  std::future<std::string> out, err;
+
+  bp::child c(bp::args(cmdline), bp::std_in.close(), bp::std_out > out,
+              bp::std_err > err, ios);
+
+  ios.run();
+  c.wait();
+
+  return {out.get(), err.get(), c.exit_code()};
 }
 
 template <typename... Args>
 std::optional<std::string> check_run(Args&&... args) {
-  auto proc = make_subprocess(std::forward<Args>(args)...);
-  const auto [out, err] = proc.communicate();
-  if (auto ec = proc.wait().exitStatus(); ec != 0) {
+  auto const [out, err, ec] = run(std::forward<Args>(args)...);
+
+  if (ec != 0) {
     std::cerr << "stdout:\n" << out << "\nstderr:\n" << err << std::endl;
     return std::nullopt;
   }
+
   return out;
 }
 
@@ -277,13 +300,9 @@ TEST(tools, everything) {
     }
 
     {
-      auto proc = make_subprocess(driver, image_hdr, mountpoint);
+      auto const [out, err, ec] = run(driver, image_hdr, mountpoint);
 
-      const auto [out, err] = proc.communicate();
-
-      EXPECT_NE(0, proc.wait().exitStatus()) << "stdout:\n"
-                                             << out << "\nstderr:\n"
-                                             << err;
+      EXPECT_NE(0, ec) << "stdout:\n" << out << "\nstderr:\n" << err;
     }
 
     unsigned const combinations = 1 << all_options.size();
