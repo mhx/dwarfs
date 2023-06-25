@@ -35,8 +35,9 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
-#include <unistd.h>
 #endif
+
+#include <folly/portability/Unistd.h>
 
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
@@ -350,15 +351,11 @@ bool check_readonly(fs::path const& p, bool readonly = false) {
     return false;
   }
 
-#ifdef _WIN32
-  // TODO
-#else
-  if (::access(p.c_str(), W_OK) == 0) {
+  if (::access(p.string().c_str(), W_OK) == 0) {
     // access(W_OK) should never succeed
     ::perror("access");
     return false;
   }
-#endif
 
   return true;
 }
