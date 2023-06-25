@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <gtest/gtest.h>
+
 #include <chrono>
 #include <filesystem>
 #include <future>
@@ -26,7 +28,9 @@
 #include <thread>
 #include <tuple>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#else
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -37,11 +41,9 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
 
-#include <gtest/gtest.h>
-
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
-#include <folly/ScopeGuard.h>
+#include <folly/String.h>
 #include <folly/experimental/TestUtil.h>
 
 #include <fmt/format.h>
@@ -50,20 +52,23 @@
 
 namespace {
 
-auto data_archive = std::filesystem::path(TEST_DATA_DIR) / "data.tar";
+namespace bp = boost::process;
+namespace fs = std::filesystem;
 
-auto tools_dir = std::filesystem::path(TOOLS_BIN_DIR);
+auto data_archive = fs::path(TEST_DATA_DIR) / "data.tar";
+
+auto tools_dir = fs::path(TOOLS_BIN_DIR);
 auto mkdwarfs_bin = tools_dir / "mkdwarfs";
 auto fuse3_bin = tools_dir / "dwarfs";
 auto fuse2_bin = tools_dir / "dwarfs2";
 auto dwarfsextract_bin = tools_dir / "dwarfsextract";
 auto dwarfsck_bin = tools_dir / "dwarfsck";
 
-auto diff_bin = std::filesystem::path(DIFF_BIN);
-auto tar_bin = std::filesystem::path(TAR_BIN);
+auto diff_bin = fs::path(DIFF_BIN);
+auto tar_bin = fs::path(TAR_BIN);
 
 #ifndef _WIN32
-pid_t get_dwarfs_pid(std::filesystem::path const& path) {
+pid_t get_dwarfs_pid(fs::path const& path) {
   std::array<char, 32> attr_buf;
   auto attr_len = ::getxattr(path.c_str(), "user.dwarfs.driver.pid",
                              attr_buf.data(), attr_buf.size());
@@ -74,8 +79,6 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
 }
 #endif
 
-namespace bp = boost::process;
-
 class subprocess {
  public:
   template <typename... Args>
@@ -83,8 +86,14 @@ class subprocess {
     std::vector<std::string> cmdline;
     (append_arg(cmdline, std::forward<Args>(args)), ...);
 
-    c_ = bp::child(bp::args(cmdline), bp::std_in.close(), bp::std_out > out_,
-                   bp::std_err > err_, ios_);
+    try {
+      c_ = bp::child(bp::args(cmdline), bp::std_in.close(), bp::std_out > out_,
+                     bp::std_err > err_, ios_);
+    } catch (...) {
+      std::cerr << "failed to create subprocess: " << folly::join(' ', cmdline)
+                << "\n";
+      throw;
+    }
   }
 
   void run() {
@@ -109,7 +118,13 @@ class subprocess {
     pt_.reset();
   }
 
-  void interrupt() { ::kill(pid(), SIGINT); }
+  void interrupt() {
+#ifdef _WIN32
+    ::GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid());
+#else
+    ::kill(pid(), SIGINT);
+#endif
+  }
 
   std::string const& out() const { return outs_; }
 
@@ -139,8 +154,7 @@ class subprocess {
   }
 
  private:
-  static void
-  append_arg(std::vector<std::string>& args, std::filesystem::path const& arg) {
+  static void append_arg(std::vector<std::string>& args, fs::path const& arg) {
     args.emplace_back(arg.string());
   }
 
@@ -170,8 +184,7 @@ class process_guard {
 
   explicit process_guard(pid_t pid)
       : pid_{pid} {
-    auto proc_dir =
-        std::filesystem::path("/proc") / folly::to<std::string>(pid);
+    auto proc_dir = fs::path("/proc") / folly::to<std::string>(pid);
     proc_dir_fd_ = ::open(proc_dir.c_str(), O_DIRECTORY);
 
     if (proc_dir_fd_ < 0) {
@@ -211,9 +224,8 @@ class driver_runner {
   driver_runner() = default;
 
   template <typename... Args>
-  driver_runner(std::filesystem::path const& driver,
-                std::filesystem::path const& image,
-                std::filesystem::path const& mountpoint, Args&&... args)
+  driver_runner(fs::path const& driver, fs::path const& image,
+                fs::path const& mountpoint, Args&&... args)
       : mountpoint_{mountpoint} {
     setup_mountpoint(mountpoint);
 #ifdef _WIN32
@@ -230,9 +242,8 @@ class driver_runner {
   }
 
   template <typename... Args>
-  driver_runner(foreground_t, std::filesystem::path const& driver,
-                std::filesystem::path const& image,
-                std::filesystem::path const& mountpoint, Args&&... args)
+  driver_runner(foreground_t, fs::path const& driver, fs::path const& image,
+                fs::path const& mountpoint, Args&&... args)
       : mountpoint_{mountpoint} {
     setup_mountpoint(mountpoint);
     process_ = std::make_unique<subprocess>(driver, image, mountpoint,
@@ -251,7 +262,11 @@ class driver_runner {
 #ifndef _WIN32
       if (process_) {
 #endif
-        constexpr int expected_exit_code = SIGINT;
+#ifdef _WIN32
+        constexpr int expected_exit_code = 0;
+#else
+      constexpr int expected_exit_code = SIGINT;
+#endif
         process_->interrupt();
         process_->wait(); // TODO: wait_for?
         auto ec = process_->exit_code();
@@ -268,8 +283,8 @@ class driver_runner {
         subprocess::check_run(find_fusermount(), "-u", mountpoint_);
         mountpoint_.clear();
         return dwarfs_guard_.check_exit(std::chrono::seconds(5));
-#endif
       }
+#endif
     }
     return false;
   }
@@ -284,7 +299,7 @@ class driver_runner {
 
  private:
 #ifndef _WIN32
-  static std::filesystem::path find_fusermount() {
+  static fs::path find_fusermount() {
     auto fusermount_bin = dwarfs::test::find_binary("fusermount");
     if (!fusermount_bin) {
       fusermount_bin = dwarfs::test::find_binary("fusermount3");
@@ -296,26 +311,26 @@ class driver_runner {
   }
 #endif
 
-  static void setup_mountpoint(std::filesystem::path const& mp) {
-    if (std::filesystem::exists(mp)) {
-      std::filesystem::remove(mp);
+  static void setup_mountpoint(fs::path const& mp) {
+    if (fs::exists(mp)) {
+      fs::remove(mp);
     }
 #ifndef _WIN32
-    std::filesystem::create_directory(mp);
+    fs::create_directory(mp);
 #endif
   }
 
-  std::filesystem::path mountpoint_;
+  fs::path mountpoint_;
   std::unique_ptr<subprocess> process_;
 #ifndef _WIN32
   process_guard dwarfs_guard_;
 #endif
 };
 
-bool wait_until_file_ready(std::filesystem::path const& path,
+bool wait_until_file_ready(fs::path const& path,
                            std::chrono::milliseconds timeout) {
   auto end = std::chrono::steady_clock::now() + timeout;
-  while (::access(path.c_str(), F_OK) != 0) {
+  while (!fs::exists(path)) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if (std::chrono::steady_clock::now() >= end) {
       return false;
@@ -324,45 +339,38 @@ bool wait_until_file_ready(std::filesystem::path const& path,
   return true;
 }
 
-bool check_readonly(std::filesystem::path const& p, bool readonly = false) {
-  // TODO: std::filesystem
-  struct ::stat buf;
-  if (::stat(p.c_str(), &buf) != 0) {
-    throw std::runtime_error("could not stat " + p.string());
-  }
-
-  bool is_writable = (buf.st_mode & S_IWUSR) != 0;
+bool check_readonly(fs::path const& p, bool readonly = false) {
+  auto st = fs::status(p);
+  bool is_writable =
+      (st.permissions() & fs::perms::owner_write) != fs::perms::none;
 
   if (is_writable == readonly) {
-    std::cerr << "readonly=" << readonly
-              << ", st_mode=" << fmt::format("{0:o}", buf.st_mode) << std::endl;
+    std::cerr << "readonly=" << readonly << ", st_mode="
+              << fmt::format("{0:o}", uint16_t(st.permissions())) << "\n";
     return false;
   }
 
+#ifdef _WIN32
+  // TODO
+#else
   if (::access(p.c_str(), W_OK) == 0) {
     // access(W_OK) should never succeed
     ::perror("access");
     return false;
   }
+#endif
 
   return true;
 }
 
-::nlink_t num_hardlinks(std::filesystem::path const& p) {
-  // TODO: std::filesystem
-  struct ::stat buf;
-  if (::stat(p.c_str(), &buf) != 0) {
-    throw std::runtime_error("could not stat " + p.string());
-  }
-  return buf.st_nlink;
-}
+size_t num_hardlinks(fs::path const& p) { return fs::hard_link_count(p); }
 
 } // namespace
 
 TEST(tools, everything) {
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
-  auto td = std::filesystem::path(tempdir.path().string());
+  auto td = fs::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
   auto data_dir = td / "data";
@@ -372,24 +380,24 @@ TEST(tools, everything) {
   ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", data_dir, "-o", image,
                                     "--no-progress"));
 
-  ASSERT_TRUE(std::filesystem::exists(image));
-  ASSERT_GT(std::filesystem::file_size(image), 1000);
+  ASSERT_TRUE(fs::exists(image));
+  ASSERT_GT(fs::file_size(image), 1000);
 
   ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", image, "-o", image_hdr,
                                     "--no-progress", "--recompress=none",
                                     "--header", header_data));
 
-  ASSERT_TRUE(std::filesystem::exists(image_hdr));
-  ASSERT_GT(std::filesystem::file_size(image_hdr), 1000);
+  ASSERT_TRUE(fs::exists(image_hdr));
+  ASSERT_GT(fs::file_size(image_hdr), 1000);
 
   auto mountpoint = td / "mnt";
   auto extracted = td / "extracted";
   auto untared = td / "untared";
 
-  std::vector<std::filesystem::path> drivers;
+  std::vector<fs::path> drivers;
   drivers.push_back(fuse3_bin);
 
-  if (std::filesystem::exists(fuse2_bin)) {
+  if (fs::exists(fuse2_bin)) {
     drivers.push_back(fuse2_bin);
   }
 
@@ -471,7 +479,7 @@ TEST(tools, everything) {
 
   {
     std::string header;
-    EXPECT_TRUE(folly::readFile(header_data.c_str(), header));
+    EXPECT_TRUE(folly::readFile(header_data.string().c_str(), header));
 
     auto output = subprocess::check_run(dwarfsck_bin, image_hdr, "-H");
 
@@ -480,9 +488,9 @@ TEST(tools, everything) {
     EXPECT_EQ(header, *output);
   }
 
-  EXPECT_GT(std::filesystem::file_size(meta_export), 1000);
+  EXPECT_GT(fs::file_size(meta_export), 1000);
 
-  ASSERT_TRUE(std::filesystem::create_directory(extracted));
+  ASSERT_TRUE(fs::create_directory(extracted));
 
   ASSERT_TRUE(
       subprocess::check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
@@ -493,7 +501,7 @@ TEST(tools, everything) {
   ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", image, "-f",
                                     "gnutar", "-o", tarfile));
 
-  ASSERT_TRUE(std::filesystem::create_directory(untared));
+  ASSERT_TRUE(fs::create_directory(untared));
   ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", tarfile, "-C", untared));
   ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, untared));
 }
