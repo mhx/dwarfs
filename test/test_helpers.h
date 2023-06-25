@@ -57,7 +57,15 @@ struct simplestat {
 };
 
 class os_access_mock : public os_access {
+ private:
+  struct mock_directory;
+  struct mock_dirent;
+
  public:
+  using value_variant_type =
+      std::variant<std::monostate, std::string, std::function<std::string()>,
+                   std::unique_ptr<mock_directory>>;
+
   os_access_mock();
   ~os_access_mock();
 
@@ -77,32 +85,28 @@ class os_access_mock : public os_access {
 
   void set_access_fail(std::filesystem::path const& path);
 
-  std::shared_ptr<dir_reader> opendir(std::string const& path) const override;
+  std::shared_ptr<dir_reader>
+  opendir(std::filesystem::path const& path) const override;
 
-  file_stat symlink_info(std::string const& path) const override;
-  std::string read_symlink(std::string const& path) const override;
+  file_stat symlink_info(std::filesystem::path const& path) const override;
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& path) const override;
 
   std::shared_ptr<mmif>
-  map_file(std::string const& path, size_t size) const override;
+  map_file(std::filesystem::path const& path, size_t size) const override;
 
-  int access(std::string const&, int) const override;
+  int access(std::filesystem::path const&, int) const override;
 
  private:
-  struct mock_directory;
-  struct mock_dirent;
-
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
-  void add_internal(
-      std::filesystem::path const& path, simplestat const& st,
-      std::variant<std::monostate, std::string, std::function<std::string()>,
-                   std::unique_ptr<mock_directory>>
-          var);
+  void add_internal(std::filesystem::path const& path, simplestat const& st,
+                    value_variant_type var);
 
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
-  std::unordered_set<std::string> access_fail_set_;
+  std::unordered_set<std::filesystem::path> access_fail_set_;
 };
 
 class script_mock : public script {

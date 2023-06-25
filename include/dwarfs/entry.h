@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -67,12 +68,13 @@ class entry : public entry_interface {
  public:
   enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
-  entry(std::string const& name, std::shared_ptr<entry> parent,
+  entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
         file_stat const& st);
 
   bool has_parent() const;
   std::shared_ptr<entry> parent() const;
   void set_name(std::string const& name);
+  std::filesystem::path fs_path() const;
   std::string path() const override;
   std::string dpath() const override;
   std::string const& name() const override { return name_; }
@@ -112,6 +114,8 @@ class entry : public entry_interface {
   void override_size(size_t size) { stat_.size = size; }
 
  private:
+  std::u8string u8name() const;
+
   std::string name_;
   std::weak_ptr<entry> parent_;
   file_stat stat_;
@@ -120,9 +124,7 @@ class entry : public entry_interface {
 
 class file : public entry {
  public:
-  file(const std::string& name, std::shared_ptr<entry> parent,
-       file_stat const& st)
-      : entry(name, std::move(parent), st) {}
+  using entry::entry;
 
   type_t type() const override;
   std::string_view hash() const;
@@ -176,7 +178,7 @@ class dir : public entry {
     return inode_num_;
   }
 
-  std::shared_ptr<entry> find(std::string_view name);
+  std::shared_ptr<entry> find(std::filesystem::path const& path);
 
  private:
   using entry_ptr = std::shared_ptr<entry>;
@@ -237,7 +239,7 @@ class entry_factory {
   virtual ~entry_factory() = default;
 
   virtual std::shared_ptr<entry>
-  create(os_access& os, const std::string& name,
+  create(os_access& os, std::filesystem::path const& path,
          std::shared_ptr<entry> parent = nullptr) = 0;
 };
 } // namespace dwarfs

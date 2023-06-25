@@ -32,4 +32,12 @@ std::string size_with_unit(size_t size);
 size_t parse_size_with_unit(std::string const& str);
 std::chrono::milliseconds parse_time_with_unit(std::string const& str);
 
+inline std::u8string string_to_u8string(std::string const& in) {
+  return std::u8string(reinterpret_cast<char8_t const*>(in.data()), in.size());
+}
+
+inline std::string u8string_to_string(std::u8string const& in) {
+  return std::string(reinterpret_cast<char const*>(in.data()), in.size());
+}
+
 } // namespace dwarfs

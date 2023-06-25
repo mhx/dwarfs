@@ -35,7 +35,7 @@ class dir_reader {
  public:
   virtual ~dir_reader() = default;
 
-  virtual bool read(std::string& name) = 0;
+  virtual bool read(std::filesystem::path& name) = 0;
 };
 
 class os_access {
@@ -43,11 +43,12 @@ class os_access {
   virtual ~os_access() = default;
 
   virtual std::shared_ptr<dir_reader>
-  opendir(std::string const& path) const = 0;
-  virtual file_stat symlink_info(std::string const& path) const = 0;
-  virtual std::string read_symlink(std::string const& path) const = 0;
+  opendir(std::filesystem::path const& path) const = 0;
+  virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
+  virtual std::filesystem::path
+  read_symlink(std::filesystem::path const& path) const = 0;
   virtual std::shared_ptr<mmif>
-  map_file(std::string const& path, size_t size) const = 0;
-  virtual int access(std::string const& path, int mode) const = 0;
+  map_file(std::filesystem::path const& path, size_t size) const = 0;
+  virtual int access(std::filesystem::path const& path, int mode) const = 0;
 };
 } // namespace dwarfs

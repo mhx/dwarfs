@@ -82,7 +82,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   block_compressor bc(compression);
   filesystem_writer fsw(oss, lgr, wg, *prog, bc);
 
-  s.scan(fsw, "", *prog, input_list);
+  s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
 
   return oss.str();
 }

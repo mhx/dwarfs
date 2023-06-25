@@ -25,6 +25,8 @@
 #include <functional>
 #include <iostream>
 
+#include <fmt/format.h>
+
 #include <folly/String.h>
 #include <folly/portability/Unistd.h>
 
@@ -61,19 +63,14 @@ file_stat make_file_stat(simplestat const& ss) {
 struct os_access_mock::mock_dirent {
   std::string name;
   simplestat status;
-  std::variant<std::monostate, std::string, std::function<std::string()>,
-               std::unique_ptr<mock_directory>>
-      v;
+  value_variant_type v;
 
   size_t size() const;
 
   mock_dirent* find(std::string const& name);
 
   void
-  add(std::string const& name, simplestat const& st,
-      std::variant<std::monostate, std::string, std::function<std::string()>,
-                   std::unique_ptr<mock_directory>>
-          var);
+  add(std::string const& name, simplestat const& st, value_variant_type var);
 };
 
 struct os_access_mock::mock_directory {
@@ -84,10 +81,7 @@ struct os_access_mock::mock_directory {
   mock_dirent* find(std::string const& name);
 
   void
-  add(std::string const& name, simplestat const& st,
-      std::variant<std::monostate, std::string, std::function<std::string()>,
-                   std::unique_ptr<mock_directory>>
-          var);
+  add(std::string const& name, simplestat const& st, value_variant_type var);
 };
 
 size_t os_access_mock::mock_dirent::size() const {
@@ -103,11 +97,9 @@ auto os_access_mock::mock_dirent::find(std::string const& name)
   return std::get<std::unique_ptr<mock_directory>>(v)->find(name);
 }
 
-void os_access_mock::mock_dirent::add(
-    std::string const& name, simplestat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::mock_dirent::add(std::string const& name,
+                                      simplestat const& st,
+                                      value_variant_type var) {
   return std::get<std::unique_ptr<mock_directory>>(v)->add(name, st,
                                                            std::move(var));
 }
@@ -127,11 +119,9 @@ auto os_access_mock::mock_directory::find(std::string const& name)
   return it != ent.end() ? &*it : nullptr;
 }
 
-void os_access_mock::mock_directory::add(
-    std::string const& name, simplestat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::mock_directory::add(std::string const& name,
+                                         simplestat const& st,
+                                         value_variant_type var) {
   assert(!find(name));
 
   if (st.type() == posix_file_type::directory) {
@@ -148,11 +138,11 @@ void os_access_mock::mock_directory::add(
 
 class dir_reader_mock : public dir_reader {
  public:
-  explicit dir_reader_mock(std::vector<std::string>&& files)
+  explicit dir_reader_mock(std::vector<fs::path>&& files)
       : files_(files)
       , index_(0) {}
 
-  bool read(std::string& name) override {
+  bool read(fs::path& name) override {
     if (index_ < files_.size()) {
       name = files_[index_++];
       return true;
@@ -162,7 +152,7 @@ class dir_reader_mock : public dir_reader {
   }
 
  private:
-  std::vector<std::string> files_;
+  std::vector<fs::path> files_;
   size_t index_;
 };
 
@@ -290,7 +280,7 @@ void os_access_mock::add_file(fs::path const& path,
 }
 
 void os_access_mock::set_access_fail(fs::path const& path) {
-  access_fail_set_.emplace(path.string());
+  access_fail_set_.emplace(path);
 }
 
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
@@ -325,11 +315,8 @@ auto os_access_mock::find(std::vector<std::string> parts) const
   return de;
 }
 
-void os_access_mock::add_internal(
-    fs::path const& path, simplestat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
+                                  value_variant_type var) {
   auto parts = splitpath(path);
 
   if (st.type() == posix_file_type::directory &&
@@ -354,39 +341,41 @@ void os_access_mock::add_internal(
 }
 
 std::shared_ptr<dir_reader>
-os_access_mock::opendir(std::string const& path) const {
+os_access_mock::opendir(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::directory) {
-    std::vector<std::string> files{".", ".."};
+    std::vector<fs::path> files;
     for (auto const& e :
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
-      files.push_back(e.name);
+      files.push_back(path / e.name);
     }
     return std::make_shared<dir_reader_mock>(std::move(files));
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(fmt::format("oops in opendir: {}", path.string()));
 }
 
-file_stat os_access_mock::symlink_info(std::string const& path) const {
+file_stat os_access_mock::symlink_info(fs::path const& path) const {
   if (auto de = find(path)) {
     return make_file_stat(de->status);
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(
+      fmt::format("oops in symlink_info: {}", path.string()));
 }
 
-std::string os_access_mock::read_symlink(std::string const& path) const {
+fs::path os_access_mock::read_symlink(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::symlink) {
     return std::get<std::string>(de->v);
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(
+      fmt::format("oops in read_symlink: {}", path.string()));
 }
 
 std::shared_ptr<mmif>
-os_access_mock::map_file(std::string const& path, size_t size) const {
+os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     return std::make_shared<mmap_mock>(std::visit(
@@ -394,16 +383,16 @@ os_access_mock::map_file(std::string const& path, size_t size) const {
             [this](std::string const& str) { return str; },
             [this](std::function<std::string()> const& fun) { return fun(); },
             [this](auto const&) -> std::string {
-              throw std::runtime_error("oops");
+              throw std::runtime_error("oops in overloaded");
             },
         },
         de->v));
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
 }
 
-int os_access_mock::access(std::string const& path, int) const {
+int os_access_mock::access(fs::path const& path, int) const {
   return access_fail_set_.count(path) ? -1 : 0;
 }
 

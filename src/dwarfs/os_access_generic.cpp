@@ -58,7 +58,7 @@ uint64_t time_from_filetime(FILETIME const& ft) {
   return (ticks / FT_TICKS_PER_SECOND) - FT_EPOCH_OFFSET;
 }
 
-file_stat make_file_stat(std::string const& path) {
+file_stat make_file_stat(fs::path const& path) {
   auto status = fs::symlink_status(path);
 
   file_stat rv;
@@ -106,7 +106,7 @@ file_stat make_file_stat(std::string const& path) {
 
 #else
 
-file_stat make_file_stat(std::string const& path) {
+file_stat make_file_stat(fs::path const& path) {
   struct ::stat st;
 
   if (::lstat(path.c_str(), &st) != 0) {
@@ -135,12 +135,12 @@ file_stat make_file_stat(std::string const& path) {
 
 class generic_dir_reader final : public dir_reader {
  public:
-  explicit generic_dir_reader(const std::string& path)
+  explicit generic_dir_reader(fs::path const& path)
       : it_(fs::directory_iterator(path)) {}
 
-  bool read(std::string& name) override {
+  bool read(fs::path& name) override {
     if (it_ != fs::directory_iterator()) {
-      name.assign(it_->path().filename().string());
+      name.assign(it_->path());
       ++it_;
       return true;
     }
@@ -155,24 +155,24 @@ class generic_dir_reader final : public dir_reader {
 } // namespace
 
 std::shared_ptr<dir_reader>
-os_access_generic::opendir(std::string const& path) const {
+os_access_generic::opendir(fs::path const& path) const {
   return std::make_shared<generic_dir_reader>(path);
 }
 
-file_stat os_access_generic::symlink_info(std::string const& path) const {
+file_stat os_access_generic::symlink_info(fs::path const& path) const {
   return make_file_stat(path);
 }
 
-std::string os_access_generic::read_symlink(std::string const& path) const {
+fs::path os_access_generic::read_symlink(fs::path const& path) const {
   return fs::read_symlink(path).string();
 }
 
 std::shared_ptr<mmif>
-os_access_generic::map_file(std::string const& path, size_t size) const {
+os_access_generic::map_file(fs::path const& path, size_t size) const {
   return std::make_shared<mmap>(path, size);
 }
 
-int os_access_generic::access(std::string const& path, int mode) const {
+int os_access_generic::access(fs::path const& path, int mode) const {
   return ::access(path.c_str(), mode);
 }
 

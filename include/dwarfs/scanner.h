@@ -47,7 +47,8 @@ class scanner {
           std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
           std::shared_ptr<script> scr, const scanner_options& options);
 
-  void scan(filesystem_writer& fsw, const std::string& path, progress& prog,
+  void scan(filesystem_writer& fsw, const std::filesystem::path& path,
+            progress& prog,
             std::optional<std::span<std::filesystem::path const>> list =
                 std::nullopt) {
     impl_->scan(fsw, path, prog, list);
@@ -58,7 +59,8 @@ class scanner {
     virtual ~impl() = default;
 
     virtual void
-    scan(filesystem_writer& fsw, const std::string& path, progress& prog,
+    scan(filesystem_writer& fsw, const std::filesystem::path& path,
+         progress& prog,
          std::optional<std::span<std::filesystem::path const>> list) = 0;
   };
 

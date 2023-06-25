@@ -36,14 +36,16 @@
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
 
-entry::entry(std::string const& name, std::shared_ptr<entry> parent,
+entry::entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
-    : name_{name}
+    : name_{u8string_to_string(parent ? path.filename().u8string()
+                                      : path.u8string())}
     , parent_{std::move(parent)}
     , stat_{st} {}
 
@@ -59,12 +61,18 @@ std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 
 void entry::set_name(const std::string& name) { name_ = name; }
 
-std::string entry::path() const {
+std::u8string entry::u8name() const { return string_to_u8string(name_); }
+
+std::filesystem::path entry::fs_path() const {
   if (auto parent = parent_.lock()) {
-    return parent->path() + "/" + name_;
+    return parent->fs_path() / u8name();
   }
 
-  return name_;
+  return std::filesystem::path(u8name());
+}
+
+std::string entry::path() const {
+  return u8string_to_string(fs_path().u8string());
 }
 
 std::string entry::dpath() const {
@@ -335,7 +343,9 @@ void dir::remove_empty_dirs(progress& prog) {
   lookup_.reset();
 }
 
-std::shared_ptr<entry> dir::find(std::string_view name) {
+std::shared_ptr<entry> dir::find(std::filesystem::path const& path) {
+  auto name = u8string_to_string(path.filename().u8string());
+
   if (!lookup_ && entries_.size() >= 16) {
     populate_lookup_table();
   }
@@ -397,28 +407,31 @@ uint64_t device::device_id() const { return status().rdev; }
 
 class entry_factory_ : public entry_factory {
  public:
-  std::shared_ptr<entry> create(os_access& os, const std::string& name,
-                                std::shared_ptr<entry> parent) override {
-    // TODO: std::filesystem::path
-    std::string const& p = parent ? parent->path() + "/" + name : name;
+  std::shared_ptr<entry>
+  create(os_access& os, std::filesystem::path const& path,
+         std::shared_ptr<entry> parent) override {
+    // TODO: just use `path` directly (need to fix test helpers, tho)?
+    std::filesystem::path p =
+        parent ? parent->fs_path() / path.filename() : path;
 
     auto st = os.symlink_info(p);
 
     switch (st.type()) {
     case posix_file_type::regular:
-      return std::make_shared<file>(name, std::move(parent), st);
+      return std::make_shared<file>(path, std::move(parent), st);
 
     case posix_file_type::directory:
-      return std::make_shared<dir>(name, std::move(parent), st);
+      return std::make_shared<dir>(path, std::move(parent), st);
 
     case posix_file_type::symlink:
-      return std::make_shared<link>(name, std::move(parent), st);
+      return std::make_shared<link>(path, std::move(parent), st);
 
     case posix_file_type::character:
     case posix_file_type::block:
     case posix_file_type::fifo:
     case posix_file_type::socket:
-      return std::make_shared<device>(name, std::move(parent), st);
+      return std::make_shared<device>(path, std::move(parent), st);
+
     default:
       // TODO: warn
       break;

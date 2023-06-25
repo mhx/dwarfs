@@ -283,19 +283,20 @@ class scanner_ final : public scanner::impl {
            std::shared_ptr<script> scr, const scanner_options& options);
 
   void
-  scan(filesystem_writer& fsw, const std::string& path, progress& prog,
+  scan(filesystem_writer& fsw, std::filesystem::path const& path,
+       progress& prog,
        std::optional<std::span<std::filesystem::path const>> list) override;
 
  private:
-  std::shared_ptr<entry>
-  scan_tree(const std::string& path, progress& prog, detail::file_scanner& fs);
+  std::shared_ptr<entry> scan_tree(std::filesystem::path const& path,
+                                   progress& prog, detail::file_scanner& fs);
 
-  std::shared_ptr<entry> scan_list(const std::string& path,
+  std::shared_ptr<entry> scan_list(std::filesystem::path const& path,
                                    std::span<std::filesystem::path const> list,
                                    progress& prog, detail::file_scanner& fs);
 
   std::shared_ptr<entry>
-  add_entry(std::string const& name, std::shared_ptr<dir> parent,
+  add_entry(std::filesystem::path const& name, std::shared_ptr<dir> parent,
             progress& prog, detail::file_scanner& fs,
             bool debug_filter = false);
 
@@ -327,7 +328,7 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
-scanner_<LoggerPolicy>::add_entry(std::string const& name,
+scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   std::shared_ptr<dir> parent, progress& prog,
                                   detail::file_scanner& fs, bool debug_filter) {
   try {
@@ -357,7 +358,7 @@ scanner_<LoggerPolicy>::add_entry(std::string const& name,
     if (pe) {
       switch (pe->type()) {
       case entry::E_FILE:
-        if (os_->access(pe->path(), R_OK)) {
+        if (os_->access(pe->fs_path(), R_OK)) {
           LOG_ERROR << "cannot access " << pe->path()
                     << ", creating empty file";
           pe->override_size(0);
@@ -433,13 +434,14 @@ scanner_<LoggerPolicy>::add_entry(std::string const& name,
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
-scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
-                                  detail::file_scanner& fs) {
+scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
+                                  progress& prog, detail::file_scanner& fs) {
   auto root = entry_->create(*os_, path);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   if (root->type() != entry::E_DIR) {
-    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
+    DWARFS_THROW(runtime_error,
+                 fmt::format("'{}' must be a directory", path.string()));
   }
 
   if (script_ && script_->has_transform()) {
@@ -459,14 +461,10 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 
     try {
       auto d = os_->opendir(path);
-      std::string name;
+      std::filesystem::path name;
       std::vector<std::shared_ptr<entry>> subdirs;
 
       while (d->read(name)) {
-        if (name == "." or name == "..") {
-          continue;
-        }
-
         if (auto pe = add_entry(name, parent, prog, fs, debug_filter)) {
           if (pe->type() == entry::E_DIR) {
             subdirs.push_back(pe);
@@ -489,7 +487,7 @@ scanner_<LoggerPolicy>::scan_tree(const std::string& path, progress& prog,
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
-scanner_<LoggerPolicy>::scan_list(const std::string& path,
+scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, detail::file_scanner& fs) {
   if (script_ && script_->has_filter()) {
@@ -499,10 +497,10 @@ scanner_<LoggerPolicy>::scan_list(const std::string& path,
   auto ti = LOG_TIMED_INFO;
 
   auto root = entry_->create(*os_, path);
-  auto root_path = std::filesystem::path(path);
 
   if (root->type() != entry::E_DIR) {
-    DWARFS_THROW(runtime_error, fmt::format("'{}' must be a directory", path));
+    DWARFS_THROW(runtime_error,
+                 fmt::format("'{}' must be a directory", path.string()));
   }
 
   if (script_ && script_->has_transform()) {
@@ -516,7 +514,7 @@ scanner_<LoggerPolicy>::scan_list(const std::string& path,
         if (auto e = d->find(p.string())) {
           root = e;
         } else {
-          root = add_entry(p.string(), d, prog, fs);
+          root = add_entry(p, d, prog, fs);
           if (root && root->type() == entry::E_DIR) {
             prog.dirs_scanned++;
           } else {
@@ -552,13 +550,11 @@ scanner_<LoggerPolicy>::scan_list(const std::string& path,
       }
     }
 
-    auto const& fname = p.filename().string();
-
-    if (auto pe = pd->find(fname)) {
+    if (auto pe = pd->find(p)) {
       continue;
     }
 
-    if (auto pe = add_entry(fname, pd, prog, fs)) {
+    if (auto pe = add_entry(p, pd, prog, fs)) {
       if (pe->type() == entry::E_DIR) {
         prog.dirs_scanned++;
       }
@@ -572,7 +568,7 @@ scanner_<LoggerPolicy>::scan_list(const std::string& path,
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(
-    filesystem_writer& fsw, const std::string& path, progress& prog,
+    filesystem_writer& fsw, const std::filesystem::path& path, progress& prog,
     std::optional<std::span<std::filesystem::path const>> list) {
   if (!options_.debug_filter_function) {
     LOG_INFO << "scanning " << path;

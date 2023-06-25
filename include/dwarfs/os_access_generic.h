@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -33,11 +34,13 @@ class mmif;
 
 class os_access_generic : public os_access {
  public:
-  std::shared_ptr<dir_reader> opendir(std::string const& path) const override;
-  file_stat symlink_info(std::string const& path) const override;
-  std::string read_symlink(std::string const& path) const override;
+  std::shared_ptr<dir_reader>
+  opendir(std::filesystem::path const& path) const override;
+  file_stat symlink_info(std::filesystem::path const& path) const override;
+  std::filesystem::path
+  read_symlink(std::filesystem::path const& path) const override;
   std::shared_ptr<mmif>
-  map_file(std::string const& path, size_t size) const override;
-  int access(std::string const& path, int mode) const override;
+  map_file(std::filesystem::path const& path, size_t size) const override;
+  int access(std::filesystem::path const& path, int mode) const override;
 };
 } // namespace dwarfs
