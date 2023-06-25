@@ -9,8 +9,10 @@
 /include/dwarfs/version.h
 /src/dwarfs/version.cpp
 
+*~
+.*.swp
+
 # VS build environment
 .vs/
 out/
 CMakeSettings.json
-fbthrift/
