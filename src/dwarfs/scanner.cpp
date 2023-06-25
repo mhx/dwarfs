@@ -457,7 +457,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
     DWARFS_CHECK(parent, "expected directory");
 
     queue.pop_front();
-    const std::string& path = parent->path();
+    auto path = parent->fs_path();
 
     try {
       auto d = os_->opendir(path);

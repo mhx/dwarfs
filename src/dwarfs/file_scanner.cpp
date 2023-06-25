@@ -294,7 +294,7 @@ void file_scanner_::hash_file(file* p) {
   std::shared_ptr<mmif> mm;
 
   if (size > 0) {
-    mm = os_.map_file(p->path(), size);
+    mm = os_.map_file(p->fs_path(), size);
   }
 
   prog_.current.store(p);
@@ -313,7 +313,7 @@ void file_scanner_::add_inode(file* p) {
       std::shared_ptr<mmif> mm;
       auto const size = p->size();
       if (size > 0) {
-        mm = os_.map_file(p->path(), size);
+        mm = os_.map_file(p->fs_path(), size);
       }
       inode->scan(mm, ino_opts_);
       ++prog_.similarity_scans;

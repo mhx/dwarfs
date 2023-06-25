@@ -29,6 +29,8 @@
 #include <unistd.h>
 #endif
 
+#include <boost/filesystem/path.hpp>
+
 #include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
 
@@ -111,21 +113,23 @@ void const* mmap::addr() const { return mf_.const_data(); }
 size_t mmap::size() const { return mf_.size(); }
 
 mmap::mmap(std::string const& path)
-    : mf_(path, boost::iostreams::mapped_file::readonly)
-    , page_size_(get_page_size()) {
-  assert(mf_.is_open());
-}
+    : mmap(std::filesystem::path(path)) {}
 
 mmap::mmap(std::filesystem::path const& path)
-    : mmap(path.string()) {}
-
-mmap::mmap(std::string const& path, size_t size)
-    : mf_(path, boost::iostreams::mapped_file::readonly, size)
+    : mf_(boost::filesystem::path(path.wstring()),
+          boost::iostreams::mapped_file::readonly)
     , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
 
+mmap::mmap(std::string const& path, size_t size)
+    : mmap(std::filesystem::path(path), size) {}
+
 mmap::mmap(std::filesystem::path const& path, size_t size)
-    : mmap(path.string(), size) {}
+    : mf_(boost::filesystem::path(path.wstring()),
+          boost::iostreams::mapped_file::readonly, size)
+    , page_size_(get_page_size()) {
+  assert(mf_.is_open());
+}
 
 } // namespace dwarfs

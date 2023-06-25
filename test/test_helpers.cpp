@@ -31,6 +31,7 @@
 #include <folly/portability/Unistd.h>
 
 #include "dwarfs/overloaded.h"
+#include "dwarfs/util.h"
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
@@ -287,8 +288,10 @@ size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
   std::vector<std::string> parts;
-  folly::split('/', path.string(), parts);
-  while (!parts.empty() && parts.front().empty()) {
+  for (auto const& p : path) {
+    parts.emplace_back(u8string_to_string(p.u8string()));
+  }
+  while (!parts.empty() && (parts.front().empty() || parts.front() == "/")) {
     parts.erase(parts.begin());
   }
   return parts;

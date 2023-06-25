@@ -384,7 +384,7 @@ const std::string& link::linkname() const { return link_; }
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access& os, progress& prog) {
-  link_ = os.read_symlink(path());
+  link_ = u8string_to_string(os.read_symlink(path()).u8string());
   prog.original_size += size();
   prog.symlink_size += size();
 }

@@ -459,7 +459,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
   auto e = ino->any();
 
   if (size_t size = e->size(); size > 0) {
-    auto mm = os_->map_file(e->path(), size);
+    auto mm = os_->map_file(e->fs_path(), size);
 
     LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
               << "] - size: " << size;

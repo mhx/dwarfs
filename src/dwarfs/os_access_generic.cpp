@@ -66,12 +66,14 @@ file_stat make_file_stat(fs::path const& path) {
   rv.blksize = 0;
   rv.blocks = 0;
 
+  auto wps = path.wstring();
+
   if (status.type() == fs::file_type::symlink) {
     ::WIN32_FILE_ATTRIBUTE_DATA info;
-    if (::GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &info) ==
+    if (::GetFileAttributesExW(wps.c_str(), GetFileExInfoStandard, &info) ==
         0) {
       throw std::system_error(::GetLastError(), std::system_category(),
-                              "GetFileAttributesExA");
+                              "GetFileAttributesExW");
     }
     rv.dev = 0;
     rv.ino = 0;
@@ -86,7 +88,7 @@ file_stat make_file_stat(fs::path const& path) {
     rv.ctime = time_from_filetime(info.ftCreationTime);
   } else {
     struct ::__stat64 st;
-    if (::_stat64(path.c_str(), &st) != 0) {
+    if (::_wstat64(wps.c_str(), &st) != 0) {
       throw std::system_error(errno, std::generic_category(), "_stat64");
     }
     rv.dev = st.st_dev;
@@ -109,7 +111,7 @@ file_stat make_file_stat(fs::path const& path) {
 file_stat make_file_stat(fs::path const& path) {
   struct ::stat st;
 
-  if (::lstat(path.c_str(), &st) != 0) {
+  if (::lstat(path.string().c_str(), &st) != 0) {
     throw std::system_error(errno, std::generic_category(), "lstat");
   }
 
@@ -173,7 +175,11 @@ os_access_generic::map_file(fs::path const& path, size_t size) const {
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {
-  return ::access(path.c_str(), mode);
+#ifdef _WIN32
+  return ::_waccess(path.wstring().c_str(), mode);
+#else
+  return ::access(path.string().c_str(), mode);
+#endif
 }
 
 } // namespace dwarfs
