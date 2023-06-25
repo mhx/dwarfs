@@ -29,8 +29,9 @@
 #include <folly/portability/Windows.h>
 #else
 #include <fcntl.h>
-#include <unistd.h>
 #endif
+
+#include <folly/portability/Unistd.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -172,11 +173,7 @@ os_access_generic::map_file(std::string const& path, size_t size) const {
 }
 
 int os_access_generic::access(std::string const& path, int mode) const {
-#ifdef _WIN32
-  // TODO
-  return 0;
-#else
   return ::access(path.c_str(), mode);
-#endif
 }
+
 } // namespace dwarfs
