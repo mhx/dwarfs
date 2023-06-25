@@ -417,7 +417,7 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
   });
 
   if (err == 0) {
-    ::strncpy(buf, symlink.data(), buflen);
+    ::strncpy_s(buf, buflen, symlink.data(), symlink.size());
   }
 
   return -err;
@@ -797,13 +797,13 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
     std::string_view pv(path);
 
     if ((pv == "" || pv == "/") && name == pid_xattr) {
-      auto pidstr = std::to_string(::getpid());
+      auto pidstr = std::to_string(::_getpid());
       if (size == 0) {
         return pidstr.size();
       } else if (size < pidstr.size()) {
         return -ERANGE;
       }
-      ::strncpy(value, pidstr.c_str(), size);
+      ::strncpy_s(value, size, pidstr.data(), pidstr.size());
       return pidstr.size();
     }
   } catch (dwarfs::system_error const& e) {

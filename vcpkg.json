@@ -1,0 +1,24 @@
+{
+  "dependencies": [
+    "boost-asio",
+    "boost-chrono",
+    "boost-context",
+    "boost-crc",
+    "boost-filesystem",
+    "boost-iostreams",
+    "boost-multi-index",
+    "boost-process",
+    "boost-program-options",
+    "boost-thread",
+    "boost-variant",
+    "brotli",
+    "double-conversion",
+    "fmt",
+    "glog",
+    "libarchive",
+    "libevent",
+    "openssl",
+    "xxhash",
+    "zstd"
+  ]
+}

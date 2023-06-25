@@ -15,6 +15,10 @@
 # You should have received a copy of the GNU General Public License along with
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
+if(WIN32)
+  set(VCPKG_TARGET_TRIPLET x64-windows-static)
+endif()
+
 project(dwarfs)
 include(ExternalProject)
 
@@ -85,6 +89,10 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     # for some reason, clang-10 binaries crash upon throwing exceptions
     add_compile_options(-fno-omit-frame-pointer)
   endif()
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  add_compile_options(/wd4267 /wd4244 /wd5219)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -203,7 +211,7 @@ if(NOT PREFER_SYSTEM_LIBARCHIVE)
   set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/libarchive-install;${CMAKE_PREFIX_PATH}")
 endif()
 
-list(APPEND DWARFS_BOOST_MODULES chrono date_time filesystem iostreams program_options system)
+list(APPEND DWARFS_BOOST_MODULES chrono iostreams program_options)
 
 if(WITH_PYTHON)
   # TODO: would be nicer to be able to support a range of python versions
@@ -263,7 +271,13 @@ if(XXHASH_FOUND)
 endif()
 
 if(WIN32)
-  # TODO
+  if(NOT WINFSP_PATH)
+    set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")
+  endif()
+  find_library(WINFSP winfsp-x64.lib "${WINFSP_PATH}/lib")
+  if (NOT WINFSP)
+    message(FATAL_ERROR "No WinFsp library found")
+  endif()
 else()
   if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
     message(FATAL_ERROR "No FUSE or FUSE3 library found")
@@ -279,6 +293,14 @@ if(USE_JEMALLOC)
   pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=5.2.1)
 endif()
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  foreach(CompilerFlag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
+    string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+  endforeach()
+
+  set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
+endif()
+
 set(ZSTD_INCLUDE_DIR
     ""
     CACHE PATH "don't build folly with zstd" FORCE)
@@ -290,8 +312,16 @@ set(THRIFT_COMPILER_ONLY
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
 
+add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES NOMINMAX NOGDI)
+
 set(
   CXX_STD "gnu++20"
+  CACHE STRING
+  "The C++ standard argument to pass to the compiler."
+)
+
+set(
+  MSVC_LANGUAGE_VERSION "c++20"
   CACHE STRING
   "The C++ standard argument to pass to the compiler."
 )
@@ -299,6 +329,7 @@ set(
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
+  set(ZSTD_BUILD_SHARED OFF)
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
 endif()
 
@@ -468,46 +499,61 @@ add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
-add_executable(dwarfsuniversal src/universal.cpp)
+if(NOT WIN32)
+  add_executable(dwarfsuniversal src/universal.cpp)
+endif()
 
 target_link_libraries(mkdwarfs mkdwarfs_main)
 target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
 target_link_libraries(dwarfsextract dwarfsextract_main)
-target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
-        dwarfsbench_main dwarfsextract_main)
-set_target_properties(dwarfsuniversal PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY universal
-        OUTPUT_NAME dwarfs)
-foreach(bin mkdwarfs dwarfsck dwarfsextract dwarfsbench)
-  add_custom_command(OUTPUT  universal/${bin}
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs universal/${bin}
-                     DEPENDS dwarfsuniversal)
-  list(APPEND SYMLINKS ${CMAKE_CURRENT_BINARY_DIR}/universal/${bin})
-endforeach()
+if(NOT WIN32)
+  target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
+          dwarfsbench_main dwarfsextract_main)
+  set_target_properties(dwarfsuniversal PROPERTIES
+          RUNTIME_OUTPUT_DIRECTORY universal
+          OUTPUT_NAME dwarfs-universal)
+  foreach(bin mkdwarfs dwarfsck dwarfsextract dwarfsbench)
+    add_custom_command(OUTPUT  universal/${bin}
+                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs universal/${bin}
+                       DEPENDS dwarfsuniversal)
+    list(APPEND SYMLINKS ${CMAKE_CURRENT_BINARY_DIR}/universal/${bin})
+  endforeach()
+endif()
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract
-        dwarfsuniversal)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+if(NOT WIN32)
+  list(APPEND BINARY_TARGETS dwarfsuniversal)
+endif()
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
-if(FUSE3_FOUND)
+if(FUSE3_FOUND OR WINFSP)
   add_library(dwarfs_main src/dwarfs_main.cpp)
-  target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64
-                                                 FUSE_USE_VERSION=35)
-  target_link_libraries(dwarfs_main PkgConfig::FUSE3)
+  target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
+  if(WINFSP)
+    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
+                                                   DWARFS_FUSE_LOWLEVEL=0)
+    target_include_directories(dwarfs_main PRIVATE "${WINFSP_PATH}/inc")
+    target_link_libraries(dwarfs_main ${WINFSP})
+  else()
+    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
+    target_link_libraries(dwarfs_main PkgConfig::FUSE3)
+  endif()
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin dwarfs_main)
-  target_link_libraries(dwarfsuniversal dwarfs_main)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-  add_custom_command(OUTPUT  mount.dwarfs
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
-                     DEPENDS dwarfs)
-  list(APPEND SYMLINKS mount.dwarfs)
+  if(NOT WIN32)
+    target_link_libraries(dwarfsuniversal dwarfs_main)
+    add_custom_command(OUTPUT  mount.dwarfs
+                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
+                       DEPENDS dwarfs)
+    list(APPEND SYMLINKS mount.dwarfs)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
+  endif()
   install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
   list(APPEND BINARY_TARGETS dwarfs-bin)
   list(APPEND MAIN_TARGETS dwarfs_main)
 endif()
@@ -560,7 +606,9 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
   gtest_discover_tests(dwarfs_badfs_test)
-  gtest_discover_tests(dwarfs_tools_test)
+  if(NOT WIN32)
+    gtest_discover_tests(dwarfs_tools_test)
+  endif()
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
@@ -978,11 +1026,14 @@ endif(STATIC_BUILD_DO_NOT_USE)
 add_custom_target(
   realclean
   COMMAND
-    rm -rf CMake* CPack* CTest* Makefile Testing bin lib man folly fbthrift
-    thrift zstd dwarfs* mkdwarfs mount.dwarfs mount.dwarfs2 lib*.a *.cmake
-    googletest-* _CPack_Packages install_manifest.txt share build.ninja
-    compile_commands.json .ninja_* rules.ninja man1 man5 libarchive fmtlib*
-    universal)
+    ${CMAKE_COMMAND} -E rm -rf CMakeCache.txt CMakeFiles CPackConfig.cmake
+    CPackSourceConfig.cmake CTestTestfile.cmake Makefile Testing bin lib man
+    folly fbthrift thrift zstd dwarfs dwarfs2 dwarfsck dwarfsextract mkdwarfs
+    mount.dwarfs mount.dwarfs2 cmake_install.cmake lib*.a 
+    googletest-download googletest-build googletest-src _CPack_Packages
+    install_manifest.txt share build.ninja compile_commands.json
+    .ninja_deps .ninja_log rules.ninja man1 man5 libarchive fmtlib
+    fmtlib-download fmtlib-install universal)
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
