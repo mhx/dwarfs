@@ -70,51 +70,92 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
   return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
 }
 
-void append_arg(std::vector<std::string>& args,
-                std::filesystem::path const& arg) {
-  args.emplace_back(arg.string());
-}
+namespace bp = boost::process;
 
-void append_arg(std::vector<std::string>& args,
-                std::vector<std::string> const& more) {
-  args.insert(args.end(), more.begin(), more.end());
-}
+class subprocess {
+ public:
+  template <typename... Args>
+  subprocess(Args&&... args) {
+    std::vector<std::string> cmdline;
+    (append_arg(cmdline, std::forward<Args>(args)), ...);
 
-template <typename T>
-void append_arg(std::vector<std::string>& args, T const& arg) {
-  args.emplace_back(arg);
-}
-
-template <typename... Args>
-std::tuple<std::string, std::string, int> run(Args&&... args) {
-  namespace bp = boost::process;
-
-  std::vector<std::string> cmdline;
-  (append_arg(cmdline, std::forward<Args>(args)), ...);
-
-  boost::asio::io_service ios;
-  std::future<std::string> out, err;
-
-  bp::child c(bp::args(cmdline), bp::std_in.close(), bp::std_out > out,
-              bp::std_err > err, ios);
-
-  ios.run();
-  c.wait();
-
-  return {out.get(), err.get(), c.exit_code()};
-}
-
-template <typename... Args>
-std::optional<std::string> check_run(Args&&... args) {
-  auto const [out, err, ec] = run(std::forward<Args>(args)...);
-
-  if (ec != 0) {
-    std::cerr << "stdout:\n" << out << "\nstderr:\n" << err << std::endl;
-    return std::nullopt;
+    c_ = bp::child(bp::args(cmdline), bp::std_in.close(), bp::std_out > out_,
+                   bp::std_err > err_, ios_);
   }
 
-  return out;
-}
+  void run() {
+    ios_.run();
+    c_.wait();
+    outs_ = out_.get();
+    errs_ = err_.get();
+  }
+
+  void run_background() {
+    if (pt_) {
+      throw std::runtime_error("already running in background");
+    }
+    pt_ = std::make_unique<std::thread>([this] { run(); });
+  }
+
+  void wait() {
+    if (!pt_) {
+      throw std::runtime_error("no process running in background");
+    }
+    pt_->join();
+    pt_.reset();
+  }
+
+  std::string const& out() const { return outs_; }
+
+  std::string const& err() const { return errs_; }
+
+  bp::pid_t pid() const { return c_.id(); }
+
+  int exit_code() const { return c_.exit_code(); }
+
+  template <typename... Args>
+  static std::tuple<std::string, std::string, int> run(Args&&... args) {
+    auto p = subprocess(std::forward<Args>(args)...);
+    p.run();
+    return {p.out(), p.err(), p.exit_code()};
+  }
+
+  template <typename... Args>
+  static std::optional<std::string> check_run(Args&&... args) {
+    auto const [out, err, ec] = run(std::forward<Args>(args)...);
+
+    if (ec != 0) {
+      std::cerr << "stdout:\n" << out << "\nstderr:\n" << err << std::endl;
+      return std::nullopt;
+    }
+
+    return out;
+  }
+
+ private:
+  static void
+  append_arg(std::vector<std::string>& args, std::filesystem::path const& arg) {
+    args.emplace_back(arg.string());
+  }
+
+  static void append_arg(std::vector<std::string>& args,
+                         std::vector<std::string> const& more) {
+    args.insert(args.end(), more.begin(), more.end());
+  }
+
+  template <typename T>
+  static void append_arg(std::vector<std::string>& args, T const& arg) {
+    args.emplace_back(arg);
+  }
+
+  bp::child c_;
+  boost::asio::io_service ios_;
+  std::future<std::string> out_;
+  std::future<std::string> err_;
+  std::string outs_;
+  std::string errs_;
+  std::unique_ptr<std::thread> pt_;
+};
 
 class process_guard {
  public:
@@ -165,7 +206,8 @@ class driver_runner {
                 std::filesystem::path const& mountpoint, Args&&... args)
       : fusermount_{find_fusermount()}
       , mountpoint_{mountpoint} {
-    if (!check_run(driver, image, mountpoint, std::forward<Args>(args)...)) {
+    if (!subprocess::check_run(driver, image, mountpoint,
+                               std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
     auto dwarfs_pid = get_dwarfs_pid(mountpoint);
@@ -173,12 +215,13 @@ class driver_runner {
   }
 
   ~driver_runner() {
-    check_run(fusermount_, "-u", mountpoint_);
+    subprocess::check_run(fusermount_, "-u", mountpoint_);
     EXPECT_TRUE(dwarfs_guard_.check_exit(std::chrono::seconds(5)));
   }
 
   static bool umount(std::filesystem::path const& mountpoint) {
-    return static_cast<bool>(check_run(find_fusermount(), "-u", mountpoint));
+    return static_cast<bool>(
+        subprocess::check_run(find_fusermount(), "-u", mountpoint));
   }
 
  private:
@@ -254,16 +297,16 @@ TEST(tools, everything) {
   auto data_dir = td / "data";
   auto header_data = data_dir / "format.sh";
 
-  ASSERT_TRUE(check_run(tar_bin, "xf", data_archive, "-C", td));
-  ASSERT_TRUE(
-      check_run(mkdwarfs_bin, "-i", data_dir, "-o", image, "--no-progress"));
+  ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", data_archive, "-C", td));
+  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", data_dir, "-o", image,
+                                    "--no-progress"));
 
   ASSERT_TRUE(std::filesystem::exists(image));
   ASSERT_GT(std::filesystem::file_size(image), 1000);
 
-  ASSERT_TRUE(check_run(mkdwarfs_bin, "-i", image, "-o", image_hdr,
-                        "--no-progress", "--recompress=none", "--header",
-                        header_data));
+  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", image, "-o", image_hdr,
+                                    "--no-progress", "--recompress=none",
+                                    "--header", header_data));
 
   ASSERT_TRUE(std::filesystem::exists(image_hdr));
   ASSERT_GT(std::filesystem::file_size(image_hdr), 1000);
@@ -288,19 +331,23 @@ TEST(tools, everything) {
 
   for (auto const& driver : drivers) {
     {
-      std::thread driver_thread(
-          [&] { check_run(driver, image, mountpoint, "-f"); });
+      auto p = subprocess(driver, image, mountpoint, "-f");
+      p.run_background();
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
-      ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+      ASSERT_TRUE(
+          subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
       EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
 
       driver_runner::umount(mountpoint);
-      driver_thread.join();
+      p.wait();
+
+      EXPECT_EQ(p.exit_code(), 0);
     }
 
     {
-      auto const [out, err, ec] = run(driver, image_hdr, mountpoint);
+      auto const [out, err, ec] =
+          subprocess::run(driver, image_hdr, mountpoint);
 
       EXPECT_NE(0, ec) << "stdout:\n" << out << "\nstderr:\n" << err;
     }
@@ -328,7 +375,8 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image, mountpoint, args);
 
-        ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+        ASSERT_TRUE(
+            subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
@@ -339,7 +387,8 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, mountpoint));
+        ASSERT_TRUE(
+            subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
@@ -349,15 +398,16 @@ TEST(tools, everything) {
 
   auto meta_export = td / "test.meta";
 
-  ASSERT_TRUE(check_run(dwarfsck_bin, image));
-  ASSERT_TRUE(check_run(dwarfsck_bin, image, "--check-integrity"));
-  ASSERT_TRUE(check_run(dwarfsck_bin, image, "--export-metadata", meta_export));
+  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image));
+  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image, "--check-integrity"));
+  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image, "--export-metadata",
+                                    meta_export));
 
   {
     std::string header;
     EXPECT_TRUE(folly::readFile(header_data.c_str(), header));
 
-    auto output = check_run(dwarfsck_bin, image_hdr, "-H");
+    auto output = subprocess::check_run(dwarfsck_bin, image_hdr, "-H");
 
     ASSERT_TRUE(output);
 
@@ -368,15 +418,16 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(std::filesystem::create_directory(extracted));
 
-  ASSERT_TRUE(check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
-  ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, extracted));
+  ASSERT_TRUE(
+      subprocess::check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
+  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, extracted));
 
   auto tarfile = td / "test.tar";
 
-  ASSERT_TRUE(
-      check_run(dwarfsextract_bin, "-i", image, "-f", "gnutar", "-o", tarfile));
+  ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", image, "-f",
+                                    "gnutar", "-o", tarfile));
 
   ASSERT_TRUE(std::filesystem::create_directory(untared));
-  ASSERT_TRUE(check_run(tar_bin, "xf", tarfile, "-C", untared));
-  ASSERT_TRUE(check_run(diff_bin, "-qruN", data_dir, untared));
+  ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", tarfile, "-C", untared));
+  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, untared));
 }
