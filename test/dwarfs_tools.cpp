@@ -26,11 +26,13 @@
 #include <thread>
 #include <tuple>
 
+#ifndef _WIN32
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <unistd.h>
+#endif
 
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
@@ -60,6 +62,7 @@ auto dwarfsck_bin = tools_dir / "dwarfsck";
 auto diff_bin = std::filesystem::path(DIFF_BIN);
 auto tar_bin = std::filesystem::path(TAR_BIN);
 
+#ifndef _WIN32
 pid_t get_dwarfs_pid(std::filesystem::path const& path) {
   std::array<char, 32> attr_buf;
   auto attr_len = ::getxattr(path.c_str(), "user.dwarfs.driver.pid",
@@ -69,6 +72,7 @@ pid_t get_dwarfs_pid(std::filesystem::path const& path) {
   }
   return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
 }
+#endif
 
 namespace bp = boost::process;
 
@@ -104,6 +108,8 @@ class subprocess {
     pt_->join();
     pt_.reset();
   }
+
+  void interrupt() { ::kill(pid(), SIGINT); }
 
   std::string const& out() const { return outs_; }
 
@@ -157,6 +163,7 @@ class subprocess {
   std::unique_ptr<std::thread> pt_;
 };
 
+#ifndef _WIN32
 class process_guard {
  public:
   process_guard() = default;
@@ -194,37 +201,89 @@ class process_guard {
   pid_t pid_{-1};
   int proc_dir_fd_{-1};
 };
+#endif
 
 class driver_runner {
  public:
-  driver_runner()
-      : fusermount_{find_fusermount()} {}
+  struct foreground_t {};
+  static constexpr foreground_t foreground = foreground_t();
+
+  driver_runner() = default;
 
   template <typename... Args>
   driver_runner(std::filesystem::path const& driver,
                 std::filesystem::path const& image,
                 std::filesystem::path const& mountpoint, Args&&... args)
-      : fusermount_{find_fusermount()}
-      , mountpoint_{mountpoint} {
+      : mountpoint_{mountpoint} {
+    setup_mountpoint(mountpoint);
+#ifdef _WIN32
+    process_ = std::make_unique<subprocess>(driver, image, mountpoint,
+                                            std::forward<Args>(args)...);
+    process_->run_background();
+#else
     if (!subprocess::check_run(driver, image, mountpoint,
                                std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
-    auto dwarfs_pid = get_dwarfs_pid(mountpoint);
-    dwarfs_guard_ = process_guard(dwarfs_pid);
+    dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
+#endif
+  }
+
+  template <typename... Args>
+  driver_runner(foreground_t, std::filesystem::path const& driver,
+                std::filesystem::path const& image,
+                std::filesystem::path const& mountpoint, Args&&... args)
+      : mountpoint_{mountpoint} {
+    setup_mountpoint(mountpoint);
+    process_ = std::make_unique<subprocess>(driver, image, mountpoint,
+#ifndef _WIN32
+                                            "-f",
+#endif
+                                            std::forward<Args>(args)...);
+    process_->run_background();
+#ifndef _WIN32
+    dwarfs_guard_ = process_guard(process_->pid());
+#endif
+  }
+
+  bool unmount() {
+    if (!mountpoint_.empty()) {
+#ifndef _WIN32
+      if (process_) {
+#endif
+        constexpr int expected_exit_code = SIGINT;
+        process_->interrupt();
+        process_->wait(); // TODO: wait_for?
+        auto ec = process_->exit_code();
+        if (ec != expected_exit_code) {
+          std::cerr << "driver failed to unmount:\nout:\n"
+                    << process_->out() << "err:\n"
+                    << process_->err() << "exit code: " << ec << "\n";
+        }
+        process_.reset();
+        mountpoint_.clear();
+        return ec == expected_exit_code;
+#ifndef _WIN32
+      } else {
+        subprocess::check_run(find_fusermount(), "-u", mountpoint_);
+        mountpoint_.clear();
+        return dwarfs_guard_.check_exit(std::chrono::seconds(5));
+#endif
+      }
+    }
+    return false;
   }
 
   ~driver_runner() {
-    subprocess::check_run(fusermount_, "-u", mountpoint_);
-    EXPECT_TRUE(dwarfs_guard_.check_exit(std::chrono::seconds(5)));
-  }
-
-  static bool umount(std::filesystem::path const& mountpoint) {
-    return static_cast<bool>(
-        subprocess::check_run(find_fusermount(), "-u", mountpoint));
+    if (!mountpoint_.empty()) {
+      if (!unmount()) {
+        ::abort();
+      }
+    }
   }
 
  private:
+#ifndef _WIN32
   static std::filesystem::path find_fusermount() {
     auto fusermount_bin = dwarfs::test::find_binary("fusermount");
     if (!fusermount_bin) {
@@ -235,10 +294,22 @@ class driver_runner {
     }
     return *fusermount_bin;
   }
+#endif
 
-  std::filesystem::path const fusermount_;
-  std::filesystem::path const mountpoint_;
+  static void setup_mountpoint(std::filesystem::path const& mp) {
+    if (std::filesystem::exists(mp)) {
+      std::filesystem::remove(mp);
+    }
+#ifndef _WIN32
+    std::filesystem::create_directory(mp);
+#endif
+  }
+
+  std::filesystem::path mountpoint_;
+  std::unique_ptr<subprocess> process_;
+#ifndef _WIN32
   process_guard dwarfs_guard_;
+#endif
 };
 
 bool wait_until_file_ready(std::filesystem::path const& path,
@@ -315,8 +386,6 @@ TEST(tools, everything) {
   auto extracted = td / "extracted";
   auto untared = td / "untared";
 
-  ASSERT_TRUE(std::filesystem::create_directory(mountpoint));
-
   std::vector<std::filesystem::path> drivers;
   drivers.push_back(fuse3_bin);
 
@@ -331,18 +400,15 @@ TEST(tools, everything) {
 
   for (auto const& driver : drivers) {
     {
-      auto p = subprocess(driver, image, mountpoint, "-f");
-      p.run_background();
+      driver_runner runner(driver_runner::foreground, driver, image,
+                           mountpoint);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
       ASSERT_TRUE(
           subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
       EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
 
-      driver_runner::umount(mountpoint);
-      p.wait();
-
-      EXPECT_EQ(p.exit_code(), 0);
+      EXPECT_TRUE(runner.unmount());
     }
 
     {
