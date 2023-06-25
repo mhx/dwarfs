@@ -15,9 +15,6 @@
 # You should have received a copy of the GNU General Public License along with
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
-if(WIN32)
-  set(VCPKG_TARGET_TRIPLET x64-windows-static)
-endif()
 
 project(dwarfs)
 include(ExternalProject)
@@ -333,11 +330,11 @@ set(
   "The C++ standard argument to pass to the compiler."
 )
 
-add_subdirectory(folly EXCLUDE_FROM_ALL)
-add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
+add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
+add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   set(ZSTD_BUILD_SHARED OFF)
-  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)
+  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL SYSTEM)
 endif()
 
 set_property(TARGET folly PROPERTY CXX_STANDARD 20)
@@ -379,7 +376,7 @@ if(WITH_TESTS)
     # gtest_main targets.
     add_subdirectory(
       ${CMAKE_CURRENT_BINARY_DIR}/googletest-src
-      ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
+      ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL SYSTEM)
   endif()
 
   enable_testing()
