@@ -44,6 +44,7 @@
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options.h"
+#include "dwarfs/util.h"
 #include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
 
@@ -348,7 +349,11 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     copy_file_stat<true>(&st, stbuf);
 #endif
 
-    ::archive_entry_set_pathname(ae, entry.path().c_str());
+#ifdef _WIN32
+    ::archive_entry_copy_pathname_w(ae, entry.wpath().c_str());
+#else
+    ::archive_entry_copy_pathname(ae, entry.path().c_str());
+#endif
     ::archive_entry_copy_stat(ae, &st);
 
     if (inode.is_symlink()) {
@@ -359,7 +364,15 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       if (opts.progress) {
         bytes_written += link.size();
       }
-      ::archive_entry_set_symlink(ae, link.c_str());
+#ifdef _WIN32
+      std::filesystem::path linkpath(string_to_u8string(link));
+      linkpath.make_preferred();
+      ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
+#else
+      // TODO: if file system was created on Windows,
+      //       replace \ with / in symlinks
+      ::archive_entry_copy_symlink(ae, link.c_str());
+#endif
     }
 
     ::archive_entry_linkify(lr, &ae, &spare);
