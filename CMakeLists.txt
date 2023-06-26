@@ -318,6 +318,7 @@ endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   foreach(CompilerFlag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
     string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+    string(REPLACE "/RTC1" "" ${CompilerFlag} "${${CompilerFlag}}")
   endforeach()
 
   set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
