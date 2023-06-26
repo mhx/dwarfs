@@ -369,7 +369,7 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata* userdata,
 
   try {
     if (auto entry = find()) {
-      err = userdata->fs.readlink(*entry, str);
+      err = userdata->fs.readlink(*entry, str, readlink_mode::unix);
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
