@@ -54,12 +54,14 @@ std::error_code
 mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   std::error_code ec;
 
+  auto data = mf_.const_data() + offset;
+
 #ifdef _WIN32
-  if (::VirtualLock(mf_.data() + offset, size) == 0) {
+  if (::VirtualLock(const_cast<char*>(data), size) == 0) {
     ec.assign(::GetLastError(), std::system_category());
   }
 #else
-  if (::mlock(mf_.const_data() + offset, size) != 0) {
+  if (::mlock(data, size) != 0) {
     ec.assign(errno, std::generic_category());
   }
 #endif
@@ -77,12 +79,14 @@ std::error_code mmap::release(file_off_t offset [[maybe_unused]],
   size += misalign;
   size -= size % page_size_;
 
+  auto data = const_cast<char*>(mf_.const_data() + offset);
+
 #ifdef _WIN32
-  if (::VirtualFree(mf_.data() + offset, size, MEM_DECOMMIT) == 0) {
+  if (::VirtualFree(data, size, MEM_DECOMMIT) == 0) {
     ec.assign(::GetLastError(), std::system_category());
   }
 #else
-  if (::madvise(mf_.data() + offset, size, MADV_DONTNEED) != 0) {
+  if (::madvise(data, size, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
 #endif
@@ -95,12 +99,14 @@ std::error_code mmap::release_until(file_off_t offset [[maybe_unused]]) {
 
   offset -= offset % page_size_;
 
+  auto data = const_cast<char*>(mf_.const_data());
+
 #ifdef _WIN32
-  if (::VirtualFree(mf_.data(), offset, MEM_DECOMMIT) == 0) {
+  if (::VirtualFree(data, offset, MEM_DECOMMIT) == 0) {
     ec.assign(::GetLastError(), std::system_category());
   }
 #else
-  if (::madvise(mf_.data(), offset, MADV_DONTNEED) != 0) {
+  if (::madvise(data, offset, MADV_DONTNEED) != 0) {
     ec.assign(errno, std::generic_category());
   }
 #endif
