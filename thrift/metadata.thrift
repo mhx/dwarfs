@@ -344,4 +344,7 @@ struct metadata {
   24: optional string_table     compact_names,
 
   25: optional string_table     compact_symlinks,
+
+   // preferred path separator of original file system
+  26: optional UInt32           preferred_path_separator,
 }

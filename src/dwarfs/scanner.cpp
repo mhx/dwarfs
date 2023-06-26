@@ -797,6 +797,8 @@ void scanner_<LoggerPolicy>::scan(
   if (!options_.no_create_timestamp) {
     mv2.create_timestamp() = std::time(nullptr);
   }
+  mv2.preferred_path_separator() =
+      static_cast<uint32_t>(std::filesystem::path::preferred_separator);
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
