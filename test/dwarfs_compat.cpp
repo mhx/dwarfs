@@ -856,7 +856,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   entry = fs.find("/foo/bad");
   ASSERT_TRUE(entry);
   std::string link;
-  EXPECT_EQ(fs.readlink(*entry, &link), 0);
+  EXPECT_EQ(fs.readlink(*entry, &link, readlink_mode::raw), 0);
   EXPECT_EQ(link, "../foo");
 
   entry = fs.find(0, "foo");
@@ -949,7 +949,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
       file_stat stbuf;
       ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
       inodes.push_back(stbuf.ino);
-      EXPECT_TRUE(entries.emplace(e.path(), stbuf).second);
+      EXPECT_TRUE(entries.emplace(e.unix_path(), stbuf).second);
     });
 
     EXPECT_EQ(entries.size(), ref_entries.size());

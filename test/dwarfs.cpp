@@ -856,7 +856,7 @@ TEST_P(filter, filesystem) {
 
   std::unordered_set<std::string> got;
 
-  fs.walk([&got](dir_entry_view e) { got.emplace(e.path()); });
+  fs.walk([&got](dir_entry_view e) { got.emplace(e.unix_path()); });
 
   EXPECT_EQ(spec.expected_files(), got);
 }
@@ -890,7 +890,7 @@ TEST(file_scanner, input_list) {
 
   std::unordered_set<std::string> got;
 
-  fs.walk([&got](dir_entry_view e) { got.emplace(e.path()); });
+  fs.walk([&got](dir_entry_view e) { got.emplace(e.unix_path()); });
 
   std::unordered_set<std::string> expected{
       "",
