@@ -668,6 +668,18 @@ std::string dir_entry_view::path() const {
   return u8string_to_string(fs_path().u8string());
 }
 
+std::string dir_entry_view::unix_path() const {
+#ifdef _WIN32
+  auto p = fs_path().u8string();
+  std::replace(p.begin(), p.end(),
+               static_cast<char>(std::filesystem::path::preferred_separator),
+               '/');
+  return u8string_to_string(p);
+#else
+  return path();
+#endif
+}
+
 std::wstring dir_entry_view::wpath() const { return fs_path().wstring(); }
 
 std::filesystem::path dir_entry_view::fs_path() const {

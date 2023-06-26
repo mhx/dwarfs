@@ -160,6 +160,7 @@ class dir_entry_view {
   std::optional<dir_entry_view> parent() const;
 
   std::string path() const;
+  std::string unix_path() const;
   std::filesystem::path fs_path() const;
   std::wstring wpath() const;
 
