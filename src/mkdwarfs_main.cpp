@@ -71,6 +71,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
 #include "dwarfs/os_access_generic.h"
+#include "dwarfs/program_options_helpers.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
@@ -378,11 +379,11 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   block_manager::config cfg;
-  std::string path, output, memory_limit, script_arg, compression, header,
-      schema_compression, metadata_compression, log_level_str, timestamp,
-      time_resolution, order, progress_mode, recompress_opts, pack_metadata,
-      file_hash_algo, debug_filter, max_similarity_size, input_list_str,
-      chmod_str;
+  sys_string path_str, output_str;
+  std::string memory_limit, script_arg, compression, header, schema_compression,
+      metadata_compression, log_level_str, timestamp, time_resolution, order,
+      progress_mode, recompress_opts, pack_metadata, file_hash_algo,
+      debug_filter, max_similarity_size, input_list_str, chmod_str;
   std::vector<std::string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
@@ -416,13 +417,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description opts("Command line options");
   opts.add_options()
     ("input,i",
-        po::value<std::string>(&path),
+        po_sys_value<sys_string>(&path_str),
         "path to root directory or source filesystem")
     ("input-list",
         po::value<std::string>(&input_list_str),
         "file containing list of paths relative to root directory")
     ("output,o",
-        po::value<std::string>(&output),
+        po_sys_value<sys_string>(&output_str),
         "filesystem output name")
     ("force,f",
         po::value<bool>(&force_overwrite)->zero_tokens(),
@@ -549,6 +550,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   po::variables_map vm;
 
+  auto& err_out = SYS_CERR;
+
   try {
     auto parsed = po::parse_command_line(argc, argv, opts);
 
@@ -559,8 +562,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::collect_unrecognized(parsed.options, po::include_positional);
 
     if (!unrecognized.empty()) {
-      std::wcerr << "error: unrecognized argument(s) '"
-                 << boost::join(unrecognized, " ") << "'" << std::endl;
+      err_out << "error: unrecognized argument(s) '"
+              << boost::join(unrecognized, " ") << "'" << std::endl;
       return 1;
     }
   } catch (po::error const& e) {
@@ -663,6 +666,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     return 1;
   }
 
+  std::filesystem::path path(path_str);
   std::optional<std::vector<std::filesystem::path>> input_list;
 
   if (vm.count("input-list")) {
@@ -676,7 +680,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     options.with_specials = true;
 
     if (!vm.count("input")) {
-      path = std::filesystem::current_path().string();
+      path = std::filesystem::current_path();
     }
 
     std::unique_ptr<std::ifstream> ifs;
@@ -1046,6 +1050,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
              << " blocks with " << num_workers << " threads";
   }
 
+  std::filesystem::path output(output_str);
+
   std::unique_ptr<std::ostream> os;
 
   if (!options.debug_filter_function) {
@@ -1059,8 +1065,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                                            std::ios::trunc);
 
     if (ofs->bad() || !ofs->is_open()) {
-      std::cerr << "error: cannot open output file '" << output
-                << "': " << strerror(errno) << std::endl;
+      err_out << "error: cannot open output file '" << output
+              << "': " << strerror(errno) << std::endl;
       return 1;
     }
 

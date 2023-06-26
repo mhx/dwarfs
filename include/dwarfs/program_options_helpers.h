@@ -21,20 +21,22 @@
 
 #pragma once
 
-#include <cstdint>
+#include <boost/program_options.hpp>
+
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
-using file_off_t = int64_t;
-
 #ifdef _WIN32
-using sys_char = wchar_t;
-using sys_string = std::wstring;
-#define SYS_CERR std::wcerr
+template <typename T>
+auto po_sys_value(T* v) {
+  return boost::program_options::wvalue<T>(v);
+}
 #else
-using sys_char = char;
-using sys_string = std::string;
-#define SYS_CERR std::cerr
+template <typename T>
+auto po_sys_value(T* v) {
+  return boost::program_options::value<T>(v);
+}
 #endif
 
 } // namespace dwarfs

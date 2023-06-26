@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <iosfwd>
 #include <memory>
 #include <string>
@@ -38,7 +39,9 @@ class builtin_script : public script {
   builtin_script(logger& lgr);
   ~builtin_script();
 
-  void set_root_path(std::string const& path) { impl_->set_root_path(path); }
+  void set_root_path(std::filesystem::path const& path) {
+    impl_->set_root_path(path);
+  }
   void add_filter_rule(std::string const& rule) {
     impl_->add_filter_rule(rule);
   }
@@ -62,7 +65,7 @@ class builtin_script : public script {
    public:
     virtual ~impl() = default;
 
-    virtual void set_root_path(std::string const& path) = 0;
+    virtual void set_root_path(std::filesystem::path const& path) = 0;
     virtual void add_filter_rule(std::string const& rule) = 0;
     virtual void add_filter_rules(std::istream& is) = 0;
     virtual void add_transformer(std::unique_ptr<entry_transformer>&& xfm) = 0;

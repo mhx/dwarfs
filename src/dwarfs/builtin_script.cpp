@@ -30,6 +30,7 @@
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/entry_transformer.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -57,7 +58,7 @@ class builtin_script_ : public builtin_script::impl {
  public:
   builtin_script_(logger& lgr);
 
-  void set_root_path(std::string const& path) override;
+  void set_root_path(std::filesystem::path const& path) override;
   void add_filter_rule(std::string const& rule) override;
   void add_filter_rules(std::istream& is) override;
 
@@ -182,8 +183,10 @@ builtin_script_<LoggerPolicy>::builtin_script_(logger& lgr)
     : log_(lgr) {}
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::set_root_path(std::string const& path) {
-  root_path_ = path;
+void builtin_script_<LoggerPolicy>::set_root_path(
+    std::filesystem::path const& path) {
+  // TODO: this whole thing needs to be windowsized
+  root_path_ = u8string_to_string(path.u8string());
 }
 
 template <typename LoggerPolicy>
