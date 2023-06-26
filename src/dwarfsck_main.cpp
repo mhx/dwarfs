@@ -43,7 +43,7 @@ namespace dwarfs {
 
 namespace po = boost::program_options;
 
-int dwarfsck_main(int argc, char** argv) {
+int dwarfsck_main(int argc, sys_char** argv) {
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   std::string log_level, input, export_metadata, image_offset;
@@ -93,9 +93,11 @@ int dwarfsck_main(int argc, char** argv) {
   po::variables_map vm;
 
   try {
-    po::store(
-        po::command_line_parser(argc, argv).options(opts).positional(pos).run(),
-        vm);
+    po::store(po::basic_command_line_parser<sys_char>(argc, argv)
+                  .options(opts)
+                  .positional(pos)
+                  .run(),
+              vm);
     po::notify(vm);
   } catch (po::error const& e) {
     std::cerr << "error: " << e.what() << std::endl;

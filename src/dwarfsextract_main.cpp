@@ -40,7 +40,7 @@ namespace po = boost::program_options;
 
 namespace dwarfs {
 
-int dwarfsextract_main(int argc, char** argv) {
+int dwarfsextract_main(int argc, sys_char** argv) {
   std::string filesystem, output, format, cache_size_str, log_level,
       image_offset;
   size_t num_workers;

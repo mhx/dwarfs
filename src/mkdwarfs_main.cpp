@@ -372,7 +372,7 @@ class script_options : public options_interface {
 
 } // namespace
 
-int mkdwarfs_main(int argc, char** argv) {
+int mkdwarfs_main(int argc, sys_char** argv) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
@@ -559,8 +559,8 @@ int mkdwarfs_main(int argc, char** argv) {
         po::collect_unrecognized(parsed.options, po::include_positional);
 
     if (!unrecognized.empty()) {
-      std::cerr << "error: unrecognized argument(s) '"
-                << boost::join(unrecognized, " ") << "'" << std::endl;
+      std::wcerr << "error: unrecognized argument(s) '"
+                 << boost::join(unrecognized, " ") << "'" << std::endl;
       return 1;
     }
   } catch (po::error const& e) {

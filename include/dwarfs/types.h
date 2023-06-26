@@ -27,4 +27,12 @@ namespace dwarfs {
 
 using file_off_t = int64_t;
 
+#ifdef _WIN32
+using sys_char = wchar_t;
+using sys_string = std::wstring;
+#else
+using sys_char = char;
+using sys_string = std::string;
+#endif
+
 } // namespace dwarfs

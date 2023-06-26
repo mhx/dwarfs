@@ -22,7 +22,7 @@
 #include "dwarfs/error.h"
 #include "dwarfs_tool_main.h"
 
-int main(int argc, char** argv) {
+int SYS_MAIN(int argc, dwarfs::sys_char** argv) {
   return dwarfs::safe_main(
       [&] { return dwarfs::dwarfsbench_main(argc, argv); });
 }

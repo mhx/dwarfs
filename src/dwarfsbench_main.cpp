@@ -41,7 +41,7 @@ namespace po = boost::program_options;
 
 namespace dwarfs {
 
-int dwarfsbench_main(int argc, char** argv) {
+int dwarfsbench_main(int argc, sys_char** argv) {
   std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str,
       log_level;
   size_t num_workers;

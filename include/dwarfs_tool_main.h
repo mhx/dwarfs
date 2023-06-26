@@ -21,12 +21,20 @@
 
 #pragma once
 
+#include "dwarfs/types.h"
+
+#ifdef _WIN32
+#define SYS_MAIN wmain
+#else
+#define SYS_MAIN main
+#endif
+
 namespace dwarfs {
 
-int mkdwarfs_main(int argc, char** argv);
-int dwarfsck_main(int argc, char** argv);
-int dwarfsextract_main(int argc, char** argv);
-int dwarfsbench_main(int argc, char** argv);
+int mkdwarfs_main(int argc, sys_char** argv);
+int dwarfsck_main(int argc, sys_char** argv);
+int dwarfsextract_main(int argc, sys_char** argv);
+int dwarfsbench_main(int argc, sys_char** argv);
 int dwarfs_main(int argc, char** argv);
 
 } // namespace dwarfs
