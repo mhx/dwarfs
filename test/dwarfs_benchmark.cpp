@@ -23,13 +23,12 @@
 
 #include <benchmark/benchmark.h>
 
-#include <sys/statvfs.h>
-
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/entry.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
@@ -37,6 +36,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/string_table.h"
+#include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
@@ -216,37 +216,37 @@ class filesystem : public ::benchmark::Fixture {
 
   void read_bench(::benchmark::State& state, const char* file) {
     auto iv = fs->find(file);
-    struct ::stat st;
+    file_stat st;
     fs->getattr(*iv, &st);
     auto i = fs->open(*iv);
     std::string buf;
-    buf.resize(st.st_size);
+    buf.resize(st.size);
 
     for (auto _ : state) {
-      ::benchmark::DoNotOptimize(fs->read(i, buf.data(), st.st_size));
+      ::benchmark::DoNotOptimize(fs->read(i, buf.data(), st.size));
     }
   }
 
   void readv_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    struct ::stat st;
+    file_stat st;
     fs->getattr(*iv, &st);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
       iovec_read_buf buf;
-      ::benchmark::DoNotOptimize(fs->readv(i, buf, st.st_size));
+      ::benchmark::DoNotOptimize(fs->readv(i, buf, st.size));
     }
   }
 
   void readv_future_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    struct ::stat st;
+    file_stat st;
     fs->getattr(*iv, &st);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
-      auto x = fs->readv(i, st.st_size);
+      auto x = fs->readv(i, st.size);
       for (auto& f : *x) {
         ::benchmark::DoNotOptimize(f.get());
       }
@@ -264,7 +264,7 @@ class filesystem : public ::benchmark::Fixture {
     }
 
     for (auto _ : state) {
-      struct ::stat buf;
+      file_stat buf;
       ::benchmark::DoNotOptimize(fs->getattr(ent[i++ % N], &buf));
     }
   }
@@ -402,7 +402,7 @@ BENCHMARK_DEFINE_F(filesystem, readlink)(::benchmark::State& state) {
 
 BENCHMARK_DEFINE_F(filesystem, statvfs)(::benchmark::State& state) {
   for (auto _ : state) {
-    struct ::statvfs buf;
+    vfs_stat buf;
     ::benchmark::DoNotOptimize(fs->statvfs(&buf));
   }
 }
