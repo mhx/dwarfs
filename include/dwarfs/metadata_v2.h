@@ -115,12 +115,13 @@ class metadata_v2 {
 
   int open(inode_view iv) const { return impl_->open(iv); }
 
-  int readlink(inode_view iv, std::string* buf) const {
-    return impl_->readlink(iv, buf);
+  int readlink(inode_view iv, std::string* buf, readlink_mode mode) const {
+    return impl_->readlink(iv, buf, mode);
   }
 
-  folly::Expected<std::string, int> readlink(inode_view iv) const {
-    return impl_->readlink(iv);
+  folly::Expected<std::string, int>
+  readlink(inode_view iv, readlink_mode mode) const {
+    return impl_->readlink(iv, mode);
   }
 
   int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
@@ -172,9 +173,11 @@ class metadata_v2 {
 
     virtual int open(inode_view iv) const = 0;
 
-    virtual int readlink(inode_view iv, std::string* buf) const = 0;
+    virtual int
+    readlink(inode_view iv, std::string* buf, readlink_mode mode) const = 0;
 
-    virtual folly::Expected<std::string, int> readlink(inode_view iv) const = 0;
+    virtual folly::Expected<std::string, int>
+    readlink(inode_view iv, readlink_mode mode) const = 0;
 
     virtual int statvfs(vfs_stat* stbuf) const = 0;
 

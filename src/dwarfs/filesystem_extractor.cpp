@@ -369,8 +369,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       linkpath.make_preferred();
       ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
 #else
-      // TODO: if file system was created on Windows,
-      //       replace \ with / in symlinks
       ::archive_entry_copy_symlink(ae, link.c_str());
 #endif
     }

@@ -46,6 +46,11 @@ class metadata_;
 class dir_entry_view;
 class logger;
 
+enum class readlink_mode {
+  raw,
+  preferred,
+};
+
 class global_metadata {
  public:
   using Meta =

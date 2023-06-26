@@ -125,12 +125,15 @@ class filesystem_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int readlink(inode_view entry, std::string* buf) const {
-    return impl_->readlink(entry, buf);
+  int readlink(inode_view entry, std::string* buf,
+               readlink_mode mode = readlink_mode::preferred) const {
+    return impl_->readlink(entry, buf, mode);
   }
 
-  folly::Expected<std::string, int> readlink(inode_view entry) const {
-    return impl_->readlink(entry);
+  folly::Expected<std::string, int>
+  readlink(inode_view entry,
+           readlink_mode mode = readlink_mode::preferred) const {
+    return impl_->readlink(entry, mode);
   }
 
   int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
@@ -183,9 +186,10 @@ class filesystem_v2 {
     virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;
     virtual size_t dirsize(directory_view dir) const = 0;
-    virtual int readlink(inode_view entry, std::string* buf) const = 0;
+    virtual int
+    readlink(inode_view entry, std::string* buf, readlink_mode mode) const = 0;
     virtual folly::Expected<std::string, int>
-    readlink(inode_view entry) const = 0;
+    readlink(inode_view entry, readlink_mode mode) const = 0;
     virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual ssize_t

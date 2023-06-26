@@ -335,8 +335,10 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const override;
   size_t dirsize(directory_view dir) const override;
-  int readlink(inode_view entry, std::string* buf) const override;
-  folly::Expected<std::string, int> readlink(inode_view entry) const override;
+  int readlink(inode_view entry, std::string* buf,
+               readlink_mode mode) const override;
+  folly::Expected<std::string, int>
+  readlink(inode_view entry, readlink_mode mode) const override;
   int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
   ssize_t read(uint32_t inode, char* buf, size_t size,
@@ -523,15 +525,16 @@ size_t filesystem_<LoggerPolicy>::dirsize(directory_view dir) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::readlink(inode_view entry,
-                                        std::string* buf) const {
-  return meta_.readlink(entry, buf);
+int filesystem_<LoggerPolicy>::readlink(inode_view entry, std::string* buf,
+                                        readlink_mode mode) const {
+  return meta_.readlink(entry, buf, mode);
 }
 
 template <typename LoggerPolicy>
 folly::Expected<std::string, int>
-filesystem_<LoggerPolicy>::readlink(inode_view entry) const {
-  return meta_.readlink(entry);
+filesystem_<LoggerPolicy>::readlink(inode_view entry,
+                                    readlink_mode mode) const {
+  return meta_.readlink(entry, mode);
 }
 
 template <typename LoggerPolicy>

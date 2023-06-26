@@ -420,9 +420,11 @@ class metadata_ final : public metadata_v2::impl {
 
   int open(inode_view iv) const override;
 
-  int readlink(inode_view iv, std::string* buf) const override;
+  int readlink(inode_view iv, std::string* buf,
+               readlink_mode mode) const override;
 
-  folly::Expected<std::string, int> readlink(inode_view iv) const override;
+  folly::Expected<std::string, int>
+  readlink(inode_view iv, readlink_mode mode) const override;
 
   int statvfs(vfs_stat* stbuf) const override;
 
@@ -634,9 +636,23 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  std::string link_value(inode_view iv) const {
-    return symlinks_[meta_.symlink_table()[iv.inode_num() -
-                                           symlink_inode_offset_]];
+  std::string
+  link_value(inode_view iv, readlink_mode mode = readlink_mode::raw) const {
+    std::string rv =
+        symlinks_[meta_
+                      .symlink_table()[iv.inode_num() - symlink_inode_offset_]];
+
+    if (mode == readlink_mode::preferred) {
+      char meta_preferred = '/';
+      if (auto ps = meta_.preferred_path_separator()) {
+        meta_preferred = static_cast<char>(*ps);
+      }
+      std::replace(
+          rv.begin(), rv.end(), meta_preferred,
+          static_cast<char>(std::filesystem::path::preferred_separator));
+    }
+
+    return rv;
   }
 
   uint64_t get_device_id(int inode) const {
@@ -969,7 +985,7 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
 
   case posix_file_type::symlink:
     obj["type"] = "link";
-    obj["target"] = std::string(link_value(iv));
+    obj["target"] = link_value(iv);
     break;
 
   case posix_file_type::block:
@@ -1370,9 +1386,10 @@ int metadata_<LoggerPolicy>::open(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
+int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf,
+                                      readlink_mode mode) const {
   if (iv.is_symlink()) {
-    buf->assign(link_value(iv));
+    buf->assign(link_value(iv, mode));
     return 0;
   }
 
@@ -1381,9 +1398,9 @@ int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
 
 template <typename LoggerPolicy>
 folly::Expected<std::string, int>
-metadata_<LoggerPolicy>::readlink(inode_view iv) const {
+metadata_<LoggerPolicy>::readlink(inode_view iv, readlink_mode mode) const {
   if (iv.is_symlink()) {
-    return link_value(iv);
+    return link_value(iv, mode);
   }
 
   return folly::makeUnexpected(-EINVAL);
