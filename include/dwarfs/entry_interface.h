@@ -29,7 +29,7 @@ namespace dwarfs {
 
 class entry_interface : public object {
  public:
-  virtual std::string path() const = 0;
+  virtual std::string path_as_string() const = 0;
   virtual std::string dpath() const = 0;
   virtual std::string const& name() const = 0;
   virtual std::string type_string() const = 0;

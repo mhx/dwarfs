@@ -395,7 +395,7 @@ void file_scanner_::finalize_inodes(
 
     // this isn't strictly necessary, but helps metadata compression
     std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
-      return a->path() < b->path();
+      return a->fs_path() < b->fs_path();
     });
 
     for (auto fp : files) {

@@ -249,10 +249,10 @@ std::string status_string(progress const& p, size_t width) {
   if (cp) {
     if (auto e = dynamic_cast<entry_interface const*>(cp)) {
       label = "scanning: ";
-      path = e->path();
+      path = e->path_as_string();
     } else if (auto i = dynamic_cast<inode const*>(cp)) {
       label = "writing: ";
-      path = i->any()->path();
+      path = i->any()->path_as_string();
     }
     auto max_len = width - label.size();
     auto len = path.size();
@@ -359,7 +359,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       switch (pe->type()) {
       case entry::E_FILE:
         if (os_->access(pe->fs_path(), R_OK)) {
-          LOG_ERROR << "cannot access " << pe->path()
+          LOG_ERROR << "cannot access " << pe->path_as_string()
                     << ", creating empty file";
           pe->override_size(0);
           prog.errors++;

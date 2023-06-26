@@ -75,7 +75,7 @@ class entry : public entry_interface {
   std::shared_ptr<entry> parent() const;
   void set_name(std::string const& name);
   std::filesystem::path fs_path() const;
-  std::string path() const override;
+  std::string path_as_string() const override;
   std::string dpath() const override;
   std::string const& name() const override { return name_; }
   size_t size() const override { return stat_.size; }

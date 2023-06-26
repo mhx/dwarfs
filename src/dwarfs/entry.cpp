@@ -71,12 +71,12 @@ std::filesystem::path entry::fs_path() const {
   return std::filesystem::path(u8name());
 }
 
-std::string entry::path() const {
+std::string entry::path_as_string() const {
   return u8string_to_string(fs_path().u8string());
 }
 
 std::string entry::dpath() const {
-  auto p = path();
+  auto p = path_as_string();
   if (type() == E_DIR) {
     p += '/';
   }
@@ -179,7 +179,7 @@ void file::scan(os_access& os, progress& prog) {
   std::shared_ptr<mmif> mm;
 
   if (size_t s = size(); s > 0) {
-    mm = os.map_file(path(), s);
+    mm = os.map_file(fs_path(), s);
   }
 
   scan(mm, prog, "xxh3-128");
@@ -384,7 +384,7 @@ const std::string& link::linkname() const { return link_; }
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access& os, progress& prog) {
-  link_ = u8string_to_string(os.read_symlink(path()).u8string());
+  link_ = u8string_to_string(os.read_symlink(fs_path()).u8string());
   prog.original_size += size();
   prog.symlink_size += size();
 }

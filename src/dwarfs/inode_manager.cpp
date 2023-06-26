@@ -268,7 +268,7 @@ class inode_manager_ final : public inode_manager::impl {
     paths.reserve(inodes_.size());
 
     for (auto const& ino : inodes_) {
-      paths.emplace_back(ino->any()->path());
+      paths.emplace_back(ino->any()->path_as_string());
     }
 
     std::iota(index.begin(), index.end(), size_t(0));
@@ -295,7 +295,7 @@ class inode_manager_ final : public inode_manager::impl {
           return ash < bsh ||
                  (ash == bsh && (a->size() > b->size() ||
                                  (a->size() == b->size() &&
-                                  a->any()->path() < b->any()->path())));
+                                  a->any()->fs_path() < b->any()->fs_path())));
         });
   }
 
@@ -396,7 +396,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
     ++num_path;
 
-    return fa->path() > fb->path();
+    return fa->fs_path() > fb->fs_path();
   });
 
   ti << "pre-sorted index (" << num_name << " name, " << num_path
