@@ -49,6 +49,7 @@ class logger;
 enum class readlink_mode {
   raw,
   preferred,
+  unix,
 };
 
 class global_metadata {

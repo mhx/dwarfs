@@ -642,14 +642,19 @@ class metadata_ final : public metadata_v2::impl {
         symlinks_[meta_
                       .symlink_table()[iv.inode_num() - symlink_inode_offset_]];
 
-    if (mode == readlink_mode::preferred) {
+    if (mode != readlink_mode::raw) {
       char meta_preferred = '/';
       if (auto ps = meta_.preferred_path_separator()) {
         meta_preferred = static_cast<char>(*ps);
       }
-      std::replace(
-          rv.begin(), rv.end(), meta_preferred,
-          static_cast<char>(std::filesystem::path::preferred_separator));
+      char host_preferred =
+          static_cast<char>(std::filesystem::path::preferred_separator);
+      if (mode == readlink_mode::unix) {
+        host_preferred = '/';
+      }
+      if (meta_preferred != host_preferred) {
+        std::replace(rv.begin(), rv.end(), meta_preferred, host_preferred);
+      }
     }
 
     return rv;
