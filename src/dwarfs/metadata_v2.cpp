@@ -852,6 +852,9 @@ void metadata_<LoggerPolicy>::dump(
     os << "block size: " << size_with_unit(stbuf.bsize) << std::endl;
     os << "block count: " << fsinfo.block_count << std::endl;
     os << "inode count: " << stbuf.files << std::endl;
+    if (auto ps = meta_.preferred_path_separator()) {
+      os << "preferred path separator: " << static_cast<char>(*ps) << std::endl;
+    }
     os << "original filesystem size: " << size_with_unit(stbuf.blocks)
        << std::endl;
     os << "compressed block size: "
