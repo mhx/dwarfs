@@ -88,12 +88,41 @@ file_stat make_file_stat(fs::path const& path) {
     rv.ctime = time_from_filetime(info.ftCreationTime);
   } else {
     struct ::__stat64 st;
+
     if (::_wstat64(wps.c_str(), &st) != 0) {
       throw std::system_error(errno, std::generic_category(), "_stat64");
     }
+
+    if (status.type() == fs::file_type::regular) {
+      ::HANDLE hdl =
+          ::CreateFileW(wps.c_str(), 0, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
+
+      if (hdl == INVALID_HANDLE_VALUE) {
+        throw std::system_error(::GetLastError(), std::system_category(),
+                                fmt::format("CreateFileW({})", path.string()));
+      }
+
+      ::BY_HANDLE_FILE_INFORMATION info;
+      if (!::GetFileInformationByHandle(hdl, &info)) {
+        throw std::system_error(::GetLastError(), std::system_category(),
+                                "GetFileInformationByHandle");
+      }
+
+      if (!::CloseHandle(hdl)) {
+        throw std::system_error(::GetLastError(), std::system_category(),
+                                "CloseHandle");
+      }
+
+      rv.ino = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
+               info.nFileIndexLow;
+      rv.nlink = info.nNumberOfLinks;
+    } else {
+      rv.ino = st.st_ino;
+      rv.nlink = st.st_nlink;
+    }
+
     rv.dev = st.st_dev;
-    rv.ino = st.st_ino;
-    rv.nlink = st.st_nlink;
     rv.uid = st.st_uid;
     rv.gid = st.st_gid;
     rv.rdev = st.st_rdev;
