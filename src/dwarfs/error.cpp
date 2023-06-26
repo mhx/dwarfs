@@ -20,6 +20,7 @@
  */
 
 #include <cerrno>
+#include <clocale>
 #include <cstdlib>
 #include <iostream>
 
@@ -82,6 +83,9 @@ int safe_main(std::function<int(void)> fn) {
 #ifndef _WIN32
     folly::symbolizer::installFatalSignalHandler();
 #endif
+    auto loc = std::getenv("LC_ALL");
+    std::setlocale(LC_ALL, loc ? loc : "");
+
     return fn();
   } catch (system_error const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
