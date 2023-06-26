@@ -244,7 +244,7 @@ void builtin_script_<LoggerPolicy>::add_filter_rules(
 
 template <typename LoggerPolicy>
 bool builtin_script_<LoggerPolicy>::filter(entry_interface const& ei) {
-  std::string path = ei.dpath();
+  std::string path = ei.unix_dpath();
   std::string relpath = path;
 
   if (relpath.size() >= root_path_.size()) {

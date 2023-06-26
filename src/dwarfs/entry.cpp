@@ -83,6 +83,20 @@ std::string entry::dpath() const {
   return p;
 }
 
+std::string entry::unix_dpath() const {
+  auto p = name_;
+
+  if (type() == E_DIR) {
+    p += '/';
+  }
+
+  if (auto parent = parent_.lock()) {
+    return parent->unix_dpath() + p;
+  }
+
+  return p;
+}
+
 std::string entry::type_string() const {
   switch (stat_.type()) {
   case posix_file_type::regular:
