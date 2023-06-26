@@ -29,6 +29,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/overloaded.h"
+#include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 
@@ -664,20 +665,25 @@ inode_view dir_entry_view::inode(uint32_t index, global_metadata const* g) {
 }
 
 std::string dir_entry_view::path() const {
-  std::string p;
-  append_path_to(p);
+  return u8string_to_string(fs_path().u8string());
+}
+
+std::wstring dir_entry_view::wpath() const { return fs_path().wstring(); }
+
+std::filesystem::path dir_entry_view::fs_path() const {
+  std::filesystem::path p;
+  append_to(p);
   return p;
 }
 
-void dir_entry_view::append_path_to(std::string& s) const {
-  if (auto p = parent()) {
-    if (!p->is_root()) {
-      p->append_path_to(s);
-      s += '/';
+void dir_entry_view::append_to(std::filesystem::path& p) const {
+  if (auto ev = parent()) {
+    if (!ev->is_root()) {
+      ev->append_to(p);
     }
   }
   if (!is_root()) {
-    s += name();
+    p /= string_to_u8string(name());
   }
 }
 

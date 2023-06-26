@@ -23,7 +23,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
+#include <string>
 #include <variant>
 
 #include <boost/iterator/iterator_facade.hpp>
@@ -152,7 +154,10 @@ class dir_entry_view {
   std::optional<dir_entry_view> parent() const;
 
   std::string path() const;
-  void append_path_to(std::string& s) const;
+  std::filesystem::path fs_path() const;
+  std::wstring wpath() const;
+
+  void append_to(std::filesystem::path& p) const;
 
   uint32_t self_index() const { return self_index_; }
 
