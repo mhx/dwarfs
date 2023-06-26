@@ -366,7 +366,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       }
 #ifdef _WIN32
       std::filesystem::path linkpath(string_to_u8string(link));
-      linkpath.make_preferred();
       ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
 #else
       ::archive_entry_copy_symlink(ae, link.c_str());
