@@ -81,7 +81,7 @@ int dwarfsbench_main(int argc, sys_char** argv) {
     po::store(po::parse_command_line(argc, argv, opts), vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   }
 
@@ -117,11 +117,10 @@ int dwarfsbench_main(int argc, sys_char** argv) {
               fs.read(fh, buf.data(), buf.size());
             }
           } catch (runtime_error const& e) {
-            std::cerr << "error: " << e.what() << std::endl;
+            std::cerr << "error: " << e.what() << "\n";
           } catch (...) {
             std::cerr << "error: "
-                      << folly::exceptionStr(std::current_exception())
-                      << std::endl;
+                      << folly::exceptionStr(std::current_exception()) << "\n";
             dump_exceptions();
           }
         });
@@ -130,7 +129,7 @@ int dwarfsbench_main(int argc, sys_char** argv) {
 
     wg.wait();
   } catch (runtime_error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   }
 

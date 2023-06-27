@@ -842,7 +842,7 @@ void metadata_<LoggerPolicy>::dump(
   statvfs(&stbuf);
 
   if (auto version = meta_.dwarfs_version()) {
-    os << "created by: " << *version << std::endl;
+    os << "created by: " << *version << "\n";
   }
 
   if (auto ts = meta_.create_timestamp()) {
@@ -850,32 +850,31 @@ void metadata_<LoggerPolicy>::dump(
     std::string str(32, '\0');
     str.resize(
         std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
-    os << "created on: " << str << std::endl;
+    os << "created on: " << str << "\n";
   }
 
   if (detail_level > 0) {
-    os << "block size: " << size_with_unit(stbuf.bsize) << std::endl;
-    os << "block count: " << fsinfo.block_count << std::endl;
-    os << "inode count: " << stbuf.files << std::endl;
+    os << "block size: " << size_with_unit(stbuf.bsize) << "\n";
+    os << "block count: " << fsinfo.block_count << "\n";
+    os << "inode count: " << stbuf.files << "\n";
     if (auto ps = meta_.preferred_path_separator()) {
-      os << "preferred path separator: " << static_cast<char>(*ps) << std::endl;
+      os << "preferred path separator: " << static_cast<char>(*ps) << "\n";
     }
-    os << "original filesystem size: " << size_with_unit(stbuf.blocks)
-       << std::endl;
+    os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
     os << "compressed block size: "
        << size_with_unit(fsinfo.compressed_block_size)
        << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
                                          fsinfo.uncompressed_block_size)
-       << std::endl;
+       << "\n";
     os << "uncompressed block size: "
-       << size_with_unit(fsinfo.uncompressed_block_size) << std::endl;
+       << size_with_unit(fsinfo.uncompressed_block_size) << "\n";
     os << "compressed metadata size: "
        << size_with_unit(fsinfo.compressed_metadata_size)
        << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_metadata_size) /
                                          fsinfo.uncompressed_metadata_size)
-       << std::endl;
+       << "\n";
     os << "uncompressed metadata size: "
-       << size_with_unit(fsinfo.uncompressed_metadata_size) << std::endl;
+       << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       auto boolopt = [&](auto const& name, bool value) {
@@ -895,9 +894,9 @@ void metadata_<LoggerPolicy>::dump(
         boolopt("packed_symlinks", static_cast<bool>(symlinks->symtab()));
         boolopt("packed_symlinks_index", symlinks->packed_index());
       }
-      os << "options: " << boost::join(options, "\n         ") << std::endl;
+      os << "options: " << boost::join(options, "\n         ") << "\n";
       if (auto res = opt->time_resolution_sec()) {
-        os << "time resolution: " << *res << " seconds" << std::endl;
+        os << "time resolution: " << *res << " seconds\n";
       }
     }
   }
@@ -907,35 +906,34 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 2) {
-    os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
-    os << "file_inode_offset: " << file_inode_offset_ << std::endl;
-    os << "dev_inode_offset: " << dev_inode_offset_ << std::endl;
-    os << "chunks: " << meta_.chunks().size() << std::endl;
-    os << "directories: " << meta_.directories().size() << std::endl;
-    os << "inodes: " << meta_.inodes().size() << std::endl;
-    os << "chunk_table: " << meta_.chunk_table().size() << std::endl;
-    os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << std::endl;
-    os << "symlink_table: " << meta_.symlink_table().size() << std::endl;
-    os << "uids: " << meta_.uids().size() << std::endl;
-    os << "gids: " << meta_.gids().size() << std::endl;
-    os << "modes: " << meta_.modes().size() << std::endl;
-    os << "names: " << meta_.names().size() << std::endl;
-    os << "symlinks: " << meta_.symlinks().size() << std::endl;
+    os << "symlink_inode_offset: " << symlink_inode_offset_ << "\n";
+    os << "file_inode_offset: " << file_inode_offset_ << "\n";
+    os << "dev_inode_offset: " << dev_inode_offset_ << "\n";
+    os << "chunks: " << meta_.chunks().size() << "\n";
+    os << "directories: " << meta_.directories().size() << "\n";
+    os << "inodes: " << meta_.inodes().size() << "\n";
+    os << "chunk_table: " << meta_.chunk_table().size() << "\n";
+    os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << "\n";
+    os << "symlink_table: " << meta_.symlink_table().size() << "\n";
+    os << "uids: " << meta_.uids().size() << "\n";
+    os << "gids: " << meta_.gids().size() << "\n";
+    os << "modes: " << meta_.modes().size() << "\n";
+    os << "names: " << meta_.names().size() << "\n";
+    os << "symlinks: " << meta_.symlinks().size() << "\n";
     if (auto dev = meta_.devices()) {
-      os << "devices: " << dev->size() << std::endl;
+      os << "devices: " << dev->size() << "\n";
     }
     if (auto de = meta_.dir_entries()) {
-      os << "dir_entries: " << de->size() << std::endl;
+      os << "dir_entries: " << de->size() << "\n";
     }
     if (auto sfp = meta_.shared_files_table()) {
       if (meta_.options()->packed_shared_files_table()) {
-        os << "packed shared_files_table: " << sfp->size() << std::endl;
-        os << "unpacked shared_files_table: " << shared_files_.size()
-           << std::endl;
+        os << "packed shared_files_table: " << sfp->size() << "\n";
+        os << "unpacked shared_files_table: " << shared_files_.size() << "\n";
       } else {
-        os << "shared_files_table: " << sfp->size() << std::endl;
+        os << "shared_files_table: " << sfp->size() << "\n";
       }
-      os << "unique files: " << unique_files_ << std::endl;
+      os << "unique files: " << unique_files_ << "\n";
     }
   }
 

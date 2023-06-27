@@ -681,7 +681,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     if (auto off = parser.image_offset(); off > 0) {
       os << " at offset " << off;
     }
-    os << std::endl;
+    os << "\n";
   }
 
   worker_group wg("reader", num_readers);
@@ -721,7 +721,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
         os << "SECTION " << s.description()
            << ", blocksize=" << uncompressed_size
            << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-           << std::endl;
+           << "\n";
       }
 
       if (s.type() != section_type::BLOCK) {

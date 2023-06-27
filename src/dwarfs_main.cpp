@@ -860,7 +860,7 @@ void usage(char const* progname) {
       << "    -o tidy_strategy=NAME  (none)|time|swap\n"
       << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
       << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
-      << std::endl;
+      << "\n";
 
 #if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
   fuse_cmdline_help();
@@ -1150,7 +1150,7 @@ int dwarfs_main(int argc, char** argv) {
         opts.block_cache_tidy_strategy = it->second;
       } else {
         std::cerr << "error: no such cache tidy strategy: "
-                  << opts.cache_tidy_strategy_str << std::endl;
+                  << opts.cache_tidy_strategy_str << "\n";
         return 1;
       }
 
@@ -1165,15 +1165,15 @@ int dwarfs_main(int argc, char** argv) {
       }
     }
   } catch (runtime_error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   } catch (std::filesystem::filesystem_error const& e) {
-    std::cerr << e.what() << std::endl;
+    std::cerr << e.what() << "\n";
     return 1;
   }
 
   if (opts.decompress_ratio < 0.0 || opts.decompress_ratio > 1.0) {
-    std::cerr << "error: decratio must be between 0.0 and 1.0" << std::endl;
+    std::cerr << "error: decratio must be between 0.0 and 1.0\n";
     return 1;
   }
 

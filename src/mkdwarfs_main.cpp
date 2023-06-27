@@ -182,24 +182,23 @@ int parse_order_option(std::string const& ordname, std::string const& opt,
       if (min && max && (tmp < *min || tmp > *max)) {
         std::cerr << "error: " << name << " (" << opt
                   << ") out of range for order '" << ordname << "' (" << *min
-                  << ".." << *max << ")" << std::endl;
+                  << ".." << *max << ")\n";
         return 1;
       }
       if (min && tmp < *min) {
         std::cerr << "error: " << name << " (" << opt
                   << ") cannot be less than " << *min << " for order '"
-                  << ordname << "'" << std::endl;
+                  << ordname << "'\n";
       }
       if (max && tmp > *max) {
         std::cerr << "error: " << name << " (" << opt
                   << ") cannot be greater than " << *max << " for order '"
-                  << ordname << "'" << std::endl;
+                  << ordname << "'\n";
       }
       value = tmp;
     } else {
       std::cerr << "error: " << name << " (" << opt
-                << ") is not numeric for order '" << ordname << "'"
-                << std::endl;
+                << ") is not numeric for order '" << ordname << "'\n";
       return 1;
     }
   }
@@ -577,7 +576,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       return 1;
     }
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   }
 
@@ -602,7 +601,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
               << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
                              "Block Data", l_dc, "Schema", l_sc, "Metadata",
                              l_mc, "Size/Step  Order")
-              << "  " << sep << std::endl;
+              << "  " << sep << "\n";
 
     int level = 0;
     for (auto const& l : levels) {
@@ -612,11 +611,11 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                l_dc, l.schema_compression, l_sc,
                                l.metadata_compression, l_mc, l.window_size,
                                l.window_step, l.order, l_or)
-                << std::endl;
+                << "\n";
       ++level;
     }
 
-    std::cout << "  " << sep << std::endl;
+    std::cout << "  " << sep << "\n";
 
     std::cout << "\nCompression algorithms:\n";
 
@@ -635,7 +634,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   if (level >= levels.size()) {
-    std::cerr << "error: invalid compression level" << std::endl;
+    std::cerr << "error: invalid compression level\n";
     return 1;
   }
 
@@ -672,7 +671,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   if (cfg.block_size_bits < min_block_size_bits ||
       cfg.block_size_bits > max_block_size_bits) {
     std::cerr << "error: block size must be between " << min_block_size_bits
-              << " and " << max_block_size_bits << std::endl;
+              << " and " << max_block_size_bits << "\n";
     return 1;
   }
 
@@ -730,7 +729,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       rw_opts.recompress_block = it->second & 1;
       rw_opts.recompress_metadata = it->second & 2;
     } else {
-      std::cerr << "invalid recompress mode: " << recompress_opts << std::endl;
+      std::cerr << "invalid recompress mode: " << recompress_opts << "\n";
       return 1;
     }
   }
@@ -745,13 +744,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     if (order_opts.size() > 1) {
       if (options.file_order.mode != file_order_mode::NILSIMSA) {
         std::cerr << "error: inode order mode '" << order_opts.front()
-                  << "' does not support options" << std::endl;
+                  << "' does not support options\n";
         return 1;
       }
 
       if (order_opts.size() > 4) {
         std::cerr << "error: too many options for inode order mode '"
-                  << order_opts[0] << "'" << std::endl;
+                  << order_opts[0] << "'\n";
         return 1;
       }
 
@@ -779,7 +778,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       }
     }
   } else {
-    std::cerr << "error: invalid inode order mode: " << order << std::endl;
+    std::cerr << "error: invalid inode order mode: " << order << "\n";
     return 1;
   }
 
@@ -833,8 +832,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     progress_mode = "simple";
   }
   if (!progress_modes.count(progress_mode)) {
-    std::cerr << "error: invalid progress mode '" << progress_mode << "'"
-              << std::endl;
+    std::cerr << "error: invalid progress mode '" << progress_mode << "'\n";
     return 1;
   }
 
@@ -865,7 +863,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     if (folly::readFile(file.c_str(), code)) {
       script = std::make_shared<python_script>(lgr, code, ctor);
     } else {
-      std::cerr << "error: could not load script '" << file << "'" << std::endl;
+      std::cerr << "error: could not load script '" << file << "'\n";
       return 1;
     }
   }
@@ -921,8 +919,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   if (options.file_order.mode == file_order_mode::SCRIPT && !script) {
     std::cerr << "error: '--order=script' can only be used with a valid "
-                 "'--script' option"
-              << std::endl;
+                 "'--script' option\n";
     return 1;
   }
 
@@ -940,9 +937,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     } else if (auto val = folly::tryTo<uint64_t>(timestamp)) {
       options.timestamp = *val;
     } else {
-      std::cerr
-          << "error: argument for option '--set-time' must be numeric or `now`"
-          << std::endl;
+      std::cerr << "error: argument for option '--set-time' must be numeric or "
+                   "`now`\n";
       return 1;
     }
   }
@@ -953,13 +949,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   } else if (auto val = folly::tryTo<uint32_t>(time_resolution)) {
     options.time_resolution_sec = *val;
     if (options.time_resolution_sec == 0) {
-      std::cerr << "error: the argument to '--time-resolution' must be nonzero"
-                << std::endl;
+      std::cerr
+          << "error: the argument to '--time-resolution' must be nonzero\n";
       return 1;
     }
   } else {
     std::cerr << "error: the argument ('" << time_resolution
-              << "') to '--time-resolution' is invalid" << std::endl;
+              << "') to '--time-resolution' is invalid\n";
     return 1;
   }
 
@@ -1006,7 +1002,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           options.pack_symlinks_index = true;
         } else {
           std::cerr << "error: the argument ('" << opt
-                    << "') to '--pack-metadata' is invalid" << std::endl;
+                    << "') to '--pack-metadata' is invalid\n";
           return 1;
         }
       }
@@ -1030,7 +1026,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         std::make_unique<std::ifstream>(header.c_str(), std::ios::binary);
     if (header_ifs->bad() || !header_ifs->is_open()) {
       std::cerr << "error: cannot open header file '" << header
-                << "': " << strerror(errno) << std::endl;
+                << "': " << strerror(errno) << "\n";
       return 1;
     }
   }
@@ -1066,8 +1062,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   if (!options.debug_filter_function) {
     if (std::filesystem::exists(output) && !force_overwrite) {
-      std::cerr << "error: output file already exists, use --force to overwrite"
-                << std::endl;
+      std::cerr
+          << "error: output file already exists, use --force to overwrite\n";
       return 1;
     }
 

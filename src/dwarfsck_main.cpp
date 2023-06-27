@@ -100,7 +100,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
               vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   }
 
@@ -138,7 +138,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
       of.close();
     } else if (json) {
       filesystem_v2 fs(lgr, mm, fsopts);
-      std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << std::endl;
+      std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << "\n";
     } else if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
         std::cout << std::string_view(
@@ -154,13 +154,13 @@ int dwarfsck_main(int argc, sys_char** argv) {
       }
     }
   } catch (system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (runtime_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (std::system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   }
 

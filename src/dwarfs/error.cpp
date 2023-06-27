@@ -58,24 +58,24 @@ void dump_exceptions() {
 #ifdef DWARFS_USE_EXCEPTION_TRACER
   auto exceptions = ::folly::exception_tracer::getCurrentExceptions();
   for (auto& exc : exceptions) {
-    std::cerr << exc << std::endl;
+    std::cerr << exc << "\n";
   }
 #else
-  std::cerr << "cannot dump exceptions" << std::endl;
+  std::cerr << "cannot dump exceptions\n";
 #endif
 }
 
 void handle_nothrow(char const* expr, char const* file, int line) {
   std::cerr << "Expression `" << expr << "` threw `"
             << folly::exceptionStr(std::current_exception()) << "` in " << file
-            << "(" << line << ")" << std::endl;
+            << "(" << line << ")\n";
   ::abort();
 }
 
 void assertion_failed(char const* expr, std::string const& msg,
                       char const* file, int line) {
   std::cerr << "Assertion `" << expr << "` failed in " << file << "(" << line
-            << "): " << msg << std::endl;
+            << "): " << msg << "\n";
   ::abort();
 }
 
@@ -95,14 +95,14 @@ int safe_main(std::function<int(void)> fn) {
     return fn();
   } catch (system_error const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]" << std::endl;
+              << e.line() << "]\n";
     dump_exceptions();
   } catch (error const& e) {
     std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]" << std::endl;
+              << e.line() << "]\n";
     dump_exceptions();
   } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << std::endl;
+    std::cerr << "ERROR: " << folly::exceptionStr(e) << "\n";
     dump_exceptions();
   } catch (...) {
     dump_exceptions();

@@ -90,7 +90,7 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     po::store(po::parse_command_line(argc, argv, opts), vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    std::cerr << "error: " << e.what() << "\n";
     return 1;
   }
 
@@ -158,13 +158,13 @@ int dwarfsextract_main(int argc, sys_char** argv) {
 
     fsx.close();
   } catch (runtime_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (std::system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << std::endl;
+    std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
   }
 
