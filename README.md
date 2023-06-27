@@ -3,7 +3,7 @@
 
 # DwarFS
 
-A fast high compression read-only file system
+A fast high compression read-only file system for Linux and Windows
 
 ## Table of contents
 
@@ -16,6 +16,8 @@ A fast high compression read-only file system
   - [Experimental Python Scripting Support](#experimental-python-scripting-support)
   - [Static Builds](#static-builds)
 - [Usage](#usage)
+- [Windows Support](#windows-support)
+  - [Building on Windows](#building-on-windows)
 - [Comparison](#comparison)
   - [With SquashFS](#with-squashfs)
   - [With SquashFS &amp; xz](#with-squashfs--xz)
@@ -278,6 +280,106 @@ DwarFS image.
 
 A description of the DwarFS filesystem format can be found in
 [dwarfs-format](doc/dwarfs-format.md).
+
+## Windows Support
+
+Support for the Windows operating system is currently experimental.
+Having worked pretty much exclusively in a Unix world for the past two
+decades, my experience with Windows development is rather limited and
+I'd expect there to definitely be bugs and rough edges in the Windows
+code.
+
+The Windows version of the DwarFS filesystem driver relies on the awesome
+[WinFsp](https://github.com/winfsp/winfsp) project and its `winfsp-x64.dll`
+must be discoverable by the `dwarfs.exe` driver.
+
+The different tools should behave pretty much the same whether you're
+using them on Linux or Windows. The file system images can be copied
+between Linux and Windows and images created on one OS should work find
+on the other.
+
+There are a few things worth pointing out, though:
+
+- DwarFS supports both hardlinks and symlinks on Windows, just as it
+  does on Linux. However, creating hardlinks and symlinks seems to
+  require admin privileges on Windows, so if you want to e.g. extract
+  a DwarFS image that contains links of some sort, you might run into
+  errors if you don't have the right privileges.
+
+- The DwarFS driver on Windows correctly reports hardlink counts via
+  its API, but currently these counts are not correctly propagated
+  to the Windows file system layer. This is presumably due to a
+  [problem](https://github.com/winfsp/winfsp/issues/511) in WinFsp.
+
+- When mounting a DwarFS image on Windows, the mount point must not
+  exist. This is different from Linux, where the mount point must
+  actually exist. Also, it's possible to mount a DwarFS image as a
+  drive letter, e.g.
+
+    dwarfs.exe image.dwarfs Z:
+
+- Filter rules for `mkdwarfs` always require Unix path separators,
+  regardless of whether it's running on Windows or Linux.
+
+### Building on Windows
+
+Building on Windows is not too complicated thanks to [vcpkg](https://vcpkg.io/).
+You'll need to install:
+
+- [Visual Studio and the MSVC C/C++ compiler](https://visualstudio.microsoft.com/vs/features/cplusplus/)
+
+- [Git](https://git-scm.com/download/win)
+
+- [CMake](https://cmake.org/download/)
+
+- [Ninja](https://github.com/ninja-build/ninja/releases)
+
+- [WinFsp](https://github.com/winfsp/winfsp/releases)
+
+- [pkg-config-lite](https://sourceforge.net/projects/pkgconfiglite/files/0.28-1/)
+
+`WinFsp` is expected to be installed in `C:\Program Files (x68)\WinFsp`;
+if it's not, you'll need to set `WINFSP_PATH` when running CMake via
+`cmake/win.bat`.
+
+You'll also need a `diff.exe` somewhere in your path in order to build
+and run the test suite. I found it easiest to use the one installed by
+[MSYS](https://www.msys2.org/).
+
+Now you need to clone `vcpkg` and `dwarfs`:
+
+```
+> cd %HOMEPATH%
+> mkdir git
+> cd git
+> git clone https://github.com/Microsoft/vcpkg.git
+> git clone https://github.com/mhx/dwarfs
+```
+
+Then, bootstrap `vcpkg`:
+
+```
+> .\vcpkg\bootstrap-vcpkg.bat
+```
+
+And build DwarFS:
+
+```
+> cd dwarfs
+> mkdir build
+> cd build
+> ..\cmake\win.bat
+> ninja
+```
+
+Once that's done, you should be able to run the tests.
+Set `CTEST_PARALLEL_LEVEL` according to the number of CPU cores in
+your machine.
+
+```
+> set CTEST_PARALLEL_LEVEL=10
+> ninja test
+```
 
 ## Comparison
 
