@@ -616,9 +616,7 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_test)
   gtest_discover_tests(dwarfs_compat_test)
   gtest_discover_tests(dwarfs_badfs_test)
-  if(NOT WIN32)
-    gtest_discover_tests(dwarfs_tools_test)
-  endif()
+  gtest_discover_tests(dwarfs_tools_test)
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")

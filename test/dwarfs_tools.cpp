@@ -49,6 +49,8 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/file_stat.h"
+
 #include "test_helpers.h"
 
 namespace {
@@ -56,17 +58,23 @@ namespace {
 namespace bp = boost::process;
 namespace fs = std::filesystem;
 
-auto data_archive = fs::path(TEST_DATA_DIR) / "data.tar";
+auto data_archive = fs::path(TEST_DATA_DIR).make_preferred() / "data.tar";
 
-auto tools_dir = fs::path(TOOLS_BIN_DIR);
-auto mkdwarfs_bin = tools_dir / "mkdwarfs";
-auto fuse3_bin = tools_dir / "dwarfs";
-auto fuse2_bin = tools_dir / "dwarfs2";
-auto dwarfsextract_bin = tools_dir / "dwarfsextract";
-auto dwarfsck_bin = tools_dir / "dwarfsck";
+#ifdef _WIN32
+#define EXE_EXT ".exe"
+#else
+#define EXE_EXT ""
+#endif
 
-auto diff_bin = fs::path(DIFF_BIN);
-auto tar_bin = fs::path(TAR_BIN);
+auto tools_dir = fs::path(TOOLS_BIN_DIR).make_preferred();
+auto mkdwarfs_bin = tools_dir / "mkdwarfs" EXE_EXT;
+auto fuse3_bin = tools_dir / "dwarfs" EXE_EXT;
+auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
+auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
+auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
+
+auto diff_bin = fs::path(DIFF_BIN).make_preferred();
+auto tar_bin = fs::path(TAR_BIN).make_preferred();
 
 #ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
@@ -80,19 +88,49 @@ pid_t get_dwarfs_pid(fs::path const& path) {
 }
 #endif
 
+bool wait_until_file_ready(fs::path const& path,
+                           std::chrono::milliseconds timeout) {
+  auto end = std::chrono::steady_clock::now() + timeout;
+  std::error_code ec;
+  while (!fs::exists(path, ec)) {
+    if (ec) {
+      std::cerr << "*** exists: " << ec.message() << "\n";
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (std::chrono::steady_clock::now() >= end) {
+      return false;
+    }
+  }
+  return true;
+}
+
+#ifdef _WIN32
+struct new_process_group : public ::boost::process::detail::handler_base {
+  template <class WindowsExecutor>
+  void on_setup(WindowsExecutor& e [[maybe_unused]]) const {
+    e.creation_flags |= CREATE_NEW_PROCESS_GROUP;
+  }
+};
+#endif
+
 class subprocess {
  public:
   template <typename... Args>
-  subprocess(Args&&... args) {
+  subprocess(std::filesystem::path const& prog, Args&&... args) {
     std::vector<std::string> cmdline;
     (append_arg(cmdline, std::forward<Args>(args)), ...);
 
     try {
-      c_ = bp::child(bp::args(cmdline), bp::std_in.close(), bp::std_out > out_,
-                     bp::std_err > err_, ios_);
+      c_ = bp::child(prog.string(), bp::args(cmdline), bp::std_in.close(),
+                     bp::std_out > out_, bp::std_err > err_, ios_
+#ifdef _WIN32
+                     ,
+                     new_process_group()
+#endif
+      );
     } catch (...) {
-      std::cerr << "failed to create subprocess: " << folly::join(' ', cmdline)
-                << "\n";
+      std::cerr << "failed to create subprocess: " << prog << " "
+                << folly::join(' ', cmdline) << "\n";
       throw;
     }
   }
@@ -233,6 +271,8 @@ class driver_runner {
     process_ = std::make_unique<subprocess>(driver, image, mountpoint,
                                             std::forward<Args>(args)...);
     process_->run_background();
+
+    wait_until_file_ready(mountpoint, std::chrono::seconds(5));
 #else
     if (!subprocess::check_run(driver, image, mountpoint,
                                std::forward<Args>(args)...)) {
@@ -269,7 +309,7 @@ class driver_runner {
       constexpr int expected_exit_code = SIGINT;
 #endif
         process_->interrupt();
-        process_->wait(); // TODO: wait_for?
+        process_->wait();
         auto ec = process_->exit_code();
         if (ec != expected_exit_code) {
           std::cerr << "driver failed to unmount:\nout:\n"
@@ -328,18 +368,6 @@ class driver_runner {
 #endif
 };
 
-bool wait_until_file_ready(fs::path const& path,
-                           std::chrono::milliseconds timeout) {
-  auto end = std::chrono::steady_clock::now() + timeout;
-  while (!fs::exists(path)) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    if (std::chrono::steady_clock::now() >= end) {
-      return false;
-    }
-  }
-  return true;
-}
-
 bool check_readonly(fs::path const& p, bool readonly = false) {
   auto st = fs::status(p);
   bool is_writable =
@@ -351,16 +379,25 @@ bool check_readonly(fs::path const& p, bool readonly = false) {
     return false;
   }
 
+#ifndef _WIN32
   if (::access(p.string().c_str(), W_OK) == 0) {
     // access(W_OK) should never succeed
     ::perror("access");
     return false;
   }
+#endif
 
   return true;
 }
 
-size_t num_hardlinks(fs::path const& p) { return fs::hard_link_count(p); }
+size_t num_hardlinks(fs::path const& p) {
+#ifdef _WIN32
+  auto stat = dwarfs::make_file_stat(p);
+  return stat.nlink;
+#else
+  return fs::hard_link_count(p);
+#endif
+}
 
 } // namespace
 
@@ -399,8 +436,14 @@ TEST(tools, everything) {
   }
 
   std::vector<std::string> all_options{
-      "-s",          "-oenable_nlink",   "-oreadonly",
-      "-omlock=try", "-ono_cache_image", "-ocache_files",
+      "-s",
+#ifndef _WIN32
+      "-oenable_nlink",
+      "-oreadonly",
+#endif
+      "-omlock=try",
+      "-ono_cache_image",
+      "-ocache_files",
   };
 
   for (auto const& driver : drivers) {
@@ -446,11 +489,15 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image, mountpoint, args);
 
-        ASSERT_TRUE(
+        EXPECT_TRUE(
             subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
+#ifndef _WIN32
+        // TODO: `tar` on Windows doesn't preserve hardlinks -> use dwarfsextract
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
+        // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+#endif
       }
 
       args.push_back("-ooffset=auto");
@@ -458,11 +505,15 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(
+        EXPECT_TRUE(
             subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
+#ifndef _WIN32
+        // TODO: `tar` on Windows doesn't preserve hardlinks -> use dwarfsextract
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
+        // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+#endif
       }
     }
   }
@@ -476,6 +527,7 @@ TEST(tools, everything) {
 
   {
     std::string header;
+
     EXPECT_TRUE(folly::readFile(header_data.string().c_str(), header));
 
     auto output = subprocess::check_run(dwarfsck_bin, image_hdr, "-H");
