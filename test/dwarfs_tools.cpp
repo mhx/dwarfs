@@ -58,7 +58,9 @@ namespace {
 namespace bp = boost::process;
 namespace fs = std::filesystem;
 
-auto data_archive = fs::path(TEST_DATA_DIR).make_preferred() / "data.tar";
+auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
+auto test_data_tar = test_dir / "data.tar";
+auto test_data_dwarfs = test_dir / "data.dwarfs";
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -408,10 +410,22 @@ TEST(tools, everything) {
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
   auto data_dir = td / "data";
+  auto fsdata_dir = td / "fsdata";
   auto header_data = data_dir / "format.sh";
 
-  ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", data_archive, "-C", td));
-  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", data_dir, "-o", image,
+  ASSERT_TRUE(fs::create_directory(fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", test_data_dwarfs,
+                                    "-o", fsdata_dir));
+
+  EXPECT_EQ(num_hardlinks(fsdata_dir / "format.sh"), 3);
+  EXPECT_TRUE(fs::exists(fsdata_dir / "foobar"));
+  EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
+  EXPECT_EQ(fs::read_symlink(fsdata_dir / "foobar"), fs::path("foo") / "bar");
+
+  ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", test_data_tar, "-C", td));
+  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, fsdata_dir));
+
+  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", fsdata_dir, "-o", image,
                                     "--no-progress"));
 
   ASSERT_TRUE(fs::exists(image));
@@ -453,7 +467,7 @@ TEST(tools, everything) {
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
       ASSERT_TRUE(
-          subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
+          subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
       EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
 
       EXPECT_TRUE(runner.unmount());
@@ -490,9 +504,10 @@ TEST(tools, everything) {
         driver_runner runner(driver, image, mountpoint, args);
 
         EXPECT_TRUE(
-            subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
+            subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
 #ifndef _WIN32
-        // TODO: `tar` on Windows doesn't preserve hardlinks -> use dwarfsextract
+        // TODO: `tar` on Windows doesn't preserve hardlinks -> use
+        // dwarfsextract
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         // This doesn't really work on Windows (yet)
@@ -506,9 +521,10 @@ TEST(tools, everything) {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
         EXPECT_TRUE(
-            subprocess::check_run(diff_bin, "-qruN", data_dir, mountpoint));
+            subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
 #ifndef _WIN32
-        // TODO: `tar` on Windows doesn't preserve hardlinks -> use dwarfsextract
+        // TODO: `tar` on Windows doesn't preserve hardlinks -> use
+        // dwarfsextract
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         // This doesn't really work on Windows (yet)
@@ -543,7 +559,7 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(
       subprocess::check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
-  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, extracted));
+  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", fsdata_dir, extracted));
 
   auto tarfile = td / "test.tar";
 
@@ -552,5 +568,5 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(fs::create_directory(untared));
   ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", tarfile, "-C", untared));
-  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, untared));
+  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", fsdata_dir, untared));
 }
