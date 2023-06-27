@@ -46,6 +46,8 @@ enum class termcolor {
   NUM_COLORS
 };
 
+void setup_terminal();
+
 bool stream_is_fancy_terminal(std::ostream& os);
 
 bool set_cursor_state(bool enabled);

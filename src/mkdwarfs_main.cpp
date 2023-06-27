@@ -560,7 +560,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   po::variables_map vm;
 
-  auto& err_out = SYS_CERR;
+  auto& sys_err_out = SYS_CERR;
 
   try {
     auto parsed = po::parse_command_line(argc, argv, opts);
@@ -572,8 +572,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::collect_unrecognized(parsed.options, po::include_positional);
 
     if (!unrecognized.empty()) {
-      err_out << "error: unrecognized argument(s) '"
-              << boost::join(unrecognized, " ") << "'" << std::endl;
+      sys_err_out << "error: unrecognized argument(s) '"
+                  << boost::join(unrecognized, " ") << "'\n";
       return 1;
     }
   } catch (po::error const& e) {
@@ -1075,8 +1075,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                                            std::ios::trunc);
 
     if (ofs->bad() || !ofs->is_open()) {
-      err_out << "error: cannot open output file '" << output
-              << "': " << strerror(errno) << std::endl;
+      std::cerr << "error: cannot open output file '" << output
+                << "': " << ::strerror(errno) << "\n";
       return 1;
     }
 

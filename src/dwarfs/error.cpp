@@ -32,6 +32,7 @@
 #endif
 
 #include "dwarfs/error.h"
+#include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
@@ -83,8 +84,13 @@ int safe_main(std::function<int(void)> fn) {
 #ifndef _WIN32
     folly::symbolizer::installFatalSignalHandler();
 #endif
+    std::locale::global(std::locale("en_US.utf8"));
+
+    // for libarchive
     auto loc = std::getenv("LC_ALL");
     std::setlocale(LC_ALL, loc ? loc : "");
+
+    setup_terminal();
 
     return fn();
   } catch (system_error const& e) {

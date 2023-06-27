@@ -43,10 +43,6 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
 
   done = true;
 
-  // TODO?
-  // ::SetConsoleOutputCP(CP_UTF8);
-  // ::SetConsoleCP(CP_UTF8);
-
   // Enable VT processing on stdout and stdin
   auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -57,7 +53,6 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
   static constexpr DWORD enable_virtual_terminal_processing = 0x0004;
   static constexpr DWORD disable_newline_auto_return = 0x0008;
   out_mode |= enable_virtual_terminal_processing;
-  out_mode |= disable_newline_auto_return;
 
   ::SetConsoleMode(hdl, out_mode);
 }
@@ -78,14 +73,20 @@ bool set_cursor_state(bool enabled [[maybe_unused]]) {
   return was_enabled;
 }
 
+void setup_terminal() {
+#ifdef _WIN32
+  WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
+  ::SetConsoleOutputCP(CP_UTF8);
+  ::SetConsoleCP(CP_UTF8);
+#endif
+}
+
 bool stream_is_fancy_terminal(std::ostream& os [[maybe_unused]]) {
 #ifdef _WIN32
   if (&os == &std::cout) {
-    WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
     return true;
   }
   if (&os == &std::cerr) {
-    WindowsEmulateVT100Terminal(STD_ERROR_HANDLE);
     return true;
   }
   return false;
