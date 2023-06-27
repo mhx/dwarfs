@@ -867,7 +867,7 @@ void usage(char const* progname) {
 #else
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, "");
-  fuse_opt_add_arg(&args, "-h");
+  fuse_opt_add_arg(&args, "-ho");
   struct fuse_operations fsops;
   ::memset(&fsops, 0, sizeof(fsops));
   fuse_main(args.argc, args.argv, &fsops, nullptr);
