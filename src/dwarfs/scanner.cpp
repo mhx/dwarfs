@@ -261,7 +261,9 @@ std::string status_string(progress const& p, size_t width) {
       size_t start = 0;
       max_len -= 3;
       while (start != std::string::npos && (len - start) > max_len) {
-        start = path.find('/', start + 1);
+        start = path.find(
+            static_cast<char>(std::filesystem::path::preferred_separator),
+            start + 1);
       }
       if (start == std::string::npos) {
         start = max_len - len;
