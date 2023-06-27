@@ -75,10 +75,7 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
   } else {
     set_policy<prod_logger_policy>();
   }
-  set_cursor_state(false);
 }
-
-console_writer::~console_writer() { set_cursor_state(true); }
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {

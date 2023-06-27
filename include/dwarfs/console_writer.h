@@ -43,8 +43,6 @@ class console_writer : public logger {
                  level_type threshold, display_mode mode = NORMAL,
                  bool verbose = false);
 
-  ~console_writer();
-
   void write(level_type level, const std::string& output, char const* file,
              int line) override;
 

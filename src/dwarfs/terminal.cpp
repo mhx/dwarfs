@@ -58,21 +58,6 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
 }
 #endif
 
-bool set_cursor_state(bool enabled [[maybe_unused]]) {
-  bool was_enabled = true;
-#ifdef _WIN32
-  auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
-
-  ::CONSOLE_CURSOR_INFO cursorInfo;
-
-  ::GetConsoleCursorInfo(hdl, &cursorInfo);
-  was_enabled = cursorInfo.bVisible;
-  cursorInfo.bVisible = enabled;
-  ::SetConsoleCursorInfo(hdl, &cursorInfo);
-#endif
-  return was_enabled;
-}
-
 void setup_terminal() {
 #ifdef _WIN32
   WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);

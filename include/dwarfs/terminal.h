@@ -50,8 +50,6 @@ void setup_terminal();
 
 bool stream_is_fancy_terminal(std::ostream& os);
 
-bool set_cursor_state(bool enabled);
-
 char const* terminal_color(termcolor color);
 
 std::string
