@@ -418,7 +418,6 @@ TEST(tools, everything) {
                                     "-o", fsdata_dir));
 
   EXPECT_EQ(num_hardlinks(fsdata_dir / "format.sh"), 3);
-  EXPECT_TRUE(fs::exists(fsdata_dir / "foobar"));
   EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
   EXPECT_EQ(fs::read_symlink(fsdata_dir / "foobar"), fs::path("foo") / "bar");
 
@@ -503,11 +502,13 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image, mountpoint, args);
 
+        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
+        EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
+                  fs::path("foo") / "bar");
         EXPECT_TRUE(
             subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
 #ifndef _WIN32
-        // TODO: `tar` on Windows doesn't preserve hardlinks -> use
-        // dwarfsextract
+        // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         // This doesn't really work on Windows (yet)
@@ -520,11 +521,13 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
+        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
+        EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
+                  fs::path("foo") / "bar");
         EXPECT_TRUE(
             subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
 #ifndef _WIN32
-        // TODO: `tar` on Windows doesn't preserve hardlinks -> use
-        // dwarfsextract
+        // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1,
                   num_hardlinks(mountpoint / "format.sh"));
         // This doesn't really work on Windows (yet)
@@ -559,6 +562,9 @@ TEST(tools, everything) {
 
   ASSERT_TRUE(
       subprocess::check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
+  EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
+  EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
+  EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
   ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", fsdata_dir, extracted));
 
   auto tarfile = td / "test.tar";
