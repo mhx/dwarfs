@@ -81,6 +81,8 @@ struct file_stat {
   time_type ctime;
 };
 
+file_stat make_file_stat(std::filesystem::path const& path);
+
 template <bool with_block_info = true, typename T>
 void copy_file_stat(T* out, file_stat const& in) {
   out->st_dev = in.dev;
