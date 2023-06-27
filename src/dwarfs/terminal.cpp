@@ -26,17 +26,68 @@
 #include <cstring>
 #include <iostream>
 
-#ifndef _WIN32
-#include <unistd.h>
-#endif
+#include <folly/portability/Unistd.h>
+#include <folly/portability/Windows.h>
 
 #include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
+#if defined(_WIN32)
+void WindowsEmulateVT100Terminal(DWORD std_handle) {
+  static bool done = false;
+
+  if (done) {
+    return;
+  }
+
+  done = true;
+
+  // TODO?
+  // ::SetConsoleOutputCP(CP_UTF8);
+  // ::SetConsoleCP(CP_UTF8);
+
+  // Enable VT processing on stdout and stdin
+  auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
+
+  DWORD out_mode = 0;
+  ::GetConsoleMode(hdl, &out_mode);
+
+  // https://docs.microsoft.com/en-us/windows/console/setconsolemode
+  static constexpr DWORD enable_virtual_terminal_processing = 0x0004;
+  static constexpr DWORD disable_newline_auto_return = 0x0008;
+  out_mode |= enable_virtual_terminal_processing;
+  out_mode |= disable_newline_auto_return;
+
+  ::SetConsoleMode(hdl, out_mode);
+}
+#endif
+
+bool set_cursor_state(bool enabled [[maybe_unused]]) {
+  bool was_enabled = true;
+#ifdef _WIN32
+  auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
+
+  ::CONSOLE_CURSOR_INFO cursorInfo;
+
+  ::GetConsoleCursorInfo(hdl, &cursorInfo);
+  was_enabled = cursorInfo.bVisible;
+  cursorInfo.bVisible = enabled;
+  ::SetConsoleCursorInfo(hdl, &cursorInfo);
+#endif
+  return was_enabled;
+}
+
 bool stream_is_fancy_terminal(std::ostream& os [[maybe_unused]]) {
 #ifdef _WIN32
-  // TODO
+  if (&os == &std::cout) {
+    WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
+    return true;
+  }
+  if (&os == &std::cerr) {
+    WindowsEmulateVT100Terminal(STD_ERROR_HANDLE);
+    return true;
+  }
   return false;
 #else
   if (&os == &std::cout && !::isatty(::fileno(stdout))) {

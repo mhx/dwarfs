@@ -75,17 +75,28 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
   } else {
     set_policy<prod_logger_policy>();
   }
+  set_cursor_state(false);
 }
+
+console_writer::~console_writer() { set_cursor_state(true); }
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {
+    int lines = 0;
+
     switch (mode_) {
     case NORMAL:
-      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+      lines = 8;
       break;
     case REWRITE:
-      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A";
+      lines = 4;
       break;
+    }
+
+    os_ << '\r';
+
+    for (int i = 0; i < lines; ++i) {
+      os_ << "\x1b[A";
     }
   }
 }

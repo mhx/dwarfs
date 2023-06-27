@@ -114,8 +114,18 @@ const std::map<std::string, console_writer::progress_mode> progress_modes{
     {"none", console_writer::NONE},
     {"simple", console_writer::SIMPLE},
     {"ascii", console_writer::ASCII},
+#ifndef _WIN32
     {"unicode", console_writer::UNICODE},
+#endif
 };
+
+const std::string default_progress_mode =
+#ifdef _WIN32
+    "ascii"
+#else
+    "unicode"
+#endif
+    ;
 
 const std::map<std::string, debug_filter_mode> debug_filter_modes{
     {"included", debug_filter_mode::INCLUDED},
@@ -539,7 +549,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::value<std::string>(&log_level_str)->default_value("info"),
         "log level (error, warn, info, debug, trace)")
     ("progress",
-        po::value<std::string>(&progress_mode)->default_value("unicode"),
+        po::value<std::string>(&progress_mode)->default_value(default_progress_mode),
         progress_desc.c_str())
     ("no-progress",
         po::value<bool>(&no_progress)->zero_tokens(),
