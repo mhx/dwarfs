@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cerrno>
+#include <cstring>
 #include <iostream>
 #include <string_view>
 #include <vector>
@@ -29,6 +31,7 @@
 #include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/json.h>
+#include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include "dwarfs/error.h"
@@ -141,8 +144,13 @@ int dwarfsck_main(int argc, sys_char** argv) {
       std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << "\n";
     } else if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
-        std::cout << std::string_view(
-            reinterpret_cast<char const*>(hdr->data()), hdr->size());
+#ifdef _WIN32
+        ::_setmode(STDOUT_FILENO, _O_BINARY);
+#endif
+        if (::write(STDOUT_FILENO, hdr->data(), hdr->size()) < 0) {
+          LOG_ERROR << "error writing header: " << ::strerror(errno);
+          return 1;
+        }
       } else {
         LOG_ERROR << "filesystem does not contain a header";
         return 1;
