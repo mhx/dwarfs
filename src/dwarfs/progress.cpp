@@ -22,6 +22,7 @@
 #include <chrono>
 #include <utility>
 
+#include <folly/portability/Windows.h>
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/progress.h"
@@ -33,13 +34,17 @@ progress::progress(folly::Function<void(const progress&, bool)>&& func,
     : running_(true)
     , thread_([this, interval_ms, func = std::move(func)]() mutable {
       folly::setThreadName("progress");
+#ifdef _WIN32
+      ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+#endif
       std::unique_lock lock(mx_);
       while (running_) {
         func(*this, false);
         cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
       }
       func(*this, true);
-    }) {}
+    }) {
+}
 
 progress::~progress() noexcept {
   try {
