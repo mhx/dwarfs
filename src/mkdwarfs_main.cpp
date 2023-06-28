@@ -169,7 +169,7 @@ void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
     prefix = exclude ? "- " : "+ ";
   }
 
-  os << prefix << pe->dpath() << "\n";
+  os << prefix << pe->unix_dpath() << "\n";
 }
 
 int parse_order_option(std::string const& ordname, std::string const& opt,
