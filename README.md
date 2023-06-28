@@ -342,10 +342,6 @@ You'll need to install:
 if it's not, you'll need to set `WINFSP_PATH` when running CMake via
 `cmake/win.bat`.
 
-You'll also need a `diff.exe` somewhere in your path in order to build
-and run the test suite. I found it easiest to use the one installed by
-[MSYS](https://www.msys2.org/).
-
 Now you need to clone `vcpkg` and `dwarfs`:
 
 ```

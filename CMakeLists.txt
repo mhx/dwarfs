@@ -288,10 +288,6 @@ else()
   endif()
 endif()
 
-if(WITH_TESTS)
-  find_program(DIFF_BIN diff DOC "compare files line by line" REQUIRED)
-endif()
-
 if(USE_JEMALLOC)
   pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=5.2.1)
 endif()
@@ -626,8 +622,7 @@ if(WITH_TESTS)
   target_compile_definitions(
     dwarfs_tools_test
     PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\"
-            DIFF_BIN=\"${DIFF_BIN}\")
+            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
 endif()
 
 if(WITH_BENCHMARKS)

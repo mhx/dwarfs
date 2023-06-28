@@ -76,8 +76,6 @@ auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
 auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
 auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
 
-auto diff_bin = fs::path(DIFF_BIN).make_preferred();
-
 #ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
   std::array<char, 32> attr_buf;
@@ -115,6 +113,141 @@ bool read_file(fs::path const& path, std::string& out) {
   tmp << ifs.rdbuf();
   out = tmp.str();
   return true;
+}
+
+struct compare_directories_result {
+  std::set<fs::path> mismatched;
+  std::set<fs::path> directories;
+  std::set<fs::path> symlinks;
+  std::set<fs::path> regular_files;
+};
+
+std::ostream&
+operator<<(std::ostream& os, compare_directories_result const& cdr) {
+  for (auto const& m : cdr.mismatched) {
+    os << "*** mismatched: " << m << "\n";
+  }
+  for (auto const& m : cdr.regular_files) {
+    os << "*** regular: " << m << "\n";
+  }
+  for (auto const& m : cdr.directories) {
+    os << "*** directory: " << m << "\n";
+  }
+  for (auto const& m : cdr.symlinks) {
+    os << "*** symlink: " << m << "\n";
+  }
+  return os;
+}
+
+template <typename T>
+void find_all(fs::path const& root, T const& func) {
+  std::deque<fs::path> q;
+  q.push_back(root);
+  while (!q.empty()) {
+    auto p = q.front();
+    q.pop_front();
+
+    for (auto const& e : fs::directory_iterator(p)) {
+      func(e);
+      if (e.symlink_status().type() == fs::file_type::directory) {
+        q.push_back(e.path());
+      }
+    }
+  }
+}
+
+bool compare_directories(fs::path const& p1, fs::path const& p2,
+                         compare_directories_result* res = nullptr) {
+  std::map<fs::path, fs::directory_entry> m1, m2;
+  std::set<fs::path> s1, s2;
+
+  find_all(p1, [&](auto const& e) {
+    auto rp = e.path().lexically_relative(p1);
+    m1.emplace(rp, e);
+    s1.insert(rp);
+  });
+
+  find_all(p2, [&](auto const& e) {
+    auto rp = e.path().lexically_relative(p2);
+    m2.emplace(rp, e);
+    s2.insert(rp);
+  });
+
+  if (res) {
+    res->mismatched.clear();
+    res->directories.clear();
+    res->symlinks.clear();
+    res->regular_files.clear();
+  }
+
+  bool rv = true;
+
+  std::set<fs::path> common;
+  std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                        std::inserter(common, common.end()));
+
+  if (s1.size() != common.size() || s2.size() != common.size()) {
+    if (res) {
+      std::set_symmetric_difference(
+          s1.begin(), s1.end(), s2.begin(), s2.end(),
+          std::inserter(res->mismatched, res->mismatched.end()));
+    }
+    rv = false;
+  }
+
+  for (auto const& p : common) {
+    auto const& e1 = m1[p];
+    auto const& e2 = m2[p];
+
+    if (e1.symlink_status().type() != e2.symlink_status().type() ||
+        (e1.symlink_status().type() != fs::file_type::directory &&
+         e1.file_size() != e2.file_size())) {
+      if (res) {
+        res->mismatched.insert(p);
+      }
+      rv = false;
+      continue;
+    }
+
+    switch (e1.symlink_status().type()) {
+    case fs::file_type::regular: {
+      std::string c1, c2;
+      if (!read_file(e1.path(), c1) || !read_file(e2.path(), c2) || c1 != c2) {
+        if (res) {
+          res->mismatched.insert(p);
+        }
+        rv = false;
+      }
+    }
+      if (res) {
+        res->regular_files.insert(p);
+      }
+      break;
+
+    case fs::file_type::directory:
+      if (res) {
+        res->directories.insert(p);
+      }
+      break;
+
+    case fs::file_type::symlink:
+      if (fs::read_symlink(e1.path()) != fs::read_symlink(e2.path())) {
+        if (res) {
+          res->mismatched.insert(p);
+        }
+        rv = false;
+      }
+      if (res) {
+        res->symlinks.insert(p);
+      }
+      break;
+
+    default:
+      break;
+    }
+  }
+
+  return rv;
 }
 
 #ifdef _WIN32
@@ -432,19 +565,24 @@ TEST(tools, everything) {
   EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
   EXPECT_EQ(fs::read_symlink(fsdata_dir / "foobar"), fs::path("foo") / "bar");
 
-  auto unicode_symlink = fsdata_dir / u8"יוניקוד";
-  auto unicode_symlink_target = fs::path("unicode") / u8"我爱你"/u8"☀️ Sun"/u8"Γειά σας"/u8"مرحبًا"/u8"⚽️"/u8"Карибського";
+  auto unicode_symlink_name = u8"יוניקוד";
+  auto unicode_symlink = fsdata_dir / unicode_symlink_name;
+  auto unicode_symlink_target = fs::path("unicode") / u8"我爱你" / u8"☀️ Sun" /
+                                u8"Γειά σας" / u8"مرحبًا" / u8"⚽️" /
+                                u8"Карибського";
   std::string unicode_file_contents;
 
   EXPECT_TRUE(fs::is_symlink(unicode_symlink));
   EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target);
   EXPECT_TRUE(read_file(unicode_symlink, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
-  EXPECT_TRUE(read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
+  EXPECT_TRUE(
+      read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
 
   // ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", test_data_tar, "-C", td));
-  // ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir, fsdata_dir));
+  // ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir,
+  // fsdata_dir));
 
   ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", fsdata_dir, "-o", image,
                                     "--no-progress"));
@@ -481,15 +619,28 @@ TEST(tools, everything) {
       "-ocache_files",
   };
 
+  unicode_symlink = mountpoint / unicode_symlink_name;
+
   for (auto const& driver : drivers) {
     {
       driver_runner runner(driver_runner::foreground, driver, image,
                            mountpoint);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
-      ASSERT_TRUE(
-          subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
+      compare_directories_result cdr;
+      ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
+      EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
+      EXPECT_EQ(cdr.directories.size(), 19) << cdr;
+      EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
       EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
+
+      EXPECT_TRUE(fs::is_symlink(unicode_symlink));
+      EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target);
+      EXPECT_TRUE(read_file(unicode_symlink, unicode_file_contents));
+      EXPECT_EQ(unicode_file_contents, "unicode\n");
+      EXPECT_TRUE(read_file(mountpoint / unicode_symlink_target,
+                            unicode_file_contents));
+      EXPECT_EQ(unicode_file_contents, "unicode\n");
 
       EXPECT_TRUE(runner.unmount());
     }
@@ -524,11 +675,15 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image, mountpoint, args);
 
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar");
-        EXPECT_TRUE(
-            subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
+        compare_directories_result cdr;
+        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
+        EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
+        EXPECT_EQ(cdr.directories.size(), 19) << cdr;
+        EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1,
@@ -543,11 +698,15 @@ TEST(tools, everything) {
       {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
         EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
                   fs::path("foo") / "bar");
-        EXPECT_TRUE(
-            subprocess::check_run(diff_bin, "-qruN", fsdata_dir, mountpoint));
+        compare_directories_result cdr;
+        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
+        EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
+        EXPECT_EQ(cdr.directories.size(), 19) << cdr;
+        EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
         EXPECT_EQ(enable_nlink ? 3 : 1,
@@ -587,7 +746,11 @@ TEST(tools, everything) {
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
-  ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", fsdata_dir, extracted));
+  compare_directories_result cdr;
+  ASSERT_TRUE(compare_directories(fsdata_dir, extracted, &cdr)) << cdr;
+  EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
+  EXPECT_EQ(cdr.directories.size(), 19) << cdr;
+  EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 
   // TODO: use only a non-unicode subset?
 
