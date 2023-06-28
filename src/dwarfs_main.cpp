@@ -226,6 +226,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       if (err == 0) {
         struct ::fuse_entry_param e;
 
+        ::memset(&e.attr, 0, sizeof(e.attr));
         copy_file_stat(&e.attr, stbuf);
         e.generation = 1;
         e.ino = e.attr.st_ino;
