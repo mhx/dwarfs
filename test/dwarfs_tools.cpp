@@ -553,7 +553,6 @@ TEST(tools, everything) {
   auto td = fs::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
-  // auto data_dir = td / "data";
   auto fsdata_dir = td / "fsdata";
   auto header_data = fsdata_dir / "format.sh";
 
@@ -579,10 +578,6 @@ TEST(tools, everything) {
   EXPECT_TRUE(
       read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
-
-  // ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", test_data_tar, "-C", td));
-  // ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", data_dir,
-  // fsdata_dir));
 
   ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", fsdata_dir, "-o", image,
                                     "--no-progress"));
@@ -751,15 +746,4 @@ TEST(tools, everything) {
   EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
   EXPECT_EQ(cdr.directories.size(), 19) << cdr;
   EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
-
-  // TODO: use only a non-unicode subset?
-
-  // auto tarfile = td / "test.tar";
-
-  // ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", image, "-f",
-  //                                   "gnutar", "-o", tarfile));
-
-  // ASSERT_TRUE(fs::create_directory(untared));
-  // ASSERT_TRUE(subprocess::check_run(tar_bin, "xf", tarfile, "-C", untared));
-  // ASSERT_TRUE(subprocess::check_run(diff_bin, "-qruN", fsdata_dir, untared));
 }
