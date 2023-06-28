@@ -290,7 +290,6 @@ endif()
 
 if(WITH_TESTS)
   find_program(DIFF_BIN diff DOC "compare files line by line" REQUIRED)
-  find_program(TAR_BIN tar DOC "an archiving utility" REQUIRED)
 endif()
 
 if(USE_JEMALLOC)
@@ -628,7 +627,7 @@ if(WITH_TESTS)
     dwarfs_tools_test
     PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
             TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\"
-            DIFF_BIN=\"${DIFF_BIN}\" TAR_BIN=\"${TAR_BIN}\")
+            DIFF_BIN=\"${DIFF_BIN}\")
 endif()
 
 if(WITH_BENCHMARKS)
