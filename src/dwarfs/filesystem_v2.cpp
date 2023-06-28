@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -42,6 +43,7 @@
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/worker_group.h"
 
@@ -318,7 +320,8 @@ template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-              const filesystem_options& options, int inode_offset);
+              const filesystem_options& options, int inode_offset,
+              std::shared_ptr<performance_monitor const> perfmon);
 
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
@@ -365,6 +368,22 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(find_path)
+  PERFMON_CLS_TIMER_DECL(find_inode)
+  PERFMON_CLS_TIMER_DECL(find_inode_name)
+  PERFMON_CLS_TIMER_DECL(getattr)
+  PERFMON_CLS_TIMER_DECL(access)
+  PERFMON_CLS_TIMER_DECL(opendir)
+  PERFMON_CLS_TIMER_DECL(readdir)
+  PERFMON_CLS_TIMER_DECL(dirsize)
+  PERFMON_CLS_TIMER_DECL(readlink)
+  PERFMON_CLS_TIMER_DECL(readlink_expected)
+  PERFMON_CLS_TIMER_DECL(statvfs)
+  PERFMON_CLS_TIMER_DECL(open)
+  PERFMON_CLS_TIMER_DECL(read)
+  PERFMON_CLS_TIMER_DECL(readv_iovec)
+  PERFMON_CLS_TIMER_DECL(readv_future)
 };
 
 template <typename LoggerPolicy>
@@ -395,12 +414,30 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
 }
 
 template <typename LoggerPolicy>
-filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-                                       const filesystem_options& options,
-                                       int inode_offset)
+filesystem_<LoggerPolicy>::filesystem_(
+    logger& lgr, std::shared_ptr<mmif> mm, const filesystem_options& options,
+    int inode_offset,
+    std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
     : LOG_PROXY_INIT(lgr)
     , mm_(std::move(mm))
-    , parser_(mm_, options.image_offset) {
+    , parser_(mm_, options.image_offset)
+    // clang-format off
+    PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
+    PERFMON_CLS_TIMER_INIT(find_path)
+    PERFMON_CLS_TIMER_INIT(find_inode)
+    PERFMON_CLS_TIMER_INIT(find_inode_name)
+    PERFMON_CLS_TIMER_INIT(getattr)
+    PERFMON_CLS_TIMER_INIT(access)
+    PERFMON_CLS_TIMER_INIT(opendir)
+    PERFMON_CLS_TIMER_INIT(readdir)
+    PERFMON_CLS_TIMER_INIT(dirsize)
+    PERFMON_CLS_TIMER_INIT(readlink)
+    PERFMON_CLS_TIMER_INIT(readlink_expected)
+    PERFMON_CLS_TIMER_INIT(statvfs)
+    PERFMON_CLS_TIMER_INIT(open)
+    PERFMON_CLS_TIMER_INIT(read)
+    PERFMON_CLS_TIMER_INIT(readv_iovec)
+    PERFMON_CLS_TIMER_INIT(readv_future) { // clang-format on
   block_cache cache(lgr, mm_, options.block_cache);
 
   if (parser_.has_index()) {
@@ -481,52 +518,61 @@ void filesystem_<LoggerPolicy>::walk_data_order(
 template <typename LoggerPolicy>
 std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(const char* path) const {
+  PERFMON_CLS_SCOPED_SECTION(find_path)
   return meta_.find(path);
 }
 
 template <typename LoggerPolicy>
 std::optional<inode_view> filesystem_<LoggerPolicy>::find(int inode) const {
+  PERFMON_CLS_SCOPED_SECTION(find_inode)
   return meta_.find(inode);
 }
 
 template <typename LoggerPolicy>
 std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
+  PERFMON_CLS_SCOPED_SECTION(find_inode_name)
   return meta_.find(inode, name);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                        file_stat* stbuf) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr)
   return meta_.getattr(entry, stbuf);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
                                       gid_t gid) const {
+  PERFMON_CLS_SCOPED_SECTION(access)
   return meta_.access(entry, mode, uid, gid);
 }
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
 filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(opendir)
   return meta_.opendir(entry);
 }
 
 template <typename LoggerPolicy>
 std::optional<std::pair<inode_view, std::string>>
 filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readdir)
   return meta_.readdir(dir, offset);
 }
 
 template <typename LoggerPolicy>
 size_t filesystem_<LoggerPolicy>::dirsize(directory_view dir) const {
+  PERFMON_CLS_SCOPED_SECTION(dirsize)
   return meta_.dirsize(dir);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::readlink(inode_view entry, std::string* buf,
                                         readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink)
   return meta_.readlink(entry, buf, mode);
 }
 
@@ -534,23 +580,27 @@ template <typename LoggerPolicy>
 folly::Expected<std::string, int>
 filesystem_<LoggerPolicy>::readlink(inode_view entry,
                                     readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink_expected)
   return meta_.readlink(entry, mode);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
+  PERFMON_CLS_SCOPED_SECTION(statvfs)
   // TODO: not sure if that's the right abstraction...
   return meta_.statvfs(stbuf);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::open(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(open)
   return meta_.open(entry);
 }
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
                                         file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(read)
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.read(buf, size, offset, *chunks);
   }
@@ -560,6 +610,7 @@ ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                          size_t size, file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.readv(buf, size, offset, *chunks);
   }
@@ -570,6 +621,7 @@ template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
                                  file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
   if (auto chunks = meta_.get_chunks(inode)) {
     return ir_.readv(size, offset, *chunks);
   }
@@ -589,10 +641,11 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
-                             int inode_offset)
+                             int inode_offset,
+                             std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), options, inode_offset)) {}
+          lgr, std::move(mm), options, inode_offset, std::move(perfmon))) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm, filesystem_writer& writer,

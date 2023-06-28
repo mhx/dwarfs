@@ -34,6 +34,7 @@
 #include <fmt/format.h>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
 #ifndef DWARFS_FUSE_LOWLEVEL
@@ -69,6 +70,7 @@
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
@@ -102,6 +104,9 @@ struct options {
   char const* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
+#if DWARFS_PERFMON_ENABLED
+  char const* perfmon_enabled_str{nullptr}; // TODO: const?? -> use string?
+#endif
   int enable_nlink{0};
   int readonly{0};
   int cache_image{0};
@@ -123,6 +128,19 @@ struct dwarfs_userdata {
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
+  std::shared_ptr<performance_monitor> perfmon;
+  PERFMON_EXT_PROXY_DECL
+  PERFMON_EXT_TIMER_DECL(op_init)
+  PERFMON_EXT_TIMER_DECL(op_lookup)
+  PERFMON_EXT_TIMER_DECL(op_getattr)
+  PERFMON_EXT_TIMER_DECL(op_access)
+  PERFMON_EXT_TIMER_DECL(op_readlink)
+  PERFMON_EXT_TIMER_DECL(op_open)
+  PERFMON_EXT_TIMER_DECL(op_read)
+  PERFMON_EXT_TIMER_DECL(op_readdir)
+  PERFMON_EXT_TIMER_DECL(op_statfs)
+  PERFMON_EXT_TIMER_DECL(op_getxattr)
+  PERFMON_EXT_TIMER_DECL(op_listxattr)
 };
 
 // TODO: better error handling
@@ -147,6 +165,9 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("no_cache_image", cache_image, 0),
     DWARFS_OPT("cache_files", cache_files, 1),
     DWARFS_OPT("no_cache_files", cache_files, 0),
+#if DWARFS_PERFMON_ENABLED
+    DWARFS_OPT("perfmon=%s", perfmon_enabled_str, 0),
+#endif
     FUSE_OPT_END};
 
 std::unordered_map<std::string_view, cache_tidy_strategy> const
@@ -159,8 +180,9 @@ std::unordered_map<std::string_view, cache_tidy_strategy> const
 namespace {
 
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
+constexpr std::string_view perfmon_xattr{"user.dwarfs.driver.perfmon"};
 
-}
+} // namespace
 
 #if DWARFS_FUSE_LOWLEVEL
 #define dUSERDATA                                                              \
@@ -174,6 +196,7 @@ constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
 template <typename LoggerPolicy>
 void op_init_common(void* data) {
   auto userdata = reinterpret_cast<dwarfs_userdata*>(data);
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_init)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -209,6 +232,7 @@ void* op_init(struct fuse_conn_info* /*conn*/, struct fuse_config* /*cfg*/) {
 template <typename LoggerPolicy>
 void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_lookup)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << parent << ", " << name << ")";
@@ -283,6 +307,7 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getattr)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
@@ -302,6 +327,7 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 template <typename LoggerPolicy>
 int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getattr)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
@@ -335,6 +361,7 @@ int op_access_common(LogProxy& log_, dwarfs_userdata* userdata, int mode,
 template <typename LoggerPolicy>
 void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_access)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
@@ -351,6 +378,7 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
 template <typename LoggerPolicy>
 int op_access(char const* path, int mode) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_access)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
@@ -387,6 +415,7 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readlink)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -407,6 +436,7 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
 template <typename LoggerPolicy>
 int op_readlink(char const* path, char* buf, size_t buflen) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readlink)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -460,6 +490,7 @@ int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_open)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -477,6 +508,7 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 template <typename LoggerPolicy>
 int op_open(char const* path, struct fuse_file_info* fi) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_open)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -491,6 +523,7 @@ template <typename LoggerPolicy>
 void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
              struct fuse_file_info* fi) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_read)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -535,6 +568,7 @@ template <typename LoggerPolicy>
 int op_read(char const* path, char* buf, size_t size, native_off_t off,
             struct fuse_file_info* fi) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_read)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -569,6 +603,7 @@ template <typename LoggerPolicy>
 void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
                 struct fuse_file_info* /*fi*/) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readdir)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")";
@@ -637,6 +672,7 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
                native_off_t off, struct fuse_file_info* /*fi*/,
                enum fuse_readdir_flags /*flags*/) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readdir)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
@@ -726,6 +762,7 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_statfs)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__;
@@ -744,6 +781,7 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 template <typename LoggerPolicy>
 int op_statfs(char const* path, native_statvfs* st) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_statfs)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
@@ -758,6 +796,7 @@ template <typename LoggerPolicy>
 void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
                  size_t size) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size << ")";
@@ -765,14 +804,34 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
   int err = ENODATA;
 
   try {
-    if (ino == FUSE_ROOT_ID && name == pid_xattr) {
-      auto pidstr = std::to_string(::getpid());
-      if (size > 0) {
-        fuse_reply_buf(req, pidstr.data(), pidstr.size());
-      } else {
-        fuse_reply_xattr(req, pidstr.size());
+    if (ino == FUSE_ROOT_ID) {
+      if (name == pid_xattr) {
+        auto pidstr = std::to_string(::getpid());
+        if (size > 0) {
+          fuse_reply_buf(req, pidstr.data(), pidstr.size());
+        } else {
+          fuse_reply_xattr(req, pidstr.size());
+        }
+        return;
+      } else if (name == perfmon_xattr) {
+#if DWARFS_PERFMON_ENABLED
+        std::ostringstream oss;
+        if (userdata->perfmon) {
+          userdata->perfmon->summarize(oss);
+        } else {
+          oss << "performance monitor is disabled";
+        }
+        auto summary = oss.str();
+#else
+        auto summary = std::string("no performance monitor support");
+#endif
+        if (size > 0) {
+          fuse_reply_buf(req, summary.data(), summary.size());
+        } else {
+          fuse_reply_xattr(req, summary.size());
+        }
+        return;
       }
-      return;
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -788,6 +847,7 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
 template <typename LoggerPolicy>
 int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
@@ -821,11 +881,13 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
 template <typename LoggerPolicy>
 int op_listxattr(char const* path, char* list, size_t size) {
   dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_listxattr)
   LOG_PROXY(LoggerPolicy, userdata->lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
 
-  const std::string all_xattr = std::string(pid_xattr) + '\0';
+  const std::string all_xattr =
+      std::string(pid_xattr) + '\0' + std::string(perfmon_xattr) + '\0';
 
   if (size > 0) {
     if (size < all_xattr.size()) {
@@ -861,6 +923,9 @@ void usage(char const* progname) {
       << "    -o tidy_strategy=NAME  (none)|time|swap\n"
       << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
       << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
+#if DWARFS_PERFMON_ENABLED
+      << "    -o perfmon=name[,...]  enable performance monitor\n"
+#endif
       << "\n";
 
 #if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
@@ -1071,8 +1136,33 @@ void load_filesystem(dwarfs_userdata& userdata) {
 #endif
       ;
 
-  userdata.fs = filesystem_v2(
-      userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts, inode_offset);
+  std::unordered_set<std::string> perfmon_enabled;
+#if DWARFS_PERFMON_ENABLED
+  if (opts.perfmon_enabled_str) {
+    folly::splitTo<std::string>(
+        ',', opts.perfmon_enabled_str,
+        std::inserter(perfmon_enabled, perfmon_enabled.begin()));
+  }
+#endif
+
+  userdata.perfmon = performance_monitor::create(perfmon_enabled);
+
+  PERFMON_EXT_PROXY_SETUP(userdata, userdata.perfmon, "fuse")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_init)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_lookup)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_getattr)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_access)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_readlink)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_open)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_read)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_readdir)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_statfs)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr)
+
+  userdata.fs =
+      filesystem_v2(userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts,
+                    inode_offset, userdata.perfmon);
 
   ti << "file system initialized";
 }
@@ -1197,6 +1287,12 @@ int dwarfs_main(int argc, char** argv) {
     LOG_ERROR << "error initializing file system: " << e.what();
     return 1;
   }
+
+  SCOPE_EXIT {
+    if (userdata.perfmon) {
+      userdata.perfmon->summarize(std::cerr);
+    }
+  };
 
 #if FUSE_USE_VERSION >= 30
 #if DWARFS_FUSE_LOWLEVEL

@@ -32,6 +32,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
@@ -43,6 +44,9 @@ namespace dwarfs {
 int dwarfsextract_main(int argc, sys_char** argv) {
   std::string filesystem, output, format, cache_size_str, log_level,
       image_offset;
+#if DWARFS_PERFMON_ENABLED
+  std::string perfmon_str;
+#endif
   size_t num_workers;
   bool continue_on_error{false}, disable_integrity_check{false},
       stdout_progress{false};
@@ -80,6 +84,11 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     ("log-level,l",
         po::value<std::string>(&log_level)->default_value("warn"),
         "log level (error, warn, info, debug, trace)")
+#if DWARFS_PERFMON_ENABLED
+    ("perfmon",
+        po::value<std::string>(&perfmon_str),
+        "enable performance monitor")
+#endif
     ("help,h",
         "output help message and exit");
   // clang-format on
@@ -118,7 +127,19 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;
     fsopts.metadata.enable_nlink = true;
 
-    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts);
+    std::unordered_set<std::string> perfmon_enabled;
+#if DWARFS_PERFMON_ENABLED
+    if (!perfmon_str.empty()) {
+      folly::splitTo<std::string>(
+          ',', perfmon_str,
+          std::inserter(perfmon_enabled, perfmon_enabled.begin()));
+    }
+#endif
+    std::shared_ptr<performance_monitor> perfmon =
+        performance_monitor::create(perfmon_enabled);
+
+    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts, 0,
+                     perfmon);
     filesystem_extractor fsx(lgr);
 
     if (format.empty()) {
@@ -157,6 +178,10 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     rv = fsx.extract(fs, fsx_opts) ? 0 : 2;
 
     fsx.close();
+
+    if (perfmon) {
+      perfmon->summarize(std::cerr);
+    }
   } catch (runtime_error const& e) {
     std::cerr << folly::exceptionStr(e) << "\n";
     return 1;

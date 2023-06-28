@@ -25,6 +25,7 @@ include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
+option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 if(WIN32)
   set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_LIBARCHIVE ON)
@@ -443,6 +444,7 @@ list(
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
+  src/dwarfs/performance_monitor.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/similarity.cpp
@@ -786,6 +788,10 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGE
 
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_compile_definitions(${tgt} PRIVATE DWARFS_USE_EXCEPTION_TRACER)
+  endif()
+
+  if(ENABLE_PERFMON)
+    target_compile_definitions(${tgt} PRIVATE DWARFS_PERFMON_ENABLED=1)
   endif()
 
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
