@@ -22,6 +22,8 @@
 #include <array>
 #include <charconv>
 #include <climits>
+#include <codecvt>
+#include <locale>
 #include <string>
 #include <string_view>
 
@@ -116,6 +118,15 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "unsupported time suffix");
+}
+
+std::string sys_string_to_string(sys_string const& in) {
+#ifdef _WIN32
+  static std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  return converter.to_bytes(in);
+#else
+  return in;
+#endif
 }
 
 } // namespace dwarfs

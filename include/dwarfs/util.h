@@ -25,6 +25,8 @@
 #include <cstddef>
 #include <string>
 
+#include "dwarfs/types.h"
+
 namespace dwarfs {
 
 std::string time_with_unit(double sec);
@@ -39,5 +41,7 @@ inline std::u8string string_to_u8string(std::string const& in) {
 inline std::string u8string_to_string(std::u8string const& in) {
   return std::string(reinterpret_cast<char const*>(in.data()), in.size());
 }
+
+std::string sys_string_to_string(sys_string const& in);
 
 } // namespace dwarfs
