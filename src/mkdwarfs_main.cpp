@@ -393,7 +393,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       metadata_compression, log_level_str, timestamp, time_resolution, order,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str;
-  std::vector<std::string> filter;
+  std::vector<sys_string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -514,7 +514,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         "Python script for customization")
 #endif
     ("filter,F",
-        po::value<std::vector<std::string>>(&filter)->multitoken(),
+        po_sys_value<std::vector<sys_string>>(&filter)->multitoken(),
         "add filter rule")
     ("debug-filter",
         po::value<std::string>(&debug_filter)->implicit_value("all"),
@@ -882,10 +882,11 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       bs->set_root_path(path);
 
       for (auto const& rule : filter) {
+        auto srule = sys_string_to_string(rule);
         try {
-          bs->add_filter_rule(rule);
+          bs->add_filter_rule(srule);
         } catch (std::exception const& e) {
-          std::cerr << "error: could not parse filter rule '" << rule
+          std::cerr << "error: could not parse filter rule '" << srule
                     << "': " << e.what() << "\n";
           return 1;
         }
