@@ -208,6 +208,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       LOG_WARN << std::string(archive_error_string(a_));
       break;
     case ARCHIVE_RETRY:
+    case ARCHIVE_FAILED:
     case ARCHIVE_FATAL:
       throw archive_error(std::string(archive_error_string(a_)));
     }
