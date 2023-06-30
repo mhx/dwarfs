@@ -899,6 +899,17 @@ int op_listxattr(char const* path, char* list, size_t size) {
 
   return all_xattr.size();
 }
+
+// XXX: Not implementing this currently crashes WinFsp when a file is renamed
+template <typename LoggerPolicy>
+int op_rename(char const* from, char const* to, unsigned int flags) {
+  dUSERDATA;
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << from << ", " << to << ", " << flags << ")";
+
+  return -ENOSYS;
+}
 #endif
 
 void usage(char const* progname) {
@@ -1003,6 +1014,7 @@ void init_fuse_ops(struct fuse_operations& ops) {
   ops.statfs = &op_statfs<LoggerPolicy>;
   ops.getxattr = &op_getxattr<LoggerPolicy>;
   ops.listxattr = &op_listxattr<LoggerPolicy>;
+  ops.rename = &op_rename<LoggerPolicy>;
 }
 #endif
 
