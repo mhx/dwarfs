@@ -85,7 +85,10 @@ Most other options are concerned with compression tuning:
 - `--compress-niceness=`*value*:
   Set the niceness of compression worker threads. Defaults to 5. This makes
   sure the ordering and segmenting threads are prioritised over compression
-  as they provide the data to the compression workers.
+  as they provide the data to the compression workers. On Windows, the values
+  are mapped as follows: 0 (zero) is mapped to "normal" priority, 1 to 5 are
+  mapped to "below normal" priority, 6 to 10 are mapped to "lowest" priority
+  and values greater than 10 are mapped to "background" priority.
 
 - `--num-scanner-workers=`*value*:
   Number of worker threads used for building the filesystem. This defaults
