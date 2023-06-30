@@ -112,9 +112,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     for (size_t i = 0; i < num_workers; ++i) {
       workers_.emplace_back([this, niceness, group_name, i] {
         folly::setThreadName(folly::to<std::string>(group_name, i + 1));
-        // TODO: FIXME: this is broken
-        // [[maybe_unused]] auto rv = ::nice(niceness);
-        do_work(niceness > 0);
+        set_thread_niceness(niceness);
+        do_work(niceness > 10);
       });
     }
   }
@@ -220,6 +219,27 @@ class basic_worker_group final : public worker_group::impl, private Policy {
 
  private:
   using jobs_t = std::queue<worker_group::job_t>;
+
+  // TODO: move out of this class
+  static void set_thread_niceness(int niceness) {
+    if (niceness > 0) {
+#ifdef _WIN32
+      auto hthr = ::GetCurrentThread();
+      int priority =
+          niceness > 5 ? THREAD_PRIORITY_LOWEST : THREAD_PRIORITY_BELOW_NORMAL;
+      ::SetThreadPriority(hthr, priority);
+#else
+      // XXX:
+      // According to POSIX, the nice value is a per-process setting. However,
+      // under the current Linux/NPTL implementation of POSIX threads, the nice
+      // value is a per-thread attribute: different threads in the same process
+      // can have different nice values. Portable applications should avoid
+      // relying on the Linux behavior, which may be made standards conformant
+      // in the future.
+      auto rv [[maybe_unused]] = ::nice(niceness);
+#endif
+    }
+  }
 
   void do_work(bool is_background [[maybe_unused]]) {
 #ifdef _WIN32
