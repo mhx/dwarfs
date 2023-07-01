@@ -784,53 +784,115 @@ TEST(tools, mutating_ops) {
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
 
+    // remove (unlink)
+
     {
       std::error_code ec;
-      EXPECT_FALSE(std::filesystem::remove(file, ec));
+      EXPECT_FALSE(fs::remove(file, ec));
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      EXPECT_FALSE(std::filesystem::remove(empty_dir, ec));
+      EXPECT_FALSE(fs::remove(empty_dir, ec));
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      EXPECT_FALSE(std::filesystem::remove(non_empty_dir, ec));
+      EXPECT_FALSE(fs::remove(non_empty_dir, ec));
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_EQ(static_cast<std::uintmax_t>(-1),
-                std::filesystem::remove_all(non_empty_dir, ec));
+                fs::remove_all(non_empty_dir, ec));
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    // rename
+
+    {
+      std::error_code ec;
+      fs::rename(file, name_inside_fs, ec);
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      std::filesystem::rename(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
-    }
-
-    {
-      std::error_code ec;
-      std::filesystem::rename(file, name_outside_fs, ec);
+      fs::rename(file, name_outside_fs, ec);
       EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      std::filesystem::rename(empty_dir, name_inside_fs, ec);
+      fs::rename(empty_dir, name_inside_fs, ec);
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      std::filesystem::rename(empty_dir, name_outside_fs, ec);
+      fs::rename(empty_dir, name_outside_fs, ec);
       EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
+    }
+
+    // hard link
+
+    {
+      std::error_code ec;
+      fs::create_hard_link(file, name_inside_fs, ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    {
+      std::error_code ec;
+      fs::create_hard_link(file, name_outside_fs, ec);
+      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
+    }
+
+    // symbolic link
+
+    {
+      std::error_code ec;
+      fs::create_symlink(file, name_inside_fs, ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    {
+      std::error_code ec;
+      fs::create_symlink(file, name_outside_fs, ec);
+      EXPECT_FALSE(ec); // this actually works :)
+      EXPECT_TRUE(fs::remove(name_outside_fs, ec));
+    }
+
+    {
+      std::error_code ec;
+      fs::create_directory_symlink(empty_dir, name_inside_fs, ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    {
+      std::error_code ec;
+      fs::create_directory_symlink(empty_dir, name_outside_fs, ec);
+      EXPECT_FALSE(ec); // this actually works :)
+      EXPECT_TRUE(fs::remove(name_outside_fs, ec));
+    }
+
+    // truncate
+
+    {
+      std::error_code ec;
+      fs::resize_file(file, 1, ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    // create directory
+
+    {
+      std::error_code ec;
+      fs::create_directory(name_inside_fs, ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     EXPECT_TRUE(runner.unmount());
