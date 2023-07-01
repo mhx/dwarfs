@@ -455,6 +455,10 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
 }
 #endif
 
+#ifndef O_ACCMODE
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
+#endif
+
 template <typename LogProxy, typename Find>
 int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
                    struct fuse_file_info* fi, Find const& find) {
