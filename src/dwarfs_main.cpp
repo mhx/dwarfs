@@ -466,7 +466,8 @@ int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
     if (entry) {
       if (entry->is_directory()) {
         err = EISDIR;
-      } else if (fi->flags & (O_APPEND | O_CREAT | O_TRUNC)) {
+      } else if ((fi->flags & O_ACCMODE) != O_RDONLY ||
+                 (fi->flags & (O_APPEND | O_TRUNC)) != 0) {
         err = EACCES;
       } else {
         fi->fh = entry->inode_num();
