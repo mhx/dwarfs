@@ -788,7 +788,6 @@ int op_statfs(char const* path, native_statvfs* st) {
 
   return -op_statfs_common(log_, userdata, st);
 }
-
 #endif
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -804,33 +803,41 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
   int err = ENODATA;
 
   try {
+    std::ostringstream oss;
+    size_t extra_size = 0;
+
     if (ino == FUSE_ROOT_ID) {
       if (name == pid_xattr) {
-        auto pidstr = std::to_string(::getpid());
-        if (size > 0) {
-          fuse_reply_buf(req, pidstr.data(), pidstr.size());
-        } else {
-          fuse_reply_xattr(req, pidstr.size());
-        }
-        return;
+        // use to_string() to prevent locale-specific formatting
+        oss << std::to_string(::getpid());
       } else if (name == perfmon_xattr) {
 #if DWARFS_PERFMON_ENABLED
-        std::ostringstream oss;
         if (userdata->perfmon) {
           userdata->perfmon->summarize(oss);
+          extra_size = 4096;
         } else {
-          oss << "performance monitor is disabled";
+          oss << "performance monitor is disabled\n";
         }
-        auto summary = oss.str();
 #else
-        auto summary = std::string("no performance monitor support");
+        oss << "no performance monitor support\n";
 #endif
-        if (size > 0) {
-          fuse_reply_buf(req, summary.data(), summary.size());
-        } else {
-          fuse_reply_xattr(req, summary.size());
-        }
+      }
+    }
+
+    auto value = oss.view();
+
+    LOG_TRACE << __func__ << ": value.size=" << value.size()
+              << ", extra_size=" << extra_size;
+
+    if (!value.empty()) {
+      if (size == 0) {
+        fuse_reply_xattr(req, value.size() + extra_size);
         return;
+      } else if (size >= value.size()) {
+        fuse_reply_buf(req, value.data(), value.size());
+        return;
+      } else {
+        err = ERANGE;
       }
     }
   } catch (dwarfs::system_error const& e) {
@@ -852,32 +859,51 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
 
   LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
 
-  int err = -ENODATA;
+  return -ENOTSUP;
+}
+#endif
+
+#if DWARFS_FUSE_LOWLEVEL
+template <typename LoggerPolicy>
+void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
+  dUSERDATA;
+  PERFMON_EXT_SCOPED_SECTION(*userdata, op_listxattr)
+  LOG_PROXY(LoggerPolicy, userdata->lgr);
+
+  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")";
+
+  int err = ERANGE;
 
   try {
-    std::string_view pv(path);
+    std::ostringstream oss;
 
-    if ((pv == "" || pv == "/") && name == pid_xattr) {
-      auto pidstr = std::to_string(::_getpid());
-      if (size == 0) {
-        return pidstr.size();
-      } else if (size < pidstr.size()) {
-        return -ERANGE;
-      }
-      ::strncpy_s(value, size, pidstr.data(), pidstr.size());
-      return pidstr.size();
+    if (ino == FUSE_ROOT_ID) {
+      oss << pid_xattr << '\0';
+      oss << perfmon_xattr << '\0';
+    }
+
+    auto xattrs = oss.view();
+
+    LOG_TRACE << __func__ << ": xattrs.size=" << xattrs.size();
+
+    if (size == 0) {
+      fuse_reply_xattr(req, xattrs.size());
+      return;
+    } else if (size >= xattrs.size()) {
+      fuse_reply_buf(req, xattrs.data(), xattrs.size());
+      return;
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
-    err = -e.get_errno();
+    err = e.get_errno();
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
-    err = -EIO;
+    err = EIO;
   }
 
-  return err;
+  fuse_reply_err(req, err);
 }
-
+#else
 template <typename LoggerPolicy>
 int op_listxattr(char const* path, char* list, size_t size) {
   dUSERDATA;
@@ -886,20 +912,11 @@ int op_listxattr(char const* path, char* list, size_t size) {
 
   LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
 
-  const std::string all_xattr =
-      std::string(pid_xattr) + '\0' + std::string(perfmon_xattr) + '\0';
-
-  if (size > 0) {
-    if (size < all_xattr.size()) {
-      return -ERANGE;
-    }
-
-    ::memcpy(list, all_xattr.data(), all_xattr.size());
-  }
-
-  return all_xattr.size();
+  return -ENOTSUP;
 }
+#endif
 
+#if !DWARFS_FUSE_LOWLEVEL
 // XXX: Not implementing this currently crashes WinFsp when a file is renamed
 template <typename LoggerPolicy>
 int op_rename(char const* from, char const* to, unsigned int flags) {
@@ -999,7 +1016,7 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops) {
   ops.readdir = &op_readdir<LoggerPolicy>;
   ops.statfs = &op_statfs<LoggerPolicy>;
   ops.getxattr = &op_getxattr<LoggerPolicy>;
-  // ops.listxattr = &op_listxattr<LoggerPolicy>;
+  ops.listxattr = &op_listxattr<LoggerPolicy>;
 }
 #else
 template <typename LoggerPolicy>
