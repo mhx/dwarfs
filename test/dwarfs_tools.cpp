@@ -748,6 +748,18 @@ TEST(tools, end_to_end) {
   EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 }
 
+#ifdef _WIN32
+#define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
+  EXPECT_TRUE(ec);                                                             \
+  EXPECT_EQ(std::system_category(), (ec).category());                          \
+  EXPECT_EQ(windows, (ec).value()) << (ec).message()
+#else
+#define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
+  EXPECT_TRUE(ec);                                                             \
+  EXPECT_EQ(std::generic_category(), (ec).category());                         \
+  EXPECT_EQ(unix, (ec).value()) << (ec).message()
+#endif
+
 TEST(tools, mutating_ops) {
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
@@ -775,58 +787,50 @@ TEST(tools, mutating_ops) {
     {
       std::error_code ec;
       EXPECT_FALSE(std::filesystem::remove(file, ec));
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(std::filesystem::remove(empty_dir, ec));
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(std::filesystem::remove(non_empty_dir, ec));
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_EQ(static_cast<std::uintmax_t>(-1),
                 std::filesystem::remove_all(non_empty_dir, ec));
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       std::filesystem::rename(file, name_inside_fs, ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       std::filesystem::rename(file, name_outside_fs, ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), EXDEV);
+      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       std::filesystem::rename(empty_dir, name_inside_fs, ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), ENOSYS);
+      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       std::filesystem::rename(empty_dir, name_outside_fs, ec);
-      EXPECT_TRUE(ec);
-      EXPECT_EQ(ec.value(), EXDEV);
+      EXPECT_EC_UNIX_WIN(ec, EXDEV, ERROR_ACCESS_DENIED);
     }
 
     EXPECT_TRUE(runner.unmount());
