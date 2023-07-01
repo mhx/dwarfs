@@ -547,7 +547,7 @@ size_t num_hardlinks(fs::path const& p) {
 
 } // namespace
 
-TEST(tools, everything) {
+TEST(tools, end_to_end) {
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
@@ -746,4 +746,89 @@ TEST(tools, everything) {
   EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
   EXPECT_EQ(cdr.directories.size(), 19) << cdr;
   EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
+}
+
+TEST(tools, mutating_ops) {
+  std::chrono::seconds const timeout{5};
+  folly::test::TemporaryDirectory tempdir("dwarfs");
+  auto td = fs::path(tempdir.path().string());
+  auto mountpoint = td / "mnt";
+  auto file = mountpoint / "bench.sh";
+  auto empty_dir = mountpoint / "empty";
+  auto non_empty_dir = mountpoint / "foo";
+  auto name_inside_fs = mountpoint / "some_random_name";
+  auto name_outside_fs = td / "some_random_name";
+
+  std::vector<fs::path> drivers;
+  drivers.push_back(fuse3_bin);
+
+  if (fs::exists(fuse2_bin)) {
+    drivers.push_back(fuse2_bin);
+  }
+
+  for (auto const& driver : drivers) {
+    driver_runner runner(driver_runner::foreground, driver, test_data_dwarfs,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
+
+    {
+      std::error_code ec;
+      EXPECT_FALSE(std::filesystem::remove(file, ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      EXPECT_FALSE(std::filesystem::remove(empty_dir, ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      EXPECT_FALSE(std::filesystem::remove(non_empty_dir, ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      EXPECT_EQ(static_cast<std::uintmax_t>(-1),
+                std::filesystem::remove_all(non_empty_dir, ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      std::filesystem::rename(file, name_inside_fs, ec);
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      std::filesystem::rename(file, name_outside_fs, ec);
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), EXDEV);
+    }
+
+    {
+      std::error_code ec;
+      std::filesystem::rename(empty_dir, name_inside_fs, ec);
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), ENOSYS);
+    }
+
+    {
+      std::error_code ec;
+      std::filesystem::rename(empty_dir, name_outside_fs, ec);
+      EXPECT_TRUE(ec);
+      EXPECT_EQ(ec.value(), EXDEV);
+    }
+
+    EXPECT_TRUE(runner.unmount());
+  }
 }
