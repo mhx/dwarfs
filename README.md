@@ -26,6 +26,7 @@ A fast high compression read-only file system for Linux and Windows
   - [With wimlib](#with-wimlib)
   - [With Cromfs](#with-cromfs)
   - [With EROFS](#with-erofs)
+  - [With fuse-archive](#with-fuse-archive)
 
 ## Overview
 
@@ -1551,3 +1552,231 @@ domains in which EROFS and DwarFS are being used have extremely little
 overlap. DwarFS will likely never be able to run on embedded devices
 and EROFS will likely never be able to achieve the compression ratios
 of DwarFS.
+
+### With fuse-archive
+
+I came across [fuse-archive](https://github.com/google/fuse-archive)
+while looking for FUSE drivers to mount archives and it seems to be
+the most versatile of the alternatives (and the one that actually
+compiles out of the box).
+
+An interesting test case straight from fuse-archive's README is in
+the [Performance](https://github.com/google/fuse-archive#performance)
+section: an archive with a single hugh file full of zeroes. Let's
+make the example a bit more extreme and use a 1 GiB file instead of
+just 256 MiB:
+
+```
+$ mkdir zerotest
+$ truncate --size=1G zerotest/zeroes
+```
+
+Now, we build several different archives and a DwarFS image:
+
+```
+$ time mkdwarfs -i zerotest -o zerotest.dwarfs -W16 --log-level=warn --progress=none
+
+real    0m7.604s
+user    0m7.521s
+sys     0m0.083s
+
+$ time zip -9 zerotest.zip zerotest/zeroes
+  adding: zerotest/zeroes (deflated 100%)
+
+real    0m4.923s
+user    0m4.840s
+sys     0m0.080s
+
+$ time 7z a -bb0 -bd zerotest.7z zerotest/zeroes
+
+7-Zip [64] 16.02 : Copyright (c) 1999-2016 Igor Pavlov : 2016-05-21
+p7zip Version 16.02 (locale=en_US.UTF-8,Utf16=on,HugeFiles=on,64 bits,16 CPUs Intel(R) Xeon(R) E-2286M  CPU @ 2.40GHz (906ED),ASM,AES-NI)
+
+Scanning the drive:
+1 file, 1073741824 bytes (1024 MiB)
+
+Creating archive: zerotest.7z
+
+Items to compress: 1
+
+Files read from disk: 1
+Archive size: 157819 bytes (155 KiB)
+Everything is Ok
+
+real    0m5.535s
+user    0m48.281s
+sys     0m1.116s
+
+$ time tar --zstd -cf zerotest.tar.zstd zerotest/zeroes
+
+real    0m0.449s
+user    0m0.510s
+sys     0m0.610s
+```
+
+Turns out that `tar --zstd` is easily winning the compression test.
+Looking at the file sizes did actually blow my mind just a bit:
+
+```
+$ ll zerotest.* --sort=size
+-rw-r--r-- 1 mhx users 1042231 Jul  1 15:24 zerotest.zip
+-rw-r--r-- 1 mhx users  157819 Jul  1 15:26 zerotest.7z
+-rw-r--r-- 1 mhx users   33762 Jul  1 15:28 zerotest.tar.zstd
+-rw-r--r-- 1 mhx users     848 Jul  1 15:23 zerotest.dwarfs
+```
+
+I definitely didn't expect the DwarFS image to be *that* small.
+Dropping the section index would actually save another 100 bytes.
+So, if you want to archive lots of zeroes, DwarFS is your friend.
+
+Anyway, let's look at how fast and efficiently the zeroes can
+be read from the different archives. First, the `zip` archive:
+
+```
+$ time dd if=mnt/zerotest/zeroes of=/dev/null status=progress
+1020117504 bytes (1.0 GB, 973 MiB) copied, 2 s, 510 MB/s
+2097152+0 records in
+2097152+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 2.10309 s, 511 MB/s
+
+real    0m2.104s
+user    0m0.264s
+sys     0m0.486s
+```
+
+CPU time used by the FUSE driver was 1.8 seconds and mount time
+was in the milliseconds.
+
+Now, the `7z` archive:
+
+```
+ $ time dd if=mnt/zerotest/zeroes of=/dev/null status=progress
+594759168 bytes (595 MB, 567 MiB) copied, 1 s, 595 MB/s
+2097152+0 records in
+2097152+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 1.76904 s, 607 MB/s
+
+real    0m1.772s
+user    0m0.229s
+sys     0m0.572s
+```
+
+CPU time used by the FUSE driver was 2.9 seconds and mount time
+was just over 1.0 seconds.
+
+Now, the `.tar.zstd` archive:
+
+```
+$ time dd if=mnt/zerotest/zeroes of=/dev/null status=progress
+2097152+0 records in
+2097152+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 0.799409 s, 1.3 GB/s
+
+real    0m0.801s
+user    0m0.262s
+sys     0m0.537s
+```
+
+CPU time used by the FUSE driver was 0.53 seconds and mount time
+was 0.13 seconds.
+
+Last but not least, let's look at DwarFS:
+
+```
+$ time dd if=mnt/zeroes of=/dev/null status=progress
+2097152+0 records in
+2097152+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 0.753 s, 1.4 GB/s
+
+real    0m0.757s
+user    0m0.220s
+sys     0m0.534s
+```
+
+CPU time used by the FUSE driver was 0.17 seconds and mount time
+was less than a millisecond.
+
+If we increase the block size for the `dd` command, we can even
+get much higher throughput. For fuse-archive with the `.tar.zstd`:
+
+```
+$ time dd if=mnt/zerotest/zeroes of=/dev/null status=progress bs=16384
+65536+0 records in
+65536+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 0.318682 s, 3.4 GB/s
+
+real    0m0.323s
+user    0m0.005s
+sys     0m0.154s
+```
+
+And for DwarFS:
+
+```
+$ time dd if=mnt/zeroes of=/dev/null status=progress bs=16384
+65536+0 records in
+65536+0 records out
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 0.172226 s, 6.2 GB/s
+
+real    0m0.176s
+user    0m0.020s
+sys     0m0.141s
+```
+
+This is all nice, but what about a more real-life use case?
+Let's take the 1.82.0 boost release archives:
+
+```
+$ ll --sort=size boost_1_82_0.*
+-rw-r--r-- 1 mhx users 208188085 Apr 10 14:25 boost_1_82_0.zip
+-rw-r--r-- 1 mhx users 142580547 Apr 10 14:23 boost_1_82_0.tar.gz
+-rw-r--r-- 1 mhx users 121325129 Apr 10 14:23 boost_1_82_0.tar.bz2
+-rw-r--r-- 1 mhx users 105901369 Jun 28 12:47 boost_1_82_0.dwarfs
+-rw-r--r-- 1 mhx users 103710551 Apr 10 14:25 boost_1_82_0.7z
+```
+
+Here are the timings for mounting each archive and then using
+`tar` to build another archive from the mountpoint and just counting
+the number of bytes in that archive, e.g.:
+
+```
+$ time tar cf - mnt | wc -c
+803614720
+
+real    0m4.602s
+user    0m0.156s
+sys     0m1.123s
+```
+
+Here are the results in terms of wallclock time and FUSE driver
+CPU time:
+
+| Archive    | Mount Time | `tar` Wallclock Time | FUSE Driver CPU Time |
+| ---------- | ---------: | -------------------: | -------------------: |
+| `.zip`     |     0.458s |               5.073s |               4.418s |
+| `.tar.gz`  |     1.391s |               3.483s |               3.943s |
+| `.tar.bz2` |    15.663s |              17.942s |              32.040s |
+| `.7z`      |     0.321s |              32.554s |              31.625s |
+| `.dwarfs`  |     0.013s |               2.974s |               1.984s |
+
+DwarFS easily wins all categories while still compressing the data
+almost as well as `7z`.
+
+What about accessing files more randomly?
+
+```
+$ find mnt -type f -print0 | xargs -0 -P32 -n32 cat | dd of=/dev/null status=progress
+```
+
+It turns out that fuse-archive grinds to a halt in this case, so I had
+to run the test on a subset (the `boost` subdirectory) of the data.
+The `.tar.bz2` and `.7z` archives were so slow to read that I stopped
+them after a few minutes.
+
+| Archive    | Throughput | Wallclock Time | FUSE Driver CPU Time |
+| ---------- | ---------: | -------------: | -------------------: |
+| `.zip`     |   1.8 MB/s |        83.245s |              83.669s |
+| `.tar.gz`  |   1.2 MB/s |       121.377s |             122.711s |
+| `.tar.bz2` |   0.2 MB/s |              - |                    - |
+| `.7z`      |   0.3 MB/s |              - |                    - |
+| `.dwarfs`  | 598.0 MB/s |         0.249s |               1.099s |
