@@ -475,7 +475,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader_v2(lgr, std::move(cache));
+  ir_ = inode_reader_v2(lgr, std::move(cache), perfmon);
 }
 
 template <typename LoggerPolicy>

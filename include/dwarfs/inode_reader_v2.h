@@ -37,12 +37,14 @@ struct cache_tidy_config;
 class block_cache;
 class logger;
 struct iovec_read_buf;
+class performance_monitor;
 
 class inode_reader_v2 {
  public:
   inode_reader_v2() = default;
 
-  inode_reader_v2(logger& lgr, block_cache&& bc);
+  inode_reader_v2(logger& lgr, block_cache&& bc,
+                  std::shared_ptr<performance_monitor const> perfmon);
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
