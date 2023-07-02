@@ -602,7 +602,7 @@ ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
                                         file_off_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(read)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.read(buf, size, offset, *chunks);
+    return ir_.read(buf, inode, size, offset, *chunks);
   }
   return -EBADF;
 }
@@ -612,7 +612,7 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                          size_t size, file_off_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(buf, size, offset, *chunks);
+    return ir_.readv(buf, inode, size, offset, *chunks);
   }
   return -EBADF;
 }
@@ -623,7 +623,7 @@ filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
                                  file_off_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(size, offset, *chunks);
+    return ir_.readv(inode, size, offset, *chunks);
   }
   return folly::makeUnexpected(-EBADF);
 }

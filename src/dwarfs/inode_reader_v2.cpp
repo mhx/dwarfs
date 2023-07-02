@@ -30,6 +30,7 @@
 
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
+#include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_cache.h"
@@ -41,12 +42,25 @@ namespace dwarfs {
 
 namespace {
 
+constexpr size_t const offset_cache_min_chunks = 128;
+constexpr size_t const offset_cache_size = 16;
+
+struct offset_cache_entry {
+  offset_cache_entry(file_off_t off, size_t ix)
+      : file_offset{off}
+      , chunk_index{ix} {}
+
+  file_off_t file_offset;
+  size_t chunk_index;
+};
+
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
   inode_reader_(logger& lgr, block_cache&& bc)
       : cache_(std::move(bc))
       , LOG_PROXY_INIT(lgr)
+      , offset_cache_{offset_cache_size}
       , iovec_sizes_(1, 0, 256) {}
 
   ~inode_reader_() override {
@@ -58,14 +72,20 @@ class inode_reader_ final : public inode_reader_v2::impl {
       LOG_INFO << "iovec size p99: "
                << iovec_sizes_.getPercentileEstimate(0.99);
     }
+    if (oc_put_.load() > 0) {
+      LOG_INFO << "offset cache put: " << oc_put_.load();
+      LOG_INFO << "offset cache get: " << oc_get_.load();
+      LOG_INFO << "offset cache hit: " << oc_hit_.load();
+    }
   }
 
-  ssize_t read(char* buf, size_t size, file_off_t offset,
+  ssize_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
                chunk_range chunks) const override;
-  ssize_t readv(iovec_read_buf& buf, size_t size, file_off_t offset,
-                chunk_range chunks) const override;
+  ssize_t readv(iovec_read_buf& buf, uint32_t inode, size_t size,
+                file_off_t offset, chunk_range chunks) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(size_t size, file_off_t offset, chunk_range chunks) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        chunk_range chunks) const override;
   void dump(std::ostream& os, const std::string& indent,
             chunk_range chunks) const override;
   void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
@@ -75,16 +95,22 @@ class inode_reader_ final : public inode_reader_v2::impl {
 
  private:
   folly::Expected<std::vector<std::future<block_range>>, int>
-  read(size_t size, file_off_t offset, chunk_range chunks) const;
+  read(uint32_t inode, size_t size, file_off_t offset,
+       chunk_range chunks) const;
 
   template <typename StoreFunc>
-  ssize_t read(size_t size, file_off_t offset, chunk_range chunks,
-               const StoreFunc& store) const;
+  ssize_t read(uint32_t inode, size_t size, file_off_t offset,
+               chunk_range chunks, const StoreFunc& store) const;
 
   block_cache cache_;
   LOG_PROXY_DECL(LoggerPolicy);
+  mutable folly::EvictingCacheMap<uint32_t, offset_cache_entry> offset_cache_;
+  mutable std::mutex offset_cache_mutex_;
   mutable folly::Histogram<size_t> iovec_sizes_;
   mutable std::mutex iovec_sizes_mutex_;
+  mutable std::atomic<size_t> oc_put_{0};
+  mutable std::atomic<size_t> oc_get_{0};
+  mutable std::atomic<size_t> oc_hit_{0};
 };
 
 template <typename LoggerPolicy>
@@ -99,7 +125,8 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
 
 template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
-inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
+inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
+                                   file_off_t offset,
                                    chunk_range chunks) const {
   if (offset < 0) {
     return folly::makeUnexpected(-EINVAL);
@@ -114,6 +141,28 @@ inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
 
   auto it = chunks.begin();
   auto end = chunks.end();
+  file_off_t it_offset = 0;
+
+  if (offset > 0 && chunks.size() >= offset_cache_min_chunks) {
+    ++oc_get_;
+
+    std::optional<offset_cache_entry> oce;
+
+    {
+      std::lock_guard lock(offset_cache_mutex_);
+
+      if (auto oci = offset_cache_.find(inode); oci != offset_cache_.end()) {
+        oce = oci->second;
+      }
+    }
+
+    if (oce && oce->file_offset <= offset) {
+      std::advance(it, oce->chunk_index);
+      offset -= oce->file_offset;
+      it_offset = oce->file_offset;
+      ++oc_hit_;
+    }
+  }
 
   // search for the first chunk that contains data from this request
   while (it < end) {
@@ -124,6 +173,7 @@ inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
     }
 
     offset -= chunksize;
+    it_offset += chunksize;
     ++it;
   }
 
@@ -132,7 +182,9 @@ inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
     return ranges;
   }
 
-  for (size_t num_read = 0; it != end && num_read < size; ++it) {
+  size_t num_read = 0;
+
+  while (it != end) {
     size_t chunksize = it->size() - offset;
     size_t chunkoff = it->offset() + offset;
 
@@ -148,7 +200,24 @@ inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
     ranges.emplace_back(cache_.get(it->block(), chunkoff, chunksize));
 
     num_read += chunksize;
+
+    if (num_read == size) {
+      if (chunks.size() >= offset_cache_min_chunks) {
+        offset_cache_entry oce(it_offset, std::distance(chunks.begin(), it));
+        ++oc_put_;
+
+        {
+          std::lock_guard lock(offset_cache_mutex_);
+          offset_cache_.set(inode, oce);
+        }
+      }
+
+      break;
+    }
+
     offset = 0;
+    it_offset += it->size();
+    ++it;
   }
 
   return ranges;
@@ -156,10 +225,10 @@ inode_reader_<LoggerPolicy>::readv(size_t size, file_off_t offset,
 
 template <typename LoggerPolicy>
 template <typename StoreFunc>
-ssize_t inode_reader_<LoggerPolicy>::read(size_t size, file_off_t offset,
-                                          chunk_range chunks,
+ssize_t inode_reader_<LoggerPolicy>::read(uint32_t inode, size_t size,
+                                          file_off_t offset, chunk_range chunks,
                                           const StoreFunc& store) const {
-  auto ranges = readv(size, offset, chunks);
+  auto ranges = readv(inode, size, offset, chunks);
 
   if (!ranges) {
     return ranges.error();
@@ -185,24 +254,25 @@ ssize_t inode_reader_<LoggerPolicy>::read(size_t size, file_off_t offset,
 
 template <typename LoggerPolicy>
 ssize_t
-inode_reader_<LoggerPolicy>::read(char* buf, size_t size, file_off_t offset,
-                                  chunk_range chunks) const {
-  return read(size, offset, chunks,
+inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
+                                  file_off_t offset, chunk_range chunks) const {
+  return read(inode, size, offset, chunks,
               [&](size_t num_read, const block_range& br) {
                 ::memcpy(buf + num_read, br.data(), br.size());
               });
 }
 
 template <typename LoggerPolicy>
-ssize_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, size_t size,
-                                           file_off_t offset,
+ssize_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
+                                           size_t size, file_off_t offset,
                                            chunk_range chunks) const {
-  auto rv = read(size, offset, chunks, [&](size_t, const block_range& br) {
-    buf.buf.resize(buf.buf.size() + 1);
-    buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
-    buf.buf.back().iov_len = br.size();
-    buf.ranges.emplace_back(br);
-  });
+  auto rv =
+      read(inode, size, offset, chunks, [&](size_t, const block_range& br) {
+        buf.buf.resize(buf.buf.size() + 1);
+        buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
+        buf.buf.back().iov_len = br.size();
+        buf.ranges.emplace_back(br);
+      });
   {
     std::lock_guard lock(iovec_sizes_mutex_);
     iovec_sizes_.addValue(buf.buf.size());
