@@ -1,3 +1,17 @@
+- multi-threaded pre-matcher (for -Bn with n > 0)
+  - pre-compute matches/cyclic hashes for completed blocks; these don't
+    change and so we can do this with very little synchronization
+  - there are two possible strategies:
+    - split the input stream into chunks and then process each chunk in
+      a separate thread, checking all n blocks
+    - process the input stream in each thread and then only checking a
+      subset of past blocks (this seems more wasteful, but each thread
+      would only operate on a few instead of all bloom filters, which
+      could be better from a cache locality pov)
+
+- per-file progress for large files?
+- throughput indicator
+
 - similarity size limit to avoid similarity computation for huge files
 - store files without similarity hash first, sorted descending by size
 - allow ordering by *reverse* path
