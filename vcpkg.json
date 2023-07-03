@@ -18,6 +18,7 @@
     "libarchive",
     "libevent",
     "openssl",
+    "utfcpp",
     "xxhash",
     "zstd"
   ]
