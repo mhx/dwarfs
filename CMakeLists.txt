@@ -28,7 +28,6 @@ option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 if(WIN32)
   set(PREFER_SYSTEM_LIBFMT ON)
-  set(PREFER_SYSTEM_LIBARCHIVE ON)
   set(PREFER_SYSTEM_ZSTD ON)
   set(PREFER_SYSTEM_XXHASH ON)
 else()
@@ -41,7 +40,6 @@ else()
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc" ON)
   option(PREFER_SYSTEM_LIBFMT "use system libfmt if available" OFF)
-  option(PREFER_SYSTEM_LIBARCHIVE "use system libarchive if available" OFF)
   option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
   option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
@@ -195,25 +193,6 @@ else()
   set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install;${CMAKE_PREFIX_PATH}")
   include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install/include")
   find_package(fmt 10.0 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
-endif()
-
-if(NOT PREFER_SYSTEM_LIBARCHIVE)
-  configure_file(CMakeLists.txt.libarchive libarchive-download/CMakeLists.txt)
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libarchive-download)
-  if(result)
-    message(FATAL_ERROR "CMake step for libarchive failed: ${result}")
-  endif()
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} --build .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libarchive-download)
-  if(result)
-    message(FATAL_ERROR "Build step for libarchive failed: ${result}")
-  endif()
-  set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/libarchive-install;${CMAKE_PREFIX_PATH}")
 endif()
 
 list(APPEND DWARFS_BOOST_MODULES chrono iostreams program_options)
