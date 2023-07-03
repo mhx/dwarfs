@@ -29,6 +29,20 @@ using namespace dwarfs;
 
 namespace {} // namespace
 
+TEST(utf8_display_width, basic) {
+  EXPECT_EQ(0, utf8_display_width(""));
+  EXPECT_EQ(1, utf8_display_width(u8string_to_string(u8"a")));
+  EXPECT_EQ(5, utf8_display_width(u8string_to_string(u8"abcde")));
+  EXPECT_EQ(2, utf8_display_width(u8string_to_string(u8"你")));
+  EXPECT_EQ(4, utf8_display_width(u8string_to_string(u8"我你")));
+  EXPECT_EQ(6, utf8_display_width(u8string_to_string(u8"我爱你")));
+  EXPECT_EQ(5, utf8_display_width(u8string_to_string(u8"☀️ Sun")));
+  EXPECT_EQ(2, utf8_display_width(u8string_to_string(u8"⚽️")));
+  EXPECT_EQ(5, utf8_display_width(u8string_to_string(u8"مرحبًا")));
+  EXPECT_EQ(50, utf8_display_width(u8string_to_string(
+                    u8"unicode/我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️/Карибського")));
+}
+
 TEST(shorten_path, string_ascii) {
   std::string const orig =
       "/foo/bar/home/bla/mnt/doc/html/boost_asio/reference/"
@@ -79,6 +93,64 @@ TEST(shorten_path, string_ascii) {
       std::string path = "/aa/bb/cc/dd/ee";
       shorten_path_string(path, '/', max_len);
       EXPECT_EQ(expected[max_len], path);
+    }
+  }
+}
+
+TEST(shorten_path, string_utf8) {
+  std::u8string const orig_u8 =
+      u8"/unicode/我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️/Карибського";
+  std::string const orig = u8string_to_string(orig_u8);
+
+  size_t const orig_len = utf8_display_width(orig);
+  size_t const max_max_len = orig_len + 10;
+
+  for (size_t max_len = 0; max_len < max_max_len; ++max_len) {
+    std::string path = orig;
+
+    shorten_path_string(path, '/', max_len);
+
+    EXPECT_LE(utf8_display_width(path), max_len) << path;
+
+    if (max_len >= orig_len) {
+      EXPECT_EQ(path, orig) << "[" << max_len << "]";
+    } else if (max_len >= 3) {
+      EXPECT_TRUE(path.starts_with("...")) << "[" << max_len << "] " << path;
+      if (path.size() > 3) {
+        EXPECT_TRUE(path.starts_with(".../")) << "[" << max_len << "] " << path;
+      }
+    }
+  }
+
+  {
+    static std::vector<std::u8string> const expected{
+        u8"",
+        u8"",
+        u8"",
+        u8"...",
+        u8"...",
+        u8"...",
+        u8".../го",
+        u8".../го",
+        u8".../го",
+        u8".../مر/го",
+        u8".../مر/го",
+        u8".../مر/го",
+        u8".../Γε/مر/го",
+        u8".../Γε/مر/го",
+        u8".../Γε/مر/го",
+        u8".../Γε/مر/го",
+        u8"/我/☀️⚽️/Γε/مر/го",
+        u8"/我/☀️⚽️/Γε/مر/го",
+        u8"/我/☀️⚽️/Γε/مر/го",
+    };
+
+    std::u8string const path_u8 = u8"/我/☀️⚽️/Γε/مر/го";
+
+    for (size_t max_len = 0; max_len < expected.size(); ++max_len) {
+      std::string path = u8string_to_string(path_u8);
+      shorten_path_string(path, '/', max_len);
+      EXPECT_EQ(u8string_to_string(expected[max_len]), path);
     }
   }
 }

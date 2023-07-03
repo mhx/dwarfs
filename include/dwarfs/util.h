@@ -44,6 +44,9 @@ inline std::string u8string_to_string(std::u8string const& in) {
 
 std::string sys_string_to_string(sys_string const& in);
 
+size_t utf8_display_width(char const* p, size_t len);
+size_t utf8_display_width(std::string const& str);
+
 void shorten_path_string(std::string& path, char separator, size_t max_len);
 
 } // namespace dwarfs

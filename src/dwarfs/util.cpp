@@ -27,10 +27,14 @@
 #include <string>
 #include <string_view>
 
+#include <utf8cpp/utf8.h>
+
 #include <folly/String.h>
 
 #include "dwarfs/error.h"
 #include "dwarfs/util.h"
+
+extern "C" int dwarfs_wcwidth(int ucs);
 
 namespace dwarfs {
 
@@ -129,19 +133,37 @@ std::string sys_string_to_string(sys_string const& in) {
 #endif
 }
 
+size_t utf8_display_width(char const* p, size_t len) {
+  char const* const e = p + len;
+  size_t rv = 0;
+
+  while (p < e) {
+    auto cp = utf8::next(p, e);
+    rv += dwarfs_wcwidth(cp);
+  }
+
+  return rv;
+}
+
+size_t utf8_display_width(std::string const& str) {
+  return utf8_display_width(str.data(), str.size());
+}
+
 void shorten_path_string(std::string& path, char separator, size_t max_len) {
-  auto len = path.size();
+  auto len = utf8_display_width(path);
+
   if (len > max_len) {
     if (max_len < 3) {
       path.clear();
       return;
     }
 
-    // TODO: get this correct for UTF8 multibyte chars :-)
     size_t start = 0;
     max_len -= 3;
 
-    while (start != std::string::npos && (len - start) > max_len) {
+    while (start != std::string::npos &&
+           utf8_display_width(path.data() + start, path.size() - start) >
+               max_len) {
       start = path.find(separator, start + 1);
     }
 

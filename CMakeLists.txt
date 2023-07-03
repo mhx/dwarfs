@@ -431,6 +431,7 @@ list(
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
   src/dwarfs/version.cpp
+  src/dwarfs/wcwidth.c
   src/dwarfs/worker_group.cpp)
 
 if(WITH_PYTHON)
