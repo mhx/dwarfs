@@ -126,6 +126,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
     cache_.set_tidy_config(cfg);
   }
+  size_t num_blocks() const override { return cache_.block_count(); }
 
  private:
   folly::Expected<std::vector<std::future<block_range>>, int>

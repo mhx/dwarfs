@@ -166,6 +166,8 @@ class filesystem_v2 {
     return impl_->set_cache_tidy_config(cfg);
   }
 
+  size_t num_blocks() const { return impl_->num_blocks(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -203,6 +205,7 @@ class filesystem_v2 {
     virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
+    virtual size_t num_blocks() const = 0;
   };
 
  private:

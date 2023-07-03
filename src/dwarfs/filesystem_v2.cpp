@@ -355,6 +355,7 @@ class filesystem_ final : public filesystem_v2::impl {
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
     ir_.set_cache_tidy_config(cfg);
   }
+  size_t num_blocks() const override { return ir_.num_blocks(); }
 
  private:
   filesystem_info const& get_info() const;

@@ -636,7 +636,7 @@ TEST(block_manager, regression_block_boundary) {
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
 
-  std::vector<size_t> fs_sizes;
+  std::vector<size_t> fs_blocks;
 
   for (auto size : {1023, 1024, 1025}) {
     auto input = std::make_shared<test::os_access_mock>();
@@ -645,8 +645,6 @@ TEST(block_manager, regression_block_boundary) {
     input->add_file("test", size);
 
     auto fsdata = build_dwarfs(lgr, input, "null", cfg);
-
-    fs_sizes.push_back(fsdata.size());
 
     auto mm = std::make_shared<test::mmap_mock>(fsdata);
 
@@ -657,10 +655,13 @@ TEST(block_manager, regression_block_boundary) {
 
     EXPECT_EQ(2, vfsbuf.files);
     EXPECT_EQ(size, vfsbuf.blocks);
+
+    fs_blocks.push_back(fs.num_blocks());
   }
 
-  EXPECT_TRUE(std::is_sorted(fs_sizes.begin(), fs_sizes.end()))
-      << folly::join(", ", fs_sizes);
+  std::vector<size_t> const fs_blocks_expected{1, 1, 2};
+
+  EXPECT_EQ(fs_blocks_expected, fs_blocks);
 }
 
 class compression_regression : public testing::TestWithParam<std::string> {};
