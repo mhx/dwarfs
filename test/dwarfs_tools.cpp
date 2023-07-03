@@ -459,22 +459,22 @@ class driver_runner {
 #ifndef _WIN32
       if (process_) {
 #endif
-#ifdef _WIN32
-        constexpr int expected_exit_code = 0;
-#else
-      constexpr int expected_exit_code = SIGINT;
-#endif
         process_->interrupt();
         process_->wait();
         auto ec = process_->exit_code();
-        if (ec != expected_exit_code) {
+        bool is_expected_exit_code = ec == 0
+#ifndef _WIN32
+                                     || ec == SIGINT
+#endif
+            ;
+        if (!is_expected_exit_code) {
           std::cerr << "driver failed to unmount:\nout:\n"
                     << process_->out() << "err:\n"
                     << process_->err() << "exit code: " << ec << "\n";
         }
         process_.reset();
         mountpoint_.clear();
-        return ec == expected_exit_code;
+        return is_expected_exit_code;
 #ifndef _WIN32
       } else {
         subprocess::check_run(find_fusermount(), "-u", mountpoint_);
