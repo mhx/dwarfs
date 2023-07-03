@@ -184,7 +184,8 @@ void dwarfs_initialize(::benchmark::State& state) {
   opts.metadata.enable_nlink = true;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(filesystem_v2(lgr, mm, opts));
+    auto fs = filesystem_v2(lgr, mm, opts);
+    ::benchmark::DoNotOptimize(fs);
   }
 }
 
@@ -223,7 +224,8 @@ class filesystem : public ::benchmark::Fixture {
     buf.resize(st.size);
 
     for (auto _ : state) {
-      ::benchmark::DoNotOptimize(fs->read(i, buf.data(), st.size));
+      auto r = fs->read(i, buf.data(), st.size);
+      ::benchmark::DoNotOptimize(r);
     }
   }
 
@@ -235,7 +237,8 @@ class filesystem : public ::benchmark::Fixture {
 
     for (auto _ : state) {
       iovec_read_buf buf;
-      ::benchmark::DoNotOptimize(fs->readv(i, buf, st.size));
+      auto r = fs->readv(i, buf, st.size);
+      ::benchmark::DoNotOptimize(r);
     }
   }
 
@@ -248,7 +251,8 @@ class filesystem : public ::benchmark::Fixture {
     for (auto _ : state) {
       auto x = fs->readv(i, st.size);
       for (auto& f : *x) {
-        ::benchmark::DoNotOptimize(f.get());
+        auto r = f.get().size();
+        ::benchmark::DoNotOptimize(r);
       }
     }
   }
@@ -265,7 +269,8 @@ class filesystem : public ::benchmark::Fixture {
 
     for (auto _ : state) {
       file_stat buf;
-      ::benchmark::DoNotOptimize(fs->getattr(ent[i++ % N], &buf));
+      auto r = fs->getattr(ent[i++ % N], &buf);
+      ::benchmark::DoNotOptimize(r);
     }
   }
 
@@ -292,7 +297,8 @@ BENCHMARK_DEFINE_F(filesystem, find_path)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->find(paths[i++ % paths.size()]));
+    auto r = fs->find(paths[i++ % paths.size()]);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -300,7 +306,8 @@ BENCHMARK_DEFINE_F(filesystem, find_inode)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->find(i++ % 8));
+    auto r = fs->find(i++ % 8);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -315,8 +322,8 @@ BENCHMARK_DEFINE_F(filesystem, find_inode_name)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(
-        fs->find(base->inode_num(), names[i++ % names.size()]));
+    auto r = fs->find(base->inode_num(), names[i++ % names.size()]);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -350,8 +357,8 @@ BENCHMARK_DEFINE_F(filesystem, access_F_OK)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(
-        fs->access(entries[i++ % NUM_ENTRIES], F_OK, 1000, 100));
+    auto r = fs->access(entries[i++ % NUM_ENTRIES], F_OK, 1000, 100);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -359,8 +366,8 @@ BENCHMARK_DEFINE_F(filesystem, access_R_OK)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(
-        fs->access(entries[i++ % NUM_ENTRIES], R_OK, 1000, 100));
+    auto r = fs->access(entries[i++ % NUM_ENTRIES], R_OK, 1000, 100);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -368,7 +375,8 @@ BENCHMARK_DEFINE_F(filesystem, opendir)(::benchmark::State& state) {
   auto iv = fs->find("/somedir");
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->opendir(*iv));
+    auto r = fs->opendir(*iv);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -377,7 +385,8 @@ BENCHMARK_DEFINE_F(filesystem, dirsize)(::benchmark::State& state) {
   auto dv = fs->opendir(*iv);
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->dirsize(*dv));
+    auto r = fs->dirsize(*dv);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -388,7 +397,8 @@ BENCHMARK_DEFINE_F(filesystem, readdir)(::benchmark::State& state) {
   size_t i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->readdir(*dv, i % num));
+    auto r = fs->readdir(*dv, i % num);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -396,14 +406,16 @@ BENCHMARK_DEFINE_F(filesystem, readlink)(::benchmark::State& state) {
   auto iv = fs->find("/somelink");
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->readlink(*iv));
+    auto r = fs->readlink(*iv);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
 BENCHMARK_DEFINE_F(filesystem, statvfs)(::benchmark::State& state) {
   for (auto _ : state) {
     vfs_stat buf;
-    ::benchmark::DoNotOptimize(fs->statvfs(&buf));
+    auto r = fs->statvfs(&buf);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
@@ -411,7 +423,8 @@ BENCHMARK_DEFINE_F(filesystem, open)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    ::benchmark::DoNotOptimize(fs->open(entries[i++ % NUM_ENTRIES]));
+    auto r = fs->open(entries[i++ % NUM_ENTRIES]);
+    ::benchmark::DoNotOptimize(r);
   }
 }
 
