@@ -262,12 +262,12 @@ struct new_process_group : public ::boost::process::detail::handler_base {
 class subprocess {
  public:
   template <typename... Args>
-  subprocess(std::filesystem::path const& prog, Args&&... args) {
-    std::vector<std::string> cmdline;
-    (append_arg(cmdline, std::forward<Args>(args)), ...);
+  subprocess(std::filesystem::path const& prog, Args&&... args)
+      : prog_{prog} {
+    (append_arg(cmdline_, std::forward<Args>(args)), ...);
 
     try {
-      c_ = bp::child(prog.string(), bp::args(cmdline), bp::std_in.close(),
+      c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
                      bp::std_out > out_, bp::std_err > err_, ios_
 #ifdef _WIN32
                      ,
@@ -275,10 +275,18 @@ class subprocess {
 #endif
       );
     } catch (...) {
-      std::cerr << "failed to create subprocess: " << prog << " "
-                << folly::join(' ', cmdline) << "\n";
+      std::cerr << "failed to create subprocess: " << cmdline() << "\n";
       throw;
     }
+  }
+
+  std::string cmdline() const {
+    std::string cmd = prog_.string();
+    if (!cmdline_.empty()) {
+      cmd += ' ';
+      cmd += folly::join(' ', cmdline_);
+    }
+    return cmd;
   }
 
   void run() {
@@ -360,6 +368,8 @@ class subprocess {
   std::string outs_;
   std::string errs_;
   std::unique_ptr<std::thread> pt_;
+  std::filesystem::path const prog_;
+  std::vector<std::string> cmdline_;
 };
 
 #ifndef _WIN32
@@ -474,6 +484,14 @@ class driver_runner {
 #endif
     }
     return false;
+  }
+
+  std::string cmdline() const {
+    std::string rv;
+    if (process_) {
+      rv = process_->cmdline();
+    }
+    return rv;
   }
 
   ~driver_runner() {
@@ -621,30 +639,39 @@ TEST(tools, end_to_end) {
       driver_runner runner(driver_runner::foreground, driver, image,
                            mountpoint);
 
-      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+          << runner.cmdline();
       compare_directories_result cdr;
-      ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
-      EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
-      EXPECT_EQ(cdr.directories.size(), 19) << cdr;
-      EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
-      EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh"));
+      ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+          << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.regular_files.size(), 26)
+          << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.directories.size(), 19) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
+      EXPECT_EQ(1, num_hardlinks(mountpoint / "format.sh")) << runner.cmdline();
 
-      EXPECT_TRUE(fs::is_symlink(unicode_symlink));
-      EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target);
-      EXPECT_TRUE(read_file(unicode_symlink, unicode_file_contents));
-      EXPECT_EQ(unicode_file_contents, "unicode\n");
-      EXPECT_TRUE(read_file(mountpoint / unicode_symlink_target,
-                            unicode_file_contents));
-      EXPECT_EQ(unicode_file_contents, "unicode\n");
+      EXPECT_TRUE(fs::is_symlink(unicode_symlink)) << runner.cmdline();
+      EXPECT_EQ(fs::read_symlink(unicode_symlink), unicode_symlink_target)
+          << runner.cmdline();
+      EXPECT_TRUE(read_file(unicode_symlink, unicode_file_contents))
+          << runner.cmdline();
+      EXPECT_EQ(unicode_file_contents, "unicode\n") << runner.cmdline();
+      EXPECT_TRUE(
+          read_file(mountpoint / unicode_symlink_target, unicode_file_contents))
+          << runner.cmdline();
+      EXPECT_EQ(unicode_file_contents, "unicode\n") << runner.cmdline();
 
-      EXPECT_TRUE(runner.unmount());
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
     }
 
     {
       auto const [out, err, ec] =
           subprocess::run(driver, image_hdr, mountpoint);
 
-      EXPECT_NE(0, ec) << "stdout:\n" << out << "\nstderr:\n" << err;
+      EXPECT_NE(0, ec) << driver << "\n"
+                       << "stdout:\n"
+                       << out << "\nstderr:\n"
+                       << err;
     }
 
     unsigned const combinations = 1 << all_options.size();
@@ -670,21 +697,27 @@ TEST(tools, end_to_end) {
       {
         driver_runner runner(driver, image, mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
-        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+            << runner.cmdline();
+        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
-                  fs::path("foo") / "bar");
+                  fs::path("foo") / "bar")
+            << runner.cmdline();
         compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19) << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
+        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.regular_files.size(), 26)
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.directories.size(), 19)
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1,
-                  num_hardlinks(mountpoint / "format.sh"));
+        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+            << runner.cmdline();
         // This doesn't really work on Windows (yet)
-        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
+            << runner.cmdline();
 #endif
       }
 
@@ -693,21 +726,27 @@ TEST(tools, end_to_end) {
       {
         driver_runner runner(driver, image_hdr, mountpoint, args);
 
-        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
-        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar"));
+        ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+            << runner.cmdline();
+        EXPECT_TRUE(fs::is_symlink(mountpoint / "foobar")) << runner.cmdline();
         EXPECT_EQ(fs::read_symlink(mountpoint / "foobar"),
-                  fs::path("foo") / "bar");
+                  fs::path("foo") / "bar")
+            << runner.cmdline();
         compare_directories_result cdr;
-        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr)) << cdr;
-        EXPECT_EQ(cdr.regular_files.size(), 26) << cdr;
-        EXPECT_EQ(cdr.directories.size(), 19) << cdr;
-        EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
+        ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.regular_files.size(), 26)
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.directories.size(), 19)
+            << runner.cmdline() << ": " << cdr;
+        EXPECT_EQ(cdr.symlinks.size(), 2) << runner.cmdline() << ": " << cdr;
 #ifndef _WIN32
         // TODO: https://github.com/winfsp/winfsp/issues/511
-        EXPECT_EQ(enable_nlink ? 3 : 1,
-                  num_hardlinks(mountpoint / "format.sh"));
+        EXPECT_EQ(enable_nlink ? 3 : 1, num_hardlinks(mountpoint / "format.sh"))
+            << runner.cmdline();
         // This doesn't really work on Windows (yet)
-        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly));
+        EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
+            << runner.cmdline();
 #endif
       }
     }
@@ -750,14 +789,14 @@ TEST(tools, end_to_end) {
 
 #ifdef _WIN32
 #define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
-  EXPECT_TRUE(ec);                                                             \
-  EXPECT_EQ(std::system_category(), (ec).category());                          \
-  EXPECT_EQ(windows, (ec).value()) << (ec).message()
+  EXPECT_TRUE(ec) << runner.cmdline();                                         \
+  EXPECT_EQ(std::system_category(), (ec).category()) << runner.cmdline();      \
+  EXPECT_EQ(windows, (ec).value()) << runner.cmdline() << ": " << (ec).message()
 #else
 #define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
-  EXPECT_TRUE(ec);                                                             \
-  EXPECT_EQ(std::generic_category(), (ec).category());                         \
-  EXPECT_EQ(unix, (ec).value()) << (ec).message()
+  EXPECT_TRUE(ec) << runner.cmdline();                                         \
+  EXPECT_EQ(std::generic_category(), (ec).category()) << runner.cmdline();     \
+  EXPECT_EQ(unix, (ec).value()) << runner.cmdline() << ": " << (ec).message()
 #endif
 
 TEST(tools, mutating_ops) {
@@ -782,32 +821,34 @@ TEST(tools, mutating_ops) {
     driver_runner runner(driver_runner::foreground, driver, test_data_dwarfs,
                          mountpoint);
 
-    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout));
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
+        << runner.cmdline();
 
     // remove (unlink)
 
     {
       std::error_code ec;
-      EXPECT_FALSE(fs::remove(file, ec));
+      EXPECT_FALSE(fs::remove(file, ec)) << runner.cmdline();
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      EXPECT_FALSE(fs::remove(empty_dir, ec));
+      EXPECT_FALSE(fs::remove(empty_dir, ec)) << runner.cmdline();
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
-      EXPECT_FALSE(fs::remove(non_empty_dir, ec));
+      EXPECT_FALSE(fs::remove(non_empty_dir, ec)) << runner.cmdline();
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_EQ(static_cast<std::uintmax_t>(-1),
-                fs::remove_all(non_empty_dir, ec));
+                fs::remove_all(non_empty_dir, ec))
+          << runner.cmdline();
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
@@ -862,8 +903,8 @@ TEST(tools, mutating_ops) {
     {
       std::error_code ec;
       fs::create_symlink(file, name_outside_fs, ec);
-      EXPECT_FALSE(ec); // this actually works :)
-      EXPECT_TRUE(fs::remove(name_outside_fs, ec));
+      EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
+      EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
     }
 
     {
@@ -875,8 +916,8 @@ TEST(tools, mutating_ops) {
     {
       std::error_code ec;
       fs::create_directory_symlink(empty_dir, name_outside_fs, ec);
-      EXPECT_FALSE(ec); // this actually works :)
-      EXPECT_TRUE(fs::remove(name_outside_fs, ec));
+      EXPECT_FALSE(ec) << runner.cmdline(); // this actually works :)
+      EXPECT_TRUE(fs::remove(name_outside_fs, ec)) << runner.cmdline();
     }
 
     // truncate
@@ -895,6 +936,6 @@ TEST(tools, mutating_ops) {
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
     }
 
-    EXPECT_TRUE(runner.unmount());
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 }
