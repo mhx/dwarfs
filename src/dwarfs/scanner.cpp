@@ -254,22 +254,10 @@ std::string status_string(progress const& p, size_t width) {
       label = "writing: ";
       path = i->any()->path_as_string();
     }
-    auto max_len = width - label.size();
-    auto len = path.size();
-    if (len > max_len) {
-      // TODO: get this correct for UTF8 multibyte chars :-)
-      size_t start = 0;
-      max_len -= 3;
-      while (start != std::string::npos && (len - start) > max_len) {
-        start = path.find(
-            static_cast<char>(std::filesystem::path::preferred_separator),
-            start + 1);
-      }
-      if (start == std::string::npos) {
-        start = max_len - len;
-      }
-      path.replace(0, start, "...");
-    }
+    // TODO: move to util (shorten_path() or something)
+    shorten_path_string(
+        path, static_cast<char>(std::filesystem::path::preferred_separator),
+        width - label.size());
   }
 
   return label + path;

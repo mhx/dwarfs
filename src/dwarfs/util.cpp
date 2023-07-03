@@ -129,4 +129,28 @@ std::string sys_string_to_string(sys_string const& in) {
 #endif
 }
 
+void shorten_path_string(std::string& path, char separator, size_t max_len) {
+  auto len = path.size();
+  if (len > max_len) {
+    if (max_len < 3) {
+      path.clear();
+      return;
+    }
+
+    // TODO: get this correct for UTF8 multibyte chars :-)
+    size_t start = 0;
+    max_len -= 3;
+
+    while (start != std::string::npos && (len - start) > max_len) {
+      start = path.find(separator, start + 1);
+    }
+
+    if (start == std::string::npos) {
+      start = max_len - len;
+    }
+
+    path.replace(0, start, "...");
+  }
+}
+
 } // namespace dwarfs
