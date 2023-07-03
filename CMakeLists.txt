@@ -1017,15 +1017,23 @@ endif(STATIC_BUILD_DO_NOT_USE)
 
 add_custom_target(
   realclean
+  DEPENDS clean
   COMMAND
-    ${CMAKE_COMMAND} -E rm -rf CMakeCache.txt CMakeFiles CPackConfig.cmake
-    CPackSourceConfig.cmake CTestTestfile.cmake Makefile Testing bin lib man
-    folly fbthrift thrift zstd dwarfs dwarfs2 dwarfsck dwarfsextract mkdwarfs
-    mount.dwarfs mount.dwarfs2 cmake_install.cmake lib*.a 
-    googletest-download googletest-build googletest-src _CPack_Packages
-    install_manifest.txt share build.ninja compile_commands.json
-    .ninja_deps .ninja_log rules.ninja man1 man5 libarchive fmtlib
-    fmtlib-download fmtlib-install universal)
+    ${CMAKE_COMMAND} -E rm -rf
+        .ninja_deps .ninja_log build.ninja
+        CMakeCache.txt CMakeFiles cmake_install.cmake
+        CPackConfig.cmake CPackSourceConfig.cmake
+        CTestTestfile.cmake
+        'dwarfs_badfs_test[1]_include.cmake'
+        'dwarfs_compat_test[1]_include.cmake'
+        'dwarfs_test[1]_include.cmake'
+        'dwarfs_tools_test[1]_include.cmake'
+        'dwarfs_utils_test[1]_include.cmake'
+        fbthrift folly zstd
+        thrift universal bin lib man1 man5
+        fmtlib fmtlib-download fmtlib-install
+        googletest-build googletest-download googletest-src
+)
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
