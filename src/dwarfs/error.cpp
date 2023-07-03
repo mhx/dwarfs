@@ -84,8 +84,8 @@ int safe_main(std::function<int(void)> fn) {
 #ifndef _WIN32
     folly::symbolizer::installFatalSignalHandler();
 #endif
-    std::locale::global(std::locale("en_US.utf8"));
-    std::setlocale(LC_ALL, "en_US.utf8");
+    std::locale::global(std::locale(""));
+    std::setlocale(LC_ALL, "");
 
     setup_terminal();
 
