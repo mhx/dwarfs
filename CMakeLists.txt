@@ -1021,15 +1021,16 @@ add_custom_target(
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf
         .ninja_deps .ninja_log build.ninja
-        CMakeCache.txt CMakeFiles cmake_install.cmake
-        CPackConfig.cmake CPackSourceConfig.cmake
-        CTestTestfile.cmake
+        CMakeCache.txt CMakeFiles
+        cmake_install.cmake install_manifest.txt
+        CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
+        CTestTestfile.cmake Testing
         'dwarfs_badfs_test[1]_include.cmake'
         'dwarfs_compat_test[1]_include.cmake'
         'dwarfs_test[1]_include.cmake'
         'dwarfs_tools_test[1]_include.cmake'
         'dwarfs_utils_test[1]_include.cmake'
-        fbthrift folly zstd
+        fbthrift folly zstd libarchive
         thrift universal bin lib man1 man5
         fmtlib fmtlib-download fmtlib-install
         googletest-build googletest-download googletest-src
