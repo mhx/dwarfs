@@ -48,6 +48,14 @@ uint64_t get_page_size() {
 #endif
 }
 
+boost::filesystem::path boost_from_std_path(std::filesystem::path const& p) {
+#ifdef _WIN32
+  return boost::filesystem::path(p.wstring());
+#else
+  return boost::filesystem::path(p.string());
+#endif
+}
+
 } // namespace
 
 std::error_code
@@ -128,8 +136,7 @@ mmap::mmap(std::string const& path)
     : mmap(std::filesystem::path(path)) {}
 
 mmap::mmap(std::filesystem::path const& path)
-    : mf_(boost::filesystem::path(path.wstring()),
-          boost::iostreams::mapped_file::readonly)
+    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly)
     , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
@@ -138,8 +145,8 @@ mmap::mmap(std::string const& path, size_t size)
     : mmap(std::filesystem::path(path), size) {}
 
 mmap::mmap(std::filesystem::path const& path, size_t size)
-    : mf_(boost::filesystem::path(path.wstring()),
-          boost::iostreams::mapped_file::readonly, size)
+    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly,
+          size)
     , page_size_(get_page_size()) {
   assert(mf_.is_open());
 }
