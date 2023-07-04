@@ -1013,17 +1013,24 @@ add_custom_target(
         cmake_install.cmake install_manifest.txt
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
         CTestTestfile.cmake Testing
-        'dwarfs_badfs_test[1]_include.cmake'
-        'dwarfs_compat_test[1]_include.cmake'
-        'dwarfs_test[1]_include.cmake'
-        'dwarfs_tools_test[1]_include.cmake'
-        'dwarfs_utils_test[1]_include.cmake'
+        "dwarfs_badfs_test[1]_include.cmake"
+        "dwarfs_compat_test[1]_include.cmake"
+        "dwarfs_test[1]_include.cmake"
+        "dwarfs_tools_test[1]_include.cmake"
+        "dwarfs_utils_test[1]_include.cmake"
         fbthrift folly zstd libarchive
         thrift universal bin lib man1 man5
         fmtlib fmtlib-download fmtlib-install
         googletest-build googletest-download googletest-src
         vcpkg-manifest-install.log
-        build.ninja .ninja_deps .ninja_log
+	dwarfs.exe.manifest dwarfsbench.exe.manifest
+        dwarfsck.exe.manifest dwarfsextract.exe.manifest
+        dwarfs_badfs_test.exe.manifest dwarfs_compat_test.exe.manifest
+        dwarfs_test.exe.manifest dwarfs_tools_test.exe.manifest
+        dwarfs_utils_test.exe.manifest mkdwarfs.exe.manifest
+        install_manifest_dev.txt install_manifest_gmock.txt
+        install_manifest_gtest.txt install_manifest_Unspecified.txt
+        build.ninja .ninja_deps
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
