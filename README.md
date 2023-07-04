@@ -37,7 +37,9 @@ TODO: universal binary
 
 ## Overview
 
-![Alt text](doc/screenshot.gif?raw=true "DwarFS Screenshot")
+![Windows Screen Capture](doc/windows.gif?raw=true "DwarFS Windows")
+
+![Linux Screen Capture](doc/screenshot.gif?raw=true "DwarFS Linux")
 
 DwarFS is a read-only file system with a focus on achieving **very
 high compression ratios** in particular for very redundant data.
