@@ -1637,8 +1637,8 @@ user    0m0.510s
 sys     0m0.610s
 ```
 
-Turns out that `tar --zstd` is easily winning the compression test.
-Looking at the file sizes did actually blow my mind just a bit:
+Turns out that `tar --zstd` is easily winning the compression speed
+test. Looking at the file sizes did actually blow my mind just a bit:
 
 ```
 $ ll zerotest.* --sort=size
@@ -1719,8 +1719,8 @@ sys     0m0.534s
 CPU time used by the FUSE driver was 0.17 seconds and mount time
 was less than a millisecond.
 
-If we increase the block size for the `dd` command, we can even
-get much higher throughput. For fuse-archive with the `.tar.zstd`:
+If we increase the block size for the `dd` command, we can get
+even higher throughput. For fuse-archive with the `.tar.zstd`:
 
 ```
 $ time dd if=mnt/zerotest/zeroes of=/dev/null status=progress bs=16384
