@@ -1053,6 +1053,10 @@ if(FALSE)
   endif()
 endif()
 
+if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
+  add_custom_target(strip COMMAND strip -s ${BINARY_TARGETS})
+endif()
+
 if(NOT $PRJ_VERSION_FULL} STREQUAL "")
   if(WIN32)
     set(CPACK_GENERATOR "NSIS;ZIP;7Z")
