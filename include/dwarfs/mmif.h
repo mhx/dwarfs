@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <span>
 #include <string>
 #include <system_error>
@@ -57,5 +58,7 @@ class mmif : public boost::noncopyable {
   virtual std::error_code lock(file_off_t offset, size_t size) = 0;
   virtual std::error_code release(file_off_t offset, size_t size) = 0;
   virtual std::error_code release_until(file_off_t offset) = 0;
+
+  virtual std::filesystem::path const& path() const = 0;
 };
 } // namespace dwarfs

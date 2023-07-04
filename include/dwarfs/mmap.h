@@ -22,8 +22,6 @@
 #pragma once
 
 #include <cstddef>
-#include <filesystem>
-#include <string>
 
 #include <boost/iostreams/device/mapped_file.hpp>
 
@@ -45,8 +43,11 @@ class mmap : public mmif {
   std::error_code release(file_off_t offset, size_t size) override;
   std::error_code release_until(file_off_t offset) override;
 
+  std::filesystem::path const& path() const override;
+
  private:
   boost::iostreams::mapped_file mutable mf_;
   uint64_t const page_size_;
+  std::filesystem::path const path_;
 };
 } // namespace dwarfs
