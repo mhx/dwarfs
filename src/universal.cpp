@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -36,8 +37,40 @@ namespace {
 
 using namespace dwarfs;
 
-std::map<std::string_view, int (*)(int, char**)> const functions{
+std::string to_narrow_string(sys_char const* str) {
+#ifdef _WIN32
+  std::wstring_view view(str);
+  std::string rv(view.size(), 0);
+  std::transform(view.begin(), view.end(), rv.begin(),
+                 [](sys_char c) { return static_cast<char>(c); });
+  return rv;
+#else
+  return std::string(str);
+#endif
+}
+
+#ifdef _WIN32
+int dwarfs_main_helper(int argc, sys_char** argv) {
+  std::vector<std::string> argv_strings;
+  std::vector<char*> argv_copy;
+  argv_strings.reserve(argc);
+  argv_copy.reserve(argc);
+
+  for (int i = 0; i < argc; ++i) {
+    argv_strings.push_back(to_narrow_string(argv[i]));
+    argv_copy.push_back(argv_strings.back().data());
+  }
+
+  return dwarfs_main(argc, argv_copy.data());
+}
+#endif
+
+std::map<std::string_view, int (*)(int, sys_char**)> const functions{
+#ifdef _WIN32
+    {"dwarfs", &dwarfs_main_helper},
+#else
     {"dwarfs", &dwarfs_main},
+#endif
     {"mkdwarfs", &mkdwarfs_main},
     {"dwarfsck", &dwarfsck_main},
     {"dwarfsextract", &dwarfsextract_main},
@@ -46,16 +79,16 @@ std::map<std::string_view, int (*)(int, char**)> const functions{
 
 } // namespace
 
-int main(int argc, char** argv) {
+int SYS_MAIN(int argc, sys_char** argv) {
   if (argc > 1) {
-    std::string_view tool_arg(argv[1]);
+    auto tool_arg = to_narrow_string(argv[1]);
     if (tool_arg.starts_with("--tool=")) {
       if (auto it = functions.find(tool_arg.substr(7)); it != functions.end()) {
-        std::vector<char*> argv_copy;
+        std::vector<sys_char*> argv_copy;
         argv_copy.reserve(argc - 1);
         argv_copy.emplace_back(argv[0]);
         std::copy(argv + 2, argv + argc, std::back_inserter(argv_copy));
-        return dwarfs::safe_main(
+        return safe_main(
             [&] { return it->second(argc - 1, argv_copy.data()); });
       }
     }
@@ -66,7 +99,7 @@ int main(int argc, char** argv) {
 
   if (auto it = functions.find(path.filename().string());
       it != functions.end()) {
-    return dwarfs::safe_main([&] { return it->second(argc, argv); });
+    return safe_main([&] { return it->second(argc, argv); });
   }
 #endif
 

@@ -489,7 +489,7 @@ target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
 target_link_libraries(dwarfsextract dwarfsextract_main)
 target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
-        dwarfsbench_main dwarfsextract_main)
+        dwarfsextract_main)
 set_target_properties(dwarfsuniversal PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY universal
         OUTPUT_NAME dwarfs-universal)
@@ -516,8 +516,8 @@ if(FUSE3_FOUND OR WINFSP)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin dwarfs_main)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+  target_link_libraries(dwarfsuniversal dwarfs_main)
   if(NOT WIN32)
-    target_link_libraries(dwarfsuniversal dwarfs_main)
     add_custom_command(OUTPUT  mount.dwarfs
                        COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
                        DEPENDS dwarfs)
