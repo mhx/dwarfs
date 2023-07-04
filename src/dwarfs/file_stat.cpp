@@ -41,6 +41,7 @@
 #include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/os_access_generic.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -66,6 +67,9 @@ uint64_t time_from_filetime(FILETIME const& ft) {
 
 file_stat make_file_stat(fs::path const& path) {
   auto status = fs::symlink_status(path);
+
+  DWARFS_CHECK(status.type() != fs::file_type::not_found,
+               u8string_to_string(path.u8string()));
 
   file_stat rv;
   rv.mode = file_status_to_mode(status);
