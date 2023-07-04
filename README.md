@@ -1585,7 +1585,7 @@ compiles out of the box).
 
 An interesting test case straight from fuse-archive's README is in
 the [Performance](https://github.com/google/fuse-archive#performance)
-section: an archive with a single hugh file full of zeroes. Let's
+section: an archive with a single huge file full of zeroes. Let's
 make the example a bit more extreme and use a 1 GiB file instead of
 just 256 MiB:
 
