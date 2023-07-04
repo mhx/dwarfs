@@ -10,10 +10,11 @@ A fast high compression read-only file system for Linux and Windows
 - [Overview](#overview)
 - [History](#history)
 - [Building and Installing](#building-and-installing)
+  - [Prebuilt Binaries](#prebuilt-binaries)
+  - [Universal Binaries](#universal-binaries)
   - [Dependencies](#dependencies)
   - [Building](#building)
   - [Installing](#installing)
-  - [Experimental Python Scripting Support](#experimental-python-scripting-support)
   - [Static Builds](#static-builds)
 - [Usage](#usage)
 - [Windows Support](#windows-support)
@@ -27,6 +28,12 @@ A fast high compression read-only file system for Linux and Windows
   - [With Cromfs](#with-cromfs)
   - [With EROFS](#with-erofs)
   - [With fuse-archive](#with-fuse-archive)
+
+
+
+TODO: universal binary
+
+
 
 ## Overview
 
@@ -106,6 +113,43 @@ from packages that should be widely available. And I've written
 some rudimentary docs as well.
 
 ## Building and Installing
+
+### Prebuilt Binaries
+
+[Each release](https://github.com/mhx/dwarfs/releases) has pre-built,
+statically linked binaries for `Linux-x86_64`, `Linux-aarch64` and
+`Windows-AMD64` available for download. These *should* run without
+any dependencies and can be useful especially on older distributions
+where you can't easily build the tools from source.
+
+### Universal Binaries
+
+In addition to the binary tarballs, there's a **universal binary**
+available for each architecture. These universal binaries contain
+*all* tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract` and the `dwarfs`
+FUSE driver) in a single executable. These executables are compressed
+using [upx](https://github.com/upx/upx), so they are much smaller than
+the individual tools combined.
+
+The universal binaries can be run either through symbolic links named
+after the proper tool. e.g.:
+
+```
+$ ln -s dwarfs-universal-0.7.0-RC5-Linux-aarch64 mkdwarfs
+$ ./mkdwarfs --help
+```
+
+Or you can select the tool by passing `--tool=<name>` as the first
+argument on the command line:
+
+```
+$ .\dwarfs-universal-0.7.0-RC5-Windows-AMD64.exe --tool=mkdwarfs --help
+```
+
+Note that just like the `dwarfs.exe` Windows binary, the universal
+Windows binary depends on the `winfsp-x64.dll` from the
+[WinFsp](https://github.com/winfsp/winfsp) project.
+See the [Windows Support](#windows-support) section for more details.
 
 ### Dependencies
 
@@ -223,27 +267,6 @@ $ sudo make install
 
 Though you don't have to install the tools to play with them.
 
-### Experimental Python Scripting Support
-
-You can build `mkdwarfs` with experimental support for Python
-scripting:
-
-```
-$ cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1
-```
-
-This also requires Boost.Python. If you have multiple Python
-versions installed, you can explicitly specify the version to
-build against:
-
-```
-$ cmake .. -DWITH_TESTS=1 -DWITH_PYTHON=1 -DWITH_PYTHON_VERSION=3.8
-```
-
-Note that only Python 3 is supported. You can take a look at
-[scripts/example.py](scripts/example.py) to get an idea for
-what can currently be done with the interface.
-
 ### Static Builds
 
 Attempting to build statically linked binaries is highly discouraged
@@ -263,7 +286,7 @@ That's it! Now you can try building static binaries for DwarFS:
 ```
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 $ cd dwarfs && mkdir build && cd build
-$ cmake .. -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 -GNinja
+$ cmake .. -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 -GNinja
 $ ninja
 $ ninja test
 ```
