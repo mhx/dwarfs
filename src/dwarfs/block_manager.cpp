@@ -608,6 +608,10 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
   std::vector<segment_match> matches;
   const bool single_block_mode = cfg_.max_active_blocks == 1;
 
+  auto total_bytes_read_before = prog_.total_bytes_read.load();
+  prog_.current_offset.store(offset);
+  prog_.current_size.store(size);
+
   while (offset < size) {
     ++stats_.bloom_lookups;
     if (DWARFS_UNLIKELY(filter_.test(hasher()))) {
@@ -677,6 +681,9 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
             hasher.update(p[offset]);
           }
 
+          prog_.current_offset.store(offset);
+          prog_.total_bytes_read.store(total_bytes_read_before + offset);
+
           next_hash_offset =
               written + lookback_size + blocks_.back().next_hash_distance();
         }
@@ -697,11 +704,16 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
       add_data(ino, mm, written, num_to_write);
       written += num_to_write;
       next_hash_offset += window_step_;
+      prog_.current_offset.store(offset);
+      prog_.total_bytes_read.store(total_bytes_read_before + offset);
     }
 
     hasher.update(p[offset - window_size_], p[offset]);
     ++offset;
   }
+
+  prog_.current_offset.store(size);
+  prog_.total_bytes_read.store(total_bytes_read_before + size);
 
   add_data(ino, mm, written, size - written);
   finish_chunk(ino);

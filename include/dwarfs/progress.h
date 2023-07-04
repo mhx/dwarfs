@@ -55,6 +55,9 @@ class progress {
   std::string status(size_t max_len) const;
 
   std::atomic<object const*> current{nullptr};
+  std::atomic<uint64_t> total_bytes_read{0};
+  std::atomic<size_t> current_size{0};
+  std::atomic<size_t> current_offset{0};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};

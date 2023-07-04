@@ -55,6 +55,27 @@ bool is_debug_progress() {
   return false;
 }
 
+std::string progress_bar(size_t width, double frac, bool unicode) {
+  size_t barlen = 8 * width * frac;
+  size_t w = barlen / 8;
+  size_t c = barlen % 8;
+
+  auto bar = unicode ? uni_bar.data() : asc_bar.data();
+  std::string rv;
+
+  for (size_t i = 0; i < width; ++i) {
+    if (i == (width - 1)) {
+      rv.append(bar[0]);
+    } else if (i == w) {
+      rv.append(bar[c]);
+    } else {
+      rv.append(i < w ? bar[7] : " ");
+    }
+  }
+
+  return rv;
+}
+
 } // namespace
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
@@ -69,7 +90,8 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , mode_(mode)
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context)
-    , debug_progress_(is_debug_progress()) {
+    , debug_progress_(is_debug_progress())
+    , read_speed_{std::chrono::seconds(5)} {
   if (threshold > level_type::INFO) {
     set_policy<debug_logger_policy>();
   } else {
@@ -83,7 +105,7 @@ void console_writer::rewind() {
 
     switch (mode_) {
     case NORMAL:
-      lines = 8;
+      lines = 9;
       break;
     case REWRITE:
       lines = 4;
@@ -175,9 +197,29 @@ void console_writer::update(const progress& p, bool last) {
 
     switch (mode_) {
     case NORMAL:
+      if (writing_) {
+        read_speed_.put(p.total_bytes_read.load());
+      } else {
+        if (p.total_bytes_read.load() > 0) {
+          read_speed_.clear();
+          writing_ = true;
+        } else {
+          read_speed_.put(p.similarity_bytes.load());
+        }
+      }
+
       if (fancy) {
         oss << terminal_colored(p.status(width_), termcolor::BOLD_CYAN, color_)
             << newline;
+      }
+
+      {
+        auto cur_size = p.current_size.load();
+        double cur_offs = std::min(p.current_offset.load(), cur_size);
+        double cur_frac = cur_size > 0 ? cur_offs / cur_size : 0.0;
+
+        oss << progress_bar(64, cur_frac, pg_mode_ == UNICODE)
+            << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
       }
 
       oss << p.dirs_scanned << " dirs, " << p.symlinks_scanned << "/"
@@ -244,15 +286,13 @@ void console_writer::update(const progress& p, bool last) {
       p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
   double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
 
+  if (last) {
+    frac = 1.0;
+  }
+
   if (frac > frac_) {
     frac_ = frac;
   }
-
-  size_t barlen = 8 * (width_ - 6) * frac_;
-  size_t w = barlen / 8;
-  size_t c = barlen % 8;
-
-  auto bar = pg_mode_ == UNICODE ? uni_bar.data() : asc_bar.data();
 
   if (pg_mode_ == SIMPLE) {
     std::string tmp =
@@ -269,16 +309,8 @@ void console_writer::update(const progress& p, bool last) {
       os_ << oss.str();
     }
   } else {
-    for (size_t i = 0; i < width_ - 6; ++i) {
-      if (i == (width_ - 7)) {
-        oss << bar[0];
-      } else if (i == w && !last) {
-        oss << bar[c];
-      } else {
-        oss << (i < w ? bar[7] : " ");
-      }
-    }
-    oss << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
+    oss << progress_bar(width_ - 6, frac_, pg_mode_ == UNICODE)
+        << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
         << '\n';
 
     ++counter_;

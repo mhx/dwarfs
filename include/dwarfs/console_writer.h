@@ -29,6 +29,7 @@
 #include <string>
 
 #include "dwarfs/logger.h"
+#include "dwarfs/speedometer.h"
 
 namespace dwarfs {
 
@@ -66,5 +67,7 @@ class console_writer : public logger {
   bool const color_;
   bool const with_context_;
   bool const debug_progress_;
+  bool writing_{false};
+  speedometer<uint64_t> read_speed_;
 };
 } // namespace dwarfs
