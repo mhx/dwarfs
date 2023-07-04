@@ -29,7 +29,8 @@ namespace dwarfs {
 template <typename T>
 class speedometer {
  public:
-  speedometer(std::chrono::milliseconds window_length) : window_length_{window_length} {}
+  speedometer(std::chrono::milliseconds window_length)
+      : window_length_{window_length} {}
 
   void put(T s) {
     auto now = std::chrono::steady_clock::now();
@@ -50,12 +51,11 @@ class speedometer {
     auto const& last = samples_.back();
     auto dt = last.first - first.first;
     auto dv = last.second - first.second;
-    return (1000 * dv) / std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
+    return (1000 * dv) /
+           std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
   }
 
-  void clear() {
-    samples_.clear();
-  }
+  void clear() { samples_.clear(); }
 
  private:
   std::deque<std::pair<std::chrono::steady_clock::time_point, T>> samples_;
