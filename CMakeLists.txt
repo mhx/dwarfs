@@ -545,7 +545,7 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   endif()
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
   add_custom_command(OUTPUT  mount.dwarfs2
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs2
+                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
                      DEPENDS dwarfs2)
   list(APPEND SYMLINKS mount.dwarfs2)
   install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
