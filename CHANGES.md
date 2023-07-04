@@ -1,5 +1,52 @@
 # Change Log
 
+## Version 0.7.0-RC5 - 2023-07-04
+
+- (feature) Windows support. All tools can now be built and run
+  on Windows, including the FUSE driver, which makes use of
+  [WinFsp](https://github.com/winfsp/winfsp).
+
+- (feature) Build a "universal" binary that combines `mkdwarfs`,
+  `dwarfsck`, `dwarfsextract` and `dwarfs` in a single binary.
+  This binary can be used either through symbolic links with
+  the proper names of the tool, or by passing `--tool=<name>`
+  as the first argument on the command line.
+
+- (feature) Bypass the block cache for uncompressed blocks. This
+  saves copying block data to memory unnecessarily and allows us
+  to keep all uncompressed blocks accessible directly through the
+  memory mapping. Partially addresses github #139.
+
+- (feature) Show throughput in the scanning and segmenting
+  phases in `mkdwarfs`.
+
+- (feature) Show how much of a file has been consumed in the
+  segmenting phase. Useful primarily for large files.
+
+- (feature) `dwarfs` and `dwarfsextract` now have options to
+  enable performance monitoring. This can give insight into the
+  latency of various file system operations.
+
+- (feature) Added inode offset cache, which improves `read()`
+  latency for very fragmented files.
+
+- (fix) Use `folly::hardware_concurrency()`. Fixes github #130.
+
+- (fix) Handle `ARCHIVE_FAILED` status from libarchive, which
+  could be triggered by trying to write long path names to old
+  archive formats.
+
+- (fix) Properly handle unicode path truncation.
+
+- (doc) Update file system format documentation to cover headers
+  and section indices.
+
+- (test) Lots of new tools tests.
+
+- (test) Remove dependency on `tar` and `diff` binaries.
+
+- (other) Switch to C++20.
+
 ## Version 0.7.0-RC4 - 2022-12-24
 
 - (feature) Add `--compress-niceness` option to `mkdwarfs`.
