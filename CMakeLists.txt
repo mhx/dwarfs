@@ -482,34 +482,22 @@ add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
-if(NOT WIN32)
-  add_executable(dwarfsuniversal src/universal.cpp)
-endif()
+add_executable(dwarfsuniversal src/universal.cpp)
 
 target_link_libraries(mkdwarfs mkdwarfs_main)
 target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
 target_link_libraries(dwarfsextract dwarfsextract_main)
-if(NOT WIN32)
-  target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
-          dwarfsbench_main dwarfsextract_main)
-  set_target_properties(dwarfsuniversal PROPERTIES
-          RUNTIME_OUTPUT_DIRECTORY universal
-          OUTPUT_NAME dwarfs-universal)
-  foreach(bin mkdwarfs dwarfsck dwarfsextract dwarfsbench)
-    add_custom_command(OUTPUT  universal/${bin}
-                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs universal/${bin}
-                       DEPENDS dwarfsuniversal)
-    list(APPEND SYMLINKS ${CMAKE_CURRENT_BINARY_DIR}/universal/${bin})
-  endforeach()
-endif()
+target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
+        dwarfsbench_main dwarfsextract_main)
+set_target_properties(dwarfsuniversal PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY universal
+        OUTPUT_NAME dwarfs-universal)
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
 list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
-if(NOT WIN32)
-  list(APPEND BINARY_TARGETS dwarfsuniversal)
-endif()
+list(APPEND BINARY_TARGETS dwarfsuniversal)
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
