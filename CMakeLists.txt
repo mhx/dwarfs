@@ -1023,7 +1023,7 @@ add_custom_target(
         fmtlib fmtlib-download fmtlib-install
         googletest-build googletest-download googletest-src
         vcpkg-manifest-install.log
-	dwarfs.exe.manifest dwarfsbench.exe.manifest
+        dwarfs.exe.manifest dwarfsbench.exe.manifest
         dwarfsck.exe.manifest dwarfsextract.exe.manifest
         dwarfs_badfs_test.exe.manifest dwarfs_compat_test.exe.manifest
         dwarfs_test.exe.manifest dwarfs_tools_test.exe.manifest
@@ -1061,7 +1061,10 @@ if(FALSE)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
-  add_custom_target(strip COMMAND strip -s ${BINARY_TARGETS})
+  foreach(tgt ${BINARY_TARGETS})
+    list(APPEND FILES_TO_STRIP $<TARGET_FILE:${tgt}>)
+  endforeach()
+  add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
 endif()
 
 if(NOT $PRJ_VERSION_FULL} STREQUAL "")
