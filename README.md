@@ -29,12 +29,6 @@ A fast high compression read-only file system for Linux and Windows
   - [With EROFS](#with-erofs)
   - [With fuse-archive](#with-fuse-archive)
 
-
-
-TODO: universal binary
-
-
-
 ## Overview
 
 ![Windows Screen Capture](doc/windows.gif?raw=true "DwarFS Windows")
