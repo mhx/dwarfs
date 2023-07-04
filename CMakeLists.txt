@@ -1009,7 +1009,6 @@ add_custom_target(
   DEPENDS clean
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf
-        .ninja_deps .ninja_log build.ninja
         CMakeCache.txt CMakeFiles
         cmake_install.cmake install_manifest.txt
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
@@ -1023,6 +1022,8 @@ add_custom_target(
         thrift universal bin lib man1 man5
         fmtlib fmtlib-download fmtlib-install
         googletest-build googletest-download googletest-src
+        vcpkg-manifest-install.log
+        build.ninja .ninja_deps .ninja_log
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
