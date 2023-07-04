@@ -83,10 +83,16 @@ to disk:
   fully decompressed yet will carry decompressor state along with it, which
   can use a significant amount of additional memory.
 
-- `--log-level=`*name*:
+- `-l`, `--log-level=`*name*:
   Specifiy a logging level.
 
-- `--help`:
+- `--perfmon=`*name*:
+  Enable performance monitoring for the list of comma-separated components.
+  This option is only available if the project was built with performance
+  monitoring enabled. Available components include `fuse`, `filesystem_v2`
+  and `inode_reader_v2`.
+
+- `-h`, `--help`:
   Show program help, including option defaults.
 
 ## AUTHOR

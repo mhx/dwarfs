@@ -143,6 +143,12 @@ options:
   be an integer value. Suffixes `ms`, `s`, `m`, `h` are supported.
   If no suffix is given, the value will be assumed to be in seconds.
 
+- `-o perfmon=`*name*:
+  Enable performance monitoring for the list of comma-separated components.
+  This option is only available if the project was built with performance
+  monitoring enabled. Available components include `fuse`, `filesystem_v2`
+  and `inode_reader_v2`.
+
 There's two particular FUSE options that you'll likely need at some
 point, e.g. when trying to set up an `overlayfs` mount on top of
 a DwarFS image:
