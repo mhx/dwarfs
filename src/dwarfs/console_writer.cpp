@@ -218,7 +218,7 @@ void console_writer::update(const progress& p, bool last) {
         double cur_offs = std::min(p.current_offset.load(), cur_size);
         double cur_frac = cur_size > 0 ? cur_offs / cur_size : 0.0;
 
-        oss << progress_bar(64, cur_frac, pg_mode_ == UNICODE)
+        oss << progress_bar(64, cur_frac, pg_mode_ == UNICODE) << " "
             << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
       }
 
