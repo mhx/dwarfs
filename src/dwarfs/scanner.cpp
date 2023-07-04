@@ -254,7 +254,6 @@ std::string status_string(progress const& p, size_t width) {
       label = "writing: ";
       path = i->any()->path_as_string();
     }
-    // TODO: move to util (shorten_path() or something)
     shorten_path_string(
         path, static_cast<char>(std::filesystem::path::preferred_separator),
         width - label.size());
