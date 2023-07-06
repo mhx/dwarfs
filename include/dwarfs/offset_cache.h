@@ -141,7 +141,7 @@ class basic_offset_cache {
       }
 
       auto ix = index / chunk_index_interval - 1;
-      assert(ix <= first_index_ + offset_.size());
+      assert(ix <= first_index_ + offsets_.size());
 
       if (ix == first_index_ + offsets_.size()) {
         offsets_.push_back(offset);
