@@ -26,10 +26,10 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -106,7 +106,7 @@ class os_access_mock : public os_access {
 
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
-  std::unordered_set<std::filesystem::path> access_fail_set_;
+  std::set<std::filesystem::path> access_fail_set_;
 };
 
 class script_mock : public script {
