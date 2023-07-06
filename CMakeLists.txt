@@ -650,8 +650,13 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visitation.h)
 
 add_custom_command(
+  OUTPUT thrift/lib/thrift
+  COMMAND ${CMAKE_COMMAND} -E make_directory thrift/lib/thrift
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_custom_command(
   OUTPUT ${FROZEN_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
@@ -659,13 +664,19 @@ add_custom_command(
               --gen mstch_cpp2
               frozen.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
           ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
 )
 
 add_custom_command(
+  OUTPUT thrift/dwarfs
+  COMMAND ${CMAKE_COMMAND} -E make_directory thrift/dwarfs
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_custom_command(
   OUTPUT ${METADATA_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/metadata.thrift
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
@@ -673,6 +684,7 @@ add_custom_command(
               --gen mstch_cpp2:frozen2
               metadata.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
           ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
 )
@@ -1006,7 +1018,8 @@ endif(STATIC_BUILD_DO_NOT_USE)
 
 add_custom_target(
   realclean
-  DEPENDS clean
+  COMMAND
+    COMMAND ${CMAKE_MAKE_PROGRAM} clean
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf
         CMakeCache.txt CMakeFiles
@@ -1031,6 +1044,7 @@ add_custom_target(
         install_manifest_dev.txt install_manifest_gmock.txt
         install_manifest_gtest.txt install_manifest_Unspecified.txt
         build.ninja .ninja_deps
+        Makefile
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
