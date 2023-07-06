@@ -49,20 +49,18 @@ class basic_offset_cache {
   class chunk_offsets {
    public:
     chunk_offsets(chunk_index_type total_chunks) {
-      // TODO: we can use an offset as we don't have to cache (0, 0)
-      //       also, we may not have to cache the largest offset
-      //
-      // TODO: potentially add an `open` call to filesystem_v2 and
-      //       use that to cache the last position; this should be
-      //       more efficient as it won't require any mutexes; still
-      //       keep the offset cache, but don't overcomplicate it
-      //       with the "last_*" stuff
       offsets_.reserve(total_chunks / chunk_index_interval - 1);
     }
 
     void update(chunk_index_type first_index,
-                std::span<file_offset_type const> offsets) {
+                std::span<file_offset_type const> offsets,
+                chunk_index_type chunk_index, file_offset_type file_offset,
+                file_offset_type chunk_size) {
       std::lock_guard lock(mx_);
+
+      last_chunk_index_ = chunk_index;
+      last_file_offset_ = file_offset;
+      last_chunk_size_ = chunk_size;
 
       if (first_index + offsets.size() > offsets_.size()) {
         assert(first_index <= offsets_.size());
@@ -72,22 +70,23 @@ class basic_offset_cache {
       }
     }
 
-    void update(updater const& upd) {
-      update(upd.first_index(), upd.offsets());
+    void update(updater const& upd, chunk_index_type chunk_index,
+                file_offset_type file_offset, file_offset_type chunk_size) {
+      update(upd.first_index(), upd.offsets(), chunk_index, file_offset,
+             chunk_size);
     }
-
-    // void set_last(chunk_index_type chunk_index, file_offset_type file_offset)
-    // {
-    //   std::lock_guard lock(mx_);
-    //   last_chunk_index_ = chunk_index;
-    //   last_file_offset_ = file_offset;
-    // }
 
     std::pair<chunk_index_type, file_offset_type>
     find(file_offset_type offset, updater& upd) {
       std::lock_guard lock(mx_);
 
       upd.set_first_index(offsets_.size());
+
+      if (last_file_offset_ <= offset &&
+          offset <= last_file_offset_ + last_chunk_size_) {
+        // this is likely a sequential read
+        return {last_chunk_index_, last_file_offset_};
+      }
 
       if (!offsets_.empty()) {
         chunk_index_type best_index = offsets_.size();
@@ -120,10 +119,11 @@ class basic_offset_cache {
     }
 
    private:
-    // chunk_index_type last_chunk_index_;
-    // file_offset_type last_file_offset_;
-    std::vector<file_offset_type> offsets_;
     std::mutex mutable mx_;
+    chunk_index_type last_chunk_index_{0};
+    file_offset_type last_file_offset_{0};
+    file_offset_type last_chunk_size_{0};
+    std::vector<file_offset_type> offsets_;
   };
 
   using value_type = std::shared_ptr<chunk_offsets>;

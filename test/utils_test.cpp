@@ -213,7 +213,7 @@ find_file_position(cache_type::inode_type const inode,
   }
 
   if (ent) {
-    ent->update(upd);
+    ent->update(upd, chunk_index, chunk_offset, *it);
     cache->set(inode, ent);
   }
 
@@ -241,7 +241,7 @@ TEST(offset_cache, basic) {
     EXPECT_EQ(offset, ref_offset);
 
     EXPECT_EQ(ref_ix + 1, ref_lookups);
-    EXPECT_LE(test_lookups, 5);
+    EXPECT_LE(test_lookups, 2);
 
     EXPECT_EQ(ref_ix, test_ix);
     EXPECT_EQ(ref_off, test_off);

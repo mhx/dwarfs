@@ -37,6 +37,7 @@
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/offset_cache.h"
 #include "dwarfs/performance_monitor.h"
 
 namespace dwarfs {
@@ -46,8 +47,8 @@ namespace {
 /**
  * Offset cache configuration
  *
- * The offset cache is a tiny cache that keeps track of the offset
- * and index of the last chunk that has been read from a file.
+ * The offset cache is a small cache that improves both random
+ * and sequential read speed in large, fragmented files.
  *
  * Due to the way file metadata is organized, accessing a random
  * location inside a file requires iteration over all chunks until
@@ -58,28 +59,31 @@ namespace {
  * linear scan isn't really a problem. For very fragmented files,
  * it can definitely be an issue.
  *
- * So this cache tries to improve the read latency for files with
- * more than `offset_cache_min_chunks` chunks. For a typical file
- * system, that's only about 1% of the files. While iterating the
- * chunks, we keep track of the chunk index and the offset of the
- * current chunk. Once we've finished reading, we store both the
- * index and the offset for the inode in the cache. When the next
- * (likely sequential) read request for the inode arrives, the
- * offset from that request will very likely be larger than the
- * offset found in the cache and so we can just move the iterator
- * ahead without performing a linear scan.
+ * The offset cache saves absolute file offsets every
+ * `offset_cache_chunk_index_interval` chunks, so it'll only be
+ * used for files with at least that many chunks in the first
+ * place. The saved offsets can be used to find a nearby chunk
+ * using binary search instead of a linear scan. From that chunk,
+ * the requested offset can be found using a linear scan.
+ *
+ * For the most common use case, sequential reads, the cache entry
+ * includes the last chunk index along with its absolute offset,
+ * so both the binary search and the linear scan can be completely
+ * avoided when a subsequent read request starts at the end of the
+ * previous read request.
+ *
+ * The `offset_cache_updater_max_inline_offsets` constant defines
+ * how many (offset, index) pairs can be stored "inline" (i.e.
+ * without requiring any memory allocations) by the cache updater
+ * while performing the read request. 4 is plenty.
+ *
+ * Last but not least, `offset_cache_size` defines the number of
+ * inodes that can live in the cache simultaneously. The number
+ * of cached offsets for each inode is not limited.
  */
-constexpr size_t const offset_cache_min_chunks = 64;
+constexpr size_t const offset_cache_chunk_index_interval = 256;
+constexpr size_t const offset_cache_updater_max_inline_offsets = 4;
 constexpr size_t const offset_cache_size = 64;
-
-struct offset_cache_entry {
-  offset_cache_entry(file_off_t off, size_t ix)
-      : file_offset{off}
-      , chunk_index{ix} {}
-
-  file_off_t file_offset;
-  size_t chunk_index;
-};
 
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
@@ -106,11 +110,6 @@ class inode_reader_ final : public inode_reader_v2::impl {
       LOG_INFO << "iovec size p99: "
                << iovec_sizes_.getPercentileEstimate(0.99);
     }
-    if (oc_put_.load() > 0) {
-      LOG_INFO << "offset cache put: " << oc_put_.load();
-      LOG_INFO << "offset cache get: " << oc_get_.load();
-      LOG_INFO << "offset cache hit: " << oc_hit_.load();
-    }
   }
 
   ssize_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
@@ -129,6 +128,11 @@ class inode_reader_ final : public inode_reader_v2::impl {
   size_t num_blocks() const override { return cache_.block_count(); }
 
  private:
+  using offset_cache_type =
+      basic_offset_cache<uint32_t, file_off_t, size_t,
+                         offset_cache_chunk_index_interval,
+                         offset_cache_updater_max_inline_offsets>;
+
   folly::Expected<std::vector<std::future<block_range>>, int>
   read_internal(uint32_t inode, size_t size, file_off_t offset,
                 chunk_range chunks) const;
@@ -143,13 +147,9 @@ class inode_reader_ final : public inode_reader_v2::impl {
   PERFMON_CLS_TIMER_DECL(read)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
   PERFMON_CLS_TIMER_DECL(readv_future)
-  mutable folly::EvictingCacheMap<uint32_t, offset_cache_entry> offset_cache_;
-  mutable std::mutex offset_cache_mutex_;
+  mutable offset_cache_type offset_cache_;
   mutable folly::Histogram<size_t> iovec_sizes_;
   mutable std::mutex iovec_sizes_mutex_;
-  mutable std::atomic<size_t> oc_put_{0};
-  mutable std::atomic<size_t> oc_get_{0};
-  mutable std::atomic<size_t> oc_hit_{0};
 };
 
 template <typename LoggerPolicy>
@@ -180,28 +180,21 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
 
   auto it = chunks.begin();
   auto end = chunks.end();
+
+  size_t it_index = 0;
   file_off_t it_offset = 0;
 
+  offset_cache_type::value_type oc_ent;
+  offset_cache_type::updater oc_upd;
+
   // Check if we can find this inode in the offset cache
-  if (offset > 0 && chunks.size() >= offset_cache_min_chunks) {
-    ++oc_get_;
+  if (offset > 0 && chunks.size() >= offset_cache_type::chunk_index_interval) {
+    oc_ent = offset_cache_.find(inode, chunks.size());
 
-    std::optional<offset_cache_entry> oce;
+    std::tie(it_index, it_offset) = oc_ent->find(offset, oc_upd);
 
-    {
-      std::lock_guard lock(offset_cache_mutex_);
-
-      if (auto oci = offset_cache_.find(inode); oci != offset_cache_.end()) {
-        oce = oci->second;
-      }
-    }
-
-    if (oce && oce->file_offset <= offset) {
-      std::advance(it, oce->chunk_index);
-      offset -= oce->file_offset;
-      it_offset = oce->file_offset;
-      ++oc_hit_;
-    }
+    std::advance(it, it_index);
+    offset -= it_offset;
   }
 
   // search for the first chunk that contains data from this request
@@ -215,6 +208,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     offset -= chunksize;
     it_offset += chunksize;
     ++it;
+
+    oc_upd.add_offset(++it_index, it_offset);
   }
 
   if (it == end) {
@@ -243,15 +238,9 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     num_read += copysize;
 
     if (num_read == size) {
-      // Store in offset cache if we have enough chunks
-      if (chunks.size() >= offset_cache_min_chunks) {
-        offset_cache_entry oce(it_offset, std::distance(chunks.begin(), it));
-        ++oc_put_;
-
-        {
-          std::lock_guard lock(offset_cache_mutex_);
-          offset_cache_.set(inode, oce);
-        }
+      if (oc_ent) {
+        oc_ent->update(oc_upd, it_index, it_offset, chunksize);
+        offset_cache_.set(inode, std::move(oc_ent));
       }
 
       break;
@@ -260,6 +249,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     offset = 0;
     it_offset += chunksize;
     ++it;
+
+    oc_upd.add_offset(++it_index, it_offset);
   }
 
   return ranges;
