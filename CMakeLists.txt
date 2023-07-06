@@ -650,8 +650,9 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visitation.h)
 
 add_custom_command(
-  OUTPUT thrift/lib/thrift
+  OUTPUT thrift/lib/thrift/_keep
   COMMAND ${CMAKE_COMMAND} -E make_directory thrift/lib/thrift
+  COMMAND ${CMAKE_COMMAND} -E touch thrift/lib/thrift/_keep
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -664,14 +665,15 @@ add_custom_command(
               --gen mstch_cpp2
               frozen.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/_keep
           ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
 )
 
 add_custom_command(
-  OUTPUT thrift/dwarfs
+  OUTPUT thrift/dwarfs/_keep
   COMMAND ${CMAKE_COMMAND} -E make_directory thrift/dwarfs
+  COMMAND ${CMAKE_COMMAND} -E touch thrift/dwarfs/_keep
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -684,7 +686,7 @@ add_custom_command(
               --gen mstch_cpp2:frozen2
               metadata.thrift
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
           ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
 )
