@@ -586,27 +586,33 @@ and excluded files without building an actual file system.
 
 Internally, `mkdwarfs` runs in two completely separate phases. The first
 phase is scanning the input data, the second phase is building the file
-system.
+system. Both phases try to do as little work as possible, and try to run
+as much of the remaining work as possible in parallel, while still making
+sure that the file system images produced are reproducible (see the
+`--order` option documentation for details on reproducible images).
 
 ### Scanning
 
 The scanning process is driven by the main thread which traverses the
 input directory recursively and builds an internal representation of the
 directory structure. Traversal is breadth-first and single-threaded.
+Filter rules as specified by `--filter` are handled immediately during
+traversal.
 
 When a regular file is discovered, its hardlink count is checked and
 if greater than one, its inode is looked up in a hardlink cache. Another
 lookup is performed to see if this is the first file/inode of a particular
 size. If it's the first file, we just keep track of the file. If it's not
-the first file, we add a jobs to a pool of `--num-scanner-workers` worker
-threads to compute a hash (determined by the the `--file-hash` option)
-of the file. We also add a hash-computing job for the first file. These
-hashes will be used for de-duplicating files. If `--order` is set to one
-of the similarity order modes, for each unique file, a further job is
-added to the pool to compute a similarity hash. This happens immediately
-for each inode of a unique size, but it is guaranteed that duplicates
-don't trigger another similarity hash scan (the implementation for this
-is indeed a bit tricky).
+the first file, we add a job to a pool of `--num-scanner-workers` worker
+threads to compute a hash (which hash function is used is determined by
+the the `--file-hash` option) of the file. We also add a hash-computing
+job for the first file we found with this size earlier. These hashes will
+then be used for de-duplicating files. If `--order` is set to one of the
+similarity order modes, for each unique file, a further job is added to
+the pool to compute a similarity hash. This happens immediately for each
+inode of a unique size, but it is guaranteed that duplicates don't trigger
+another similarity hash scan (the implementation for this is actually a bit
+tricky).
 
 Once all file contents have been scanned by the worker threads, all
 unique files will be assigned an internal inode number.
@@ -620,11 +626,12 @@ files in the image.
 ### Building
 
 Building the filesystem image uses a `--num-workers` separate threads.
+
 If `nilsimsa` ordering is selected, the ordering algorithm runs in its
-own thread and continuously emits file inodes. These will be picked
-up by the segmenter thread, which scans the inode contents using a
-cyclic hash and determines overlapping segments between previously
-written data and new incoming data. The segmenter can look at up to
+own thread and continuously emits file inodes. These will be picked up
+by the segmenter thread, which scans the inode contents using a cyclic
+hash and determines overlapping segments between previously written
+data and new incoming data. The segmenter will look at up to
 `--max-lookback-block` previous filesystem blocks to find overlaps.
 
 Once the segmenter has produced enough data to fill a filesystem
@@ -639,7 +646,7 @@ thread that will ultimately produce the final filesystem image.
 When all data has been segmented, the filesystem metadata is being
 finalized and frozen into a compact representation. If metadata
 compression is enabled, the metadata is sent to the worker thread
-pool.
+pool for compression.
 
 When using different ordering schemes, the file inodes will be
 either sorted upfront, or just sent to the segmenter in the order
