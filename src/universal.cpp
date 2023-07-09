@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -28,6 +29,10 @@
 
 #include <folly/String.h>
 #include <folly/gen/String.h>
+
+#ifdef _WIN32
+#include <delayimp.h>
+#endif
 
 #include "dwarfs/error.h"
 #include "dwarfs/tool.h"
@@ -50,6 +55,23 @@ std::string to_narrow_string(sys_char const* str) {
 }
 
 #ifdef _WIN32
+FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
+  switch (dliNotify) {
+  case dliFailLoadLib:
+    std::cerr << "failed to load " << pdli->szDll << "\n";
+    break;
+
+  case dliFailGetProc:
+    std::cerr << "failed to load symbol from " << pdli->szDll << "\n";
+    break;
+
+  default:
+    return NULL;
+  }
+
+  ::exit(1);
+}
+
 int dwarfs_main_helper(int argc, sys_char** argv) {
   std::vector<std::string> argv_strings;
   std::vector<char*> argv_copy;
@@ -78,6 +100,10 @@ std::map<std::string_view, int (*)(int, sys_char**)> const functions{
 };
 
 } // namespace
+
+#ifdef _WIN32
+extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
+#endif
 
 int SYS_MAIN(int argc, sys_char** argv) {
   if (argc > 1) {
