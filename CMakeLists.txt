@@ -1093,11 +1093,63 @@ if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
   add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
 endif()
 
-if(NOT $PRJ_VERSION_FULL} STREQUAL "")
-  if(WIN32)
-    set(CPACK_GENERATOR "NSIS;ZIP;7Z")
+if(STATIC_BUILD_DO_NOT_USE OR WIN32)
+  find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
+
+  set(UNIVERSAL_PACKED
+          "dwarfs-universal-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${CMAKE_EXECUTABLE_SUFFIX}")
+
+  if(PRJ_GIT_RELEASE_TAG)
+    set(UPX_ARGS "--ultra-brute --best")
   else()
-    set(CPACK_GENERATOR "TGZ")
+    set(UPX_ARGS "")
+  endif()
+
+  add_custom_command(
+    OUTPUT ${UNIVERSAL_PACKED}
+    COMMAND ${UPX_EXE} ${UPX_ARGS} -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+
+  add_custom_target(universal_upx DEPENDS ${UNIVERSAL_PACKED})
+
+  if(PRJ_GIT_RELEASE_TAG)
+    set(ARTIFACTS_SUBDIR "releases")
+  else()
+    set(ARTIFACTS_SUBDIR "builds")
+  endif()
+
+  set(ARTIFACTS_FULL_PATH "${DWARFS_ARTIFACTS_DIR}/${ARTIFACTS_SUBDIR}/${PRJ_VERSION_FULL}")
+
+  if(WIN32)
+    set(PACKAGE_EXT ".7z")
+  else()
+    set(PACKAGE_EXT ".tar.xz")
+  endif()
+
+  add_custom_target(copy_artifacts
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_PACKED} ${ARTIFACTS_FULL_PATH}
+  )
+
+  add_custom_target(copy_source_artifacts
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
+  )
+endif()
+
+if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
+  if(DWARFS_GIT_BUILD)
+    configure_file("${PROJECT_SOURCE_DIR}/cmake/dwarfs_install.cmake.in" dwarfs_install.cmake @ONLY)
+    set(CPACK_INSTALL_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/dwarfs_install.cmake")
+  endif()
+
+  if(WIN32)
+    # set(CPACK_GENERATOR "NSIS;ZIP;7Z")
+    set(CPACK_GENERATOR "7Z")
+  else()
+    set(CPACK_GENERATOR "TXZ")
   endif()
   set(CPACK_SOURCE_GENERATOR "${CPACK_GENERATOR}")
   set(CPACK_PACKAGE_VERSION_MAJOR "${PRJ_VERSION_MAJOR}")
@@ -1116,6 +1168,7 @@ if(NOT $PRJ_VERSION_FULL} STREQUAL "")
                                 "${CMAKE_SOURCE_DIR}/@" "/\\." ".*~$")
   set(CPACK_VERBATIM_VARIABLES YES)
   set(CPACK_STRIP_FILES YES)
+  set(CPACK_ARCHIVE_THREADS 0)
 
   include(CPack)
 endif()
