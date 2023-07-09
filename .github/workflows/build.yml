@@ -32,6 +32,7 @@ jobs:
         with:
           submodules: 'true'
           fetch-depth: '0'
+          ref: ${{ github.ref }}
 
       - name: Set MSVC Dev Environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -101,6 +102,7 @@ jobs:
         with:
           submodules: 'true'
           fetch-depth: '0'
+          ref: ${{ github.ref }}
 
       - name: Build Docker Image
         run: |
