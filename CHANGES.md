@@ -1,5 +1,28 @@
 # Change Log
 
+## Version 0.7.0-RC6 - 2023-07-09
+
+- (feature) Support delayed loading of WinFsp DLL for universal
+  binary. This makes the `mkdwarfs`, `dwarfsck` and `dwarfsextract`
+  tools of the universal binary usable without the WinFsp DLL.
+
+- (perf) Optimized the offset cache to improve random read
+  latency as well as sequential read latency. This gave a
+  [100x higher throughput](https://github.com/mhx/dwarfs/issues/142)
+  for a case where DwarFS was used to compress raw file system
+  images. Fixes github #142.
+
+- (fix) Fix building with `make` instead of `ninja`. Also fix
+  builing in `Debug` mode. Fixes github #146.
+
+- (fix) Fix `ninja clean`.
+
+- (fix) Fix symlink creation for `mount.dwarfs`/`mount.dwarfs2`.
+
+- (other) Added [CI pipeline](https://github.com/mhx/dwarfs/actions).
+
+- (other) Don't write versioning files to source tree.
+
 ## Version 0.7.0-RC5 - 2023-07-04
 
 - (feature) Windows support. All tools can now be built and run
