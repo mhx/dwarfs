@@ -6,8 +6,6 @@
 /man/*.1.html
 *.log
 /.gdb_history
-/include/dwarfs/version.h
-/src/dwarfs/version.cpp
 
 *~
 .*.swp

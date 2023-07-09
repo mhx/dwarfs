@@ -430,9 +430,14 @@ list(
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
-  src/dwarfs/version.cpp
   src/dwarfs/wcwidth.c
   src/dwarfs/worker_group.cpp)
+
+if(DWARFS_GIT_BUILD)
+  list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
+else()
+  list(APPEND LIBDWARFS_SRC src/dwarfs/version.cpp)
+endif()
 
 if(WITH_PYTHON)
   list(APPEND LIBDWARFS_SRC src/dwarfs/python_script.cpp)
@@ -456,6 +461,10 @@ endif()
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_tool src/dwarfs/tool.cpp)
+
+if(DWARFS_GIT_BUILD)
+  target_include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
+endif()
 
 target_compile_definitions(
   dwarfs_tool PRIVATE PRJ_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
@@ -1026,6 +1035,7 @@ add_custom_target(
     ${CMAKE_COMMAND} -E rm -rf
         CMakeCache.txt CMakeFiles
         cmake_install.cmake install_manifest.txt
+        dwarfs_install.cmake package_version.cmake
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
         CTestTestfile.cmake Testing
         "dwarfs_badfs_test[1]_include.cmake"
@@ -1034,7 +1044,7 @@ add_custom_target(
         "dwarfs_tools_test[1]_include.cmake"
         "dwarfs_utils_test[1]_include.cmake"
         fbthrift folly zstd libarchive
-        thrift universal bin lib man1 man5
+        include src thrift universal bin lib man1 man5
         fmtlib fmtlib-download fmtlib-install
         googletest-build googletest-download googletest-src
         vcpkg-manifest-install.log
