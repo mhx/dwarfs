@@ -5,7 +5,7 @@ set -ex
 export CTEST_PARALLEL_LEVEL=$(nproc)
 export CCACHE_DIR=/ccache
 
-cd $HOME
+cd "$HOME"
 
 rm -f dwarfs
 ln -s /workspace dwarfs
@@ -100,7 +100,7 @@ fi
 $BUILD_TOOL realclean
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  cd $HOME
+  cd "$HOME"
 
   VERSION=$(git -C /workspace describe --tags --match "v*" --dirty)
   VERSION=${VERSION:1}
@@ -108,11 +108,11 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   rm -rf dwarfs-*
   rm -f dwarfs
 
-  mv build/dwarfs-${VERSION}.tar.xz .
+  mv "build/dwarfs-${VERSION}.tar.xz" .
   rm -rf build
 
-  tar xvf dwarfs-${VERSION}.tar.xz
-  ln -s dwarfs-${VERSION} dwarfs
+  tar xvf "dwarfs-${VERSION}.tar.xz"
+  ln -s "dwarfs-${VERSION}" dwarfs
 
   mkdir build
   cd build
