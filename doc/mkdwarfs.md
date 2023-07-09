@@ -565,12 +565,14 @@ separators.
 Patterns also support character classes.
 
 Here's an example rule set:
+
 ```
 + File/Spec/[EM]*.pm
 - unicore/**.pl
 + *.pl
 - *
 ```
+
 This set of rules will include all files matching `File/Spec/[EM]*.pm`
 anywhere in the hierarchy. It will also include all `*.pl` files, except
 for those anywhere below a `unicore` directory. The last rule excludes

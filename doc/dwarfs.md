@@ -170,7 +170,9 @@ This should be relatively straightforward if you're already familiar
 with adding other FUSE file systems to `/etc/fstab`. An entry looks
 like this:
 
-    dwarfs#/path/to/image.dwarfs /mnt/mountpoint fuse noauto,defaults,user,cachesize=1g 0 0
+```
+dwarfs#/path/to/image.dwarfs /mnt/mountpoint fuse noauto,defaults,user,cachesize=1g 0 0
+```
 
 The first bit before the `#` tells `mount` to look for `mount.dwarfs`,
 which is installed as a symbolic link to the DwarFS FUSE driver. The
