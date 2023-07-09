@@ -2,7 +2,6 @@
 
 set -ex
 
-export CTEST_PARALLEL_LEVEL=$(nproc)
 export CCACHE_DIR=/ccache
 
 cd "$HOME"
@@ -88,7 +87,7 @@ cmake ../dwarfs/ $CMAKE_ARGS
 
 $BUILD_TOOL
 
-$BUILD_TOOL test
+ctest --output-on-failure -j$(nproc)
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   $BUILD_TOOL package_source
@@ -123,7 +122,8 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
   $BUILD_TOOL
 
-  $BUILD_TOOL test
+  ctest --output-on-failure -j$(nproc)
+
   $BUILD_TOOL strip
   $BUILD_TOOL package
   $BUILD_TOOL universal_upx
