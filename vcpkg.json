@@ -18,6 +18,7 @@
     "libarchive",
     "libevent",
     "openssl",
+    "pkgconf",
     "utfcpp",
     "xxhash",
     "zstd"
