@@ -177,8 +177,12 @@ A good starting point for apt-based systems is probably:
 
 ```
 $ apt install \
+    gcc \
     g++ \
     clang \
+    git \
+    ccache \
+    ninja-build \
     cmake \
     make \
     bison \
@@ -187,26 +191,33 @@ $ apt install \
     fuse3 \
     pkg-config \
     binutils-dev \
+    libacl1-dev \
     libarchive-dev \
+    libbenchmark-dev \
+    libboost-chrono-dev \
     libboost-context-dev \
     libboost-filesystem-dev \
+    libboost-iostreams-dev \
     libboost-program-options-dev \
     libboost-python-dev \
     libboost-regex-dev \
     libboost-system-dev \
     libboost-thread-dev \
+    libbrotli-dev \
     libevent-dev \
     libjemalloc-dev \
     libdouble-conversion-dev \
     libiberty-dev \
     liblz4-dev \
     liblzma-dev \
+    libmagic-dev \
     libssl-dev \
     libunwind-dev \
     libdwarf-dev \
     libelf-dev \
     libfmt-dev \
     libfuse3-dev \
+    libutfcpp-dev \
     libgoogle-glog-dev
 ```
 
