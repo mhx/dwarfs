@@ -906,7 +906,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
       std::vector<std::string_view> chmod_exprs;
       boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
-      auto mask = ::umask(0);
+      auto mask = ::umask(0077);
       ::umask(mask);
 
       for (auto expr : chmod_exprs) {
