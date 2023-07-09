@@ -529,7 +529,7 @@ if(FUSE3_FOUND OR WINFSP)
   if(NOT WIN32)
     add_custom_command(OUTPUT  mount.dwarfs
                        COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
-                       DEPENDS dwarfs)
+                       DEPENDS dwarfs-bin)
     list(APPEND SYMLINKS mount.dwarfs)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
   endif()
@@ -555,7 +555,7 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
   add_custom_command(OUTPUT  mount.dwarfs2
                      COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
-                     DEPENDS dwarfs2)
+                     DEPENDS dwarfs2-bin)
   list(APPEND SYMLINKS mount.dwarfs2)
   install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
