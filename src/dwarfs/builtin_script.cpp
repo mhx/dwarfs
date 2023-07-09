@@ -56,7 +56,7 @@ struct filter_rule {
 template <typename LoggerPolicy>
 class builtin_script_ : public builtin_script::impl {
  public:
-  builtin_script_(logger& lgr);
+  explicit builtin_script_(logger& lgr);
 
   void set_root_path(std::filesystem::path const& path) override;
   void add_filter_rule(std::string const& rule) override;

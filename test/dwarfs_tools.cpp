@@ -678,6 +678,7 @@ TEST(tools, end_to_end) {
 
     for (unsigned bitmask = 0; bitmask < combinations; ++bitmask) {
       std::vector<std::string> args;
+#ifndef _WIN32
       bool enable_nlink{false};
       bool readonly{false};
 
@@ -693,6 +694,7 @@ TEST(tools, end_to_end) {
           args.push_back(opt);
         }
       }
+#endif
 
       {
         driver_runner runner(driver, image, mountpoint, args);

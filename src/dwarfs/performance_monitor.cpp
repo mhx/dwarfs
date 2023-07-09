@@ -114,7 +114,7 @@ class performance_monitor_impl : public performance_monitor {
   using timer_id = performance_monitor::timer_id;
   using time_type = performance_monitor::time_type;
 
-  performance_monitor_impl(std::unordered_set<std::string> enabled_namespaces)
+  explicit performance_monitor_impl(std::unordered_set<std::string> enabled_namespaces)
       : timebase_{get_timebase()}
       , enabled_namespaces_{std::move(enabled_namespaces)} {}
 

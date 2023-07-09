@@ -45,7 +45,7 @@ std::unordered_set<std::string> supported_algorithms{
 
 class checksum_evp : public checksum::impl {
  public:
-  checksum_evp(::EVP_MD const* evp)
+  explicit checksum_evp(::EVP_MD const* evp)
       : context_(::EVP_MD_CTX_new())
       , dig_size_(::EVP_MD_size(evp)) {
     DWARFS_CHECK(::EVP_DigestInit(context_, evp), "EVP_DigestInit() failed");
