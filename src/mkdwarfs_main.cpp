@@ -906,8 +906,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
       std::vector<std::string_view> chmod_exprs;
       boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
-      auto mask = ::umask(0077);
-      ::umask(mask);
+
+      // I'm pretty certain these warnings by Flawfinder are false positives.
+      // After all, we're just doing a no-op by re-setting the original value
+      // in order to read it.
+      auto mask = ::umask(0077); /* Flawfinder: ignore */
+      ::umask(mask);             /* Flawfinder: ignore */
 
       for (auto expr : chmod_exprs) {
         bs->add_transformer(create_chmod_transformer(expr, mask));
