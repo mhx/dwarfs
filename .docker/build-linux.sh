@@ -83,6 +83,7 @@ fi
 CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
+# shellcheck disable=SC2086
 cmake ../dwarfs/ $CMAKE_ARGS
 
 $BUILD_TOOL
@@ -118,6 +119,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
 
+  # shellcheck disable=SC2086
   cmake ../dwarfs/ $CMAKE_ARGS
 
   $BUILD_TOOL
