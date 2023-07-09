@@ -589,11 +589,11 @@ if(WITH_TESTS)
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
        dwarfs_tools_test dwarfs_utils_test)
 
-  gtest_discover_tests(dwarfs_test)
-  gtest_discover_tests(dwarfs_compat_test)
-  gtest_discover_tests(dwarfs_badfs_test)
-  gtest_discover_tests(dwarfs_tools_test)
-  gtest_discover_tests(dwarfs_utils_test)
+  gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_badfs_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
