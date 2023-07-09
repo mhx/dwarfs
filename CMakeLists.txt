@@ -886,7 +886,7 @@ if(WITH_PYTHON)
   target_link_libraries(dwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
 endif()
 
-foreach(tgt ${BINARY_TARGETS})
+foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   target_link_libraries(${tgt} dwarfs dwarfs_tool)
   if(USE_JEMALLOC)
