@@ -1101,9 +1101,9 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
           "dwarfs-universal-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${CMAKE_EXECUTABLE_SUFFIX}")
 
   if(PRJ_GIT_RELEASE_TAG)
-    set(UPX_ARGS "--ultra-brute --best")
+    set(UPX_ARGS --ultra-brute --best)
   else()
-    set(UPX_ARGS "")
+    set(UPX_ARGS)
   endif()
 
   add_custom_command(
