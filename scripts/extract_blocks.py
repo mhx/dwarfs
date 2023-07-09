@@ -50,7 +50,7 @@ with open(image, "rb") as image:
             "<6sBB32s8sLHHQ", header
         )
         if ident != b"DWARFS":
-            print(f"error: expected dwarfs header")
+            print("error: expected dwarfs header")
             raise SystemExit(1)
         if sectype not in sectypes:
             print(f"error: unexpected section type ({sectype})")
