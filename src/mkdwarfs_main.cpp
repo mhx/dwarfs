@@ -423,8 +423,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                         (from(hash_list) | unsplit(", ")) + ")";
 
   // clang-format off
-  po::options_description opts("Command line options");
-  opts.add_options()
+  po::options_description basic_opts("Options");
+  basic_opts.add_options()
     ("input,i",
         po_sys_value<sys_string>(&path_str),
         "path to root directory or source filesystem")
@@ -440,6 +440,17 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("compress-level,l",
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
+    ("log-level",
+        po::value<std::string>(&log_level_str)->default_value("info"),
+        "log level (error, warn, info, debug, trace)")
+    ("help,h",
+        "output help message and exit")
+    ("long-help,H",
+        "output full help message and exit")
+    ;
+
+  po::options_description advanced_opts("Advanced options");
+  advanced_opts.add_options()
     ("block-size-bits,S",
         po::value<unsigned>(&cfg.block_size_bits),
         "block size bits (size = 2^arg bits)")
@@ -452,56 +463,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers),
         "number of scanner (hashing) worker threads")
-    ("max-lookback-blocks,B",
-        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
-        "how many blocks to scan for segments")
-    ("window-size,W",
-        po::value<unsigned>(&cfg.blockhash_window_size),
-        "window sizes for block hashing")
-    ("window-step,w",
-        po::value<unsigned>(&cfg.window_increment_shift),
-        "window step (as right shift of size)")
-    ("bloom-filter-size",
-        po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4),
-        "bloom filter size (2^N*values bits)")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
-    ("compression,C",
-        po::value<std::string>(&compression),
-        "block compression algorithm")
-    ("schema-compression",
-        po::value<std::string>(&schema_compression),
-        "metadata schema compression algorithm")
-    ("metadata-compression",
-        po::value<std::string>(&metadata_compression),
-        "metadata compression algorithm")
-    ("pack-metadata,P",
-        po::value<std::string>(&pack_metadata)->default_value("auto"),
-        "pack certain metadata elements (auto, all, none, chunk_table, "
-        "directories, shared_files, names, names_index, symlinks, "
-        "symlinks_index, force, plain)")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
-    ("set-owner",
-        po::value<uint16_t>(&uid),
-        "set owner (uid) for whole file system")
-    ("set-group",
-        po::value<uint16_t>(&gid),
-        "set group (gid) for whole file system")
-    ("set-time",
-        po::value<std::string>(&timestamp),
-        "set timestamp for whole file system (unixtime or 'now')")
-    ("keep-all-times",
-        po::value<bool>(&options.keep_all_times)->zero_tokens(),
-        "save atime and ctime in addition to mtime")
-    ("time-resolution",
-        po::value<std::string>(&time_resolution)->default_value("sec"),
-        resolution_desc.c_str())
-    ("chmod",
-        po::value<std::string>(&chmod_str),
-        "recursively apply permission changes")
     ("order",
         po::value<std::string>(&order),
         order_desc.c_str())
@@ -513,15 +480,19 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::value<std::string>(&script_arg),
         "Python script for customization")
 #endif
-    ("filter,F",
-        po_sys_value<std::vector<sys_string>>(&filter)->multitoken(),
-        "add filter rule")
-    ("debug-filter",
-        po::value<std::string>(&debug_filter)->implicit_value("all"),
-        debug_filter_desc.c_str())
-    ("remove-empty-dirs",
-        po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
-        "remove empty directories in file system")
+    ("file-hash",
+        po::value<std::string>(&file_hash_algo)->default_value("xxh3-128"),
+        file_hash_desc.c_str())
+    ("progress",
+        po::value<std::string>(&progress_mode)->default_value(default_progress_mode),
+        progress_desc.c_str())
+    ("no-progress",
+        po::value<bool>(&no_progress)->zero_tokens(),
+        "don't show progress")
+    ;
+
+  po::options_description filesystem_opts("File system options");
+  filesystem_opts.add_options()
     ("with-devices",
         po::value<bool>(&options.with_devices)->zero_tokens(),
         "include block and character devices")
@@ -538,24 +509,89 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
+    ;
+
+  po::options_description segmenter_opts("Segmenter options");
+  segmenter_opts.add_options()
+    ("max-lookback-blocks,B",
+        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
+        "how many blocks to scan for segments")
+    ("window-size,W",
+        po::value<unsigned>(&cfg.blockhash_window_size),
+        "window sizes for block hashing")
+    ("window-step,w",
+        po::value<unsigned>(&cfg.window_increment_shift),
+        "window step (as right shift of size)")
+    ("bloom-filter-size",
+        po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4),
+        "bloom filter size (2^N*values bits)")
+    ;
+
+  po::options_description compressor_opts("Compressor options");
+  compressor_opts.add_options()
+    ("compression,C",
+        po::value<std::string>(&compression),
+        "block compression algorithm")
+    ("schema-compression",
+        po::value<std::string>(&schema_compression),
+        "metadata schema compression algorithm")
+    ("metadata-compression",
+        po::value<std::string>(&metadata_compression),
+        "metadata compression algorithm")
+    ;
+
+  po::options_description filter_opts("Filter options");
+  filter_opts.add_options()
+    ("filter,F",
+        po_sys_value<std::vector<sys_string>>(&filter)->multitoken(),
+        "add filter rule")
+    ("debug-filter",
+        po::value<std::string>(&debug_filter)->implicit_value("all"),
+        debug_filter_desc.c_str())
+    ("remove-empty-dirs",
+        po::value<bool>(&options.remove_empty_dirs)->zero_tokens(),
+        "remove empty directories in file system")
+    ;
+
+  po::options_description metadata_opts("Metadata options");
+  metadata_opts.add_options()
+    ("set-owner",
+        po::value<uint16_t>(&uid),
+        "set owner (uid) for whole file system")
+    ("set-group",
+        po::value<uint16_t>(&gid),
+        "set group (gid) for whole file system")
+    ("chmod",
+        po::value<std::string>(&chmod_str),
+        "recursively apply permission changes")
     ("no-create-timestamp",
         po::value<bool>(&options.no_create_timestamp)->zero_tokens(),
         "don't add create timestamp to file system")
-    ("file-hash",
-        po::value<std::string>(&file_hash_algo)->default_value("xxh3-128"),
-        file_hash_desc.c_str())
-    ("log-level",
-        po::value<std::string>(&log_level_str)->default_value("info"),
-        "log level (error, warn, info, debug, trace)")
-    ("progress",
-        po::value<std::string>(&progress_mode)->default_value(default_progress_mode),
-        progress_desc.c_str())
-    ("no-progress",
-        po::value<bool>(&no_progress)->zero_tokens(),
-        "don't show progress")
-    ("help,h",
-        "output help message and exit");
+    ("set-time",
+        po::value<std::string>(&timestamp),
+        "set timestamp for whole file system (unixtime or 'now')")
+    ("keep-all-times",
+        po::value<bool>(&options.keep_all_times)->zero_tokens(),
+        "save atime and ctime in addition to mtime")
+    ("time-resolution",
+        po::value<std::string>(&time_resolution)->default_value("sec"),
+        resolution_desc.c_str())
+    ("pack-metadata,P",
+        po::value<std::string>(&pack_metadata)->default_value("auto"),
+        "pack certain metadata elements (auto, all, none, chunk_table, "
+        "directories, shared_files, names, names_index, symlinks, "
+        "symlinks_index, force, plain)")
+    ;
   // clang-format on
+
+  po::options_description opts;
+  opts.add(basic_opts)
+      .add(advanced_opts)
+      .add(filter_opts)
+      .add(segmenter_opts)
+      .add(compressor_opts)
+      .add(filesystem_opts)
+      .add(metadata_opts);
 
   po::variables_map vm;
 
@@ -580,8 +616,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     return 1;
   }
 
-  if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
-      (!vm.count("output") and !vm.count("debug-filter"))) {
+  auto const usage = "Usage: mkdwarfs [OPTIONS...]\n";
+
+  if (vm.count("long-help")) {
     size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, l.data_compression.size());
@@ -592,7 +629,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    std::cout << tool_header("mkdwarfs") << opts << "\n"
+    std::cout << tool_header("mkdwarfs") << usage << opts << "\n"
               << "Compression level defaults:\n"
               << "  " << sep << "\n"
               << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
@@ -630,6 +667,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     std::cout << "\n";
 
+    return 0;
+  }
+
+  if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
+      (!vm.count("output") and !vm.count("debug-filter"))) {
+    std::cout << tool_header("mkdwarfs") << usage << "\n" << basic_opts << "\n";
     return 0;
   }
 
