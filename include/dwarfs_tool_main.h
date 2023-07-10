@@ -35,6 +35,6 @@ int mkdwarfs_main(int argc, sys_char** argv);
 int dwarfsck_main(int argc, sys_char** argv);
 int dwarfsextract_main(int argc, sys_char** argv);
 int dwarfsbench_main(int argc, sys_char** argv);
-int dwarfs_main(int argc, char** argv);
+int dwarfs_main(int argc, sys_char** argv);
 
 } // namespace dwarfs

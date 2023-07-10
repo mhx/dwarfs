@@ -29,6 +29,7 @@
 
 #include <folly/String.h>
 #include <folly/gen/String.h>
+#include <folly/portability/Windows.h>
 
 #ifdef _WIN32
 #include <delayimp.h>
@@ -36,23 +37,12 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/tool.h"
+#include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
 namespace {
 
 using namespace dwarfs;
-
-std::string to_narrow_string(sys_char const* str) {
-#ifdef _WIN32
-  std::wstring_view view(str);
-  std::string rv(view.size(), 0);
-  std::transform(view.begin(), view.end(), rv.begin(),
-                 [](sys_char c) { return static_cast<char>(c); });
-  return rv;
-#else
-  return std::string(str);
-#endif
-}
 
 #ifdef _WIN32
 FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
@@ -71,20 +61,6 @@ FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
 
   ::exit(1);
 }
-
-int dwarfs_main_helper(int argc, sys_char** argv) {
-  std::vector<std::string> argv_strings;
-  std::vector<char*> argv_copy;
-  argv_strings.reserve(argc);
-  argv_copy.reserve(argc);
-
-  for (int i = 0; i < argc; ++i) {
-    argv_strings.push_back(to_narrow_string(argv[i]));
-    argv_copy.push_back(argv_strings.back().data());
-  }
-
-  return dwarfs_main(argc, argv_copy.data());
-}
 #endif
 
 #ifdef _WIN32
@@ -94,11 +70,7 @@ int dwarfs_main_helper(int argc, sys_char** argv) {
 #endif
 
 std::map<std::string_view, int (*)(int, sys_char**)> const functions{
-#ifdef _WIN32
-    {"dwarfs", &dwarfs_main_helper},
-#else
     {"dwarfs", &dwarfs_main},
-#endif
     {"mkdwarfs", &mkdwarfs_main},
     {"dwarfsck", &dwarfsck_main},
     {"dwarfsextract", &dwarfsextract_main},
@@ -113,7 +85,7 @@ extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
 
 int SYS_MAIN(int argc, sys_char** argv) {
   if (argc > 1) {
-    auto tool_arg = to_narrow_string(argv[1]);
+    auto tool_arg = sys_string_to_string(argv[1]);
     if (tool_arg.starts_with("--tool=")) {
       if (auto it = functions.find(tool_arg.substr(7)); it != functions.end()) {
         std::vector<sys_char*> argv_copy;

@@ -993,7 +993,8 @@ int option_hdl(void* data, char const* arg, int key,
       return 1;
     }
 
-    opts->fsimage = std::filesystem::canonical(std::filesystem::path(arg));
+    opts->fsimage = std::filesystem::canonical(
+        std::filesystem::path(reinterpret_cast<char8_t const*>(arg)));
 
     return 0;
 
@@ -1203,8 +1204,23 @@ void load_filesystem(dwarfs_userdata& userdata) {
   ti << "file system initialized";
 }
 
-int dwarfs_main(int argc, char** argv) {
+int dwarfs_main(int argc, sys_char** argv) {
+#ifdef _WIN32
+  std::vector<std::string> argv_strings;
+  std::vector<char*> argv_copy;
+  argv_strings.reserve(argc);
+  argv_copy.reserve(argc);
+
+  for (int i = 0; i < argc; ++i) {
+    argv_strings.push_back(sys_string_to_string(argv[i]));
+    argv_copy.push_back(argv_strings.back().data());
+  }
+
+  struct fuse_args args = FUSE_ARGS_INIT(argc, argv_copy.data());
+#else
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+#endif
+
   dwarfs_userdata userdata(std::cerr);
   auto& opts = userdata.opts;
 
