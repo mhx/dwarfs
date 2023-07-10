@@ -12,7 +12,7 @@ RELDIR="$DIR/release"
 
 [ -d "$RELDIR" ] || mkdir "$RELDIR"
 
-cp "$DIR"/*.7z $RELDIR
+cp "$DIR"/*.7z "$RELDIR"
 
 for pkg in "$DIR"/dwarfs-*.tar.zst; do
   zstd -dc "$pkg" | xz -9e > "$RELDIR"/$(basename "$pkg" .zst).xz &
