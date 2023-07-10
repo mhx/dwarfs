@@ -108,10 +108,10 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   rm -rf dwarfs-*
   rm -f dwarfs
 
-  mv "build/dwarfs-${VERSION}.tar.xz" .
+  mv "build/dwarfs-${VERSION}.tar.zst" .
   rm -rf build
 
-  tar xvf "dwarfs-${VERSION}.tar.xz"
+  tar xvf "dwarfs-${VERSION}.tar.zst"
   ln -s "dwarfs-${VERSION}" dwarfs
 
   mkdir build
