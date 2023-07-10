@@ -19,13 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <charconv>
-#include <climits>
-#include <codecvt>
-#include <locale>
-#include <string>
-#include <string_view>
 
 #include <utf8cpp/utf8.h>
 
@@ -126,8 +122,10 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
 
 std::string sys_string_to_string(sys_string const& in) {
 #ifdef _WIN32
-  static std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-  return converter.to_bytes(in);
+  std::u16string tmp(in.size(), 0);
+  std::transform(in.begin(), in.end(), tmp.begin(),
+                 [](sys_char c) { return static_cast<char16_t>(c); });
+  return utf8::utf16to8(tmp);
 #else
   return in;
 #endif
