@@ -13,6 +13,7 @@ RUN apt install -y \
         clang-15 \
         git \
         vim \
+        zstd \
         ccache \
         ninja-build \
         cmake \
