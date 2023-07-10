@@ -1109,7 +1109,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   add_custom_target(universal_upx DEPENDS ${UNIVERSAL_PACKED})
 
   if(DEFINED ENV{GITHUB_REF_TYPE})
-    if($ENV{GITHUB_REF_TYPE} == "tag")
+    if("$ENV{GITHUB_REF_TYPE}" STREQUAL "tag")
       set(ARTIFACTS_SUBDIR "releases/$ENV{GITHUB_REF_NAME}@${PRJ_GIT_REV}")
     else()
       set(ARTIFACTS_SUBDIR "builds/${PRJ_VERSION_FULL}")
