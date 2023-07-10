@@ -1120,7 +1120,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     if(WIN32)
       set(PACKAGE_EXT ".7z")
     else()
-      set(PACKAGE_EXT ".tar.zstd")
+      set(PACKAGE_EXT ".tar.zst")
     endif()
 
     add_custom_target(copy_artifacts
