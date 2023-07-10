@@ -122,4 +122,5 @@ jobs:
             --env BUILD_TYPE=${{ matrix.build_type }} \
             --env BUILD_ARCH=${{ matrix.arch }} \
             --env GITHUB_REF_NAME \
+            --env GITHUB_REF_TYPE \
             dwarfs-linux-build
