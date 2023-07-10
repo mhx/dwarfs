@@ -117,8 +117,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   mkdir build
   cd build
 
-  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
-
   # shellcheck disable=SC2086
   cmake ../dwarfs/ $CMAKE_ARGS
 
