@@ -1162,8 +1162,15 @@ if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
   set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")
   set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-  set(CPACK_SOURCE_IGNORE_FILES "\\.git/" "${CMAKE_SOURCE_DIR}/build.*"
-                                "${CMAKE_SOURCE_DIR}/@" "/\\." ".*~$")
+  list(APPEND CPACK_SOURCE_IGNORE_FILES
+    "\\.git/"
+    "${CMAKE_SOURCE_DIR}/build.*"
+    "${CMAKE_SOURCE_DIR}/@"
+    "/\\."
+    ".*~$"
+    "${CMAKE_SOURCE_DIR}/doc/.*\\.png$"
+    "${CMAKE_SOURCE_DIR}/doc/.*\\.gif$"
+  )
   set(CPACK_VERBATIM_VARIABLES YES)
   set(CPACK_STRIP_FILES YES)
   set(CPACK_ARCHIVE_THREADS 0)
