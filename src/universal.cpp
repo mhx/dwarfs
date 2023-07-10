@@ -87,6 +87,12 @@ int dwarfs_main_helper(int argc, sys_char** argv) {
 }
 #endif
 
+#ifdef _WIN32
+#define EXE_EXT ".exe"
+#else
+#define EXE_EXT ""
+#endif
+
 std::map<std::string_view, int (*)(int, sys_char**)> const functions{
 #ifdef _WIN32
     {"dwarfs", &dwarfs_main_helper},
@@ -120,14 +126,13 @@ int SYS_MAIN(int argc, sys_char** argv) {
     }
   }
 
-#ifndef _WIN32
   auto path = std::filesystem::path(argv[0]);
 
-  if (auto it = functions.find(path.filename().string());
-      it != functions.end()) {
-    return safe_main([&] { return it->second(argc, argv); });
+  if (path.extension().string() == EXE_EXT) {
+    if (auto it = functions.find(path.stem().string()); it != functions.end()) {
+      return safe_main([&] { return it->second(argc, argv); });
+    }
   }
-#endif
 
   using namespace folly::gen;
 

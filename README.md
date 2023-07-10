@@ -128,24 +128,33 @@ FUSE driver) in a single executable. These executables are compressed
 using [upx](https://github.com/upx/upx), so they are much smaller than
 the individual tools combined.
 
-The universal binaries can be run either through symbolic links named
-after the proper tool. e.g.:
+The universal binaries can be run through symbolic links named after
+the proper tool. e.g.:
 
 ```
-$ ln -s dwarfs-universal-0.7.0-RC5-Linux-aarch64 mkdwarfs
+$ ln -s dwarfs-universal-0.7.0-Linux-aarch64 mkdwarfs
 $ ./mkdwarfs --help
 ```
 
-Or you can select the tool by passing `--tool=<name>` as the first
-argument on the command line:
+This also works on Windows ift the file system supports symbolic links:
 
 ```
-$ .\dwarfs-universal-0.7.0-RC5-Windows-AMD64.exe --tool=mkdwarfs --help
+> mklink mkdwarfs.exe dwarfs-universal-0.7.0-Windows-AMD64.exe
+> .\mkdwarfs.exe --help
+```
+
+Alternatively, you can select the tool by passing `--tool=<name>` as
+the first argument on the command line:
+
+```
+> .\dwarfs-universal-0.7.0-Windows-AMD64.exe --tool=mkdwarfs --help
 ```
 
 Note that just like the `dwarfs.exe` Windows binary, the universal
 Windows binary depends on the `winfsp-x64.dll` from the
-[WinFsp](https://github.com/winfsp/winfsp) project.
+[WinFsp](https://github.com/winfsp/winfsp) project. However, for the
+universal binary, the DLL is loaded lazily, so you can still use all
+other tools without the DLL.
 See the [Windows Support](#windows-support) section for more details.
 
 ### Dependencies

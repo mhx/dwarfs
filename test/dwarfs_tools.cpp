@@ -589,9 +589,7 @@ enum class binary_mode {
 std::vector<binary_mode> tools_test_modes{
     binary_mode::standalone,
     binary_mode::universal_tool,
-#ifndef _WIN32
     binary_mode::universal_symlink,
-#endif
 };
 
 class tools_test : public ::testing::TestWithParam<binary_mode> {};
@@ -608,10 +606,10 @@ TEST_P(tools_test, end_to_end) {
   auto image_hdr = td / "test_hdr.dwarfs";
   auto fsdata_dir = td / "fsdata";
   auto header_data = fsdata_dir / "format.sh";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs";
-  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs";
-  auto universal_symlink_dwarfsck_bin = td / "dwarfsck";
-  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
+  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs" EXE_EXT;
+  auto universal_symlink_dwarfsck_bin = td / "dwarfsck" EXE_EXT;
+  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract" EXE_EXT;
   std::vector<std::string> mkdwarfs_tool_arg;
   std::vector<std::string> dwarfsck_tool_arg;
   std::vector<std::string> dwarfsextract_tool_arg;
@@ -897,7 +895,7 @@ TEST_P(tools_test, mutating_ops) {
   auto non_empty_dir = mountpoint / "foo";
   auto name_inside_fs = mountpoint / "some_random_name";
   auto name_outside_fs = td / "some_random_name";
-  auto universal_symlink_dwarfs_bin = td / "dwarfs";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
 
   if (mode == binary_mode::universal_symlink) {
     fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
