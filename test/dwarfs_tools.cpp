@@ -75,6 +75,7 @@ auto fuse3_bin = tools_dir / "dwarfs" EXE_EXT;
 auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
 auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
 auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
+auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
 
 #ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
@@ -93,7 +94,11 @@ bool wait_until_file_ready(fs::path const& path,
   auto end = std::chrono::steady_clock::now() + timeout;
   std::error_code ec;
   while (!fs::exists(path, ec)) {
+#ifdef _WIN32
+    if (ec && ec.value() != ERROR_OPERATION_ABORTED) {
+#else
     if (ec) {
+#endif
       std::cerr << "*** exists: " << ec.message() << "\n";
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -267,6 +272,7 @@ class subprocess {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
 
     try {
+      // std::cout << "running: " << cmdline() << "\n";
       c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
                      bp::std_out > out_, bp::std_err > err_, ios_
 #ifdef _WIN32
@@ -419,19 +425,20 @@ class driver_runner {
   driver_runner() = default;
 
   template <typename... Args>
-  driver_runner(fs::path const& driver, fs::path const& image,
+  driver_runner(fs::path const& driver, bool tool_arg, fs::path const& image,
                 fs::path const& mountpoint, Args&&... args)
       : mountpoint_{mountpoint} {
     setup_mountpoint(mountpoint);
 #ifdef _WIN32
-    process_ = std::make_unique<subprocess>(driver, image, mountpoint,
-                                            std::forward<Args>(args)...);
+    process_ =
+        std::make_unique<subprocess>(driver, make_tool_arg(tool_arg), image,
+                                     mountpoint, std::forward<Args>(args)...);
     process_->run_background();
 
     wait_until_file_ready(mountpoint, std::chrono::seconds(5));
 #else
-    if (!subprocess::check_run(driver, image, mountpoint,
-                               std::forward<Args>(args)...)) {
+    if (!subprocess::check_run(driver, make_tool_arg(tool_arg), image,
+                               mountpoint, std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
     dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
@@ -439,11 +446,13 @@ class driver_runner {
   }
 
   template <typename... Args>
-  driver_runner(foreground_t, fs::path const& driver, fs::path const& image,
-                fs::path const& mountpoint, Args&&... args)
+  driver_runner(foreground_t, fs::path const& driver, bool tool_arg,
+                fs::path const& image, fs::path const& mountpoint,
+                Args&&... args)
       : mountpoint_{mountpoint} {
     setup_mountpoint(mountpoint);
-    process_ = std::make_unique<subprocess>(driver, image, mountpoint,
+    process_ = std::make_unique<subprocess>(driver, make_tool_arg(tool_arg),
+                                            image, mountpoint,
 #ifndef _WIN32
                                             "-f",
 #endif
@@ -500,6 +509,14 @@ class driver_runner {
         ::abort();
       }
     }
+  }
+
+  static std::vector<std::string> make_tool_arg(bool tool_arg) {
+    std::vector<std::string> rv;
+    if (tool_arg) {
+      rv.push_back("--tool=dwarfs");
+    }
+    return rv;
   }
 
  private:
@@ -563,9 +580,27 @@ size_t num_hardlinks(fs::path const& p) {
 #endif
 }
 
+enum class binary_mode {
+  standalone,
+  universal_tool,
+  universal_symlink,
+};
+
+std::vector<binary_mode> tools_test_modes{
+    binary_mode::standalone,
+    binary_mode::universal_tool,
+#ifndef _WIN32
+    binary_mode::universal_symlink,
+#endif
+};
+
+class tools_test : public ::testing::TestWithParam<binary_mode> {};
+
 } // namespace
 
-TEST(tools, end_to_end) {
+TEST_P(tools_test, end_to_end) {
+  auto mode = GetParam();
+
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
@@ -573,10 +608,37 @@ TEST(tools, end_to_end) {
   auto image_hdr = td / "test_hdr.dwarfs";
   auto fsdata_dir = td / "fsdata";
   auto header_data = fsdata_dir / "format.sh";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs";
+  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs";
+  auto universal_symlink_dwarfsck_bin = td / "dwarfsck";
+  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract";
+  std::vector<std::string> mkdwarfs_tool_arg;
+  std::vector<std::string> dwarfsck_tool_arg;
+  std::vector<std::string> dwarfsextract_tool_arg;
+  fs::path const* mkdwarfs_test_bin = &mkdwarfs_bin;
+  fs::path const* dwarfsck_test_bin = &dwarfsck_bin;
+  fs::path const* dwarfsextract_test_bin = &dwarfsextract_bin;
+
+  if (mode == binary_mode::universal_symlink) {
+    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+    fs::create_symlink(universal_bin, universal_symlink_mkdwarfs_bin);
+    fs::create_symlink(universal_bin, universal_symlink_dwarfsck_bin);
+    fs::create_symlink(universal_bin, universal_symlink_dwarfsextract_bin);
+  }
+
+  if (mode == binary_mode::universal_tool) {
+    mkdwarfs_test_bin = &universal_bin;
+    dwarfsck_test_bin = &universal_bin;
+    dwarfsextract_test_bin = &universal_bin;
+    mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
+    dwarfsck_tool_arg.push_back("--tool=dwarfsck");
+    dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
+  }
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
-  ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", test_data_dwarfs,
-                                    "-o", fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
+                                    dwarfsextract_tool_arg, "-i",
+                                    test_data_dwarfs, "-o", fsdata_dir));
 
   EXPECT_EQ(num_hardlinks(fsdata_dir / "format.sh"), 3);
   EXPECT_TRUE(fs::is_symlink(fsdata_dir / "foobar"));
@@ -597,15 +659,15 @@ TEST(tools, end_to_end) {
       read_file(fsdata_dir / unicode_symlink_target, unicode_file_contents));
   EXPECT_EQ(unicode_file_contents, "unicode\n");
 
-  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", fsdata_dir, "-o", image,
-                                    "--no-progress"));
+  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i",
+                                    fsdata_dir, "-o", image, "--no-progress"));
 
   ASSERT_TRUE(fs::exists(image));
   ASSERT_GT(fs::file_size(image), 1000);
 
-  ASSERT_TRUE(subprocess::check_run(mkdwarfs_bin, "-i", image, "-o", image_hdr,
-                                    "--no-progress", "--recompress=none",
-                                    "--header", header_data));
+  ASSERT_TRUE(subprocess::check_run(
+      *mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", image, "-o", image_hdr,
+      "--no-progress", "--recompress=none", "--header", header_data));
 
   ASSERT_TRUE(fs::exists(image_hdr));
   ASSERT_GT(fs::file_size(image_hdr), 1000);
@@ -615,10 +677,23 @@ TEST(tools, end_to_end) {
   auto untared = td / "untared";
 
   std::vector<fs::path> drivers;
-  drivers.push_back(fuse3_bin);
 
-  if (fs::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
+  switch (mode) {
+  case binary_mode::standalone:
+    drivers.push_back(fuse3_bin);
+
+    if (fs::exists(fuse2_bin)) {
+      drivers.push_back(fuse2_bin);
+    }
+    break;
+
+  case binary_mode::universal_tool:
+    drivers.push_back(universal_bin);
+    break;
+
+  case binary_mode::universal_symlink:
+    drivers.push_back(universal_symlink_dwarfs_bin);
+    break;
   }
 
   std::vector<std::string> all_options{
@@ -636,7 +711,8 @@ TEST(tools, end_to_end) {
 
   for (auto const& driver : drivers) {
     {
-      driver_runner runner(driver_runner::foreground, driver, image,
+      driver_runner runner(driver_runner::foreground, driver,
+                           mode == binary_mode::universal_tool, image,
                            mountpoint);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
@@ -665,8 +741,10 @@ TEST(tools, end_to_end) {
     }
 
     {
-      auto const [out, err, ec] =
-          subprocess::run(driver, image_hdr, mountpoint);
+      auto const [out, err, ec] = subprocess::run(
+          driver,
+          driver_runner::make_tool_arg(mode == binary_mode::universal_tool),
+          image_hdr, mountpoint);
 
       EXPECT_NE(0, ec) << driver << "\n"
                        << "stdout:\n"
@@ -697,7 +775,8 @@ TEST(tools, end_to_end) {
 #endif
 
       {
-        driver_runner runner(driver, image, mountpoint, args);
+        driver_runner runner(driver, mode == binary_mode::universal_tool, image,
+                             mountpoint, args);
 
         ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
             << runner.cmdline();
@@ -726,7 +805,8 @@ TEST(tools, end_to_end) {
       args.push_back("-ooffset=auto");
 
       {
-        driver_runner runner(driver, image_hdr, mountpoint, args);
+        driver_runner runner(driver, mode == binary_mode::universal_tool,
+                             image_hdr, mountpoint, args);
 
         ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
             << runner.cmdline();
@@ -756,17 +836,20 @@ TEST(tools, end_to_end) {
 
   auto meta_export = td / "test.meta";
 
-  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image));
-  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image, "--check-integrity"));
-  ASSERT_TRUE(subprocess::check_run(dwarfsck_bin, image, "--export-metadata",
-                                    meta_export));
+  ASSERT_TRUE(
+      subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg, image));
+  ASSERT_TRUE(subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
+                                    image, "--check-integrity"));
+  ASSERT_TRUE(subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
+                                    image, "--export-metadata", meta_export));
 
   {
     std::string header;
 
     EXPECT_TRUE(read_file(header_data, header));
 
-    auto output = subprocess::check_run(dwarfsck_bin, image_hdr, "-H");
+    auto output = subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
+                                        image_hdr, "-H");
 
     ASSERT_TRUE(output);
 
@@ -777,8 +860,9 @@ TEST(tools, end_to_end) {
 
   ASSERT_TRUE(fs::create_directory(extracted));
 
-  ASSERT_TRUE(
-      subprocess::check_run(dwarfsextract_bin, "-i", image, "-o", extracted));
+  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
+                                    dwarfsextract_tool_arg, "-i", image, "-o",
+                                    extracted));
   EXPECT_EQ(3, num_hardlinks(extracted / "format.sh"));
   EXPECT_TRUE(fs::is_symlink(extracted / "foobar"));
   EXPECT_EQ(fs::read_symlink(extracted / "foobar"), fs::path("foo") / "bar");
@@ -801,7 +885,9 @@ TEST(tools, end_to_end) {
   EXPECT_EQ(unix, (ec).value()) << runner.cmdline() << ": " << (ec).message()
 #endif
 
-TEST(tools, mutating_ops) {
+TEST_P(tools_test, mutating_ops) {
+  auto mode = GetParam();
+
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
@@ -811,16 +897,35 @@ TEST(tools, mutating_ops) {
   auto non_empty_dir = mountpoint / "foo";
   auto name_inside_fs = mountpoint / "some_random_name";
   auto name_outside_fs = td / "some_random_name";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs";
+
+  if (mode == binary_mode::universal_symlink) {
+    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+  }
 
   std::vector<fs::path> drivers;
-  drivers.push_back(fuse3_bin);
 
-  if (fs::exists(fuse2_bin)) {
-    drivers.push_back(fuse2_bin);
+  switch (mode) {
+  case binary_mode::standalone:
+    drivers.push_back(fuse3_bin);
+
+    if (fs::exists(fuse2_bin)) {
+      drivers.push_back(fuse2_bin);
+    }
+    break;
+
+  case binary_mode::universal_tool:
+    drivers.push_back(universal_bin);
+    break;
+
+  case binary_mode::universal_symlink:
+    drivers.push_back(universal_symlink_dwarfs_bin);
+    break;
   }
 
   for (auto const& driver : drivers) {
-    driver_runner runner(driver_runner::foreground, driver, test_data_dwarfs,
+    driver_runner runner(driver_runner::foreground, driver,
+                         mode == binary_mode::universal_tool, test_data_dwarfs,
                          mountpoint);
 
     ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
@@ -941,3 +1046,6 @@ TEST(tools, mutating_ops) {
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
+                         ::testing::ValuesIn(tools_test_modes));
