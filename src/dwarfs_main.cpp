@@ -92,8 +92,8 @@ using native_off_t = ::off_t;
 namespace dwarfs {
 
 struct options {
-  char const* progname{nullptr};
-  std::string fsimage;
+  std::filesystem::path progname;
+  std::filesystem::path fsimage;
   int seen_mountpoint{0};
   char const* cachesize_str{nullptr};           // TODO: const?? -> use string?
   char const* debuglevel_str{nullptr};          // TODO: const?? -> use string?
@@ -934,14 +934,15 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 }
 #endif
 
-void usage(char const* progname) {
+void usage(std::filesystem::path const& progname) {
   std::cerr
       << tool_header("dwarfs",
                      fmt::format(", fuse version {}", FUSE_USE_VERSION))
 #if !DWARFS_FUSE_LOWLEVEL
       << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
-      << "usage: " << progname << " image mountpoint [options]\n\n"
+      << "usage: " << progname.filename().string()
+      << " <image> <mountpoint> [options]\n\n"
       << "DWARFS options:\n"
       << "    -o cachesize=SIZE      set size of block cache (512M)\n"
       << "    -o workers=NUM         number of worker threads (2)\n"
@@ -962,6 +963,7 @@ void usage(char const* progname) {
       << "\n";
 
 #if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
+  std::cerr << "FUSE options:\n";
   fuse_cmdline_help();
 #else
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
@@ -991,7 +993,7 @@ int option_hdl(void* data, char const* arg, int key,
       return 1;
     }
 
-    opts->fsimage = arg;
+    opts->fsimage = std::filesystem::canonical(std::filesystem::path(arg));
 
     return 0;
 
@@ -1206,7 +1208,7 @@ int dwarfs_main(int argc, char** argv) {
   dwarfs_userdata userdata(std::cerr);
   auto& opts = userdata.opts;
 
-  opts.progname = argv[0];
+  opts.progname = std::filesystem::path(argv[0]);
   opts.cache_image = 0;
   opts.cache_files = 1;
 
@@ -1243,8 +1245,6 @@ int dwarfs_main(int argc, char** argv) {
 
   try {
     // TODO: foreground mode, stderr vs. syslog?
-
-    opts.fsimage = std::filesystem::canonical(opts.fsimage).string();
 
     if (opts.debuglevel_str) {
       opts.debuglevel = logger::parse_level(opts.debuglevel_str);
