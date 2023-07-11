@@ -1828,11 +1828,11 @@ simple performance monitoring. You can build binaries without this
 feature (`-DENABLE_PERFMON=OFF`), but impact should be negligible even
 if performance monitoring is enabled at run-time.
 
-To enable performance monitor, you pass a list of components for which
+To enable the performance monitor, you pass a list of components for which
 you want to collect latency metrics, e.g.:
 
 ```
-$ dwarfs test.dwarfs mnt -f -operfmon=inode_reader_v2
+$ dwarfs test.dwarfs mnt -f -operfmon=fuse
 ```
 
 When the driver exits, you will see output like this:
