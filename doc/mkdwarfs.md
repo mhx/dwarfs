@@ -18,13 +18,13 @@ full contents of `/path/dir` with:
 
     mkdwarfs -i /path/dir -o image.dwarfs
 
-After that, you can mount it with dwarfs(1):
+After that, you can mount it using dwarfs(1):
 
     dwarfs image.dwarfs /path/to/mountpoint
 
 ## OPTIONS
 
-There two mandatory options for specifying the input and output:
+There are two mandatory options for specifying the input and output:
 
 - `-i`, `--input=`*path*|*file*:
   Path to the root directory containing the files from which you want to
@@ -78,9 +78,9 @@ Most other options are concerned with compression tuning:
   to the number of processors available on your system. Use this option if
   you want to limit the resources used by `mkdwarfs` or to optimize build
   speed. This option affects only the compression phase.
-  In the compression phase, the worker threads are used to compress the
+  During the compression phase, the worker threads are used to compress the
   individual filesystem blocks in the background. Ordering, segmenting
-  and block building are, again, single-threaded and run independently.
+  and block building are single-threaded and run independently.
 
 - `--compress-niceness=`*value*:
   Set the niceness of compression worker threads. Defaults to 5. This makes
@@ -112,7 +112,7 @@ Most other options are concerned with compression tuning:
   will completely disable duplicate segment search.
 
 - `-W`, `--window-size=`*value*:
-  Window size of cyclic hash used for segmenting. This is again an exponent
+  Window size of cyclic hash used for segmenting. This is an exponent
   to a base of two. Cyclic hashes are used by `mkdwarfs` for finding
   identical segments across multiple files. This is done on top of duplicate
   file detection. If a reasonable amount of duplicate segments is found,
@@ -399,7 +399,7 @@ a library that allows serialization of structures defined in
 [Thrift IDL](https://github.com/facebook/fbthrift/) into an extremely
 compact representation that can be used in-place without the need for
 deserialization. It is very well suited for persistent, memory-mappable
-data. With Frozen, you essentially only pay for what you use: if fields
+data. With Frozen, you essentially only "pay for what you use": if fields
 are defined in the IDL, but they always hold the same value (or are not
 used at all), not a single bit will be allocated for this field even if
 you have a list of millions of items.
@@ -461,7 +461,7 @@ These options are controlled by the `--pack-metadata` option.
   of two. The entries can be decompressed individually, so no
   extra memory is used when accessing the filesystem (except for
   the symbol table, which is only a few hundred bytes). This is
-  turned on by default. For small filesystems, it's possible that
+  enabled by default. For small filesystems, it's possible that
   the compressed strings plus symbol table are actually larger
   than the uncompressed strings. If this is the case, the strings
   will be stored uncompressed, unless `force` is also specified.
@@ -497,10 +497,10 @@ the corresponding packing option.
      plain   |     6,430,275 |   121.30% |  48.36% |  41.37%
     ---------|---------------|-----------|---------|---------
 
-So the default (`auto`) is roughly 20% smaller than not using any
+So, the default (`auto`) is roughly 20% smaller than not using any
 packing (`none` or `plain`). Enabling `all` packing options doesn't
 reduce the size much more. However, it *does* help if you want to
-further compress the block. So if you're really desperately trying
+further compress the block. So, if you're really desperately trying
 to reduce the image size, enabling `all` packing would be an option
 at the cost of using a lot more memory when using the filesystem.
 
@@ -521,7 +521,7 @@ using `--input-list`.
 
 ## FILTER RULES
 
-The filter rules have been inspired by the `rsync` utility. They
+The filter rules have been inspired by the `rsync` utility. These
 look very similar, but there are differences. These rules are quite
 powerful, yet they're somewhat hard to get used to.
 
