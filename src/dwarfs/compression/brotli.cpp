@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cassert>
+
 #include <brotli/decode.h>
 #include <brotli/encode.h>
 
@@ -114,6 +116,15 @@ class brotli_block_decompressor final : public block_decompressor::impl {
 
   bool decompress_frame(size_t frame_size) override {
     size_t pos = decompressed_.size();
+
+    if (pos + frame_size > uncompressed_size_) {
+      assert(uncompressed_size_ >= pos);
+      frame_size = uncompressed_size_ - pos;
+    }
+
+    assert(pos + frame_size <= uncompressed_size_);
+    assert(frame_size > 0);
+
     decompressed_.resize(pos + frame_size);
     uint8_t* next_out = &decompressed_[pos];
 
