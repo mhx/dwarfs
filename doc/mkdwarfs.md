@@ -352,9 +352,12 @@ Most other options are concerned with compression tuning:
   you can switch to `ascii`, which is like `unicode`, but looks less
   fancy.
 
-- `--help`:
-  Show program help, including defaults, compression level detail and
-  supported compression algorithms.
+- `-h`, `--help`:
+  Show usage and the most common basic options.
+
+- `-H`, `--long-help`:
+  Show full usage with all options, including defaults, compression level
+  detail and supported compression algorithms.
 
 If experimental Python support was compiled into `mkdwarfs`, you can use the
 following option to enable customizations via the scripting interface:
