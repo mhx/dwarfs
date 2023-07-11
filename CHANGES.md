@@ -1,5 +1,23 @@
 # Change Log
 
+## Version 0.7.0 - 2023-07-11
+
+- (fix) FUSE/WinFsp driver now handles Unicode characters in the
+  file system image name (the file system itself would already
+  work properly with Unicode file names).
+
+- (feature) `mkdwarfs` command-line options have been reorganized
+  into groups to make them easier to find and to make the default
+  help message less intimidating. The full help can now be accessed
+  using `-H` or `--long-help`.
+
+- (feature) Symbolic links to the universal binary now also work
+  as aliases on Windows.
+
+- (test) Test universal binary in both `--tool` and symlink modes.
+
+- (other) CI pipeline tweaks & fixes.
+
 ## Version 0.7.0-RC6 - 2023-07-09
 
 - (feature) Support delayed loading of WinFsp DLL for universal
