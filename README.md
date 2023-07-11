@@ -29,6 +29,7 @@ A fast high compression read-only file system for Linux and Windows
   - [With Cromfs](#with-cromfs)
   - [With EROFS](#with-erofs)
   - [With fuse-archive](#with-fuse-archive)
+- [Performance Monitoring](#performance-monitoring)
 
 ## Overview
 
@@ -1818,3 +1819,80 @@ them after a few minutes.
 | `.tar.bz2` |   0.2 MB/s |              - |                    - |
 | `.7z`      |   0.3 MB/s |              - |                    - |
 | `.dwarfs`  | 598.0 MB/s |         0.249s |               1.099s |
+
+
+## Performance Monitoring
+
+Both the FUSE driver and `dwarfsextract` by default have support for
+simple performance monitoring. You can build binaries without this
+feature (`-DENABLE_PERFMON=OFF`), but impact should be negligible even
+if performance monitoring is enabled at run-time.
+
+To enable performance monitor, you pass a list of components for which
+you want to collect latency metrics, e.g.:
+
+```
+$ dwarfs test.dwarfs mnt -f -operfmon=inode_reader_v2
+```
+
+When the driver exits, you will see output like this:
+
+```
+[fuse.op_read]
+      samples: 45145
+      overall: 3.214s
+  avg latency: 71.2us
+  p50 latency: 131.1us
+  p90 latency: 131.1us
+  p99 latency: 262.1us
+
+[fuse.op_readdir]
+      samples: 2
+      overall: 51.31ms
+  avg latency: 25.65ms
+  p50 latency: 32.77us
+  p90 latency: 67.11ms
+  p99 latency: 67.11ms
+
+[fuse.op_lookup]
+      samples: 16
+      overall: 19.98ms
+  avg latency: 1.249ms
+  p50 latency: 2.097ms
+  p90 latency: 4.194ms
+  p99 latency: 4.194ms
+
+[fuse.op_init]
+      samples: 1
+      overall: 199.4us
+  avg latency: 199.4us
+  p50 latency: 262.1us
+  p90 latency: 262.1us
+  p99 latency: 262.1us
+
+[fuse.op_open]
+      samples: 16
+      overall: 122.2us
+  avg latency: 7.641us
+  p50 latency: 4.096us
+  p90 latency: 32.77us
+  p99 latency: 32.77us
+
+[fuse.op_getattr]
+      samples: 1
+      overall: 5.786us
+  avg latency: 5.786us
+  p50 latency: 8.192us
+  p90 latency: 8.192us
+  p99 latency: 8.192us
+```
+
+The metrics should be self-explanatory. However, note that the
+percentile metrics are logarithmically quantized in order to use
+as little resources as possible. As a result, you will only see
+values that look an awful lot like powers of two.
+
+Currently, the supported components are `fuse` for the FUSE
+operations, `filesystem_v2` for the DwarFS file system component
+and `inode_reader_v2` for the component that handles all `read()`
+system calls.
