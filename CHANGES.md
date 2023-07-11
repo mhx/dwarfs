@@ -6,6 +6,14 @@
   file system image name (the file system itself would already
   work properly with Unicode file names).
 
+- (fix) Fixed heap-use-after-free when using a file system image
+  built with brotli compression. This was caught last minute by
+  ASAN.
+
+- (fix) Catch errors from locale-setting at startup. These errors
+  will only be reported now, but will no longer cause the program
+  to abort.
+
 - (feature) `mkdwarfs` command-line options have been reorganized
   into groups to make them easier to find and to make the default
   help message less intimidating. The full help can now be accessed
