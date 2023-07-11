@@ -563,7 +563,7 @@ resulting images are significantly smaller. Still, `mkdwarfs` is about
 **4 times faster** and produces and image that's **12 times smaller** than
 the SquashFS image. The DwarFS image is only 0.6% of the original file size.
 
-So why not use `lzma` instead of `zstd` by default? The reason is that `lzma`
+So, why not use `lzma` instead of `zstd` by default? The reason is that `lzma`
 is about an order of magnitude slower to decompress than `zstd`. If you're
 only accessing data on your compressed filesystem occasionally, this might
 not be a big deal, but if you use it extensively, `zstd` will result in
@@ -733,7 +733,7 @@ Summary
     5.85 ± 0.08 times faster than 'squashfs-zstd'
 ```
 
-So DwarFS is almost six times faster than SquashFS. But what's more,
+So, DwarFS is almost six times faster than SquashFS. But what's more,
 SquashFS also uses significantly more CPU power. However, the numbers
 shown above for DwarFS obviously don't include the time spent in the
 `dwarfs` process, so I repeated the test outside of hyperfine:
@@ -746,7 +746,7 @@ user    0m2.154s
 sys     0m1.846s
 ```
 
-So in total, DwarFS was using 5.7 seconds of CPU time, whereas
+So, in total, DwarFS was using 5.7 seconds of CPU time, whereas
 SquashFS was using 20.2 seconds, almost four times as much. Ignore
 the 'real' time, this is only how long it took me to unmount the
 file system again after mounting it.
@@ -988,7 +988,7 @@ user    0m13.234s
 sys     0m1.382s
 ```
 
-So `dwarfsextract` is almost 4 times faster thanks to using multiple
+So, `dwarfsextract` is almost 4 times faster thanks to using multiple
 worker threads for decompression. It's writing about 300 MiB/s in this
 example.
 
@@ -1118,7 +1118,7 @@ user    714m44.286s
 sys     3m6.751s
 ```
 
-So it's an order of magnitude slower than `mkdwarfs` and uses 14 times
+So, it's an order of magnitude slower than `mkdwarfs` and uses 14 times
 as much CPU resources as `mkdwarfs -l9`. The resulting archive it pretty
 close in size to the default configuration DwarFS image, but it's more
 than 50% bigger than the image produced by `mkdwarfs -l9`.
@@ -1174,7 +1174,7 @@ $ ll perl-install.*
 -rw-r--r-- 1 mhx users 1016981520 Mar  6 21:12 perl-install.wim
 ```
 
-So wimlib is definitely much better than squashfs, in terms of both
+So, wimlib is definitely much better than squashfs, in terms of both
 compression ratio and speed. DwarFS is however about 3 times faster to
 create the file system and the DwarFS file system less than half the size.
 When switching to LZMA compression, the DwarFS file system is more than
@@ -1332,7 +1332,7 @@ user    201m37.816s
 sys     2m15.005s
 ```
 
-So it processed 21 MiB out of 48 GiB in half an hour, using almost
+So, it processed 21 MiB out of 48 GiB in half an hour, using almost
 twice as much CPU resources as DwarFS for the *whole* file system.
 At this point I decided it's likely not worth waiting (presumably)
 another month (!) for `mkcromfs` to finish. I double checked that
@@ -1415,7 +1415,7 @@ user    3m43.324s
 sys     0m4.015s
 ```
 
-So `mkdwarfs` is about 50 times faster than `mkcromfs` and uses 75 times
+So, `mkdwarfs` is about 50 times faster than `mkcromfs` and uses 75 times
 less CPU resources. At the same time, the DwarFS file system is 30% smaller:
 
 ```
