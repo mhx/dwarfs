@@ -21,28 +21,33 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
-#include <span>
+#include <vector>
 
 namespace dwarfs {
 
-class cached_block;
+class logger;
+class fs_section;
+class mmif;
 
-class block_range {
+class cached_block {
  public:
-  block_range(uint8_t const* data, size_t offset, size_t size);
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
+  static std::unique_ptr<cached_block>
+  create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
+         bool release, bool disable_integrity_check);
 
-  auto data() const { return span_.data(); }
-  auto begin() const { return span_.begin(); }
-  auto end() const { return span_.end(); }
-  auto size() const { return span_.size(); }
+  virtual ~cached_block() = default;
 
- private:
-  std::span<uint8_t const> span_;
-  std::shared_ptr<cached_block const> block_;
+  virtual size_t range_end() const = 0;
+  virtual const uint8_t* data() const = 0;
+  virtual void decompress_until(size_t end) = 0;
+  virtual size_t uncompressed_size() const = 0;
+  virtual void touch() = 0;
+  virtual bool
+  last_used_before(std::chrono::steady_clock::time_point tp) const = 0;
+  virtual bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const = 0;
 };
 
 } // namespace dwarfs
