@@ -36,6 +36,7 @@
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
+#include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/offset_cache.h"
 #include "dwarfs/performance_monitor.h"

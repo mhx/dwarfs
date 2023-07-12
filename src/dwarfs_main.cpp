@@ -66,6 +66,7 @@
 #include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
