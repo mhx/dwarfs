@@ -116,7 +116,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
             << "  --tool=<name>                     "
                  "which tool to run; available tools are:\n"
             << "                                    "
-            << tools << "\n";
+            << tools << "\n\n";
   // clang-format on
 
   return 0;
