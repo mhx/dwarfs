@@ -26,6 +26,10 @@
 #include <cstring>
 #include <iostream>
 
+#ifndef _WIN32
+#include <sys/ioctl.h>
+#endif
+
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
 
@@ -63,6 +67,18 @@ void setup_terminal() {
   WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
   ::SetConsoleOutputCP(CP_UTF8);
   ::SetConsoleCP(CP_UTF8);
+#endif
+}
+
+size_t get_term_width() {
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  ::GetConsoleScreenBufferInfo(::GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#else
+  struct ::winsize w;
+  ::ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+  return w.ws_col;
 #endif
 }
 

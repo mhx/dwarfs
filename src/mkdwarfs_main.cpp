@@ -39,13 +39,6 @@
 #include <utility>
 #include <vector>
 
-#ifdef _WIN32
-#include <folly/portability/Windows.h>
-#else
-#include <sys/ioctl.h>
-#include <unistd.h>
-#endif
-
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 
@@ -203,19 +196,6 @@ int parse_order_option(std::string const& ordname, std::string const& opt,
     }
   }
   return 0;
-}
-
-// TODO: move elsewhere
-size_t get_term_width() {
-#ifdef _WIN32
-  CONSOLE_SCREEN_BUFFER_INFO csbi;
-  ::GetConsoleScreenBufferInfo(::GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-  return csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#else
-  struct ::winsize w;
-  ::ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-  return w.ws_col;
-#endif
 }
 
 struct level_defaults {
