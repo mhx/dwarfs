@@ -166,7 +166,14 @@ available for each architecture. These universal binaries contain
 *all* tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract` and the `dwarfs`
 FUSE driver) in a single executable. These executables are compressed
 using [upx](https://github.com/upx/upx), so they are much smaller than
-the individual tools combined.
+the individual tools combined. However, it also means the binaries need
+to be decompressed each time they are run, which can have a signficant
+overhead. If that is an issue, you can either stick to the "classic"
+individual binaries or you can decompress the universal binary, e.g.:
+
+```
+upx -d dwarfs-universal-0.7.0-Linux-aarch64
+```
 
 The universal binaries can be run through symbolic links named after
 the proper tool. e.g.:
