@@ -25,7 +25,6 @@
 #include <iostream>
 
 #include <folly/String.h>
-#include <folly/experimental/symbolizer/SignalHandler.h>
 
 #ifdef DWARFS_USE_EXCEPTION_TRACER
 #include <folly/experimental/exception_tracer/ExceptionTracer.h>
@@ -77,51 +76,6 @@ void assertion_failed(char const* expr, std::string const& msg,
   std::cerr << "Assertion `" << expr << "` failed in " << file << "(" << line
             << "): " << msg << "\n";
   ::abort();
-}
-
-int safe_main(std::function<int(void)> fn) {
-  try {
-#ifndef _WIN32
-    folly::symbolizer::installFatalSignalHandler();
-#endif
-#ifdef _WIN32
-    char const* locale = "en_US.utf8";
-#else
-    char const* locale = "";
-#endif
-    try {
-      std::locale::global(std::locale(locale));
-    } catch (std::exception const& e) {
-      std::cerr << "warning: failed to set user default locale\n";
-      try {
-        std::locale::global(std::locale::classic());
-      } catch (std::exception const& e) {
-        std::cerr << "warning: also failed to set classic locale\n";
-      }
-    }
-
-    if (!std::setlocale(LC_ALL, locale)) {
-      std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
-    }
-
-    setup_terminal();
-
-    return fn();
-  } catch (system_error const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]\n";
-    dump_exceptions();
-  } catch (error const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]\n";
-    dump_exceptions();
-  } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << "\n";
-    dump_exceptions();
-  } catch (...) {
-    dump_exceptions();
-  }
-  return 1;
 }
 
 } // namespace dwarfs

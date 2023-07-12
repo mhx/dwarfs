@@ -19,9 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/safe_main.h"
-#include "dwarfs_tool_main.h"
+#pragma once
 
-int SYS_MAIN(int argc, dwarfs::sys_char** argv) {
-  return dwarfs::safe_main([&] { return dwarfs::dwarfsck_main(argc, argv); });
-}
+#include <functional>
+
+namespace dwarfs {
+
+int safe_main(std::function<int(void)> fn);
+
+} // namespace dwarfs

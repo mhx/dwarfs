@@ -426,6 +426,7 @@ list(
   src/dwarfs/os_access_generic.cpp
   src/dwarfs/performance_monitor.cpp
   src/dwarfs/progress.cpp
+  src/dwarfs/safe_main.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/similarity.cpp
   src/dwarfs/string_table.cpp
