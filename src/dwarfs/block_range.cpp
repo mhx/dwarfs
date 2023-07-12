@@ -19,30 +19,33 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <fmt/format.h>
 
-#include <cstdint>
-#include <memory>
-#include <span>
+#include "dwarfs/block_range.h"
+#include "dwarfs/cached_block.h"
+#include "dwarfs/error.h"
 
 namespace dwarfs {
 
-class cached_block;
+block_range::block_range(uint8_t const* data, size_t offset, size_t size)
+    : span_{data + offset, size} {
+  if (!data) {
+    DWARFS_THROW(runtime_error, "block_range: block data is null");
+  }
+}
 
-class block_range {
- public:
-  block_range(uint8_t const* data, size_t offset, size_t size);
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
-
-  auto data() const { return span_.data(); }
-  auto begin() const { return span_.begin(); }
-  auto end() const { return span_.end(); }
-  auto size() const { return span_.size(); }
-
- private:
-  std::span<uint8_t const> span_;
-  std::shared_ptr<cached_block const> block_;
-};
+block_range::block_range(std::shared_ptr<cached_block const> block,
+                         size_t offset, size_t size)
+    : span_{block->data() + offset, size}
+    , block_{std::move(block)} {
+  if (!block_->data()) {
+    DWARFS_THROW(runtime_error, "block_range: block data is null");
+  }
+  if (offset + size > block_->range_end()) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("block_range: size out of range ({0} > {1})",
+                             offset + size, block_->range_end()));
+  }
+}
 
 } // namespace dwarfs

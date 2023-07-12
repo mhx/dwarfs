@@ -35,11 +35,6 @@
 #include <utility>
 #include <vector>
 
-#ifndef _WIN32
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
-
 #include <fmt/format.h>
 
 #include <folly/container/EvictingCacheMap.h>
@@ -48,6 +43,7 @@
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_cache.h"
+#include "dwarfs/cached_block.h"
 #include "dwarfs/fs_section.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
@@ -55,95 +51,6 @@
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
-
-class cached_block {
- public:
-  cached_block(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-               bool release, bool disable_integrity_check)
-      : decompressor_(std::make_unique<block_decompressor>(
-            b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_))
-      , mm_(std::move(mm))
-      , section_(b)
-      , LOG_PROXY_INIT(lgr)
-      , release_(release)
-      , uncompressed_size_{decompressor_->uncompressed_size()} {
-    if (!disable_integrity_check && !section_.check_fast(*mm_)) {
-      DWARFS_THROW(runtime_error, "block data integrity check failed");
-    }
-  }
-
-  ~cached_block() {
-    if (decompressor_) {
-      try_release();
-    }
-  }
-
-  // once the block is fully decompressed, we can reset the decompressor_
-
-  // This can be called from any thread
-  size_t range_end() const { return range_end_.load(); }
-
-  const uint8_t* data() const { return data_.data(); }
-
-  void decompress_until(size_t end) {
-    while (data_.size() < end) {
-      if (!decompressor_) {
-        DWARFS_THROW(runtime_error, "no decompressor for block");
-      }
-
-      if (decompressor_->decompress_frame()) {
-        // We're done, free the memory
-        decompressor_.reset();
-
-        // And release the memory from the mapping
-        try_release();
-      }
-
-      range_end_ = data_.size();
-    }
-  }
-
-  size_t uncompressed_size() const { return uncompressed_size_; }
-
-  void touch() { last_access_ = std::chrono::steady_clock::now(); }
-
-  bool last_used_before(std::chrono::steady_clock::time_point tp) const {
-    return last_access_ < tp;
-  }
-
-  bool any_pages_swapped_out(std::vector<uint8_t>& tmp [[maybe_unused]]) const {
-#ifndef _WIN32
-    auto page_size = ::sysconf(_SC_PAGESIZE);
-    tmp.resize((data_.size() + page_size - 1) / page_size);
-    if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
-                  tmp.data()) == 0) {
-      // i&1 == 1 means resident in memory
-      return std::any_of(tmp.begin(), tmp.end(),
-                         [](auto i) { return (i & 1) == 0; });
-    }
-#endif
-    return false;
-  }
-
- private:
-  void try_release() {
-    if (release_) {
-      if (auto ec = mm_->release(section_.start(), section_.length())) {
-        LOG_INFO << "madvise() failed: " << ec.message();
-      }
-    }
-  }
-
-  std::atomic<size_t> range_end_{0};
-  std::vector<uint8_t> data_;
-  std::unique_ptr<block_decompressor> decompressor_;
-  std::shared_ptr<mmif> mm_;
-  fs_section section_;
-  LOG_PROXY_DECL(debug_logger_policy);
-  bool const release_;
-  size_t const uncompressed_size_;
-  std::chrono::steady_clock::time_point last_access_;
-};
 
 class block_request {
  public:
@@ -502,7 +409,7 @@ class block_cache_ final : public block_cache::impl {
     try {
       LOG_TRACE << "block " << block_no << " not found";
 
-      auto block = std::make_shared<cached_block>(
+      std::shared_ptr<cached_block> block = cached_block::create(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
           options_.mm_release, options_.disable_block_integrity_check);
       ++blocks_created_;
@@ -723,29 +630,5 @@ block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,
                          const block_cache_options& options)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
           lgr, std::move(mm), options)) {}
-
-// TODO: clean up: this is defined in fstypes.h...
-block_range::block_range(uint8_t const* data, size_t offset, size_t size)
-    : begin_(data + offset)
-    , end_(begin_ + size) {
-  if (!data) {
-    DWARFS_THROW(runtime_error, "block_range: block data is null");
-  }
-}
-
-block_range::block_range(std::shared_ptr<cached_block const> block,
-                         size_t offset, size_t size)
-    : begin_(block->data() + offset)
-    , end_(begin_ + size)
-    , block_(std::move(block)) {
-  if (!block_->data()) {
-    DWARFS_THROW(runtime_error, "block_range: block data is null");
-  }
-  if (size > block_->range_end()) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("block_range: size out of range ({0} > {1})", size,
-                             block_->range_end()));
-  }
-}
 
 } // namespace dwarfs
