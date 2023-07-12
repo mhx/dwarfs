@@ -24,45 +24,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
-#include <memory>
 #include <string>
-
-#include <folly/portability/IOVec.h>
-#include <folly/small_vector.h>
 
 #include "dwarfs/block_compressor.h" // TODO: or the other way round?
 #include "dwarfs/checksum.h"
 
 namespace dwarfs {
-
-class cached_block;
-
-// TODO: move elsewhere
-class block_range {
- public:
-  block_range(uint8_t const* data, size_t offset, size_t size);
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
-
-  uint8_t const* data() const { return begin_; }
-  uint8_t const* begin() const { return begin_; }
-  uint8_t const* end() const { return end_; }
-  size_t size() const { return end_ - begin_; }
-
- private:
-  uint8_t const* const begin_;
-  uint8_t const* const end_;
-  std::shared_ptr<cached_block const> block_;
-};
-
-// TODO: move elsewhere
-struct iovec_read_buf {
-  // This covers more than 95% of reads
-  static constexpr size_t inline_storage = 16;
-
-  folly::small_vector<struct ::iovec, inline_storage> buf;
-  folly::small_vector<block_range, inline_storage> ranges;
-};
 
 constexpr uint8_t MAJOR_VERSION = 2;
 constexpr uint8_t MINOR_VERSION = 5;

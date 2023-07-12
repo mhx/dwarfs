@@ -35,6 +35,7 @@
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
+#include "dwarfs/block_range.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/types.h"

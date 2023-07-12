@@ -28,6 +28,7 @@
 
 #include <folly/Expected.h>
 
+#include "dwarfs/block_range.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/types.h"
 

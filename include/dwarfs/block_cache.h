@@ -28,6 +28,7 @@
 #include <memory>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/block_range.h"
 #include "dwarfs/fstypes.h"
 
 namespace dwarfs {
@@ -35,7 +36,6 @@ namespace dwarfs {
 struct block_cache_options;
 struct cache_tidy_config;
 
-class block_range;
 class fs_section;
 class logger;
 class mmif;
