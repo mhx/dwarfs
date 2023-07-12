@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/error.h"
+#include "dwarfs/safe_main.h"
 #include "dwarfs_tool_main.h"
 
 int SYS_MAIN(int argc, dwarfs::sys_char** argv) {

@@ -35,7 +35,7 @@
 #include <delayimp.h>
 #endif
 
-#include "dwarfs/error.h"
+#include "dwarfs/safe_main.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"

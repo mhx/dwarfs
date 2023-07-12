@@ -22,7 +22,6 @@
 #pragma once
 
 #include <exception>
-#include <functional>
 #include <string>
 #include <system_error>
 
@@ -97,7 +96,5 @@ void dump_exceptions();
 
 [[noreturn]] void assertion_failed(char const* expr, std::string const& msg,
                                    char const* file, int line);
-
-int safe_main(std::function<int(void)> fn);
 
 } // namespace dwarfs
