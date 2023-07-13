@@ -1049,8 +1049,8 @@ add_custom_target(
         "dwarfs_utils_test[1]_include.cmake"
         fbthrift folly zstd libarchive
         include src thrift universal bin lib man1 man5
-        fmtlib fmtlib-download fmtlib-install
-        googletest-build googletest-download googletest-src
+        fmtlib fmtlib-build fmtlib-install
+        googletest googletest-build
         vcpkg-manifest-install.log
         dwarfs.exe.manifest dwarfsbench.exe.manifest
         dwarfsck.exe.manifest dwarfsextract.exe.manifest
@@ -1061,6 +1061,16 @@ add_custom_target(
         install_manifest_gtest.txt install_manifest_Unspecified.txt
         build.ninja .ninja_deps
         Makefile
+)
+
+add_custom_target(
+  distclean
+  COMMAND
+    COMMAND ${CMAKE_MAKE_PROGRAM} realclean
+  COMMAND
+    ${CMAKE_COMMAND} -E rm -rf
+        fmtlib-download fmtlib-src
+        googletest-download googletest-src
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
