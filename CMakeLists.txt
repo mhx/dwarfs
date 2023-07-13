@@ -1194,3 +1194,7 @@ if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
 
   include(CPack)
 endif()
+
+
+add_executable(sim_annealing sim_annealing.cpp)
+target_link_libraries(sim_annealing dwarfs)
