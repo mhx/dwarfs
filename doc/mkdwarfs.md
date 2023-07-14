@@ -33,8 +33,8 @@ There are two mandatory options for specifying the input and output:
 
 - `--input-list=`*file*|`-`:
   Read list of paths to add to the file system from this file or from stdin.
-  The pathames will be interpreted relative to the path given with `--input`.
-  If `--input` is omitted, the pathames will be interpreted relative to the
+  The path names will be interpreted relative to the path given with `--input`.
+  If `--input` is omitted, the path names will be interpreted relative to the
   current directory. If you want files to be stored in the exact same order
   as read from this list (because, for example, you have already sorted them
   by similarity or access frequency), you must also pass `--order=none`.
@@ -83,8 +83,8 @@ Most other options are concerned with compression tuning:
   and block building are single-threaded and run independently.
 
 - `--compress-niceness=`*value*:
-  Set the niceness of compression worker threads. Defaults to 5. This makes
-  sure the ordering and segmenting threads are prioritised over compression
+  Set the niceness of compression worker threads. Defaults to 5. This
+  ensures the ordering and segmenting threads are prioritised over compression
   as they provide the data to the compression workers. On Windows, the values
   are mapped as follows: 0 (zero) is mapped to "normal" priority, 1 to 5 are
   mapped to "below normal" priority, 6 to 10 are mapped to "lowest" priority
@@ -119,7 +119,7 @@ Most other options are concerned with compression tuning:
   this means less blocks will be used in the filesystem and potentially
   less memory will be used when accessing the filesystem. It doesn't
   necessarily mean that the filesystem will be much smaller, as this removes
-  redundany that cannot be exploited by the block compression any longer.
+  redundancy that cannot be exploited by the block compression any longer.
   But it shouldn't make the resulting filesystem any bigger. This option
   is used along with `--window-step` to determine how extensive this
   segment search will be. The smaller the window sizes, the more segments
@@ -131,7 +131,7 @@ Most other options are concerned with compression tuning:
 - `-w`, `--window-step=`*value*:
   This option specifies how often cyclic hash values are stored for lookup.
   It is specified relative to the window size, as a base-2 exponent that
-  divides the window size. To give a concrete example, if `--window-size=16`
+  divides the window size. As a concrete example, if `--window-size=16`
   and `--window-step=1`, then a cyclic hash across 65536 bytes will be stored
   at every 32768 bytes of input data. If `--window-step=2`, then a hash value
   will be stored at every 16384 bytes. This means that not every possible
@@ -147,8 +147,8 @@ Most other options are concerned with compression tuning:
   90% of bad matches quickly with the default bloom filter size. The default
   is pretty much where the sweet spot lies. If you have copious amounts of
   RAM and CPU power, feel free to increase this by one or two and you *might*
-  be able to see some improvement. If you're tight on memory, then decreasing
-  this will potentially save a few MiBs.
+  be able to see some improvement. If your system is tight on memory, then
+  decreasing this will potentially save a few MiBs.
 
 - `-L`, `--memory-limit=`*value*:
   Approximately how much memory you want `mkdwarfs` to use during filesystem
@@ -175,7 +175,7 @@ Most other options are concerned with compression tuning:
   The compression algorithm and configuration used for the metadata schema.
   Takes the same arguments as `--compression` above. The schema is *very*
   small, in the hundreds of bytes, so this is only relevant for extremely
-  small file systems. The default (`zstd`) has shown to give considerably
+  small file systems. The default (`zstd`) has shown to provide considerably
   better results than any other algorithms.
 
 - `--metadata-compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
@@ -365,7 +365,7 @@ following option to enable customizations via the scripting interface:
 - `--script=`*file*[`:`*class*[`(`arguments`...)`]]:
   Specify the Python script to load. The class name is optional if there's
   a class named `mkdwarfs` in the script. It is also possible to pass
-  arguments to the constuctor.
+  arguments to the constructor.
 
 ## TIPS & TRICKS
 
@@ -409,7 +409,7 @@ but you can still save around 30-50% by enabling compression. However,
 this means that upon reading the filesystem, you will first have to
 fully decompress the metadata block and keep it in memory. An uncompressed
 block could simply be mapped into memory and would be instantly usable.
-So if e.g. mounting speed is a concern, it would make sense to disable
+So, if e.g. mounting speed is a concern, it would make sense to disable
 metadata compression, in particular for large filesystems.
 
 However, there are several options to choose from that allow you to
@@ -522,7 +522,7 @@ using `--input-list`.
 ## FILTER RULES
 
 The filter rules have been inspired by the `rsync` utility. These
-look very similar, but there are differences. These rules are quite
+look very similar, though there are differences. These rules are quite
 powerful, yet they're somewhat hard to get used to.
 
 There are only 3 different kinds of rules:
@@ -567,7 +567,7 @@ separators.
 
 Patterns also support character classes.
 
-Here's an example rule set:
+Here's an exemplary rule set:
 
 ```
 + File/Spec/[EM]*.pm

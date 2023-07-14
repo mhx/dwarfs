@@ -84,7 +84,7 @@ to disk:
   can use a significant amount of additional memory.
 
 - `-l`, `--log-level=`*name*:
-  Specifiy a logging level.
+  Specify a logging level.
 
 - `--perfmon=`*name*:
   Enable performance monitoring for the list of comma-separated components.
