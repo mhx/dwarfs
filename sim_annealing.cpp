@@ -6,6 +6,8 @@
 #include <iostream>
 #include <memory>
 #include <random>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <folly/lang/Bits.h>
 #include <folly/String.h>
@@ -71,11 +73,15 @@ int distance(item const& a, item const& b) {
   return distance(a.vec, b.vec);
 }
 
+int distance(std::unique_ptr<item> const& a, std::unique_ptr<item> const& b) {
+  return distance(a->vec, b->vec);
+}
+
 int distance(std::unique_ptr<item const> const& a, std::unique_ptr<item const> const& b) {
   return distance(a->vec, b->vec);
 }
 
-int compute_total_energy(std::vector<std::unique_ptr<item const>> const& items) {
+int compute_total_energy(std::vector<std::unique_ptr<item>> const& items) {
   int total_energy = 0;
 
   for (size_t i = 0; i < items.size(); ++i) {
@@ -87,7 +93,7 @@ int compute_total_energy(std::vector<std::unique_ptr<item const>> const& items) 
   return total_energy;
 }
 
-void analyze(std::vector<std::unique_ptr<item const>> const& items) {
+void analyze(std::vector<std::unique_ptr<item>> const& items) {
   int total_energy = 0;
   std::array<int, 255> hist;
 
@@ -111,7 +117,7 @@ void analyze(std::vector<std::unique_ptr<item const>> const& items) {
 
 }
 
-void annealing(std::vector<std::unique_ptr<item const>> items) {
+void annealing(std::vector<std::unique_ptr<item>> items) {
   int total_energy = compute_total_energy(items);
   std::cout << "total energy: " << total_energy << "\n";
 
@@ -222,7 +228,7 @@ void annealing(std::vector<std::unique_ptr<item const>> items) {
   }
 }
 
-void annealing2(std::vector<std::unique_ptr<item const>> items) {
+void annealing2(std::vector<std::unique_ptr<item>> items) {
   int total_energy = compute_total_energy(items);
   std::cout << "total energy: " << total_energy << "\n";
 
@@ -291,7 +297,7 @@ void annealing2(std::vector<std::unique_ptr<item const>> items) {
   }
 }
 
-void brute_force(std::vector<std::unique_ptr<item const>> items) {
+void brute_force(std::vector<std::unique_ptr<item>> items) {
   int total_energy = compute_total_energy(items);
   std::cout << "total energy: " << total_energy << "\n";
 
@@ -341,6 +347,174 @@ void reverse_test() {
   }
 }
 
+template <typename It>
+void bitwise_rotate_left(It beg, It end, size_t count) {
+  using value_type = std::decay_t<decltype(*beg)>;
+  constexpr auto const value_bits = 8*sizeof(value_type);
+  constexpr value_type const one{1};
+  assert(count < std::distance(beg, end)*value_bits);
+  if (count >= value_bits) {
+    auto distance = count / value_bits;
+    std::rotate(beg, beg + distance, end);
+    count %= value_bits;
+  }
+  if (count > 0) {
+    auto const shift = value_bits - count;
+    value_type const mask = (one << count) - one;
+    value_type const leftmost_bits = *beg >> shift;
+    assert(beg != end);
+    auto next = beg + 1;
+    while (next != end) {
+      *beg = (*beg << count) | (*next >> shift);
+      beg = next++;
+    }
+    *beg = (*beg << count) | leftmost_bits;
+  }
+}
+
+#define EXPECT_EQ(a, b) do { auto av = (a); auto bv = (b); if (av != bv) { throw std::runtime_error(fmt::format("{}:{}: {} != {}", __FILE__, __LINE__, av, bv)); } } while (false)
+
+void bitwise_rotate_left_test() {
+  std::array<uint8_t, 1> a1{{ 0b10100100 }};
+  std::array<uint8_t, 2> a2{{ 0b10010100, 0b10100101 }};
+  std::array<uint8_t, 3> a3{{ 0b01001000, 0b10100100, 0b00100101 }};
+
+  bitwise_rotate_left(a1.begin(), a1.end(), 0);
+  EXPECT_EQ(a1[0], 0b10100100);
+  bitwise_rotate_left(a1.begin(), a1.end(), 1);
+  EXPECT_EQ(a1[0], 0b01001001);
+  bitwise_rotate_left(a1.begin(), a1.end(), 3);
+  EXPECT_EQ(a1[0], 0b01001010);
+  bitwise_rotate_left(a1.begin(), a1.end(), 7);
+  EXPECT_EQ(a1[0], 0b00100101);
+
+  bitwise_rotate_left(a2.begin(), a2.end(), 0);
+  EXPECT_EQ(a2[0], 0b10010100);
+  EXPECT_EQ(a2[1], 0b10100101);
+  bitwise_rotate_left(a2.begin(), a2.end(), 1);
+  EXPECT_EQ(a2[0], 0b00101001);
+  EXPECT_EQ(a2[1], 0b01001011);
+  bitwise_rotate_left(a2.begin(), a2.end(), 3);
+  EXPECT_EQ(a2[0], 0b01001010);
+  EXPECT_EQ(a2[1], 0b01011001);
+  bitwise_rotate_left(a2.begin(), a2.end(), 15);
+  EXPECT_EQ(a2[0], 0b10100101);
+  EXPECT_EQ(a2[1], 0b00101100);
+
+  bitwise_rotate_left(a3.begin(), a3.end(), 13);
+  EXPECT_EQ(a3[0], 0b10000100);
+  EXPECT_EQ(a3[1], 0b10101001);
+  EXPECT_EQ(a3[2], 0b00010100);
+
+  for (int i = 0; i < 25; ++i) {
+    bitwise_rotate_left(a3.begin(), a3.end(), 1);
+  }
+
+  EXPECT_EQ(a3[0], 0b00001001);
+  EXPECT_EQ(a3[1], 0b01010010);
+  EXPECT_EQ(a3[2], 0b00101001);
+}
+
+void rot_hash_by_one(std::vector<std::unique_ptr<item>>& items) {
+  for (auto& it : items) {
+    auto& v = it->vec;
+    bitwise_rotate_left(v.begin(), v.end(), 1);
+  }
+}
+
+void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
+  LOG_PROXY(dwarfs::debug_logger_policy, lgr);
+
+  std::vector<uint32_t> index(items.size());
+  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> distance_one_map;
+  size_t last_map_size = 0;
+  size_t comparisons = 0;
+
+  for (int shift = 0; shift < 256; ++shift) {
+    {
+      auto ti = LOG_TIMED_INFO;
+      rot_hash_by_one(items);
+      ti << "rotate";
+    }
+
+    std::iota(index.begin(), index.end(), 0);
+
+    {
+      auto ti = LOG_TIMED_INFO;
+      sort(index.begin(), index.end(), [&](uint32_t a, uint32_t b){
+        ++comparisons;
+        return *items[a] < *items[b];
+      });
+      ti << "sort";
+    }
+
+    {
+      auto ti = LOG_TIMED_INFO;
+      for (size_t i = 1; i < index.size(); ++i) {
+        auto const& a = items[index[i - 1]];
+        auto const& b = items[index[i]];
+        auto d = distance(a, b);
+        if (d == 0) {
+          throw std::runtime_error("distance is unexpectedly zero");
+        }
+        if (d == 1) {
+          distance_one_map[index[i - 1]].insert(index[i]);
+          distance_one_map[index[i]].insert(index[i - 1]);
+        }
+      }
+      ti << "find neighbours";
+    }
+
+    LOG_INFO << "[" << shift << "] map size: " << distance_one_map.size() << " (+" << (distance_one_map.size() - last_map_size) << ")";
+    last_map_size = distance_one_map.size();
+  }
+
+  size_t total = 0;
+  for (auto const& [i, s] : distance_one_map) {
+    total += s.size();
+  }
+
+  LOG_INFO << "total direct neighbours found: " << total << " (" << distance_one_map.size() << ", " << items.size() << ")";
+  LOG_INFO << "total comparisons: " << comparisons;
+}
+
+void find_neighbours2(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
+  LOG_PROXY(dwarfs::debug_logger_policy, lgr);
+
+  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> distance_one_map;
+
+  for (int bit = 0; bit < 256; ++bit) {
+    int const v_idx = bit / 64;
+    int const v_bit = bit % 64;
+    uint64_t const mask = UINT64_C(1) << v_bit;
+
+    for (size_t i = 0; i < items.size(); ++i) {
+      auto v = items[i]->vec;
+
+      if (v[v_idx] & mask) {
+        v[v_idx] &= ~mask;
+
+        auto it = std::lower_bound(items.begin(), items.end(), v, [&](auto const& a, auto const& b){
+          return a->vec < b;
+        });
+
+        if (it != items.end() && (*it)->vec == v) {
+          int k = std::distance(items.begin(), it);
+          distance_one_map[i].insert(k);
+          distance_one_map[k].insert(i);
+        }
+      }
+    }
+  }
+
+  size_t total = 0;
+  for (auto const& [i, s] : distance_one_map) {
+    total += s.size();
+  }
+
+  LOG_INFO << "total direct neighbours found: " << total << " (" << distance_one_map.size() << ", " << items.size() << ")";
+}
+
 int main() {
   using namespace dwarfs;
   stream_logger lgr(std::cout, logger::level_type::INFO);
@@ -349,7 +523,7 @@ int main() {
   reverse_test();
 
   std::string line;
-  std::vector<std::unique_ptr<item const>> items;
+  std::vector<std::unique_ptr<item>> items;
 
   {
     auto ti = LOG_TIMED_INFO;
@@ -371,42 +545,6 @@ int main() {
     ti << "reading input data";
   }
 
-  std::mt19937 rng;
-
-  for (int i = 0; i < 4; ++i) {
-    {
-      auto ti = LOG_TIMED_INFO;
-
-      std::shuffle(items.begin(), items.end(), rng);
-
-      ti << "shuffle data";
-    }
-
-    {
-      auto ti = LOG_TIMED_INFO;
-
-      std::sort(items.begin(), items.end());
-
-      ti << "sorting data";
-    }
-
-    {
-      auto ti = LOG_TIMED_INFO;
-
-      std::shuffle(items.begin(), items.end(), rng);
-
-      ti << "shuffle data";
-    }
-
-    {
-      auto ti = LOG_TIMED_INFO;
-
-      std::sort(std::execution::unseq, items.begin(), items.end());
-
-      ti << "sorting data (parallel)";
-    }
-  }
-
   // brute_force(std::move(items));
 
   // annealing(std::move(items));
@@ -414,6 +552,16 @@ int main() {
   // annealing2(std::move(items));
 
   // analyze(items);
+
+  bitwise_rotate_left_test();
+
+  {
+    auto ti = LOG_TIMED_INFO;
+
+    find_neighbours2(lgr, std::move(items));
+
+    ti << "find_neighbours";
+  }
 
   return 0;
 }
