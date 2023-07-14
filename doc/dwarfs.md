@@ -73,7 +73,7 @@ options:
 
 - `-o readonly`:
   Show all file system entries as read-only. By default, DwarFS
-  will preserve the original writeability, which is obviously a
+  will preserve the original writability, which is obviously a
   lie as it's a read-only file system. However, this is needed
   for overlays to work correctly, as otherwise directories are
   seen as read-only by the overlay and it'll be impossible to
@@ -204,7 +204,7 @@ set of Perl versions back.
 Here's what you need to do:
 
 - Create a set of directories. In my case, these are all located
-  in `/tmp/perl` as this was the orginal install location.
+  in `/tmp/perl` as this was the original install location.
 
   ```
   cd /tmp/perl

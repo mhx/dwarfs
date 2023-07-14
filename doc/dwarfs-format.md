@@ -337,7 +337,7 @@ is true.
 Both the `names` and `symlinks` tables can be stored in a
 packed format in `compact_names` and `compact_symlinks`.
 
-There are two separate packing schemes that can be combined.
+There are two separate packing schemes which can be combined.
 If none of these schemes is active, the difference between
 e.g. `names` and `compact_names` is that the former is stored
 as a "proper" list, whereas the latter is stored as a single

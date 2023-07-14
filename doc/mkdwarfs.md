@@ -33,8 +33,8 @@ There are two mandatory options for specifying the input and output:
 
 - `--input-list=`*file*|`-`:
   Read list of paths to add to the file system from this file or from stdin.
-  The pathames will be interpreted relative to the path given with `--input`.
-  If `--input` is omitted, the pathames will be interpreted relative to the
+  The pathnames will be interpreted relative to the path given with `--input`.
+  If `--input` is omitted, the pathnames will be interpreted relative to the
   current directory. If you want files to be stored in the exact same order
   as read from this list (because, for example, you have already sorted them
   by similarity or access frequency), you must also pass `--order=none`.
@@ -83,8 +83,8 @@ Most other options are concerned with compression tuning:
   and block building are single-threaded and run independently.
 
 - `--compress-niceness=`*value*:
-  Set the niceness of compression worker threads. Defaults to 5. This makes
-  sure the ordering and segmenting threads are prioritised over compression
+  Set the niceness of compression worker threads. Defaults to 5. This
+  ensures the ordering and segmenting threads are prioritised over compression
   as they provide the data to the compression workers. On Windows, the values
   are mapped as follows: 0 (zero) is mapped to "normal" priority, 1 to 5 are
   mapped to "below normal" priority, 6 to 10 are mapped to "lowest" priority
@@ -119,7 +119,7 @@ Most other options are concerned with compression tuning:
   this means less blocks will be used in the filesystem and potentially
   less memory will be used when accessing the filesystem. It doesn't
   necessarily mean that the filesystem will be much smaller, as this removes
-  redundany that cannot be exploited by the block compression any longer.
+  redundancy that cannot be exploited by the block compression any longer.
   But it shouldn't make the resulting filesystem any bigger. This option
   is used along with `--window-step` to determine how extensive this
   segment search will be. The smaller the window sizes, the more segments
@@ -131,7 +131,7 @@ Most other options are concerned with compression tuning:
 - `-w`, `--window-step=`*value*:
   This option specifies how often cyclic hash values are stored for lookup.
   It is specified relative to the window size, as a base-2 exponent that
-  divides the window size. To give a concrete example, if `--window-size=16`
+  divides the window size. As a concrete example, if `--window-size=16`
   and `--window-step=1`, then a cyclic hash across 65536 bytes will be stored
   at every 32768 bytes of input data. If `--window-step=2`, then a hash value
   will be stored at every 16384 bytes. This means that not every possible
@@ -147,8 +147,8 @@ Most other options are concerned with compression tuning:
   90% of bad matches quickly with the default bloom filter size. The default
   is pretty much where the sweet spot lies. If you have copious amounts of
   RAM and CPU power, feel free to increase this by one or two and you *might*
-  be able to see some improvement. If you're tight on memory, then decreasing
-  this will potentially save a few MiBs.
+  be able to see some improvement. If your system is tight on memory, then 
+  decreasing this will potentially save a few MiBs.
 
 - `-L`, `--memory-limit=`*value*:
   Approximately how much memory you want `mkdwarfs` to use during filesystem
@@ -175,7 +175,7 @@ Most other options are concerned with compression tuning:
   The compression algorithm and configuration used for the metadata schema.
   Takes the same arguments as `--compression` above. The schema is *very*
   small, in the hundreds of bytes, so this is only relevant for extremely
-  small file systems. The default (`zstd`) has shown to give considerably
+  small file systems. The default (`zstd`) has shown to provide considerably
   better results than any other algorithms.
 
 - `--metadata-compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
@@ -189,7 +189,7 @@ Most other options are concerned with compression tuning:
   the data will only have to be decompressed once when mounting the image.
 
 - `--recompress`[`=all`|`=block`|`=metadata`|`=none`]:
-  Take an existing DwarFS file system and recompress it using different
+  Takes an existing DwarFS file system and recompress it using different
   compression algorithms. If no argument or `all` is given, all sections
   in the file system image will be recompressed. Note that *only* the
   compression algorithms, i.e. the `--compression`, `--schema-compression`
@@ -237,7 +237,7 @@ Most other options are concerned with compression tuning:
   `atime` and `ctime` as well, use this option.
 
 - `--time-resolution=`*sec*|`sec`|`min`|`hour`|`day`:
-  Specify the resolution with which time stamps are stored. By default,
+  Specifies the resolution with which time stamps are stored. By default,
   time stamps are stored with second resolution. You can specify "odd"
   resolutions as well, e.g. something like 15 second resolution is
   entirely possible. Moving from second to minute resolution, for example,
@@ -303,21 +303,21 @@ Most other options are concerned with compression tuning:
   file system entries.
 
 - `--with-devices`:
-  Include character and block devices in the output file system. These are
+  Includes character and block devices in the output file system. These are
   not included by default, and due to security measures in FUSE, they will
   never work in the mounted file system. However, they can still be copied
   out of the mounted file system, for example using `rsync`.
 
 - `--with-specials`:
-  Include named fifos and sockets in the output file system. These are not
+  Includes named fifos and sockets in the output file system. These are not
   included by default.
 
 - `--header=`*file*:
-  Read header from file and place it before the output filesystem image.
+  Reads header from file and place it before the output filesystem image.
   Can be used with `--recompress` to add or replace a header.
 
 - `--remove-header`:
-  Remove header from a filesystem image. Only useful with `--recompress`.
+  Removes header from a filesystem image. Only useful with `--recompress`.
 
 - `--no-section-index`:
   Don't add section index to file system. The section index is usually tiny
@@ -329,7 +329,7 @@ Most other options are concerned with compression tuning:
   system images are required to be produced from the same input.
 
 - `--file-hash=none`|*name*:
-  Select the hashing function to be used for file deduplication. If `none`
+  Defines the hashing function to be used for file deduplication. If `none`
   is chosen, file deduplication is disabled. By default, the built-in
   `XXH3-128` hash is used. This is not a secure hash function, but it is
   significantly faster. The full list of supported hash function depends
@@ -337,7 +337,7 @@ Most other options are concerned with compression tuning:
   in the output of `mkdwarfs -h`.
 
 - `--log-level=`*name*:
-  Specifiy a logging level.
+  Specifies a logging level.
 
 - `--no-progress`:
   Don't show progress output while building filesystem.
@@ -353,19 +353,19 @@ Most other options are concerned with compression tuning:
   fancy.
 
 - `-h`, `--help`:
-  Show usage and the most common basic options.
+  Shows usage and the most common basic options.
 
 - `-H`, `--long-help`:
-  Show full usage with all options, including defaults, compression level
+  Shows full usage with all options, including defaults, compression level
   detail and supported compression algorithms.
 
 If experimental Python support was compiled into `mkdwarfs`, you can use the
 following option to enable customizations via the scripting interface:
 
 - `--script=`*file*[`:`*class*[`(`arguments`...)`]]:
-  Specify the Python script to load. The class name is optional if there's
+  Specifies the Python script to load. The class name is optional if there's
   a class named `mkdwarfs` in the script. It is also possible to pass
-  arguments to the constuctor.
+  arguments to the constructor.
 
 ## TIPS & TRICKS
 
@@ -404,12 +404,12 @@ are defined in the IDL, but they always hold the same value (or are not
 used at all), not a single bit will be allocated for this field even if
 you have a list of millions of items.
 
-Frozen metadata has relatively low redundancy and doesn't compress well,
+Frozen metadata have relatively low redundancy and don't compress well,
 but you can still save around 30-50% by enabling compression. However,
 this means that upon reading the filesystem, you will first have to
 fully decompress the metadata block and keep it in memory. An uncompressed
 block could simply be mapped into memory and would be instantly usable.
-So if e.g. mounting speed is a concern, it would make sense to disable
+So, if e.g. mounting speed is a concern, it would make sense to disable
 metadata compression, in particular for large filesystems.
 
 However, there are several options to choose from that allow you to
@@ -425,7 +425,7 @@ These options are controlled by the `--pack-metadata` option.
   format. In order to force storage in plain format, use `plain`.
 
 - `all`:
-  Enable all packing options. This does *not* force packing of
+  Enables all packing options. This does *not* force packing of
   string tables (i.e. names and symlinks) if the packing would
   actually increase the size, which can happen if the string tables
   are actually small. In order to force string table packing, use
@@ -438,7 +438,7 @@ These options are controlled by the `--pack-metadata` option.
   again. Only use this if you know what you're doing.
 
 - `directories`:
-  Pack directories table by storing first entry pointers delta-
+  Packs directories table by storing first entry pointers delta-
   compressed and completely removing parent directory pointers.
   The parent directory pointers can be rebuilt by tree traversal
   when the filesystem is loaded. If you have a large number of
@@ -447,12 +447,12 @@ These options are controlled by the `--pack-metadata` option.
   again. Only use this if you know what you're doing.
 
 - `shared_files`:
-  Pack shared files table. This is only useful if the filesystem
+  Packs shared files table. This is only useful if the filesystem
   contains lots of non-hardlinked duplicates. It gets more efficient
   the more copies of a file are in the filesystem.
 
 - `names`,`symlinks`:
-  Compress the names and symlink targets using the
+  Compresses the names and symlink targets using the
   [fsst](https://github.com/cwida/fsst) compression scheme. This
   compresses each individual entry separately using a small,
   custom symbol table, and it's surprisingly efficient. It is
@@ -467,7 +467,7 @@ These options are controlled by the `--pack-metadata` option.
   will be stored uncompressed, unless `force` is also specified.
 
 - `names_index`,`symlinks_index`:
-  Delta-compress the names and symlink targets indices. The same
+  Delta-compresses the names and symlink targets indices. The same
   caveats apply as for `chunk_table`.
 
 - `force`:
@@ -477,7 +477,7 @@ These options are controlled by the `--pack-metadata` option.
   and development.
 
 - `plain`:
-  Store string tables in "plain" format. The plain format uses
+  Stores string tables in "plain" format. The plain format uses
   Frozen thrift arrays and was used in earlier metadata versions.
   It is useful for debugging, but wastes up to one byte per string.
 
@@ -522,7 +522,7 @@ using `--input-list`.
 ## FILTER RULES
 
 The filter rules have been inspired by the `rsync` utility. These
-look very similar, but there are differences. These rules are quite
+look very similar, though there are differences. These rules are quite
 powerful, yet they're somewhat hard to get used to.
 
 There are only 3 different kinds of rules:
@@ -567,7 +567,7 @@ separators.
 
 Patterns also support character classes.
 
-Here's an example rule set:
+Here's an exemplary rule set:
 
 ```
 + File/Spec/[EM]*.pm
@@ -648,9 +648,9 @@ Blocks that have been compressed will be added to the next queue,
 in the original order, and will be picked up by the filesystem writer
 thread that will ultimately produce the final filesystem image.
 
-When all data has been segmented, the filesystem metadata is being
+When all data has been segmented, the filesystem metadata are being
 finalized and frozen into a compact representation. If metadata
-compression is enabled, the metadata is sent to the worker thread
+compression is enabled, the metadata are sent to the worker thread
 pool for compression.
 
 When using different ordering schemes, the file inodes will be

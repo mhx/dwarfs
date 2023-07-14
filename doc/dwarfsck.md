@@ -44,10 +44,10 @@ with a non-zero exit code.
   note that the format is *not* stable.
 
 - `--export-metadata=`*file*:
-  Export all filesystem meteadata in JSON format.
+  Export all filesystem metadata in JSON format.
 
 - `--log-level=`*name*:
-  Specifiy a logging level.
+  Specify a logging level.
 
 - `--help`:
   Show program help, including option defaults.
