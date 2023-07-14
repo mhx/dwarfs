@@ -2,6 +2,7 @@
 #include <array>
 #include <cassert>
 #include <charconv>
+#include <execution>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -11,6 +12,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/logger.h"
 #include "dwarfs/nilsimsa.h"
 
 template <typename It>
@@ -340,28 +342,72 @@ void reverse_test() {
 }
 
 int main() {
+  using namespace dwarfs;
+  stream_logger lgr(std::cout, logger::level_type::INFO);
+  LOG_PROXY(debug_logger_policy, lgr);
+
   reverse_test();
 
   std::string line;
   std::vector<std::unique_ptr<item const>> items;
 
-  while (std::getline(std::cin, line)) {
-    auto it = std::make_unique<item>();
-    for (size_t i = 0; i < it->vec.size(); ++i) {
-      auto start = line.data() + 16*i;
-      auto res = std::from_chars(start, start + 16, it->vec[i], 16);
-      assert(res.ec == std::errc());
+  {
+    auto ti = LOG_TIMED_INFO;
+
+    while (std::getline(std::cin, line)) {
+      auto it = std::make_unique<item>();
+      for (size_t i = 0; i < it->vec.size(); ++i) {
+        auto start = line.data() + 16*i;
+        auto res = std::from_chars(start, start + 16, it->vec[i], 16);
+        assert(res.ec == std::errc());
+      }
+      char const* const end = line.data() + line.size();
+      auto res = std::from_chars(line.data() + 65, end, it->size);
+      assert(res.ptr != nullptr);
+      it->name.assign(res.ptr, end);
+      items.emplace_back(std::move(it));
     }
-    char const* const end = line.data() + line.size();
-    auto res = std::from_chars(line.data() + 65, end, it->size);
-    assert(res.ptr != nullptr);
-    it->name.assign(res.ptr, end);
-    items.emplace_back(std::move(it));
+
+    ti << "reading input data";
   }
 
-  // std::sort(items.begin(), items.end());
+  std::mt19937 rng;
 
-  brute_force(std::move(items));
+  for (int i = 0; i < 4; ++i) {
+    {
+      auto ti = LOG_TIMED_INFO;
+
+      std::shuffle(items.begin(), items.end(), rng);
+
+      ti << "shuffle data";
+    }
+
+    {
+      auto ti = LOG_TIMED_INFO;
+
+      std::sort(items.begin(), items.end());
+
+      ti << "sorting data";
+    }
+
+    {
+      auto ti = LOG_TIMED_INFO;
+
+      std::shuffle(items.begin(), items.end(), rng);
+
+      ti << "shuffle data";
+    }
+
+    {
+      auto ti = LOG_TIMED_INFO;
+
+      std::sort(std::execution::unseq, items.begin(), items.end());
+
+      ti << "sorting data (parallel)";
+    }
+  }
+
+  // brute_force(std::move(items));
 
   // annealing(std::move(items));
 
