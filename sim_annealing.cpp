@@ -2,21 +2,24 @@
 #include <array>
 #include <cassert>
 #include <charconv>
+#include <cstring>
 #include <execution>
 #include <iostream>
 #include <memory>
 #include <random>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 
+#include <folly/String.h>
 #include <folly/lang/Bits.h>
-#include <folly/String.h>
-#include <folly/String.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
 
 #include "dwarfs/logger.h"
+#include "dwarfs/mmap.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/worker_group.h"
 
@@ -60,7 +63,9 @@ struct item {
 };
 
 bool operator<(item const& a, item const& b) {
-  return a.vec < b.vec || (a.vec == b.vec && (a.size > b.size || (a.size == b.size && a.name < b.name)));
+  return a.vec < b.vec ||
+         (a.vec == b.vec &&
+          (a.size > b.size || (a.size == b.size && a.name < b.name)));
 }
 
 template <typename T, size_t N>
@@ -72,15 +77,14 @@ int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
   return d;
 }
 
-int distance(item const& a, item const& b) {
-  return distance(a.vec, b.vec);
-}
+int distance(item const& a, item const& b) { return distance(a.vec, b.vec); }
 
 int distance(std::unique_ptr<item> const& a, std::unique_ptr<item> const& b) {
   return distance(a->vec, b->vec);
 }
 
-int distance(std::unique_ptr<item const> const& a, std::unique_ptr<item const> const& b) {
+int distance(std::unique_ptr<item const> const& a,
+             std::unique_ptr<item const> const& b) {
   return distance(a->vec, b->vec);
 }
 
@@ -110,14 +114,14 @@ void analyze(std::vector<std::unique_ptr<item>> const& items) {
     ++hist[d];
   }
 
-  std::cout << "total energy: " << total_energy << " (" << static_cast<double>(total_energy)/items.size() << "/item)\n";
+  std::cout << "total energy: " << total_energy << " ("
+            << static_cast<double>(total_energy) / items.size() << "/item)\n";
 
   for (size_t i = 0; i < hist.size(); ++i) {
     if (hist[i]) {
       std::cout << "[" << i << "] " << hist[i] << "\n";
     }
   }
-
 }
 
 void annealing(std::vector<std::unique_ptr<item>> items) {
@@ -154,22 +158,22 @@ void annealing(std::vector<std::unique_ptr<item>> items) {
 
       int cur_distance, new_distance;
 
-                        //    a  b  c  d
+      //    a  b  c  d
       if (&i1 == &k0) { //    i0 i1 i2
                         //       k0 k1 k2
         cur_distance = distance(i0, i1) + distance(i2, k2);
         new_distance = distance(i0, i2) + distance(i1, k2);
-                               // a  b  c  d
+        // a  b  c  d
       } else if (&i1 == &k2) { //    i0 i1 i2
                                // k0 k1 k2
         cur_distance = distance(k0, k1) + distance(k2, i2);
         new_distance = distance(k0, k2) + distance(k1, i2);
 
       } else {
-        cur_distance = distance(i0, i1) + distance(i1, i2)
-                     + distance(k0, k1) + distance(k1, k2);
-        new_distance = distance(i0, k1) + distance(k1, i2)
-                     + distance(k0, i1) + distance(i1, k2);
+        cur_distance = distance(i0, i1) + distance(i1, i2) + distance(k0, k1) +
+                       distance(k1, k2);
+        new_distance = distance(i0, k1) + distance(k1, i2) + distance(k0, i1) +
+                       distance(i1, k2);
       }
       delta = new_distance - cur_distance;
 
@@ -177,7 +181,7 @@ void annealing(std::vector<std::unique_ptr<item>> items) {
         accept = true;
       } else {
         // TODO: replace std::exp with cheaper function
-        accept = urdist(rng) < std::exp(-delta/T);
+        accept = urdist(rng) < std::exp(-delta / T);
       }
 
       if (accept) {
@@ -201,7 +205,7 @@ void annealing(std::vector<std::unique_ptr<item>> items) {
         accept = true;
       } else {
         // TODO: replace std::exp with cheaper function
-        accept = urdist(rng) < std::exp(-delta/T);
+        accept = urdist(rng) < std::exp(-delta / T);
       }
 
       if (accept) {
@@ -220,7 +224,10 @@ void annealing(std::vector<std::unique_ptr<item>> items) {
     if ((accepted + rejected) % 65536 == 0) {
       int te2 = 0;
 
-      std::cout << "T=" << T << ", total energy/item: " << static_cast<double>(total_energy)/items.size() << " (a=" << accepted << ", r=" << rejected <<  ") -> " << total_energy << "/" << te2 << " [" << i << "/" << k << "]\n";
+      std::cout << "T=" << T << ", total energy/item: "
+                << static_cast<double>(total_energy) / items.size()
+                << " (a=" << accepted << ", r=" << rejected << ") -> "
+                << total_energy << "/" << te2 << " [" << i << "/" << k << "]\n";
 
       // if (total_energy != te2) {
       //   return 0;
@@ -275,7 +282,7 @@ void annealing2(std::vector<std::unique_ptr<item>> items) {
       accept = true;
     } else {
       // TODO: replace std::exp with cheaper function
-      accept = urdist(rng) < std::exp(-delta/T);
+      accept = urdist(rng) < std::exp(-delta / T);
     }
 
     if (accept) {
@@ -289,7 +296,11 @@ void annealing2(std::vector<std::unique_ptr<item>> items) {
     if (/*accept ||*/ (accepted + rejected) % 65536 == 0) {
       int te2 = 0; // compute_total_energy(items);
 
-      std::cout << "T=" << T << ", total energy/item: " << static_cast<double>(total_energy)/items.size() << " (a=" << accepted << ", r=" << rejected <<  ") -> " << total_energy << "/" << te2 << " [" << ip << "/" << i << "/" << k << "/" << ks << "]\n";
+      std::cout << "T=" << T << ", total energy/item: "
+                << static_cast<double>(total_energy) / items.size()
+                << " (a=" << accepted << ", r=" << rejected << ") -> "
+                << total_energy << "/" << te2 << " [" << ip << "/" << i << "/"
+                << k << "/" << ks << "]\n";
 
       // if (total_energy != te2) {
       //   return;
@@ -323,21 +334,23 @@ void brute_force(std::vector<std::unique_ptr<item>> items) {
 
     if (i % 256 == 0) {
       total_energy = compute_total_energy(items);
-      std::cout << "[" << i << "/" << items.size() << "] total energy: " << total_energy << "\n";
+      std::cout << "[" << i << "/" << items.size()
+                << "] total energy: " << total_energy << "\n";
     }
   }
 
   total_energy = compute_total_energy(items);
   std::cout << "final total energy: " << total_energy << "\n";
-  std::cout << "final total energy: " << static_cast<double>(total_energy)/items.size() << "/item\n";
+  std::cout << "final total energy: "
+            << static_cast<double>(total_energy) / items.size() << "/item\n";
 }
 
 void reverse_test() {
-  std::vector<std::tuple<size_t, size_t, std::vector<int>>> const test_cases {
-    {3, 7, {1, 2, 3, 8, 7, 6, 5, 4, 9}},
-    {7, 3, {2, 1, 9, 8, 5, 6, 7, 4, 3}},
-    {5, 1, {7, 6, 3, 4, 5, 2, 1, 9, 8}},
-    {6, 2, {9, 8, 7, 4, 5, 6, 3, 2, 1}},
+  std::vector<std::tuple<size_t, size_t, std::vector<int>>> const test_cases{
+      {3, 7, {1, 2, 3, 8, 7, 6, 5, 4, 9}},
+      {7, 3, {2, 1, 9, 8, 5, 6, 7, 4, 3}},
+      {5, 1, {7, 6, 3, 4, 5, 2, 1, 9, 8}},
+      {6, 2, {9, 8, 7, 4, 5, 6, 3, 2, 1}},
   };
 
   for (auto& [i, k, ref] : test_cases) {
@@ -346,16 +359,17 @@ void reverse_test() {
 
     circular_reverse(in.begin(), in.end(), i, k);
 
-    std::cout << "[" << i << "," << k << "] -> " << folly::join(", ", in) << " -> " << (in == ref ? "OK" : "FAIL") << "\n";
+    std::cout << "[" << i << "," << k << "] -> " << folly::join(", ", in)
+              << " -> " << (in == ref ? "OK" : "FAIL") << "\n";
   }
 }
 
 template <typename It>
 void bitwise_rotate_left(It beg, It end, size_t count) {
   using value_type = std::decay_t<decltype(*beg)>;
-  constexpr auto const value_bits = 8*sizeof(value_type);
+  constexpr auto const value_bits = 8 * sizeof(value_type);
   constexpr value_type const one{1};
-  assert(count < std::distance(beg, end)*value_bits);
+  assert(count < std::distance(beg, end) * value_bits);
   if (count >= value_bits) {
     auto distance = count / value_bits;
     std::rotate(beg, beg + distance, end);
@@ -375,12 +389,20 @@ void bitwise_rotate_left(It beg, It end, size_t count) {
   }
 }
 
-#define EXPECT_EQ(a, b) do { auto av = (a); auto bv = (b); if (av != bv) { throw std::runtime_error(fmt::format("{}:{}: {} != {}", __FILE__, __LINE__, av, bv)); } } while (false)
+#define EXPECT_EQ(a, b)                                                        \
+  do {                                                                         \
+    auto av = (a);                                                             \
+    auto bv = (b);                                                             \
+    if (av != bv) {                                                            \
+      throw std::runtime_error(                                                \
+          fmt::format("{}:{}: {} != {}", __FILE__, __LINE__, av, bv));         \
+    }                                                                          \
+  } while (false)
 
 void bitwise_rotate_left_test() {
-  std::array<uint8_t, 1> a1{{ 0b10100100 }};
-  std::array<uint8_t, 2> a2{{ 0b10010100, 0b10100101 }};
-  std::array<uint8_t, 3> a3{{ 0b01001000, 0b10100100, 0b00100101 }};
+  std::array<uint8_t, 1> a1{{0b10100100}};
+  std::array<uint8_t, 2> a2{{0b10010100, 0b10100101}};
+  std::array<uint8_t, 3> a3{{0b01001000, 0b10100100, 0b00100101}};
 
   bitwise_rotate_left(a1.begin(), a1.end(), 0);
   EXPECT_EQ(a1[0], 0b10100100);
@@ -425,7 +447,8 @@ void rot_hash_by_one(std::vector<std::unique_ptr<item>>& items) {
   }
 }
 
-void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
+void find_neighbours(dwarfs::logger& lgr,
+                     std::vector<std::unique_ptr<item>> items) {
   LOG_PROXY(dwarfs::debug_logger_policy, lgr);
 
   std::vector<uint32_t> index(items.size());
@@ -444,7 +467,7 @@ void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> ite
 
     {
       auto ti = LOG_TIMED_INFO;
-      sort(index.begin(), index.end(), [&](uint32_t a, uint32_t b){
+      sort(index.begin(), index.end(), [&](uint32_t a, uint32_t b) {
         ++comparisons;
         return *items[a] < *items[b];
       });
@@ -468,7 +491,8 @@ void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> ite
       ti << "find neighbours";
     }
 
-    LOG_INFO << "[" << shift << "] map size: " << distance_one_map.size() << " (+" << (distance_one_map.size() - last_map_size) << ")";
+    LOG_INFO << "[" << shift << "] map size: " << distance_one_map.size()
+             << " (+" << (distance_one_map.size() - last_map_size) << ")";
     last_map_size = distance_one_map.size();
   }
 
@@ -477,30 +501,36 @@ void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> ite
     total += s.size();
   }
 
-  LOG_INFO << "total direct neighbours found: " << total << " (" << distance_one_map.size() << ", " << items.size() << ")";
+  LOG_INFO << "total direct neighbours found: " << total << " ("
+           << distance_one_map.size() << ", " << items.size() << ")";
   LOG_INFO << "total comparisons: " << comparisons;
 }
 
 using neigh_map_type = std::vector<std::pair<uint32_t, uint32_t>>;
 
-neigh_map_type find_neighbours_for_bit(std::vector<std::unique_ptr<item>> const& items, int bit) {
+neigh_map_type
+find_neighbours_for_bit(std::vector<std::unique_ptr<item>> const& items,
+                        int bit) {
   neigh_map_type rv;
 
   int const v_idx = bit / 64;
   int const v_bit = bit % 64;
   uint64_t const mask = UINT64_C(1) << v_bit;
 
+  auto it = items.begin();
+
   for (size_t i = 0; i < items.size(); ++i) {
     auto v = items[i]->vec;
 
     if (v[v_idx] & mask) {
+      auto last = items.begin() + i;
       v[v_idx] &= ~mask;
 
-      auto it = std::lower_bound(items.begin(), items.end(), v, [&](auto const& a, auto const& b){
+      it = std::lower_bound(it, last, v, [&](auto const& a, auto const& b) {
         return a->vec < b;
       });
 
-      if (it != items.end() && (*it)->vec == v) {
+      if (it != last && (*it)->vec == v) {
         int k = std::distance(items.begin(), it);
         rv.emplace_back(i, k);
         rv.emplace_back(k, i);
@@ -513,7 +543,8 @@ neigh_map_type find_neighbours_for_bit(std::vector<std::unique_ptr<item>> const&
   return rv;
 }
 
-void find_neighbours2(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
+void find_neighbours2(dwarfs::logger& lgr,
+                      std::vector<std::unique_ptr<item>> items) {
   LOG_PROXY(dwarfs::debug_logger_policy, lgr);
 
   dwarfs::worker_group wg("neigh", std::max(folly::hardware_concurrency(), 1u));
@@ -539,37 +570,93 @@ void find_neighbours2(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> it
     std::inplace_merge(distance_one_map.begin(), mid, distance_one_map.end());
   }
 
-  LOG_INFO << "total direct neighbours found: " << distance_one_map.size() << " / " << items.size();
+  LOG_INFO << "total direct neighbours found: " << distance_one_map.size()
+           << " / " << items.size();
 }
 
-int main() {
+template <typename T>
+auto parallel_line_reader(std::string_view data, T const& line_processor) {
+  using result_type = std::invoke_result_t<T, std::string_view>;
+  size_t const num_threads = std::max(folly::hardware_concurrency(), 1u);
+
+  std::vector<char const*> ptrs;
+
+  ptrs.push_back(data.data());
+  for (size_t i = 1; i < num_threads; ++i) {
+    size_t const off = (i * data.size() + num_threads / 2) / num_threads;
+    size_t const remain = data.size() - off;
+    ptrs.push_back(reinterpret_cast<char const*>(
+                       ::memchr(data.data() + off, '\n', remain)) +
+                   1);
+  }
+  ptrs.push_back(data.data() + data.size());
+
+  dwarfs::worker_group wg("reader", num_threads);
+  std::vector<std::future<std::vector<result_type>>> futures;
+
+  for (size_t i = 0; i < num_threads; ++i) {
+    std::promise<std::vector<result_type>> prom;
+    futures.emplace_back(prom.get_future());
+    wg.add_job([prom = std::move(prom), first = ptrs[i], last = ptrs[i + 1],
+                &line_processor]() mutable {
+      std::vector<result_type> lines;
+      while (first < last) {
+        auto next =
+            reinterpret_cast<char const*>(::memchr(first, '\n', last - first)) +
+            1;
+        lines.push_back(line_processor(std::string_view(first, next)));
+        first = next;
+      }
+      prom.set_value(std::move(lines));
+    });
+  }
+
+  std::vector<result_type> rv;
+
+  for (auto& f : futures) {
+    auto vec = f.get();
+    size_t cur_size = rv.size();
+    rv.resize(cur_size + vec.size());
+    std::move(vec.begin(), vec.end(), rv.begin() + cur_size);
+  }
+
+  return rv;
+}
+
+int main(int argc, char** argv) {
   using namespace dwarfs;
   stream_logger lgr(std::cout, logger::level_type::INFO);
   LOG_PROXY(debug_logger_policy, lgr);
 
   reverse_test();
 
-  std::string line;
+  if (argc != 2) {
+    LOG_ERROR << "usage: " << argv[0] << " <data>";
+    return 1;
+  }
+
+  dwarfs::mmap mm(argv[1]);
   std::vector<std::unique_ptr<item>> items;
 
   {
     auto ti = LOG_TIMED_INFO;
 
-    while (std::getline(std::cin, line)) {
-      auto it = std::make_unique<item>();
-      for (size_t i = 0; i < it->vec.size(); ++i) {
-        auto start = line.data() + 16*i;
-        auto res = std::from_chars(start, start + 16, it->vec[i], 16);
-        assert(res.ec == std::errc());
-      }
-      char const* const end = line.data() + line.size();
-      auto res = std::from_chars(line.data() + 65, end, it->size);
-      assert(res.ptr != nullptr);
-      it->name.assign(res.ptr, end);
-      items.emplace_back(std::move(it));
-    }
+    items = parallel_line_reader(
+        std::string_view(mm.as<char>(), mm.size()), [](std::string_view line) {
+          auto it = std::make_unique<item>();
+          for (size_t i = 0; i < it->vec.size(); ++i) {
+            auto start = line.data() + 16 * i;
+            auto res = std::from_chars(start, start + 16, it->vec[i], 16);
+            assert(res.ec == std::errc());
+          }
+          char const* const end = line.data() + line.size();
+          auto res = std::from_chars(line.data() + 65, end, it->size);
+          assert(res.ptr != nullptr);
+          it->name.assign(res.ptr, end);
+          return it;
+        });
 
-    ti << "reading input data";
+    ti << "parsing input data";
   }
 
   // brute_force(std::move(items));
