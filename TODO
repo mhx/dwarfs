@@ -1,3 +1,70 @@
+- different scenarios for categorized files / chunks:
+
+  - Video files
+    - just store without compression, but perform segmentation, nothing special
+    - keep in lookback buffer for longer, as it doesn't cost memory
+    - needs parallelized segmenter (see below)
+
+  - PCM audio (see also github #95)
+    - segment first in case of e.g. different trims or other types of overlap
+    - split into chunks (for parallel decompression)
+    - compress each chunk as flac
+    - headers to be saved separately
+    - need to store original size and other information
+
+    This is actually quite easy:
+
+    - Identify PCM audio files (libmagic?)
+    - Use libsndfile for parsing
+    - Nilsimsa similarity works surprisingly well
+    - We can potentially switch to larger window size for segmentation and use
+      larger lookback
+    - Group by format (# of channels, resolution, endian-ness, signedness, sample rate)
+    - Run segmentation as usual
+    - Compress each block using FLAC (hopefully we can configure how much header data
+      and/or seek points etc. gets stored) or maybe even WAVPACK is we don't need perf
+    - I *think* this can be done even with the current metadata format without any
+      additions
+    - The features needed should be largely orthogonal to the features needed for the
+      scenarios below
+
+  - Executables, Shared Libs, ...
+    - run filter over blocks that contain a certain kind of binary data before
+      compression
+    - a single binary may contain machine code for different architectures,
+      so we may have to store different parts of the binary in different blocks
+    - actually quite similar to audio files above, except for the additional
+      filter used during compression/decompression
+
+  - JPG
+    - just store a recompressed version
+    - need to store original size
+    - no need for segmentation except for exact 
+
+  - PDF
+    - decompress contents
+    - then segment
+    - then compress along with other PDFs (or documents in general)
+
+  - Other compressed format (gz, xz, ...)
+    - decompress
+    - segment
+    - compress
+    - essentially like PDF
+    - maybe only do this for small files? (option for size limit?)
+
+  - It should be possible to treat individual chunks differently, e.g.
+    WAV-header should be stored independently from contents; at some
+    point, we might look deeper into tar files and compress individual
+    contents differently.
+
+- in the metadata, we need to know:
+
+  - the fact that a stored inode is "special" (can be reflected in a single bit)
+  - the type of "specialness"
+  - the original file size
+
+
 - multi-threaded pre-matcher (for -Bn with n > 0)
   - pre-compute matches/cyclic hashes for completed blocks; these don't
     change and so we can do this with very little synchronization
