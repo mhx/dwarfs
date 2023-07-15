@@ -11,11 +11,14 @@
 
 #include <folly/lang/Bits.h>
 #include <folly/String.h>
+#include <folly/String.h>
+#include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
 
 #include "dwarfs/logger.h"
 #include "dwarfs/nilsimsa.h"
+#include "dwarfs/worker_group.h"
 
 template <typename It>
 void circular_reverse(It beg, It end, size_t i, size_t k) {
@@ -478,41 +481,65 @@ void find_neighbours(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> ite
   LOG_INFO << "total comparisons: " << comparisons;
 }
 
-void find_neighbours2(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
-  LOG_PROXY(dwarfs::debug_logger_policy, lgr);
+using neigh_map_type = std::vector<std::pair<uint32_t, uint32_t>>;
 
-  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> distance_one_map;
+neigh_map_type find_neighbours_for_bit(std::vector<std::unique_ptr<item>> const& items, int bit) {
+  neigh_map_type rv;
 
-  for (int bit = 0; bit < 256; ++bit) {
-    int const v_idx = bit / 64;
-    int const v_bit = bit % 64;
-    uint64_t const mask = UINT64_C(1) << v_bit;
+  int const v_idx = bit / 64;
+  int const v_bit = bit % 64;
+  uint64_t const mask = UINT64_C(1) << v_bit;
 
-    for (size_t i = 0; i < items.size(); ++i) {
-      auto v = items[i]->vec;
+  for (size_t i = 0; i < items.size(); ++i) {
+    auto v = items[i]->vec;
 
-      if (v[v_idx] & mask) {
-        v[v_idx] &= ~mask;
+    if (v[v_idx] & mask) {
+      v[v_idx] &= ~mask;
 
-        auto it = std::lower_bound(items.begin(), items.end(), v, [&](auto const& a, auto const& b){
-          return a->vec < b;
-        });
+      auto it = std::lower_bound(items.begin(), items.end(), v, [&](auto const& a, auto const& b){
+        return a->vec < b;
+      });
 
-        if (it != items.end() && (*it)->vec == v) {
-          int k = std::distance(items.begin(), it);
-          distance_one_map[i].insert(k);
-          distance_one_map[k].insert(i);
-        }
+      if (it != items.end() && (*it)->vec == v) {
+        int k = std::distance(items.begin(), it);
+        rv.emplace_back(i, k);
+        rv.emplace_back(k, i);
       }
     }
   }
 
-  size_t total = 0;
-  for (auto const& [i, s] : distance_one_map) {
-    total += s.size();
+  std::sort(rv.begin(), rv.end());
+
+  return rv;
+}
+
+void find_neighbours2(dwarfs::logger& lgr, std::vector<std::unique_ptr<item>> items) {
+  LOG_PROXY(dwarfs::debug_logger_policy, lgr);
+
+  dwarfs::worker_group wg("neigh", std::max(folly::hardware_concurrency(), 1u));
+
+  std::vector<std::future<neigh_map_type>> futures;
+
+  for (int bit = 0; bit < 256; ++bit) {
+    std::promise<neigh_map_type> prom;
+    futures.emplace_back(prom.get_future());
+    wg.add_job([prom = std::move(prom), bit, &items]() mutable {
+      prom.set_value(find_neighbours_for_bit(items, bit));
+    });
   }
 
-  LOG_INFO << "total direct neighbours found: " << total << " (" << distance_one_map.size() << ", " << items.size() << ")";
+  neigh_map_type distance_one_map;
+
+  for (auto& f : futures) {
+    auto vec = f.get();
+    size_t cur_size = distance_one_map.size();
+    distance_one_map.resize(cur_size + vec.size());
+    auto mid = distance_one_map.begin() + cur_size;
+    std::copy(vec.begin(), vec.end(), mid);
+    std::inplace_merge(distance_one_map.begin(), mid, distance_one_map.end());
+  }
+
+  LOG_INFO << "total direct neighbours found: " << distance_one_map.size() << " / " << items.size();
 }
 
 int main() {
