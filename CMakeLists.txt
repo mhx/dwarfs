@@ -1130,3 +1130,10 @@ if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
 
   include(CPack)
 endif()
+
+
+
+pkg_check_modules(FLACPP IMPORTED_TARGET flac++>=1.4.2)
+
+add_executable(flacenc flacenc.cpp)
+target_link_libraries(flacenc PkgConfig::FLACPP fmt::fmt)
