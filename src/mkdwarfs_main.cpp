@@ -53,6 +53,7 @@
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
+#include "dwarfs/categorizer.h"
 #include "dwarfs/chmod_transformer.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
@@ -318,7 +319,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   std::vector<sys_string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
-       force_overwrite = false;
+       force_overwrite = false, enable_categorizer = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -391,6 +392,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
+    ("categorize",
+        po::value<bool>(&enable_categorizer)->zero_tokens(),
+        "WIP enable categorizer")
     ("order",
         po::value<std::string>(&order),
         order_desc.c_str())
@@ -509,6 +513,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       .add(compressor_opts)
       .add(filesystem_opts)
       .add(metadata_opts);
+
+  auto& catreg = categorizer_registry::instance();
+  catreg.add_options(opts);
 
   po::variables_map vm;
 
@@ -1021,6 +1028,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           options.file_order.mode == file_order_mode::SIMILARITY;
       options.inode.with_nilsimsa =
           options.file_order.mode == file_order_mode::NILSIMSA;
+      if (enable_categorizer) {
+        options.inode.categorizer_mgr =
+            std::make_shared<categorizer_manager>(lgr);
+        // TODO
+        for (auto const& name : catreg.categorizer_names()) {
+          options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
+        }
+      }
 
       scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
                 std::make_shared<os_access_generic>(), std::move(script),
@@ -1031,6 +1046,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       } else {
         s.scan(fsw, path, prog);
       }
+
+      options.inode.categorizer_mgr.reset();
     }
   } catch (runtime_error const& e) {
     LOG_ERROR << e.what();
