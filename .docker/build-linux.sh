@@ -76,6 +76,7 @@ fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs"
 else
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
 fi

@@ -118,6 +118,11 @@ include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 if(STATIC_BUILD_DO_NOT_USE)
+  if(STATIC_BUILD_EXTRA_PREFIX)
+    include_directories(BEFORE ${STATIC_BUILD_EXTRA_PREFIX}/include)
+    set(CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
+  endif()
+
   if(WITH_PYTHON)
     message(FATAL_ERROR "python is not supported in static builds")
   endif()
@@ -901,73 +906,8 @@ foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   endif()
 endforeach()
 
+
 if(STATIC_BUILD_DO_NOT_USE)
-  # ...................................................................
-  # libarchive is the module that creates the real pain here Its share version
-  # looks around to find  other shared libraries which can do the real work. For
-  # example, if liblzma.so is found then libarchive supports lzma encoding
-  # Static libary is compiled against predefined set of static archive libraries
-  # at the time when binary distribution created. This is not necessarily the
-  # set of libraries which is present at the system where this script is
-  # executed.
-  #
-  # cmake-format: off
-  #
-  # There are two options to fix it:
-  #
-  #   1) Build local version of libarchive.a
-  #
-  #   2) Use LIBARCHIVE_STATIC_LIBRARIES and LIBARCHIVE_STATIC_LDFLAGS that are
-  #      set by pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.1.2)
-  #
-  # cmake-format: on
-  #
-  # Method #1 is implemented here. This implementation is not pedantic - it uses
-  # headers from system libarchive package but libararies from local build.
-  # Local build is based on default settings for v3.5.1 with xml and iconv
-  # support turned off in order to reduce that set of libraries for futher
-  # linkage.
-  # ...................................................................
-
-  set(_LIBARCHIVE_PRJ "libarchive")
-  set(__LIBARCHIVE "${PROJECT_BINARY_DIR}/libarchive/lib/libarchive.a")
-
-  if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
-    set(_LIBARCHIVE_CMAKE_ARGS "")
-  else()
-    set(_LIBARCHIVE_CMAKE_ARGS
-        -DZSTD_INCLUDE_DIR=${PROJECT_SOURCE_DIR}/zstd/lib
-        -DCMAKE_LIBRARY_PATH=${PROJECT_BINARY_DIR}/zstd/build/cmake/lib/)
-  endif()
-
-  ExternalProject_Add(
-    ${_LIBARCHIVE_PRJ}
-    PREFIX "${PROJECT_BINARY_DIR}/libarchive"
-    GIT_REPOSITORY ${LIBARCHIVE_GIT_REPO}
-    GIT_TAG "v3.6.2"
-    CMAKE_ARGS ${_LIBARCHIVE_CMAKE_ARGS}
-               -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
-               -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
-               -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/libarchive
-               -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-               -DENABLE_ICONV:BOOL=OFF
-               -DENABLE_LIBXML2:BOOL=OFF
-    BUILD_BYPRODUCTS ${__LIBARCHIVE}
-    TMP_DIR "${PROJECT_BINARY_DIR}/libarchive/tmp"
-    STAMP_DIR "${PROJECT_BINARY_DIR}/libarchive/stamp"
-    SOURCE_DIR "${PROJECT_BINARY_DIR}/libarchive/src"
-    BINARY_DIR "${PROJECT_BINARY_DIR}/libarchive/build"
-    INSTALL_DIR "")
-
-  if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
-    add_dependencies(${_LIBARCHIVE_PRJ} libzstd_static)
-  endif()
-
-  add_library(static_libarchive STATIC IMPORTED)
-  set_target_properties(static_libarchive PROPERTIES IMPORTED_LOCATION
-                                                     ${__LIBARCHIVE})
-  add_dependencies(static_libarchive ${_LIBARCHIVE_PRJ})
-
   # ...................................................................
   # Each library name given to the NAMES option is first considered as a library
   # file name and then considered with platform-specific prefixes (e.g. lib) and
@@ -996,6 +936,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_librt "librt.a")
   import_static_lib(static_libssl "libssl.a")
   import_static_lib(static_libunwind "libunwind.a")
+  import_static_lib(static_libarchive "libarchive.a")
 
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     PkgConfig::LIBLZMA)
@@ -1004,8 +945,8 @@ if(STATIC_BUILD_DO_NOT_USE)
   set_target_properties(static_librt PROPERTIES INTERFACE_LINK_LIBRARIES
                                                 static_libgflags)
 
-  foreach(tgt ${BINARY_TARGETS})
 
+  foreach(tgt ${BINARY_TARGETS})
     # ...................................................................
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking

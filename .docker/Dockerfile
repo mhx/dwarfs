@@ -55,6 +55,8 @@ RUN apt install -y \
         libutfcpp-dev \
         bash-completion \
         upx
+COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
+RUN bash /usr/local/bin/install-static-libs.sh
 RUN useradd -g users -u 1000 -m mhx
 ARG SCRIPT=build-linux.sh
 COPY $SCRIPT /usr/local/bin/run.sh
