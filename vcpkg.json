@@ -17,6 +17,7 @@
     "glog",
     "libarchive",
     "libevent",
+    "libmagic",
     "openssl",
     "pkgconf",
     "utfcpp",
