@@ -29,10 +29,12 @@
 #include <limits>
 #include <numeric>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <fmt/format.h>
 
+#include "dwarfs/categorizer.h"
 #include "dwarfs/compiler.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -144,14 +146,29 @@ class inode_ : public inode {
     similarity sc;
     nilsimsa nc;
 
+    categorizer_job catjob;
+
+    if (opts.categorizer_mgr) {
+      catjob =
+          opts.categorizer_mgr->job(mm ? mm->path().string() : "<no-file>");
+    }
+
     if (mm) {
-      auto update_hashes = [&](uint8_t const* data, size_t size) {
+      if (catjob) {
+        catjob.categorize_random_access(mm->span());
+      }
+
+      auto scan_sequential = [&](uint8_t const* data, size_t size) {
         if (opts.with_similarity) {
           sc.update(data, size);
         }
 
         if (opts.with_nilsimsa) {
           nc.update(data, size);
+        }
+
+        if (catjob) {
+          catjob.categorize_sequential(std::span(data, size));
         }
       };
 
@@ -160,13 +177,13 @@ class inode_ : public inode {
       size_t size = mm->size();
 
       while (size >= chunk_size) {
-        update_hashes(mm->as<uint8_t>(offset), chunk_size);
+        scan_sequential(mm->as<uint8_t>(offset), chunk_size);
         mm->release_until(offset);
         offset += chunk_size;
         size -= chunk_size;
       }
 
-      update_hashes(mm->as<uint8_t>(offset), size);
+      scan_sequential(mm->as<uint8_t>(offset), size);
     }
 
     if (opts.with_similarity) {
@@ -181,6 +198,10 @@ class inode_ : public inode {
 #ifndef NDEBUG
       nilsimsa_valid_ = true;
 #endif
+    }
+
+    if (catjob) {
+      category_ = catjob.result();
     }
   }
 
@@ -207,9 +228,12 @@ class inode_ : public inode {
     vec.insert(vec.end(), chunks_.begin(), chunks_.end());
   }
 
+  file_category category() const override { return category_; }
+
  private:
   std::optional<uint32_t> num_;
   uint32_t similarity_hash_{0};
+  file_category category_;
   files_vector files_;
   std::vector<chunk_type> chunks_;
   nilsimsa::hash_type nilsimsa_similarity_hash_;
@@ -252,6 +276,27 @@ class inode_manager_ final : public inode_manager::impl {
     for (auto i : index) {
       fn(inodes_[i]);
     }
+  }
+
+  std::vector<std::pair<file_category, size_t>>
+  category_counts() const override {
+    std::unordered_map<file_category::value_type, size_t> tmp;
+
+    for (auto const& i : inodes_) {
+      ++tmp[i->category().value()];
+    }
+
+    std::vector<std::pair<file_category, size_t>> rv;
+
+    for (auto const& [k, v] : tmp) {
+      rv.emplace_back(k, v);
+    }
+
+    std::sort(rv.begin(), rv.end(), [](auto const& a, auto const& b) {
+      return a.first.value() < b.first.value();
+    });
+
+    return rv;
   }
 
  private:

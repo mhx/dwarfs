@@ -25,12 +25,14 @@
 #include <cstddef>
 #include <functional>
 #include <iosfwd>
+#include <memory>
 #include <optional>
 
 #include "dwarfs/types.h"
 
 namespace dwarfs {
 
+class categorizer_manager;
 class entry;
 
 enum class mlock_mode { NONE, TRY, MUST };
@@ -77,11 +79,12 @@ struct inode_options {
   bool with_similarity{false};
   bool with_nilsimsa{false};
   std::optional<size_t> max_similarity_scan_size;
+  std::shared_ptr<categorizer_manager> categorizer_mgr;
 
   bool needs_scan(size_t size) const {
-    return (with_similarity || with_nilsimsa) &&
-           (!max_similarity_scan_size ||
-            size <= max_similarity_scan_size.value());
+    return categorizer_mgr || ((with_similarity || with_nilsimsa) &&
+                               (!max_similarity_scan_size ||
+                                size <= max_similarity_scan_size.value()));
   }
 };
 
