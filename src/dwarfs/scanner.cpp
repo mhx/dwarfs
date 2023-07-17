@@ -37,6 +37,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/block_data.h"
+#include "dwarfs/categorizer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/file_scanner.h"
@@ -605,6 +606,14 @@ void scanner_<LoggerPolicy>::scan(
            << size_with_unit(prog.original_size) << " in "
            << prog.duplicate_files << "/" << prog.files_found
            << " duplicate files";
+
+  if (options_.inode.categorizer_mgr) {
+    for (auto const& cc : im.category_counts()) {
+      LOG_INFO << cc.second << " "
+               << options_.inode.categorizer_mgr->category_name(cc.first)
+               << " files";
+    }
+  }
 
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;

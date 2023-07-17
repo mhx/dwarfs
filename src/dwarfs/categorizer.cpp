@@ -1,0 +1,268 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
+ * This file is part of dwarfs.
+ *
+ * dwarfs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dwarfs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include <cassert>
+#include <unordered_map>
+
+#include <boost/program_options.hpp>
+
+#include <fmt/format.h>
+
+#include <folly/container/Enumerate.h>
+
+#include "dwarfs/categorizer.h"
+#include "dwarfs/compiler.h"
+#include "dwarfs/error.h"
+#include "dwarfs/logger.h"
+
+namespace dwarfs {
+
+namespace po = boost::program_options;
+
+namespace {
+constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
+}
+
+class categorizer_manager_private {
+ public:
+  virtual ~categorizer_manager_private() = default;
+
+  virtual std::vector<std::shared_ptr<categorizer const>> const&
+  categorizers() const = 0;
+  virtual file_category category(std::string_view cat) const = 0;
+};
+
+template <typename LoggerPolicy>
+class categorizer_job_ final : public categorizer_job::impl {
+ public:
+  categorizer_job_(logger& lgr, categorizer_manager_private const& mgr,
+                   std::filesystem::path const& path)
+      : LOG_PROXY_INIT(lgr)
+      , mgr_{mgr}
+      , path_{path} {}
+
+  void categorize_random_access(std::span<uint8_t const> data) override;
+  void categorize_sequential(std::span<uint8_t const> data) override;
+  file_category result() override;
+
+ private:
+  LOG_PROXY_DECL(LoggerPolicy);
+  categorizer_manager_private const& mgr_;
+
+  std::string_view best_{DEFAULT_CATEGORY};
+  int index_{-1};
+  bool is_global_best_{false};
+  size_t total_size_hint_{0};
+  std::vector<std::pair<int, std::unique_ptr<sequential_categorizer_job>>>
+      seq_jobs_;
+  std::filesystem::path const path_;
+};
+
+template <typename LoggerPolicy>
+void categorizer_job_<LoggerPolicy>::categorize_random_access(
+    std::span<uint8_t const> data) {
+  DWARFS_CHECK(index_ < 0,
+               "internal error: index already set in categorize_random_access");
+
+  total_size_hint_ = data.size();
+
+  bool global_best = true;
+
+  for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
+    if (auto p = dynamic_cast<random_access_categorizer const*>(cat.get())) {
+      if (auto c = p->categorize(path_, data)) {
+        best_ = *c;
+        index_ = index;
+        is_global_best_ = global_best;
+        break;
+      }
+    } else {
+      global_best = false;
+    }
+  }
+}
+
+template <typename LoggerPolicy>
+void categorizer_job_<LoggerPolicy>::categorize_sequential(
+    std::span<uint8_t const> data) {
+  if (is_global_best_) {
+    return;
+  }
+
+  if (seq_jobs_.empty()) [[unlikely]] {
+    for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
+      if (index_ >= 0 && static_cast<int>(index) >= index_) {
+        break;
+      }
+
+      if (auto p = dynamic_cast<sequential_categorizer const*>(cat.get())) {
+        if (auto job = p->job(path_, total_size_hint_)) {
+          seq_jobs_.emplace_back(index, std::move(job));
+        }
+      }
+    }
+  }
+
+  for (auto&& [index, job] : seq_jobs_) {
+    job->add(data);
+  }
+}
+
+template <typename LoggerPolicy>
+file_category categorizer_job_<LoggerPolicy>::result() {
+  if (!seq_jobs_.empty()) {
+    for (auto&& [index, job] : seq_jobs_) {
+      if (auto c = job->result()) {
+        assert(index_ < 0 || index < index_);
+        best_ = *c;
+        break;
+      }
+    }
+
+    seq_jobs_.clear();
+  }
+
+  LOG_TRACE << path_ << " -> " << best_;
+
+  return mgr_.category(best_);
+}
+
+categorizer_job::categorizer_job() = default;
+
+categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
+    : impl_{std::move(impl)} {}
+
+template <typename LoggerPolicy>
+class categorizer_manager_ final : public categorizer_manager::impl,
+                                   public categorizer_manager_private {
+ public:
+  categorizer_manager_(logger& lgr)
+      : lgr_{lgr}
+      , LOG_PROXY_INIT(lgr) {
+    add_category(DEFAULT_CATEGORY);
+  }
+
+  void add(std::shared_ptr<categorizer const> c) override;
+  categorizer_job job(std::filesystem::path const& path) const override;
+  std::string_view category_name(file_category c) const override;
+
+  std::vector<std::shared_ptr<categorizer const>> const&
+  categorizers() const override {
+    return categorizers_;
+  }
+
+  file_category category(std::string_view cat) const override {
+    auto it = catmap_.find(cat);
+    DWARFS_CHECK(it != catmap_.end(), fmt::format("unknown category: {}", cat));
+    return it->second;
+  }
+
+ private:
+  void add_category(std::string_view cat) {
+    if (catmap_.emplace(cat, categories_.size()).second) {
+      categories_.emplace_back(cat);
+    } else {
+      LOG_WARN << "duplicate category: " << cat;
+    }
+  }
+
+  logger& lgr_;
+  LOG_PROXY_DECL(LoggerPolicy);
+  std::vector<std::shared_ptr<categorizer const>> categorizers_;
+  std::vector<std::string_view> categories_;
+  std::unordered_map<std::string_view, file_category> catmap_;
+};
+
+template <typename LoggerPolicy>
+void categorizer_manager_<LoggerPolicy>::add(
+    std::shared_ptr<categorizer const> c) {
+  for (auto const& c : c->categories()) {
+    add_category(c);
+  }
+
+  categorizers_.emplace_back(std::move(c));
+}
+
+template <typename LoggerPolicy>
+categorizer_job categorizer_manager_<LoggerPolicy>::job(
+    std::filesystem::path const& path) const {
+  return categorizer_job(
+      make_unique_logging_object<categorizer_job::impl, categorizer_job_,
+                                 logger_policies>(lgr_, *this, path));
+}
+
+template <typename LoggerPolicy>
+std::string_view
+categorizer_manager_<LoggerPolicy>::category_name(file_category c) const {
+  return DWARFS_NOTHROW(categories_.at(c.value()));
+}
+
+categorizer_manager::categorizer_manager(logger& lgr)
+    : impl_(make_unique_logging_object<impl, categorizer_manager_,
+                                       logger_policies>(lgr)) {}
+
+categorizer_registry& categorizer_registry::instance() {
+  static categorizer_registry the_instance;
+  return the_instance;
+}
+
+void categorizer_registry::register_factory(
+    std::unique_ptr<categorizer_factory const>&& factory) {
+  auto name = factory->name();
+
+  if (!factories_.emplace(name, std::move(factory)).second) {
+    std::cerr << "categorizer factory name conflict (" << name << "\n";
+    ::abort();
+  }
+}
+
+std::unique_ptr<categorizer>
+categorizer_registry::create(logger& lgr, std::string const& name,
+                             po::variables_map const& vm) const {
+  auto it = factories_.find(name);
+
+  if (it == factories_.end()) {
+    DWARFS_THROW(runtime_error, "unknown categorizer: " + name);
+  }
+
+  return it->second->create(lgr, vm);
+}
+
+void categorizer_registry::add_options(po::options_description& opts) const {
+  for (auto& f : factories_) {
+    if (auto f_opts = f.second->options()) {
+      opts.add(*f_opts);
+    }
+  }
+}
+
+std::vector<std::string> categorizer_registry::categorizer_names() const {
+  std::vector<std::string> rv;
+  for (auto& f : factories_) {
+    rv.emplace_back(f.first);
+  }
+  return rv;
+}
+
+categorizer_registry::categorizer_registry() = default;
+categorizer_registry::~categorizer_registry() = default;
+
+} // namespace dwarfs
