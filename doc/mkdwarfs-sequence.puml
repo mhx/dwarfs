@@ -1,0 +1,79 @@
+@startuml
+
+activate scanner #lightgreen
+
+scanner -> inode_manager ** : create
+scanner -> file_scanner ** : create
+
+== Scanning Phase ==
+
+loop until all files found
+
+    scanner -> entry_factory ++ #lightgreen : ""create()""
+    entry_factory -> os_access ++ #lightgreen : ""symlink_info()""
+    return
+    return return new entry
+
+    alt if ""has_filter()""
+        scanner -> script ++ #lightgreen : ""filter()""
+        return
+    else if ""has_transform()""
+        scanner -> script ++ #lightgreen : ""transform()""
+        return
+    end
+
+    alt if regular file
+        scanner -> os_access ++ #lightgreen : ""access(R_OK)""
+        return
+        alt if file accessible
+            scanner -> file_scanner ++ #lightgreen : ""scan()""
+            file_scanner --> scanner
+        else
+            scanner -> scanner ++ #lightgreen : Replace with empty file
+            return
+        end
+    else
+        scanner -> entry_factory ++ #lightgreen : ""scan()""
+        return
+    end
+
+end
+
+scanner -> scanner : Remove empty directories
+scanner -> scanner : Assign dir/link inodes
+note left
+Directories and symbolic
+links have been scanned
+and are assigned inodes
+while file are still scanning.
+end note
+
+file_scanner -> os_access ++ #lightgreen : ""map_file()""
+return
+
+file_scanner -> entry_factory ++ #lightgreen : ""scan()""
+return
+
+file_scanner -> file_scanner : Deduplicate
+note right
+Both hard links and "regular"
+duplicates are handled here.
+end note
+
+file_scanner -> inode_manager ++ #lightgreen : ""create_inode()""
+return
+
+file_scanner -> categorizer_manager ++ #lightgreen : ""job()""
+return
+
+scanner -> file_scanner : ""wait()""
+return
+
+scanner -> file_scanner ++ #lightgreen : ""finalize()""
+return
+
+== Segmentation/Blockifying Phase ==
+
+' TODO to be continued
+
+@enduml

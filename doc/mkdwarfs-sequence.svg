@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" height="1212px" preserveAspectRatio="none" style="width:1024px;height:1212px;background:#FFFFFF;" version="1.1" viewBox="0 0 1024 1212" width="1024px" zoomAndPan="magnify"><defs/><g><rect fill="#90EE90" height="1122.5225" style="stroke:#181818;stroke-width:1.0;" width="10" x="186.5" y="46.0986"/><rect fill="#90EE90" height="25" style="stroke:#181818;stroke-width:1.0;" width="10" x="191.5" y="590.9453"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="362.5" y="974.4927"/><rect fill="#90EE90" height="535.9492" style="stroke:#181818;stroke-width:1.0;" width="10" x="503.5" y="537.9966"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="503.5" y="1102.6724"/><rect fill="#90EE90" height="71.6753" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="215.9199"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="660.6719"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="881.8687"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="244.6465"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="471.3213"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="839.1421"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="823" y="340.2705"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="823" y="397.646"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="932" y="1017.2192"/><rect fill="none" height="511.4272" style="stroke:#000000;stroke-width:1.5;" width="743" x="129" y="178.2446"/><rect fill="none" height="117.0508" style="stroke:#000000;stroke-width:1.5;" width="713" x="149" y="302.5952"/><rect fill="none" height="249.0259" style="stroke:#000000;stroke-width:1.5;" width="665" x="139" y="433.646"/><rect fill="none" height="130.624" style="stroke:#000000;stroke-width:1.5;" width="415" x="149" y="500.3213"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="191" x2="191" y1="36.0986" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="367.5" x2="367.5" y1="76.6479" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="508" x2="508" y1="117.7466" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="612" x2="612" y1="36.0986" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="753" x2="753" y1="36.0986" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="828" x2="828" y1="36.0986" y2="1177.6211"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5.0,5.0;" x1="937" x2="937" y1="36.0986" y2="1177.6211"/><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="65" x="159" y="5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="51" x="166" y="25.1318">scanner</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="65" x="159" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="51" x="166" y="1196.7529">scanner</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="114" x="310.5" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="100" x="317.5" y="1196.7529">inode_manager</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="91" x="463" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="77" x="470" y="1196.7529">file_scanner</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="97" x="564" y="5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="83" x="571" y="25.1318">entry_factory</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="97" x="564" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="83" x="571" y="1196.7529">entry_factory</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="81" x="713" y="5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="67" x="720" y="25.1318">os_access</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="81" x="713" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="67" x="720" y="1196.7529">os_access</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="48" x="804" y="5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="34" x="811" y="25.1318">script</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="48" x="804" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="34" x="811" y="1196.7529">script</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="150" x="862" y="5"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="136" x="869" y="25.1318">categorizer_manager</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="150" x="862" y="1176.6211"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="136" x="869" y="1196.7529">categorizer_manager</text><rect fill="#90EE90" height="1122.5225" style="stroke:#181818;stroke-width:1.0;" width="10" x="186.5" y="46.0986"/><rect fill="#90EE90" height="25" style="stroke:#181818;stroke-width:1.0;" width="10" x="191.5" y="590.9453"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="362.5" y="974.4927"/><rect fill="#90EE90" height="535.9492" style="stroke:#181818;stroke-width:1.0;" width="10" x="503.5" y="537.9966"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="503.5" y="1102.6724"/><rect fill="#90EE90" height="71.6753" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="215.9199"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="660.6719"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="607.5" y="881.8687"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="244.6465"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="471.3213"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="748.5" y="839.1421"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="823" y="340.2705"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="823" y="397.646"/><rect fill="#90EE90" height="14" style="stroke:#181818;stroke-width:1.0;" width="10" x="932" y="1017.2192"/><polygon fill="#181818" points="298.5,63.0474,308.5,67.0474,298.5,71.0474,302.5,67.0474" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="304.5" y1="67.0474" y2="67.0474"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="36" x="203.5" y="62.2925">create</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="114" x="310.5" y="46.0986"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="100" x="317.5" y="66.2305">inode_manager</text><polygon fill="#181818" points="451,104.146,461,108.146,451,112.146,455,108.146" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="457" y1="108.146" y2="108.146"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="36" x="203.5" y="103.3911">create</text><rect fill="#E2E2F0" height="30.0986" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="91" x="463" y="87.1973"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="77" x="470" y="107.3291">file_scanner</text><rect fill="#EEEEEE" height="3" style="stroke:#EEEEEE;stroke-width:1.0;" width="1017" x="0" y="148.7703"/><line style="stroke:#000000;stroke-width:1.0;" x1="0" x2="1017" y1="148.7703" y2="148.7703"/><line style="stroke:#000000;stroke-width:1.0;" x1="0" x2="1017" y1="151.7703" y2="151.7703"/><rect fill="#EEEEEE" height="22.9487" style="stroke:#000000;stroke-width:2.0;" width="119" x="449" y="138.2959"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="101" x="455" y="154.4897">Scanning Phase</text><path d="M129,178.2446 L202,178.2446 L202,185.1934 L192,195.1934 L129,195.1934 L129,178.2446 " fill="#EEEEEE" style="stroke:#000000;stroke-width:1.5;"/><rect fill="none" height="511.4272" style="stroke:#000000;stroke-width:1.5;" width="743" x="129" y="178.2446"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="28" x="144" y="191.4385">loop</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="107" x="217" y="190.5625">[until all files found]</text><polygon fill="#181818" points="595.5,211.9199,605.5,215.9199,595.5,219.9199,599.5,215.9199" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="601.5" y1="215.9199" y2="215.9199"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="64" x="203.5" y="210.0161">create()</text><polygon fill="#181818" points="736.5,240.6465,746.5,244.6465,736.5,248.6465,740.5,244.6465" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="617.5" x2="742.5" y1="244.6465" y2="244.6465"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="112" x="624.5" y="238.7427">symlink_info()</text><polygon fill="#181818" points="628.5,254.6465,618.5,258.6465,628.5,262.6465,624.5,258.6465" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="622.5" x2="752.5" y1="258.6465" y2="258.6465"/><polygon fill="#181818" points="207.5,283.5952,197.5,287.5952,207.5,291.5952,203.5,287.5952" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="611.5" y1="287.5952" y2="287.5952"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="93" x="213.5" y="282.8403">return new entry</text><path d="M149,302.5952 L209,302.5952 L209,309.5439 L199,319.5439 L149,319.5439 L149,302.5952 " fill="#EEEEEE" style="stroke:#000000;stroke-width:1.5;"/><rect fill="none" height="117.0508" style="stroke:#000000;stroke-width:1.5;" width="713" x="149" y="302.5952"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="15" x="164" y="315.7891">alt</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="11" x="224" y="314.9131">[if</text><text fill="#000000" font-family="monospace" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="84" x="238" y="313.9409">has_filter()</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="4" x="322" y="314.9131">]</text><polygon fill="#181818" points="811,336.2705,821,340.2705,811,344.2705,815,340.2705" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="817" y1="340.2705" y2="340.2705"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="64" x="203.5" y="334.3667">filter()</text><polygon fill="#181818" points="207.5,350.2705,197.5,354.2705,207.5,358.2705,203.5,354.2705" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="827" y1="354.2705" y2="354.2705"/><line style="stroke:#000000;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="149" x2="862" y1="363.2705" y2="363.2705"/><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="11" x="154" y="373.5884">[if</text><text fill="#000000" font-family="monospace" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="105" x="168" y="372.6162">has_transform()</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="4" x="273" y="373.5884">]</text><polygon fill="#181818" points="811,393.646,821,397.646,811,401.646,815,397.646" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="817" y1="397.646" y2="397.646"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="88" x="203.5" y="391.7422">transform()</text><polygon fill="#181818" points="207.5,407.646,197.5,411.646,207.5,415.646,203.5,411.646" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="827" y1="411.646" y2="411.646"/><path d="M139,433.646 L199,433.646 L199,440.5947 L189,450.5947 L139,450.5947 L139,433.646 " fill="#EEEEEE" style="stroke:#000000;stroke-width:1.5;"/><rect fill="none" height="249.0259" style="stroke:#000000;stroke-width:1.5;" width="665" x="139" y="433.646"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="15" x="154" y="446.8398">alt</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="74" x="214" y="445.9639">[if regular file]</text><polygon fill="#181818" points="736.5,467.3213,746.5,471.3213,736.5,475.3213,740.5,471.3213" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="742.5" y1="471.3213" y2="471.3213"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="96" x="203.5" y="465.4175">access(R_OK)</text><polygon fill="#181818" points="207.5,481.3213,197.5,485.3213,207.5,489.3213,203.5,485.3213" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="752.5" y1="485.3213" y2="485.3213"/><path d="M149,500.3213 L209,500.3213 L209,507.27 L199,517.27 L149,517.27 L149,500.3213 " fill="#EEEEEE" style="stroke:#000000;stroke-width:1.5;"/><rect fill="none" height="130.624" style="stroke:#000000;stroke-width:1.5;" width="415" x="149" y="500.3213"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="15" x="164" y="513.5151">alt</text><text fill="#000000" font-family="sans-serif" font-size="11" font-weight="bold" lengthAdjust="spacing" textLength="92" x="224" y="512.6392">[if file accessible]</text><polygon fill="#181818" points="491.5,533.9966,501.5,537.9966,491.5,541.9966,495.5,537.9966" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="497.5" y1="537.9966" y2="537.9966"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="48" x="203.5" y="532.0928">scan()</text><polygon fill="#181818" points="207.5,547.9966,197.5,551.9966,207.5,555.9966,203.5,551.9966" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="502.5" y1="551.9966" y2="551.9966"/><line style="stroke:#000000;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="149" x2="564" y1="560.9966" y2="560.9966"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="243.5" y1="577.9453" y2="577.9453"/><line style="stroke:#181818;stroke-width:1.0;" x1="243.5" x2="243.5" y1="577.9453" y2="590.9453"/><line style="stroke:#181818;stroke-width:1.0;" x1="202.5" x2="243.5" y1="590.9453" y2="590.9453"/><polygon fill="#181818" points="212.5,586.9453,202.5,590.9453,212.5,594.9453,208.5,590.9453" style="stroke:#181818;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="135" x="208.5" y="573.1904">Replace with empty file</text><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="243.5" y1="614.9453" y2="614.9453"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="243.5" x2="243.5" y1="614.9453" y2="627.9453"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="196.5" x2="243.5" y1="627.9453" y2="627.9453"/><polygon fill="#181818" points="206.5,623.9453,196.5,627.9453,206.5,631.9453,202.5,627.9453" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#000000;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="139" x2="804" y1="638.9453" y2="638.9453"/><polygon fill="#181818" points="595.5,656.6719,605.5,660.6719,595.5,664.6719,599.5,660.6719" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="601.5" y1="660.6719" y2="660.6719"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="48" x="203.5" y="654.7681">scan()</text><polygon fill="#181818" points="207.5,670.6719,197.5,674.6719,207.5,678.6719,203.5,674.6719" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="611.5" y1="674.6719" y2="674.6719"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="238.5" y1="717.6206" y2="717.6206"/><line style="stroke:#181818;stroke-width:1.0;" x1="238.5" x2="238.5" y1="717.6206" y2="730.6206"/><line style="stroke:#181818;stroke-width:1.0;" x1="197.5" x2="238.5" y1="730.6206" y2="730.6206"/><polygon fill="#181818" points="207.5,726.6206,197.5,730.6206,207.5,734.6206,203.5,730.6206" style="stroke:#181818;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="152" x="203.5" y="712.8657">Remove empty directories</text><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="238.5" y1="778.4924" y2="778.4924"/><line style="stroke:#181818;stroke-width:1.0;" x1="238.5" x2="238.5" y1="778.4924" y2="791.4924"/><line style="stroke:#181818;stroke-width:1.0;" x1="197.5" x2="238.5" y1="791.4924" y2="791.4924"/><polygon fill="#181818" points="207.5,787.4924,197.5,791.4924,207.5,795.4924,203.5,791.4924" style="stroke:#181818;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="124" x="203.5" y="773.7375">Assign dir/link inodes</text><path d="M5,743.6206 L5,812.6206 L182,812.6206 L182,753.6206 L172,743.6206 L5,743.6206 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><path d="M172,743.6206 L172,753.6206 L182,753.6206 L172,743.6206 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="143" x="11" y="760.8145">Directories and symbolic</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="144" x="11" y="775.7632">links have been scanned</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="141" x="11" y="790.7119">and are assigned inodes</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="156" x="11" y="805.6606">while file are still scanning.</text><polygon fill="#181818" points="736.5,835.1421,746.5,839.1421,736.5,843.1421,740.5,839.1421" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="513.5" x2="742.5" y1="839.1421" y2="839.1421"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="80" x="520.5" y="833.2383">map_file()</text><polygon fill="#181818" points="524.5,849.1421,514.5,853.1421,524.5,857.1421,520.5,853.1421" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="518.5" x2="752.5" y1="853.1421" y2="853.1421"/><polygon fill="#181818" points="595.5,877.8687,605.5,881.8687,595.5,885.8687,599.5,881.8687" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="513.5" x2="601.5" y1="881.8687" y2="881.8687"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="48" x="520.5" y="875.9648">scan()</text><polygon fill="#181818" points="524.5,891.8687,514.5,895.8687,524.5,899.8687,520.5,895.8687" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="518.5" x2="611.5" y1="895.8687" y2="895.8687"/><line style="stroke:#181818;stroke-width:1.0;" x1="513.5" x2="555.5" y1="928.7917" y2="928.7917"/><line style="stroke:#181818;stroke-width:1.0;" x1="555.5" x2="555.5" y1="928.7917" y2="941.7917"/><line style="stroke:#181818;stroke-width:1.0;" x1="514.5" x2="555.5" y1="941.7917" y2="941.7917"/><polygon fill="#181818" points="524.5,937.7917,514.5,941.7917,524.5,945.7917,520.5,941.7917" style="stroke:#181818;stroke-width:1.0;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="68" x="520.5" y="924.0369">Deduplicate</text><path d="M600,908.8687 L600,947.8687 L786,947.8687 L786,918.8687 L776,908.8687 L600,908.8687 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><path d="M776,908.8687 L776,918.8687 L786,918.8687 L776,908.8687 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="165" x="606" y="926.0625">Both hard links and "regular"</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="163" x="606" y="941.0112">duplicates are handled here.</text><polygon fill="#181818" points="383.5,970.4927,373.5,974.4927,383.5,978.4927,379.5,974.4927" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="377.5" x2="502.5" y1="974.4927" y2="974.4927"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="112" x="389.5" y="968.5889">create_inode()</text><polygon fill="#181818" points="491.5,984.4927,501.5,988.4927,491.5,992.4927,495.5,988.4927" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="367.5" x2="497.5" y1="988.4927" y2="988.4927"/><polygon fill="#181818" points="920,1013.2192,930,1017.2192,920,1021.2192,924,1017.2192" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="513.5" x2="926" y1="1017.2192" y2="1017.2192"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="40" x="520.5" y="1011.3154">job()</text><polygon fill="#181818" points="524.5,1027.2192,514.5,1031.2192,524.5,1035.2192,520.5,1031.2192" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="518.5" x2="936" y1="1031.2192" y2="1031.2192"/><polygon fill="#181818" points="491.5,1055.9458,501.5,1059.9458,491.5,1063.9458,495.5,1059.9458" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="497.5" y1="1059.9458" y2="1059.9458"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="48" x="203.5" y="1054.042">wait()</text><polygon fill="#181818" points="207.5,1069.9458,197.5,1073.9458,207.5,1077.9458,203.5,1073.9458" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="507.5" y1="1073.9458" y2="1073.9458"/><polygon fill="#181818" points="491.5,1098.6724,501.5,1102.6724,491.5,1106.6724,495.5,1102.6724" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="196.5" x2="497.5" y1="1102.6724" y2="1102.6724"/><text fill="#000000" font-family="monospace" font-size="13" lengthAdjust="spacing" textLength="80" x="203.5" y="1096.7686">finalize()</text><polygon fill="#181818" points="207.5,1112.6724,197.5,1116.6724,207.5,1120.6724,203.5,1116.6724" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;stroke-dasharray:2.0,2.0;" x1="201.5" x2="507.5" y1="1116.6724" y2="1116.6724"/><rect fill="#EEEEEE" height="3" style="stroke:#EEEEEE;stroke-width:1.0;" width="1017" x="0" y="1145.1467"/><line style="stroke:#000000;stroke-width:1.0;" x1="0" x2="1017" y1="1145.1467" y2="1145.1467"/><line style="stroke:#000000;stroke-width:1.0;" x1="0" x2="1017" y1="1148.1467" y2="1148.1467"/><rect fill="#EEEEEE" height="22.9487" style="stroke:#000000;stroke-width:2.0;" width="220" x="398.5" y="1134.6724"/><text fill="#000000" font-family="sans-serif" font-size="13" font-weight="bold" lengthAdjust="spacing" textLength="202" x="404.5" y="1150.8662">Segmentation/Blockifying Phase</text><!--MD5=[82883788205de0c12eed8e9aa199edab]
+@startuml
+
+activate scanner #lightgreen
+
+scanner -> inode_manager ** : create
+scanner -> file_scanner ** : create
+
+== Scanning Phase ==
+
+loop until all files found
+
+    scanner -> entry_factory ++ #lightgreen : ""create()""
+    entry_factory -> os_access ++ #lightgreen : ""symlink_info()""
+    return
+    return return new entry
+
+    alt if ""has_filter()""
+        scanner -> script ++ #lightgreen : ""filter()""
+        return
+    else if ""has_transform()""
+        scanner -> script ++ #lightgreen : ""transform()""
+        return
+    end
+
+    alt if regular file
+        scanner -> os_access ++ #lightgreen : ""access(R_OK)""
+        return
+        alt if file accessible
+            scanner -> file_scanner ++ #lightgreen : ""scan()""
+            file_scanner - -> scanner
+        else
+            scanner -> scanner ++ #lightgreen : Replace with empty file
+            return
+        end
+    else
+        scanner -> entry_factory ++ #lightgreen : ""scan()""
+        return
+    end
+
+end
+
+scanner -> scanner : Remove empty directories
+scanner -> scanner : Assign dir/link inodes
+note left
+Directories and symbolic
+links have been scanned
+and are assigned inodes
+while file are still scanning.
+end note
+
+file_scanner -> os_access ++ #lightgreen : ""map_file()""
+return
+
+file_scanner -> entry_factory ++ #lightgreen : ""scan()""
+return
+
+file_scanner -> file_scanner : Deduplicate
+note right
+Both hard links and "regular"
+duplicates are handled here.
+end note
+
+file_scanner -> inode_manager ++ #lightgreen : ""create_inode()""
+return
+
+file_scanner -> categorizer_manager ++ #lightgreen : ""job()""
+return
+
+scanner -> file_scanner : ""wait()""
+return
+
+scanner -> file_scanner ++ #lightgreen : ""finalize()""
+return
+
+== Segmentation/Blockifying Phase ==
+
+' TODO to be continued
+
+@enduml
+
+@startuml
+
+activate scanner #lightgreen
+
+scanner -> inode_manager ** : create
+scanner -> file_scanner ** : create
+
+== Scanning Phase ==
+
+loop until all files found
+
+    scanner -> entry_factory ++ #lightgreen : ""create()""
+    entry_factory -> os_access ++ #lightgreen : ""symlink_info()""
+    return
+    return return new entry
+
+    alt if ""has_filter()""
+        scanner -> script ++ #lightgreen : ""filter()""
+        return
+    else if ""has_transform()""
+        scanner -> script ++ #lightgreen : ""transform()""
+        return
+    end
+
+    alt if regular file
+        scanner -> os_access ++ #lightgreen : ""access(R_OK)""
+        return
+        alt if file accessible
+            scanner -> file_scanner ++ #lightgreen : ""scan()""
+            file_scanner - -> scanner
+        else
+            scanner -> scanner ++ #lightgreen : Replace with empty file
+            return
+        end
+    else
+        scanner -> entry_factory ++ #lightgreen : ""scan()""
+        return
+    end
+
+end
+
+scanner -> scanner : Remove empty directories
+scanner -> scanner : Assign dir/link inodes
+note left
+Directories and symbolic
+links have been scanned
+and are assigned inodes
+while file are still scanning.
+end note
+
+file_scanner -> os_access ++ #lightgreen : ""map_file()""
+return
+
+file_scanner -> entry_factory ++ #lightgreen : ""scan()""
+return
+
+file_scanner -> file_scanner : Deduplicate
+note right
+Both hard links and "regular"
+duplicates are handled here.
+end note
+
+file_scanner -> inode_manager ++ #lightgreen : ""create_inode()""
+return
+
+file_scanner -> categorizer_manager ++ #lightgreen : ""job()""
+return
+
+scanner -> file_scanner : ""wait()""
+return
+
+scanner -> file_scanner ++ #lightgreen : ""finalize()""
+return
+
+== Segmentation/Blockifying Phase ==
+
+
+@enduml
+
+PlantUML version 1.2022.7(Mon Aug 22 19:01:30 CEST 2022)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Default Encoding: UTF-8
+Language: en
+Country: null
+--></g></svg>
