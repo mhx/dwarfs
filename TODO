@@ -1,3 +1,40 @@
+- how do we make multiple parallel block chains (categories)
+  reproducible?
+
+    => we could re-write the blocks and update the metadata;
+       however, data added to "uncategorized" blocks would
+       still be random
+
+    => oooh, easy: we can order all chunks before we start
+       writing them to blocks, so only the block order is
+       random after all, which we can fix by rewriting.
+       the tricky bit is (probably) going to be updating
+       the chunks in the metadata, as they won't be written
+       to the individual blocks sequentially; pretty sure
+       that's a solvable problem.
+
+    => indeed solvable; chunks aren't finalized until after
+       all blocks have been written. We simply need to subdivide
+       `inode_`s into smaller parts (as provided by the categorizer)
+       and then add chunks to the individual parts, assembling them
+       only after everything has been written
+
+- configuration ideas:
+
+  --order FILETYPE::...
+  -B FILETYPE::...
+  -W FILETYPE::...
+  -w FILETYPE::...
+  -C FILETYPE::...
+
+  -B pcmaudio::64 -W pcmaudio::16 -C pcmaudio::flac:level=8
+  -C binary/x86::zstd:filter=x86
+  -C mime:application/x-archive::null
+
+  --filetype pcmaudio::mime:audio/x-wav,mime:audio/x-w64
+
+
+
 - different scenarios for categorized files / chunks:
 
   - Video files
