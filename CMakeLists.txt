@@ -206,6 +206,7 @@ if(PKG_CONFIG_FOUND)
   pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
   pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
+  pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
 endif()
@@ -351,6 +352,7 @@ list(
   src/dwarfs/block_range.cpp
   src/dwarfs/builtin_script.cpp
   src/dwarfs/cached_block.cpp
+  src/dwarfs/categorizer.cpp
   src/dwarfs/checksum.cpp
   src/dwarfs/chmod_transformer.cpp
   src/dwarfs/console_writer.cpp
@@ -408,8 +410,20 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
 endif()
 
+list(
+  APPEND
+  LIBDWARFS_CATEGORIZER_SRC
+  src/dwarfs/categorizer/binary_categorizer.cpp
+  src/dwarfs/categorizer/incompressible_categorizer.cpp
+)
+
+if(LIBMAGIC_FOUND)
+  list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
+endif()
+
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
+add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_tool src/dwarfs/tool.cpp)
 
 if(DWARFS_GIT_BUILD)
@@ -420,6 +434,7 @@ target_compile_definitions(
   dwarfs_tool PRIVATE PRJ_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
+target_link_libraries(dwarfs_categorizer folly)
 target_link_libraries(dwarfs_compression folly)
 target_link_libraries(dwarfs_tool dwarfs)
 
@@ -712,7 +727,8 @@ target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 
 target_link_libraries(metadata_thrift thrift_light)
 
-foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
+foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
+            dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
@@ -725,6 +741,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGE
     PRIVATE DWARFS_HAVE_LIBZSTD
             DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
+            $<$<BOOL:${LIBMAGIC_FOUND}>:DWARFS_HAVE_LIBMAGIC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
@@ -802,6 +819,10 @@ target_link_libraries(
   fsst
   ${Boost_LIBRARIES})
 
+if(LIBMAGIC_FOUND)
+  target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
+endif()
+
 if(LIBLZ4_FOUND)
   target_link_libraries(dwarfs PkgConfig::LIBLZ4)
 endif()
@@ -816,6 +837,7 @@ endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
@@ -843,6 +865,7 @@ foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   endif()
 endforeach()
 
+target_link_libraries(mkdwarfs_main "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
 
 if(STATIC_BUILD_DO_NOT_USE)
   # ...................................................................
@@ -876,6 +899,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libssl "libssl.a")
   import_static_lib(static_libunwind "libunwind.a")
   import_static_lib(static_libarchive "libarchive.a")
+  import_static_lib(static_libmagic "libmagic.a")
 
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     PkgConfig::LIBLZMA)
@@ -883,7 +907,10 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                   static_libgflags)
   set_target_properties(static_librt PROPERTIES INTERFACE_LINK_LIBRARIES
                                                 static_libgflags)
+  set_target_properties(static_libmagic PROPERTIES INTERFACE_LINK_LIBRARIES
+                                                static_libz)
 
+  target_link_libraries(dwarfs_categorizer static_libmagic)
 
   foreach(tgt ${BINARY_TARGETS})
     if(PREFER_SYSTEM_LIBFMT)
