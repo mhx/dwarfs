@@ -27,6 +27,7 @@
 
 #include <folly/small_vector.h>
 
+#include "dwarfs/file_category.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/object.h"
 
@@ -58,6 +59,7 @@ class inode : public object {
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
+  virtual file_category category() const = 0;
 };
 
 } // namespace dwarfs
