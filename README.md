@@ -347,12 +347,31 @@ $ apt install ccache ninja libacl1-dev
 ```
 
 `ccache` and `ninja` are optional, but help with a speedy compile.
+
+Depending on your distibution, you'll need to build and install static
+versions of some libraries, e.g. `libarchive` and `libmagic` for Ubuntu:
+
+```
+$ wget https://github.com/libarchive/libarchive/releases/download/v3.6.2/libarchive-3.6.2.tar.xz
+$ tar xf libarchive-3.6.2.tar.xz && cd libarchive-3.6.2
+$ ./configure --prefix=/opt/static-libs --without-iconv --without-xml2 --without-expat
+$ make && sudo make install
+```
+
+```
+$ wget ftp://ftp.astron.com/pub/file/file-5.44.tar.gz
+$ tar xf file-5.44.tar.gz && cd file-5.44
+$ ./configure --prefix=/opt/static-libs --enable-static=yes --enable-shared=no
+$ make && make install
+```
+
 That's it! Now you can try building static binaries for DwarFS:
 
 ```
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 $ cd dwarfs && mkdir build && cd build
-$ cmake .. -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 -GNinja
+$ cmake .. -GNinja -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 \
+           -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs
 $ ninja
 $ ninja test
 ```
