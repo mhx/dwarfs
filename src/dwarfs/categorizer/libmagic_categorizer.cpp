@@ -149,6 +149,10 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
 
   bool is_single_fragment() const override { return true; }
 
+  folly::dynamic category_metadata(fragment_category) const override {
+    return folly::dynamic();
+  }
+
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   magic_wrapper m_;
