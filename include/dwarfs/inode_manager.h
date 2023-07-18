@@ -28,7 +28,7 @@
 #include <utility>
 #include <vector>
 
-#include "dwarfs/file_category.h"
+#include "dwarfs/fragment_category.h"
 
 namespace dwarfs {
 
@@ -59,7 +59,8 @@ class inode_manager {
     impl_->for_each_inode_in_order(fn);
   }
 
-  std::vector<std::pair<file_category, size_t>> category_counts() const {
+  std::vector<std::pair<fragment_category::value_type, size_t>>
+  category_counts() const {
     return impl_->category_counts();
   }
 
@@ -74,7 +75,7 @@ class inode_manager {
                  file_order_options const& file_order, order_cb const& fn) = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
-    virtual std::vector<std::pair<file_category, size_t>>
+    virtual std::vector<std::pair<fragment_category::value_type, size_t>>
     category_counts() const = 0;
   };
 

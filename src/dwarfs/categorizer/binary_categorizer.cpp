@@ -58,9 +58,9 @@ class binary_categorizer_ final : public binary_categorizer_base {
   binary_categorizer_(logger& lgr)
       : LOG_PROXY_INIT(lgr) {}
 
-  std::optional<std::string_view>
-  categorize(std::filesystem::path const& path,
-             std::span<uint8_t const> data) const override;
+  inode_fragments
+  categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
+             category_mapper const& mapper) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -74,10 +74,12 @@ std::span<std::string_view const> binary_categorizer_base::categories() const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::string_view>
-binary_categorizer_<LoggerPolicy>::categorize(std::filesystem::path const&,
-                                              std::span<uint8_t const> data
-                                              [[maybe_unused]]) const {
+inode_fragments binary_categorizer_<LoggerPolicy>::categorize(
+    std::filesystem::path const&,
+    std::span<uint8_t const> data [[maybe_unused]],
+    category_mapper const& /*mapper*/) const {
+  inode_fragments fragments;
+
 #ifndef _WIN32
   auto p = data.data();
   if (data.size() >= EI_NIDENT && ::memcmp(p, ELFMAG, 4) == 0) {
@@ -101,7 +103,7 @@ binary_categorizer_<LoggerPolicy>::categorize(std::filesystem::path const&,
   }
 #endif
 
-  return std::nullopt;
+  return fragments;
 }
 
 class binary_categorizer_factory : public categorizer_factory {
