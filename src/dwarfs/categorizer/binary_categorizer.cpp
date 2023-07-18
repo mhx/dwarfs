@@ -62,6 +62,8 @@ class binary_categorizer_ final : public binary_categorizer_base {
   categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
+  bool is_single_fragment() const override { return false; }
+
  private:
   LOG_PROXY_DECL(LoggerPolicy);
 };
