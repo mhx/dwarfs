@@ -39,10 +39,6 @@ using namespace std::placeholders;
 
 namespace po = boost::program_options;
 
-namespace {
-constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
-}
-
 class categorizer_manager_private : public categorizer_manager::impl {
  public:
   virtual std::vector<std::shared_ptr<categorizer const>> const&
@@ -176,9 +172,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
  public:
   categorizer_manager_(logger& lgr)
       : lgr_{lgr}
-      , LOG_PROXY_INIT(lgr) {
-    add_category(DEFAULT_CATEGORY);
-  }
+      , LOG_PROXY_INIT(lgr) {}
 
   void add(std::shared_ptr<categorizer const> c) override;
   categorizer_job job(std::filesystem::path const& path) const override;
