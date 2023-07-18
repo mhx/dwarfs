@@ -64,6 +64,8 @@ class inode_fragments {
 
   bool empty() const { return fragments_.empty(); }
 
+  void clear() { fragments_.clear(); }
+
   explicit operator bool() const { return !empty(); }
 
   std::ostream&
