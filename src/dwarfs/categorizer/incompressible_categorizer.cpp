@@ -57,10 +57,12 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   incompressible_categorizer_job_(logger& lgr,
                                   incompressible_categorizer_config const& cfg,
                                   std::filesystem::path const& path,
-                                  size_t total_size)
+                                  size_t total_size,
+                                  category_mapper const& mapper)
       : LOG_PROXY_INIT(lgr)
       , cfg_{cfg}
-      , path_{path} {
+      , path_{path}
+      , mapper_{mapper} {
     input_.reserve(total_size < block_size ? total_size : block_size);
     state_ = ::malloc(LZ4_sizeofState());
   }
@@ -77,7 +79,8 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     }
   }
 
-  std::optional<std::string_view> result() override {
+  inode_fragments result() override {
+    inode_fragments fragments;
     if (!input_.empty()) {
       compress();
     }
@@ -88,9 +91,11 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     if (total_blocks_ > 0 &&
         (total_output_size_ >= cfg_.max_ratio_size * total_input_size_ ||
          incompressible_blocks_ >= cfg_.max_ratio_blocks * total_blocks_)) {
-      return INCOMPRESSIBLE_CATEGORY;
+      fragments.emplace_back(
+          fragment_category(mapper_(INCOMPRESSIBLE_CATEGORY)),
+          total_input_size_);
     }
-    return std::nullopt;
+    return fragments;
   }
 
  private:
@@ -139,6 +144,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   size_t incompressible_blocks_{0};
   incompressible_categorizer_config const& cfg_;
   std::filesystem::path const& path_;
+  category_mapper const& mapper_;
 };
 
 class incompressible_categorizer_ final : public sequential_categorizer {
@@ -148,7 +154,8 @@ class incompressible_categorizer_ final : public sequential_categorizer {
 
   std::span<std::string_view const> categories() const override;
   std::unique_ptr<sequential_categorizer_job>
-  job(std::filesystem::path const& path, size_t total_size) const override;
+  job(std::filesystem::path const& path, size_t total_size,
+      category_mapper const& mapper) const override;
 
  private:
   logger& lgr_;
@@ -170,7 +177,8 @@ incompressible_categorizer_::categories() const {
 
 std::unique_ptr<sequential_categorizer_job>
 incompressible_categorizer_::job(std::filesystem::path const& path,
-                                 size_t total_size) const {
+                                 size_t total_size,
+                                 category_mapper const& mapper) const {
   if (total_size < config_.min_input_size) {
     return nullptr;
   }
@@ -178,7 +186,7 @@ incompressible_categorizer_::job(std::filesystem::path const& path,
   return make_unique_logging_object<sequential_categorizer_job,
                                     incompressible_categorizer_job_,
                                     logger_policies>(lgr_, config_, path,
-                                                     total_size);
+                                                     total_size, mapper);
 }
 
 class incompressible_categorizer_factory : public categorizer_factory {
