@@ -106,6 +106,12 @@ struct pcmaudio_metadata {
   auto operator<=>(pcmaudio_metadata const&) const = default;
 
   bool check() const {
+    // make sure we're supporting a reasonable subset
+
+    if (number_of_channels == 0) {
+      return false;
+    }
+
     if (!(bits_per_sample == 8 || bits_per_sample == 16 ||
           bits_per_sample == 20 || bits_per_sample == 24 ||
           bits_per_sample == 32)) {
@@ -120,12 +126,194 @@ struct pcmaudio_metadata {
       return false;
     }
 
+    if ((bits_per_sample == 20 || bits_per_sample == 24) &&
+        !(bytes_per_sample == 3 || bytes_per_sample == 4)) {
+      return false;
+    }
+
     if (bits_per_sample == 32 && bytes_per_sample != 4) {
       return false;
     }
 
-    return bytes_per_sample == 3 || bytes_per_sample == 4;
+    return true;
   }
+};
+
+template <endianness>
+struct endian;
+
+template <>
+struct endian<endianness::BIG> {
+  template <typename T>
+  static T convert(T x) {
+    return folly::Endian::big(x);
+  }
+};
+
+template <>
+struct endian<endianness::LITTLE> {
+  template <typename T>
+  static T convert(T x) {
+    return folly::Endian::little(x);
+  }
+};
+
+struct WavPolicy {
+  using SizeType = uint32_t;
+  static constexpr bool const size_includes_header{false};
+  static constexpr size_t const id_size{4};
+  static constexpr size_t const file_header_size{12};
+  static constexpr size_t const chunk_header_size{8};
+  static constexpr std::string_view const format_name{"WAV"};
+  static constexpr std::string_view const file_header_id{"RIFF"};
+  static constexpr std::string_view const wave_id{"WAVE"};
+  static constexpr std::string_view const fmt_id{"fmt "};
+  static constexpr std::string_view const data_id{"data"};
+};
+
+struct Wav64Policy {
+  using SizeType = uint64_t;
+  static constexpr bool const size_includes_header{true};
+  static constexpr size_t const id_size{16};
+  static constexpr size_t const file_header_size{40};
+  static constexpr size_t const chunk_header_size{24};
+  static constexpr std::string_view const format_name{"WAV64"};
+  static constexpr std::string_view const file_header_id{
+      "riff\x2e\x91\xcf\x11\xa5\xd6\x28\xdb\x04\xc1\x00\x00", id_size};
+  static constexpr std::string_view const wave_id{
+      "wave\xf3\xac\xd3\x11\x8c\xd1\x00\xc0\x4f\x8e\xdb\x8a", id_size};
+  static constexpr std::string_view const fmt_id{
+      "fmt \xf3\xac\xd3\x11\x8c\xd1\x00\xc0\x4f\x8e\xdb\x8a", id_size};
+  static constexpr std::string_view const data_id{
+      "data\xf3\xac\xd3\x11\x8c\xd1\x00\xc0\x4f\x8e\xdb\x8a", id_size};
+};
+
+template <typename LoggerPolicy, typename ChunkHeaderType,
+          endianness Endianness, bool IsCaf = false,
+          bool SizeIncludesHeader = false>
+class iff_parser final {
+ public:
+  struct chunk {
+    ChunkHeaderType header;
+    size_t pos;
+
+    bool is(std::string_view id) const {
+      assert(sizeof(header.id) == id.size());
+      return std::memcmp(header.id, id.data(), sizeof(header.id)) == 0;
+    }
+
+    std::string_view id() const {
+      return std::string_view(header.id, sizeof(header.id));
+    }
+
+    std::string_view fourcc() const {
+      static_assert(sizeof(header.id) >= 4);
+      return std::string_view(header.id, 4);
+    }
+
+    size_t size() const { return header.size; }
+  };
+
+  iff_parser(logger& lgr, std::string_view name, fs::path const& path,
+             std::span<uint8_t const> data, size_t pos)
+      : LOG_PROXY_INIT(lgr)
+      , data_{data}
+      , name_{name}
+      , path_{path}
+      , pos_{pos} {}
+
+  std::optional<chunk> next_chunk() {
+    std::optional<chunk> c;
+
+    if (pos_ + sizeof(ChunkHeaderType) <= data_.size()) {
+      c.emplace();
+
+      DWARFS_CHECK(read(c->header, pos_), "iff_parser::read failed");
+      c->header.size = endian<Endianness>::convert(c->header.size);
+      c->pos = pos_;
+
+      if constexpr (IsCaf) {
+        if (c->header.size ==
+                std::numeric_limits<decltype(c->header.size)>::max() &&
+            c->is("data")) {
+          c->header.size = data_.size() - (pos_ + sizeof(ChunkHeaderType));
+        }
+      }
+
+      if constexpr (!SizeIncludesHeader) {
+        pos_ += sizeof(ChunkHeaderType);
+      }
+
+      pos_ += c->header.size;
+
+      if (pos_ > data_.size()) {
+        LOG_WARN << "[" << name_ << "] " << path_
+                 << ": unexpected end of file (pos=" << pos_
+                 << ", hdr.size=" << c->header.size << ", end=" << data_.size()
+                 << ")";
+        c.reset();
+      }
+
+      LOG_TRACE << "[" << name_ << "] " << path_ << ": `" << c->fourcc()
+                << "` (len=" << c->size() << ")";
+    }
+
+    return c;
+  }
+
+  template <typename T>
+  bool read(T& storage, chunk const& c) const {
+    return read(storage, c, sizeof(storage));
+  }
+
+  template <typename T>
+  bool read(T& storage, chunk const& c, size_t len) const {
+    assert(len <= c.size());
+    return read(storage, c.pos + sizeof(ChunkHeaderType), len);
+  }
+
+  template <typename T>
+  bool read_file_header(T& storage) const {
+    return read(storage, 0, sizeof(storage));
+  }
+
+  bool expected_size(chunk c, size_t expected_size) const {
+    if (c.size() == expected_size) {
+      return true;
+    }
+
+    LOG_WARN << "[" << name_ << "] " << path_ << ": unexpected size for `"
+             << c.fourcc() << "` chunk: " << c.size() << " (expected "
+             << expected_size << ")";
+
+    return false;
+  }
+
+ private:
+  template <typename T>
+  bool read(T& storage, size_t pos) const {
+    return read(storage, pos, sizeof(storage));
+  }
+
+  template <typename T>
+  bool read(T& storage, size_t pos, size_t len) const {
+    assert(len <= sizeof(storage));
+
+    if (pos + len <= data_.size()) {
+      std::memcpy(&storage, data_.data() + pos, len);
+      return true;
+    }
+
+    LOG_WARN << "[" << name_ << "] " << path_ << ": unexpected end of file";
+
+    return false;
+  }
+
+  LOG_PROXY_DECL(LoggerPolicy);
+  std::span<uint8_t const> data_;
+  std::string_view name_;
+  fs::path const& path_;
+  size_t pos_;
 };
 
 std::ostream& operator<<(std::ostream& os, pcmaudio_metadata const& m) {
@@ -211,6 +399,11 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                    std::span<uint8_t const> data,
                    category_mapper const& mapper) const;
 
+  template <typename FormatPolicy>
+  bool check_wav_like(inode_fragments& frag, fs::path const& path,
+                      std::span<uint8_t const> data,
+                      category_mapper const& mapper) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   folly::Synchronized<pcmaudio_metadata_store> mutable meta_;
 };
@@ -235,7 +428,13 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
   FOLLY_PACK_PUSH
 
-  struct chk_hdr_t {
+  struct file_hdr_t {
+    char id[4];
+    uint32_t size;
+    char form[4];
+  } FOLLY_PACK_ATTR;
+
+  struct chunk_hdr_t {
     char id[4];
     uint32_t size;
   } FOLLY_PACK_ATTR;
@@ -254,46 +453,32 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
   FOLLY_PACK_POP
 
-  static_assert(sizeof(chk_hdr_t) == 8);
+  static_assert(sizeof(chunk_hdr_t) == 8);
   static_assert(sizeof(comm_chk_t) == 8);
   static_assert(sizeof(ssnd_chk_t) == 8);
+
+  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::BIG> parser(
+      LOG_GET_LOGGER, "AIFF", path, data, sizeof(file_hdr_t));
 
   bool meta_valid{false};
   uint32_t num_sample_frames;
   pcmaudio_metadata meta;
-  size_t pos = 12;
-  chk_hdr_t chk_hdr;
 
-  while (pos + sizeof(chk_hdr) <= data.size()) {
-    std::memcpy(&chk_hdr, data.data() + pos, sizeof(chk_hdr));
-    uint32_t chk_size = folly::Endian::big(chk_hdr.size);
-
-    LOG_TRACE << "[AIFF] " << path << ": " << std::string_view(chk_hdr.id, 4)
-              << " (len=" << chk_size << ")";
-
-    if (pos + sizeof(chk_hdr) + chk_size > data.size()) {
-      LOG_WARN << "[AIFF] " << path << ": unexpected end of file";
-      // corrupt AIFF? -> skip
-      return false;
-    }
-
-    if (std::memcmp(chk_hdr.id, "COMM", 4) == 0) {
-      if (chk_size != 18) {
-        LOG_WARN << "[AIFF] " << path
-                 << ": unexpected size for COMM chunk: " << chk_size
-                 << " (expected 18)";
-        // corrupt AIFF? -> skip
+  while (auto chunk = parser.next_chunk()) {
+    if (chunk->is("COMM")) {
+      if (parser.expected_size(*chunk, 18)) {
         return false;
       }
 
       if (meta_valid) {
-        LOG_WARN << "[AIFF] " << path << ": unexpected second COMM chunk";
-        // corrupt AIFF? -> skip
+        LOG_WARN << "[AIFF] " << path << ": unexpected second `COMM` chunk";
         return false;
       }
 
       comm_chk_t comm;
-      std::memcpy(&comm, data.data() + pos + sizeof(chk_hdr), sizeof(comm));
+      if (!parser.read(comm, *chunk)) {
+        return false;
+      }
 
       meta.sample_endianness = endianness::BIG;
       meta.sample_signedness = signedness::SIGNED;
@@ -303,17 +488,6 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       meta.number_of_channels = folly::Endian::big(comm.num_chan);
       num_sample_frames = folly::Endian::big(comm.num_sample_frames);
 
-      if (meta.bits_per_sample < 8 || meta.bits_per_sample > 32) {
-        LOG_WARN << "[AIFF] " << path
-                 << ": unsupported bits per sample: " << meta.bits_per_sample;
-        return false;
-      }
-
-      if (meta.number_of_channels == 0) {
-        LOG_WARN << "[AIFF] " << path << ": file has no audio channels";
-        return false;
-      }
-
       if (!meta.check()) {
         LOG_WARN << "[AIFF] " << path << ": metadata check failed: " << meta;
         return false;
@@ -322,28 +496,31 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       meta_valid = true;
 
       LOG_TRACE << "[AIFF] " << path << ": meta=" << meta;
-    } else if (std::memcmp(chk_hdr.id, "SSND", 4) == 0) {
+    } else if (chunk->is("SSND")) {
       if (!meta_valid) {
-        LOG_WARN << "[AIFF] " << path << ": got SSND chunk without COMM chunk";
-        // corrupt AIFF? -> skip
+        LOG_WARN << "[AIFF] " << path
+                 << ": got `SSND` chunk without `COMM` chunk";
         return false;
       }
 
       ssnd_chk_t ssnd;
-      std::memcpy(&ssnd, data.data() + pos + sizeof(chk_hdr), sizeof(ssnd));
+      if (!parser.read(ssnd, *chunk)) {
+        return false;
+      }
+
       ssnd.offset = folly::Endian::big(ssnd.offset);
       ssnd.block_size = folly::Endian::big(ssnd.block_size);
 
-      size_t pcm_start = pos + sizeof(chk_hdr) + sizeof(ssnd) + ssnd.offset;
+      size_t pcm_start =
+          chunk->pos + sizeof(chunk_hdr_t) + sizeof(ssnd) + ssnd.offset;
       size_t pcm_length =
           num_sample_frames * (meta.number_of_channels * meta.bytes_per_sample);
 
-      if (sizeof(ssnd) + ssnd.offset + pcm_length > chk_size) {
+      if (sizeof(ssnd) + ssnd.offset + pcm_length > chunk->size()) {
         LOG_WARN << "[AIFF] " << path
                  << ": SSND invalid chunk size (offset=" << ssnd.offset
-                 << ", pcm_len=" << pcm_length << ", chk_size" << chk_size
+                 << ", pcm_len=" << pcm_length << ", chk_size" << chunk->size()
                  << ")";
-        // corrupt AIFF? -> skip
         return false;
       }
 
@@ -362,8 +539,6 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
       return true;
     }
-
-    pos += sizeof(chk_hdr) + chk_size;
   }
 
   return false;
@@ -380,11 +555,12 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
   FOLLY_PACK_PUSH
 
   struct caff_hdr_t {
+    char id[4];
     uint16_t version;
     uint16_t flags;
   } FOLLY_PACK_ATTR;
 
-  struct chk_hdr_t {
+  struct chunk_hdr_t {
     char id[4];
     uint64_t size;
   } FOLLY_PACK_ATTR;
@@ -405,8 +581,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
   FOLLY_PACK_POP
 
-  static_assert(sizeof(caff_hdr_t) == 4);
-  static_assert(sizeof(chk_hdr_t) == 12);
+  static_assert(sizeof(caff_hdr_t) == 8);
+  static_assert(sizeof(chunk_hdr_t) == 12);
   static_assert(sizeof(format_chk_t) == 32);
   static_assert(sizeof(data_chk_t) == 4);
 
@@ -414,8 +590,14 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
   static constexpr uint32_t const kCAFLinearPCMFormatFlagIsLittleEndian{1L
                                                                         << 1};
 
+  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::BIG, true> parser(
+      LOG_GET_LOGGER, "CAF", path, data, sizeof(caff_hdr_t));
+
   caff_hdr_t caff_hdr;
-  std::memcpy(&caff_hdr, data.data() + 4, sizeof(caff_hdr));
+  if (!parser.read_file_header(caff_hdr)) {
+    return false;
+  }
+
   caff_hdr.version = folly::Endian::big(caff_hdr.version);
   caff_hdr.flags = folly::Endian::big(caff_hdr.flags);
 
@@ -428,44 +610,22 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
   bool meta_valid{false};
   pcmaudio_metadata meta;
-  size_t pos = 8;
-  chk_hdr_t chk_hdr;
 
-  while (pos + sizeof(chk_hdr) <= data.size()) {
-    std::memcpy(&chk_hdr, data.data() + pos, sizeof(chk_hdr));
-    uint64_t chk_size = folly::Endian::big(chk_hdr.size);
-
-    LOG_TRACE << "[CAF] " << path << ": " << std::string_view(chk_hdr.id, 4)
-              << " (len=" << chk_size << ")";
-
-    if (chk_size == std::numeric_limits<uint64_t>::max() &&
-        std::memcmp(chk_hdr.id, "data", 4) == 0) {
-      chk_size = data.size() - (pos + sizeof(chk_hdr));
-    }
-
-    if (pos + sizeof(chk_hdr) + chk_size > data.size()) {
-      LOG_WARN << "[CAF] " << path << ": unexpected end of file";
-      // corrupt CAF? -> skip
-      return false;
-    }
-
-    if (std::memcmp(chk_hdr.id, "desc", 4) == 0) {
-      if (chk_size != sizeof(format_chk_t)) {
-        LOG_WARN << "[CAF] " << path
-                 << ": unexpected size for desc chunk: " << chk_size
-                 << " (expected " << sizeof(format_chk_t) << ")";
-        // corrupt CAF? -> skip
+  while (auto chunk = parser.next_chunk()) {
+    if (chunk->is("desc")) {
+      if (!parser.expected_size(*chunk, sizeof(format_chk_t))) {
         return false;
       }
 
       if (meta_valid) {
-        LOG_WARN << "[CAF] " << path << ": unexpected second desc chunk";
-        // corrupt CAF? -> skip
+        LOG_WARN << "[CAF] " << path << ": unexpected second `desc` chunk";
         return false;
       }
 
       format_chk_t fmt;
-      std::memcpy(&fmt, data.data() + pos + sizeof(chk_hdr), sizeof(fmt));
+      if (!parser.read(fmt, *chunk)) {
+        return false;
+      }
 
       if (std::memcmp(fmt.format_id, "lpcm", 4) != 0) {
         // TODO: alaw, ulaw?
@@ -499,17 +659,6 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       meta.bits_per_sample = folly::Endian::big(fmt.bits_per_channel);
       meta.number_of_channels = folly::Endian::big(fmt.channels_per_frame);
 
-      if (meta.bits_per_sample < 8 || meta.bits_per_sample > 32) {
-        LOG_WARN << "[CAF] " << path
-                 << ": unsupported bits per sample: " << meta.bits_per_sample;
-        return false;
-      }
-
-      if (meta.number_of_channels == 0) {
-        LOG_WARN << "[CAF] " << path << ": file has no audio channels";
-        return false;
-      }
-
       if (fmt.bytes_per_packet == 0) {
         LOG_WARN << "[CAF] " << path << ": bytes per packet is zero";
         return false;
@@ -540,22 +689,21 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       meta_valid = true;
 
       LOG_TRACE << "[CAF] " << path << ": meta=" << meta;
-    } else if (std::memcmp(chk_hdr.id, "data", 4) == 0) {
+    } else if (chunk->is("data")) {
       if (!meta_valid) {
-        LOG_WARN << "[CAF] " << path << ": got data chunk without desc chunk";
-        // corrupt CAF? -> skip
+        LOG_WARN << "[CAF] " << path
+                 << ": got `data` chunk without `desc` chunk";
         return false;
       }
 
-      size_t pcm_start = pos + sizeof(chk_hdr) + sizeof(data_chk_t);
-      size_t pcm_length = chk_size - sizeof(data_chk_t);
+      size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t) + sizeof(data_chk_t);
+      size_t pcm_length = chunk->size() - sizeof(data_chk_t);
 
       if (pcm_length % (meta.number_of_channels * meta.bytes_per_sample)) {
         LOG_WARN << "[CAF] " << path
-                 << ": data chunk size mismatch (pcm_len=" << pcm_length
+                 << ": `data` chunk size mismatch (pcm_len=" << pcm_length
                  << ", #chan=" << meta.number_of_channels
                  << ", bytes_per_sample=" << meta.bytes_per_sample << ")";
-        // corrupt CAF? -> skip
         return false;
       }
 
@@ -574,8 +722,6 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
       return true;
     }
-
-    pos += sizeof(chk_hdr) + chk_size;
   }
 
   return false;
@@ -585,19 +731,175 @@ template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav(
     inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
-  if (std::memcmp(data.data(), "RIFF", 4) != 0) {
-    return false;
-  }
-  return false;
+  return check_wav_like<WavPolicy>(frag, path, data, mapper);
 }
 
 template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav64(
     inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
-  if (std::memcmp(data.data(), "riff", 4) != 0) {
+  return check_wav_like<Wav64Policy>(frag, path, data, mapper);
+}
+
+template <typename LoggerPolicy>
+template <typename FormatPolicy>
+bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
+    inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
+    category_mapper const& mapper) const {
+  if (std::memcmp(data.data(), FormatPolicy::file_header_id.data(),
+                  FormatPolicy::id_size) != 0) {
     return false;
   }
+
+  FOLLY_PACK_PUSH
+
+  struct file_hdr_t {
+    char id[FormatPolicy::id_size];
+    typename FormatPolicy::SizeType size;
+    char form[FormatPolicy::id_size];
+  } FOLLY_PACK_ATTR;
+
+  struct chunk_hdr_t {
+    char id[FormatPolicy::id_size];
+    typename FormatPolicy::SizeType size;
+  } FOLLY_PACK_ATTR;
+
+  struct fmt_chunk_t {
+    uint16_t format_code;
+    uint16_t num_channels;
+    uint32_t samples_per_sec;
+    uint32_t avg_bytes_per_sec;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+    uint16_t ext_size;
+    uint16_t valid_bits_per_sample;
+    uint32_t channel_mask;
+    uint16_t sub_format_code;
+    uint8_t guid_remainder[14];
+  } FOLLY_PACK_ATTR;
+
+  FOLLY_PACK_POP
+
+  static_assert(sizeof(file_hdr_t) == FormatPolicy::file_header_size);
+  static_assert(sizeof(chunk_hdr_t) == FormatPolicy::chunk_header_size);
+
+  static constexpr uint16_t const WAVE_FORMAT_PCM{0x0001};
+  static constexpr uint16_t const WAVE_FORMAT_EXTENSIBLE{0xFFFE};
+
+  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::LITTLE, false,
+             FormatPolicy::size_includes_header>
+      parser(LOG_GET_LOGGER, FormatPolicy::format_name, path, data,
+             sizeof(file_hdr_t));
+
+  file_hdr_t file_header;
+  if (!parser.read_file_header(file_header)) {
+    return false;
+  }
+
+  if (std::memcmp(file_header.form, FormatPolicy::wave_id.data(),
+                  FormatPolicy::id_size) != 0) {
+    return false;
+  }
+
+  bool meta_valid{false};
+  pcmaudio_metadata meta;
+
+  while (auto chunk = parser.next_chunk()) {
+    if (chunk->is(FormatPolicy::fmt_id)) {
+      if (chunk->size() != 16 && chunk->size() != 18 && chunk->size() != 40) {
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": unexpected size for `" << chunk->fourcc()
+                 << "` chunk: " << chunk->size() << " (expected 16, 18, 40)";
+        return false;
+      }
+
+      if (meta_valid) {
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": unexpected second `" << chunk->fourcc() << "` chunk";
+        return false;
+      }
+
+      fmt_chunk_t fmt;
+      if (!parser.read(fmt, *chunk, chunk->size())) {
+        return false;
+      }
+
+      fmt.format_code = folly::Endian::little(fmt.format_code);
+      fmt.num_channels = folly::Endian::little(fmt.num_channels);
+      fmt.samples_per_sec = folly::Endian::little(fmt.samples_per_sec);
+      fmt.avg_bytes_per_sec = folly::Endian::little(fmt.avg_bytes_per_sec);
+      fmt.block_align = folly::Endian::little(fmt.block_align);
+      fmt.bits_per_sample = folly::Endian::little(fmt.bits_per_sample);
+      if (chunk->size() == 40) {
+        fmt.valid_bits_per_sample =
+            folly::Endian::little(fmt.valid_bits_per_sample);
+        fmt.sub_format_code = folly::Endian::little(fmt.sub_format_code);
+      } else {
+        fmt.sub_format_code = 0;
+      }
+
+      if (!(fmt.format_code == WAVE_FORMAT_PCM ||
+            (fmt.format_code == WAVE_FORMAT_EXTENSIBLE && chunk->size() == 40 &&
+             fmt.sub_format_code == WAVE_FORMAT_PCM))) {
+        LOG_TRACE << "[" << FormatPolicy::format_name << "] " << path
+                  << ": unsupported format: " << fmt.format_code << "/"
+                  << fmt.sub_format_code;
+        return false;
+      }
+
+      meta.sample_endianness = endianness::LITTLE;
+      meta.sample_signedness =
+          fmt.bits_per_sample > 8 ? signedness::SIGNED : signedness::UNSIGNED;
+      meta.sample_padding = padding::LSB;
+      meta.bits_per_sample = fmt.bits_per_sample;
+      meta.bytes_per_sample = (meta.bits_per_sample + 7) / 8;
+      meta.number_of_channels = fmt.num_channels;
+
+      if (!meta.check()) {
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": metadata check failed: " << meta;
+        return false;
+      }
+
+      meta_valid = true;
+
+      LOG_TRACE << "[" << FormatPolicy::format_name << "] " << path
+                << ": meta=" << meta;
+    } else if (chunk->is(FormatPolicy::data_id)) {
+      if (!meta_valid) {
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": got `data` chunk without `fmt ` chunk";
+        return false;
+      }
+
+      size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t);
+      size_t pcm_length = chunk->size();
+
+      if (pcm_length % (meta.number_of_channels * meta.bytes_per_sample)) {
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": `data` chunk size mismatch (pcm_len=" << pcm_length
+                 << ", #chan=" << meta.number_of_channels
+                 << ", bytes_per_sample=" << meta.bytes_per_sample << ")";
+        return false;
+      }
+
+      fragment_category::value_type subcategory = meta_.wlock()->add(meta);
+
+      frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
+                        pcm_start);
+      frag.emplace_back(
+          fragment_category(mapper(PCMAUDIO_CATEGORY), subcategory),
+          pcm_length);
+
+      if (pcm_start + pcm_length < data.size()) {
+        frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
+                          data.size() - (pcm_start + pcm_length));
+      }
+
+      return true;
+    }
+  }
+
   return false;
 }
 
