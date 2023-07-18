@@ -240,7 +240,14 @@ class iff_parser final {
         }
       }
 
-      if constexpr (!SizeIncludesHeader) {
+      if constexpr (SizeIncludesHeader) {
+        if (c->header.size < sizeof(ChunkHeaderType)) {
+          LOG_WARN << "[" << name_ << "] " << path_
+                   << ": invalid chunk size: " << c->header.size;
+          c.reset();
+          return c;
+        }
+      } else {
         pos_ += sizeof(ChunkHeaderType);
       }
 
@@ -252,6 +259,7 @@ class iff_parser final {
                  << ", hdr.size=" << c->header.size << ", end=" << data_.size()
                  << ")";
         c.reset();
+        return c;
       }
 
       LOG_TRACE << "[" << name_ << "] " << path_ << ": `" << c->fourcc()
