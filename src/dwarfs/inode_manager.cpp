@@ -155,6 +155,7 @@ class inode_ : public inode {
 
     if (mm) {
       if (catjob) {
+        catjob.set_total_size(mm->size());
         catjob.categorize_random_access(mm->span());
       }
 
@@ -201,7 +202,7 @@ class inode_ : public inode {
     }
 
     if (catjob) {
-      category_ = catjob.result();
+      fragments_ = catjob.result();
     }
   }
 
@@ -228,12 +229,14 @@ class inode_ : public inode {
     vec.insert(vec.end(), chunks_.begin(), chunks_.end());
   }
 
-  file_category category() const override { return category_; }
+  inode_fragments const& fragments() const override { return fragments_; }
 
  private:
+  // TODO: can we move optional stuff (e.g. nilsimsa_similarity_hash_) out of
+  // here?
   std::optional<uint32_t> num_;
   uint32_t similarity_hash_{0};
-  file_category category_;
+  inode_fragments fragments_;
   files_vector files_;
   std::vector<chunk_type> chunks_;
   nilsimsa::hash_type nilsimsa_similarity_hash_;
@@ -278,23 +281,26 @@ class inode_manager_ final : public inode_manager::impl {
     }
   }
 
-  std::vector<std::pair<file_category, size_t>>
+  std::vector<std::pair<fragment_category::value_type, size_t>>
   category_counts() const override {
-    std::unordered_map<file_category::value_type, size_t> tmp;
+    std::unordered_map<fragment_category::value_type, size_t> tmp;
 
     for (auto const& i : inodes_) {
-      ++tmp[i->category().value()];
+      if (auto const& fragments = i->fragments(); !fragments.empty()) {
+        for (auto const& frag : fragments.span()) {
+          ++tmp[frag.category().value()];
+        }
+      }
     }
 
-    std::vector<std::pair<file_category, size_t>> rv;
+    std::vector<std::pair<fragment_category::value_type, size_t>> rv;
 
     for (auto const& [k, v] : tmp) {
       rv.emplace_back(k, v);
     }
 
-    std::sort(rv.begin(), rv.end(), [](auto const& a, auto const& b) {
-      return a.first.value() < b.first.value();
-    });
+    std::sort(rv.begin(), rv.end(),
+              [](auto const& a, auto const& b) { return a.first < b.first; });
 
     return rv;
   }

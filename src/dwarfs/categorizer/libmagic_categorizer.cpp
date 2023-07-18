@@ -143,9 +143,9 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
     }
   }
 
-  std::optional<std::string_view>
-  categorize(std::filesystem::path const& path,
-             std::span<uint8_t const> data) const override;
+  inode_fragments
+  categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
+             category_mapper const& mapper) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -162,15 +162,17 @@ libmagic_categorizer_base::categories() const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::string_view> libmagic_categorizer_<LoggerPolicy>::categorize(
-    std::filesystem::path const& path, std::span<uint8_t const> data) const {
+inode_fragments libmagic_categorizer_<LoggerPolicy>::categorize(
+    std::filesystem::path const& path, std::span<uint8_t const> data,
+    category_mapper const& /*mapper*/) const {
+  inode_fragments fragments; // TODO: actually fill this :-)
   auto id = m_.identify(data);
   LOG_DEBUG << path << " -> (magic) " << id;
   {
     auto wlock = mimetypes_.wlock();
     ++(*wlock)[id];
   }
-  return std::nullopt;
+  return fragments;
 }
 
 class libmagic_categorizer_factory : public categorizer_factory {
