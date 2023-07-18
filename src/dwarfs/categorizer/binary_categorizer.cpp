@@ -64,7 +64,8 @@ class binary_categorizer_ final : public binary_categorizer_base {
 
   bool is_single_fragment() const override { return false; }
 
-  folly::dynamic category_metadata(fragment_category) const override {
+  folly::dynamic
+  category_metadata(std::string_view, fragment_category) const override {
     return folly::dynamic();
   }
 
