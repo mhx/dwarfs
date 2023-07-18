@@ -20,6 +20,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <cstring>
 #include <map>
 #include <stack>
@@ -47,7 +48,7 @@ namespace {
 constexpr std::string_view const METADATA_CATEGORY{"metadata"};
 constexpr std::string_view const PCMAUDIO_CATEGORY{"pcmaudio"};
 
-constexpr size_t const MIN_PCMAUDIO_SIZE{512};
+constexpr size_t const MIN_PCMAUDIO_SIZE{64};
 
 enum class endianness : uint8_t {
   BIG,
@@ -280,6 +281,17 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       meta.number_of_channels = folly::Endian::big(comm.num_chan);
       num_sample_frames = folly::Endian::big(comm.num_sample_frames);
 
+      if (meta.bits_per_sample < 8 || meta.bits_per_sample > 32) {
+        LOG_WARN << "[AIFF] " << path
+                 << ": unsupported bits per sample: " << meta.bits_per_sample;
+        return false;
+      }
+
+      if (meta.number_of_channels == 0) {
+        LOG_WARN << "[AIFF] " << path << ": file has no audio channels";
+        return false;
+      }
+
       meta_valid = true;
 
       LOG_TRACE << "[AIFF] " << path << ": meta=" << meta;
@@ -459,7 +471,28 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       meta.sample_padding = padding::LSB;
       meta.bits_per_sample = folly::Endian::big(fmt.bits_per_channel);
       meta.number_of_channels = folly::Endian::big(fmt.channels_per_frame);
-      meta.bytes_per_sample = fmt.bytes_per_packet / meta.number_of_channels;
+
+      if (meta.bits_per_sample < 8 || meta.bits_per_sample > 32) {
+        LOG_WARN << "[CAF] " << path
+                 << ": unsupported bits per sample: " << meta.bits_per_sample;
+        return false;
+      }
+
+      if (meta.number_of_channels == 0) {
+        LOG_WARN << "[CAF] " << path << ": file has no audio channels";
+        return false;
+      }
+
+      if (fmt.bytes_per_packet == 0) {
+        LOG_WARN << "[CAF] " << path << ": bytes per packet is zero";
+        return false;
+      }
+
+      if (fmt.bytes_per_packet > 4 * meta.number_of_channels) {
+        LOG_WARN << "[CAF] " << path
+                 << ": bytes per packet out of range: " << fmt.bytes_per_packet;
+        return false;
+      }
 
       if (fmt.bytes_per_packet % meta.number_of_channels != 0) {
         LOG_WARN << "[CAF] " << path
@@ -467,6 +500,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
                  << " (" << meta.number_of_channels << " channels)";
         return false;
       }
+
+      meta.bytes_per_sample = fmt.bytes_per_packet / meta.number_of_channels;
+
+      assert(meta.bytes_per_sample > 0);
 
       meta_valid = true;
 
