@@ -104,6 +104,28 @@ struct pcmaudio_metadata {
   // uint32_t samples_per_second;
 
   auto operator<=>(pcmaudio_metadata const&) const = default;
+
+  bool check() const {
+    if (!(bits_per_sample == 8 || bits_per_sample == 16 ||
+          bits_per_sample == 20 || bits_per_sample == 24 ||
+          bits_per_sample == 32)) {
+      return false;
+    }
+
+    if (bits_per_sample == 8 && bytes_per_sample != 1) {
+      return false;
+    }
+
+    if (bits_per_sample == 16 && bytes_per_sample != 2) {
+      return false;
+    }
+
+    if (bits_per_sample == 32 && bytes_per_sample != 4) {
+      return false;
+    }
+
+    return bytes_per_sample == 3 || bytes_per_sample == 4;
+  }
 };
 
 std::ostream& operator<<(std::ostream& os, pcmaudio_metadata const& m) {
@@ -289,6 +311,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
       if (meta.number_of_channels == 0) {
         LOG_WARN << "[AIFF] " << path << ": file has no audio channels";
+        return false;
+      }
+
+      if (!meta.check()) {
+        LOG_WARN << "[AIFF] " << path << ": metadata check failed: " << meta;
         return false;
       }
 
@@ -504,6 +531,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       meta.bytes_per_sample = fmt.bytes_per_packet / meta.number_of_channels;
 
       assert(meta.bytes_per_sample > 0);
+
+      if (!meta.check()) {
+        LOG_WARN << "[CAF] " << path << ": metadata check failed: " << meta;
+        return false;
+      }
 
       meta_valid = true;
 
