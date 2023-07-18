@@ -35,19 +35,20 @@
 
 namespace dwarfs {
 
+using namespace std::placeholders;
+
 namespace po = boost::program_options;
 
 namespace {
 constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
 }
 
-class categorizer_manager_private {
+class categorizer_manager_private : public categorizer_manager::impl {
  public:
-  virtual ~categorizer_manager_private() = default;
-
   virtual std::vector<std::shared_ptr<categorizer const>> const&
   categorizers() const = 0;
-  virtual file_category category(std::string_view cat) const = 0;
+  virtual fragment_category::value_type
+  category(std::string_view cat) const = 0;
 };
 
 template <typename LoggerPolicy>
@@ -57,24 +58,33 @@ class categorizer_job_ final : public categorizer_job::impl {
                    std::filesystem::path const& path)
       : LOG_PROXY_INIT(lgr)
       , mgr_{mgr}
-      , path_{path} {}
+      , path_{path}
+      , cat_mapper_{std::bind(&categorizer_manager_private::category,
+                              std::cref(mgr_), _1)} {}
 
+  void set_total_size(size_t total_size) override;
   void categorize_random_access(std::span<uint8_t const> data) override;
   void categorize_sequential(std::span<uint8_t const> data) override;
-  file_category result() override;
+  inode_fragments result() override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   categorizer_manager_private const& mgr_;
 
-  std::string_view best_{DEFAULT_CATEGORY};
+  inode_fragments best_;
   int index_{-1};
   bool is_global_best_{false};
-  size_t total_size_hint_{0};
+  size_t total_size_{0};
   std::vector<std::pair<int, std::unique_ptr<sequential_categorizer_job>>>
       seq_jobs_;
   std::filesystem::path const path_;
+  category_mapper cat_mapper_;
 };
+
+template <typename LoggerPolicy>
+void categorizer_job_<LoggerPolicy>::set_total_size(size_t total_size) {
+  total_size_ = total_size;
+}
 
 template <typename LoggerPolicy>
 void categorizer_job_<LoggerPolicy>::categorize_random_access(
@@ -82,14 +92,14 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
   DWARFS_CHECK(index_ < 0,
                "internal error: index already set in categorize_random_access");
 
-  total_size_hint_ = data.size();
+  total_size_ = data.size();
 
   bool global_best = true;
 
   for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
     if (auto p = dynamic_cast<random_access_categorizer const*>(cat.get())) {
-      if (auto c = p->categorize(path_, data)) {
-        best_ = *c;
+      if (auto c = p->categorize(path_, data, cat_mapper_)) {
+        best_ = c;
         index_ = index;
         is_global_best_ = global_best;
         break;
@@ -114,7 +124,7 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
       }
 
       if (auto p = dynamic_cast<sequential_categorizer const*>(cat.get())) {
-        if (auto job = p->job(path_, total_size_hint_)) {
+        if (auto job = p->job(path_, total_size_, cat_mapper_)) {
           seq_jobs_.emplace_back(index, std::move(job));
         }
       }
@@ -127,12 +137,12 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
 }
 
 template <typename LoggerPolicy>
-file_category categorizer_job_<LoggerPolicy>::result() {
+inode_fragments categorizer_job_<LoggerPolicy>::result() {
   if (!seq_jobs_.empty()) {
     for (auto&& [index, job] : seq_jobs_) {
       if (auto c = job->result()) {
         assert(index_ < 0 || index < index_);
-        best_ = *c;
+        best_ = c;
         break;
       }
     }
@@ -140,9 +150,12 @@ file_category categorizer_job_<LoggerPolicy>::result() {
     seq_jobs_.clear();
   }
 
-  LOG_TRACE << path_ << " -> " << best_;
+  LOG_TRACE << path_ << " -> "
+            << best_.to_string([this](fragment_category::value_type c) {
+                 return std::string(mgr_.category_name(c));
+               });
 
-  return mgr_.category(best_);
+  return best_;
 }
 
 categorizer_job::categorizer_job() = default;
@@ -151,8 +164,7 @@ categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
     : impl_{std::move(impl)} {}
 
 template <typename LoggerPolicy>
-class categorizer_manager_ final : public categorizer_manager::impl,
-                                   public categorizer_manager_private {
+class categorizer_manager_ final : public categorizer_manager_private {
  public:
   categorizer_manager_(logger& lgr)
       : lgr_{lgr}
@@ -162,14 +174,15 @@ class categorizer_manager_ final : public categorizer_manager::impl,
 
   void add(std::shared_ptr<categorizer const> c) override;
   categorizer_job job(std::filesystem::path const& path) const override;
-  std::string_view category_name(file_category c) const override;
+  std::string_view
+  category_name(fragment_category::value_type c) const override;
 
   std::vector<std::shared_ptr<categorizer const>> const&
   categorizers() const override {
     return categorizers_;
   }
 
-  file_category category(std::string_view cat) const override {
+  fragment_category::value_type category(std::string_view cat) const override {
     auto it = catmap_.find(cat);
     DWARFS_CHECK(it != catmap_.end(), fmt::format("unknown category: {}", cat));
     return it->second;
@@ -188,7 +201,7 @@ class categorizer_manager_ final : public categorizer_manager::impl,
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<categorizer const>> categorizers_;
   std::vector<std::string_view> categories_;
-  std::unordered_map<std::string_view, file_category> catmap_;
+  std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
 };
 
 template <typename LoggerPolicy>
@@ -210,9 +223,9 @@ categorizer_job categorizer_manager_<LoggerPolicy>::job(
 }
 
 template <typename LoggerPolicy>
-std::string_view
-categorizer_manager_<LoggerPolicy>::category_name(file_category c) const {
-  return DWARFS_NOTHROW(categories_.at(c.value()));
+std::string_view categorizer_manager_<LoggerPolicy>::category_name(
+    fragment_category::value_type c) const {
+  return DWARFS_NOTHROW(categories_.at(c));
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)

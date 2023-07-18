@@ -21,12 +21,13 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <limits>
 
 namespace dwarfs {
 
-class file_category {
+class fragment_category {
  public:
   using value_type = uint32_t;
 
@@ -36,37 +37,60 @@ class file_category {
   static constexpr value_type const max{std::numeric_limits<value_type>::max() -
                                         1};
 
-  file_category()
-      : value_{uninitialized} {}
-  file_category(value_type v)
+  fragment_category() = default;
+
+  explicit fragment_category(value_type v)
       : value_{v} {}
 
-  file_category(file_category const&) = default;
-  file_category(file_category&&) = default;
+  fragment_category(value_type v, value_type subcategory)
+      : value_{v}
+      , subcategory_{subcategory} {}
 
-  file_category& operator=(file_category const&) = default;
-  file_category& operator=(file_category&&) = default;
+  fragment_category(fragment_category const&) = default;
+  fragment_category(fragment_category&&) = default;
 
-  file_category& operator=(value_type v) {
+  fragment_category& operator=(fragment_category const&) = default;
+  fragment_category& operator=(fragment_category&&) = default;
+
+  fragment_category& operator=(value_type v) {
+    assert(v != uninitialized);
     value_ = v;
     return *this;
   }
 
   value_type value() const {
-    if (empty()) {
-      throw std::range_error("file_category is uninitialized");
-    }
+    assert(!empty());
     return value_;
   }
 
-  void clear() { value_ = uninitialized; }
+  void clear() {
+    value_ = uninitialized;
+    subcategory_ = uninitialized;
+  }
 
   bool empty() const { return value_ == uninitialized; }
 
   explicit operator bool() const { return !empty(); }
 
+  void set_subcategory(value_type subcategory) {
+    assert(!empty());
+    assert(subcategory != uninitialized);
+    subcategory_ = subcategory;
+  }
+
+  bool has_subcategory() const {
+    return !empty() && subcategory_ != uninitialized;
+  }
+
+  value_type subcategory() const {
+    assert(!empty());
+    assert(subcategory_ != uninitialized);
+    return subcategory_;
+  }
+
  private:
-  value_type value_;
+  value_type value_{uninitialized};
+  value_type subcategory_{uninitialized};
 };
 
 } // namespace dwarfs
