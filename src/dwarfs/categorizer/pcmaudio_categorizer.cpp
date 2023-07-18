@@ -130,9 +130,14 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
 
   bool is_single_fragment() const override { return false; }
 
-  folly::dynamic category_metadata(fragment_category c) const override {
-    DWARFS_CHECK(c.has_subcategory(), "expected pcmaudio to have subcategory");
-    return meta_.rlock()->lookup(c.subcategory());
+  folly::dynamic category_metadata(std::string_view category_name,
+                                   fragment_category c) const override {
+    if (category_name == PCMAUDIO_CATEGORY) {
+      DWARFS_CHECK(c.has_subcategory(),
+                   "expected PCMAUDIO to have subcategory");
+      return meta_.rlock()->lookup(c.subcategory());
+    }
+    return folly::dynamic();
   }
 
  private:
