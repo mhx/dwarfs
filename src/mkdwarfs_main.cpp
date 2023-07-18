@@ -315,11 +315,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   std::string memory_limit, script_arg, compression, header, schema_compression,
       metadata_compression, log_level_str, timestamp, time_resolution, order,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
-      debug_filter, max_similarity_size, input_list_str, chmod_str;
+      debug_filter, max_similarity_size, input_list_str, chmod_str,
+      categorizer_list_str;
   std::vector<sys_string> filter;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
-       force_overwrite = false, enable_categorizer = false;
+       force_overwrite = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -344,6 +345,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   auto file_hash_desc = "choice of file hashing function (none, " +
                         (from(hash_list) | unsplit(", ")) + ")";
+
+  auto& catreg = categorizer_registry::instance();
+
+  auto categorize_desc = "enable categorizers in the given order (" +
+                         (from(catreg.categorizer_names()) | unsplit(", ")) +
+                         ")";
 
   // clang-format off
   po::options_description basic_opts("Options");
@@ -393,8 +400,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
     ("categorize",
-        po::value<bool>(&enable_categorizer)->zero_tokens(),
-        "WIP enable categorizer")
+        po::value<std::string>(&categorizer_list_str)
+          ->default_value("pcmaudio,incompressible"),
+        categorize_desc.c_str())
     ("order",
         po::value<std::string>(&order),
         order_desc.c_str())
@@ -514,7 +522,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       .add(filesystem_opts)
       .add(metadata_opts);
 
-  auto& catreg = categorizer_registry::instance();
   catreg.add_options(opts);
 
   po::variables_map vm;
@@ -1028,11 +1035,16 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           options.file_order.mode == file_order_mode::SIMILARITY;
       options.inode.with_nilsimsa =
           options.file_order.mode == file_order_mode::NILSIMSA;
-      if (enable_categorizer) {
+
+      if (!categorizer_list_str.empty()) {
+        std::vector<std::string> categorizer_list;
+        boost::split(categorizer_list, categorizer_list_str,
+                     boost::is_any_of(","));
+
         options.inode.categorizer_mgr =
             std::make_shared<categorizer_manager>(lgr);
-        // TODO
-        for (auto const& name : catreg.categorizer_names()) {
+
+        for (auto const& name : categorizer_list) {
           options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
         }
       }
