@@ -52,7 +52,8 @@ class categorizer {
 
   virtual std::span<std::string_view const> categories() const = 0;
   virtual bool is_single_fragment() const = 0;
-  virtual folly::dynamic category_metadata(fragment_category c) const = 0;
+  virtual folly::dynamic category_metadata(std::string_view category_name,
+                                           fragment_category c) const = 0;
 };
 
 class random_access_categorizer : public categorizer {

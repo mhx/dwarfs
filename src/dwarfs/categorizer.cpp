@@ -245,9 +245,9 @@ std::string_view categorizer_manager_<LoggerPolicy>::category_name(
 template <typename LoggerPolicy>
 folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
     fragment_category c) const {
-  auto categorizer =
-      DWARFS_NOTHROW(categorizers_.at(categories_.at(c.value()).second));
-  return categorizer->category_metadata(c);
+  auto cat = DWARFS_NOTHROW(categories_.at(c.value()));
+  auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
+  return categorizer->category_metadata(cat.first, c);
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)
