@@ -23,14 +23,14 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
-#include <optional>
 #include <span>
 #include <string_view>
 
-#include "dwarfs/file_category.h"
+#include "dwarfs/inode_fragments.h"
 
 namespace boost::program_options {
 class options_description;
@@ -41,6 +41,9 @@ namespace dwarfs {
 
 class logger;
 
+using category_mapper =
+    std::function<fragment_category::value_type(std::string_view)>;
+
 class categorizer {
  public:
   virtual ~categorizer() = default;
@@ -50,23 +53,26 @@ class categorizer {
 
 class random_access_categorizer : public categorizer {
  public:
-  virtual std::optional<std::string_view>
-  categorize(std::filesystem::path const& path,
-             std::span<uint8_t const> data) const = 0;
+  virtual inode_fragments
+  categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
+             category_mapper const& mapper) const = 0;
 };
 
+// TODO: add call to check if categorizer can return multiple fragments
+//       if it *can* we must run it before we start similarity hashing
 class sequential_categorizer_job {
  public:
   virtual ~sequential_categorizer_job() = default;
 
   virtual void add(std::span<uint8_t const> data) = 0;
-  virtual std::optional<std::string_view> result() = 0;
+  virtual inode_fragments result() = 0;
 };
 
 class sequential_categorizer : public categorizer {
  public:
   virtual std::unique_ptr<sequential_categorizer_job>
-  job(std::filesystem::path const& path, size_t total_size) const = 0;
+  job(std::filesystem::path const& path, size_t total_size,
+      category_mapper const& mapper) const = 0;
 };
 
 class categorizer_job {
@@ -76,6 +82,10 @@ class categorizer_job {
   categorizer_job();
   categorizer_job(std::unique_ptr<impl> impl);
 
+  void set_total_size(size_t total_size) {
+    return impl_->set_total_size(total_size);
+  }
+
   void categorize_random_access(std::span<uint8_t const> data) {
     return impl_->categorize_random_access(data);
   }
@@ -84,7 +94,7 @@ class categorizer_job {
     return impl_->categorize_sequential(data);
   }
 
-  file_category result() { return impl_->result(); }
+  inode_fragments result() { return impl_->result(); }
 
   explicit operator bool() const { return impl_ != nullptr; }
 
@@ -92,9 +102,10 @@ class categorizer_job {
    public:
     virtual ~impl() = default;
 
+    virtual void set_total_size(size_t total_size) = 0;
     virtual void categorize_random_access(std::span<uint8_t const> data) = 0;
     virtual void categorize_sequential(std::span<uint8_t const> data) = 0;
-    virtual file_category result() = 0;
+    virtual inode_fragments result() = 0;
   };
 
  private:
@@ -111,7 +122,7 @@ class categorizer_manager {
     return impl_->job(path);
   }
 
-  std::string_view category_name(file_category c) const {
+  std::string_view category_name(fragment_category::value_type c) const {
     return impl_->category_name(c);
   }
 
@@ -121,7 +132,8 @@ class categorizer_manager {
 
     virtual void add(std::shared_ptr<categorizer const> c) = 0;
     virtual categorizer_job job(std::filesystem::path const& path) const = 0;
-    virtual std::string_view category_name(file_category c) const = 0;
+    virtual std::string_view
+    category_name(fragment_category::value_type c) const = 0;
   };
 
  private:
