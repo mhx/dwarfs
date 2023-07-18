@@ -147,6 +147,8 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
   categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
+  bool is_single_fragment() const override { return true; }
+
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   magic_wrapper m_;
