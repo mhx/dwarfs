@@ -421,6 +421,7 @@ list(
   LIBDWARFS_CATEGORIZER_SRC
   src/dwarfs/categorizer/binary_categorizer.cpp
   src/dwarfs/categorizer/incompressible_categorizer.cpp
+  src/dwarfs/categorizer/pcmaudio_categorizer.cpp
 )
 
 if(LIBMAGIC_FOUND)
