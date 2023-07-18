@@ -373,6 +373,7 @@ list(
   src/dwarfs/fstypes.cpp
   src/dwarfs/fs_section.cpp
   src/dwarfs/global_entry_data.cpp
+  src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_reader_v2.cpp
   src/dwarfs/logger.cpp
