@@ -1,3 +1,39 @@
+- Forward compatibility
+
+  - Feature flags (feature strings)
+
+- Wiki with use cases
+  - Perl releases
+  - Videos with shared streams
+  - Backups of audio files
+  - Compression of filesystem images for forensic purposes
+
+- Mounting lots of images with shared cache?
+
+inode -> list of fragments
+
+categorizer returns list of fragments OR single category
+
+fragment -> [offset, length, category]
+
+
+
+TODO: with PCM audio signals, we need to categorize by:
+
+      - # of channels
+      - bit depth
+      - endian-ness
+      - signed-ness
+      - sample rate (not necessarily)
+
+      we also need to keep track of endian-ness and signed-ness
+      outside of the FLAC stream, as this information isn't
+      stored in FLAC; we could always get this information from
+      the metadata of the original file, but that would be a lot
+      more complicated than just storing two extra bits in the
+      block itself; we'll have to store the decoded length as
+      well, so this won't make a real difference
+
 - how do we make multiple parallel block chains (categories)
   reproducible?
 
@@ -19,6 +55,13 @@
        and then add chunks to the individual parts, assembling them
        only after everything has been written
 
+    => as for re-writing the blocks: we need to keep track of
+       the category of each block, so that we can later sort
+       the blocks by category; we can do this in a separate
+       section, which can later be deleted; or we can even keep
+       it if we want to know later on what category a block
+       belonged to
+
 - configuration ideas:
 
   --order FILETYPE::...
@@ -33,6 +76,9 @@
 
   --filetype pcmaudio::mime:audio/x-wav,mime:audio/x-w64
 
+
+  --categorize=pcmaudio,incompressible,binary,libmagic
+  --libmagic-types=application/x-archive
 
 
 - different scenarios for categorized files / chunks:
