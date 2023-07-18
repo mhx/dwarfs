@@ -30,6 +30,8 @@
 #include <span>
 #include <string_view>
 
+#include <folly/dynamic.h>
+
 #include "dwarfs/inode_fragments.h"
 
 namespace boost::program_options {
@@ -50,6 +52,7 @@ class categorizer {
 
   virtual std::span<std::string_view const> categories() const = 0;
   virtual bool is_single_fragment() const = 0;
+  virtual folly::dynamic category_metadata(fragment_category c) const = 0;
 };
 
 class random_access_categorizer : public categorizer {
@@ -132,6 +135,10 @@ class categorizer_manager {
     return impl_->category_name(c);
   }
 
+  folly::dynamic category_metadata(fragment_category c) const {
+    return impl_->category_metadata(c);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -140,6 +147,7 @@ class categorizer_manager {
     virtual categorizer_job job(std::filesystem::path const& path) const = 0;
     virtual std::string_view
     category_name(fragment_category::value_type c) const = 0;
+    virtual folly::dynamic category_metadata(fragment_category c) const = 0;
   };
 
  private:
