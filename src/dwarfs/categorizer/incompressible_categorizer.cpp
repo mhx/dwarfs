@@ -156,7 +156,12 @@ class incompressible_categorizer_ final : public sequential_categorizer {
   std::unique_ptr<sequential_categorizer_job>
   job(std::filesystem::path const& path, size_t total_size,
       category_mapper const& mapper) const override;
+
   bool is_single_fragment() const override { return true; }
+
+  folly::dynamic category_metadata(fragment_category) const override {
+    return folly::dynamic();
+  }
 
  private:
   logger& lgr_;

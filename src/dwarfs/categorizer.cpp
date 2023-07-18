@@ -185,6 +185,8 @@ class categorizer_manager_ final : public categorizer_manager_private {
   std::string_view
   category_name(fragment_category::value_type c) const override;
 
+  folly::dynamic category_metadata(fragment_category c) const override;
+
   std::vector<std::shared_ptr<categorizer const>> const&
   categorizers() const override {
     return categorizers_;
@@ -201,9 +203,9 @@ class categorizer_manager_ final : public categorizer_manager_private {
   }
 
  private:
-  void add_category(std::string_view cat) {
+  void add_category(std::string_view cat, size_t categorizer_index) {
     if (catmap_.emplace(cat, categories_.size()).second) {
-      categories_.emplace_back(cat);
+      categories_.emplace_back(cat, categorizer_index);
     } else {
       LOG_WARN << "duplicate category: " << cat;
     }
@@ -212,7 +214,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
   logger& lgr_;
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<categorizer const>> categorizers_;
-  std::vector<std::string_view> categories_;
+  std::vector<std::pair<std::string_view, size_t>> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
   bool has_multi_fragment_sequential_categorizers_{false};
 };
@@ -221,7 +223,7 @@ template <typename LoggerPolicy>
 void categorizer_manager_<LoggerPolicy>::add(
     std::shared_ptr<categorizer const> c) {
   for (auto const& c : c->categories()) {
-    add_category(c);
+    add_category(c, categorizers_.size());
   }
 
   if (!c->is_single_fragment() &&
@@ -243,7 +245,15 @@ categorizer_job categorizer_manager_<LoggerPolicy>::job(
 template <typename LoggerPolicy>
 std::string_view categorizer_manager_<LoggerPolicy>::category_name(
     fragment_category::value_type c) const {
-  return DWARFS_NOTHROW(categories_.at(c));
+  return DWARFS_NOTHROW(categories_.at(c)).first;
+}
+
+template <typename LoggerPolicy>
+folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
+    fragment_category c) const {
+  auto categorizer =
+      DWARFS_NOTHROW(categorizers_.at(categories_.at(c.value()).second));
+  return categorizer->category_metadata(c);
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)
