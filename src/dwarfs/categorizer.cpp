@@ -49,6 +49,7 @@ class categorizer_manager_private : public categorizer_manager::impl {
   categorizers() const = 0;
   virtual fragment_category::value_type
   category(std::string_view cat) const = 0;
+  virtual bool has_multi_fragment_sequential_categorizers() const = 0;
 };
 
 template <typename LoggerPolicy>
@@ -66,6 +67,7 @@ class categorizer_job_ final : public categorizer_job::impl {
   void categorize_random_access(std::span<uint8_t const> data) override;
   void categorize_sequential(std::span<uint8_t const> data) override;
   inode_fragments result() override;
+  bool has_multi_fragment_sequential_categorizers() const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -158,6 +160,12 @@ inode_fragments categorizer_job_<LoggerPolicy>::result() {
   return best_;
 }
 
+template <typename LoggerPolicy>
+bool categorizer_job_<
+    LoggerPolicy>::has_multi_fragment_sequential_categorizers() const {
+  return mgr_.has_multi_fragment_sequential_categorizers();
+}
+
 categorizer_job::categorizer_job() = default;
 
 categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
@@ -188,6 +196,10 @@ class categorizer_manager_ final : public categorizer_manager_private {
     return it->second;
   }
 
+  bool has_multi_fragment_sequential_categorizers() const override {
+    return has_multi_fragment_sequential_categorizers_;
+  }
+
  private:
   void add_category(std::string_view cat) {
     if (catmap_.emplace(cat, categories_.size()).second) {
@@ -202,6 +214,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
   std::vector<std::shared_ptr<categorizer const>> categorizers_;
   std::vector<std::string_view> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
+  bool has_multi_fragment_sequential_categorizers_{false};
 };
 
 template <typename LoggerPolicy>
@@ -209,6 +222,11 @@ void categorizer_manager_<LoggerPolicy>::add(
     std::shared_ptr<categorizer const> c) {
   for (auto const& c : c->categories()) {
     add_category(c);
+  }
+
+  if (!c->is_single_fragment() &&
+      dynamic_cast<sequential_categorizer const*>(c.get())) {
+    has_multi_fragment_sequential_categorizers_ = true;
   }
 
   categorizers_.emplace_back(std::move(c));
