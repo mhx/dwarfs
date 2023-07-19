@@ -99,11 +99,16 @@ class inode_ : public inode {
   }
 
   void set_num(uint32_t num) override {
-    DWARFS_CHECK(!num_, "attempt to set inode number multiple times");
+    DWARFS_CHECK((flags_ & kNumIsValid) == 0,
+                 "attempt to set inode number multiple times");
     num_ = num;
+    flags_ |= kNumIsValid;
   }
 
-  uint32_t num() const override { return num_.value(); }
+  uint32_t num() const override {
+    DWARFS_CHECK((flags_ & kNumIsValid) != 0, "inode number is not set");
+    return num_;
+  }
 
   uint32_t similarity_hash() const override {
     assert(similarity_valid_);
@@ -234,8 +239,11 @@ class inode_ : public inode {
  private:
   // TODO: can we move optional stuff (e.g. nilsimsa_similarity_hash_) out of
   // here?
-  std::optional<uint32_t> num_;
   uint32_t similarity_hash_{0};
+  static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
+
+  uint32_t flags_{0};
+  uint32_t num_;
   inode_fragments fragments_;
   files_vector files_;
   std::vector<chunk_type> chunks_;
