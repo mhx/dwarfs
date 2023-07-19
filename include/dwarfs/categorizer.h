@@ -103,9 +103,7 @@ class categorizer_job {
 
   explicit operator bool() const { return impl_ != nullptr; }
 
-  bool has_multi_fragment_sequential_categorizers() const {
-    return impl_->has_multi_fragment_sequential_categorizers();
-  }
+  bool best_result_found() const { return impl_->best_result_found(); }
 
   class impl {
    public:
@@ -115,7 +113,7 @@ class categorizer_job {
     virtual void categorize_random_access(std::span<uint8_t const> data) = 0;
     virtual void categorize_sequential(std::span<uint8_t const> data) = 0;
     virtual inode_fragments result() = 0;
-    virtual bool has_multi_fragment_sequential_categorizers() const = 0;
+    virtual bool best_result_found() const = 0;
   };
 
  private:
