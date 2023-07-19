@@ -25,6 +25,8 @@
 #include <cstdint>
 #include <limits>
 
+#include <folly/hash/Hash.h>
+
 namespace dwarfs {
 
 class fragment_category {
@@ -88,9 +90,26 @@ class fragment_category {
     return subcategory_;
   }
 
+  auto operator<=>(fragment_category const&) const = default;
+
+  size_t hash() const {
+    return folly::hash::hash_combine(value_, subcategory_);
+  }
+
  private:
   value_type value_{uninitialized};
   value_type subcategory_{uninitialized};
 };
 
 } // namespace dwarfs
+
+namespace std {
+
+template <>
+struct hash<dwarfs::fragment_category> {
+  std::size_t operator()(dwarfs::fragment_category const& k) const {
+    return k.hash();
+  }
+};
+
+} // namespace std

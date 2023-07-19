@@ -359,6 +359,7 @@ list(
   src/dwarfs/builtin_script.cpp
   src/dwarfs/cached_block.cpp
   src/dwarfs/categorizer.cpp
+  src/dwarfs/category_parser.cpp
   src/dwarfs/checksum.cpp
   src/dwarfs/chmod_transformer.cpp
   src/dwarfs/console_writer.cpp
@@ -371,6 +372,7 @@ list(
   src/dwarfs/filesystem_extractor.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
+  src/dwarfs/fragment_order_parser.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/fs_section.cpp
   src/dwarfs/global_entry_data.cpp

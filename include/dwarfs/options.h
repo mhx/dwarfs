@@ -28,13 +28,34 @@
 #include <memory>
 #include <optional>
 
+#include "dwarfs/contextual_option.h"
 #include "dwarfs/file_stat.h"
+#include "dwarfs/fragment_category.h"
 #include "dwarfs/types.h"
 
 namespace dwarfs {
 
 class categorizer_manager;
 class entry;
+
+namespace detail {
+
+template <typename T>
+struct categorized_option_policy {
+  using ContextArgumentType = fragment_category;
+  using ContextType = fragment_category::value_type;
+  using OptionType = T;
+
+  static ContextType context_from_arg(ContextArgumentType const& arg) {
+    return arg.value();
+  }
+};
+
+} // namespace detail
+
+template <typename OptionType>
+using categorized_option =
+    contextual_option<detail::categorized_option_policy<OptionType>>;
 
 enum class mlock_mode { NONE, TRY, MUST };
 
@@ -76,21 +97,10 @@ struct filesystem_writer_options {
   bool no_section_index{false};
 };
 
-struct inode_options {
-  bool with_similarity{false};
-  bool with_nilsimsa{false};
-  std::optional<size_t> max_similarity_scan_size;
-  std::shared_ptr<categorizer_manager> categorizer_mgr;
-
-  bool needs_scan(size_t size) const {
-    return categorizer_mgr || ((with_similarity || with_nilsimsa) &&
-                               (!max_similarity_scan_size ||
-                                size <= max_similarity_scan_size.value()));
-  }
-};
-
+// TODO: rename
 enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
 
+// TODO: rename
 struct file_order_options {
   file_order_mode mode{file_order_mode::NONE};
   int nilsimsa_depth{20000};
@@ -98,8 +108,18 @@ struct file_order_options {
   int nilsimsa_limit{255};
 };
 
+struct inode_options {
+  // TODO: - clean this all up and name properly
+  //       - the file_order thing should really be "fragment_order"
+  //       - it should all belong into inode_options, where scanner
+  //         can still access it
+  //       - python scripts need to die
+  std::optional<size_t> max_similarity_scan_size; // TODO: not sure about this?
+  std::shared_ptr<categorizer_manager> categorizer_mgr;
+  categorized_option<file_order_options> fragment_order{file_order_options()};
+};
+
 struct scanner_options {
-  file_order_options file_order;
   std::optional<std::string> file_hash_algorithm{"xxh3-128"};
   std::optional<file_stat::uid_type> uid;
   std::optional<file_stat::gid_type> gid;
