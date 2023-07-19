@@ -54,12 +54,14 @@
 #include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/categorizer.h"
+#include "dwarfs/category_parser.h"
 #include "dwarfs/chmod_transformer.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/fragment_order_parser.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -88,13 +90,6 @@ enum class debug_filter_mode {
   EXCLUDED_FILES,
   FILES,
   ALL
-};
-
-const std::map<std::string, file_order_mode> order_choices{
-    {"none", file_order_mode::NONE},
-    {"path", file_order_mode::PATH},
-    {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA},
 };
 
 const std::map<std::string, console_writer::progress_mode> progress_modes{
@@ -157,39 +152,6 @@ void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
   }
 
   os << prefix << pe->unix_dpath() << "\n";
-}
-
-int parse_order_option(std::string const& ordname, std::string const& opt,
-                       int& value, std::string_view name,
-                       std::optional<int> min = std::nullopt,
-                       std::optional<int> max = std::nullopt) {
-  if (!opt.empty()) {
-    if (auto val = folly::tryTo<int>(opt)) {
-      auto tmp = *val;
-      if (min && max && (tmp < *min || tmp > *max)) {
-        std::cerr << "error: " << name << " (" << opt
-                  << ") out of range for order '" << ordname << "' (" << *min
-                  << ".." << *max << ")\n";
-        return 1;
-      }
-      if (min && tmp < *min) {
-        std::cerr << "error: " << name << " (" << opt
-                  << ") cannot be less than " << *min << " for order '"
-                  << ordname << "'\n";
-      }
-      if (max && tmp > *max) {
-        std::cerr << "error: " << name << " (" << opt
-                  << ") cannot be greater than " << *max << " for order '"
-                  << ordname << "'\n";
-      }
-      value = tmp;
-    } else {
-      std::cerr << "error: " << name << " (" << opt
-                << ") is not numeric for order '" << ordname << "'\n";
-      return 1;
-    }
-  }
-  return 0;
 }
 
 struct level_defaults {
@@ -313,11 +275,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   block_manager::config cfg;
   sys_string path_str, output_str;
   std::string memory_limit, script_arg, compression, header, schema_compression,
-      metadata_compression, log_level_str, timestamp, time_resolution, order,
+      metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str,
       categorizer_list_str;
   std::vector<sys_string> filter;
+  std::vector<std::string> order;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -327,8 +290,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   scanner_options options;
 
-  auto order_desc =
-      "inode order (" + (from(order_choices) | get<0>() | unsplit(", ")) + ")";
+  auto order_desc = "inode order (" + fragment_order_parser::choices() + ")";
 
   auto progress_desc = "progress mode (" +
                        (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
@@ -404,8 +366,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           ->default_value("pcmaudio,incompressible"),
         categorize_desc.c_str())
     ("order",
-        po::value<std::string>(&order),
-        order_desc.c_str())
+        po::value<std::vector<std::string>>(&order)->multitoken(),
+        order_desc.c_str())  // TODO
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
         "maximum file size to compute similarity")
@@ -639,7 +601,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   if (!vm.count("order")) {
-    order = defaults.order;
+    // TODO:
+    order.push_back(std::string(defaults.order));
   }
 
   if (cfg.block_size_bits < min_block_size_bits ||
@@ -712,54 +675,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       std::cerr << "invalid recompress mode: " << recompress_opts << "\n";
       return 1;
     }
-  }
-
-  std::vector<std::string> order_opts;
-  boost::split(order_opts, order, boost::is_any_of(":"));
-
-  if (auto it = order_choices.find(order_opts.front());
-      it != order_choices.end()) {
-    options.file_order.mode = it->second;
-
-    if (order_opts.size() > 1) {
-      if (options.file_order.mode != file_order_mode::NILSIMSA) {
-        std::cerr << "error: inode order mode '" << order_opts.front()
-                  << "' does not support options\n";
-        return 1;
-      }
-
-      if (order_opts.size() > 4) {
-        std::cerr << "error: too many options for inode order mode '"
-                  << order_opts[0] << "'\n";
-        return 1;
-      }
-
-      auto ordname = order_opts[0];
-
-      if (parse_order_option(ordname, order_opts[1],
-                             options.file_order.nilsimsa_limit, "limit", 0,
-                             255)) {
-        return 1;
-      }
-
-      if (order_opts.size() > 2) {
-        if (parse_order_option(ordname, order_opts[2],
-                               options.file_order.nilsimsa_depth, "depth", 0)) {
-          return 1;
-        }
-      }
-
-      if (order_opts.size() > 3) {
-        if (parse_order_option(ordname, order_opts[3],
-                               options.file_order.nilsimsa_min_depth,
-                               "min depth", 0)) {
-          return 1;
-        }
-      }
-    }
-  } else {
-    std::cerr << "error: invalid inode order mode: " << order << "\n";
-    return 1;
   }
 
   if (file_hash_algo == "none") {
@@ -1035,11 +950,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                              fsw, rw_opts);
       wg_compress.wait();
     } else {
-      options.inode.with_similarity =
-          options.file_order.mode == file_order_mode::SIMILARITY;
-      options.inode.with_nilsimsa =
-          options.file_order.mode == file_order_mode::NILSIMSA;
-
       if (!categorizer_list_str.empty()) {
         std::vector<std::string> categorizer_list;
         boost::split(categorizer_list, categorizer_list_str,
@@ -1051,6 +961,17 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         for (auto const& name : categorizer_list) {
           options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
         }
+      }
+
+      try {
+        category_parser cp(options.inode.categorizer_mgr);
+        fragment_order_parser fop;
+        contextual_option_parser order_parser(options.inode.fragment_order, cp,
+                                              fop);
+        order_parser.parse(order);
+      } catch (std::exception const& e) {
+        LOG_ERROR << e.what();
+        return 1;
       }
 
       scanner s(lgr, wg_scanner, cfg, entry_factory::create(),

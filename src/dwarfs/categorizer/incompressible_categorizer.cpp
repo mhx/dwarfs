@@ -42,6 +42,13 @@ namespace {
 
 constexpr std::string_view const INCOMPRESSIBLE_CATEGORY{"incompressible"};
 
+// TODO: We could actually split large files into compressible and
+//       incompressible fragments. This may be beneficial for use cases
+//       such as wrapping file system images, where we can separate out
+//       compressed parts in the original image.
+//
+//       We probably need to reintroduce the <default> category for that.
+
 struct incompressible_categorizer_config {
   size_t min_input_size;
   double max_ratio_size;

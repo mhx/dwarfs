@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 namespace dwarfs {
 
@@ -33,6 +34,10 @@ class similarity {
 
   void update(uint8_t const* data, size_t size);
   uint32_t finalize() const;
+
+  void operator()(std::span<uint8_t const> data) {
+    update(data.data(), data.size());
+  }
 
  private:
   class impl;
