@@ -30,9 +30,13 @@
 #include <numeric>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <fmt/format.h>
+
+#include <folly/small_vector.h>
+#include <folly/sorted_vector_types.h>
 
 #include "dwarfs/categorizer.h"
 #include "dwarfs/compiler.h"
@@ -158,6 +162,19 @@ class inode_ : public inode {
           opts.categorizer_mgr->job(mm ? mm->path().string() : "<no-file>");
     }
 
+    ///
+    /// 1. Run random access categorizers
+    /// 2. If we *have* a best category already (need a call for that),
+    ///    we can immediately compute similarity hashes for all fragments
+    ///    (or not, if the category is configured not to use similarity)
+    /// 3. If we *don't* have a best category yet, we can run similarity
+    ///    hashing while running the sequential categorizer(s).
+    /// 4. If we end up with multiple fragments after all, we might have
+    ///    to re-run similarity hashing. This means we can also drop the
+    ///    multi-fragment sequential categorizer check, as we can just
+    ///    as well support that case.
+    ///
+
     if (mm) {
       if (catjob) {
         catjob.set_total_size(mm->size());
@@ -237,20 +254,39 @@ class inode_ : public inode {
   inode_fragments const& fragments() const override { return fragments_; }
 
  private:
-  // TODO: can we move optional stuff (e.g. nilsimsa_similarity_hash_) out of
-  // here?
-  uint32_t similarity_hash_{0};
+  using similarity_map_type =
+      folly::sorted_vector_map<fragment_category,
+                               std::variant<nilsimsa::hash_type, uint32_t>>;
+
   static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
 
   uint32_t flags_{0};
   uint32_t num_;
   inode_fragments fragments_;
   files_vector files_;
-  std::vector<chunk_type> chunks_;
-  nilsimsa::hash_type nilsimsa_similarity_hash_;
+
+  std::variant<
+      // in case of no hashes at all
+      std::monostate,
+
+      // in case of only a single fragment
+      nilsimsa::hash_type, // 32 bytes
+      uint32_t,            //  4 bytes
+
+      // in case of multiple fragments
+      similarity_map_type // 24 bytes
+      >
+      similarity_;
+
+  // OLDE:
+  uint32_t similarity_hash_{0};    // TODO: remove (move to similarity_)
+  std::vector<chunk_type> chunks_; // TODO: remove (part of fragments_ now)
+  nilsimsa::hash_type
+      nilsimsa_similarity_hash_; // TODO: remove (move to similarity_)
 #ifndef NDEBUG
-  bool similarity_valid_{false};
-  bool nilsimsa_valid_{false};
+  // no longer needed because we now know which are valid
+  bool similarity_valid_{false}; // TODO: remove
+  bool nilsimsa_valid_{false};   // TODO: remove
 #endif
 };
 
