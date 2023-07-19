@@ -155,10 +155,6 @@ class inode_ : public inode {
 
     if (mm) {
       if (catjob) {
-        DWARFS_CHECK(
-            !catjob.has_multi_fragment_sequential_categorizers(),
-            "multi-fragment sequential categorizers are not supported");
-
         catjob.set_total_size(mm->size());
         catjob.categorize_random_access(mm->span());
       }
