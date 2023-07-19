@@ -31,6 +31,8 @@
 #include "dwarfs/fragment_category.h"
 #include "dwarfs/types.h"
 
+#include "dwarfs/gen-cpp2/metadata_types.h"
+
 namespace dwarfs {
 
 class single_inode_fragment {
@@ -46,6 +48,7 @@ class single_inode_fragment {
  private:
   fragment_category category_;
   file_off_t length_;
+  folly::small_vector<thrift::metadata::chunk, 1> chunks_;
 };
 
 class inode_fragments {
