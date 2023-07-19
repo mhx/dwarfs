@@ -42,7 +42,6 @@ namespace {
 class file_scanner_ : public file_scanner::impl {
  public:
   file_scanner_(worker_group& wg, os_access& os, inode_manager& im,
-                inode_options const& ino_opts,
                 std::optional<std::string> const& hash_algo, progress& prog);
 
   void scan(file* p) override;
@@ -85,7 +84,6 @@ class file_scanner_ : public file_scanner::impl {
   worker_group& wg_;
   os_access& os_;
   inode_manager& im_;
-  inode_options const& ino_opts_;
   std::optional<std::string> const hash_algo_;
   progress& prog_;
   uint32_t num_unique_{0};
@@ -128,13 +126,11 @@ class file_scanner_ : public file_scanner::impl {
 //   from `unique_size_` after its hash has been stored.
 
 file_scanner_::file_scanner_(worker_group& wg, os_access& os, inode_manager& im,
-                             inode_options const& ino_opts,
                              std::optional<std::string> const& hash_algo,
                              progress& prog)
     : wg_(wg)
     , os_(os)
     , im_(im)
-    , ino_opts_(ino_opts)
     , hash_algo_{hash_algo}
     , prog_(prog) {}
 
@@ -308,24 +304,7 @@ void file_scanner_::add_inode(file* p) {
 
   p->set_inode(inode);
 
-  if (ino_opts_.needs_scan(p->size())) {
-    wg_.add_job([this, p, inode = std::move(inode)] {
-      std::shared_ptr<mmif> mm;
-      auto const size = p->size();
-      if (size > 0) {
-        mm = os_.map_file(p->fs_path(), size);
-      }
-      inode->scan(mm.get(), ino_opts_);
-      ++prog_.similarity_scans;
-      prog_.similarity_bytes += size;
-      ++prog_.inodes_scanned;
-      ++prog_.files_scanned;
-    });
-  } else {
-    inode->set_similarity_valid(ino_opts_);
-    ++prog_.inodes_scanned;
-    ++prog_.files_scanned;
-  }
+  im_.scan_background(wg_, os_, std::move(inode), p);
 }
 
 template <typename Lookup>
@@ -418,10 +397,8 @@ void file_scanner_::finalize_inodes(
 } // namespace
 
 file_scanner::file_scanner(worker_group& wg, os_access& os, inode_manager& im,
-                           inode_options const& ino_opts,
                            std::optional<std::string> const& hash_algo,
                            progress& prog)
-    : impl_{std::make_unique<file_scanner_>(wg, os, im, ino_opts, hash_algo,
-                                            prog)} {}
+    : impl_{std::make_unique<file_scanner_>(wg, os, im, hash_algo, prog)} {}
 
 } // namespace dwarfs::detail

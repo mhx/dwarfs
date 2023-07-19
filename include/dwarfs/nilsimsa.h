@@ -24,6 +24,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <type_traits>
 
 #include <folly/lang/Bits.h>
@@ -59,6 +60,10 @@ class nilsimsa {
 #endif
   static int
   similarity(uint64_t const* a, uint64_t const* b);
+
+  void operator()(std::span<uint8_t const> data) {
+    update(data.data(), data.size());
+  }
 
  private:
   class impl;

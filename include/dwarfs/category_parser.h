@@ -22,42 +22,22 @@
 #pragma once
 
 #include <memory>
-#include <optional>
-#include <string>
+#include <vector>
+
+#include "dwarfs/fragment_category.h"
 
 namespace dwarfs {
 
-class file;
-class inode_manager;
-class os_access;
-class progress;
-class worker_group;
+class categorizer_manager;
 
-struct inode_options;
-
-namespace detail {
-
-class file_scanner {
+class category_parser {
  public:
-  file_scanner(worker_group& wg, os_access& os, inode_manager& im,
-               std::optional<std::string> const& hash_algo, progress& prog);
+  category_parser(std::shared_ptr<categorizer_manager> catmgr);
 
-  void scan(file* p) { impl_->scan(p); }
-  void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
-  uint32_t num_unique() const { return impl_->num_unique(); }
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual void scan(file* p) = 0;
-    virtual void finalize(uint32_t& inode_num) = 0;
-    virtual uint32_t num_unique() const = 0;
-  };
+  std::vector<fragment_category::value_type> parse(std::string_view arg) const;
 
  private:
-  std::unique_ptr<impl> impl_;
+  std::shared_ptr<categorizer_manager> catmgr_;
 };
 
-} // namespace detail
 } // namespace dwarfs

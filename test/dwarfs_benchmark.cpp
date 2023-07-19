@@ -99,8 +99,6 @@ std::string make_filesystem(::benchmark::State const& state) {
 
   options.with_devices = true;
   options.with_specials = true;
-  options.inode.with_similarity = false;
-  options.inode.with_nilsimsa = false;
   options.keep_all_times = false;
   options.pack_chunk_table = true;
   options.pack_directories = state.range(0);

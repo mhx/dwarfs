@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -124,6 +125,8 @@ class categorizer_manager {
  public:
   categorizer_manager(logger& lgr);
 
+  static fragment_category default_category();
+
   void add(std::shared_ptr<categorizer const> c) { impl_->add(std::move(c)); }
 
   categorizer_job job(std::filesystem::path const& path) const {
@@ -132,6 +135,11 @@ class categorizer_manager {
 
   std::string_view category_name(fragment_category::value_type c) const {
     return impl_->category_name(c);
+  }
+
+  std::optional<fragment_category::value_type>
+  category_value(std::string_view name) const {
+    return impl_->category_value(name);
   }
 
   folly::dynamic category_metadata(fragment_category c) const {
@@ -146,6 +154,8 @@ class categorizer_manager {
     virtual categorizer_job job(std::filesystem::path const& path) const = 0;
     virtual std::string_view
     category_name(fragment_category::value_type c) const = 0;
+    virtual std::optional<fragment_category::value_type>
+    category_value(std::string_view name) const = 0;
     virtual folly::dynamic category_metadata(fragment_category c) const = 0;
   };
 
