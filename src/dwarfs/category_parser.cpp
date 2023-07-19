@@ -19,45 +19,38 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <fmt/format.h>
 
-#include <memory>
-#include <optional>
-#include <string>
+#include "dwarfs/categorizer.h"
+#include "dwarfs/category_parser.h"
 
 namespace dwarfs {
 
-class file;
-class inode_manager;
-class os_access;
-class progress;
-class worker_group;
+category_parser::category_parser(std::shared_ptr<categorizer_manager> catmgr)
+    : catmgr_{catmgr} {}
 
-struct inode_options;
+std::vector<fragment_category::value_type>
+category_parser::parse(std::string_view arg) const {
+  if (!catmgr_) {
+    throw std::runtime_error(
+        "cannot configure category-specific options without any categories");
+  }
 
-namespace detail {
+  std::vector<fragment_category::value_type> rv;
+  std::vector<std::string_view> categories;
 
-class file_scanner {
- public:
-  file_scanner(worker_group& wg, os_access& os, inode_manager& im,
-               std::optional<std::string> const& hash_algo, progress& prog);
+  folly::split(',', arg, categories);
+  rv.reserve(categories.size());
 
-  void scan(file* p) { impl_->scan(p); }
-  void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
-  uint32_t num_unique() const { return impl_->num_unique(); }
+  for (auto const& name : categories) {
+    if (auto val = catmgr_->category_value(name)) {
+      rv.emplace_back(*val);
+    } else {
+      throw std::range_error(fmt::format("unknown category: '{}'", name));
+    }
+  }
 
-  class impl {
-   public:
-    virtual ~impl() = default;
+  return rv;
+}
 
-    virtual void scan(file* p) = 0;
-    virtual void finalize(uint32_t& inode_num) = 0;
-    virtual uint32_t num_unique() const = 0;
-  };
-
- private:
-  std::unique_ptr<impl> impl_;
-};
-
-} // namespace detail
 } // namespace dwarfs

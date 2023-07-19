@@ -65,9 +65,16 @@ class inode_fragments {
 
   std::span<single_inode_fragment const> span() const { return fragments_; }
 
+  size_t size() const { return fragments_.size(); }
+
   bool empty() const { return fragments_.empty(); }
 
   void clear() { fragments_.clear(); }
+
+  fragment_category get_single_category() const {
+    assert(fragments_.size() == 1);
+    return fragments_.at(0).category();
+  }
 
   explicit operator bool() const { return !empty(); }
 
