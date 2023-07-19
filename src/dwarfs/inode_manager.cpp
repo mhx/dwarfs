@@ -48,9 +48,11 @@
 #include "dwarfs/mmif.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/options.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
+#include "dwarfs/worker_group.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
@@ -115,7 +117,6 @@ class inode_ : public inode {
   }
 
   uint32_t similarity_hash() const override {
-    assert(similarity_valid_);
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (similarity)");
     }
@@ -123,7 +124,6 @@ class inode_ : public inode {
   }
 
   nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
-    assert(nilsimsa_valid_);
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (nilsimsa)");
     }
@@ -138,30 +138,16 @@ class inode_ : public inode {
     files_ = std::move(fv);
   }
 
-  void
-  set_similarity_valid(inode_options const& opts [[maybe_unused]]) override {
-#ifndef NDEBUG
-    assert(!similarity_valid_);
-    assert(!nilsimsa_valid_);
-    similarity_valid_ = opts.with_similarity;
-    nilsimsa_valid_ = opts.with_nilsimsa;
-#endif
-  }
-
   void scan(mmif* mm, inode_options const& opts) override {
-    assert(!similarity_valid_);
-    assert(!nilsimsa_valid_);
-
-    similarity sc;
-    nilsimsa nc;
-
     categorizer_job catjob;
 
+    // No job if categorizers are disabled
     if (opts.categorizer_mgr) {
       catjob =
           opts.categorizer_mgr->job(mm ? mm->path().string() : "<no-file>");
     }
 
+    /// TODO: remove comments or move elsewhere
     ///
     /// 1. Run random access categorizers
     /// 2. If we *have* a best category already (need a call for that),
@@ -175,56 +161,54 @@ class inode_ : public inode {
     ///    as well support that case.
     ///
 
+    // If we don't have a mapping, we can't scan anything
     if (mm) {
       if (catjob) {
+        // First, run random access categorizers. If we get a result here,
+        // it's very likely going to be the best result.
         catjob.set_total_size(mm->size());
         catjob.categorize_random_access(mm->span());
+
+        if (catjob.best_result_found()) {
+          // This means the job won't be running any sequential categorizers
+          // as the outcome cannot possibly be any better. As a consequence,
+          // we can already fetch the result here and scan the fragments
+          // instead of the whole file.
+
+          fragments_ = catjob.result();
+
+          if (fragments_.size() > 1) {
+            scan_fragments(mm, opts);
+          } else {
+            scan_full(mm, opts);
+          }
+        }
       }
 
-      auto scan_sequential = [&](uint8_t const* data, size_t size) {
-        if (opts.with_similarity) {
-          sc.update(data, size);
-        }
+      if (fragments_.empty()) {
+        // If we get here, we haven't scanned anything yet, and we don't know
+        // if the file will be fragmented or not.
 
-        if (opts.with_nilsimsa) {
-          nc.update(data, size);
-        }
+        scan_full(mm, opts);
 
         if (catjob) {
-          catjob.categorize_sequential(std::span(data, size));
+          fragments_ = catjob.result();
+
+          if (fragments_.size() > 1) {
+            // This is the unfortunate case where we have to scan the
+            // individual fragments after having already done a full scan.
+            scan_fragments(mm, opts);
+          }
         }
-      };
-
-      constexpr size_t chunk_size = 32 << 20;
-      size_t offset = 0;
-      size_t size = mm->size();
-
-      while (size >= chunk_size) {
-        scan_sequential(mm->as<uint8_t>(offset), chunk_size);
-        mm->release_until(offset);
-        offset += chunk_size;
-        size -= chunk_size;
       }
-
-      scan_sequential(mm->as<uint8_t>(offset), size);
     }
 
-    if (opts.with_similarity) {
-      similarity_hash_ = sc.finalize();
-#ifndef NDEBUG
-      similarity_valid_ = true;
-#endif
-    }
-
-    if (opts.with_nilsimsa) {
-      nc.finalize(nilsimsa_similarity_hash_);
-#ifndef NDEBUG
-      nilsimsa_valid_ = true;
-#endif
-    }
-
-    if (catjob) {
-      fragments_ = catjob.result();
+    // Add a fragment if nothing has been added so far. We need a single
+    // fragment to store the inode's chunks. This won't use up any resources
+    // as a single fragment is stored inline.
+    if (fragments_.empty()) {
+      fragments_.emplace_back(categorizer_manager::default_category(),
+                              mm ? mm->size() : 0);
     }
   }
 
@@ -254,6 +238,110 @@ class inode_ : public inode {
   inode_fragments const& fragments() const override { return fragments_; }
 
  private:
+  template <typename T>
+  void scan_range(mmif* mm, size_t offset, size_t size, T&& scanner) {
+    static constexpr size_t const chunk_size = 32 << 20;
+
+    while (size >= chunk_size) {
+      scanner(mm->span(offset, chunk_size));
+      mm->release_until(offset);
+      offset += chunk_size;
+      size -= chunk_size;
+    }
+
+    scanner(mm->span(offset, size));
+  }
+
+  void scan_fragments(mmif* mm, inode_options const& opts) {
+    assert(mm);
+    assert(fragments_.size() > 1);
+
+    std::unordered_map<fragment_category, similarity> sc;
+    std::unordered_map<fragment_category, nilsimsa> nc;
+
+    for (auto const& f : fragments_.span()) {
+      switch (opts.fragment_order.get(f.category()).mode) {
+      case file_order_mode::NONE:
+      case file_order_mode::PATH:
+      case file_order_mode::SCRIPT:
+        break;
+      case file_order_mode::SIMILARITY:
+        sc.try_emplace(f.category());
+        break;
+      case file_order_mode::NILSIMSA:
+        nc.try_emplace(f.category());
+        break;
+      }
+    }
+
+    if (sc.empty() && nc.empty()) {
+      return;
+    }
+
+    file_off_t pos = 0;
+
+    for (auto const& f : fragments_.span()) {
+      auto const size = f.length();
+
+      if (auto i = sc.find(f.category()); i != sc.end()) {
+        scan_range(mm, pos, size, i->second);
+      } else if (auto i = nc.find(f.category()); i != nc.end()) {
+        scan_range(mm, pos, size, i->second);
+      }
+
+      pos += size;
+    }
+
+    similarity_map_type tmp_map;
+
+    for (auto const& [cat, hasher] : sc) {
+      tmp_map.emplace(cat, hasher.finalize());
+    }
+
+    for (auto const& [cat, hasher] : nc) {
+      // TODO: can we finalize in-place?
+      nilsimsa::hash_type hash;
+      hasher.finalize(hash);
+      tmp_map.emplace(cat, hash);
+    }
+
+    similarity_.emplace<similarity_map_type>(std::move(tmp_map));
+  }
+
+  void scan_full(mmif* mm, inode_options const& opts) {
+    assert(mm);
+    assert(fragments_.size() <= 1);
+
+    auto order_mode =
+        fragments_.empty()
+            ? opts.fragment_order.get().mode
+            : opts.fragment_order.get(fragments_.get_single_category()).mode;
+
+    switch (order_mode) {
+    case file_order_mode::NONE:
+    case file_order_mode::PATH:
+    case file_order_mode::SCRIPT:
+      break;
+
+    case file_order_mode::SIMILARITY: {
+      similarity sc;
+      scan_range(mm, 0, mm->size(), sc);
+      similarity_hash_ = sc.finalize(); // TODO
+      similarity_.emplace<uint32_t>(sc.finalize());
+    } break;
+
+    case file_order_mode::NILSIMSA: {
+      nilsimsa nc;
+      scan_range(mm, 0, mm->size(), nc);
+      // TODO: can we finalize in-place?
+      nilsimsa::hash_type hash;
+      nc.finalize(hash);
+      nilsimsa_similarity_hash_ = hash; // TODO
+      similarity_.emplace<nilsimsa::hash_type>(hash);
+    } break;
+    }
+  }
+
   using similarity_map_type =
       folly::sorted_vector_map<fragment_category,
                                std::variant<nilsimsa::hash_type, uint32_t>>;
@@ -283,11 +371,6 @@ class inode_ : public inode {
   std::vector<chunk_type> chunks_; // TODO: remove (part of fragments_ now)
   nilsimsa::hash_type
       nilsimsa_similarity_hash_; // TODO: remove (move to similarity_)
-#ifndef NDEBUG
-  // no longer needed because we now know which are valid
-  bool similarity_valid_{false}; // TODO: remove
-  bool nilsimsa_valid_{false};   // TODO: remove
-#endif
 };
 
 } // namespace
@@ -295,9 +378,11 @@ class inode_ : public inode {
 template <typename LoggerPolicy>
 class inode_manager_ final : public inode_manager::impl {
  public:
-  inode_manager_(logger& lgr, progress& prog)
+  inode_manager_(logger& lgr, progress& prog, inode_options const& opts)
       : LOG_PROXY_INIT(lgr)
-      , prog_(prog) {}
+      , prog_(prog)
+      , opts_{opts}
+      , inodes_need_scanning_{inodes_need_scanning(opts_)} {}
 
   std::shared_ptr<inode> create_inode() override {
     auto ino = std::make_shared<inode_>();
@@ -308,7 +393,6 @@ class inode_manager_ final : public inode_manager::impl {
   size_t count() const override { return inodes_.size(); }
 
   void order_inodes(std::shared_ptr<script> scr,
-                    file_order_options const& file_order,
                     inode_manager::order_cb const& fn) override;
 
   void for_each_inode_in_order(
@@ -349,7 +433,22 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
+  void
+  scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
+                  file const* p) const override;
+
  private:
+  static bool inodes_need_scanning(inode_options const& opts) {
+    if (opts.categorizer_mgr) {
+      return true;
+    }
+
+    return opts.fragment_order.any_is([](auto const& order) {
+      return order.mode == file_order_mode::SIMILARITY ||
+             order.mode == file_order_mode::NILSIMSA;
+    });
+  }
+
   void order_inodes_by_path() {
     std::vector<std::string> paths;
     std::vector<size_t> index(inodes_.size());
@@ -391,19 +490,49 @@ class inode_manager_ final : public inode_manager::impl {
   void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
                      std::vector<uint32_t>& index);
 
-  void order_inodes_by_nilsimsa(inode_manager::order_cb const& fn,
-                                file_order_options const& file_order);
+  void order_inodes_by_nilsimsa(inode_manager::order_cb const& fn);
 
-  std::vector<std::shared_ptr<inode>> inodes_;
   LOG_PROXY_DECL(LoggerPolicy);
+  std::vector<std::shared_ptr<inode>> inodes_;
   progress& prog_;
+  inode_options opts_;
+  bool const inodes_need_scanning_;
 };
 
 template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
+                                                   os_access& os,
+                                                   std::shared_ptr<inode> ino,
+                                                   file const* p) const {
+  // TODO: I think the size check makes everything more complex.
+  //       If we don't check the size, we get the code to run
+  //       that ensures `fragments_` is updated. Also, there
+  //       should only ever be one empty inode, so the check
+  //       doesn't actually make much of a difference.
+  if (inodes_need_scanning_ /* && p->size() > 0 */) {
+    wg.add_job([this, &os, p, ino = std::move(ino)] {
+      auto const size = p->size();
+      std::shared_ptr<mmif> mm;
+      if (size > 0) {
+        mm = os.map_file(p->fs_path(), size);
+      }
+      ino->scan(mm.get(), opts_);
+      ++prog_.similarity_scans; // TODO: we probably don't want this here
+      prog_.similarity_bytes += size;
+      ++prog_.inodes_scanned;
+      ++prog_.files_scanned;
+    });
+  } else {
+    ++prog_.inodes_scanned;
+    ++prog_.files_scanned;
+  }
+}
+
+template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
-    std::shared_ptr<script> scr, file_order_options const& file_order,
-    inode_manager::order_cb const& fn) {
-  switch (file_order.mode) {
+    std::shared_ptr<script> scr, inode_manager::order_cb const& fn) {
+  // TODO:
+  switch (opts_.fragment_order.get().mode) {
   case file_order_mode::NONE:
     LOG_INFO << "keeping inode order";
     break;
@@ -439,7 +568,7 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     LOG_INFO << "ordering " << count()
              << " inodes using nilsimsa similarity...";
     auto ti = LOG_CPU_TIMED_INFO;
-    order_inodes_by_nilsimsa(fn, file_order);
+    order_inodes_by_nilsimsa(fn);
     ti << count() << " inodes ordered";
     return;
   }
@@ -494,7 +623,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
-    inode_manager::order_cb const& fn, file_order_options const& file_order) {
+    inode_manager::order_cb const& fn) {
   auto count = inodes_.size();
 
   if (auto fname = ::getenv("DWARFS_NILSIMSA_DUMP")) {
@@ -559,6 +688,7 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   }
 
   if (!index.empty()) {
+    auto const& file_order = opts_.fragment_order.get(); // TODO
     const int_fast32_t max_depth = file_order.nilsimsa_depth;
     const int_fast32_t min_depth =
         std::min<int32_t>(file_order.nilsimsa_min_depth, max_depth);
@@ -607,8 +737,9 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   }
 }
 
-inode_manager::inode_manager(logger& lgr, progress& prog)
+inode_manager::inode_manager(logger& lgr, progress& prog,
+                             inode_options const& opts)
     : impl_(make_unique_logging_object<impl, inode_manager_, logger_policies>(
-          lgr, prog)) {}
+          lgr, prog, opts)) {}
 
 } // namespace dwarfs

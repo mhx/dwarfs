@@ -21,43 +21,17 @@
 
 #pragma once
 
-#include <memory>
-#include <optional>
-#include <string>
+#include <string_view>
+
+#include "dwarfs/options.h"
 
 namespace dwarfs {
 
-class file;
-class inode_manager;
-class os_access;
-class progress;
-class worker_group;
-
-struct inode_options;
-
-namespace detail {
-
-class file_scanner {
+struct fragment_order_parser {
  public:
-  file_scanner(worker_group& wg, os_access& os, inode_manager& im,
-               std::optional<std::string> const& hash_algo, progress& prog);
+  static std::string choices();
 
-  void scan(file* p) { impl_->scan(p); }
-  void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
-  uint32_t num_unique() const { return impl_->num_unique(); }
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual void scan(file* p) = 0;
-    virtual void finalize(uint32_t& inode_num) = 0;
-    virtual uint32_t num_unique() const = 0;
-  };
-
- private:
-  std::unique_ptr<impl> impl_;
+  file_order_options parse(std::string_view arg) const;
 };
 
-} // namespace detail
 } // namespace dwarfs

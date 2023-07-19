@@ -566,9 +566,8 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  inode_manager im(lgr_, prog);
-  detail::file_scanner fs(wg_, *os_, im, options_.inode,
-                          options_.file_hash_algorithm, prog);
+  inode_manager im(lgr_, prog, options_.inode);
+  detail::file_scanner fs(wg_, *os_, im, options_.file_hash_algorithm, prog);
 
   auto root =
       list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
@@ -661,20 +660,19 @@ void scanner_<LoggerPolicy>::scan(
       worker_group ordering("ordering", 1);
 
       ordering.add_job([&] {
-        im.order_inodes(script_, options_.file_order,
-                        [&](std::shared_ptr<inode> const& ino) {
-                          blockify.add_job([&] {
-                            prog.current.store(ino.get());
-                            bm.add_inode(ino);
-                            prog.inodes_written++;
-                          });
-                          auto queued_files = blockify.queue_size();
-                          auto queued_blocks = fsw.queue_fill();
-                          prog.blockify_queue = queued_files;
-                          prog.compress_queue = queued_blocks;
-                          return INT64_C(500) * queued_blocks +
-                                 static_cast<int64_t>(queued_files);
-                        });
+        im.order_inodes(script_, [&](std::shared_ptr<inode> const& ino) {
+          blockify.add_job([&] {
+            prog.current.store(ino.get());
+            bm.add_inode(ino);
+            prog.inodes_written++;
+          });
+          auto queued_files = blockify.queue_size();
+          auto queued_blocks = fsw.queue_fill();
+          prog.blockify_queue = queued_files;
+          prog.compress_queue = queued_blocks;
+          return INT64_C(500) * queued_blocks +
+                 static_cast<int64_t>(queued_files);
+        });
       });
 
       ordering.wait();

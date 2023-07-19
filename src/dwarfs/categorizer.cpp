@@ -39,6 +39,12 @@ using namespace std::placeholders;
 
 namespace po = boost::program_options;
 
+namespace {
+
+constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
+
+}
+
 class categorizer_manager_private : public categorizer_manager::impl {
  public:
   virtual std::vector<std::shared_ptr<categorizer const>> const&
@@ -170,12 +176,23 @@ class categorizer_manager_ final : public categorizer_manager_private {
  public:
   categorizer_manager_(logger& lgr)
       : lgr_{lgr}
-      , LOG_PROXY_INIT(lgr) {}
+      , LOG_PROXY_INIT(lgr) {
+    add_category(DEFAULT_CATEGORY, std::numeric_limits<size_t>::max());
+  }
 
   void add(std::shared_ptr<categorizer const> c) override;
   categorizer_job job(std::filesystem::path const& path) const override;
   std::string_view
   category_name(fragment_category::value_type c) const override;
+
+  std::optional<fragment_category::value_type>
+  category_value(std::string_view name) const override {
+    std::optional<fragment_category::value_type> rv;
+    if (auto it = catmap_.find(name); it != catmap_.end()) {
+      rv.emplace(it->second);
+    }
+    return rv;
+  }
 
   folly::dynamic category_metadata(fragment_category c) const override;
 
@@ -202,9 +219,14 @@ class categorizer_manager_ final : public categorizer_manager_private {
   logger& lgr_;
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<categorizer const>> categorizers_;
+  // TODO: category descriptions?
   std::vector<std::pair<std::string_view, size_t>> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
 };
+
+fragment_category categorizer_manager::default_category() {
+  return fragment_category(0);
+}
 
 template <typename LoggerPolicy>
 void categorizer_manager_<LoggerPolicy>::add(
@@ -233,6 +255,9 @@ std::string_view categorizer_manager_<LoggerPolicy>::category_name(
 template <typename LoggerPolicy>
 folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
     fragment_category c) const {
+  if (c.value() == 0) {
+    return folly::dynamic();
+  }
   auto cat = DWARFS_NOTHROW(categories_.at(c.value()));
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
   return categorizer->category_metadata(cat.first, c);
