@@ -47,7 +47,6 @@ class inode : public object {
   using files_vector = folly::small_vector<file*, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
-  virtual void set_similarity_valid(inode_options const& opts) = 0;
   virtual void scan(mmif* mm, inode_options const& options) = 0;
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;

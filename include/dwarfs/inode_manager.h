@@ -32,27 +32,29 @@
 
 namespace dwarfs {
 
+class file;
 class inode;
 class logger;
+class os_access;
 class progress;
 class script;
+class worker_group;
 
-struct file_order_options;
+struct inode_options;
 
 class inode_manager {
  public:
   using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
   using order_cb = std::function<int64_t(std::shared_ptr<inode> const&)>;
 
-  inode_manager(logger& lgr, progress& prog);
+  inode_manager(logger& lgr, progress& prog, inode_options const& opts);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
 
   size_t count() const { return impl_->count(); }
 
-  void order_inodes(std::shared_ptr<script> scr,
-                    file_order_options const& file_order, order_cb const& fn) {
-    impl_->order_inodes(std::move(scr), file_order, fn);
+  void order_inodes(std::shared_ptr<script> scr, order_cb const& fn) {
+    impl_->order_inodes(std::move(scr), fn);
   }
 
   void for_each_inode_in_order(inode_cb const& fn) const {
@@ -64,6 +66,11 @@ class inode_manager {
     return impl_->category_counts();
   }
 
+  void scan_background(worker_group& wg, os_access& os,
+                       std::shared_ptr<inode> ino, file const* p) const {
+    impl_->scan_background(wg, os, std::move(ino), p);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -71,12 +78,14 @@ class inode_manager {
     virtual std::shared_ptr<inode> create_inode() = 0;
     virtual size_t count() const = 0;
     virtual void
-    order_inodes(std::shared_ptr<script> scr,
-                 file_order_options const& file_order, order_cb const& fn) = 0;
+    order_inodes(std::shared_ptr<script> scr, order_cb const& fn) = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual std::vector<std::pair<fragment_category::value_type, size_t>>
     category_counts() const = 0;
+    virtual void
+    scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
+                    file const* p) const = 0;
   };
 
  private:
