@@ -48,7 +48,7 @@ namespace {
 constexpr std::string_view const METADATA_CATEGORY{"metadata"};
 constexpr std::string_view const PCMAUDIO_CATEGORY{"pcmaudio"};
 
-constexpr size_t const MIN_PCMAUDIO_SIZE{64};
+constexpr size_t const MIN_PCMAUDIO_SIZE{32};
 
 enum class endianness : uint8_t {
   BIG,
@@ -474,7 +474,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
   while (auto chunk = parser.next_chunk()) {
     if (chunk->is("COMM")) {
-      if (parser.expected_size(*chunk, 18)) {
+      if (!parser.expected_size(*chunk, 18)) {
         return false;
       }
 
