@@ -35,6 +35,7 @@ class category_parser {
   category_parser(std::shared_ptr<categorizer_manager> catmgr);
 
   std::vector<fragment_category::value_type> parse(std::string_view arg) const;
+  std::string to_string(fragment_category::value_type const& val) const;
 
  private:
   std::shared_ptr<categorizer_manager> catmgr_;

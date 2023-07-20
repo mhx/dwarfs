@@ -124,4 +124,27 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
   return rv;
 }
 
+std::string
+fragment_order_parser::to_string(file_order_options const& opts) const {
+  switch (opts.mode) {
+  case file_order_mode::NONE:
+    return "none";
+
+  case file_order_mode::PATH:
+    return "path";
+
+  case file_order_mode::SCRIPT:
+    return "script";
+
+  case file_order_mode::SIMILARITY:
+    return "similarity";
+
+  case file_order_mode::NILSIMSA:
+    return fmt::format("nilsimsa (limit={}, depth={}, min_depth={})",
+                       opts.nilsimsa_limit, opts.nilsimsa_depth,
+                       opts.nilsimsa_min_depth);
+  }
+  return "<unknown>";
+}
+
 } // namespace dwarfs
