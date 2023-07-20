@@ -1,5 +1,15 @@
 # Change Log
 
+## Version 0.7.1 - 2023-07-20
+
+- (fix) Fix potential division by zero crash in speedometer.
+
+- (other) New tool header.
+
+- (other) Source code cleanups.
+
+- (other) Updated static build procedure (see README).
+
 ## Version 0.7.0 - 2023-07-11
 
 - (fix) FUSE/WinFsp driver now handles Unicode characters in the
