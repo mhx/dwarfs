@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <iosfwd>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -31,6 +32,9 @@
 
 namespace dwarfs {
 
+template <typename OptionType, typename ContextParser, typename OptionParser>
+class contextual_option_parser;
+
 template <typename Policy>
 class contextual_option {
  public:
@@ -38,6 +42,9 @@ class contextual_option {
   using context_argument_type = typename policy_type::ContextArgumentType;
   using context_type = typename policy_type::ContextType;
   using option_type = typename policy_type::OptionType;
+
+  template <typename OptionType, typename ContextParser, typename OptionParser>
+  friend class contextual_option_parser;
 
   contextual_option() = default;
   explicit contextual_option(option_type const& def)
@@ -146,6 +153,18 @@ class contextual_option_parser {
   void parse(std::span<std::string_view const> list) const {
     for (auto const& arg : list) {
       parse(arg);
+    }
+  }
+
+  void dump(std::ostream& os) const {
+    os << "default: ";
+    if (opt_.default_) {
+      os << op_.to_string(*opt_.default_) << "\n";
+    } else {
+      os << "(no default set)\n";
+    }
+    for (auto const& [ctx, val] : opt_.contextual_) {
+      os << "[" << cp_.to_string(ctx) << "]: " << op_.to_string(val) << "\n";
     }
   }
 

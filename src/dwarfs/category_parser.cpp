@@ -53,4 +53,9 @@ category_parser::parse(std::string_view arg) const {
   return rv;
 }
 
+std::string
+category_parser::to_string(fragment_category::value_type const& val) const {
+  return std::string(catmgr_->category_name(val));
+}
+
 } // namespace dwarfs
