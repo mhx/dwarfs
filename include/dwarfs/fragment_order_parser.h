@@ -32,6 +32,7 @@ struct fragment_order_parser {
   static std::string choices();
 
   file_order_options parse(std::string_view arg) const;
+  std::string to_string(file_order_options const& opts) const;
 };
 
 } // namespace dwarfs
