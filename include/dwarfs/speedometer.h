@@ -49,10 +49,11 @@ class speedometer {
     }
     auto const& first = samples_.front();
     auto const& last = samples_.back();
-    auto dt = last.first - first.first;
-    auto dv = last.second - first.second;
-    return (1000 * dv) /
-           std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
+    auto const dt = last.first - first.first;
+    auto const dv = last.second - first.second;
+    auto const elapsed_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
+    return elapsed_ms > 0 ? (1000 * dv) / elapsed_ms : T();
   }
 
   void clear() { samples_.clear(); }
