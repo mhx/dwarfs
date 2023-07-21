@@ -62,6 +62,7 @@
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fragment_order_parser.h"
+#include "dwarfs/integral_value_parser.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -280,7 +281,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       debug_filter, max_similarity_size, input_list_str, chmod_str,
       categorizer_list_str;
   std::vector<sys_string> filter;
-  std::vector<std::string> order;
+  std::vector<std::string> order, max_lookback_blocks, window_size, window_step;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -288,9 +289,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   int compress_niceness;
   uint16_t uid, gid;
 
+  integral_value_parser<size_t> max_lookback_parser;
+  integral_value_parser<unsigned> window_size_parser(6, 24);
+  integral_value_parser<unsigned> window_step_parser(0, 8);
+
   scanner_options options;
 
-  auto order_desc = "inode order (" + fragment_order_parser::choices() + ")";
+  auto order_desc =
+      "inode fragments order (" + fragment_order_parser::choices() + ")";
 
   auto progress_desc = "progress mode (" +
                        (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
@@ -405,13 +411,16 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description segmenter_opts("Segmenter options");
   segmenter_opts.add_options()
     ("max-lookback-blocks,B",
-        po::value<size_t>(&cfg.max_active_blocks)->default_value(1),
+        // po::value<size_t>(&cfg.max_active_blocks)->default_value(1), // TODO
+        po::value<std::vector<std::string>>(&max_lookback_blocks)->multitoken(),
         "how many blocks to scan for segments")
     ("window-size,W",
-        po::value<unsigned>(&cfg.blockhash_window_size),
+        // po::value<unsigned>(&cfg.blockhash_window_size), // TODO
+        po::value<std::vector<std::string>>(&window_size)->multitoken(),
         "window sizes for block hashing")
     ("window-step,w",
-        po::value<unsigned>(&cfg.window_increment_shift),
+        // po::value<unsigned>(&cfg.window_increment_shift), // TODO
+        po::value<std::vector<std::string>>(&window_step)->multitoken(),
         "window step (as right shift of size)")
     ("bloom-filter-size",
         po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4),
@@ -592,12 +601,19 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     metadata_compression = defaults.metadata_compression;
   }
 
+  if (!vm.count("max-lookback-blocks")) {
+    cfg.max_active_blocks = 1; // TODO
+    max_lookback_blocks.push_back(folly::to<std::string>(1));
+  }
+
   if (!vm.count("window-size")) {
-    cfg.blockhash_window_size = defaults.window_size;
+    cfg.blockhash_window_size = defaults.window_size; // TODO
+    window_size.push_back(folly::to<std::string>(defaults.window_size));
   }
 
   if (!vm.count("window-step")) {
-    cfg.window_increment_shift = defaults.window_step;
+    cfg.window_increment_shift = defaults.window_step; // TODO
+    window_step.push_back(folly::to<std::string>(defaults.window_step));
   }
 
   if (!vm.count("order")) {
@@ -963,12 +979,43 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         }
       }
 
+      category_parser cp(options.inode.categorizer_mgr);
+
       try {
-        category_parser cp(options.inode.categorizer_mgr);
         fragment_order_parser fop;
-        contextual_option_parser order_parser(options.inode.fragment_order, cp,
-                                              fop);
-        order_parser.parse(order);
+        contextual_option_parser("--order", options.inode.fragment_order, cp,
+                                 fop)
+            .parse(order);
+      } catch (std::exception const& e) {
+        LOG_ERROR << e.what();
+        return 1;
+      }
+
+      try {
+        categorized_option<size_t> max_lookback_opt;
+        contextual_option_parser("--max-lookback-blocks", max_lookback_opt, cp,
+                                 max_lookback_parser)
+            .parse(max_lookback_blocks);
+      } catch (std::exception const& e) {
+        LOG_ERROR << e.what();
+        return 1;
+      }
+
+      try {
+        categorized_option<unsigned> window_size_opt;
+        contextual_option_parser("--window-size", window_size_opt, cp,
+                                 window_size_parser)
+            .parse(window_size);
+      } catch (std::exception const& e) {
+        LOG_ERROR << e.what();
+        return 1;
+      }
+
+      try {
+        categorized_option<unsigned> window_step_opt;
+        contextual_option_parser("--window-step", window_step_opt, cp,
+                                 window_step_parser)
+            .parse(window_step);
       } catch (std::exception const& e) {
         LOG_ERROR << e.what();
         return 1;
