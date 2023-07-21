@@ -28,6 +28,7 @@
 #include <fstream>
 #include <limits>
 #include <numeric>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -49,6 +50,7 @@
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
+#include "dwarfs/overloaded.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
@@ -236,6 +238,71 @@ class inode_ : public inode {
   }
 
   inode_fragments const& fragments() const override { return fragments_; }
+
+  void dump(std::ostream& os, inode_options const& options) const override {
+    auto dump_category = [&os, &options](fragment_category const& cat) {
+      if (options.categorizer_mgr) {
+        os << "[" << options.categorizer_mgr->category_name(cat.value());
+        if (cat.has_subcategory()) {
+          os << "/" << cat.subcategory();
+        }
+        os << "] ";
+      }
+    };
+
+    os << "inode " << num() << " (" << any()->size() << "):\n";
+    os << "  files:\n";
+
+    for (auto const& f : files_) {
+      os << "    " << f->path_as_string() << "\n";
+    }
+
+    os << "  fragments:\n";
+
+    for (auto const& f : fragments_.span()) {
+      os << "    ";
+      dump_category(f.category());
+      os << "(" << f.size() << " bytes)\n";
+      for (auto const& c : f.chunks()) {
+        os << "      (" << c.get_block() << ", " << c.get_offset() << ", "
+           << c.get_size() << ")\n";
+      }
+    }
+
+    os << "  similarity: ";
+
+    auto basic_hash_visitor = [&os](uint32_t sh) {
+      os << fmt::format("basic ({0:08x})\n", sh);
+    };
+
+    auto nilsimsa_hash_visitor = [&os](nilsimsa::hash_type const& nh) {
+      os << fmt::format("nilsimsa ({0:016x}{1:016x}{2:016x}{3:016x})\n", nh[0],
+                        nh[1], nh[2], nh[3]);
+    };
+
+    auto similarity_map_visitor = [&](similarity_map_type const& map) {
+      os << "map\n";
+      for (auto const& [cat, val] : map) {
+        os << "    ";
+        dump_category(cat);
+        std::visit(
+            overloaded{
+                basic_hash_visitor,
+                nilsimsa_hash_visitor,
+            },
+            val);
+      }
+    };
+
+    std::visit(
+        overloaded{
+            [&os](std::monostate const&) { os << "none\n"; },
+            basic_hash_visitor,
+            nilsimsa_hash_visitor,
+            similarity_map_visitor,
+        },
+        similarity_);
+  }
 
  private:
   template <typename T>
@@ -436,6 +503,8 @@ class inode_manager_ final : public inode_manager::impl {
   void
   scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
                   file const* p) const override;
+
+  void dump(std::ostream& os) const override;
 
  private:
   static bool inodes_need_scanning(inode_options const& opts) {
@@ -735,6 +804,12 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   if (count != inodes_.size()) {
     DWARFS_THROW(runtime_error, "internal error: nilsimsa ordering failed");
   }
+}
+
+template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::dump(std::ostream& os) const {
+  for_each_inode_in_order(
+      [this, &os](auto const& ino) { ino->dump(os, opts_); });
 }
 
 inode_manager::inode_manager(logger& lgr, progress& prog,
