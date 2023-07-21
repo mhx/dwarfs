@@ -317,7 +317,8 @@ class log_proxy {
 };
 
 #define LOG_DETAIL_LEVEL(level, lgr, method)                                   \
-  if (lgr.is_enabled_for(::dwarfs::logger::level))                             \
+  if constexpr (std::decay_t<decltype(lgr)>::is_enabled_for(                   \
+                    ::dwarfs::logger::level))                                  \
   lgr.method(__FILE__, __LINE__)
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
