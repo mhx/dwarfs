@@ -59,6 +59,7 @@ class inode : public object {
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
   virtual inode_fragments const& fragments() const = 0;
+  virtual void dump(std::ostream& os, inode_options const& options) const = 0;
 };
 
 } // namespace dwarfs
