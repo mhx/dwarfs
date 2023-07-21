@@ -361,6 +361,17 @@ class pcmaudio_metadata_store {
     return obj;
   }
 
+  static folly::dynamic sample() {
+    folly::dynamic obj = folly::dynamic::object;
+    obj.insert("endianness", endianness_string(endianness::BIG));
+    obj.insert("signedness", signedness_string(signedness::SIGNED));
+    obj.insert("padding", padding_string(padding::LSB));
+    obj.insert("bytes_per_sample", 2);
+    obj.insert("bits_per_sample", 16);
+    obj.insert("number_of_channels", 2);
+    return obj;
+  }
+
  private:
   std::vector<pcmaudio_metadata> forward_index_;
   std::map<pcmaudio_metadata, size_t> reverse_index_;
@@ -383,12 +394,17 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
 
   bool is_single_fragment() const override { return false; }
 
-  folly::dynamic category_metadata(std::string_view category_name,
-                                   fragment_category c) const override {
+  folly::dynamic
+  category_metadata(std::string_view category_name,
+                    std::optional<fragment_category> c) const override {
     if (category_name == PCMAUDIO_CATEGORY) {
-      DWARFS_CHECK(c.has_subcategory(),
-                   "expected PCMAUDIO to have subcategory");
-      return meta_.rlock()->lookup(c.subcategory());
+      if (c) {
+        DWARFS_CHECK(c->has_subcategory(),
+                     "expected PCMAUDIO to have subcategory");
+        return meta_.rlock()->lookup(c->subcategory());
+      } else {
+        return pcmaudio_metadata_store::sample();
+      }
     }
     return folly::dynamic();
   }
