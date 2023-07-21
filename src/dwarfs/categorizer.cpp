@@ -196,6 +196,9 @@ class categorizer_manager_ final : public categorizer_manager_private {
 
   folly::dynamic category_metadata(fragment_category c) const override;
 
+  folly::dynamic
+  category_metadata_sample(fragment_category::value_type c) const override;
+
   std::vector<std::shared_ptr<categorizer const>> const&
   categorizers() const override {
     return categorizers_;
@@ -208,6 +211,8 @@ class categorizer_manager_ final : public categorizer_manager_private {
   }
 
  private:
+  folly::dynamic category_metadata_impl(fragment_category c, bool sample) const;
+
   void add_category(std::string_view cat, size_t categorizer_index) {
     if (catmap_.emplace(cat, categories_.size()).second) {
       categories_.emplace_back(cat, categorizer_index);
@@ -253,14 +258,34 @@ std::string_view categorizer_manager_<LoggerPolicy>::category_name(
 }
 
 template <typename LoggerPolicy>
-folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
-    fragment_category c) const {
+folly::dynamic
+categorizer_manager_<LoggerPolicy>::category_metadata_impl(fragment_category c,
+                                                           bool sample) const {
   if (c.value() == 0) {
     return folly::dynamic();
   }
+
   auto cat = DWARFS_NOTHROW(categories_.at(c.value()));
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
-  return categorizer->category_metadata(cat.first, c);
+  std::optional<fragment_category> maybe_category;
+
+  if (!sample) {
+    maybe_category.emplace(c);
+  }
+
+  return categorizer->category_metadata(cat.first, maybe_category);
+}
+
+template <typename LoggerPolicy>
+folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
+    fragment_category c) const {
+  return category_metadata_impl(c, false);
+}
+
+template <typename LoggerPolicy>
+folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata_sample(
+    fragment_category::value_type c) const {
+  return category_metadata_impl(fragment_category(c), true);
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)
