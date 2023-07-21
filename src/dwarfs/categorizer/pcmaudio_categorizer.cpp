@@ -45,8 +45,8 @@ namespace po = boost::program_options;
 
 namespace {
 
-constexpr std::string_view const METADATA_CATEGORY{"metadata"};
-constexpr std::string_view const PCMAUDIO_CATEGORY{"pcmaudio"};
+constexpr std::string_view const METADATA_CATEGORY{"pcmaudio/metadata"};
+constexpr std::string_view const PCMAUDIO_CATEGORY{"pcmaudio/waveform"};
 
 constexpr size_t const MIN_PCMAUDIO_SIZE{32};
 
