@@ -167,7 +167,8 @@ class incompressible_categorizer_ final : public sequential_categorizer {
   bool is_single_fragment() const override { return true; }
 
   folly::dynamic
-  category_metadata(std::string_view, fragment_category) const override {
+  category_metadata(std::string_view,
+                    std::optional<fragment_category>) const override {
     return folly::dynamic();
   }
 
