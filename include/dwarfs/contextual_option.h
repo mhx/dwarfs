@@ -112,11 +112,12 @@ class contextual_option_parser {
   using option_type = OptionType;
   using policy_type = typename option_type::policy_type;
 
-  contextual_option_parser(OptionType& opt, ContextParser const& cp,
-                           OptionParser const& op)
+  contextual_option_parser(std::string_view name, OptionType& opt,
+                           ContextParser const& cp, OptionParser const& op)
       : opt_{opt}
       , cp_{cp}
-      , op_{op} {}
+      , op_{op}
+      , name_{name} {}
 
   void parse(std::string_view arg) const {
     try {
@@ -140,7 +141,8 @@ class contextual_option_parser {
       }
     } catch (std::exception const& e) {
       throw std::runtime_error(
-          fmt::format("failed to parse: {} ({})", arg, e.what()));
+          fmt::format("failed to parse value '{}' for option '{}': {}", arg,
+                      name_, e.what()));
     }
   }
 
@@ -157,14 +159,15 @@ class contextual_option_parser {
   }
 
   void dump(std::ostream& os) const {
-    os << "default: ";
+    os << "[" << name_ << "]\n";
+    os << "  default: ";
     if (opt_.default_) {
       os << op_.to_string(*opt_.default_) << "\n";
     } else {
       os << "(no default set)\n";
     }
     for (auto const& [ctx, val] : opt_.contextual_) {
-      os << "[" << cp_.to_string(ctx) << "]: " << op_.to_string(val) << "\n";
+      os << "  [" << cp_.to_string(ctx) << "]: " << op_.to_string(val) << "\n";
     }
   }
 
@@ -172,6 +175,7 @@ class contextual_option_parser {
   OptionType& opt_;
   ContextParser const& cp_;
   OptionParser const& op_;
+  std::string const name_;
 };
 
 } // namespace dwarfs
