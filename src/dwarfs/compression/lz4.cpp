@@ -38,6 +38,8 @@ struct lz4_compression_policy {
         reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dest),
         folly::to<int>(size), folly::to<int>(destsize)));
   }
+
+  static std::string describe(int /*level*/) { return "lz4"; }
 };
 
 struct lz4hc_compression_policy {
@@ -46,6 +48,10 @@ struct lz4hc_compression_policy {
     return folly::to<size_t>(LZ4_compress_HC(
         reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dest),
         folly::to<int>(size), folly::to<int>(destsize), level));
+  }
+
+  static std::string describe(int level) {
+    return fmt::format("lz4hc [level={}]", level);
   }
 };
 
@@ -83,6 +89,8 @@ class lz4_block_compressor final : public block_compressor::impl {
   }
 
   compression_type type() const override { return compression_type::LZ4; }
+
+  std::string describe() const override { return Policy::describe(level_); }
 
  private:
   const int level_;

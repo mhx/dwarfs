@@ -75,6 +75,10 @@ class brotli_block_compressor final : public block_compressor::impl {
 
   compression_type type() const override { return compression_type::BROTLI; }
 
+  std::string describe() const override {
+    return fmt::format("brotli [quality={}, lgwin={}]", quality_, window_bits_);
+  }
+
  private:
   uint32_t const quality_;
   uint32_t const window_bits_;
