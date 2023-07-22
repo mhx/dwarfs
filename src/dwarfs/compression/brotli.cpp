@@ -49,8 +49,8 @@ class brotli_block_compressor final : public block_compressor::impl {
     return std::make_unique<brotli_block_compressor>(*this);
   }
 
-  std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data) const override {
+  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+                                folly::dynamic /*meta*/) const override {
     std::vector<uint8_t> compressed;
     compressed.resize(folly::kMaxVarintLength64 +
                       ::BrotliEncoderMaxCompressedSize(data.size()));
@@ -69,8 +69,9 @@ class brotli_block_compressor final : public block_compressor::impl {
     return compressed;
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const override {
-    return compress(data);
+  std::vector<uint8_t>
+  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const override {
+    return compress(data, std::move(meta));
   }
 
   compression_type type() const override { return compression_type::BROTLI; }
@@ -78,6 +79,8 @@ class brotli_block_compressor final : public block_compressor::impl {
   std::string describe() const override {
     return fmt::format("brotli [quality={}, lgwin={}]", quality_, window_bits_);
   }
+
+  bool check_metadata(folly::dynamic /*meta*/) const override { return true; }
 
  private:
   uint32_t const quality_;
