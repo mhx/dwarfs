@@ -19,21 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include <string>
-#include <string_view>
-
-#include "dwarfs/options.h"
+#include "dwarfs/block_compressor_parser.h"
 
 namespace dwarfs {
 
-struct fragment_order_parser {
- public:
-  static std::string choices();
+block_compressor block_compressor_parser::parse(std::string_view arg) const {
+  return block_compressor(std::string(arg));
+}
 
-  file_order_options parse(std::string_view arg) const;
-  std::string to_string(file_order_options const& opts) const;
-};
+std::string
+block_compressor_parser::to_string(block_compressor const& bc) const {
+  return bc.describe();
+}
 
 } // namespace dwarfs

@@ -349,6 +349,7 @@ list(
   LIBDWARFS_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
+  src/dwarfs/block_compressor_parser.cpp
   src/dwarfs/block_manager.cpp
   src/dwarfs/block_range.cpp
   src/dwarfs/builtin_script.cpp
