@@ -134,6 +134,9 @@ size_t mmap::size() const { return mf_.size(); }
 
 std::filesystem::path const& mmap::path() const { return path_; }
 
+mmap::mmap(char const* path)
+    : mmap(std::filesystem::path(path)) {}
+
 mmap::mmap(std::string const& path)
     : mmap(std::filesystem::path(path)) {}
 
