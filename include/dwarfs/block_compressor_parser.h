@@ -24,16 +24,14 @@
 #include <string>
 #include <string_view>
 
-#include "dwarfs/options.h"
+#include "dwarfs/block_compressor.h"
 
 namespace dwarfs {
 
-struct fragment_order_parser {
+struct block_compressor_parser {
  public:
-  static std::string choices();
-
-  file_order_options parse(std::string_view arg) const;
-  std::string to_string(file_order_options const& opts) const;
+  block_compressor parse(std::string_view arg) const;
+  std::string to_string(block_compressor const& opts) const;
 };
 
 } // namespace dwarfs

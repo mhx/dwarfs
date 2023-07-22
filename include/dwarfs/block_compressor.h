@@ -65,6 +65,8 @@ class block_compressor {
 
   compression_type type() const { return impl_->type(); }
 
+  std::string describe() const { return impl_->describe(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -77,6 +79,7 @@ class block_compressor {
     compress(std::vector<uint8_t>&& data) const = 0;
 
     virtual compression_type type() const = 0;
+    virtual std::string describe() const = 0;
   };
 
  private:
