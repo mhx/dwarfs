@@ -44,7 +44,7 @@ template <typename T>
 struct categorized_option_policy {
   using ContextArgumentType = fragment_category;
   using ContextType = fragment_category::value_type;
-  using OptionType = T;
+  using ValueType = T;
 
   static ContextType context_from_arg(ContextArgumentType const& arg) {
     return arg.value();
@@ -53,9 +53,9 @@ struct categorized_option_policy {
 
 } // namespace detail
 
-template <typename OptionType>
+template <typename ValueType>
 using categorized_option =
-    contextual_option<detail::categorized_option_policy<OptionType>>;
+    contextual_option<detail::categorized_option_policy<ValueType>>;
 
 enum class mlock_mode { NONE, TRY, MUST };
 
