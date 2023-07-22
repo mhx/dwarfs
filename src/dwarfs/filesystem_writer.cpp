@@ -101,7 +101,9 @@ class raw_fsblock : public fsblock::impl {
 
     wg.add_job([this, prom = std::move(prom)]() mutable {
       try {
-        auto tmp = std::make_shared<block_data>(bc_.compress(data_->vec()));
+        // TODO: metadata
+        auto tmp = std::make_shared<block_data>(
+            bc_.compress(data_->vec(), folly::dynamic()));
 
         {
           std::lock_guard lock(mx_);
