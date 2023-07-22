@@ -63,15 +63,18 @@ class lzma_block_compressor final : public block_compressor::impl {
     return std::make_unique<lzma_block_compressor>(*this);
   }
 
+  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+                                folly::dynamic meta) const override;
   std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data) const override;
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const override {
-    return compress(data);
+  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const override {
+    return compress(data, std::move(meta));
   }
 
   compression_type type() const override { return compression_type::LZMA; }
 
   std::string describe() const override { return description_; }
+
+  bool check_metadata(folly::dynamic /*meta*/) const override { return true; }
 
  private:
   std::vector<uint8_t>
@@ -174,7 +177,8 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 }
 
 std::vector<uint8_t>
-lzma_block_compressor::compress(const std::vector<uint8_t>& data) const {
+lzma_block_compressor::compress(const std::vector<uint8_t>& data,
+                                folly::dynamic /*meta*/) const {
   std::vector<uint8_t> best = compress(data, &filters_[1]);
 
   if (filters_[0].id != LZMA_VLI_UNKNOWN) {
