@@ -66,8 +66,8 @@ class lz4_block_compressor final : public block_compressor::impl {
     return std::make_unique<lz4_block_compressor>(*this);
   }
 
-  std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data) const override {
+  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+                                folly::dynamic /*meta*/) const override {
     std::vector<uint8_t> compressed(
         sizeof(uint32_t) + LZ4_compressBound(folly::to<int>(data.size())));
     *reinterpret_cast<uint32_t*>(&compressed[0]) = data.size();
@@ -84,13 +84,16 @@ class lz4_block_compressor final : public block_compressor::impl {
     return compressed;
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const override {
-    return compress(data);
+  std::vector<uint8_t>
+  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const override {
+    return compress(data, std::move(meta));
   }
 
   compression_type type() const override { return compression_type::LZ4; }
 
   std::string describe() const override { return Policy::describe(level_); }
+
+  bool check_metadata(folly::dynamic /*meta*/) const override { return true; }
 
  private:
   const int level_;

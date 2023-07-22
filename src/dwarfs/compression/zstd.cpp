@@ -54,11 +54,12 @@ class zstd_block_compressor final : public block_compressor::impl {
     return std::make_unique<zstd_block_compressor>(*this);
   }
 
-  std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data) const override;
+  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+                                folly::dynamic meta) const override;
 
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const override {
-    return compress(data);
+  std::vector<uint8_t>
+  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const override {
+    return compress(data, std::move(meta));
   }
 
   compression_type type() const override { return compression_type::ZSTD; }
@@ -66,6 +67,8 @@ class zstd_block_compressor final : public block_compressor::impl {
   std::string describe() const override {
     return fmt::format("zstd [level={}]", level_);
   }
+
+  bool check_metadata(folly::dynamic /*meta*/) const override { return true; }
 
  private:
   class scoped_context;
@@ -143,7 +146,8 @@ std::weak_ptr<zstd_block_compressor::context_manager>
     zstd_block_compressor::s_ctxmgr;
 
 std::vector<uint8_t>
-zstd_block_compressor::compress(const std::vector<uint8_t>& data) const {
+zstd_block_compressor::compress(const std::vector<uint8_t>& data,
+                                folly::dynamic /*meta*/) const {
   std::vector<uint8_t> compressed(ZSTD_compressBound(data.size()));
   scoped_context ctx(*ctxmgr_);
   auto size = ZSTD_compressCCtx(ctx.get(), compressed.data(), compressed.size(),
