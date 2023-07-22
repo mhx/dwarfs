@@ -47,6 +47,8 @@ class null_block_compressor final : public block_compressor::impl {
   }
 
   compression_type type() const override { return compression_type::NONE; }
+
+  std::string describe() const override { return "null"; }
 };
 
 class null_block_decompressor final : public block_decompressor::impl {

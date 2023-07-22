@@ -51,6 +51,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/block_compressor.h"
+#include "dwarfs/block_compressor_parser.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/categorizer.h"
@@ -275,13 +276,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   block_manager::config cfg;
   sys_string path_str, output_str;
-  std::string memory_limit, script_arg, compression, header, schema_compression,
+  std::string memory_limit, script_arg, header, schema_compression,
       metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str,
       categorizer_list_str;
   std::vector<sys_string> filter;
-  std::vector<std::string> order, max_lookback_blocks, window_size, window_step;
+  std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
+      compression;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -292,11 +294,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   integral_value_parser<size_t> max_lookback_parser;
   integral_value_parser<unsigned> window_size_parser(6, 24);
   integral_value_parser<unsigned> window_step_parser(0, 8);
+  fragment_order_parser order_parser;
+  block_compressor_parser compressor_parser;
 
   scanner_options options;
 
-  auto order_desc =
-      "inode fragments order (" + fragment_order_parser::choices() + ")";
+  auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
 
   auto progress_desc = "progress mode (" +
                        (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
@@ -430,7 +433,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description compressor_opts("Compressor options");
   compressor_opts.add_options()
     ("compression,C",
-        po::value<std::string>(&compression),
+        // po::value<std::string>(&compression), // TODO
+        po::value<std::vector<std::string>>(&compression)->multitoken(),
         "block compression algorithm")
     ("schema-compression",
         po::value<std::string>(&schema_compression),
@@ -590,7 +594,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   if (!vm.count("compression")) {
-    compression = defaults.data_compression;
+    compression.push_back(std::string(defaults.data_compression));
   }
 
   if (!vm.count("schema-compression")) {
@@ -913,13 +917,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   progress prog(std::move(updater), interval_ms);
 
-  block_compressor bc(compression);
+  block_compressor bc(compression.front()); // TODO
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
 
   auto min_memory_req = num_workers * (UINT64_C(1) << cfg.block_size_bits);
 
-  if (mem_limit < min_memory_req && compression != "null") {
+  // TODO:
+  if (mem_limit < min_memory_req /* && compression != "null" */) {
     LOG_WARN << "low memory limit (" << size_with_unit(mem_limit) << "), need "
              << size_with_unit(min_memory_req) << " to efficiently compress "
              << size_with_unit(UINT64_C(1) << cfg.block_size_bits)
@@ -951,6 +956,77 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     os = std::make_unique<std::ostringstream>();
   }
 
+  // TODO: the whole re-writing thing will be a bit weird in combination
+  //       with categories; we'd likely require a "category"-section to be
+  //       present (which we'll also require for bit-identical mode)
+
+  if (!categorizer_list_str.empty()) {
+    std::vector<std::string> categorizer_list;
+    boost::split(categorizer_list, categorizer_list_str, boost::is_any_of(","));
+
+    options.inode.categorizer_mgr = std::make_shared<categorizer_manager>(lgr);
+
+    for (auto const& name : categorizer_list) {
+      options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
+    }
+  }
+
+  category_parser cp(options.inode.categorizer_mgr);
+
+  try {
+    contextual_option_parser cop("--order", options.inode.fragment_order, cp,
+                                 order_parser);
+    cop.parse(order);
+    cop.dump(std::cerr);
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
+  try {
+    categorized_option<size_t> max_lookback_opt;
+    contextual_option_parser cop("--max-lookback-blocks", max_lookback_opt, cp,
+                                 max_lookback_parser);
+    cop.parse(max_lookback_blocks);
+    cop.dump(std::cerr);
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
+  try {
+    categorized_option<unsigned> window_size_opt;
+    contextual_option_parser cop("--window-size", window_size_opt, cp,
+                                 window_size_parser);
+    cop.parse(window_size);
+    cop.dump(std::cerr);
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
+  try {
+    categorized_option<unsigned> window_step_opt;
+    contextual_option_parser cop("--window-step", window_step_opt, cp,
+                                 window_step_parser);
+    cop.parse(window_step);
+    cop.dump(std::cerr);
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
+  try {
+    categorized_option<block_compressor> compression_opt;
+    contextual_option_parser cop("--compression", compression_opt, cp,
+                                 compressor_parser);
+    cop.parse(compression);
+    cop.dump(std::cerr);
+  } catch (std::exception const& e) {
+    LOG_ERROR << e.what();
+    return 1;
+  }
+
   filesystem_writer fsw(*os, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
                         fswopts, header_ifs.get());
 
@@ -962,61 +1038,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                              fsw, rw_opts);
       wg_compress.wait();
     } else {
-      if (!categorizer_list_str.empty()) {
-        std::vector<std::string> categorizer_list;
-        boost::split(categorizer_list, categorizer_list_str,
-                     boost::is_any_of(","));
-
-        options.inode.categorizer_mgr =
-            std::make_shared<categorizer_manager>(lgr);
-
-        for (auto const& name : categorizer_list) {
-          options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
-        }
-      }
-
-      category_parser cp(options.inode.categorizer_mgr);
-
-      try {
-        fragment_order_parser fop;
-        contextual_option_parser("--order", options.inode.fragment_order, cp,
-                                 fop)
-            .parse(order);
-      } catch (std::exception const& e) {
-        LOG_ERROR << e.what();
-        return 1;
-      }
-
-      try {
-        categorized_option<size_t> max_lookback_opt;
-        contextual_option_parser("--max-lookback-blocks", max_lookback_opt, cp,
-                                 max_lookback_parser)
-            .parse(max_lookback_blocks);
-      } catch (std::exception const& e) {
-        LOG_ERROR << e.what();
-        return 1;
-      }
-
-      try {
-        categorized_option<unsigned> window_size_opt;
-        contextual_option_parser("--window-size", window_size_opt, cp,
-                                 window_size_parser)
-            .parse(window_size);
-      } catch (std::exception const& e) {
-        LOG_ERROR << e.what();
-        return 1;
-      }
-
-      try {
-        categorized_option<unsigned> window_step_opt;
-        contextual_option_parser("--window-step", window_step_opt, cp,
-                                 window_step_parser)
-            .parse(window_step);
-      } catch (std::exception const& e) {
-        LOG_ERROR << e.what();
-        return 1;
-      }
-
       scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
                 std::make_shared<os_access_generic>(), std::move(script),
                 options);

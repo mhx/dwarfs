@@ -33,7 +33,7 @@ std::vector<fragment_category::value_type>
 category_parser::parse(std::string_view arg) const {
   if (!catmgr_) {
     throw std::runtime_error(
-        "cannot configure category-specific options without any categories");
+        "cannot configure category-specific options without any categorizers");
   }
 
   std::vector<fragment_category::value_type> rv;

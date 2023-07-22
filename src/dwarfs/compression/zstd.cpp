@@ -63,6 +63,10 @@ class zstd_block_compressor final : public block_compressor::impl {
 
   compression_type type() const override { return compression_type::ZSTD; }
 
+  std::string describe() const override {
+    return fmt::format("zstd [level={}]", level_);
+  }
+
  private:
   class scoped_context;
 
