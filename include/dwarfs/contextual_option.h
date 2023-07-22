@@ -41,22 +41,22 @@ class contextual_option {
   using policy_type = Policy;
   using context_argument_type = typename policy_type::ContextArgumentType;
   using context_type = typename policy_type::ContextType;
-  using option_type = typename policy_type::OptionType;
+  using value_type = typename policy_type::ValueType;
 
   template <typename OptionType, typename ContextParser, typename OptionParser>
   friend class contextual_option_parser;
 
   contextual_option() = default;
-  explicit contextual_option(option_type const& def)
+  explicit contextual_option(value_type const& def)
       : default_{def} {}
 
-  void set_default(option_type const& val) { default_ = val; }
+  void set_default(value_type const& val) { default_ = val; }
 
-  void add_contextual(context_type const& ctx, option_type const& val) {
-    contextual_[ctx] = val;
+  bool add_contextual(context_type const& ctx, value_type const& val) {
+    return contextual_.emplace(ctx, val).second;
   }
 
-  std::optional<option_type>
+  std::optional<value_type>
   get_optional(context_argument_type const& arg) const {
     if constexpr (std::is_same_v<context_type, context_argument_type>) {
       return get_optional_impl(arg);
@@ -65,7 +65,7 @@ class contextual_option {
     }
   }
 
-  option_type get(context_argument_type const& arg) const {
+  value_type get(context_argument_type const& arg) const {
     if constexpr (std::is_same_v<context_type, context_argument_type>) {
       return get_impl(arg);
     } else {
@@ -73,9 +73,9 @@ class contextual_option {
     }
   }
 
-  std::optional<option_type> get_optional() const { return default_; }
+  std::optional<value_type> get_optional() const { return default_; }
 
-  option_type get() const { return default_.value(); }
+  value_type get() const { return default_.value(); }
 
   template <typename T>
   bool any_is(T&& pred) const {
@@ -88,22 +88,22 @@ class contextual_option {
   }
 
  private:
-  std::optional<option_type> get_optional_impl(context_type const& ctx) const {
+  std::optional<value_type> get_optional_impl(context_type const& ctx) const {
     if (auto it = contextual_.find(ctx); it != contextual_.end()) {
       return it->second;
     }
     return default_;
   }
 
-  option_type get_impl(context_type const& ctx) const {
+  value_type get_impl(context_type const& ctx) const {
     if (auto it = contextual_.find(ctx); it != contextual_.end()) {
       return it->second;
     }
     return default_.value();
   }
 
-  std::optional<option_type> default_;
-  std::unordered_map<context_type, option_type> contextual_;
+  std::optional<value_type> default_;
+  std::unordered_map<context_type, value_type> contextual_;
 };
 
 template <typename OptionType, typename ContextParser, typename OptionParser>
@@ -132,10 +132,10 @@ class contextual_option_parser {
                           std::invoke_result_t<decltype(&ContextParser::parse),
                                                ContextParser, decltype(ctx)>,
                           typename option_type::context_type>) {
-          opt_.add_contextual(cp_.parse(ctx), val);
+          add_contextual(cp_.parse(ctx), val);
         } else {
           for (auto c : cp_.parse(ctx)) {
-            opt_.add_contextual(c, val);
+            add_contextual(c, val);
           }
         }
       }
@@ -172,6 +172,14 @@ class contextual_option_parser {
   }
 
  private:
+  void add_contextual(typename option_type::context_type const& ctx,
+                      typename option_type::value_type const& val) const {
+    if (!opt_.add_contextual(ctx, val)) {
+      throw std::runtime_error(fmt::format(
+          "duplicate context '{}' for option '{}'", cp_.to_string(ctx), name_));
+    }
+  }
+
   OptionType& opt_;
   ContextParser const& cp_;
   OptionParser const& op_;

@@ -71,6 +71,8 @@ class lzma_block_compressor final : public block_compressor::impl {
 
   compression_type type() const override { return compression_type::LZMA; }
 
+  std::string describe() const override { return description_; }
+
  private:
   std::vector<uint8_t>
   compress(const std::vector<uint8_t>& data, const lzma_filter* filters) const;
@@ -107,11 +109,16 @@ class lzma_block_compressor final : public block_compressor::impl {
 
   lzma_options_lzma opt_lzma_;
   std::array<lzma_filter, 3> filters_;
+  std::string description_;
 };
 
 lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
                                              const std::string& binary_mode,
-                                             unsigned dict_size) {
+                                             unsigned dict_size)
+    : description_{
+          fmt::format("lzma [level={}, dict_size={}{}{}]", level, dict_size,
+                      extreme ? ", extreme" : "",
+                      binary_mode.empty() ? "" : ", binary=" + binary_mode)} {
   if (lzma_lzma_preset(&opt_lzma_, get_preset(level, extreme))) {
     DWARFS_THROW(runtime_error, "unsupported preset, possibly a bug");
   }
