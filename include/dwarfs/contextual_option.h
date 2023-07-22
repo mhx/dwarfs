@@ -87,6 +87,13 @@ class contextual_option {
     return default_ && pred(*default_);
   }
 
+  template <typename T>
+  void visit_contextual(T&& visitor) const {
+    for (auto const& [ctx, val] : contextual_) {
+      visitor(ctx, val);
+    }
+  }
+
  private:
   std::optional<value_type> get_optional_impl(context_type const& ctx) const {
     if (auto it = contextual_.find(ctx); it != contextual_.end()) {
