@@ -17,6 +17,7 @@
     "glog",
     "libarchive",
     "libevent",
+    "libflac",
     "libmagic",
     "openssl",
     "pkgconf",
