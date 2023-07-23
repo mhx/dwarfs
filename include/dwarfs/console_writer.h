@@ -24,7 +24,6 @@
 #include <atomic>
 #include <cstddef>
 #include <iosfwd>
-#include <locale>
 #include <mutex>
 #include <string>
 
@@ -49,13 +48,10 @@ class console_writer : public logger {
 
   void update(const progress& p, bool last);
 
-  std::locale const& locale() const override { return locale_; }
-
  private:
   void rewind();
 
   std::ostream& os_;
-  std::locale locale_;
   std::mutex mx_;
   std::atomic<level_type> threshold_;
   std::string statebuf_;

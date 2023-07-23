@@ -22,7 +22,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
-#include <locale>
 #include <stdexcept>
 
 #include <folly/Conv.h>
@@ -64,7 +63,6 @@ logger::level_type logger::parse_level(std::string_view level) {
 stream_logger::stream_logger(std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)
-    , locale_{""}
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context) {
   set_threshold(threshold);

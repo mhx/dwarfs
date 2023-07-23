@@ -140,7 +140,6 @@ void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
-  std::locale loc("");
   std::ostringstream oss;
   stream_logger lgr(oss);
 
@@ -157,8 +156,7 @@ void analyze_frozen(std::ostream& os,
 #endif
 
   auto fmt_size = [&](auto const& name, size_t count, size_t size) {
-    return fmt::format(loc,
-                       "{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
+    return fmt::format("{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
                        "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
                        count, name, size, 100.0 * size / total_size,
                        count > 0 ? static_cast<double>(size) / count : 0.0);
@@ -167,7 +165,6 @@ void analyze_frozen(std::ostream& os,
   auto fmt_detail = [&](auto const& name, size_t count, size_t size,
                         std::string num) {
     return fmt::format(
-        loc,
         "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
         "{3:5.1f} bytes/item\n",
         name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
@@ -276,8 +273,7 @@ void analyze_frozen(std::ostream& os,
   });
 
   os << "metadata memory usage:\n";
-  os << fmt::format(loc,
-                    "               {0:.<20}{1:.>16" DWARFS_FMT_L
+  os << fmt::format("               {0:.<20}{1:.>16" DWARFS_FMT_L
                     "} bytes       {2:6.1f} bytes/inode\n",
                     "total metadata", total_size,
                     static_cast<double>(total_size) / meta.inodes().size());

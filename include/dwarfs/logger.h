@@ -27,7 +27,6 @@
 #include <cstddef>
 #include <ctime>
 #include <iostream>
-#include <locale>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -59,8 +58,6 @@ class logger {
   virtual void write(level_type level, const std::string& output,
                      char const* file, int line) = 0;
 
-  virtual std::locale const& locale() const = 0;
-
   const std::string& policy_name() const { return policy_name_; }
 
   template <class Policy>
@@ -88,14 +85,11 @@ class stream_logger : public logger {
   void write(level_type level, const std::string& output, char const* file,
              int line) override;
 
-  std::locale const& locale() const override { return locale_; }
-
   void set_threshold(level_type threshold);
   void set_with_context(bool with_context) { with_context_ = with_context; }
 
  private:
   std::ostream& os_;
-  std::locale locale_;
   std::mutex mx_;
   std::atomic<level_type> threshold_;
   bool const color_;
@@ -109,9 +103,7 @@ class level_logger {
       : lgr_(lgr)
       , level_(level)
       , file_(file)
-      , line_(line) {
-    oss_.imbue(lgr_.locale());
-  }
+      , line_(line) {}
 
   level_logger(level_logger const&) = delete;
 
@@ -144,7 +136,6 @@ class timed_level_logger {
       , with_cpu_(with_cpu)
       , file_(file)
       , line_(line) {
-    oss_.imbue(lgr_.locale());
     if (with_cpu) {
       cpu_start_time_ = thread_clock::now();
     }

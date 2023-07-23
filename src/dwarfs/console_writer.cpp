@@ -21,7 +21,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <locale>
 #include <sstream>
 
 #include <folly/Conv.h>
@@ -82,7 +81,6 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
                                size_t width, level_type threshold,
                                display_mode mode, bool with_context)
     : os_(os)
-    , locale_{""}
     , threshold_(threshold)
     , frac_(0.0)
     , pg_mode_(pg_mode)
@@ -182,8 +180,6 @@ void console_writer::update(const progress& p, bool last) {
   const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
   std::ostringstream oss;
-
-  oss.imbue(locale_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
