@@ -44,17 +44,19 @@ int safe_main(std::function<int(void)> fn) {
 #endif
     try {
       std::locale::global(std::locale(locale));
+      if (!std::setlocale(LC_ALL, locale)) {
+        std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
+      }
     } catch (std::exception const& e) {
       std::cerr << "warning: failed to set user default locale\n";
       try {
         std::locale::global(std::locale::classic());
+        if (!std::setlocale(LC_ALL, "C")) {
+          std::cerr << "warning: setlocale(LC_ALL, \"C\") failed\n";
+        }
       } catch (std::exception const& e) {
         std::cerr << "warning: also failed to set classic locale\n";
       }
-    }
-
-    if (!std::setlocale(LC_ALL, locale)) {
-      std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
     }
 
     setup_terminal();
