@@ -388,6 +388,7 @@ list(
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
+  src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/safe_main.cpp
@@ -555,21 +556,25 @@ if(WITH_TESTS)
   add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
   add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
   add_executable(dwarfs_utils_test test/utils_test.cpp)
+  add_executable(dwarfs_pcm_sample_transformer_test
+          test/pcm_sample_transformer_test.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
   target_link_libraries(dwarfs_badfs_test gtest gtest_main)
   target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
+  target_link_libraries(dwarfs_pcm_sample_transformer_test gtest gtest_main)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
-       dwarfs_tools_test dwarfs_utils_test)
+       dwarfs_tools_test dwarfs_utils_test dwarfs_pcm_sample_transformer_test)
 
   gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_badfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_pcm_sample_transformer_test DISCOVERY_TIMEOUT 120)
 
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
