@@ -52,6 +52,7 @@ RUN apt install -y \
         libfuse3-dev \
         libgoogle-glog-dev \
         libutfcpp-dev \
+        libflac++-dev \
         bash-completion \
         upx
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh

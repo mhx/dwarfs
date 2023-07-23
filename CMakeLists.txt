@@ -214,6 +214,7 @@ if(PKG_CONFIG_FOUND)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
   pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
   pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
+  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
 endif()
@@ -421,6 +422,10 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
 endif()
 
+if(FLAC_FOUND)
+  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/flac.cpp)
+endif()
+
 list(
   APPEND
   LIBDWARFS_CATEGORIZER_SRC
@@ -447,7 +452,7 @@ target_compile_definitions(
 )
 
 target_link_libraries(dwarfs_categorizer folly)
-target_link_libraries(dwarfs_compression folly)
+target_link_libraries(dwarfs_compression folly compression_thrift)
 target_link_libraries(dwarfs_tool dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -576,6 +581,13 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_pcm_sample_transformer_test DISCOVERY_TIMEOUT 120)
 
+  if(FLAC_FOUND)
+    add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
+    target_link_libraries(dwarfs_flac_compressor_test gtest gtest_main)
+    list(APPEND BINARY_TARGETS dwarfs_flac_compressor_test)
+    gtest_discover_tests(dwarfs_flac_compressor_test DISCOVERY_TIMEOUT 120)
+  endif()
+
   target_compile_definitions(dwarfs_compat_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
@@ -641,9 +653,31 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.h
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.tcc
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types_custom_protocol.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types_fwd.h
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visit_by_thrift_field_metadata.h
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visit_union.h
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visitation.h)
+
+list(
+  APPEND
+  COMPRESSION_THRIFT_SRC
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_clients.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_constants.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_constants.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_for_each_field.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_handlers.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_metadata.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_metadata.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.tcc
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types_custom_protocol.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types_fwd.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visit_by_thrift_field_metadata.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visit_union.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visitation.h)
 
 add_custom_command(
   OUTPUT thrift/lib/thrift/_keep
@@ -684,6 +718,21 @@ add_custom_command(
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
           ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
           ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+)
+
+add_custom_command(
+  OUTPUT ${COMPRESSION_THRIFT_SRC}
+  COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_CURRENT_SOURCE_DIR}/thrift/compression.thrift
+              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/compression.thrift
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+              --gen mstch_cpp2
+              compression.thrift
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
+          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/compression.thrift
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
 )
 
@@ -743,11 +792,19 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp)
 
+add_library(
+  compression_thrift
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.cpp)
+
 set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 20)
+set_property(TARGET compression_thrift PROPERTY CXX_STANDARD 20)
 
 target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
+target_include_directories(compression_thrift PRIVATE ${INCLUDE_DIRS})
 
 target_link_libraries(metadata_thrift thrift_light)
+target_link_libraries(compression_thrift thrift_light)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
@@ -767,6 +824,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
+            $<$<BOOL:${FLAC_FOUND}>:DWARFS_HAVE_FLAC>
   )
 
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -853,6 +911,10 @@ if(LIBLZMA_FOUND)
   target_link_libraries(dwarfs PkgConfig::LIBLZMA)
 endif()
 
+if(FLAC_FOUND)
+  target_link_libraries(dwarfs PkgConfig::FLAC)
+endif()
+
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
 endif()
@@ -922,6 +984,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libunwind "libunwind.a")
   import_static_lib(static_libarchive "libarchive.a")
   import_static_lib(static_libmagic "libmagic.a")
+  import_static_lib(static_libflac "libFLAC++.a")
 
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     PkgConfig::LIBLZMA)
@@ -933,6 +996,7 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                 static_libz)
 
   target_link_libraries(dwarfs_categorizer static_libmagic)
+  target_link_libraries(dwarfs_compression static_libflac)
 
   foreach(tgt ${BINARY_TARGETS})
     if(PREFER_SYSTEM_LIBFMT)
