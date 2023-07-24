@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.7.2 - 2023-07-24
+
+- (fix) Fix locale fallback if user-default locale cannot be set.
+  Fixes github #156.
+
 ## Version 0.7.1 - 2023-07-20
 
 - (fix) Fix potential division by zero crash in speedometer.
