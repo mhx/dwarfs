@@ -181,6 +181,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       }
 
       cond_.notify_one();
+
+      return true;
     }
 
     return false;
