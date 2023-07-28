@@ -586,6 +586,21 @@ enum class binary_mode {
   universal_symlink,
 };
 
+std::ostream& operator<<(std::ostream& os, binary_mode m) {
+  switch (m) {
+  case binary_mode::standalone:
+    os << "standalone";
+    break;
+  case binary_mode::universal_tool:
+    os << "universal-tool";
+    break;
+  case binary_mode::universal_symlink:
+    os << "universal-symlink";
+    break;
+  }
+  return os;
+}
+
 std::vector<binary_mode> tools_test_modes{
     binary_mode::standalone,
     binary_mode::universal_tool,
