@@ -31,6 +31,7 @@
 #include <fmt/format.h>
 
 #include <folly/Varint.h>
+#include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/compression.h"
@@ -204,7 +205,14 @@ class flac_block_compressor final : public block_compressor::impl {
   }
 
   std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
-                                folly::dynamic meta) const override {
+                                std::string const* metadata) const override {
+    if (!metadata) {
+      DWARFS_THROW(runtime_error,
+                   "internal error: flac compression requires metadata");
+    }
+
+    auto meta = folly::parseJson(*metadata);
+
     auto endianness = meta["endianness"].asString();
     auto signedness = meta["signedness"].asString();
     auto padding = meta["padding"].asString();
@@ -332,9 +340,9 @@ class flac_block_compressor final : public block_compressor::impl {
     return compressed;
   }
 
-  std::vector<uint8_t>
-  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const override {
-    return compress(data, std::move(meta));
+  std::vector<uint8_t> compress(std::vector<uint8_t>&& data,
+                                std::string const* metadata) const override {
+    return compress(data, metadata);
   }
 
   compression_type type() const override { return compression_type::FLAC; }
@@ -344,15 +352,20 @@ class flac_block_compressor final : public block_compressor::impl {
                        exhaustive_ ? ", exhaustive" : "");
   }
 
-  bool check_metadata(folly::dynamic meta) const override {
-    if (meta.empty()) {
-      return false;
-    }
-
-    return meta.count("endianness") > 0 && meta.count("signedness") > 0 &&
-           meta.count("padding") > 0 && meta.count("bytes_per_sample") > 0 &&
-           meta.count("bits_per_sample") > 0 &&
-           meta.count("number_of_channels") > 0;
+  std::string metadata_requirements() const override {
+    folly::dynamic req = folly::dynamic::object
+        // clang-format off
+      ("endianness",         folly::dynamic::array("set",
+                               folly::dynamic::array("big", "little")))
+      ("signedness",         folly::dynamic::array("set",
+                               folly::dynamic::array("signed", "unsigned")))
+      ("padding",            folly::dynamic::array("set",
+                               folly::dynamic::array("msb", "lsb")))
+      ("bytes_per_sample",   folly::dynamic::array("range", 1, 4))
+      ("bits_per_sample",    folly::dynamic::array("range", 8, 32))
+      ("number_of_channels", folly::dynamic::array("range", 1, 8))
+      ; // clang-format on
+    return folly::toJson(req);
   }
 
  private:
