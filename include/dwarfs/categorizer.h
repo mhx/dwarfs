@@ -31,8 +31,6 @@
 #include <span>
 #include <string_view>
 
-#include <folly/dynamic.h>
-
 #include "dwarfs/inode_fragments.h"
 
 namespace boost::program_options {
@@ -53,9 +51,10 @@ class categorizer {
 
   virtual std::span<std::string_view const> categories() const = 0;
   virtual bool is_single_fragment() const = 0;
-  virtual folly::dynamic
-  category_metadata(std::string_view category_name,
-                    std::optional<fragment_category> c) const = 0;
+  virtual std::string
+  category_metadata(std::string_view category_name, fragment_category c) const;
+  virtual void set_metadata_requirements(std::string_view category_name,
+                                         std::string requirements);
 };
 
 class random_access_categorizer : public categorizer {
@@ -128,7 +127,7 @@ class categorizer_manager {
 
   static fragment_category default_category();
 
-  void add(std::shared_ptr<categorizer const> c) { impl_->add(std::move(c)); }
+  void add(std::shared_ptr<categorizer> c) { impl_->add(std::move(c)); }
 
   categorizer_job job(std::filesystem::path const& path) const {
     return impl_->job(path);
@@ -143,28 +142,28 @@ class categorizer_manager {
     return impl_->category_value(name);
   }
 
-  folly::dynamic category_metadata(fragment_category c) const {
+  std::string category_metadata(fragment_category c) const {
     return impl_->category_metadata(c);
   }
 
-  folly::dynamic
-  category_metadata_sample(fragment_category::value_type c) const {
-    return impl_->category_metadata_sample(c);
+  void
+  set_metadata_requirements(fragment_category::value_type c, std::string req) {
+    impl_->set_metadata_requirements(c, std::move(req));
   }
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual void add(std::shared_ptr<categorizer const> c) = 0;
+    virtual void add(std::shared_ptr<categorizer> c) = 0;
     virtual categorizer_job job(std::filesystem::path const& path) const = 0;
     virtual std::string_view
     category_name(fragment_category::value_type c) const = 0;
     virtual std::optional<fragment_category::value_type>
     category_value(std::string_view name) const = 0;
-    virtual folly::dynamic category_metadata(fragment_category c) const = 0;
-    virtual folly::dynamic
-    category_metadata_sample(fragment_category::value_type c) const = 0;
+    virtual std::string category_metadata(fragment_category c) const = 0;
+    virtual void set_metadata_requirements(fragment_category::value_type c,
+                                           std::string req) = 0;
   };
 
  private:

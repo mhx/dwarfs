@@ -438,6 +438,12 @@ add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_tool src/dwarfs/tool.cpp)
 
+add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
+
+target_link_libraries(dwarfs_compression_metadata folly)
+target_link_libraries(dwarfs_categorizer dwarfs_compression_metadata)
+target_link_libraries(dwarfs dwarfs_compression_metadata)
+
 if(DWARFS_GIT_BUILD)
   target_include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
 endif()
@@ -802,7 +808,8 @@ target_link_libraries(metadata_thrift thrift_light)
 target_link_libraries(compression_thrift thrift_light)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
-            dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGETS})
+            dwarfs_compression_metadata dwarfs_tool
+            ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
