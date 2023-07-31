@@ -30,13 +30,17 @@
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 
 #include <folly/Synchronized.h>
+#include <folly/json.h>
 #include <folly/lang/Bits.h>
 
 #include "dwarfs/categorizer.h"
+#include "dwarfs/compression_metadata_requirements.h"
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/map_util.h"
 
 namespace dwarfs {
 
@@ -46,7 +50,7 @@ namespace po = boost::program_options;
 namespace {
 
 constexpr std::string_view const METADATA_CATEGORY{"pcmaudio/metadata"};
-constexpr std::string_view const PCMAUDIO_CATEGORY{"pcmaudio/waveform"};
+constexpr std::string_view const WAVEFORM_CATEGORY{"pcmaudio/waveform"};
 
 constexpr size_t const MIN_PCMAUDIO_SIZE{32};
 
@@ -65,32 +69,96 @@ enum class padding : uint8_t {
   MSB,
 };
 
-char const* endianness_string(endianness e) {
+std::ostream& operator<<(std::ostream& os, endianness e) {
   switch (e) {
   case endianness::BIG:
-    return "big";
+    os << "big";
+    break;
   case endianness::LITTLE:
-    return "little";
+    os << "little";
+    break;
+  default:
+    throw std::runtime_error("internal error: unhandled endianness value");
   }
+  return os;
 }
 
-char const* signedness_string(signedness s) {
-  switch (s) {
+std::optional<endianness> parse_endianness(std::string_view e) {
+  static std::unordered_map<std::string_view, endianness> const lookup{
+      {"big", endianness::BIG},
+      {"little", endianness::LITTLE},
+  };
+  return get_optional(lookup, e);
+}
+
+std::optional<endianness> parse_endianness_dyn(folly::dynamic const& e) {
+  return parse_endianness(e.asString());
+}
+
+std::ostream& operator<<(std::ostream& os, signedness e) {
+  switch (e) {
   case signedness::SIGNED:
-    return "signed";
+    os << "signed";
+    break;
   case signedness::UNSIGNED:
-    return "unsigned";
+    os << "unsigned";
+    break;
+  default:
+    throw std::runtime_error("internal error: unhandled signedness value");
   }
+  return os;
 }
 
-char const* padding_string(padding p) {
-  switch (p) {
-  case padding::LSB:
-    return "lsb";
-  case padding::MSB:
-    return "msb";
-  }
+std::optional<signedness> parse_signedness(std::string_view s) {
+  static std::unordered_map<std::string_view, signedness> const lookup{
+      {"signed", signedness::SIGNED},
+      {"unsigned", signedness::UNSIGNED},
+  };
+  return get_optional(lookup, s);
 }
+
+std::optional<signedness> parse_signedness_dyn(folly::dynamic const& s) {
+  return parse_signedness(s.asString());
+}
+
+std::ostream& operator<<(std::ostream& os, padding e) {
+  switch (e) {
+  case padding::LSB:
+    os << "lsb";
+    break;
+  case padding::MSB:
+    os << "msb";
+    break;
+  default:
+    throw std::runtime_error("internal error: unhandled padding value");
+  }
+  return os;
+}
+
+std::optional<padding> parse_padding(std::string_view p) {
+  static std::unordered_map<std::string_view, padding> const lookup{
+      {"lsb", padding::LSB},
+      {"msb", padding::MSB},
+  };
+  return get_optional(lookup, p);
+}
+
+std::optional<padding> parse_padding_dyn(folly::dynamic const& p) {
+  return parse_padding(p.asString());
+}
+
+} // namespace
+} // namespace dwarfs
+
+template <>
+struct fmt::formatter<dwarfs::endianness> : ostream_formatter {};
+template <>
+struct fmt::formatter<dwarfs::signedness> : ostream_formatter {};
+template <>
+struct fmt::formatter<dwarfs::padding> : ostream_formatter {};
+
+namespace dwarfs {
+namespace {
 
 struct pcmaudio_metadata {
   endianness sample_endianness;
@@ -325,9 +393,8 @@ class iff_parser final {
 };
 
 std::ostream& operator<<(std::ostream& os, pcmaudio_metadata const& m) {
-  os << "[" << endianness_string(m.sample_endianness) << ", "
-     << signedness_string(m.sample_signedness) << ", "
-     << padding_string(m.sample_padding) << ", "
+  os << "[" << m.sample_endianness << ", " << m.sample_signedness << ", "
+     << m.sample_padding << ", "
      << "bits=" << static_cast<int>(m.bits_per_sample) << ", "
      << "bytes=" << static_cast<int>(m.bytes_per_sample) << ", "
      << "channels=" << static_cast<int>(m.number_of_channels) << "]";
@@ -349,27 +416,16 @@ class pcmaudio_metadata_store {
     return it->second;
   }
 
-  folly::dynamic lookup(size_t ix) const {
+  std::string lookup(size_t ix) const {
     auto const& m = DWARFS_NOTHROW(forward_index_.at(ix));
     folly::dynamic obj = folly::dynamic::object;
-    obj.insert("endianness", endianness_string(m.sample_endianness));
-    obj.insert("signedness", signedness_string(m.sample_signedness));
-    obj.insert("padding", padding_string(m.sample_padding));
+    obj.insert("endianness", fmt::format("{}", m.sample_endianness));
+    obj.insert("signedness", fmt::format("{}", m.sample_signedness));
+    obj.insert("padding", fmt::format("{}", m.sample_padding));
     obj.insert("bytes_per_sample", m.bytes_per_sample);
     obj.insert("bits_per_sample", m.bits_per_sample);
     obj.insert("number_of_channels", m.number_of_channels);
-    return obj;
-  }
-
-  static folly::dynamic sample() {
-    folly::dynamic obj = folly::dynamic::object;
-    obj.insert("endianness", endianness_string(endianness::BIG));
-    obj.insert("signedness", signedness_string(signedness::SIGNED));
-    obj.insert("padding", padding_string(padding::LSB));
-    obj.insert("bytes_per_sample", 2);
-    obj.insert("bits_per_sample", 16);
-    obj.insert("number_of_channels", 2);
-    return obj;
+    return folly::toJson(obj);
   }
 
  private:
@@ -386,7 +442,20 @@ template <typename LoggerPolicy>
 class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
  public:
   pcmaudio_categorizer_(logger& lgr)
-      : LOG_PROXY_INIT(lgr) {}
+      : LOG_PROXY_INIT(lgr) {
+    waveform_req_.add_set("endianness", &pcmaudio_metadata::sample_endianness,
+                          parse_endianness_dyn);
+    waveform_req_.add_set("signedness", &pcmaudio_metadata::sample_signedness,
+                          parse_signedness_dyn);
+    waveform_req_.add_set("padding", &pcmaudio_metadata::sample_padding,
+                          parse_padding_dyn);
+    waveform_req_.add_range<int>("bytes_per_sample",
+                                 &pcmaudio_metadata::bytes_per_sample);
+    waveform_req_.add_range<int>("bits_per_sample",
+                                 &pcmaudio_metadata::bits_per_sample);
+    waveform_req_.add_range<int>("number_of_channels",
+                                 &pcmaudio_metadata::number_of_channels);
+  }
 
   inode_fragments
   categorize(fs::path const& path, std::span<uint8_t const> data,
@@ -394,20 +463,18 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
 
   bool is_single_fragment() const override { return false; }
 
-  folly::dynamic
-  category_metadata(std::string_view category_name,
-                    std::optional<fragment_category> c) const override {
-    if (category_name == PCMAUDIO_CATEGORY) {
-      if (c) {
-        DWARFS_CHECK(c->has_subcategory(),
-                     "expected PCMAUDIO to have subcategory");
-        return meta_.rlock()->lookup(c->subcategory());
-      } else {
-        return pcmaudio_metadata_store::sample();
-      }
+  std::string category_metadata(std::string_view category_name,
+                                fragment_category c) const override {
+    if (category_name == WAVEFORM_CATEGORY) {
+      DWARFS_CHECK(c.has_subcategory(),
+                   "expected PCMAUDIO to have subcategory");
+      return meta_.rlock()->lookup(c.subcategory());
     }
-    return folly::dynamic();
+    return std::string();
   }
+
+  void set_metadata_requirements(std::string_view category_name,
+                                 std::string requirements) override;
 
  private:
   bool check_aiff(inode_fragments& frag, fs::path const& path,
@@ -428,15 +495,20 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                       std::span<uint8_t const> data,
                       category_mapper const& mapper) const;
 
+  bool check_metadata_requirements(pcmaudio_metadata const& meta,
+                                   std::string_view context,
+                                   fs::path const& path) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   folly::Synchronized<pcmaudio_metadata_store> mutable meta_;
+  compression_metadata_requirements<pcmaudio_metadata> waveform_req_;
 };
 
 std::span<std::string_view const>
 pcmaudio_categorizer_base::categories() const {
   static constexpr std::array const s_categories{
       METADATA_CATEGORY,
-      PCMAUDIO_CATEGORY,
+      WAVEFORM_CATEGORY,
   };
   return s_categories;
 }
@@ -517,6 +589,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
+      if (!check_metadata_requirements(meta, "AIFF", path)) {
+        return false;
+      }
+
       meta_valid = true;
 
       LOG_TRACE << "[AIFF] " << path << ": meta=" << meta;
@@ -553,7 +629,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
                         pcm_start);
       frag.emplace_back(
-          fragment_category(mapper(PCMAUDIO_CATEGORY), subcategory),
+          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
           pcm_length);
 
       if (pcm_start + pcm_length < data.size()) {
@@ -710,6 +786,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
+      if (!check_metadata_requirements(meta, "CAF", path)) {
+        return false;
+      }
+
       meta_valid = true;
 
       LOG_TRACE << "[CAF] " << path << ": meta=" << meta;
@@ -736,7 +816,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
                         pcm_start);
       frag.emplace_back(
-          fragment_category(mapper(PCMAUDIO_CATEGORY), subcategory),
+          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
           pcm_length);
 
       if (pcm_start + pcm_length < data.size()) {
@@ -885,6 +965,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         return false;
       }
 
+      if (!check_metadata_requirements(meta, FormatPolicy::format_name, path)) {
+        return false;
+      }
+
       meta_valid = true;
 
       LOG_TRACE << "[" << FormatPolicy::format_name << "] " << path
@@ -912,7 +996,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
                         pcm_start);
       frag.emplace_back(
-          fragment_category(mapper(PCMAUDIO_CATEGORY), subcategory),
+          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
           pcm_length);
 
       if (pcm_start + pcm_length < data.size()) {
@@ -925,6 +1009,20 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   }
 
   return false;
+}
+
+template <typename LoggerPolicy>
+bool pcmaudio_categorizer_<LoggerPolicy>::check_metadata_requirements(
+    pcmaudio_metadata const& meta, std::string_view context,
+    fs::path const& path) const {
+  try {
+    waveform_req_.check(meta);
+  } catch (std::exception const& e) {
+    LOG_WARN << "[" << context << "] " << path << ": " << e.what();
+    return false;
+  }
+
+  return true;
 }
 
 template <typename LoggerPolicy>
@@ -952,6 +1050,19 @@ inode_fragments pcmaudio_categorizer_<LoggerPolicy>::categorize(
   }
 
   return fragments;
+}
+
+template <typename LoggerPolicy>
+void pcmaudio_categorizer_<LoggerPolicy>::set_metadata_requirements(
+    std::string_view category_name, std::string requirements) {
+  if (!requirements.empty()) {
+    auto req = folly::parseJson(requirements);
+    if (category_name == WAVEFORM_CATEGORY) {
+      waveform_req_.parse(req);
+    } else {
+      compression_metadata_requirements().parse(req);
+    }
+  }
 }
 
 class pcmaudio_categorizer_factory : public categorizer_factory {
