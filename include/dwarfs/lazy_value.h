@@ -27,11 +27,11 @@
 namespace dwarfs {
 
 template <typename T>
-class cached_value {
+class lazy_value {
  public:
   using function_type = std::function<T()>;
 
-  cached_value(function_type f)
+  lazy_value(function_type f)
       : v_{f} {}
 
   T const& get() {

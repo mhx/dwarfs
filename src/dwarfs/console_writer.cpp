@@ -27,11 +27,11 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/cached_value.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/lazy_value.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/terminal.h"
@@ -182,7 +182,7 @@ void console_writer::update(const progress& p, bool last) {
   const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
   std::ostringstream oss;
-  cached_value width(get_term_width_);
+  lazy_value width(get_term_width_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
