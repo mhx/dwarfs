@@ -26,10 +26,13 @@
 
 #include <fmt/format.h>
 
+#include <folly/String.h>
 #include <folly/container/Enumerate.h>
+#include <folly/json.h>
 
 #include "dwarfs/categorizer.h"
 #include "dwarfs/compiler.h"
+#include "dwarfs/compression_metadata_requirements.h"
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
 
@@ -45,9 +48,21 @@ constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
 
 }
 
+std::string
+categorizer::category_metadata(std::string_view, fragment_category) const {
+  return std::string();
+}
+
+void categorizer::set_metadata_requirements(std::string_view,
+                                            std::string requirements) {
+  if (!requirements.empty()) {
+    compression_metadata_requirements().parse(folly::parseJson(requirements));
+  }
+}
+
 class categorizer_manager_private : public categorizer_manager::impl {
  public:
-  virtual std::vector<std::shared_ptr<categorizer const>> const&
+  virtual std::vector<std::shared_ptr<categorizer>> const&
   categorizers() const = 0;
   virtual fragment_category::value_type
   category(std::string_view cat) const = 0;
@@ -100,7 +115,7 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
   bool global_best = true;
 
   for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
-    if (auto p = dynamic_cast<random_access_categorizer const*>(cat.get())) {
+    if (auto p = dynamic_cast<random_access_categorizer*>(cat.get())) {
       if (auto c = p->categorize(path_, data, cat_mapper_)) {
         best_ = c;
         index_ = index;
@@ -126,7 +141,7 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
         break;
       }
 
-      if (auto p = dynamic_cast<sequential_categorizer const*>(cat.get())) {
+      if (auto p = dynamic_cast<sequential_categorizer*>(cat.get())) {
         if (auto job = p->job(path_, total_size_, cat_mapper_)) {
           seq_jobs_.emplace_back(index, std::move(job));
         }
@@ -180,7 +195,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
     add_category(DEFAULT_CATEGORY, std::numeric_limits<size_t>::max());
   }
 
-  void add(std::shared_ptr<categorizer const> c) override;
+  void add(std::shared_ptr<categorizer> c) override;
   categorizer_job job(std::filesystem::path const& path) const override;
   std::string_view
   category_name(fragment_category::value_type c) const override;
@@ -194,12 +209,12 @@ class categorizer_manager_ final : public categorizer_manager_private {
     return rv;
   }
 
-  folly::dynamic category_metadata(fragment_category c) const override;
+  std::string category_metadata(fragment_category c) const override;
 
-  folly::dynamic
-  category_metadata_sample(fragment_category::value_type c) const override;
+  void set_metadata_requirements(fragment_category::value_type c,
+                                 std::string req) override;
 
-  std::vector<std::shared_ptr<categorizer const>> const&
+  std::vector<std::shared_ptr<categorizer>> const&
   categorizers() const override {
     return categorizers_;
   }
@@ -211,8 +226,6 @@ class categorizer_manager_ final : public categorizer_manager_private {
   }
 
  private:
-  folly::dynamic category_metadata_impl(fragment_category c, bool sample) const;
-
   void add_category(std::string_view cat, size_t categorizer_index) {
     if (catmap_.emplace(cat, categories_.size()).second) {
       categories_.emplace_back(cat, categorizer_index);
@@ -223,7 +236,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
 
   logger& lgr_;
   LOG_PROXY_DECL(LoggerPolicy);
-  std::vector<std::shared_ptr<categorizer const>> categorizers_;
+  std::vector<std::shared_ptr<categorizer>> categorizers_;
   // TODO: category descriptions?
   std::vector<std::pair<std::string_view, size_t>> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
@@ -234,8 +247,7 @@ fragment_category categorizer_manager::default_category() {
 }
 
 template <typename LoggerPolicy>
-void categorizer_manager_<LoggerPolicy>::add(
-    std::shared_ptr<categorizer const> c) {
+void categorizer_manager_<LoggerPolicy>::add(std::shared_ptr<categorizer> c) {
   for (auto const& c : c->categories()) {
     add_category(c, categorizers_.size());
   }
@@ -258,34 +270,25 @@ std::string_view categorizer_manager_<LoggerPolicy>::category_name(
 }
 
 template <typename LoggerPolicy>
-folly::dynamic
-categorizer_manager_<LoggerPolicy>::category_metadata_impl(fragment_category c,
-                                                           bool sample) const {
+std::string categorizer_manager_<LoggerPolicy>::category_metadata(
+    fragment_category c) const {
   if (c.value() == 0) {
-    return folly::dynamic();
+    return std::string();
   }
 
   auto cat = DWARFS_NOTHROW(categories_.at(c.value()));
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
-  std::optional<fragment_category> maybe_category;
 
-  if (!sample) {
-    maybe_category.emplace(c);
-  }
-
-  return categorizer->category_metadata(cat.first, maybe_category);
+  return categorizer->category_metadata(cat.first, c);
 }
 
 template <typename LoggerPolicy>
-folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata(
-    fragment_category c) const {
-  return category_metadata_impl(c, false);
-}
+void categorizer_manager_<LoggerPolicy>::set_metadata_requirements(
+    fragment_category::value_type c, std::string req) {
+  auto cat = DWARFS_NOTHROW(categories_.at(c));
+  auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
 
-template <typename LoggerPolicy>
-folly::dynamic categorizer_manager_<LoggerPolicy>::category_metadata_sample(
-    fragment_category::value_type c) const {
-  return category_metadata_impl(fragment_category(c), true);
+  categorizer->set_metadata_requirements(cat.first, req);
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)

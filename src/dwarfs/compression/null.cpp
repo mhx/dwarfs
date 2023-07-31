@@ -37,13 +37,15 @@ class null_block_compressor final : public block_compressor::impl {
     return std::make_unique<null_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
-                                folly::dynamic /*meta*/) const override {
+  std::vector<uint8_t>
+  compress(const std::vector<uint8_t>& data,
+           std::string const* /*metadata*/) const override {
     return data;
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data,
-                                folly::dynamic /*meta*/) const override {
+  std::vector<uint8_t>
+  compress(std::vector<uint8_t>&& data,
+           std::string const* /*metadata*/) const override {
     return std::move(data);
   }
 
@@ -51,7 +53,7 @@ class null_block_compressor final : public block_compressor::impl {
 
   std::string describe() const override { return "null"; }
 
-  bool check_metadata(folly::dynamic /*meta*/) const override { return true; }
+  std::string metadata_requirements() const override { return std::string(); }
 };
 
 class null_block_decompressor final : public block_decompressor::impl {
