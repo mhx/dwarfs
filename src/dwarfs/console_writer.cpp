@@ -27,6 +27,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/cached_value.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/entry_interface.h"
@@ -78,13 +79,14 @@ std::string progress_bar(size_t width, double frac, bool unicode) {
 } // namespace
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
-                               size_t width, level_type threshold,
-                               display_mode mode, bool with_context)
+                               get_term_width_type get_term_width,
+                               level_type threshold, display_mode mode,
+                               bool with_context)
     : os_(os)
     , threshold_(threshold)
     , frac_(0.0)
     , pg_mode_(pg_mode)
-    , width_(width)
+    , get_term_width_(get_term_width)
     , mode_(mode)
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context)
@@ -180,12 +182,13 @@ void console_writer::update(const progress& p, bool last) {
   const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
   std::ostringstream oss;
+  cached_value width(get_term_width_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
   if (last || fancy) {
     if (fancy) {
-      for (size_t i = 0; i < width_; ++i) {
+      for (size_t i = 0; i < width.get(); ++i) {
         oss << (pg_mode_ == UNICODE ? "⎯" : "-");
       }
       oss << "\n";
@@ -205,7 +208,8 @@ void console_writer::update(const progress& p, bool last) {
       }
 
       if (fancy) {
-        oss << terminal_colored(p.status(width_), termcolor::BOLD_CYAN, color_)
+        oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
+                                color_)
             << newline;
       }
 
@@ -305,7 +309,7 @@ void console_writer::update(const progress& p, bool last) {
       os_ << oss.str();
     }
   } else {
-    oss << progress_bar(width_ - 6, frac_, pg_mode_ == UNICODE)
+    oss << progress_bar(width.get() - 6, frac_, pg_mode_ == UNICODE)
         << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
         << '\n';
 

@@ -868,7 +868,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
   auto log_level = logger::parse_level(log_level_str);
 
-  console_writer lgr(std::cerr, pg_mode, get_term_width(), log_level,
+  console_writer lgr(std::cerr, pg_mode, get_term_width, log_level,
                      recompress ? console_writer::REWRITE
                                 : console_writer::NORMAL,
                      log_level >= logger::DEBUG);
