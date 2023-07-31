@@ -1029,11 +1029,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr](
                                          auto cat, block_compressor const& bc) {
-      if (!bc.check_metadata(catmgr->category_metadata_sample(cat))) {
+      try {
+        catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
+      } catch (std::exception const& e) {
         throw std::runtime_error(
             fmt::format("compression '{}' cannot be used for category '{}': "
-                        "insufficient metadata",
-                        bc.describe(), catmgr->category_name(cat)));
+                        "metadata requirements not met ({})",
+                        bc.describe(), catmgr->category_name(cat), e.what()));
       }
     });
   } catch (std::exception const& e) {

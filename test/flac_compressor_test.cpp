@@ -24,6 +24,8 @@
 
 #include <gtest/gtest.h>
 
+#include <folly/json.h>
+
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/pcm_sample_transformer.h"
 
@@ -148,7 +150,7 @@ TEST(flac_compressor, basic) {
 
   block_compressor comp("flac");
 
-  auto compressed = comp.compress(data, std::move(meta));
+  auto compressed = comp.compress(data, folly::toJson(meta));
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 
@@ -181,7 +183,7 @@ TEST_P(flac_param, combinations) {
 
   block_compressor comp("flac");
 
-  auto compressed = comp.compress(data, std::move(meta));
+  auto compressed = comp.compress(data, folly::toJson(meta));
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 

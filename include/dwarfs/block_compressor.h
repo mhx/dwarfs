@@ -33,8 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/dynamic.h>
-
 #include "dwarfs/compression.h"
 
 namespace dwarfs {
@@ -57,22 +55,30 @@ class block_compressor {
   block_compressor(block_compressor&& bc) = default;
   block_compressor& operator=(block_compressor&& rhs) = default;
 
-  std::vector<uint8_t>
-  compress(std::vector<uint8_t> const& data, folly::dynamic meta) const {
-    return impl_->compress(data, std::move(meta));
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data) const {
+    return impl_->compress(data, nullptr);
+  }
+
+  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const {
+    return impl_->compress(std::move(data), nullptr);
+  }
+
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
+                                std::string const& metadata) const {
+    return impl_->compress(data, &metadata);
   }
 
   std::vector<uint8_t>
-  compress(std::vector<uint8_t>&& data, folly::dynamic meta) const {
-    return impl_->compress(std::move(data), std::move(meta));
+  compress(std::vector<uint8_t>&& data, std::string const& metadata) const {
+    return impl_->compress(std::move(data), &metadata);
   }
 
   compression_type type() const { return impl_->type(); }
 
   std::string describe() const { return impl_->describe(); }
 
-  bool check_metadata(folly::dynamic meta) const {
-    return impl_->check_metadata(std::move(meta));
+  std::string metadata_requirements() const {
+    return impl_->metadata_requirements();
   }
 
   class impl {
@@ -82,14 +88,16 @@ class block_compressor {
     virtual std::unique_ptr<impl> clone() const = 0;
 
     virtual std::vector<uint8_t>
-    compress(const std::vector<uint8_t>& data, folly::dynamic meta) const = 0;
+    compress(const std::vector<uint8_t>& data,
+             std::string const* metadata) const = 0;
     virtual std::vector<uint8_t>
-    compress(std::vector<uint8_t>&& data, folly::dynamic meta) const = 0;
+    compress(std::vector<uint8_t>&& data,
+             std::string const* metadata) const = 0;
 
     virtual compression_type type() const = 0;
     virtual std::string describe() const = 0;
 
-    virtual bool check_metadata(folly::dynamic meta) const = 0;
+    virtual std::string metadata_requirements() const = 0;
   };
 
  private:
