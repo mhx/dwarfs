@@ -76,6 +76,8 @@ void parse_order_option(std::string_view ordname, std::string_view opt,
 } // namespace
 
 std::string fragment_order_parser::choices() {
+  // TODO: C++23
+  // auto tools = std::views::keys(order_choices) | std::views::join_with(", ");
   using namespace folly::gen;
   return from(order_choices) | get<0>() | unsplit<std::string>(", ");
 }
