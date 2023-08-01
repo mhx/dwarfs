@@ -108,6 +108,8 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   using namespace folly::gen;
 
+  // TODO: C++23
+  // auto tools = std::views::keys(functions) | std::views::join_with(", ");
   auto tools = from(functions) | get<0>() | unsplit(", ");
 
   // clang-format off
