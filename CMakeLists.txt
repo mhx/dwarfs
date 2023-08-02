@@ -179,24 +179,13 @@ endif()
 if(PREFER_SYSTEM_LIBFMT)
   find_package(fmt 10.0 CONFIG)
 else()
-  configure_file(CMakeLists.txt.fmtlib fmtlib-download/CMakeLists.txt)
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fmtlib-download)
-  if(result)
-    message(FATAL_ERROR "CMake step for fmtlib failed: ${result}")
-  endif()
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} --build .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fmtlib-download)
-  if(result)
-    message(FATAL_ERROR "Build step for fmtlib failed: ${result}")
-  endif()
-  set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install;${CMAKE_PREFIX_PATH}")
-  include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install/include")
-  find_package(fmt 10.0 REQUIRED CONFIG PATHS "${CMAKE_CURRENT_BINARY_DIR}/fmtlib-install" NO_DEFAULT_PATH)
+  include(FetchContent)
+  FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY ${LIBFMT_GIT_REPO}
+    GIT_TAG 10.0.0
+  )
+  FetchContent_MakeAvailable(fmt)
 endif()
 
 list(APPEND DWARFS_BOOST_MODULES chrono iostreams program_options)
@@ -332,7 +321,8 @@ if(WITH_TESTS)
     include(FetchContent)
     FetchContent_Declare(
       googletest
-      URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.zip
+      GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
+      GIT_TAG v1.13.0
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -900,7 +890,9 @@ if(STATIC_BUILD_DO_NOT_USE)
   endfunction()
 
   import_static_lib(static_libglog "libglog.a")
-  import_static_lib(static_libfmt "libfmt.a")
+  if(PREFER_SYSTEM_LIBFMT)
+    import_static_lib(static_libfmt "libfmt.a")
+  endif()
   import_static_lib(static_libdoubleconv "libdouble-conversion.a")
   import_static_lib(static_libgflags "libgflags.a")
   import_static_lib(static_libevent "libevent.a")
@@ -925,13 +917,18 @@ if(STATIC_BUILD_DO_NOT_USE)
 
 
   foreach(tgt ${BINARY_TARGETS})
+    if(PREFER_SYSTEM_LIBFMT)
+      target_link_libraries(
+        ${tgt}
+        static_libfmt)
+    endif()
+
     # ...................................................................
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking
     # ...................................................................
     target_link_libraries(
       ${tgt}
-      static_libfmt
       static_libdoubleconv
       static_libglog
       static_libgflags
