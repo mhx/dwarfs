@@ -564,6 +564,8 @@ if(WITH_TESTS)
   add_executable(dwarfs_utils_test test/utils_test.cpp)
   add_executable(dwarfs_pcm_sample_transformer_test
           test/pcm_sample_transformer_test.cpp)
+  add_executable(dwarfs_pcmaudio_categorizer_test
+          test/pcmaudio_categorizer_test.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
@@ -571,9 +573,12 @@ if(WITH_TESTS)
   target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
   target_link_libraries(dwarfs_pcm_sample_transformer_test gtest gtest_main)
+  target_link_libraries(dwarfs_pcmaudio_categorizer_test gtest gtest_main gmock_main
+                        "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
-       dwarfs_tools_test dwarfs_utils_test dwarfs_pcm_sample_transformer_test)
+       dwarfs_tools_test dwarfs_utils_test dwarfs_pcm_sample_transformer_test
+       dwarfs_pcmaudio_categorizer_test)
 
   gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
@@ -581,6 +586,7 @@ if(WITH_TESTS)
   gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_pcm_sample_transformer_test DISCOVERY_TIMEOUT 120)
+  gtest_discover_tests(dwarfs_pcmaudio_categorizer_test DISCOVERY_TIMEOUT 120)
 
   if(FLAC_FOUND)
     add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
@@ -593,6 +599,9 @@ if(WITH_TESTS)
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
   target_compile_definitions(dwarfs_badfs_test
+                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+
+  target_compile_definitions(dwarfs_pcmaudio_categorizer_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
   target_compile_definitions(
