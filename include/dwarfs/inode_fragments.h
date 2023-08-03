@@ -47,6 +47,8 @@ class single_inode_fragment {
 
   std::span<thrift::metadata::chunk const> chunks() const { return chunks_; }
 
+  void extend(file_off_t length) { length_ += length; }
+
  private:
   fragment_category category_;
   file_off_t length_;
@@ -66,6 +68,12 @@ class inode_fragments {
   }
 
   std::span<single_inode_fragment const> span() const { return fragments_; }
+
+  single_inode_fragment const& back() const { return fragments_.back(); }
+  single_inode_fragment& back() { return fragments_.back(); }
+
+  auto begin() const { return fragments_.begin(); }
+  auto end() const { return fragments_.end(); }
 
   size_t size() const { return fragments_.size(); }
 
