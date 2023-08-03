@@ -42,12 +42,6 @@ using namespace std::placeholders;
 
 namespace po = boost::program_options;
 
-namespace {
-
-constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
-
-}
-
 std::string
 categorizer::category_metadata(std::string_view, fragment_category) const {
   return std::string();
@@ -192,7 +186,8 @@ class categorizer_manager_ final : public categorizer_manager_private {
   categorizer_manager_(logger& lgr)
       : lgr_{lgr}
       , LOG_PROXY_INIT(lgr) {
-    add_category(DEFAULT_CATEGORY, std::numeric_limits<size_t>::max());
+    add_category(categorizer::DEFAULT_CATEGORY,
+                 std::numeric_limits<size_t>::max());
   }
 
   void add(std::shared_ptr<categorizer> c) override;
