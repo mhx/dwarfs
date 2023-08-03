@@ -47,6 +47,8 @@ using category_mapper =
 
 class categorizer {
  public:
+  static constexpr std::string_view const DEFAULT_CATEGORY{"<default>"};
+
   virtual ~categorizer() = default;
 
   virtual std::span<std::string_view const> categories() const = 0;
