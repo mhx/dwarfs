@@ -22,6 +22,7 @@
 #include <array>
 #include <cassert>
 #include <cstring>
+#include <numeric>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -33,6 +34,7 @@
 #include "dwarfs/categorizer.h"
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -50,17 +52,16 @@ constexpr std::string_view const INCOMPRESSIBLE_CATEGORY{"incompressible"};
 //       We probably need to reintroduce the <default> category for that.
 
 struct incompressible_categorizer_config {
-  size_t min_input_size;
-  double max_ratio_size;
-  double max_ratio_blocks;
-  int lz4_acceleration;
+  size_t min_input_size{0};
+  size_t block_size{0};
+  bool generate_fragments{false};
+  double max_ratio{0.0};
+  int lz4_acceleration{0};
 };
 
 template <typename LoggerPolicy>
 class incompressible_categorizer_job_ : public sequential_categorizer_job {
  public:
-  static constexpr size_t const block_size{1024 * 1024};
-
   incompressible_categorizer_job_(logger& lgr,
                                   incompressible_categorizer_config const& cfg,
                                   std::filesystem::path const& path,
@@ -69,8 +70,14 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
       : LOG_PROXY_INIT(lgr)
       , cfg_{cfg}
       , path_{path}
-      , mapper_{mapper} {
-    input_.reserve(total_size < block_size ? total_size : block_size);
+      , default_category_{mapper(categorizer::DEFAULT_CATEGORY)}
+      , incompressible_category_{mapper(INCOMPRESSIBLE_CATEGORY)} {
+    LOG_TRACE << "{min_input_size=" << cfg_.min_input_size
+              << ", block_size=" << cfg_.block_size
+              << ", generate_fragments=" << cfg_.generate_fragments
+              << ", max_ratio=" << cfg_.max_ratio
+              << ", lz4_acceleration=" << cfg_.lz4_acceleration << "}";
+    input_.reserve(total_size < cfg_.block_size ? total_size : cfg_.block_size);
     state_ = ::malloc(LZ4_sizeofState());
   }
 
@@ -78,40 +85,56 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
 
   void add(std::span<uint8_t const> data) override {
     while (!data.empty()) {
-      auto part_size = input_.size() + data.size() <= block_size
+      auto part_size = input_.size() + data.size() <= cfg_.block_size
                            ? data.size()
-                           : block_size - input_.size();
+                           : cfg_.block_size - input_.size();
       add_input(data.first(part_size));
       data = data.subspan(part_size);
     }
   }
 
   inode_fragments result() override {
-    inode_fragments fragments;
     if (!input_.empty()) {
       compress();
     }
-    LOG_TRACE << path_ << " -> blocks: " << incompressible_blocks_ << "/"
-              << total_blocks_ << ", total compression ratio: "
-              << fmt::format("{:.2f}%",
-                             100.0 * total_output_size_ / total_input_size_);
-    if (total_blocks_ > 0 &&
-        (total_output_size_ >= cfg_.max_ratio_size * total_input_size_ ||
-         incompressible_blocks_ >= cfg_.max_ratio_blocks * total_blocks_)) {
-      fragments.emplace_back(
-          fragment_category(mapper_(INCOMPRESSIBLE_CATEGORY)),
-          total_input_size_);
+
+    auto stats = [this] {
+      return fmt::format("{} -> incompressible blocks: {}/{}, overall "
+                         "compression ratio: {:.2f}%",
+                         u8string_to_string(path_.u8string()),
+                         incompressible_blocks_, total_blocks_,
+                         100.0 * total_output_size_ / total_input_size_);
+    };
+
+    if (fragments_.empty()) {
+      LOG_TRACE << stats();
+
+      if (total_blocks_ > 0 &&
+          total_output_size_ >= cfg_.max_ratio * total_input_size_) {
+        fragments_.emplace_back(fragment_category(incompressible_category_),
+                                total_input_size_);
+      }
+    } else {
+      LOG_TRACE << stats() << ", " << fragments_.size() << " fragments";
+
+      assert(total_input_size_ ==
+             std::accumulate(fragments_.begin(), fragments_.end(),
+                             static_cast<size_t>(0),
+                             [](size_t len, auto const& fragment) {
+                               return len + fragment.length();
+                             }));
     }
-    return fragments;
+
+    return fragments_;
   }
 
  private:
   void add_input(std::span<uint8_t const> data) {
     auto current_size = input_.size();
-    assert(current_size + data.size() <= block_size);
+    assert(current_size + data.size() <= cfg_.block_size);
     input_.resize(current_size + data.size());
     ::memcpy(&input_[current_size], data.data(), data.size());
-    if (input_.size() == block_size) {
+    if (input_.size() == cfg_.block_size) {
       compress();
     }
   }
@@ -134,11 +157,35 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     total_output_size_ += rv;
     ++total_blocks_;
 
-    if (rv >= static_cast<int>(cfg_.max_ratio_size * input_.size())) {
+    if (rv >= static_cast<int>(cfg_.max_ratio * input_.size())) {
       ++incompressible_blocks_;
+      add_fragment(incompressible_category_, input_.size());
+    } else {
+      add_fragment(default_category_, input_.size());
     }
 
     input_.clear();
+  }
+
+  void add_fragment(fragment_category::value_type category, size_t size) {
+    if (!cfg_.generate_fragments) {
+      return;
+    }
+
+    if (!fragments_.empty()) {
+      auto& last = fragments_.back();
+      if (last.category().value() == category) {
+        last.extend(size);
+        return;
+      }
+    }
+
+    LOG_TRACE << "adding "
+              << (category == incompressible_category_ ? "incompressible"
+                                                       : "default")
+              << " fragment of size " << size;
+
+    fragments_.emplace_back(fragment_category(category), size);
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -151,7 +198,9 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   size_t incompressible_blocks_{0};
   incompressible_categorizer_config const& cfg_;
   std::filesystem::path const& path_;
-  category_mapper const& mapper_;
+  fragment_category::value_type const default_category_;
+  fragment_category::value_type const incompressible_category_;
+  inode_fragments fragments_;
 };
 
 class incompressible_categorizer_ final : public sequential_categorizer {
@@ -208,17 +257,19 @@ class incompressible_categorizer_factory : public categorizer_factory {
     // clang-format off
     opts_->add_options()
       ("incompressible-min-input-size",
-          po::value<size_t>(&cfg_.min_input_size)->default_value(256),
-          "minimum file size in bytes to check for incompressibility")
-      ("incompressible-max-size-ratio",
-          po::value<double>(&cfg_.max_ratio_size)
+          po::value<std::string>(&min_input_size_str_)->default_value("256"),
+          "minimum file size to check for incompressibility")
+      ("incompressible-block-size",
+          po::value<std::string>(&block_size_str_)->default_value("1M"),
+          "block size to use for lz4 compression")
+      ("incompressible-fragments",
+          po::value<bool>(&cfg_.generate_fragments)
+            ->default_value(false)->implicit_value(true)->zero_tokens(),
+          "generate individual incompressible fragments")
+      ("incompressible-ratio",
+          po::value<double>(&cfg_.max_ratio)
             ->default_value(default_ratio, default_ratio_str),
-          "LZ4 compression ratio above files are considered incompressible")
-      ("incompressible-max-blocks-ratio",
-          po::value<double>(&cfg_.max_ratio_blocks)
-            ->default_value(default_ratio, default_ratio_str),
-          "ratio of incompressible LZ4 blocks above which the whole file"
-          " is considered incompressible")
+          "LZ4 compression ratio above which files are considered incompressible")
       ("incompressible-lz4-acceleration (1..65537)",
           po::value<int>(&cfg_.lz4_acceleration)->default_value(1),
           "LZ4 acceleration value")
@@ -234,10 +285,15 @@ class incompressible_categorizer_factory : public categorizer_factory {
 
   std::unique_ptr<categorizer>
   create(logger& lgr, po::variables_map const& /*vm*/) const override {
-    return std::make_unique<incompressible_categorizer_>(lgr, cfg_);
+    auto cfg = cfg_;
+    cfg.min_input_size = parse_size_with_unit(min_input_size_str_);
+    cfg.block_size = parse_size_with_unit(block_size_str_);
+    return std::make_unique<incompressible_categorizer_>(lgr, cfg);
   }
 
  private:
+  std::string min_input_size_str_;
+  std::string block_size_str_;
   incompressible_categorizer_config cfg_;
   std::shared_ptr<po::options_description> opts_;
 };
