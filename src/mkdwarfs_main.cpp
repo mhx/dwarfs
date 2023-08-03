@@ -73,10 +73,6 @@
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
-#ifdef DWARFS_HAVE_PYTHON
-#include "dwarfs/python_script.h"
-#endif
-
 namespace po = boost::program_options;
 
 namespace dwarfs {
@@ -96,9 +92,6 @@ enum class debug_filter_mode {
 const std::map<std::string, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
-#ifdef DWARFS_HAVE_PYTHON
-    {"script", file_order_mode::SCRIPT},
-#endif
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA},
 };
@@ -455,11 +448,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
         "maximum file size to compute similarity")
-#ifdef DWARFS_HAVE_PYTHON
-    ("script",
-        po::value<std::string>(&script_arg),
-        "Python script for customization")
-#endif
     ("file-hash",
         po::value<std::string>(&file_hash_algo)->default_value("xxh3-128"),
         file_hash_desc.c_str())
@@ -875,36 +863,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   std::shared_ptr<script> script;
 
-#ifdef DWARFS_HAVE_PYTHON
-  if (!script_arg.empty()) {
-    std::string file, ctor;
-    if (auto pos = script_arg.find(':'); pos != std::string::npos) {
-      file = script_arg.substr(0, pos);
-      ctor = script_arg.substr(pos + 1);
-      if (ctor.find('(') == std::string::npos) {
-        ctor += "()";
-      }
-    } else {
-      file = script_arg;
-      ctor = "mkdwarfs()";
-    }
-    std::string code;
-    if (folly::readFile(file.c_str(), code)) {
-      script = std::make_shared<python_script>(lgr, code, ctor);
-    } else {
-      std::cerr << "error: could not load script '" << file << "'\n";
-      return 1;
-    }
-  }
-#endif
-
   if (!filter.empty() or vm.count("chmod")) {
-    if (script) {
-      std::cerr
-          << "error: scripts and filters are not simultaneously supported\n";
-      return 1;
-    }
-
     auto bs = std::make_shared<builtin_script>(lgr);
 
     if (!filter.empty()) {

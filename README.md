@@ -109,9 +109,6 @@ Distinct features of DwarFS are:
   [FUSE driver](doc/dwarfs.md) are able to make good use of the
   many cores of your system.
 
-- Optional experimental Python scripting support to provide custom
-  filtering and ordering functionality.
-
 ## History
 
 I started working on DwarFS in 2013 and my main use case and major
@@ -257,7 +254,6 @@ $ apt install \
     libboost-filesystem-dev \
     libboost-iostreams-dev \
     libboost-program-options-dev \
-    libboost-python-dev \
     libboost-regex-dev \
     libboost-system-dev \
     libboost-thread-dev \

@@ -32,7 +32,6 @@ RUN apt install -y \
         libboost-filesystem-dev \
         libboost-iostreams-dev \
         libboost-program-options-dev \
-        libboost-python-dev \
         libboost-regex-dev \
         libboost-system-dev \
         libboost-thread-dev \

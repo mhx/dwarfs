@@ -31,7 +31,6 @@ if(WIN32)
   set(PREFER_SYSTEM_ZSTD ON)
   set(PREFER_SYSTEM_XXHASH ON)
 else()
-  option(WITH_PYTHON "build with Python scripting support" OFF)
   option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
   option(WITH_MAN_PAGES "build man pages using ronn" ON)
   option(ENABLE_ASAN "enable address sanitizer" OFF)
@@ -121,9 +120,6 @@ if(STATIC_BUILD_DO_NOT_USE)
     set(CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
   endif()
 
-  if(WITH_PYTHON)
-    message(FATAL_ERROR "python is not supported in static builds")
-  endif()
   set(CMAKE_FIND_LIBRARY_SUFFIXES
       ".a"
       CACHE STRING "please look for static libs")
@@ -188,27 +184,7 @@ else()
   FetchContent_MakeAvailable(fmt)
 endif()
 
-list(APPEND DWARFS_BOOST_MODULES chrono iostreams program_options)
-
-if(WITH_PYTHON)
-  # TODO: would be nicer to be able to support a range of python versions
-  find_package(Python3 ${WITH_PYTHON_VERSION} EXACT REQUIRED
-               COMPONENTS Development)
-  list(APPEND DWARFS_BOOST_MODULES
-       "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
-  message(
-    STATUS
-      "Enabling support for Python ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}"
-  )
-endif()
-
-find_package(Boost 1.67 REQUIRED COMPONENTS ${DWARFS_BOOST_MODULES})
-
-if(WITH_PYTHON)
-  set(BOOST_PYTHON_LIBS ${Boost_LIBRARIES})
-  list(FILTER Boost_LIBRARIES EXCLUDE REGEX python)
-  list(FILTER BOOST_PYTHON_LIBS INCLUDE REGEX python)
-endif()
+find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
 
 if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -414,10 +390,6 @@ if(DWARFS_GIT_BUILD)
   list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
 else()
   list(APPEND LIBDWARFS_SRC src/dwarfs/version.cpp)
-endif()
-
-if(WITH_PYTHON)
-  list(APPEND LIBDWARFS_SRC src/dwarfs/python_script.cpp)
 endif()
 
 list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/null.cpp)
@@ -755,7 +727,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGE
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
-            $<$<BOOL:${WITH_PYTHON}>:DWARFS_HAVE_PYTHON>)
+  )
 
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_compile_definitions(${tgt} PRIVATE DWARFS_USE_EXCEPTION_TRACER)
@@ -857,10 +829,6 @@ if(XXHASH_FOUND
   target_link_libraries(dwarfs PkgConfig::XXHASH)
 else()
   target_link_libraries(dwarfs xxhash)
-endif()
-
-if(WITH_PYTHON)
-  target_link_libraries(dwarfs ${BOOST_PYTHON_LIBS} ${Python3_LIBRARIES})
 endif()
 
 foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
