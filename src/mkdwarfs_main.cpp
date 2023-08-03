@@ -302,57 +302,6 @@ constexpr std::array<level_defaults, 10> levels{{
 
 constexpr unsigned default_level = 7;
 
-class script_options : public options_interface {
- public:
-  script_options(logger& lgr, po::variables_map& vm, scanner_options& opts,
-                 bool& force_similarity)
-      : LOG_PROXY_INIT(lgr)
-      , vm_(vm)
-      , opts_(opts)
-      , force_similarity_(force_similarity) {}
-
-  void set_order(file_order_mode order_mode, set_mode mode = DEFAULT) override {
-    set(opts_.file_order.mode, order_mode, "order", mode);
-  }
-
-  void
-  set_remove_empty_dirs(bool remove_empty, set_mode mode = DEFAULT) override {
-    set(opts_.remove_empty_dirs, remove_empty, "remove-empty-dirs", mode);
-  }
-
-  void enable_similarity() override {
-    LOG_DEBUG << "script is forcing similarity hash computation";
-    force_similarity_ = true;
-  }
-
- private:
-  template <typename T>
-  void set(T& target, T const& value, std::string const& name, set_mode mode) {
-    switch (mode) {
-    case options_interface::DEFAULT:
-      if (!vm_.count(name) || vm_[name].defaulted()) {
-        LOG_INFO << "script is setting " << name << "=" << value;
-        target = value;
-      }
-      break;
-
-    case options_interface::OVERRIDE:
-      if (vm_.count(name) && !vm_[name].defaulted()) {
-        LOG_WARN << "script is overriding " << name << "=" << value;
-      } else {
-        LOG_INFO << "script is setting " << name << "=" << value;
-      }
-      target = value;
-      break;
-    }
-  }
-
-  LOG_PROXY_DECL(debug_logger_policy);
-  po::variables_map& vm_;
-  scanner_options& opts_;
-  bool& force_similarity_;
-};
-
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv) {
@@ -903,19 +852,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     script = bs;
   }
 
-  bool force_similarity = false;
-
-  if (script && script->has_configure()) {
-    script_options script_opts(lgr, vm, options, force_similarity);
-    script->configure(script_opts);
-  }
-
-  if (options.file_order.mode == file_order_mode::SCRIPT && !script) {
-    std::cerr << "error: '--order=script' can only be used with a valid "
-                 "'--script' option\n";
-    return 1;
-  }
-
   if (vm.count("set-owner")) {
     options.uid = uid;
   }
@@ -1086,7 +1022,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       wg_compress.wait();
     } else {
       options.inode.with_similarity =
-          force_similarity ||
           options.file_order.mode == file_order_mode::SIMILARITY;
       options.inode.with_nilsimsa =
           options.file_order.mode == file_order_mode::NILSIMSA;
