@@ -25,6 +25,8 @@
 #include <stdexcept>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
+#include <folly/small_vector.h>
 
 #ifndef NDEBUG
 #include <folly/experimental/symbolizer/Symbolizer.h>
@@ -108,9 +110,11 @@ void stream_logger::write(level_type level, const std::string& output,
 
     char lchar = logger::level_char(level);
     std::string context;
+    size_t context_len = 0;
 
     if (with_context_ && file) {
       context = get_logger_context(file, line);
+      context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,
@@ -118,9 +122,20 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
+    folly::small_vector<std::string_view, 2> lines;
+    folly::split('\n', output, lines);
+
+    if (lines.back().empty()) {
+      lines.pop_back();
+    }
+
     std::lock_guard lock(mx_);
-    os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
-        << "\n";
+    for (auto l : lines) {
+      os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
+          << "\n";
+      std::fill(t.begin(), t.end(), '.');
+      context.assign(context_len, ' ');
+    }
 
 #if DWARFS_SYMBOLIZE
     if (threshold_ == TRACE) {
