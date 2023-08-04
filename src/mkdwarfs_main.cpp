@@ -981,7 +981,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     contextual_option_parser cop("--order", options.inode.fragment_order, cp,
                                  order_parser);
     cop.parse(order);
-    cop.dump(std::cerr);
+    LOG_DEBUG << cop.as_string();
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -992,7 +992,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     contextual_option_parser cop("--max-lookback-blocks", max_lookback_opt, cp,
                                  max_lookback_parser);
     cop.parse(max_lookback_blocks);
-    cop.dump(std::cerr);
+    LOG_DEBUG << cop.as_string();
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -1003,7 +1003,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     contextual_option_parser cop("--window-size", window_size_opt, cp,
                                  window_size_parser);
     cop.parse(window_size);
-    cop.dump(std::cerr);
+    LOG_DEBUG << cop.as_string();
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -1014,7 +1014,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     contextual_option_parser cop("--window-step", window_step_opt, cp,
                                  window_step_parser);
     cop.parse(window_step);
-    cop.dump(std::cerr);
+    LOG_DEBUG << cop.as_string();
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -1025,7 +1025,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     contextual_option_parser cop("--compression", compression_opt, cp,
                                  compressor_parser);
     cop.parse(compression);
-    cop.dump(std::cerr);
+    LOG_DEBUG << cop.as_string();
 
     compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr](
                                          auto cat, block_compressor const& bc) {
