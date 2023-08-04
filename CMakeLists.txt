@@ -356,7 +356,6 @@ list(
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
-  src/dwarfs/block_manager.cpp
   src/dwarfs/block_range.cpp
   src/dwarfs/builtin_script.cpp
   src/dwarfs/cached_block.cpp
@@ -394,6 +393,7 @@ list(
   src/dwarfs/progress.cpp
   src/dwarfs/safe_main.cpp
   src/dwarfs/scanner.cpp
+  src/dwarfs/segmenter.cpp
   src/dwarfs/similarity.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp

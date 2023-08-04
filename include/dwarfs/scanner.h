@@ -27,7 +27,7 @@
 #include <span>
 #include <string>
 
-#include "dwarfs/block_manager.h"
+#include "dwarfs/segmenter.h"
 
 namespace dwarfs {
 
@@ -43,7 +43,7 @@ class worker_group;
 
 class scanner {
  public:
-  scanner(logger& lgr, worker_group& wg, const block_manager::config& cfg,
+  scanner(logger& lgr, worker_group& wg, const segmenter::config& cfg,
           std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
           std::shared_ptr<script> scr, const scanner_options& options);
 

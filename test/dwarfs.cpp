@@ -63,7 +63,7 @@ std::string const default_file_hash_algo{"xxh3-128"};
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
-             block_manager::config const& cfg = block_manager::config(),
+             segmenter::config const& cfg = segmenter::config(),
              scanner_options const& options = scanner_options(),
              progress* prog = nullptr, std::shared_ptr<script> scr = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
@@ -99,7 +99,7 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool plain_names_table, bool plain_symlinks_table,
                            bool access_fail,
                            std::optional<std::string> file_hash_algo) {
-  block_manager::config cfg;
+  segmenter::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size = 10;
@@ -545,7 +545,7 @@ TEST_P(packing_test, regression_empty_fs) {
   auto [pack_chunk_table, pack_directories, pack_shared_files_table, pack_names,
         pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
 
-  block_manager::config cfg;
+  segmenter::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size = 8;
@@ -622,8 +622,8 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, plain_tables_test,
                          ::testing::Combine(::testing::Bool(),
                                             ::testing::Bool()));
 
-TEST(block_manager, regression_block_boundary) {
-  block_manager::config cfg;
+TEST(segmenter, regression_block_boundary) {
+  segmenter::config cfg;
 
   // make sure we don't actually segment anything
   cfg.blockhash_window_size = 12;
@@ -668,7 +668,7 @@ class compression_regression : public testing::TestWithParam<std::string> {};
 TEST_P(compression_regression, github45) {
   auto compressor = GetParam();
 
-  block_manager::config cfg;
+  segmenter::config cfg;
 
   constexpr size_t block_size_bits = 18;
   constexpr size_t file_size = 1 << block_size_bits;
@@ -761,7 +761,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   test::test_logger lgr;
 
-  auto bmcfg = block_manager::config();
+  auto bmcfg = segmenter::config();
   auto opts = scanner_options();
 
   file_order_options order_opts;
@@ -804,7 +804,7 @@ class filter : public testing::TestWithParam<dwarfs::test::filter_test_data> {};
 TEST_P(filter, filesystem) {
   auto spec = GetParam();
 
-  block_manager::config cfg;
+  segmenter::config cfg;
   scanner_options options;
 
   options.remove_empty_dirs = true;
@@ -862,7 +862,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
 TEST(file_scanner, input_list) {
   test::test_logger lgr;
 
-  auto bmcfg = block_manager::config();
+  auto bmcfg = segmenter::config();
   auto opts = scanner_options();
 
   file_order_options order_opts;

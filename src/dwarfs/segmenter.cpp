@@ -39,7 +39,6 @@
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_data.h"
-#include "dwarfs/block_manager.h"
 #include "dwarfs/compiler.h"
 #include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
@@ -50,12 +49,13 @@
 #include "dwarfs/mmif.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/segmenter.h"
 #include "dwarfs/util.h"
 
 namespace dwarfs {
 
 /**
- * Block Manager Strategy
+ * Segmenter Strategy
  *
  * For each *block*, start new rolling hash. The hashes are associcated
  * with the block, new hash-offset-pairs will only be added as the block
@@ -77,8 +77,8 @@ namespace dwarfs {
  * configurable.
  */
 
-struct bm_stats {
-  bm_stats()
+struct segmenter_stats {
+  segmenter_stats()
       : l2_collision_vec_size(1, 0, 128) {}
 
   size_t total_hashes{0};
@@ -266,7 +266,7 @@ class active_block {
     }
   }
 
-  void finalize(bm_stats& stats) {
+  void finalize(segmenter_stats& stats) {
     stats.total_hashes += offsets_.values().size();
     for (auto& c : offsets_.collisions()) {
       stats.total_hashes += c.second.size();
@@ -288,10 +288,10 @@ class active_block {
 };
 
 template <typename LoggerPolicy>
-class block_manager_ final : public block_manager::impl {
+class segmenter_ final : public segmenter::impl {
  public:
-  block_manager_(logger& lgr, progress& prog, const block_manager::config& cfg,
-                 std::shared_ptr<os_access> os, filesystem_writer& fsw)
+  segmenter_(logger& lgr, progress& prog, const segmenter::config& cfg,
+             std::shared_ptr<os_access> os, filesystem_writer& fsw)
       : LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , cfg_{cfg}
@@ -327,29 +327,29 @@ class block_manager_ final : public block_manager::impl {
   void add_data(inode& ino, mmif& mm, size_t offset, size_t size);
   void segment_and_add_data(inode& ino, mmif& mm, size_t size);
 
-  static size_t bloom_filter_size(const block_manager::config& cfg) {
+  static size_t bloom_filter_size(const segmenter::config& cfg) {
     auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
                       (block_size(cfg) / window_step(cfg));
     return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
   }
 
-  static size_t window_size(const block_manager::config& cfg) {
+  static size_t window_size(const segmenter::config& cfg) {
     return cfg.blockhash_window_size > 0
                ? static_cast<size_t>(1) << cfg.blockhash_window_size
                : 0;
   }
 
-  static size_t window_step(const block_manager::config& cfg) {
+  static size_t window_step(const segmenter::config& cfg) {
     return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
   }
 
-  static size_t block_size(const block_manager::config& cfg) {
+  static size_t block_size(const segmenter::config& cfg) {
     return static_cast<size_t>(1) << cfg.block_size_bits;
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
-  const block_manager::config& cfg_;
+  const segmenter::config& cfg_;
   std::shared_ptr<os_access> os_;
   filesystem_writer& fsw_;
 
@@ -362,7 +362,7 @@ class block_manager_ final : public block_manager::impl {
 
   bloom_filter filter_;
 
-  bm_stats stats_;
+  segmenter_stats stats_;
 
   // Active blocks are blocks that can still be referenced from new chunks.
   // Up to N blocks (configurable) can be active and are kept in this queue.
@@ -455,7 +455,7 @@ void segment_match::verify_and_extend(uint8_t const* pos, size_t len,
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
+void segmenter_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
   auto e = ino->any();
 
   if (size_t size = e->size(); size > 0) {
@@ -475,7 +475,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::finish_blocks() {
+void segmenter_<LoggerPolicy>::finish_blocks() {
   if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
@@ -518,7 +518,7 @@ void block_manager_<LoggerPolicy>::finish_blocks() {
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::block_ready() {
+void segmenter_<LoggerPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
   fsw_.write_block(block.data());
@@ -526,8 +526,8 @@ void block_manager_<LoggerPolicy>::block_ready() {
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
-                                                   size_t offset, size_t size) {
+void segmenter_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
+                                               size_t offset, size_t size) {
   if (DWARFS_UNLIKELY(blocks_.empty() or blocks_.back().full())) {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
@@ -558,8 +558,8 @@ void block_manager_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
-                                            size_t size) {
+void segmenter_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
+                                        size_t size) {
   while (size > 0) {
     size_t block_offset = 0;
 
@@ -577,7 +577,7 @@ void block_manager_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::finish_chunk(inode& ino) {
+void segmenter_<LoggerPolicy>::finish_chunk(inode& ino) {
   if (chunk_.size > 0) {
     auto& block = blocks_.back();
     ino.add_chunk(block.num(), chunk_.offset, chunk_.size);
@@ -588,8 +588,8 @@ void block_manager_<LoggerPolicy>::finish_chunk(inode& ino) {
 }
 
 template <typename LoggerPolicy>
-void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
-                                                        size_t size) {
+void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
+                                                    size_t size) {
   rsync_hash hasher;
   size_t offset = 0;
   size_t written = 0;
@@ -719,10 +719,9 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
   finish_chunk(ino);
 }
 
-block_manager::block_manager(logger& lgr, progress& prog, const config& cfg,
-                             std::shared_ptr<os_access> os,
-                             filesystem_writer& fsw)
-    : impl_(make_unique_logging_object<impl, block_manager_, logger_policies>(
+segmenter::segmenter(logger& lgr, progress& prog, const config& cfg,
+                     std::shared_ptr<os_access> os, filesystem_writer& fsw)
+    : impl_(make_unique_logging_object<impl, segmenter_, logger_policies>(
           lgr, prog, cfg, os, fsw)) {}
 
 } // namespace dwarfs
