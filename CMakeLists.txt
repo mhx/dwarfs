@@ -931,10 +931,8 @@ add_custom_target(
         "dwarfs_test[1]_include.cmake"
         "dwarfs_tools_test[1]_include.cmake"
         "dwarfs_utils_test[1]_include.cmake"
-        fbthrift folly zstd libarchive
+        fbthrift folly zstd
         include src thrift universal bin lib man1 man5
-        fmtlib fmtlib-build fmtlib-install
-        googletest googletest-build
         vcpkg-manifest-install.log
         dwarfs.exe.manifest dwarfsbench.exe.manifest
         dwarfsck.exe.manifest dwarfsextract.exe.manifest
@@ -952,9 +950,7 @@ add_custom_target(
   COMMAND
     COMMAND ${CMAKE_MAKE_PROGRAM} realclean
   COMMAND
-    ${CMAKE_COMMAND} -E rm -rf
-        fmtlib-download fmtlib-src
-        googletest-download googletest-src
+    ${CMAKE_COMMAND} -E rm -rf _deps
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
