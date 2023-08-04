@@ -103,6 +103,7 @@ class stream_logger : public logger {
   std::mutex mutable mx_;
   std::atomic<level_type> threshold_;
   bool const color_;
+  bool const enable_stack_trace_;
   bool with_context_;
 };
 
