@@ -63,8 +63,12 @@ class inode_manager {
   }
 
   std::vector<std::pair<fragment_category::value_type, size_t>>
-  category_counts() const {
-    return impl_->category_counts();
+  fragment_category_counts() const {
+    return impl_->fragment_category_counts();
+  }
+
+  std::vector<fragment_category> inode_categories() const {
+    return impl_->inode_categories();
   }
 
   void scan_background(worker_group& wg, os_access& os,
@@ -85,7 +89,8 @@ class inode_manager {
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual std::vector<std::pair<fragment_category::value_type, size_t>>
-    category_counts() const = 0;
+    fragment_category_counts() const = 0;
+    virtual std::vector<fragment_category> inode_categories() const = 0;
     virtual void
     scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
                     file const* p) const = 0;
