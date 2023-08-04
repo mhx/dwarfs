@@ -33,7 +33,7 @@ class logger;
 class os_access;
 class progress;
 
-class block_manager {
+class segmenter {
  public:
   struct config {
     unsigned blockhash_window_size;
@@ -44,8 +44,8 @@ class block_manager {
     unsigned bloom_filter_size{4};
   };
 
-  block_manager(logger& lgr, progress& prog, const config& cfg,
-                std::shared_ptr<os_access> os, filesystem_writer& fsw);
+  segmenter(logger& lgr, progress& prog, const config& cfg,
+            std::shared_ptr<os_access> os, filesystem_writer& fsw);
 
   void add_inode(std::shared_ptr<inode> ino) { impl_->add_inode(ino); }
 
