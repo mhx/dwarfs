@@ -24,6 +24,7 @@
 #include <iosfwd>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -176,6 +177,12 @@ class contextual_option_parser {
     for (auto const& [ctx, val] : opt_.contextual_) {
       os << "  [" << cp_.to_string(ctx) << "]: " << op_.to_string(val) << "\n";
     }
+  }
+
+  std::string as_string() const {
+    std::ostringstream oss;
+    dump(oss);
+    return oss.str();
   }
 
  private:
