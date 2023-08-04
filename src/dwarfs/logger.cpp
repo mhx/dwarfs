@@ -43,6 +43,19 @@
 
 namespace dwarfs {
 
+namespace {
+
+bool get_enable_stack_trace() {
+  if (auto var = std::getenv("DWARFS_LOGGER_STACK_TRACE")) {
+    if (auto val = folly::tryTo<bool>(var); val && *val) {
+      return true;
+    }
+  }
+  return false;
+}
+
+} // namespace
+
 logger::level_type logger::parse_level(std::string_view level) {
   if (level == "error") {
     return ERROR;
@@ -66,6 +79,7 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)
     , color_(stream_is_fancy_terminal(os))
+    , enable_stack_trace_{get_enable_stack_trace()}
     , with_context_(with_context) {
   set_threshold(threshold);
 }
@@ -100,16 +114,23 @@ void stream_logger::write(level_type level, const std::string& output,
     }
 
 #if DWARFS_SYMBOLIZE
-    folly::symbolizer::StringSymbolizePrinter printer(
-        color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
+    std::string stacktrace;
+    std::vector<std::string_view> st_lines;
 
-    if (threshold_ == TRACE) {
+    if (enable_stack_trace_) {
       using namespace folly::symbolizer;
       Symbolizer symbolizer(LocationInfoMode::FULL);
-      FrameArray<5> addresses;
+      FrameArray<8> addresses;
       getStackTraceSafe(addresses);
       symbolizer.symbolize(addresses);
-      printer.println(addresses, 0);
+      folly::symbolizer::StringSymbolizePrinter printer(
+          color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
+      printer.println(addresses, 3);
+      stacktrace = printer.str();
+      folly::split('\n', stacktrace, st_lines);
+      if (st_lines.back().empty()) {
+        st_lines.pop_back();
+      }
     }
 #endif
 
@@ -134,6 +155,8 @@ void stream_logger::write(level_type level, const std::string& output,
       lines.pop_back();
     }
 
+    bool clear_ctx = true;
+
     std::lock_guard lock(mx_);
 
     preamble();
@@ -141,18 +164,21 @@ void stream_logger::write(level_type level, const std::string& output,
     for (auto l : lines) {
       os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
           << newline;
-      std::fill(t.begin(), t.end(), '.');
-      context.assign(context_len, ' ');
+
+      if (clear_ctx) {
+        std::fill(t.begin(), t.end(), '.');
+        context.assign(context_len, ' ');
+        clear_ctx = false;
+      }
     }
 
-    postamble();
-
-    // TODO: this needs to be done differently for console_writer
 #if DWARFS_SYMBOLIZE
-    if (threshold_ == TRACE) {
-      os_ << printer.str();
+    for (auto l : st_lines) {
+      os_ << l << newline;
     }
 #endif
+
+    postamble();
   }
 }
 
