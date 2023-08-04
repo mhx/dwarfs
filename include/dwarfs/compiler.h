@@ -21,14 +21,6 @@
 
 #pragma once
 
-#if defined(__GNUC__)
-#define DWARFS_LIKELY(x) __builtin_expect((x), 1)
-#define DWARFS_UNLIKELY(x) __builtin_expect((x), 0)
-#else
-#define DWARFS_LIKELY(x) (x)
-#define DWARFS_UNLIKELY(x) (x)
-#endif
-
 #if defined(__SANITIZE_THREAD__)
 #define DWARFS_SANITIZE_THREAD 1
 #elif defined(__has_feature)

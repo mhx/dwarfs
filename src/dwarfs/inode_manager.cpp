@@ -75,11 +75,11 @@ namespace dwarfs {
       int sim;                                                                 \
       DWARFS_NILSIMSA_SIMILARITY(sim =, ref_hash, test_hash);                  \
                                                                                \
-      if (DWARFS_UNLIKELY(sim > max_sim)) {                                    \
+      if (sim > max_sim) [[unlikely]] {                                        \
         max_sim = sim;                                                         \
         max_sim_ix = i;                                                        \
                                                                                \
-        if (DWARFS_UNLIKELY(max_sim >= limit)) {                               \
+        if (max_sim >= limit) [[unlikely]] {                                   \
           break;                                                               \
         }                                                                      \
       }                                                                        \
