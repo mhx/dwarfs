@@ -62,7 +62,7 @@ class nilsimsa::impl {
   impl() { acc_.fill(0); }
 
   void update(uint8_t const* data, size_t size) {
-    if (DWARFS_UNLIKELY(size_ < 4)) {
+    if (size_ < 4) [[unlikely]] {
       size_t n = std::min(size, 4 - size_);
       update_slow(data, n);
       data += n;
