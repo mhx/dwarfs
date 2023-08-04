@@ -24,6 +24,8 @@
 #include <sstream>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
+#include <folly/small_vector.h>
 
 #include <fmt/format.h>
 
@@ -126,6 +128,7 @@ void console_writer::write(level_type level, const std::string& output,
     auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
+    const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
     if (color_) {
       switch (level) {
@@ -146,9 +149,11 @@ void console_writer::write(level_type level, const std::string& output,
 
     char lchar = logger::level_char(level);
     std::string context;
+    size_t context_len = 0;
 
     if (with_context_ && file) {
       context = get_logger_context(file, line);
+      context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,
@@ -156,20 +161,26 @@ void console_writer::write(level_type level, const std::string& output,
       }
     }
 
+    folly::small_vector<std::string_view, 2> lines;
+    folly::split('\n', output, lines);
+
+    if (lines.back().empty()) {
+      lines.pop_back();
+    }
+
     std::lock_guard lock(mx_);
 
-    switch (pg_mode_) {
-    case UNICODE:
-    case ASCII:
-      rewind();
-      os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
-          << "\x1b[K\n";
-      os_ << statebuf_;
-      break;
+    rewind();
 
-    default:
-      os_ << lchar << ' ' << t << ' ' << context << output << "\n";
-      break;
+    for (auto l : lines) {
+      os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
+          << newline;
+      std::fill(t.begin(), t.end(), '.');
+      context.assign(context_len, ' ');
+    }
+
+    if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
+      os_ << statebuf_;
     }
   }
 }
