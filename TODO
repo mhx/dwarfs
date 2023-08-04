@@ -1,3 +1,21 @@
+filesystem_writer holds compressors for all categories:
+
+    filesystem_writer::write_block(data, category);
+
+There's one block_manager for each category. We should probably
+rename it to something like category_block_manager? Or even something
+with `segmenter` in the name? Or maybe just segmenter?
+
+The new block_manager would be shared between all segmenters and take
+care of providing new blocks and enforcing limits.
+
+There might also be a segmenter_manager that would queue all segmenters
+and run them in a worker group.
+
+
+
+
+
 - Forward compatibility
 
   - Feature flags (feature strings)
