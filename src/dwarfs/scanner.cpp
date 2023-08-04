@@ -268,7 +268,7 @@ std::string status_string(progress const& p, size_t width) {
 template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
-  scanner_(logger& lgr, worker_group& wg, const block_manager::config& config,
+  scanner_(logger& lgr, worker_group& wg, const segmenter::config& config,
            std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
            std::shared_ptr<script> scr, const scanner_options& options);
 
@@ -290,7 +290,7 @@ class scanner_ final : public scanner::impl {
             progress& prog, detail::file_scanner& fs,
             bool debug_filter = false);
 
-  const block_manager::config& cfg_;
+  const segmenter::config& cfg_;
   const scanner_options& options_;
   std::shared_ptr<entry_factory> entry_;
   std::shared_ptr<os_access> os_;
@@ -302,7 +302,7 @@ class scanner_ final : public scanner::impl {
 
 template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
-                                 const block_manager::config& cfg,
+                                 const segmenter::config& cfg,
                                  std::shared_ptr<entry_factory> ef,
                                  std::shared_ptr<os_access> os,
                                  std::shared_ptr<script> scr,
@@ -658,7 +658,7 @@ void scanner_<LoggerPolicy>::scan(
   });
 
   LOG_INFO << "building blocks...";
-  block_manager bm(lgr_, prog, cfg_, os_, fsw);
+  segmenter bm(lgr_, prog, cfg_, os_, fsw);
 
   {
     worker_group blockify("blockify", 1, 1 << 20);
@@ -818,8 +818,7 @@ void scanner_<LoggerPolicy>::scan(
            << ")";
 }
 
-scanner::scanner(logger& lgr, worker_group& wg,
-                 const block_manager::config& cfg,
+scanner::scanner(logger& lgr, worker_group& wg, const segmenter::config& cfg,
                  std::shared_ptr<entry_factory> ef,
                  std::shared_ptr<os_access> os, std::shared_ptr<script> scr,
                  const scanner_options& options)
