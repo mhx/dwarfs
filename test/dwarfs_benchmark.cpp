@@ -26,7 +26,6 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include "dwarfs/block_compressor.h"
-#include "dwarfs/block_manager.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
@@ -36,6 +35,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
+#include "dwarfs/segmenter.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
@@ -91,7 +91,7 @@ void PackParamsDirs(::benchmark::internal::Benchmark* b) {
 }
 
 std::string make_filesystem(::benchmark::State const& state) {
-  block_manager::config cfg;
+  segmenter::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size = 8;
