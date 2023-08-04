@@ -35,7 +35,7 @@ namespace dwarfs {
 
 class progress;
 
-class console_writer : public logger {
+class console_writer : public stream_logger {
  public:
   using get_term_width_type = std::function<size_t()>;
 
@@ -46,25 +46,20 @@ class console_writer : public logger {
                  get_term_width_type get_term_width, level_type threshold,
                  display_mode mode = NORMAL, bool verbose = false);
 
-  void write(level_type level, const std::string& output, char const* file,
-             int line) override;
-
   void update(const progress& p, bool last);
 
  private:
+  void preamble() override;
+  void postamble() override;
+  std::string_view get_newline() const override;
   void rewind();
 
-  std::ostream& os_;
-  std::mutex mx_;
-  std::atomic<level_type> threshold_;
   std::string statebuf_;
   double frac_;
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
   get_term_width_type get_term_width_;
   display_mode const mode_;
-  bool const color_;
-  bool const with_context_;
   bool const debug_progress_;
   bool writing_{false};
   speedometer<uint64_t> read_speed_;
