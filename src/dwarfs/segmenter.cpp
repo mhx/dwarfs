@@ -101,17 +101,17 @@ class fast_multimap {
 
  public:
   void insert(KeyT const& key, ValT const& val) {
-    if (DWARFS_UNLIKELY(!values_.insert(std::make_pair(key, val)).second)) {
+    if (!values_.insert(std::make_pair(key, val)).second) [[unlikely]] {
       collisions_[key].emplace_back(val);
     }
   }
 
   template <typename F>
   void for_each_value(KeyT const& key, F&& func) const {
-    if (auto it = values_.find(key); DWARFS_UNLIKELY(it != values_.end())) {
+    if (auto it = values_.find(key); it != values_.end()) [[unlikely]] {
       func(it->second);
-      if (auto it2 = collisions_.find(key);
-          DWARFS_UNLIKELY(it2 != collisions_.end())) {
+      if (auto it2 = collisions_.find(key); it2 != collisions_.end())
+          [[unlikely]] {
         for (auto const& val : it2->second) {
           func(val);
         }
@@ -261,7 +261,7 @@ class active_block {
 
   template <typename F>
   void for_each_offset_filter(hash_t key, F&& func) const {
-    if (DWARFS_UNLIKELY(filter_.test(key))) {
+    if (filter_.test(key)) [[unlikely]] {
       offsets_.for_each_value(key, std::forward<F>(func));
     }
   }
@@ -410,11 +410,11 @@ void active_block::append(uint8_t const* p, size_t size, bloom_filter* filter) {
 
   if (window_size_ > 0) {
     while (offset < v.size()) {
-      if (DWARFS_UNLIKELY(offset < window_size_)) {
+      if (offset < window_size_) [[unlikely]] {
         hasher_.update(v[offset++]);
       } else {
         hasher_.update(v[offset - window_size_], v[offset]);
-        if (DWARFS_UNLIKELY((++offset & window_step_mask_) == 0)) {
+        if ((++offset & window_step_mask_) == 0) [[unlikely]] {
           auto hashval = hasher_();
           offsets_.insert(hashval, offset - window_size_);
           filter_.add(hashval);
@@ -528,7 +528,7 @@ void segmenter_<LoggerPolicy>::block_ready() {
 template <typename LoggerPolicy>
 void segmenter_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
                                                size_t offset, size_t size) {
-  if (DWARFS_UNLIKELY(blocks_.empty() or blocks_.back().full())) {
+  if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
     }
@@ -550,7 +550,7 @@ void segmenter_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
 
   prog_.filesystem_size += size;
 
-  if (DWARFS_UNLIKELY(block.full())) {
+  if (block.full()) [[unlikely]] {
     mm.release_until(offset + size);
     finish_chunk(ino);
     block_ready();
@@ -614,7 +614,7 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
 
   while (offset < size) {
     ++stats_.bloom_lookups;
-    if (DWARFS_UNLIKELY(filter_.test(hasher()))) {
+    if (filter_.test(hasher())) [[unlikely]] {
       ++stats_.bloom_hits;
       if (single_block_mode) {
         auto& block = blocks_.front();
@@ -629,7 +629,7 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
         }
       }
 
-      if (DWARFS_UNLIKELY(!matches.empty())) {
+      if (!matches.empty()) [[unlikely]] {
         ++stats_.bloom_true_positives;
 
         LOG_TRACE << "found " << matches.size() << " matches (hash=" << hasher()
@@ -699,7 +699,7 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
     // no matches found, see if we can append data
     // we need to keep at least lookback_size bytes unwritten
 
-    if (DWARFS_UNLIKELY(offset == next_hash_offset)) {
+    if (offset == next_hash_offset) [[unlikely]] {
       auto num_to_write = offset - lookback_size - written;
       add_data(ino, mm, written, num_to_write);
       written += num_to_write;
