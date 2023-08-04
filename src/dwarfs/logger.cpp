@@ -70,12 +70,17 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold,
   set_threshold(threshold);
 }
 
+void stream_logger::preamble() {}
+void stream_logger::postamble() {}
+std::string_view stream_logger::get_newline() const { return "\n"; }
+
 void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
   if (level <= threshold_) {
     auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
+    auto newline = get_newline();
 
     if (color_) {
       switch (level) {
@@ -130,13 +135,19 @@ void stream_logger::write(level_type level, const std::string& output,
     }
 
     std::lock_guard lock(mx_);
+
+    preamble();
+
     for (auto l : lines) {
       os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
-          << "\n";
+          << newline;
       std::fill(t.begin(), t.end(), '.');
       context.assign(context_len, ' ');
     }
 
+    postamble();
+
+    // TODO: this needs to be done differently for console_writer
 #if DWARFS_SYMBOLIZE
     if (threshold_ == TRACE) {
       os_ << printer.str();
