@@ -558,62 +558,57 @@ endif()
 
 if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp)
-  add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
-  add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
-  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
-  add_executable(dwarfs_utils_test test/utils_test.cpp)
-  add_executable(dwarfs_pcm_sample_transformer_test
-          test/pcm_sample_transformer_test.cpp)
-  add_executable(dwarfs_pcmaudio_categorizer_test
-          test/pcmaudio_categorizer_test.cpp)
-  add_executable(dwarfs_incompressible_categorizer_test
-          test/incompressible_categorizer_test.cpp)
-
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
+  list(APPEND TEST_TARGETS dwarfs_test)
+
+  add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
+  target_compile_definitions(dwarfs_compat_test
+    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+  list(APPEND TEST_TARGETS dwarfs_compat_test)
+
+  add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
   target_link_libraries(dwarfs_badfs_test gtest gtest_main)
+  target_compile_definitions(dwarfs_badfs_test
+    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+  list(APPEND TEST_TARGETS dwarfs_badfs_test)
+
+  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
   target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
+  target_compile_definitions(dwarfs_tools_test
+    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  list(APPEND TEST_TARGETS dwarfs_tools_test)
+
+  add_executable(dwarfs_utils_test test/utils_test.cpp)
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
+  list(APPEND TEST_TARGETS dwarfs_utils_test)
+
+  add_executable(dwarfs_pcm_sample_transformer_test test/pcm_sample_transformer_test.cpp)
   target_link_libraries(dwarfs_pcm_sample_transformer_test gtest gtest_main)
+  list(APPEND TEST_TARGETS dwarfs_pcm_sample_transformer_test)
+
+  add_executable(dwarfs_pcmaudio_categorizer_test test/pcmaudio_categorizer_test.cpp)
   target_link_libraries(dwarfs_pcmaudio_categorizer_test gtest gtest_main gmock_main
                         "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+  target_compile_definitions(dwarfs_pcmaudio_categorizer_test PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+  list(APPEND TEST_TARGETS dwarfs_pcmaudio_categorizer_test)
+
+  add_executable(dwarfs_incompressible_categorizer_test test/incompressible_categorizer_test.cpp)
   target_link_libraries(dwarfs_incompressible_categorizer_test test_helpers
                         gtest gtest_main gmock_main
                         "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
-
-  list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
-       dwarfs_tools_test dwarfs_utils_test dwarfs_pcm_sample_transformer_test
-       dwarfs_pcmaudio_categorizer_test dwarfs_incompressible_categorizer_test)
-
-  gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_badfs_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_pcm_sample_transformer_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_pcmaudio_categorizer_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_incompressible_categorizer_test DISCOVERY_TIMEOUT 120)
+  list(APPEND TEST_TARGETS dwarfs_incompressible_categorizer_test)
 
   if(FLAC_FOUND)
     add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
     target_link_libraries(dwarfs_flac_compressor_test gtest gtest_main)
-    list(APPEND BINARY_TARGETS dwarfs_flac_compressor_test)
-    gtest_discover_tests(dwarfs_flac_compressor_test DISCOVERY_TIMEOUT 120)
+    list(APPEND TEST_TARGETS dwarfs_flac_compressor_test)
   endif()
 
-  target_compile_definitions(dwarfs_compat_test
-                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-
-  target_compile_definitions(dwarfs_badfs_test
-                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-
-  target_compile_definitions(dwarfs_pcmaudio_categorizer_test
-                             PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-
-  target_compile_definitions(
-    dwarfs_tools_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  foreach(tgt ${TEST_TARGETS})
+    gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
+  endforeach()
 endif()
 
 if(WITH_BENCHMARKS)
@@ -824,7 +819,7 @@ target_link_libraries(compression_thrift thrift_light)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
-            ${BINARY_TARGETS} ${MAIN_TARGETS})
+            ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
@@ -955,7 +950,7 @@ else()
   target_link_libraries(dwarfs xxhash)
 endif()
 
-foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
+foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   target_link_libraries(${tgt} dwarfs dwarfs_tool)
   if(USE_JEMALLOC)
@@ -1015,7 +1010,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs_categorizer static_libmagic)
   target_link_libraries(dwarfs_compression static_libflac)
 
-  foreach(tgt ${BINARY_TARGETS})
+  foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
     if(PREFER_SYSTEM_LIBFMT)
       target_link_libraries(
         ${tgt}
@@ -1046,6 +1041,15 @@ if(STATIC_BUILD_DO_NOT_USE)
   endforeach()
 endif(STATIC_BUILD_DO_NOT_USE)
 
+foreach(tgt ${TEST_TARGETS})
+  list(APPEND REALCLEAN_FILES "${tgt}[1]_include.cmake")
+  list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
+endforeach()
+
+foreach(tgt ${BINARY_TARGETS})
+  list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
+endforeach()
+
 add_custom_target(
   realclean
   COMMAND
@@ -1057,23 +1061,13 @@ add_custom_target(
         dwarfs_install.cmake package_version.cmake
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
         CTestTestfile.cmake Testing
-        "dwarfs_badfs_test[1]_include.cmake"
-        "dwarfs_compat_test[1]_include.cmake"
-        "dwarfs_test[1]_include.cmake"
-        "dwarfs_tools_test[1]_include.cmake"
-        "dwarfs_utils_test[1]_include.cmake"
         fbthrift folly zstd
         include src thrift universal bin lib man1 man5
         vcpkg-manifest-install.log
-        dwarfs.exe.manifest dwarfsbench.exe.manifest
-        dwarfsck.exe.manifest dwarfsextract.exe.manifest
-        dwarfs_badfs_test.exe.manifest dwarfs_compat_test.exe.manifest
-        dwarfs_test.exe.manifest dwarfs_tools_test.exe.manifest
-        dwarfs_utils_test.exe.manifest mkdwarfs.exe.manifest
-        install_manifest_dev.txt install_manifest_gmock.txt
-        install_manifest_gtest.txt install_manifest_Unspecified.txt
         build.ninja .ninja_deps
         Makefile
+  COMMAND
+    ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
 )
 
 add_custom_target(
