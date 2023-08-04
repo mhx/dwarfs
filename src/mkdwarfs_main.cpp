@@ -571,6 +571,17 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           }
         });
 
+    std::cout << "\nCategories:\n";
+
+    for (auto const& name : catreg.categorizer_names()) {
+      stream_logger lgr;
+      auto categorizer = catreg.create(lgr, name, vm);
+      std::cout << "  [" << name << "]\n";
+      for (auto cat : categorizer->categories()) {
+        std::cout << "    " << cat << "\n";
+      }
+    }
+
     std::cout << "\n";
 
     return 0;
