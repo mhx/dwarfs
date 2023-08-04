@@ -52,7 +52,6 @@
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_compressor_parser.h"
-#include "dwarfs/block_manager.h"
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/categorizer.h"
 #include "dwarfs/category_parser.h"
@@ -73,6 +72,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
+#include "dwarfs/segmenter.h"
 #include "dwarfs/terminal.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
@@ -274,7 +274,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
-  block_manager::config cfg;
+  segmenter::config cfg;
   sys_string path_str, output_str;
   std::string memory_limit, script_arg, header, schema_compression,
       metadata_compression, log_level_str, timestamp, time_resolution,
