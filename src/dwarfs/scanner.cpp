@@ -606,11 +606,18 @@ void scanner_<LoggerPolicy>::scan(
            << prog.duplicate_files << "/" << prog.files_found
            << " duplicate files";
 
-  if (options_.inode.categorizer_mgr) {
-    for (auto const& cc : im.category_counts()) {
-      LOG_INFO << cc.second << " "
-               << options_.inode.categorizer_mgr->category_name(cc.first)
-               << " files";
+  if (auto catmgr = options_.inode.categorizer_mgr) {
+    for (auto const& cc : im.fragment_category_counts()) {
+      LOG_INFO << cc.second << " " << catmgr->category_name(cc.first)
+               << " fragments";
+    }
+
+    for (auto const& cat : im.inode_categories()) {
+      std::string str(catmgr->category_name(cat.value()));
+      if (cat.has_subcategory()) {
+        str += fmt::format("/{}", cat.subcategory());
+      }
+      LOG_INFO << str;
     }
   }
 
