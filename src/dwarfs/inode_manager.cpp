@@ -477,12 +477,12 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   std::vector<std::pair<fragment_category::value_type, size_t>>
-  category_counts() const override {
+  fragment_category_counts() const override {
     std::unordered_map<fragment_category::value_type, size_t> tmp;
 
     for (auto const& i : inodes_) {
       if (auto const& fragments = i->fragments(); !fragments.empty()) {
-        for (auto const& frag : fragments.span()) {
+        for (auto const& frag : fragments) {
           ++tmp[frag.category().value()];
         }
       }
@@ -496,6 +496,24 @@ class inode_manager_ final : public inode_manager::impl {
 
     std::sort(rv.begin(), rv.end(),
               [](auto const& a, auto const& b) { return a.first < b.first; });
+
+    return rv;
+  }
+
+  std::vector<fragment_category> inode_categories() const override {
+    std::unordered_set<fragment_category> tmp;
+
+    for (auto const& i : inodes_) {
+      if (auto const& fragments = i->fragments(); !fragments.empty()) {
+        for (auto const& frag : fragments) {
+          tmp.emplace(frag.category());
+        }
+      }
+    }
+
+    std::vector<fragment_category> rv(tmp.begin(), tmp.end());
+
+    std::sort(rv.begin(), rv.end());
 
     return rv;
   }
