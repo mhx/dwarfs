@@ -395,10 +395,9 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
     }
 
-    // this isn't strictly necessary, but helps metadata compression
-    std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
-      return a->fs_path() < b->fs_path();
-    });
+    // needed for reproducibility
+    std::sort(files.begin(), files.end(),
+              [](file const* a, file const* b) { return a->less_revpath(*b); });
 
     for (auto fp : files) {
       // need to check because hardlinks share the same number
