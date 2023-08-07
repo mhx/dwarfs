@@ -41,6 +41,7 @@ const std::map<std::string_view, file_order_mode> order_choices{
 #endif
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA},
+    {"nilsimsa2", file_order_mode::NILSIMSA2},
 };
 
 void parse_order_option(std::string_view ordname, std::string_view opt,
@@ -96,27 +97,48 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
     rv.mode = it->second;
 
     if (order_opts.size() > 1) {
-      if (rv.mode != file_order_mode::NILSIMSA) {
-        throw std::runtime_error(
-            fmt::format("inode order mode '{}' does not support options",
-                        order_opts.front()));
-      }
-
-      if (order_opts.size() > 4) {
-        throw std::runtime_error(fmt::format(
-            "too many options for inode order mode '{}'", order_opts.front()));
-      }
-
       auto ordname = order_opts[0];
 
-      parse_order_option(ordname, order_opts[1], rv.nilsimsa_limit, "limit", 0,
-                         255);
+      switch (rv.mode) {
+      case file_order_mode::NILSIMSA:
+        if (order_opts.size() > 4) {
+          throw std::runtime_error(fmt::format(
+              "too many options for inode order mode '{}'", ordname));
+        }
 
-      parse_order_option(ordname, order_opts[2], rv.nilsimsa_depth, "depth", 0);
+        parse_order_option(ordname, order_opts[1], rv.nilsimsa_limit, "limit",
+                           0, 255);
 
-      if (order_opts.size() > 3) {
-        parse_order_option(ordname, order_opts[3], rv.nilsimsa_min_depth,
-                           "min depth", 0);
+        if (order_opts.size() > 2) {
+          parse_order_option(ordname, order_opts[2], rv.nilsimsa_depth, "depth",
+                             0);
+
+          if (order_opts.size() > 3) {
+            parse_order_option(ordname, order_opts[3], rv.nilsimsa_min_depth,
+                               "min depth", 0);
+          }
+        }
+        break;
+
+      case file_order_mode::NILSIMSA2:
+        if (order_opts.size() > 4) {
+          throw std::runtime_error(fmt::format(
+              "too many options for inode order mode '{}'", ordname));
+        }
+
+        parse_order_option(ordname, order_opts[1], rv.nilsimsa2_max_children,
+                           "max_children", 0);
+
+        if (order_opts.size() > 2) {
+          parse_order_option(ordname, order_opts[2],
+                             rv.nilsimsa2_max_cluster_size, "max_cluster_size",
+                             0);
+        }
+        break;
+
+      default:
+        throw std::runtime_error(fmt::format(
+            "inode order mode '{}' does not support options", ordname));
       }
     }
   } else {
@@ -145,6 +167,11 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
     return fmt::format("nilsimsa (limit={}, depth={}, min_depth={})",
                        opts.nilsimsa_limit, opts.nilsimsa_depth,
                        opts.nilsimsa_min_depth);
+
+  case file_order_mode::NILSIMSA2:
+    return fmt::format("nilsimsa2 (max_children={}, max_cluster_size={})",
+                       opts.nilsimsa2_max_children,
+                       opts.nilsimsa2_max_cluster_size);
   }
   return "<unknown>";
 }

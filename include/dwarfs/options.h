@@ -97,7 +97,14 @@ struct filesystem_writer_options {
 };
 
 // TODO: rename
-enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
+enum class file_order_mode {
+  NONE,
+  PATH,
+  SCRIPT,
+  SIMILARITY,
+  NILSIMSA,
+  NILSIMSA2
+};
 
 // TODO: rename
 struct file_order_options {
@@ -105,6 +112,8 @@ struct file_order_options {
   int nilsimsa_depth{20000};
   int nilsimsa_min_depth{1000};
   int nilsimsa_limit{255};
+  int nilsimsa2_max_children{65536};
+  int nilsimsa2_max_cluster_size{65536};
 };
 
 struct inode_options {
