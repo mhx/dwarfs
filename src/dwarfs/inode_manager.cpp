@@ -54,6 +54,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
+#include "dwarfs/similarity_ordering.h"
 #include "dwarfs/worker_group.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
@@ -336,6 +337,7 @@ class inode_ : public inode {
         sc.try_emplace(f.category());
         break;
       case file_order_mode::NILSIMSA:
+      case file_order_mode::NILSIMSA2:
         nc.try_emplace(f.category());
         break;
       }
@@ -397,7 +399,8 @@ class inode_ : public inode {
       similarity_.emplace<uint32_t>(sc.finalize());
     } break;
 
-    case file_order_mode::NILSIMSA: {
+    case file_order_mode::NILSIMSA:
+    case file_order_mode::NILSIMSA2: {
       nilsimsa nc;
       scan_range(mm, 0, mm->size(), nc);
       // TODO: can we finalize in-place?
@@ -440,6 +443,63 @@ class inode_ : public inode {
       nilsimsa_similarity_hash_; // TODO: remove (move to similarity_)
 };
 
+class inode_element_view
+    : public basic_array_similarity_element_view<256, uint64_t> {
+ public:
+  inode_element_view(std::vector<std::shared_ptr<inode>> const& inodes)
+      : inodes_{inodes} {}
+
+  bool exists(size_t /*i*/) const override {
+    // TODO: not true once we use fragments
+    return true;
+  }
+
+  size_t size() const override { return inodes_.size(); }
+
+  size_t weight(size_t i) const override { return inodes_[i]->any()->size(); }
+
+  bool bitvec_less(size_t a, size_t b) const override {
+    auto const& ia = *inodes_[a];
+    auto const& ib = *inodes_[b];
+    if (ia.nilsimsa_similarity_hash() < ib.nilsimsa_similarity_hash()) {
+      return true;
+    }
+    if (ia.nilsimsa_similarity_hash() > ib.nilsimsa_similarity_hash()) {
+      return false;
+    }
+    auto const& fa = *ia.any();
+    auto const& fb = *ib.any();
+    return fa.less_revpath(fb);
+  }
+
+  bool order_less(size_t a, size_t b) const override {
+    auto const& ia = *inodes_[a];
+    auto const& ib = *inodes_[b];
+    auto const& fa = *ia.any();
+    auto const& fb = *ib.any();
+    auto sa = fa.size();
+    auto sb = fb.size();
+    return sa > sb || (sa == sb && fa.less_revpath(fb));
+  }
+
+  bool bits_equal(size_t a, size_t b) const override {
+    return inodes_[a]->nilsimsa_similarity_hash() ==
+           inodes_[b]->nilsimsa_similarity_hash();
+  }
+
+  std::string description(size_t i) const override {
+    auto f = inodes_[i]->any();
+    return fmt::format("{} [{}]", f->path_as_string(), f->size());
+  }
+
+  nilsimsa::hash_type const& get_bits(size_t i) const override {
+    return inodes_[i]->nilsimsa_similarity_hash();
+  }
+
+ private:
+  std::vector<std::shared_ptr<inode>> const& inodes_;
+};
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -459,7 +519,7 @@ class inode_manager_ final : public inode_manager::impl {
 
   size_t count() const override { return inodes_.size(); }
 
-  void order_inodes(std::shared_ptr<script> scr,
+  void order_inodes(worker_group& wg, std::shared_ptr<script> scr,
                     inode_manager::order_cb const& fn) override;
 
   void for_each_inode_in_order(
@@ -532,7 +592,8 @@ class inode_manager_ final : public inode_manager::impl {
 
     return opts.fragment_order.any_is([](auto const& order) {
       return order.mode == file_order_mode::SIMILARITY ||
-             order.mode == file_order_mode::NILSIMSA;
+             order.mode == file_order_mode::NILSIMSA ||
+             order.mode == file_order_mode::NILSIMSA2;
     });
   }
 
@@ -578,6 +639,7 @@ class inode_manager_ final : public inode_manager::impl {
                      std::vector<uint32_t>& index);
 
   void order_inodes_by_nilsimsa(inode_manager::order_cb const& fn);
+  void order_inodes_by_nilsimsa2(worker_group& wg);
 
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<inode>> inodes_;
@@ -617,7 +679,10 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
-    std::shared_ptr<script> scr, inode_manager::order_cb const& fn) {
+    worker_group& wg, std::shared_ptr<script> scr,
+    inode_manager::order_cb const& fn) {
+  // TODO: only use an index, never actually reorder inodes
+
   // TODO:
   switch (opts_.fragment_order.get().mode) {
   case file_order_mode::NONE:
@@ -658,6 +723,15 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     order_inodes_by_nilsimsa(fn);
     ti << count() << " inodes ordered";
     return;
+  }
+
+  case file_order_mode::NILSIMSA2: {
+    LOG_INFO << "ordering " << count()
+             << " inodes using new nilsimsa similarity...";
+    auto ti = LOG_CPU_TIMED_INFO;
+    order_inodes_by_nilsimsa2(wg);
+    ti << count() << " inodes ordered";
+    break;
   }
   }
 
@@ -822,6 +896,23 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   if (count != inodes_.size()) {
     DWARFS_THROW(runtime_error, "internal error: nilsimsa ordering failed");
   }
+}
+
+template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(worker_group& wg) {
+  auto const& file_order = opts_.fragment_order.get(); // TODO
+  similarity_ordering_options opts;
+  opts.max_children = file_order.nilsimsa2_max_children;
+  opts.max_cluster_size = file_order.nilsimsa2_max_cluster_size;
+  auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
+  inode_element_view ev(inodes_);
+  auto ordered = sim_order.order_nilsimsa(ev).get();
+  std::vector<std::shared_ptr<inode>> inodes;
+  inodes.reserve(inodes_.size());
+  for (auto i : ordered) {
+    inodes.push_back(std::move(inodes_[i]));
+  }
+  inodes.swap(inodes_);
 }
 
 template <typename LoggerPolicy>

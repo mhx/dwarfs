@@ -157,7 +157,8 @@ void basic_end_to_end_test(std::string const& compressor,
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
   bool similarity = file_order == file_order_mode::SIMILARITY ||
-                    file_order == file_order_mode::NILSIMSA;
+                    file_order == file_order_mode::NILSIMSA ||
+                    file_order == file_order_mode::NILSIMSA2;
 
   size_t const num_fail_empty = access_fail ? 1 : 0;
 
@@ -599,6 +600,7 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
         ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
                           file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
+                          file_order_mode::NILSIMSA2,
                           file_order_mode::SIMILARITY),
         ::testing::Values(std::nullopt, "xxh3-128")));
 
