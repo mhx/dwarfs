@@ -684,11 +684,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     }
   }
 
-  path = std::filesystem::canonical(path);
-
-#ifdef _WIN32
-  path = std::filesystem::path(L"\\\\?\\" + path.wstring());
-#endif
+  path = canonical_path(path);
 
   bool recompress = vm.count("recompress");
   rewrite_options rw_opts;
