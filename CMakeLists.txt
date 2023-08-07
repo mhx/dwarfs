@@ -390,6 +390,7 @@ list(
   src/dwarfs/scanner.cpp
   src/dwarfs/segmenter.cpp
   src/dwarfs/similarity.cpp
+  src/dwarfs/similarity_ordering.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
