@@ -29,6 +29,7 @@ namespace dwarfs {
 
 class file;
 class inode_manager;
+class logger;
 class os_access;
 class progress;
 class worker_group;
@@ -39,7 +40,7 @@ namespace detail {
 
 class file_scanner {
  public:
-  file_scanner(worker_group& wg, os_access& os, inode_manager& im,
+  file_scanner(logger& lgr, worker_group& wg, os_access& os, inode_manager& im,
                std::optional<std::string> const& hash_algo, progress& prog);
 
   void scan(file* p) { impl_->scan(p); }
