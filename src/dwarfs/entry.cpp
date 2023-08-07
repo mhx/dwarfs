@@ -97,6 +97,25 @@ std::string entry::unix_dpath() const {
   return p;
 }
 
+bool entry::less_revpath(entry const& rhs) const {
+  if (name() < rhs.name()) {
+    return true;
+  }
+
+  if (name() > rhs.name()) {
+    return false;
+  }
+
+  auto p = parent();
+  auto rhs_p = rhs.parent();
+
+  if (p && rhs_p) {
+    return p->less_revpath(*rhs_p);
+  }
+
+  return static_cast<bool>(rhs_p);
+}
+
 std::string entry::type_string() const {
   switch (stat_.type()) {
   case posix_file_type::regular:

@@ -79,6 +79,7 @@ class entry : public entry_interface {
   std::string dpath() const override;
   std::string unix_dpath() const override;
   std::string const& name() const override { return name_; }
+  bool less_revpath(entry const& rhs) const;
   size_t size() const override { return stat_.size; }
   virtual type_t type() const = 0;
   std::string type_string() const override;
