@@ -23,6 +23,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
 #include <string>
 
 #include "dwarfs/types.h"
@@ -48,5 +49,7 @@ size_t utf8_display_width(char const* p, size_t len);
 size_t utf8_display_width(std::string const& str);
 
 void shorten_path_string(std::string& path, char separator, size_t max_len);
+
+std::filesystem::path canonical_path(std::filesystem::path p);
 
 } // namespace dwarfs

@@ -994,7 +994,7 @@ int option_hdl(void* data, char const* arg, int key,
       return 1;
     }
 
-    opts->fsimage = std::filesystem::canonical(
+    opts->fsimage = canonical_path(
         std::filesystem::path(reinterpret_cast<char8_t const*>(arg)));
 
     return 0;
