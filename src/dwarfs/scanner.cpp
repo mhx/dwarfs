@@ -290,14 +290,13 @@ class scanner_ final : public scanner::impl {
             progress& prog, detail::file_scanner& fs,
             bool debug_filter = false);
 
+  LOG_PROXY_DECL(LoggerPolicy);
+  worker_group& wg_;
   const segmenter::config& cfg_;
   const scanner_options& options_;
   std::shared_ptr<entry_factory> entry_;
   std::shared_ptr<os_access> os_;
   std::shared_ptr<script> script_;
-  worker_group& wg_;
-  logger& lgr_;
-  LOG_PROXY_DECL(LoggerPolicy);
 };
 
 template <typename LoggerPolicy>
@@ -307,14 +306,13 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
                                  std::shared_ptr<os_access> os,
                                  std::shared_ptr<script> scr,
                                  const scanner_options& options)
-    : cfg_(cfg)
+    : LOG_PROXY_INIT(lgr)
+    , wg_(wg)
+    , cfg_(cfg)
     , options_(options)
     , entry_(std::move(ef))
     , os_(std::move(os))
-    , script_(std::move(scr))
-    , wg_(wg)
-    , lgr_(lgr)
-    , LOG_PROXY_INIT(lgr_) {}
+    , script_(std::move(scr)) {}
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
@@ -566,8 +564,9 @@ void scanner_<LoggerPolicy>::scan(
 
   prog.set_status_function(status_string);
 
-  inode_manager im(lgr_, prog, options_.inode);
-  detail::file_scanner fs(wg_, *os_, im, options_.file_hash_algorithm, prog);
+  inode_manager im(LOG_GET_LOGGER, prog, options_.inode);
+  detail::file_scanner fs(LOG_GET_LOGGER, wg_, *os_, im,
+                          options_.file_hash_algorithm, prog);
 
   auto root =
       list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
@@ -658,7 +657,7 @@ void scanner_<LoggerPolicy>::scan(
   });
 
   LOG_INFO << "building blocks...";
-  segmenter bm(lgr_, prog, cfg_, os_, fsw);
+  segmenter bm(LOG_GET_LOGGER, prog, cfg_, os_, fsw);
 
   {
     worker_group blockify("blockify", 1, 1 << 20);
