@@ -22,9 +22,10 @@
 #pragma once
 
 #include <array>
-#include <future>
 #include <memory>
 #include <vector>
+
+#include "dwarfs/receiver.h"
 
 namespace dwarfs {
 
@@ -67,17 +68,19 @@ class similarity_ordering {
   similarity_ordering(logger& lgr, progress& prog, worker_group& wg,
                       similarity_ordering_options const& opts);
 
-  std::future<std::vector<index_value_type>> order_nilsimsa(
-      basic_array_similarity_element_view<256, uint64_t> const& ev) const {
-    return impl_->order_nilsimsa(ev);
+  void
+  order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
+                 receiver<std::vector<index_value_type>> rec) const {
+    impl_->order_nilsimsa(ev, std::move(rec));
   }
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual std::future<std::vector<index_value_type>> order_nilsimsa(
-        basic_array_similarity_element_view<256, uint64_t> const& ev) const = 0;
+    virtual void
+    order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
+                   receiver<std::vector<index_value_type>> rec) const = 0;
   };
 
  private:
