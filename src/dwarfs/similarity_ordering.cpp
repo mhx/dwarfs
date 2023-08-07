@@ -199,8 +199,8 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       , wg_{wg}
       , opts_{opts} {}
 
-  std::future<index_type>
-  order_nilsimsa(nilsimsa_element_view const& ev) const override;
+  void order_nilsimsa(nilsimsa_element_view const& ev,
+                      receiver<index_type> rec) const override;
 
  private:
   index_type build_index(similarity_element_view const& ev) const;
@@ -252,7 +252,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
   template <size_t Bits, typename BitsType>
   void order_impl(
-      std::promise<index_type>&& promise,
+      receiver<index_type>&& rec,
       basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -583,7 +583,7 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
 template <typename LoggerPolicy>
 template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::order_impl(
-    std::promise<index_type>&& promise,
+    receiver<index_type>&& rec,
     basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
   auto index = build_index(ev);
 
@@ -594,7 +594,7 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
   auto root = std::make_shared<nilsimsa_cluster_tree_node>(std::move(index));
 
   auto jt = std::make_shared<job_tracker>(
-      [this, size_hint, &ev, p = std::move(promise), root,
+      [this, size_hint, &ev, rec = std::move(rec), root,
        dup = std::move(duplicates)]() mutable {
         {
           auto ti = LOG_TIMED_INFO;
@@ -605,21 +605,18 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
         rv.reserve(size_hint);
         collect_rec(*root, ev, dup, rv, "");
         LOG_INFO << "total distance after ordering: " << total_distance(ev, rv);
-        p.set_value(std::move(rv));
+        rec.set_value(std::move(rv));
       });
 
   cluster(*root, ev, jt);
 }
 
 template <typename LoggerPolicy>
-auto similarity_ordering_<LoggerPolicy>::order_nilsimsa(
-    nilsimsa_element_view const& ev) const -> std::future<index_type> {
-  std::promise<index_type> prom;
-  auto future = prom.get_future();
-  wg_.add_job([this, prom = std::move(prom), &ev]() mutable {
-    order_impl(std::move(prom), ev);
+void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
+    nilsimsa_element_view const& ev, receiver<index_type> rec) const {
+  wg_.add_job([this, rec = std::move(rec), &ev]() mutable {
+    order_impl(std::move(rec), ev);
   });
-  return future;
 }
 
 similarity_ordering::similarity_ordering(

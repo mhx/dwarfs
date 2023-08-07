@@ -52,6 +52,7 @@
 #include "dwarfs/os_access.h"
 #include "dwarfs/overloaded.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/promise_receiver.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
 #include "dwarfs/similarity_ordering.h"
@@ -906,7 +907,10 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(worker_group& wg) {
   opts.max_cluster_size = file_order.nilsimsa2_max_cluster_size;
   auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
   inode_element_view ev(inodes_);
-  auto ordered = sim_order.order_nilsimsa(ev).get();
+  std::promise<std::vector<uint32_t>> promise;
+  auto future = promise.get_future();
+  sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)));
+  auto ordered = future.get();
   std::vector<std::shared_ptr<inode>> inodes;
   inodes.reserve(inodes_.size());
   for (auto i : ordered) {
