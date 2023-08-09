@@ -444,6 +444,8 @@ class metadata_ final : public metadata_v2::impl {
 
   size_t block_size() const override { return meta_.block_size(); }
 
+  bool has_symlinks() const override { return !meta_.symlink_table().empty(); }
+
  private:
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
