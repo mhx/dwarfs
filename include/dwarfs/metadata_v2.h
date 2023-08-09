@@ -132,6 +132,8 @@ class metadata_v2 {
 
   size_t block_size() const { return impl_->block_size(); }
 
+  bool has_symlinks() const { return impl_->has_symlinks(); }
+
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 
@@ -184,6 +186,8 @@ class metadata_v2 {
     virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
 
     virtual size_t block_size() const = 0;
+
+    virtual bool has_symlinks() const = 0;
   };
 
  private:

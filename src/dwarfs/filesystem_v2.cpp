@@ -356,6 +356,7 @@ class filesystem_ final : public filesystem_v2::impl {
     ir_.set_cache_tidy_config(cfg);
   }
   size_t num_blocks() const override { return ir_.num_blocks(); }
+  bool has_symlinks() const override { return meta_.has_symlinks(); }
 
  private:
   filesystem_info const& get_info() const;

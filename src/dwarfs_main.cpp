@@ -1014,12 +1014,15 @@ int option_hdl(void* data, char const* arg, int key,
 
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void init_fuse_ops(struct fuse_lowlevel_ops& ops) {
+void init_fuse_ops(struct fuse_lowlevel_ops& ops,
+                   dwarfs_userdata const& userdata) {
   ops.init = &op_init<LoggerPolicy>;
   ops.lookup = &op_lookup<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
   ops.access = &op_access<LoggerPolicy>;
-  ops.readlink = &op_readlink<LoggerPolicy>;
+  if (userdata.fs.has_symlinks()) {
+    ops.readlink = &op_readlink<LoggerPolicy>;
+  }
   ops.open = &op_open<LoggerPolicy>;
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
@@ -1029,11 +1032,14 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops) {
 }
 #else
 template <typename LoggerPolicy>
-void init_fuse_ops(struct fuse_operations& ops) {
+void init_fuse_ops(struct fuse_operations& ops,
+                   dwarfs_userdata const& userdata) {
   ops.init = &op_init<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
   ops.access = &op_access<LoggerPolicy>;
-  ops.readlink = &op_readlink<LoggerPolicy>;
+  if (userdata.fs.has_symlinks()) {
+    ops.readlink = &op_readlink<LoggerPolicy>;
+  }
   ops.open = &op_open<LoggerPolicy>;
   ops.read = &op_read<LoggerPolicy>;
   ops.readdir = &op_readdir<LoggerPolicy>;
@@ -1060,9 +1066,9 @@ int run_fuse(struct fuse_args& args,
   ::memset(&fsops, 0, sizeof(fsops));
 
   if (userdata.opts.debuglevel >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
+    init_fuse_ops<debug_logger_policy>(fsops, userdata);
   } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
+    init_fuse_ops<prod_logger_policy>(fsops, userdata);
   }
 
   int err = 1;
@@ -1108,9 +1114,9 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
   ::memset(&fsops, 0, sizeof(fsops));
 
   if (userdata.opts.debuglevel >= logger::DEBUG) {
-    init_fuse_ops<debug_logger_policy>(fsops);
+    init_fuse_ops<debug_logger_policy>(fsops, userdata);
   } else {
-    init_fuse_ops<prod_logger_policy>(fsops);
+    init_fuse_ops<prod_logger_policy>(fsops, userdata);
   }
 
   int err = 1;
