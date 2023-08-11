@@ -45,6 +45,14 @@ class single_inode_fragment {
   file_off_t length() const { return length_; }
   file_off_t size() const { return length_; }
 
+  void add_chunk(size_t block, size_t offset, size_t size) {
+    thrift::metadata::chunk c;
+    c.block() = block;
+    c.offset() = offset;
+    c.size() = size;
+    chunks_.push_back(c);
+  }
+
   std::span<thrift::metadata::chunk const> chunks() const { return chunks_; }
 
   void extend(file_off_t length) { length_ += length; }
