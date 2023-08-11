@@ -21,44 +21,30 @@
 
 #pragma once
 
-#include <cstddef>
 #include <memory>
-#include <vector>
+
+#include "dwarfs/chunkable.h"
 
 namespace dwarfs {
 
-class chunkable;
-class filesystem_writer;
-class logger;
-class progress;
+class inode;
+class mmif;
+class os_access;
 
-class segmenter {
+class inode_chunkable : public chunkable {
  public:
-  struct config {
-    unsigned blockhash_window_size;
-    unsigned window_increment_shift{1};
-    size_t max_active_blocks{1};
-    size_t memory_limit{256 << 20};
-    unsigned block_size_bits{22};
-    unsigned bloom_filter_size{4};
-  };
+  inode_chunkable(inode& ino, os_access& os);
+  ~inode_chunkable();
 
-  segmenter(logger& lgr, progress& prog, const config& cfg,
-            filesystem_writer& fsw);
-
-  void add_chunkable(chunkable& chkable) { impl_->add_chunkable(chkable); }
-
-  void finish() { impl_->finish(); }
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual void add_chunkable(chunkable& chkable) = 0;
-    virtual void finish() = 0;
-  };
+  size_t size() const override;
+  std::string description() const override;
+  std::span<uint8_t const> span() const override;
+  void add_chunk(size_t block, size_t offset, size_t size) override;
+  void release_until(size_t offset) override;
 
  private:
-  std::unique_ptr<impl> impl_;
+  inode& ino_;
+  std::unique_ptr<mmif> mm_;
 };
+
 } // namespace dwarfs
