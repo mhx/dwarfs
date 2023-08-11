@@ -45,6 +45,7 @@
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/inode_chunkable.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
@@ -658,7 +659,7 @@ void scanner_<LoggerPolicy>::scan(
   });
 
   LOG_INFO << "building blocks...";
-  segmenter bm(LOG_GET_LOGGER, prog, cfg_, os_, fsw);
+  segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
 
   {
     worker_group blockify("blockify", 1, 1 << 20);
@@ -671,9 +672,10 @@ void scanner_<LoggerPolicy>::scan(
       // ordering.add_job([&] {
       im.order_inodes(wg_order, script_,
                       [&](std::shared_ptr<inode> const& ino) {
-                        blockify.add_job([&] {
+                        blockify.add_job([&, this] {
                           prog.current.store(ino.get());
-                          bm.add_inode(*ino);
+                          inode_chunkable ic(*ino, *os_);
+                          seg.add_chunkable(ic);
                           prog.inodes_written++;
                         });
                         auto queued_files = blockify.queue_size();
@@ -696,7 +698,7 @@ void scanner_<LoggerPolicy>::scan(
              << time_with_unit(blockify.get_cpu_time());
   }
 
-  bm.finish_blocks();
+  seg.finish();
   wg_.wait();
 
   prog.set_status_function([](progress const&, size_t) {
