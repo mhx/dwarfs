@@ -21,44 +21,20 @@
 
 #pragma once
 
-#include <cstddef>
-#include <memory>
-#include <vector>
+#include <span>
+#include <string_view>
 
 namespace dwarfs {
 
-class chunkable;
-class filesystem_writer;
-class logger;
-class progress;
-
-class segmenter {
+class chunkable {
  public:
-  struct config {
-    unsigned blockhash_window_size;
-    unsigned window_increment_shift{1};
-    size_t max_active_blocks{1};
-    size_t memory_limit{256 << 20};
-    unsigned block_size_bits{22};
-    unsigned bloom_filter_size{4};
-  };
+  virtual ~chunkable() = default;
 
-  segmenter(logger& lgr, progress& prog, const config& cfg,
-            filesystem_writer& fsw);
-
-  void add_chunkable(chunkable& chkable) { impl_->add_chunkable(chkable); }
-
-  void finish() { impl_->finish(); }
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual void add_chunkable(chunkable& chkable) = 0;
-    virtual void finish() = 0;
-  };
-
- private:
-  std::unique_ptr<impl> impl_;
+  virtual size_t size() const = 0;
+  virtual std::string description() const = 0;
+  virtual std::span<uint8_t const> span() const = 0;
+  virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
+  virtual void release_until(size_t offset) = 0;
 };
+
 } // namespace dwarfs

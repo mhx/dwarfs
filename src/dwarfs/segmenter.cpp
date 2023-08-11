@@ -39,15 +39,13 @@
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_data.h"
+#include "dwarfs/chunkable.h"
 #include "dwarfs/compiler.h"
 #include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_writer.h"
-#include "dwarfs/inode.h"
 #include "dwarfs/logger.h"
-#include "dwarfs/mmif.h"
-#include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/segmenter.h"
 #include "dwarfs/util.h"
@@ -248,7 +246,7 @@ class active_block {
   bool full() const { return size() == capacity_; }
   std::shared_ptr<block_data> data() const { return data_; }
 
-  void append(uint8_t const* p, size_t size, bloom_filter* filter);
+  void append(std::span<uint8_t const> data, bloom_filter* filter);
 
   size_t next_hash_distance() const {
     return window_step_mask_ + 1 - (data_->size() & window_step_mask_);
@@ -291,11 +289,10 @@ template <typename LoggerPolicy>
 class segmenter_ final : public segmenter::impl {
  public:
   segmenter_(logger& lgr, progress& prog, const segmenter::config& cfg,
-             std::shared_ptr<os_access> os, filesystem_writer& fsw)
+             filesystem_writer& fsw)
       : LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , cfg_{cfg}
-      , os_{std::move(os)}
       , fsw_{fsw}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
@@ -308,8 +305,8 @@ class segmenter_ final : public segmenter::impl {
     }
   }
 
-  void add_inode(inode& ino) override;
-  void finish_blocks() override;
+  void add_chunkable(chunkable& chkable) override;
+  void finish() override;
 
  private:
   struct chunk_state {
@@ -322,10 +319,10 @@ class segmenter_ final : public segmenter::impl {
   }
 
   void block_ready();
-  void finish_chunk(inode& ino);
-  void append_to_block(inode& ino, mmif& mm, size_t offset, size_t size);
-  void add_data(inode& ino, mmif& mm, size_t offset, size_t size);
-  void segment_and_add_data(inode& ino, mmif& mm, size_t size);
+  void finish_chunk(chunkable& chkable);
+  void append_to_block(chunkable& chkable, size_t offset, size_t size);
+  void add_data(chunkable& chkable, size_t offset, size_t size);
+  void segment_and_add_data(chunkable& chkable, size_t size);
 
   static size_t bloom_filter_size(const segmenter::config& cfg) {
     auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
@@ -350,7 +347,6 @@ class segmenter_ final : public segmenter::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
   const segmenter::config& cfg_;
-  std::shared_ptr<os_access> os_;
   filesystem_writer& fsw_;
 
   size_t const window_size_;
@@ -399,14 +395,14 @@ class segment_match {
   uint8_t const* data_{nullptr};
 };
 
-void active_block::append(uint8_t const* p, size_t size, bloom_filter* filter) {
+void active_block::append(std::span<uint8_t const> data, bloom_filter* filter) {
   auto& v = data_->vec();
   auto offset = v.size();
-  DWARFS_CHECK(offset + size <= capacity_,
+  DWARFS_CHECK(offset + data.size() <= capacity_,
                fmt::format("block capacity exceeded: {} + {} > {}", offset,
-                           size, capacity_));
-  v.resize(offset + size);
-  ::memcpy(v.data() + offset, p, size);
+                           data.size(), capacity_));
+  v.resize(offset + data.size());
+  ::memcpy(v.data() + offset, data.data(), data.size());
 
   if (window_size_ > 0) {
     while (offset < v.size()) {
@@ -455,27 +451,22 @@ void segment_match::verify_and_extend(uint8_t const* pos, size_t len,
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::add_inode(inode& ino) {
-  auto e = ino.any();
-
-  if (size_t size = e->size(); size > 0) {
-    auto mm = os_->map_file(e->fs_path(), size);
-
-    LOG_TRACE << "adding inode " << ino.num() << " [" << ino.any()->name()
-              << "] - size: " << size;
+void segmenter_<LoggerPolicy>::add_chunkable(chunkable& chkable) {
+  if (auto size = chkable.size(); size > 0) {
+    LOG_TRACE << "adding " << chkable.description();
 
     if (!segmentation_enabled() or size < window_size_) {
       // no point dealing with hashing, just write it out
-      add_data(ino, *mm, 0, size);
-      finish_chunk(ino);
+      add_data(chkable, 0, size);
+      finish_chunk(chkable);
     } else {
-      segment_and_add_data(ino, *mm, size);
+      segment_and_add_data(chkable, size);
     }
   }
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::finish_blocks() {
+void segmenter_<LoggerPolicy>::finish() {
   if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
@@ -526,7 +517,7 @@ void segmenter_<LoggerPolicy>::block_ready() {
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
+void segmenter_<LoggerPolicy>::append_to_block(chunkable& chkable,
                                                size_t offset, size_t size) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
@@ -545,20 +536,20 @@ void segmenter_<LoggerPolicy>::append_to_block(inode& ino, mmif& mm,
 
   auto& block = blocks_.back();
 
-  block.append(mm.as<uint8_t>(offset), size, &filter_);
+  block.append(chkable.span().subspan(offset, size), &filter_);
   chunk_.size += size;
 
   prog_.filesystem_size += size;
 
   if (block.full()) [[unlikely]] {
-    mm.release_until(offset + size);
-    finish_chunk(ino);
+    chkable.release_until(offset + size);
+    finish_chunk(chkable);
     block_ready();
   }
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
+void segmenter_<LoggerPolicy>::add_data(chunkable& chkable, size_t offset,
                                         size_t size) {
   while (size > 0) {
     size_t block_offset = 0;
@@ -569,7 +560,7 @@ void segmenter_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
 
     size_t chunk_size = std::min(size, block_size_ - block_offset);
 
-    append_to_block(ino, mm, offset, chunk_size);
+    append_to_block(chkable, offset, chunk_size);
 
     offset += chunk_size;
     size -= chunk_size;
@@ -577,10 +568,10 @@ void segmenter_<LoggerPolicy>::add_data(inode& ino, mmif& mm, size_t offset,
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::finish_chunk(inode& ino) {
+void segmenter_<LoggerPolicy>::finish_chunk(chunkable& chkable) {
   if (chunk_.size > 0) {
     auto& block = blocks_.back();
-    ino.add_chunk(block.num(), chunk_.offset, chunk_.size);
+    chkable.add_chunk(block.num(), chunk_.offset, chunk_.size);
     chunk_.offset = block.full() ? 0 : block.size();
     chunk_.size = 0;
     prog_.chunk_count++;
@@ -588,7 +579,7 @@ void segmenter_<LoggerPolicy>::finish_chunk(inode& ino) {
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
+void segmenter_<LoggerPolicy>::segment_and_add_data(chunkable& chkable,
                                                     size_t size) {
   rsync_hash hasher;
   size_t offset = 0;
@@ -597,7 +588,8 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
   size_t next_hash_offset =
       lookback_size +
       (blocks_.empty() ? window_step_ : blocks_.back().next_hash_distance());
-  auto p = mm.as<uint8_t>();
+  auto data = chkable.span();
+  auto p = data.data();
 
   DWARFS_CHECK(size >= window_size_, "unexpected call to segment_and_add_data");
 
@@ -659,11 +651,11 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
           auto num_to_write = best->data() - (p + written);
 
           // best->block can be invalidated by this call to add_data()!
-          add_data(ino, mm, written, num_to_write);
+          add_data(chkable, written, num_to_write);
           written += num_to_write;
-          finish_chunk(ino);
+          finish_chunk(chkable);
 
-          ino.add_chunk(block_num, match_off, match_len);
+          chkable.add_chunk(block_num, match_off, match_len);
           prog_.chunk_count++;
           written += match_len;
 
@@ -701,7 +693,7 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
 
     if (offset == next_hash_offset) [[unlikely]] {
       auto num_to_write = offset - lookback_size - written;
-      add_data(ino, mm, written, num_to_write);
+      add_data(chkable, written, num_to_write);
       written += num_to_write;
       next_hash_offset += window_step_;
       prog_.current_offset.store(offset);
@@ -715,13 +707,13 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
   prog_.current_offset.store(size);
   prog_.total_bytes_read.store(total_bytes_read_before + size);
 
-  add_data(ino, mm, written, size - written);
-  finish_chunk(ino);
+  add_data(chkable, written, size - written);
+  finish_chunk(chkable);
 }
 
 segmenter::segmenter(logger& lgr, progress& prog, const config& cfg,
-                     std::shared_ptr<os_access> os, filesystem_writer& fsw)
+                     filesystem_writer& fsw)
     : impl_(make_unique_logging_object<impl, segmenter_, logger_policies>(
-          lgr, prog, cfg, os, fsw)) {}
+          lgr, prog, cfg, fsw)) {}
 
 } // namespace dwarfs
