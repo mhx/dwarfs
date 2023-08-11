@@ -42,12 +42,12 @@ class os_access {
  public:
   virtual ~os_access() = default;
 
-  virtual std::shared_ptr<dir_reader>
+  virtual std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const = 0;
   virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
-  virtual std::shared_ptr<mmif>
+  virtual std::unique_ptr<mmif>
   map_file(std::filesystem::path const& path, size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
 };

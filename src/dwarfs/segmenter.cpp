@@ -308,7 +308,7 @@ class segmenter_ final : public segmenter::impl {
     }
   }
 
-  void add_inode(std::shared_ptr<inode> ino) override;
+  void add_inode(inode& ino) override;
   void finish_blocks() override;
 
  private:
@@ -455,21 +455,21 @@ void segment_match::verify_and_extend(uint8_t const* pos, size_t len,
 }
 
 template <typename LoggerPolicy>
-void segmenter_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
-  auto e = ino->any();
+void segmenter_<LoggerPolicy>::add_inode(inode& ino) {
+  auto e = ino.any();
 
   if (size_t size = e->size(); size > 0) {
     auto mm = os_->map_file(e->fs_path(), size);
 
-    LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
+    LOG_TRACE << "adding inode " << ino.num() << " [" << ino.any()->name()
               << "] - size: " << size;
 
     if (!segmentation_enabled() or size < window_size_) {
       // no point dealing with hashing, just write it out
-      add_data(*ino, *mm, 0, size);
-      finish_chunk(*ino);
+      add_data(ino, *mm, 0, size);
+      finish_chunk(ino);
     } else {
-      segment_and_add_data(*ino, *mm, size);
+      segment_and_add_data(ino, *mm, size);
     }
   }
 }
