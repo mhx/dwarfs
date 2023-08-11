@@ -673,7 +673,7 @@ void scanner_<LoggerPolicy>::scan(
                       [&](std::shared_ptr<inode> const& ino) {
                         blockify.add_job([&] {
                           prog.current.store(ino.get());
-                          bm.add_inode(ino);
+                          bm.add_inode(*ino);
                           prog.inodes_written++;
                         });
                         auto queued_files = blockify.queue_size();
