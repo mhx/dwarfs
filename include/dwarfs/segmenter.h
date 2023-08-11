@@ -47,7 +47,7 @@ class segmenter {
   segmenter(logger& lgr, progress& prog, const config& cfg,
             std::shared_ptr<os_access> os, filesystem_writer& fsw);
 
-  void add_inode(std::shared_ptr<inode> ino) { impl_->add_inode(ino); }
+  void add_inode(inode& ino) { impl_->add_inode(ino); }
 
   void finish_blocks() { impl_->finish_blocks(); }
 
@@ -55,7 +55,7 @@ class segmenter {
    public:
     virtual ~impl() = default;
 
-    virtual void add_inode(std::shared_ptr<inode> ino) = 0;
+    virtual void add_inode(inode& ino) = 0;
     virtual void finish_blocks() = 0;
   };
 

@@ -30,6 +30,7 @@
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
@@ -295,7 +296,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   auto const size = p->size();
-  std::shared_ptr<mmif> mm;
+  std::unique_ptr<mmif> mm;
 
   if (size > 0) {
     mm = os_.map_file(p->fs_path(), size);

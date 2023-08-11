@@ -343,7 +343,7 @@ void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
   }
 }
 
-std::shared_ptr<dir_reader>
+std::unique_ptr<dir_reader>
 os_access_mock::opendir(fs::path const& path) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::directory) {
@@ -352,7 +352,7 @@ os_access_mock::opendir(fs::path const& path) const {
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
       files.push_back(path / e.name);
     }
-    return std::make_shared<dir_reader_mock>(std::move(files));
+    return std::make_unique<dir_reader_mock>(std::move(files));
   }
 
   throw std::runtime_error(fmt::format("oops in opendir: {}", path.string()));
@@ -377,11 +377,11 @@ fs::path os_access_mock::read_symlink(fs::path const& path) const {
       fmt::format("oops in read_symlink: {}", path.string()));
 }
 
-std::shared_ptr<mmif>
+std::unique_ptr<mmif>
 os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
-    return std::make_shared<mmap_mock>(std::visit(
+    return std::make_unique<mmap_mock>(std::visit(
         overloaded{
             [this](std::string const& str) { return str; },
             [this](std::function<std::string()> const& fun) { return fun(); },

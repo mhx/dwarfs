@@ -51,9 +51,9 @@ class generic_dir_reader final : public dir_reader {
 
 } // namespace
 
-std::shared_ptr<dir_reader>
+std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
-  return std::make_shared<generic_dir_reader>(path);
+  return std::make_unique<generic_dir_reader>(path);
 }
 
 file_stat os_access_generic::symlink_info(fs::path const& path) const {
@@ -64,9 +64,9 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
   return fs::read_symlink(path);
 }
 
-std::shared_ptr<mmif>
+std::unique_ptr<mmif>
 os_access_generic::map_file(fs::path const& path, size_t size) const {
-  return std::make_shared<mmap>(path, size);
+  return std::make_unique<mmap>(path, size);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {

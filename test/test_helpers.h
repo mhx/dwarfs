@@ -85,14 +85,14 @@ class os_access_mock : public os_access {
 
   void set_access_fail(std::filesystem::path const& path);
 
-  std::shared_ptr<dir_reader>
+  std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
 
   file_stat symlink_info(std::filesystem::path const& path) const override;
   std::filesystem::path
   read_symlink(std::filesystem::path const& path) const override;
 
-  std::shared_ptr<mmif>
+  std::unique_ptr<mmif>
   map_file(std::filesystem::path const& path, size_t size) const override;
 
   int access(std::filesystem::path const&, int) const override;
