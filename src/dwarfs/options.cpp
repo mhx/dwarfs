@@ -45,8 +45,8 @@ std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
   case file_order_mode::SIMILARITY:
     modestr = "similarity";
     break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
+  case file_order_mode::NILSIMSA2:
+    modestr = "nilsimsa2";
     break;
   default:
     break;
