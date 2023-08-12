@@ -23,6 +23,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "dwarfs/receiver.h"
@@ -68,19 +69,21 @@ class similarity_ordering {
   similarity_ordering(logger& lgr, progress& prog, worker_group& wg,
                       similarity_ordering_options const& opts);
 
-  void
-  order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
-                 receiver<std::vector<index_value_type>> rec) const {
-    impl_->order_nilsimsa(ev, std::move(rec));
+  void order_nilsimsa(
+      basic_array_similarity_element_view<256, uint64_t> const& ev,
+      receiver<std::vector<index_value_type>> rec,
+      std::optional<std::vector<index_value_type>> index = std::nullopt) const {
+    impl_->order_nilsimsa(ev, std::move(rec), std::move(index));
   }
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual void
-    order_nilsimsa(basic_array_similarity_element_view<256, uint64_t> const& ev,
-                   receiver<std::vector<index_value_type>> rec) const = 0;
+    virtual void order_nilsimsa(
+        basic_array_similarity_element_view<256, uint64_t> const& ev,
+        receiver<std::vector<index_value_type>> rec,
+        std::optional<std::vector<index_value_type>> index) const = 0;
   };
 
  private:

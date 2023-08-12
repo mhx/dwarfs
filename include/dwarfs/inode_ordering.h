@@ -22,16 +22,21 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "dwarfs/inode.h"
 
 namespace dwarfs {
 
 class logger;
+class progress;
+class worker_group;
+
+struct similarity_ordering_options;
 
 class inode_ordering {
  public:
-  inode_ordering(logger& lgr);
+  inode_ordering(logger& lgr, progress& prog);
 
   void by_inode_number(sortable_inode_span& sp) const {
     impl_->by_inode_number(sp);
@@ -39,12 +44,30 @@ class inode_ordering {
 
   void by_path(sortable_inode_span& sp) const { impl_->by_path(sp); }
 
+  void
+  by_similarity(sortable_inode_span& sp,
+                std::optional<fragment_category> cat = std::nullopt) const {
+    impl_->by_similarity(sp, cat);
+  }
+
+  void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+                   sortable_inode_span& sp,
+                   std::optional<fragment_category> cat = std::nullopt) const {
+    impl_->by_nilsimsa(wg, opts, sp, cat);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual void by_inode_number(sortable_inode_span& sp) const = 0;
     virtual void by_path(sortable_inode_span& sp) const = 0;
+    virtual void by_similarity(sortable_inode_span& sp,
+                               std::optional<fragment_category> cat) const = 0;
+    virtual void
+    by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+                sortable_inode_span& sp,
+                std::optional<fragment_category> cat) const = 0;
   };
 
  private:

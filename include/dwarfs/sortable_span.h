@@ -98,9 +98,7 @@ class sortable_span {
   bool empty() const { return index_.empty(); }
   size_t size() const { return index_.size(); }
 
-  value_type const& operator[](size_t i) const {
-    return proxy(this, index_.begin() + i);
-  }
+  value_type const& operator[](size_t i) const { return values_[index_[i]]; }
 
   iterator begin() { return iterator(this, index_.begin()); }
 

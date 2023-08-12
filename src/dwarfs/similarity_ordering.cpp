@@ -184,8 +184,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
  public:
   using index_value_type = similarity_ordering::index_value_type;
   using index_type = std::vector<index_value_type>;
-  using duplicates_map =
-      std::unordered_map<index_value_type, std::vector<index_value_type>>;
+  using duplicates_map = std::unordered_map<index_value_type, index_type>;
   using nilsimsa_element_view =
       basic_array_similarity_element_view<256, uint64_t>;
   using nilsimsa_cluster =
@@ -199,8 +198,8 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       , wg_{wg}
       , opts_{opts} {}
 
-  void order_nilsimsa(nilsimsa_element_view const& ev,
-                      receiver<index_type> rec) const override;
+  void order_nilsimsa(nilsimsa_element_view const& ev, receiver<index_type> rec,
+                      std::optional<index_type> index) const override;
 
  private:
   index_type build_index(similarity_element_view const& ev) const;
@@ -252,7 +251,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
   template <size_t Bits, typename BitsType>
   void order_impl(
-      receiver<index_type>&& rec,
+      receiver<index_type>&& rec, std::optional<index_type> idx,
       basic_array_similarity_element_view<Bits, BitsType> const& ev) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -583,9 +582,15 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
 template <typename LoggerPolicy>
 template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::order_impl(
-    receiver<index_type>&& rec,
+    receiver<index_type>&& rec, std::optional<index_type> idx,
     basic_array_similarity_element_view<Bits, BitsType> const& ev) const {
-  auto index = build_index(ev);
+  index_type index;
+
+  if (idx) {
+    index = *idx;
+  } else {
+    index = build_index(ev);
+  }
 
   LOG_INFO << "total distance before ordering: " << total_distance(ev, index);
 
@@ -613,10 +618,12 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
 
 template <typename LoggerPolicy>
 void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
-    nilsimsa_element_view const& ev, receiver<index_type> rec) const {
-  wg_.add_job([this, rec = std::move(rec), &ev]() mutable {
-    order_impl(std::move(rec), ev);
-  });
+    nilsimsa_element_view const& ev, receiver<index_type> rec,
+    std::optional<index_type> index) const {
+  wg_.add_job(
+      [this, rec = std::move(rec), idx = std::move(index), &ev]() mutable {
+        order_impl(std::move(rec), std::move(idx), ev);
+      });
 }
 
 similarity_ordering::similarity_ordering(
