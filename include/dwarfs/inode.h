@@ -30,6 +30,7 @@
 #include "dwarfs/inode_fragments.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/object.h"
+#include "dwarfs/sortable_span.h"
 
 namespace dwarfs {
 
@@ -61,5 +62,8 @@ class inode : public object {
   virtual inode_fragments const& fragments() const = 0;
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
 };
+
+using sortable_inode_span =
+    sortable_span<std::shared_ptr<inode> const, uint32_t>;
 
 } // namespace dwarfs
