@@ -63,41 +63,6 @@
 
 namespace dwarfs {
 
-#define DWARFS_FIND_SIMILAR_INODE_IMPL                                         \
-  std::pair<int_fast32_t, int_fast32_t> find_similar_inode(                    \
-      uint64_t const* ref_hash,                                                \
-      std::vector<std::shared_ptr<inode>> const& inodes,                       \
-      std::vector<uint32_t> const& index, int_fast32_t const limit,            \
-      int_fast32_t const end) {                                                \
-    int_fast32_t max_sim = 0;                                                  \
-    int_fast32_t max_sim_ix = 0;                                               \
-                                                                               \
-    for (int_fast32_t i = index.size() - 1; i >= end; --i) {                   \
-      auto const* test_hash =                                                  \
-          inodes[index[i]]->nilsimsa_similarity_hash().data();                 \
-      int sim;                                                                 \
-      DWARFS_NILSIMSA_SIMILARITY(sim =, ref_hash, test_hash);                  \
-                                                                               \
-      if (sim > max_sim) [[unlikely]] {                                        \
-        max_sim = sim;                                                         \
-        max_sim_ix = i;                                                        \
-                                                                               \
-        if (max_sim >= limit) [[unlikely]] {                                   \
-          break;                                                               \
-        }                                                                      \
-      }                                                                        \
-    }                                                                          \
-                                                                               \
-    return {max_sim_ix, max_sim};                                              \
-  }                                                                            \
-  static_assert(true, "")
-
-#ifdef DWARFS_MULTIVERSIONING
-__attribute__((target("popcnt"))) DWARFS_FIND_SIMILAR_INODE_IMPL;
-__attribute__((target("default")))
-#endif
-DWARFS_FIND_SIMILAR_INODE_IMPL;
-
 namespace {
 
 class inode_ : public inode {
@@ -380,7 +345,6 @@ class inode_ : public inode {
       case file_order_mode::SIMILARITY:
         sc.try_emplace(f.category());
         break;
-      case file_order_mode::NILSIMSA:
       case file_order_mode::NILSIMSA2:
         nc.try_emplace(f.category());
         break;
@@ -443,7 +407,6 @@ class inode_ : public inode {
       similarity_.emplace<uint32_t>(sc.finalize());
     } break;
 
-    case file_order_mode::NILSIMSA:
     case file_order_mode::NILSIMSA2: {
       nilsimsa nc;
       scan_range(mm, 0, mm->size(), nc);
@@ -580,7 +543,6 @@ class inode_manager_ final : public inode_manager::impl {
 
     return opts.fragment_order.any_is([](auto const& order) {
       return order.mode == file_order_mode::SIMILARITY ||
-             order.mode == file_order_mode::NILSIMSA ||
              order.mode == file_order_mode::NILSIMSA2;
     });
   }
@@ -606,7 +568,6 @@ class inode_manager_ final : public inode_manager::impl {
   void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
                      std::vector<uint32_t>& index);
 
-  void order_inodes_by_nilsimsa(inode_manager::order_cb const& fn);
   void order_inodes_by_nilsimsa2(worker_group& wg);
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -684,15 +645,6 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     break;
   }
 
-  case file_order_mode::NILSIMSA: {
-    LOG_INFO << "ordering " << count()
-             << " inodes using nilsimsa similarity...";
-    auto ti = LOG_CPU_TIMED_INFO;
-    order_inodes_by_nilsimsa(fn);
-    ti << count() << " inodes ordered";
-    return;
-  }
-
   case file_order_mode::NILSIMSA2: {
     LOG_INFO << "ordering " << count()
              << " inodes using new nilsimsa similarity...";
@@ -748,122 +700,6 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
   ti << "pre-sorted index (" << num_name << " name, " << num_path
      << " path lookups)";
-}
-
-template <typename LoggerPolicy>
-void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
-    inode_manager::order_cb const& fn) {
-  auto count = inodes_.size();
-
-  if (auto fname = ::getenv("DWARFS_NILSIMSA_DUMP")) {
-    std::ofstream ofs{fname};
-
-    for (auto const& i : inodes_) {
-      auto const& h = i->nilsimsa_similarity_hash();
-      if (!h.empty()) {
-        ofs << fmt::format("{0:016x}{1:016x}{2:016x}{3:016x}\t{4}\t{5}\n", h[0],
-                           h[1], h[2], h[3], i->size(), i->any()->name());
-      }
-    }
-  }
-
-  std::vector<std::shared_ptr<inode>> inodes;
-  inodes.swap(inodes_);
-  inodes_.reserve(count);
-  std::vector<uint32_t> index;
-  index.resize(count);
-  std::iota(index.begin(), index.end(), 0);
-
-  auto finalize_inode = [&]() {
-    inodes_.push_back(std::move(inodes[index.back()]));
-    index.pop_back();
-    return fn(inodes_.back());
-  };
-
-  {
-    auto empty = std::partition(index.begin(), index.end(),
-                                [&](auto i) { return inodes[i]->size() > 0; });
-
-    if (empty != index.end()) {
-      auto count = std::distance(empty, index.end());
-
-      LOG_DEBUG << "finalizing " << count << " empty inodes...";
-
-      for (auto n = count; n > 0; --n) {
-        finalize_inode();
-      }
-    }
-  }
-
-  {
-    auto unhashed = std::partition(index.begin(), index.end(), [&](auto i) {
-      auto const& sh = inodes[i]->nilsimsa_similarity_hash();
-      return std::any_of(sh.begin(), sh.end(), [](auto v) { return v != 0; });
-    });
-
-    if (unhashed != index.end()) {
-      auto count = std::distance(unhashed, index.end());
-
-      std::sort(unhashed, index.end(), [&inodes](auto a, auto b) {
-        return inodes[a]->size() < inodes[b]->size();
-      });
-
-      LOG_INFO << "finalizing " << count << " unhashed inodes...";
-
-      for (auto n = count; n > 0; --n) {
-        finalize_inode();
-      }
-    }
-  }
-
-  if (!index.empty()) {
-    auto const& file_order = opts_.fragment_order.get(); // TODO
-    const int_fast32_t max_depth = file_order.nilsimsa_depth;
-    const int_fast32_t min_depth =
-        std::min<int32_t>(file_order.nilsimsa_min_depth, max_depth);
-    const int_fast32_t limit = file_order.nilsimsa_limit;
-    int_fast32_t depth = max_depth;
-    int64_t processed = 0;
-
-    LOG_INFO << "nilsimsa: depth=" << depth << " (" << min_depth
-             << "), limit=" << limit;
-
-    presort_index(inodes, index);
-
-    finalize_inode();
-
-    while (!index.empty()) {
-      auto [max_sim_ix, max_sim] = find_similar_inode(
-          inodes_.back()->nilsimsa_similarity_hash().data(), inodes, index,
-          limit, int(index.size()) > depth ? index.size() - depth : 0);
-
-      LOG_TRACE << max_sim << " @ " << max_sim_ix << "/" << index.size();
-
-      std::rotate(index.begin() + max_sim_ix, index.begin() + max_sim_ix + 1,
-                  index.end());
-
-      auto fill = finalize_inode();
-
-      if (++processed >= 4096 && processed % 32 == 0) {
-        constexpr int64_t smooth = 512;
-        auto target_depth = fill * max_depth / 2048;
-
-        depth = ((smooth - 1) * depth + target_depth) / smooth;
-
-        if (depth > max_depth) {
-          depth = max_depth;
-        } else if (depth < min_depth) {
-          depth = min_depth;
-        }
-      }
-
-      prog_.nilsimsa_depth = depth;
-    }
-  }
-
-  if (count != inodes_.size()) {
-    DWARFS_THROW(runtime_error, "internal error: nilsimsa ordering failed");
-  }
 }
 
 template <typename LoggerPolicy>
