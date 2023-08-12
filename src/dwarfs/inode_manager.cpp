@@ -345,7 +345,7 @@ class inode_ : public inode {
       case file_order_mode::SIMILARITY:
         sc.try_emplace(f.category());
         break;
-      case file_order_mode::NILSIMSA2:
+      case file_order_mode::NILSIMSA:
         nc.try_emplace(f.category());
         break;
       }
@@ -407,7 +407,7 @@ class inode_ : public inode {
       similarity_.emplace<uint32_t>(sc.finalize());
     } break;
 
-    case file_order_mode::NILSIMSA2: {
+    case file_order_mode::NILSIMSA: {
       nilsimsa nc;
       scan_range(mm, 0, mm->size(), nc);
       // TODO: can we finalize in-place?
@@ -543,7 +543,7 @@ class inode_manager_ final : public inode_manager::impl {
 
     return opts.fragment_order.any_is([](auto const& order) {
       return order.mode == file_order_mode::SIMILARITY ||
-             order.mode == file_order_mode::NILSIMSA2;
+             order.mode == file_order_mode::NILSIMSA;
     });
   }
 
@@ -568,7 +568,7 @@ class inode_manager_ final : public inode_manager::impl {
   void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
                      std::vector<uint32_t>& index);
 
-  void order_inodes_by_nilsimsa2(worker_group& wg);
+  void order_inodes_by_nilsimsa(worker_group& wg);
 
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<inode>> inodes_;
@@ -645,11 +645,11 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     break;
   }
 
-  case file_order_mode::NILSIMSA2: {
+  case file_order_mode::NILSIMSA: {
     LOG_INFO << "ordering " << count()
              << " inodes using new nilsimsa similarity...";
     auto ti = LOG_CPU_TIMED_INFO;
-    order_inodes_by_nilsimsa2(wg);
+    order_inodes_by_nilsimsa(wg);
     ti << count() << " inodes ordered";
     break;
   }
@@ -703,11 +703,11 @@ void inode_manager_<LoggerPolicy>::presort_index(
 }
 
 template <typename LoggerPolicy>
-void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(worker_group& wg) {
+void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(worker_group& wg) {
   auto const& file_order = opts_.fragment_order.get(); // TODO
   similarity_ordering_options opts;
-  opts.max_children = file_order.nilsimsa2_max_children;
-  opts.max_cluster_size = file_order.nilsimsa2_max_cluster_size;
+  opts.max_children = file_order.nilsimsa_max_children;
+  opts.max_cluster_size = file_order.nilsimsa_max_cluster_size;
 
   auto span = sortable_span();
   span.all();
