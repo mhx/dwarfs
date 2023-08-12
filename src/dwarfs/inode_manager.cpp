@@ -632,7 +632,7 @@ class inode_manager_ final : public inode_manager::impl {
           return ash < bsh ||
                  (ash == bsh && (a->size() > b->size() ||
                                  (a->size() == b->size() &&
-                                  a->any()->fs_path() < b->any()->fs_path())));
+                                  a->any()->less_revpath(*b->any()))));
         });
   }
 
@@ -776,7 +776,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
     ++num_path;
 
-    return fa->fs_path() > fb->fs_path();
+    return !fa->less_revpath(*fb);
   });
 
   ti << "pre-sorted index (" << num_name << " name, " << num_path
