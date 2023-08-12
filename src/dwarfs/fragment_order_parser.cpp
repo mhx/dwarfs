@@ -40,7 +40,7 @@ const std::map<std::string_view, file_order_mode> order_choices{
     {"script", file_order_mode::SCRIPT},
 #endif
     {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa2", file_order_mode::NILSIMSA2},
+    {"nilsimsa", file_order_mode::NILSIMSA},
 };
 
 void parse_order_option(std::string_view ordname, std::string_view opt,
@@ -99,18 +99,18 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
       auto ordname = order_opts[0];
 
       switch (rv.mode) {
-      case file_order_mode::NILSIMSA2:
+      case file_order_mode::NILSIMSA:
         if (order_opts.size() > 4) {
           throw std::runtime_error(fmt::format(
               "too many options for inode order mode '{}'", ordname));
         }
 
-        parse_order_option(ordname, order_opts[1], rv.nilsimsa2_max_children,
+        parse_order_option(ordname, order_opts[1], rv.nilsimsa_max_children,
                            "max_children", 0);
 
         if (order_opts.size() > 2) {
           parse_order_option(ordname, order_opts[2],
-                             rv.nilsimsa2_max_cluster_size, "max_cluster_size",
+                             rv.nilsimsa_max_cluster_size, "max_cluster_size",
                              0);
         }
         break;
@@ -142,10 +142,10 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
   case file_order_mode::SIMILARITY:
     return "similarity";
 
-  case file_order_mode::NILSIMSA2:
-    return fmt::format("nilsimsa2 (max_children={}, max_cluster_size={})",
-                       opts.nilsimsa2_max_children,
-                       opts.nilsimsa2_max_cluster_size);
+  case file_order_mode::NILSIMSA:
+    return fmt::format("nilsimsa (max_children={}, max_cluster_size={})",
+                       opts.nilsimsa_max_children,
+                       opts.nilsimsa_max_cluster_size);
   }
   return "<unknown>";
 }
