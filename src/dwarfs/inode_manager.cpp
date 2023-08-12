@@ -43,8 +43,8 @@
 #include "dwarfs/compiler.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
-#include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
+#include "dwarfs/inode_ordering.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/nilsimsa.h"
@@ -526,14 +526,11 @@ class inode_manager_ final : public inode_manager::impl {
   void for_each_inode_in_order(
       std::function<void(std::shared_ptr<inode> const&)> const& fn)
       const override {
-    std::vector<uint32_t> index;
-    index.resize(inodes_.size());
-    std::iota(index.begin(), index.end(), size_t(0));
-    std::sort(index.begin(), index.end(), [this](size_t a, size_t b) {
-      return inodes_[a]->num() < inodes_[b]->num();
-    });
-    for (auto i : index) {
-      fn(inodes_[i]);
+    auto span = sortable_span();
+    span.all();
+    inode_ordering(LOG_GET_LOGGER).by_inode_number(span);
+    for (auto const& i : span) {
+      fn(i);
     }
   }
 
@@ -585,6 +582,10 @@ class inode_manager_ final : public inode_manager::impl {
 
   void dump(std::ostream& os) const override;
 
+  sortable_inode_span sortable_span() const override {
+    return sortable_inode_span(inodes_);
+  }
+
  private:
   static bool inodes_need_scanning(inode_options const& opts) {
     if (opts.categorizer_mgr) {
@@ -599,27 +600,11 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   void order_inodes_by_path() {
-    std::vector<std::string> paths;
-    std::vector<size_t> index(inodes_.size());
+    auto span = sortable_span();
+    span.all();
+    inode_ordering(LOG_GET_LOGGER).by_path(span);
 
-    paths.reserve(inodes_.size());
-
-    for (auto const& ino : inodes_) {
-      paths.emplace_back(ino->any()->path_as_string());
-    }
-
-    std::iota(index.begin(), index.end(), size_t(0));
-
-    std::sort(index.begin(), index.end(),
-              [&](size_t a, size_t b) { return paths[a] < paths[b]; });
-
-    std::vector<std::shared_ptr<inode>> tmp;
-    tmp.reserve(inodes_.size());
-
-    for (size_t ix : index) {
-      tmp.emplace_back(inodes_[ix]);
-    }
-
+    std::vector<std::shared_ptr<inode>> tmp(span.begin(), span.end());
     inodes_.swap(tmp);
   }
 
