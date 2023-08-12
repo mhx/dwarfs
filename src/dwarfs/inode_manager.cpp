@@ -487,63 +487,6 @@ class inode_ : public inode {
       nilsimsa_similarity_hash_; // TODO: remove (move to similarity_)
 };
 
-class inode_element_view
-    : public basic_array_similarity_element_view<256, uint64_t> {
- public:
-  inode_element_view(std::vector<std::shared_ptr<inode>> const& inodes)
-      : inodes_{inodes} {}
-
-  bool exists(size_t /*i*/) const override {
-    // TODO: not true once we use fragments
-    return true;
-  }
-
-  size_t size() const override { return inodes_.size(); }
-
-  size_t weight(size_t i) const override { return inodes_[i]->any()->size(); }
-
-  bool bitvec_less(size_t a, size_t b) const override {
-    auto const& ia = *inodes_[a];
-    auto const& ib = *inodes_[b];
-    if (ia.nilsimsa_similarity_hash() < ib.nilsimsa_similarity_hash()) {
-      return true;
-    }
-    if (ia.nilsimsa_similarity_hash() > ib.nilsimsa_similarity_hash()) {
-      return false;
-    }
-    auto const& fa = *ia.any();
-    auto const& fb = *ib.any();
-    return fa.less_revpath(fb);
-  }
-
-  bool order_less(size_t a, size_t b) const override {
-    auto const& ia = *inodes_[a];
-    auto const& ib = *inodes_[b];
-    auto const& fa = *ia.any();
-    auto const& fb = *ib.any();
-    auto sa = fa.size();
-    auto sb = fb.size();
-    return sa > sb || (sa == sb && fa.less_revpath(fb));
-  }
-
-  bool bits_equal(size_t a, size_t b) const override {
-    return inodes_[a]->nilsimsa_similarity_hash() ==
-           inodes_[b]->nilsimsa_similarity_hash();
-  }
-
-  std::string description(size_t i) const override {
-    auto f = inodes_[i]->any();
-    return fmt::format("{} [{}]", f->path_as_string(), f->size());
-  }
-
-  nilsimsa::hash_type const& get_bits(size_t i) const override {
-    return inodes_[i]->nilsimsa_similarity_hash();
-  }
-
- private:
-  std::vector<std::shared_ptr<inode>> const& inodes_;
-};
-
 } // namespace
 
 template <typename LoggerPolicy>
@@ -571,7 +514,7 @@ class inode_manager_ final : public inode_manager::impl {
       const override {
     auto span = sortable_span();
     span.all();
-    inode_ordering(LOG_GET_LOGGER).by_inode_number(span);
+    inode_ordering(LOG_GET_LOGGER, prog_).by_inode_number(span);
     for (auto const& i : span) {
       fn(i);
     }
@@ -645,23 +588,19 @@ class inode_manager_ final : public inode_manager::impl {
   void order_inodes_by_path() {
     auto span = sortable_span();
     span.all();
-    inode_ordering(LOG_GET_LOGGER).by_path(span);
+    inode_ordering(LOG_GET_LOGGER, prog_).by_path(span);
 
     std::vector<std::shared_ptr<inode>> tmp(span.begin(), span.end());
     inodes_.swap(tmp);
   }
 
   void order_inodes_by_similarity() {
-    std::sort(
-        inodes_.begin(), inodes_.end(),
-        [](const std::shared_ptr<inode>& a, const std::shared_ptr<inode>& b) {
-          auto ash = a->similarity_hash();
-          auto bsh = b->similarity_hash();
-          return ash < bsh ||
-                 (ash == bsh && (a->size() > b->size() ||
-                                 (a->size() == b->size() &&
-                                  a->any()->less_revpath(*b->any()))));
-        });
+    auto span = sortable_span();
+    span.all();
+    inode_ordering(LOG_GET_LOGGER, prog_).by_similarity(span);
+
+    std::vector<std::shared_ptr<inode>> tmp(span.begin(), span.end());
+    inodes_.swap(tmp);
   }
 
   void presort_index(std::vector<std::shared_ptr<inode>>& inodes,
@@ -933,18 +872,14 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa2(worker_group& wg) {
   similarity_ordering_options opts;
   opts.max_children = file_order.nilsimsa2_max_children;
   opts.max_cluster_size = file_order.nilsimsa2_max_cluster_size;
-  auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
-  inode_element_view ev(inodes_);
-  std::promise<std::vector<uint32_t>> promise;
-  auto future = promise.get_future();
-  sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)));
-  auto ordered = future.get();
-  std::vector<std::shared_ptr<inode>> inodes;
-  inodes.reserve(inodes_.size());
-  for (auto i : ordered) {
-    inodes.push_back(std::move(inodes_[i]));
-  }
-  inodes.swap(inodes_);
+
+  auto span = sortable_span();
+  span.all();
+
+  inode_ordering(LOG_GET_LOGGER, prog_).by_nilsimsa(wg, opts, span);
+
+  std::vector<std::shared_ptr<inode>> tmp(span.begin(), span.end());
+  inodes_.swap(tmp);
 }
 
 template <typename LoggerPolicy>

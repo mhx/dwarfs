@@ -22,22 +22,35 @@
 #include <algorithm>
 
 #include "dwarfs/entry.h"
+#include "dwarfs/inode_element_view.h"
 #include "dwarfs/inode_ordering.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/promise_receiver.h"
+#include "dwarfs/similarity_ordering.h"
+#include "dwarfs/worker_group.h"
 
 namespace dwarfs {
+
+namespace {
 
 template <typename LoggerPolicy>
 class inode_ordering_ final : public inode_ordering::impl {
  public:
-  inode_ordering_(logger& lgr)
-      : LOG_PROXY_INIT(lgr) {}
+  inode_ordering_(logger& lgr, progress& prog)
+      : LOG_PROXY_INIT(lgr)
+      , prog_{prog} {}
 
   void by_inode_number(sortable_inode_span& sp) const override;
   void by_path(sortable_inode_span& sp) const override;
+  void by_similarity(sortable_inode_span& sp,
+                     std::optional<fragment_category> cat) const override;
+  void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+                   sortable_inode_span& sp,
+                   std::optional<fragment_category> cat) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
+  progress& prog_;
 };
 
 template <typename LoggerPolicy>
@@ -65,8 +78,66 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
             [&](auto a, auto b) { return paths[a] < paths[b]; });
 }
 
-inode_ordering::inode_ordering(logger& lgr)
+template <typename LoggerPolicy>
+void inode_ordering_<LoggerPolicy>::by_similarity(
+    sortable_inode_span& sp, std::optional<fragment_category> cat) const {
+  std::vector<uint32_t> hash_cache;
+
+  auto raw = sp.raw();
+  auto& index = sp.index();
+
+  hash_cache.resize(raw.size());
+
+  for (auto i : index) {
+    if (cat) {
+      hash_cache[i] = raw[i]->similarity_hash(*cat);
+    } else {
+      hash_cache[i] = raw[i]->similarity_hash();
+    }
+  }
+
+  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+    auto const ca = hash_cache[a];
+    auto const cb = hash_cache[b];
+
+    if (ca < cb) {
+      return true;
+    }
+
+    if (ca > cb) {
+      return false;
+    }
+
+    auto ia = raw[a].get();
+    auto ib = raw[b].get();
+
+    return ia->size() > ib->size() ||
+           (ia->size() == ib->size() && ia->any()->less_revpath(*ib->any()));
+  });
+}
+
+template <typename LoggerPolicy>
+void inode_ordering_<LoggerPolicy>::by_nilsimsa(
+    worker_group& wg, similarity_ordering_options const& opts,
+    sortable_inode_span& sp, std::optional<fragment_category> cat) const {
+  inode_element_view ev;
+  if (cat) {
+    ev = inode_element_view(sp.raw(), sp.index(), *cat);
+  } else {
+    ev = inode_element_view(sp.raw());
+  }
+  std::promise<std::vector<uint32_t>> promise;
+  auto future = promise.get_future();
+  auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
+  sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)),
+                           std::move(sp.index()));
+  future.get().swap(sp.index());
+}
+
+} // namespace
+
+inode_ordering::inode_ordering(logger& lgr, progress& prog)
     : impl_(make_unique_logging_object<impl, inode_ordering_, logger_policies>(
-          lgr)) {}
+          lgr, prog)) {}
 
 } // namespace dwarfs
