@@ -36,6 +36,7 @@
 
 #include <fmt/format.h>
 
+#include <folly/Demangle.h>
 #include <folly/small_vector.h>
 #include <folly/sorted_vector_types.h>
 
@@ -120,10 +121,21 @@ class inode_ : public inode {
     return num_;
   }
 
+  bool has_category(fragment_category cat) const override {
+    DWARFS_CHECK(!fragments_.empty(),
+                 "has_category() called with no fragments");
+    if (fragments_.size() == 1) {
+      return fragments_.get_single_category() == cat;
+    }
+    auto& m = std::get<similarity_map_type>(similarity_);
+    return m.find(cat) != m.end();
+  }
+
   uint32_t similarity_hash() const override {
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (similarity)");
     }
+    // TODO
     return similarity_hash_;
   }
 
@@ -131,7 +143,17 @@ class inode_ : public inode {
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (nilsimsa)");
     }
+    // TODO
     return nilsimsa_similarity_hash_;
+  }
+
+  uint32_t similarity_hash(fragment_category cat) const override {
+    return find_similarity<uint32_t>(cat);
+  }
+
+  nilsimsa::hash_type const&
+  nilsimsa_similarity_hash(fragment_category cat) const override {
+    return find_similarity<nilsimsa::hash_type>(cat);
   }
 
   void set_files(files_vector&& fv) override {
@@ -307,6 +329,27 @@ class inode_ : public inode {
   }
 
  private:
+  template <typename T>
+  T const& find_similarity(fragment_category cat) const {
+    if (fragments_.empty()) [[unlikely]] {
+      DWARFS_THROW(runtime_error, fmt::format("inode has no fragments ({})",
+                                              folly::demangle(typeid(T))));
+    }
+    if (fragments_.size() == 1) {
+      if (fragments_.get_single_category() != cat) [[unlikely]] {
+        DWARFS_THROW(runtime_error, fmt::format("category mismatch ({})",
+                                                folly::demangle(typeid(T))));
+      }
+      return std::get<T>(similarity_);
+    }
+    auto& m = std::get<similarity_map_type>(similarity_);
+    if (auto it = m.find(cat); it != m.end()) {
+      return std::get<T>(it->second);
+    }
+    DWARFS_THROW(runtime_error, fmt::format("category not found ({})",
+                                            folly::demangle(typeid(T))));
+  }
+
   template <typename T>
   void scan_range(mmif* mm, size_t offset, size_t size, T&& scanner) {
     static constexpr size_t const chunk_size = 32 << 20;
