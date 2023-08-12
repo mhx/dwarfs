@@ -40,7 +40,6 @@ const std::map<std::string_view, file_order_mode> order_choices{
     {"script", file_order_mode::SCRIPT},
 #endif
     {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA},
     {"nilsimsa2", file_order_mode::NILSIMSA2},
 };
 
@@ -100,26 +99,6 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
       auto ordname = order_opts[0];
 
       switch (rv.mode) {
-      case file_order_mode::NILSIMSA:
-        if (order_opts.size() > 4) {
-          throw std::runtime_error(fmt::format(
-              "too many options for inode order mode '{}'", ordname));
-        }
-
-        parse_order_option(ordname, order_opts[1], rv.nilsimsa_limit, "limit",
-                           0, 255);
-
-        if (order_opts.size() > 2) {
-          parse_order_option(ordname, order_opts[2], rv.nilsimsa_depth, "depth",
-                             0);
-
-          if (order_opts.size() > 3) {
-            parse_order_option(ordname, order_opts[3], rv.nilsimsa_min_depth,
-                               "min depth", 0);
-          }
-        }
-        break;
-
       case file_order_mode::NILSIMSA2:
         if (order_opts.size() > 4) {
           throw std::runtime_error(fmt::format(
@@ -162,11 +141,6 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
 
   case file_order_mode::SIMILARITY:
     return "similarity";
-
-  case file_order_mode::NILSIMSA:
-    return fmt::format("nilsimsa (limit={}, depth={}, min_depth={})",
-                       opts.nilsimsa_limit, opts.nilsimsa_depth,
-                       opts.nilsimsa_min_depth);
 
   case file_order_mode::NILSIMSA2:
     return fmt::format("nilsimsa2 (max_children={}, max_cluster_size={})",
