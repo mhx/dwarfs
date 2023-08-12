@@ -251,32 +251,25 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
-- `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*limit*[`:`*depth*[`:`*mindepth*]]]|`script`:
+- `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
   `path`, they will be sorted asciibetically by path name of the first file
   representing this inode. With `similarity`, they will be ordered using a
   simple, yet fast and efficient, similarity hash function. `nilsimsa` ordering
   uses a more sophisticated similarity function that is typically better than
-  `similarity`, but is significantly slower to compute. However, computation
-  can happen in the background while already building the file system.
-  `nilsimsa` ordering can be further tweaked by specifying a *limit* and
-  *depth*. The *limit* determines how soon an inode is considered similar
-  enough for adding. A *limit* of 255 means "essentially identical", whereas
-  a *limit* of 0 means "not similar at all". The *depth* determines up to
-  how many inodes can be checked at most while searching for a similar one.
-  To avoid `nilsimsa` ordering to become a bottleneck when ordering lots of
-  small files, the *depth* is adjusted dynamically to keep the input queue
-  to the segmentation/compression stages adequately filled. You can specify
-  how much the *depth* can be adjusted by also specifying *mindepth*.
-  The default if you omit these values is a *limit* of 255, a *depth*
-  of 20000 and a *mindepth* of 1000. Note that if you want reproducible
-  results, you need to set *depth* and *mindepth* to the same value. Also
-  note that when you're compressing lots (as in hundreds of thousands) of
-  small files, ordering them by `similarity` instead of `nilsimsa` is likely
-  going to speed things up significantly without impacting compression too much.
-  Last but not least, if scripting support is built into `mkdwarfs`, you can
-  choose `script` to let the script determine the order.
+  `similarity`, but it's significantly slower to determine a good ordering.
+  However, the new implementation of this algorithm can be parallelized and
+  will perform much better on huge numbers of files. `nilsimsa` ordering can
+  be tweaked by specifying a *max-children* and *max-cluster-size*. Both options
+  determine how the set of files will be split into clusters, each of which will
+  be further split recursively. *max-children* is the maximum number of child
+  nodes resulting from a clustering step. If *max-children* distinct clusters
+  have been found, new files will be added to the closest cluster. *max-cluster-size*
+  determines at which point a cluster will no longer be split further. Typically,
+  larger values will result in better ordering, but will also make the algorithm
+  slower. Unlike the old implementation, `nilsimsa` ordering is completely
+  deterministic.
 
 - `--max-similarity-size=`*value*:
   Don't perform similarity ordering for files larger than this size. This
@@ -361,11 +354,6 @@ Most other options are concerned with compression tuning:
 
 If experimental Python support was compiled into `mkdwarfs`, you can use the
 following option to enable customizations via the scripting interface:
-
-- `--script=`*file*[`:`*class*[`(`arguments`...)`]]:
-  Specify the Python script to load. The class name is optional if there's
-  a class named `mkdwarfs` in the script. It is also possible to pass
-  arguments to the constructor.
 
 ## TIPS & TRICKS
 
