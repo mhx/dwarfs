@@ -381,6 +381,7 @@ list(
   src/dwarfs/inode_chunkable.cpp
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp
+  src/dwarfs/inode_ordering.cpp
   src/dwarfs/inode_reader_v2.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/metadata_types.cpp

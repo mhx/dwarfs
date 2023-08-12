@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "dwarfs/fragment_category.h"
+#include "dwarfs/inode.h"
 
 namespace dwarfs {
 
@@ -79,6 +80,8 @@ class inode_manager {
 
   void dump(std::ostream& os) const { impl_->dump(os); }
 
+  sortable_inode_span sortable_span() const { return impl_->sortable_span(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -96,6 +99,7 @@ class inode_manager {
     scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
                     file const* p) const = 0;
     virtual void dump(std::ostream& os) const = 0;
+    virtual sortable_inode_span sortable_span() const = 0;
   };
 
  private:
