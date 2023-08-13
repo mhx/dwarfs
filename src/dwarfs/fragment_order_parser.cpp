@@ -133,9 +133,6 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
   case file_order_mode::PATH:
     return "path";
 
-  case file_order_mode::SCRIPT:
-    return "script";
-
   case file_order_mode::SIMILARITY:
     return "similarity";
 
