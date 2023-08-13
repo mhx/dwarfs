@@ -670,21 +670,20 @@ void scanner_<LoggerPolicy>::scan(
       worker_group wg_order("ordering", num_threads);
 
       // ordering.add_job([&] {
-      im.order_inodes(wg_order, script_,
-                      [&](std::shared_ptr<inode> const& ino) {
-                        blockify.add_job([&, this] {
-                          prog.current.store(ino.get());
-                          inode_chunkable ic(*ino, *os_);
-                          seg.add_chunkable(ic);
-                          prog.inodes_written++;
-                        });
-                        auto queued_files = blockify.queue_size();
-                        auto queued_blocks = fsw.queue_fill();
-                        prog.blockify_queue = queued_files;
-                        prog.compress_queue = queued_blocks;
-                        return INT64_C(500) * queued_blocks +
-                               static_cast<int64_t>(queued_files);
-                      });
+      im.order_inodes(wg_order, [&](std::shared_ptr<inode> const& ino) {
+        blockify.add_job([&, this] {
+          prog.current.store(ino.get());
+          inode_chunkable ic(*ino, *os_);
+          seg.add_chunkable(ic);
+          prog.inodes_written++;
+        });
+        auto queued_files = blockify.queue_size();
+        auto queued_blocks = fsw.queue_fill();
+        prog.blockify_queue = queued_files;
+        prog.compress_queue = queued_blocks;
+        return INT64_C(500) * queued_blocks +
+               static_cast<int64_t>(queued_files);
+      });
       // });
 
       // wg_order.wait();

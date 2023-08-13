@@ -146,11 +146,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   auto prog = progress([](const progress&, bool) {}, 1000);
 
-  // TODO:
-  std::shared_ptr<script> scr;
-  if (file_order == file_order_mode::SCRIPT) {
-    scr = std::make_shared<test::script_mock>();
-  }
+  auto scr = std::make_shared<test::script_mock>();
 
   auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog, scr);
   auto image_size = fsimage.size();
@@ -595,12 +591,13 @@ TEST_P(packing_test, regression_empty_fs) {
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, compression_test,
-    ::testing::Combine(
-        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
-        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
-                          file_order_mode::SCRIPT, file_order_mode::NILSIMSA,
-                          file_order_mode::SIMILARITY),
-        ::testing::Values(std::nullopt, "xxh3-128")));
+    ::testing::Combine(::testing::ValuesIn(compressions),
+                       ::testing::Values(12, 15, 20, 28),
+                       ::testing::Values(file_order_mode::NONE,
+                                         file_order_mode::PATH,
+                                         file_order_mode::NILSIMSA,
+                                         file_order_mode::SIMILARITY),
+                       ::testing::Values(std::nullopt, "xxh3-128")));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
