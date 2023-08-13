@@ -38,12 +38,11 @@ class progress;
 class segmenter {
  public:
   struct config {
-    unsigned blockhash_window_size;
+    unsigned blockhash_window_size{12};
     unsigned window_increment_shift{1};
     size_t max_active_blocks{1};
-    size_t memory_limit{256 << 20};
-    unsigned block_size_bits{22};
     unsigned bloom_filter_size{4};
+    unsigned block_size_bits{22};
   };
 
   using block_ready_cb = folly::Function<size_t(std::shared_ptr<block_data>)>;

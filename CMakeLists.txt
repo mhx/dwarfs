@@ -394,6 +394,7 @@ list(
   src/dwarfs/safe_main.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/segmenter.cpp
+  src/dwarfs/segmenter_factory.cpp
   src/dwarfs/similarity.cpp
   src/dwarfs/similarity_ordering.cpp
   src/dwarfs/string_table.cpp

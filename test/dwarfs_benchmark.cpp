@@ -35,7 +35,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
-#include "dwarfs/segmenter.h"
+#include "dwarfs/segmenter_factory.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
@@ -91,10 +91,13 @@ void PackParamsDirs(::benchmark::internal::Benchmark* b) {
 }
 
 std::string make_filesystem(::benchmark::State const& state) {
-  segmenter::config cfg;
+  segmenter_factory::config cfg;
   scanner_options options;
 
-  cfg.blockhash_window_size = 8;
+  cfg.blockhash_window_size.set_default(12);
+  cfg.window_increment_shift.set_default(1);
+  cfg.max_active_blocks.set_default(1);
+  cfg.bloom_filter_size.set_default(4);
   cfg.block_size_bits = 12;
 
   options.with_devices = true;
@@ -112,17 +115,19 @@ std::string make_filesystem(::benchmark::State const& state) {
   options.plain_symlinks_table = state.range(1);
 
   worker_group wg("writer", 4);
+  progress prog([](const progress&, bool) {}, 1000);
 
   std::ostringstream logss;
   stream_logger lgr(logss); // TODO: mock
   lgr.set_policy<prod_logger_policy>();
 
-  scanner s(lgr, wg, cfg, entry_factory::create(),
+  auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
+
+  scanner s(lgr, wg, sf, entry_factory::create(),
             test::os_access_mock::create_test_instance(),
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
-  progress prog([](const progress&, bool) {}, 1000);
 
   block_compressor bc("null");
   filesystem_writer fsw(oss, lgr, wg, prog, bc, bc);
