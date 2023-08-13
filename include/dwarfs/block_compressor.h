@@ -47,7 +47,9 @@ class bad_compression_ratio_error : public std::runtime_error {
 
 class block_compressor {
  public:
-  block_compressor(const std::string& spec);
+  block_compressor() = default;
+
+  explicit block_compressor(const std::string& spec);
 
   block_compressor(const block_compressor& bc)
       : impl_(bc.impl_->clone()) {}
