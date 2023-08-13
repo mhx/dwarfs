@@ -48,6 +48,7 @@
 #include "dwarfs/worker_group.h"
 
 #include "mmap_mock.h"
+#include "test_logger.h"
 
 using namespace dwarfs;
 
@@ -1037,8 +1038,7 @@ void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
 }
 
 TEST_P(compat_metadata, backwards_compat) {
-  std::ostringstream oss;
-  stream_logger lgr(oss);
+  test::test_logger lgr;
   auto version = GetParam();
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
   filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
@@ -1054,8 +1054,7 @@ class compat_filesystem
 TEST_P(compat_filesystem, backwards_compat) {
   auto [version, enable_nlink] = GetParam();
 
-  std::ostringstream oss;
-  stream_logger lgr(oss);
+  test::test_logger lgr;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
   filesystem_options opts;
@@ -1097,8 +1096,7 @@ class rewrite
 TEST_P(rewrite, filesystem_rewrite) {
   auto [version, recompress_block, recompress_metadata] = GetParam();
 
-  std::ostringstream oss;
-  stream_logger lgr(oss);
+  test::test_logger lgr;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
   rewrite_options opts;
