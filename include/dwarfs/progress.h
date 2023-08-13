@@ -71,6 +71,8 @@ class progress {
   std::atomic<size_t> chunk_count{0};
   std::atomic<size_t> inodes_scanned{0};
   std::atomic<size_t> inodes_written{0};
+  std::atomic<size_t> fragments_found{0};
+  std::atomic<size_t> fragments_written{0};
   std::atomic<size_t> blocks_written{0};
   std::atomic<size_t> errors{0};
   std::atomic<size_t> nilsimsa_depth{0};

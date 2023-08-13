@@ -33,7 +33,7 @@ namespace dwarfs {
 fragment_chunkable::fragment_chunkable(inode const& ino,
                                        single_inode_fragment& frag,
                                        file_off_t offset, mmif& mm,
-                                       categorizer_manager const& catmgr)
+                                       categorizer_manager const* catmgr)
     : ino_{ino}
     , frag_{frag}
     , offset_{offset}
@@ -45,9 +45,13 @@ fragment_chunkable::~fragment_chunkable() = default;
 size_t fragment_chunkable::size() const { return frag_.size(); }
 
 std::string fragment_chunkable::description() const {
-  return fmt::format("{} fragment at offset {} of inode {} [{}] - size: {}",
-                     catmgr_.category_name(frag_.category().value()), offset_,
-                     ino_.num(), ino_.any()->name(), size());
+  std::string prefix;
+  if (catmgr_) {
+    prefix =
+        fmt::format("{} ", catmgr_->category_name(frag_.category().value()));
+  }
+  return fmt::format("{}fragment at offset {} of inode {} [{}] - size: {}",
+                     prefix, offset_, ino_.num(), ino_.any()->name(), size());
 }
 
 std::span<uint8_t const> fragment_chunkable::span() const {

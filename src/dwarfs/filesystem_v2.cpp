@@ -33,6 +33,7 @@
 #include "dwarfs/block_cache.h"
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_data.h"
+#include "dwarfs/categorizer.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -701,7 +702,9 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
         auto block =
             std::make_shared<block_data>(block_decompressor::decompress(
                 s->compression(), mm->as<uint8_t>(s->start()), s->length()));
-        writer.write_block(std::move(block));
+        // TODO: re-write with different categories
+        writer.write_block(categorizer_manager::default_category().value(),
+                           std::move(block));
       } else {
         writer.write_compressed_section(s->type(), s->compression(),
                                         s->data(*mm));

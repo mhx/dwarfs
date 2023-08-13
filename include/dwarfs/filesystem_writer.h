@@ -28,6 +28,7 @@
 #include <span>
 #include <utility>
 
+#include "dwarfs/fragment_category.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/options.h"
 #include "dwarfs/worker_group.h"
@@ -44,23 +45,27 @@ class filesystem_writer {
  public:
   filesystem_writer(
       std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
-      const block_compressor& bc,
+      const block_compressor& schema_bc, const block_compressor& metadata_bc,
       filesystem_writer_options const& options = filesystem_writer_options(),
       std::istream* header = nullptr);
 
-  filesystem_writer(std::ostream& os, logger& lgr, worker_group& wg,
-                    progress& prog, const block_compressor& bc,
-                    const block_compressor& schema_bc,
-                    const block_compressor& metadata_bc,
-                    filesystem_writer_options const& options,
-                    std::istream* header = nullptr);
+  void add_default_compressor(block_compressor bc) {
+    impl_->add_default_compressor(std::move(bc));
+  }
+
+  void add_category_compressor(fragment_category::value_type cat,
+                               block_compressor bc) {
+    impl_->add_category_compressor(cat, std::move(bc));
+  }
 
   void copy_header(std::span<uint8_t const> header) {
     impl_->copy_header(header);
   }
 
-  void write_block(std::shared_ptr<block_data>&& data) {
-    impl_->write_block(std::move(data));
+  uint32_t write_block(fragment_category::value_type cat,
+                       std::shared_ptr<block_data>&& data,
+                       std::optional<std::string> meta = std::nullopt) {
+    return impl_->write_block(cat, std::move(data), std::move(meta));
   }
 
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) {
@@ -80,14 +85,17 @@ class filesystem_writer {
 
   size_t size() const { return impl_->size(); }
 
-  int queue_fill() const { return impl_->queue_fill(); }
-
   class impl {
    public:
     virtual ~impl() = default;
 
+    virtual void add_default_compressor(block_compressor bc) = 0;
+    virtual void add_category_compressor(fragment_category::value_type cat,
+                                         block_compressor bc) = 0;
     virtual void copy_header(std::span<uint8_t const> header) = 0;
-    virtual void write_block(std::shared_ptr<block_data>&& data) = 0;
+    virtual uint32_t write_block(fragment_category::value_type cat,
+                                 std::shared_ptr<block_data>&& data,
+                                 std::optional<std::string> meta) = 0;
     virtual void
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
@@ -96,7 +104,6 @@ class filesystem_writer {
                              std::span<uint8_t const> data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
-    virtual int queue_fill() const = 0;
   };
 
  private:

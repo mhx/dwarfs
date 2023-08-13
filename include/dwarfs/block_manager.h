@@ -21,36 +21,25 @@
 
 #pragma once
 
-#include <memory>
+#include <mutex>
+#include <vector>
 
-#include "dwarfs/chunkable.h"
+#include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
 
-class categorizer_manager;
-class inode;
-class mmif;
-class single_inode_fragment;
-
-class fragment_chunkable : public chunkable {
+class block_manager {
  public:
-  fragment_chunkable(inode const& ino, single_inode_fragment& frag,
-                     file_off_t offset, mmif& mm,
-                     categorizer_manager const* catmgr);
-  ~fragment_chunkable();
+  using chunk_type = thrift::metadata::chunk;
 
-  size_t size() const override;
-  std::string description() const override;
-  std::span<uint8_t const> span() const override;
-  void add_chunk(size_t block, size_t offset, size_t size) override;
-  void release_until(size_t offset) override;
+  size_t get_logical_block() const;
+  void set_written_block(size_t logical_block, size_t written_block);
+  void map_logical_blocks(std::vector<chunk_type>& vec);
 
  private:
-  inode const& ino_;
-  single_inode_fragment& frag_;
-  file_off_t offset_;
-  mmif& mm_;
-  categorizer_manager const* catmgr_;
+  std::mutex mutable mx_;
+  size_t mutable num_blocks_{0};
+  std::vector<size_t> block_map_;
 };
 
 } // namespace dwarfs
