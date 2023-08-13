@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <stdexcept>
@@ -40,21 +39,9 @@
 
 #include "dwarfs/logger.h"
 #include "dwarfs/terminal.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
-
-namespace {
-
-bool get_enable_stack_trace() {
-  if (auto var = std::getenv("DWARFS_LOGGER_STACK_TRACE")) {
-    if (auto val = folly::tryTo<bool>(var); val && *val) {
-      return true;
-    }
-  }
-  return false;
-}
-
-} // namespace
 
 logger::level_type logger::parse_level(std::string_view level) {
   if (level == "error") {
@@ -79,7 +66,7 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)
     , color_(stream_is_fancy_terminal(os))
-    , enable_stack_trace_{get_enable_stack_trace()}
+    , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
     , with_context_(with_context) {
   set_threshold(threshold);
 }
