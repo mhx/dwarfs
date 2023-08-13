@@ -404,15 +404,12 @@ void filesystem_writer_<LoggerPolicy>::write_section(
     while (mem_used() > options_.max_queue_size) {
       cond_.wait(lock);
     }
-  }
 
-  auto fsb =
-      std::make_unique<fsblock>(type, bc, std::move(data), section_number_++);
+    auto fsb =
+        std::make_unique<fsblock>(type, bc, std::move(data), section_number_++);
 
-  fsb->compress(wg_);
+    fsb->compress(wg_);
 
-  {
-    std::lock_guard lock(mx_);
     queue_.push_back(std::move(fsb));
   }
 
@@ -423,13 +420,14 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
     section_type type, compression_type compression,
     std::span<uint8_t const> data) {
-  auto fsb =
-      std::make_unique<fsblock>(type, compression, data, section_number_++);
-
-  fsb->compress(wg_);
-
   {
     std::lock_guard lock(mx_);
+
+    auto fsb =
+        std::make_unique<fsblock>(type, compression, data, section_number_++);
+
+    fsb->compress(wg_);
+
     queue_.push_back(std::move(fsb));
   }
 
