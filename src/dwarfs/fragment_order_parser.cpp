@@ -36,9 +36,6 @@ namespace {
 const std::map<std::string_view, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
-#ifdef DWARFS_HAVE_PYTHON
-    {"script", file_order_mode::SCRIPT},
-#endif
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA},
 };
