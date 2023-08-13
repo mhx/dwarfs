@@ -372,7 +372,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         "recompress an existing filesystem (none, block, metadata, all)")
     ("categorize",
         po::value<std::string>(&categorizer_list_str)
-          ->default_value("pcmaudio,incompressible"),
+          ->implicit_value("pcmaudio,incompressible"),
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)->multitoken(),
@@ -923,10 +923,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   progress prog(std::move(updater), interval_ms);
 
-  block_compressor bc(compression.front()); // TODO
-  block_compressor schema_bc(schema_compression);
-  block_compressor metadata_bc(metadata_compression);
-
   auto min_memory_req = num_workers * (UINT64_C(1) << cfg.block_size_bits);
 
   // TODO:
@@ -1023,6 +1019,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     return 1;
   }
 
+  block_compressor schema_bc(schema_compression);
+  block_compressor metadata_bc(metadata_compression);
+
+  filesystem_writer fsw(*os, lgr, wg_compress, prog, schema_bc, metadata_bc,
+                        fswopts, header_ifs.get());
+
   try {
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
@@ -1030,10 +1032,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     cop.parse(compression);
     LOG_DEBUG << cop.as_string();
 
-    compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr](
-                                         auto cat, block_compressor const& bc) {
+    fsw.add_default_compressor(compression_opt.get());
+
+    compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr,
+                                      &fsw](auto cat,
+                                            block_compressor const& bc) {
       try {
         catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
+        fsw.add_category_compressor(cat, bc);
       } catch (std::exception const& e) {
         throw std::runtime_error(
             fmt::format("compression '{}' cannot be used for category '{}': "
@@ -1045,9 +1051,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     LOG_ERROR << e.what();
     return 1;
   }
-
-  filesystem_writer fsw(*os, lgr, wg_compress, prog, bc, schema_bc, metadata_bc,
-                        fswopts, header_ifs.get());
 
   auto ti = LOG_TIMED_INFO;
 

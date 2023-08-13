@@ -38,17 +38,20 @@
 #include <fmt/format.h>
 
 #include "dwarfs/block_data.h"
+#include "dwarfs/block_manager.h"
 #include "dwarfs/categorizer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/file_scanner.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/fragment_chunkable.h"
 #include "dwarfs/global_entry_data.h"
 #include "dwarfs/inode.h"
-#include "dwarfs/inode_chunkable.h"
 #include "dwarfs/inode_manager.h"
+#include "dwarfs/inode_ordering.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
+#include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
@@ -663,7 +666,6 @@ void scanner_<LoggerPolicy>::scan(
   }
 
   LOG_INFO << "building blocks...";
-  segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
 
   // TODO:
   // - get rid of multiple worker groups
@@ -671,37 +673,77 @@ void scanner_<LoggerPolicy>::scan(
   //   which gets run on a worker groups; each batch keeps track of
   //   its CPU time and affects thread naming
 
+  // segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
+
+  auto blockmgr = std::make_shared<block_manager>();
+
   {
-    worker_group blockify("blockify", 1, 1 << 20);
+    size_t const num_threads = std::max(folly::hardware_concurrency(), 1u);
+    worker_group wg_ordering("ordering", num_threads);
+    worker_group wg_blockify("blockify", num_threads);
 
-    {
-      // TODO
-      size_t const num_threads = std::max(folly::hardware_concurrency(), 1u);
-      worker_group wg_order("ordering", num_threads);
+    for (auto category : im.inode_categories()) {
+      auto catmgr = options_.inode.categorizer_mgr.get();
+      std::string meta;
 
-      // ordering.add_job([&] {
-      im.order_inodes(wg_order, [&](std::shared_ptr<inode> const& ino) {
-        blockify.add_job([&, this] {
-          prog.current.store(ino.get());
-          inode_chunkable ic(*ino, *os_);
-          seg.add_chunkable(ic);
-          prog.inodes_written++;
-        });
+      if (catmgr) {
+        meta = catmgr->category_metadata(category);
+      }
+
+      wg_ordering.add_job([this, catmgr, blockmgr, category, meta, &prog, &fsw,
+                           &im, &wg_ordering, &wg_blockify] {
+        wg_blockify.add_job(
+            [this, catmgr, blockmgr, category, meta, &prog, &fsw,
+             span = im.ordered_span(category, wg_ordering)]() mutable {
+              // TODO: segmenter config per-category
+              segmenter seg(LOG_GET_LOGGER, prog, blockmgr, cfg_,
+                            [category, meta, &fsw](auto block) {
+                              return fsw.write_block(category.value(),
+                                                     std::move(block), meta);
+                            });
+
+              for (auto ino : span) {
+                prog.current.store(ino.get());
+
+                // TODO: factor this code out
+                auto f = ino->any();
+
+                if (auto size = f->size(); size > 0) {
+                  auto mm = os_->map_file(f->fs_path(), size);
+                  file_off_t offset{0};
+
+                  for (auto& frag : ino->fragments()) {
+                    if (frag.category() == category) {
+                      fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
+                      seg.add_chunkable(fc);
+                      prog.fragments_written++;
+                    }
+
+                    offset += frag.size();
+                  }
+                }
+
+                prog.inodes_written++; // TODO: remove?
+              }
+
+              seg.finish();
+            });
       });
-      // });
-
-      // wg_order.wait();
     }
 
     LOG_INFO << "waiting for segmenting/blockifying to finish...";
 
-    blockify.wait();
+    wg_blockify.wait();
+    wg_ordering.wait();
 
-    LOG_INFO << "segmenting/blockifying CPU time: "
-             << time_with_unit(blockify.get_cpu_time());
+    LOG_INFO << "ordering CPU time: "
+             << time_with_unit(wg_ordering.get_cpu_time());
+
+    LOG_INFO << "segmenting CPU time: "
+             << time_with_unit(wg_blockify.get_cpu_time());
   }
 
-  seg.finish();
+  // seg.finish();
   wg_.wait();
 
   prog.set_status_function([](progress const&, size_t) {
@@ -721,6 +763,8 @@ void scanner_<LoggerPolicy>::scan(
     DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = mv2.chunks()->size();
     ino->append_chunks_to(mv2.chunks().value());
   });
+
+  blockmgr->map_logical_blocks(mv2.chunks().value());
 
   // insert dummy inode to help determine number of chunks per inode
   DWARFS_NOTHROW(mv2.chunk_table()->at(im.count())) = mv2.chunks()->size();
