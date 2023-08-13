@@ -21,6 +21,7 @@
 
 #include <array>
 #include <map>
+#include <shared_mutex>
 #include <stack>
 #include <unordered_set>
 #include <vector>
@@ -119,7 +120,8 @@ class magic_wrapper {
     magic_wrapper const& w_;
   };
 
-  mutable folly::Synchronized<std::stack<magic_cookie_t>> cookies_;
+  mutable folly::Synchronized<std::stack<magic_cookie_t>, std::shared_mutex>
+      cookies_;
 };
 
 class libmagic_categorizer_base : public random_access_categorizer {
@@ -152,7 +154,8 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   magic_wrapper m_;
-  mutable folly::Synchronized<std::map<std::string, size_t>> mimetypes_;
+  mutable folly::Synchronized<std::map<std::string, size_t>, std::shared_mutex>
+      mimetypes_;
 };
 
 std::span<std::string_view const>
