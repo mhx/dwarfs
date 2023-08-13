@@ -44,6 +44,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
+#include "dwarfs/segmenter_factory.h"
 #include "dwarfs/vfs_stat.h"
 
 #include "filter_test_data.h"
@@ -71,14 +72,25 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   // force multithreading
   worker_group wg("worker", 4);
 
-  scanner s(lgr, wg, cfg, entry_factory::create(), input, scr, options);
-
-  std::ostringstream oss;
   std::unique_ptr<progress> local_prog;
   if (!prog) {
     local_prog = std::make_unique<progress>([](const progress&, bool) {}, 1000);
     prog = local_prog.get();
   }
+
+  // TODO: ugly hack :-)
+  segmenter_factory::config sf_cfg;
+  sf_cfg.block_size_bits = cfg.block_size_bits;
+  sf_cfg.blockhash_window_size.set_default(cfg.blockhash_window_size);
+  sf_cfg.window_increment_shift.set_default(cfg.window_increment_shift);
+  sf_cfg.max_active_blocks.set_default(cfg.max_active_blocks);
+  sf_cfg.bloom_filter_size.set_default(cfg.bloom_filter_size);
+
+  auto sf = std::make_shared<segmenter_factory>(lgr, *prog, sf_cfg);
+
+  scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);
+
+  std::ostringstream oss;
 
   block_compressor bc(compression);
   filesystem_writer fsw(oss, lgr, wg, *prog, bc, bc);

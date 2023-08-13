@@ -72,7 +72,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
-#include "dwarfs/segmenter.h"
+#include "dwarfs/segmenter_factory.h"
 #include "dwarfs/terminal.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
@@ -274,7 +274,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
-  segmenter::config cfg;
+  segmenter_factory::config sf_config;
   sys_string path_str, output_str;
   std::string memory_limit, script_arg, header, schema_compression,
       metadata_compression, log_level_str, timestamp, time_resolution,
@@ -283,7 +283,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       categorizer_list_str;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
-      compression;
+      bloom_filter_size, compression;
   size_t num_workers, num_scanner_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
@@ -294,6 +294,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   integral_value_parser<size_t> max_lookback_parser;
   integral_value_parser<unsigned> window_size_parser(6, 24);
   integral_value_parser<unsigned> window_step_parser(0, 8);
+  integral_value_parser<unsigned> bloom_filter_size_parser(0, 8);
   fragment_order_parser order_parser;
   block_compressor_parser compressor_parser;
 
@@ -353,7 +354,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description advanced_opts("Advanced options");
   advanced_opts.add_options()
     ("block-size-bits,S",
-        po::value<unsigned>(&cfg.block_size_bits),
+        po::value<unsigned>(&sf_config.block_size_bits),
         "block size bits (size = 2^arg bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
@@ -426,7 +427,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::value<std::vector<std::string>>(&window_step)->multitoken(),
         "window step (as right shift of size)")
     ("bloom-filter-size",
-        po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4),
+        // po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4), // TODO
+        po::value<std::vector<std::string>>(&bloom_filter_size)->multitoken(),
         "bloom filter size (2^N*values bits)")
     ;
 
@@ -601,7 +603,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   auto const& defaults = levels[level];
 
   if (!vm.count("block-size-bits")) {
-    cfg.block_size_bits = defaults.block_size_bits;
+    sf_config.block_size_bits = defaults.block_size_bits;
   }
 
   if (!vm.count("compression")) {
@@ -617,22 +619,23 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   if (!vm.count("max-lookback-blocks")) {
-    cfg.max_active_blocks = 1; // TODO
     max_lookback_blocks.push_back(folly::to<std::string>(1));
   }
 
   if (!vm.count("window-size")) {
-    cfg.blockhash_window_size = defaults.window_size; // TODO
     window_size.push_back(folly::to<std::string>(defaults.window_size));
   }
 
   if (!vm.count("window-step")) {
-    cfg.window_increment_shift = defaults.window_step; // TODO
     window_step.push_back(folly::to<std::string>(defaults.window_step));
   }
 
-  if (cfg.block_size_bits < min_block_size_bits ||
-      cfg.block_size_bits > max_block_size_bits) {
+  if (!vm.count("bloom-filter-size")) {
+    bloom_filter_size.push_back(folly::to<std::string>(4));
+  }
+
+  if (sf_config.block_size_bits < min_block_size_bits ||
+      sf_config.block_size_bits > max_block_size_bits) {
     std::cerr << "error: block size must be between " << min_block_size_bits
               << " and " << max_block_size_bits << "\n";
     return 1;
@@ -923,13 +926,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   progress prog(std::move(updater), interval_ms);
 
-  auto min_memory_req = num_workers * (UINT64_C(1) << cfg.block_size_bits);
+  auto min_memory_req =
+      num_workers * (UINT64_C(1) << sf_config.block_size_bits);
 
   // TODO:
   if (mem_limit < min_memory_req /* && compression != "null" */) {
     LOG_WARN << "low memory limit (" << size_with_unit(mem_limit) << "), need "
              << size_with_unit(min_memory_req) << " to efficiently compress "
-             << size_with_unit(UINT64_C(1) << cfg.block_size_bits)
+             << size_with_unit(UINT64_C(1) << sf_config.block_size_bits)
              << " blocks with " << num_workers << " threads";
   }
 
@@ -976,44 +980,45 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   category_parser cp(options.inode.categorizer_mgr);
 
   try {
-    contextual_option_parser cop("--order", options.inode.fragment_order, cp,
-                                 order_parser);
-    cop.parse(defaults.order);
-    cop.parse(order);
-    LOG_DEBUG << cop.as_string();
-  } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
-    return 1;
-  }
+    {
+      contextual_option_parser cop("--order", options.inode.fragment_order, cp,
+                                   order_parser);
+      cop.parse(defaults.order);
+      cop.parse(order);
+      LOG_DEBUG << cop.as_string();
+    }
 
-  try {
-    categorized_option<size_t> max_lookback_opt;
-    contextual_option_parser cop("--max-lookback-blocks", max_lookback_opt, cp,
-                                 max_lookback_parser);
-    cop.parse(max_lookback_blocks);
-    LOG_DEBUG << cop.as_string();
-  } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
-    return 1;
-  }
+    {
+      contextual_option_parser cop("--max-lookback-blocks",
+                                   sf_config.max_active_blocks, cp,
+                                   max_lookback_parser);
+      cop.parse(max_lookback_blocks);
+      LOG_DEBUG << cop.as_string();
+    }
 
-  try {
-    categorized_option<unsigned> window_size_opt;
-    contextual_option_parser cop("--window-size", window_size_opt, cp,
-                                 window_size_parser);
-    cop.parse(window_size);
-    LOG_DEBUG << cop.as_string();
-  } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
-    return 1;
-  }
+    {
+      contextual_option_parser cop("--window-size",
+                                   sf_config.blockhash_window_size, cp,
+                                   window_size_parser);
+      cop.parse(window_size);
+      LOG_DEBUG << cop.as_string();
+    }
 
-  try {
-    categorized_option<unsigned> window_step_opt;
-    contextual_option_parser cop("--window-step", window_step_opt, cp,
-                                 window_step_parser);
-    cop.parse(window_step);
-    LOG_DEBUG << cop.as_string();
+    {
+      contextual_option_parser cop("--window-step",
+                                   sf_config.window_increment_shift, cp,
+                                   window_step_parser);
+      cop.parse(window_step);
+      LOG_DEBUG << cop.as_string();
+    }
+
+    {
+      contextual_option_parser cop("--bloom-filter-size",
+                                   sf_config.bloom_filter_size, cp,
+                                   bloom_filter_size_parser);
+      cop.parse(bloom_filter_size);
+      LOG_DEBUG << cop.as_string();
+    }
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -1060,7 +1065,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                              fsw, rw_opts);
       wg_compress.wait();
     } else {
-      scanner s(lgr, wg_scanner, cfg, entry_factory::create(),
+      auto sf = std::make_shared<segmenter_factory>(lgr, prog, sf_config);
+
+      scanner s(lgr, wg_scanner, sf, entry_factory::create(),
                 std::make_shared<os_access_generic>(), std::move(script),
                 options);
 

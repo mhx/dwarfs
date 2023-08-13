@@ -28,34 +28,14 @@
 #include <memory>
 #include <optional>
 
-#include "dwarfs/contextual_option.h"
+#include "dwarfs/categorized_option.h"
 #include "dwarfs/file_stat.h"
-#include "dwarfs/fragment_category.h"
 #include "dwarfs/types.h"
 
 namespace dwarfs {
 
 class categorizer_manager;
 class entry;
-
-namespace detail {
-
-template <typename T>
-struct categorized_option_policy {
-  using ContextArgumentType = fragment_category;
-  using ContextType = fragment_category::value_type;
-  using ValueType = T;
-
-  static ContextType context_from_arg(ContextArgumentType const& arg) {
-    return arg.value();
-  }
-};
-
-} // namespace detail
-
-template <typename ValueType>
-using categorized_option =
-    contextual_option<detail::categorized_option_policy<ValueType>>;
 
 enum class mlock_mode { NONE, TRY, MUST };
 

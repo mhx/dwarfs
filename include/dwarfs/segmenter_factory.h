@@ -21,46 +21,43 @@
 
 #pragma once
 
-#include <filesystem>
 #include <memory>
-#include <optional>
-#include <span>
-#include <string>
+
+#include "dwarfs/categorized_option.h"
+#include "dwarfs/segmenter.h"
 
 namespace dwarfs {
 
-struct scanner_options;
-
-class entry_factory;
-class filesystem_writer;
 class logger;
-class os_access;
 class progress;
-class script;
-class segmenter_factory;
-class worker_group;
 
-class scanner {
+class segmenter_factory {
  public:
-  scanner(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
-          std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
-          std::shared_ptr<script> scr, const scanner_options& options);
+  struct config {
+    categorized_option<unsigned> blockhash_window_size;
+    categorized_option<unsigned> window_increment_shift;
+    categorized_option<size_t> max_active_blocks;
+    categorized_option<unsigned> bloom_filter_size;
+    unsigned block_size_bits{22};
+  };
 
-  void scan(filesystem_writer& fsw, const std::filesystem::path& path,
-            progress& prog,
-            std::optional<std::span<std::filesystem::path const>> list =
-                std::nullopt) {
-    impl_->scan(fsw, path, prog, list);
+  segmenter_factory(logger& lgr, progress& prog, config const& cfg);
+
+  segmenter create(fragment_category cat, std::shared_ptr<block_manager> blkmgr,
+                   segmenter::block_ready_cb block_ready) const {
+    return impl_->create(cat, std::move(blkmgr), std::move(block_ready));
   }
+
+  size_t get_block_size() const { return impl_->get_block_size(); }
 
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual void
-    scan(filesystem_writer& fsw, const std::filesystem::path& path,
-         progress& prog,
-         std::optional<std::span<std::filesystem::path const>> list) = 0;
+    virtual segmenter
+    create(fragment_category cat, std::shared_ptr<block_manager> blkmgr,
+           segmenter::block_ready_cb block_ready) const = 0;
+    virtual size_t get_block_size() const = 0;
   };
 
  private:
