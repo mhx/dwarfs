@@ -50,6 +50,7 @@
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
+#include "test_logger.h"
 
 using namespace dwarfs;
 
@@ -136,8 +137,7 @@ void basic_end_to_end_test(std::string const& compressor,
   }
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto input = test::os_access_mock::create_test_instance();
 
@@ -558,8 +558,7 @@ TEST_P(packing_test, regression_empty_fs) {
   options.force_pack_string_tables = true;
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto input = std::make_shared<test::os_access_mock>();
 
@@ -634,8 +633,7 @@ TEST(segmenter, regression_block_boundary) {
   opts.metadata.check_consistency = true;
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   std::vector<size_t> fs_blocks;
 
@@ -683,8 +681,7 @@ TEST_P(compression_regression, github45) {
   opts.metadata.check_consistency = true;
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   std::independent_bits_engine<std::mt19937_64,
                                std::numeric_limits<uint8_t>::digits, uint16_t>
@@ -764,8 +761,7 @@ TEST_P(file_scanner, inode_ordering) {
   auto [order_mode, file_hash_algo] = GetParam();
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto bmcfg = segmenter::config();
   auto opts = scanner_options();
@@ -816,8 +812,7 @@ TEST_P(filter, filesystem) {
   options.remove_empty_dirs = true;
 
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto scr = std::make_shared<builtin_script>(lgr);
 
@@ -869,8 +864,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
 
 TEST(file_scanner, input_list) {
   std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto bmcfg = segmenter::config();
   auto opts = scanner_options();
