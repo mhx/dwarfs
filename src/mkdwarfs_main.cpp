@@ -376,7 +376,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           ->implicit_value("pcmaudio,incompressible"),
         categorize_desc.c_str())
     ("order",
-        po::value<std::vector<std::string>>(&order)->multitoken(),
+        po::value<std::vector<std::string>>(&order)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         order_desc.c_str())  // TODO
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
@@ -415,28 +416,28 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description segmenter_opts("Segmenter options");
   segmenter_opts.add_options()
     ("max-lookback-blocks,B",
-        // po::value<size_t>(&cfg.max_active_blocks)->default_value(1), // TODO
-        po::value<std::vector<std::string>>(&max_lookback_blocks)->multitoken(),
+        po::value<std::vector<std::string>>(&max_lookback_blocks)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         "how many blocks to scan for segments")
     ("window-size,W",
-        // po::value<unsigned>(&cfg.blockhash_window_size), // TODO
-        po::value<std::vector<std::string>>(&window_size)->multitoken(),
+        po::value<std::vector<std::string>>(&window_size)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         "window sizes for block hashing")
     ("window-step,w",
-        // po::value<unsigned>(&cfg.window_increment_shift), // TODO
-        po::value<std::vector<std::string>>(&window_step)->multitoken(),
+        po::value<std::vector<std::string>>(&window_step)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         "window step (as right shift of size)")
     ("bloom-filter-size",
-        // po::value<unsigned>(&cfg.bloom_filter_size)->default_value(4), // TODO
-        po::value<std::vector<std::string>>(&bloom_filter_size)->multitoken(),
+        po::value<std::vector<std::string>>(&bloom_filter_size)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         "bloom filter size (2^N*values bits)")
     ;
 
   po::options_description compressor_opts("Compressor options");
   compressor_opts.add_options()
     ("compression,C",
-        // po::value<std::string>(&compression), // TODO
-        po::value<std::vector<std::string>>(&compression)->multitoken(),
+        po::value<std::vector<std::string>>(&compression)
+          ->value_name("[cat::]arg")->multitoken()->composing(),
         "block compression algorithm")
     ("schema-compression",
         po::value<std::string>(&schema_compression),
@@ -449,7 +450,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::options_description filter_opts("Filter options");
   filter_opts.add_options()
     ("filter,F",
-        po_sys_value<std::vector<sys_string>>(&filter)->multitoken(),
+        po_sys_value<std::vector<sys_string>>(&filter)
+          ->multitoken()->composing(),
         "add filter rule")
     ("debug-filter",
         po::value<std::string>(&debug_filter)->implicit_value("all"),
