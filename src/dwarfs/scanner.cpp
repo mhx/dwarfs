@@ -658,6 +658,10 @@ void scanner_<LoggerPolicy>::scan(
     });
   });
 
+  if (getenv_is_enabled("DWARFS_DUMP_INODES")) {
+    im.dump(std::cout);
+  }
+
   LOG_INFO << "building blocks...";
   segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
 
