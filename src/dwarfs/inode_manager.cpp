@@ -228,7 +228,7 @@ class inode_ : public inode {
       }
     };
 
-    os << "inode " << num() << " (" << any()->size() << "):\n";
+    os << "inode " << num() << " (" << any()->size() << " bytes):\n";
     os << "  files:\n";
 
     for (auto const& f : files_) {
