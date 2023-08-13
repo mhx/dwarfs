@@ -468,7 +468,7 @@ class inode_manager_ final : public inode_manager::impl {
   size_t count() const override { return inodes_.size(); }
 
   void
-  order_inodes(worker_group& wg, inode_manager::order_cb const& fn) override;
+  order_inodes(worker_group& wg, inode_manager::inode_cb const& fn) override;
 
   void for_each_inode_in_order(
       std::function<void(std::shared_ptr<inode> const&)> const& fn)
@@ -606,7 +606,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
-    worker_group& wg, inode_manager::order_cb const& fn) {
+    worker_group& wg, inode_manager::inode_cb const& fn) {
   // TODO: only use an index, never actually reorder inodes
 
   // TODO:

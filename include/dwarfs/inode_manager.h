@@ -47,7 +47,6 @@ struct inode_options;
 class inode_manager {
  public:
   using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
-  using order_cb = std::function<int64_t(std::shared_ptr<inode> const&)>;
 
   inode_manager(logger& lgr, progress& prog, inode_options const& opts);
 
@@ -55,7 +54,7 @@ class inode_manager {
 
   size_t count() const { return impl_->count(); }
 
-  void order_inodes(worker_group& wg, order_cb const& fn) {
+  void order_inodes(worker_group& wg, inode_cb const& fn) {
     impl_->order_inodes(wg, fn);
   }
 
@@ -87,7 +86,7 @@ class inode_manager {
 
     virtual std::shared_ptr<inode> create_inode() = 0;
     virtual size_t count() const = 0;
-    virtual void order_inodes(worker_group& wg, order_cb const& fn) = 0;
+    virtual void order_inodes(worker_group& wg, inode_cb const& fn) = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual std::vector<std::pair<fragment_category::value_type, size_t>>
