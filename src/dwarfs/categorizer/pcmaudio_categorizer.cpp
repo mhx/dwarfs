@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cstring>
 #include <map>
+#include <shared_mutex>
 #include <stack>
 #include <unordered_set>
 #include <vector>
@@ -500,7 +501,7 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                                    fs::path const& path) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  folly::Synchronized<pcmaudio_metadata_store> mutable meta_;
+  folly::Synchronized<pcmaudio_metadata_store, std::shared_mutex> mutable meta_;
   compression_metadata_requirements<pcmaudio_metadata> waveform_req_;
 };
 
