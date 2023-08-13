@@ -160,37 +160,26 @@ class inode_ : public inode {
         catjob.set_total_size(mm->size());
         catjob.categorize_random_access(mm->span());
 
-        if (catjob.best_result_found()) {
-          // This means the job won't be running any sequential categorizers
-          // as the outcome cannot possibly be any better. As a consequence,
-          // we can already fetch the result here and scan the fragments
-          // instead of the whole file.
+        if (!catjob.best_result_found()) {
+          // We must perform a sequential categorizer scan before scanning the
+          // fragments, because the ordering is category-dependent.
+          // TODO: we might be able to get away with a single scan if we
+          //       optimistically assume the default category and perform
+          //       both the sequential scan and the default-category order
+          //       scan in parallel
+          scan_range(
+              mm, [&catjob](auto span) { catjob.categorize_sequential(span); });
+        }
 
-          fragments_ = catjob.result();
+        fragments_ = catjob.result();
 
-          if (fragments_.size() > 1) {
-            scan_fragments(mm, opts);
-          } else {
-            scan_full(mm, opts);
-          }
+        if (fragments_.size() > 1) {
+          scan_fragments(mm, opts);
         }
       }
 
-      if (fragments_.empty()) {
-        // If we get here, we haven't scanned anything yet, and we don't know
-        // if the file will be fragmented or not.
-
+      if (fragments_.size() <= 1) {
         scan_full(mm, opts);
-
-        if (catjob) {
-          fragments_ = catjob.result();
-
-          if (fragments_.size() > 1) {
-            // This is the unfortunate case where we have to scan the
-            // individual fragments after having already done a full scan.
-            scan_fragments(mm, opts);
-          }
-        }
       }
     }
 
@@ -329,6 +318,11 @@ class inode_ : public inode {
     scanner(mm->span(offset, size));
   }
 
+  template <typename T>
+  void scan_range(mmif* mm, T&& scanner) {
+    scan_range(mm, 0, mm->size(), std::forward<T>(scanner));
+  }
+
   void scan_fragments(mmif* mm, inode_options const& opts) {
     assert(mm);
     assert(fragments_.size() > 1);
@@ -400,14 +394,14 @@ class inode_ : public inode {
 
     case file_order_mode::SIMILARITY: {
       similarity sc;
-      scan_range(mm, 0, mm->size(), sc);
+      scan_range(mm, sc);
       similarity_hash_ = sc.finalize(); // TODO
       similarity_.emplace<uint32_t>(sc.finalize());
     } break;
 
     case file_order_mode::NILSIMSA: {
       nilsimsa nc;
-      scan_range(mm, 0, mm->size(), nc);
+      scan_range(mm, nc);
       // TODO: can we finalize in-place?
       nilsimsa::hash_type hash;
       nc.finalize(hash);
