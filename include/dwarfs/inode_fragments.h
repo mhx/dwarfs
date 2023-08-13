@@ -81,7 +81,10 @@ class inode_fragments {
   single_inode_fragment& back() { return fragments_.back(); }
 
   auto begin() const { return fragments_.begin(); }
+  auto begin() { return fragments_.begin(); }
+
   auto end() const { return fragments_.end(); }
+  auto end() { return fragments_.end(); }
 
   size_t size() const { return fragments_.size(); }
 
