@@ -434,9 +434,10 @@ class flac_block_decompressor final : public block_decompressor::impl {
 
     if (decompressed_.size() == uncompressed_size_) {
       decoder_.reset();
+      return true;
     }
 
-    return true;
+    return false;
   }
 
   size_t uncompressed_size() const override { return uncompressed_size_; }
