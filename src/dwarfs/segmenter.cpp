@@ -349,7 +349,7 @@ class segmenter_ final : public segmenter::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
   std::shared_ptr<block_manager> blkmgr_;
-  const segmenter::config& cfg_;
+  segmenter::config const cfg_;
   segmenter::block_ready_cb block_ready_;
 
   size_t const window_size_;

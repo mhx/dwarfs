@@ -57,6 +57,7 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
 #include "dwarfs/script.h"
+#include "dwarfs/segmenter_factory.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
 #include "dwarfs/version.h"
@@ -273,7 +274,7 @@ std::string status_string(progress const& p, size_t width) {
 template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
-  scanner_(logger& lgr, worker_group& wg, const segmenter::config& config,
+  scanner_(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
            std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
            std::shared_ptr<script> scr, const scanner_options& options);
 
@@ -297,25 +298,25 @@ class scanner_ final : public scanner::impl {
 
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
-  const segmenter::config& cfg_;
-  const scanner_options& options_;
-  std::shared_ptr<entry_factory> entry_;
+  scanner_options const& options_;
+  std::shared_ptr<segmenter_factory> segmenter_factory_;
+  std::shared_ptr<entry_factory> entry_factory_;
   std::shared_ptr<os_access> os_;
   std::shared_ptr<script> script_;
 };
 
 template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
-                                 const segmenter::config& cfg,
+                                 std::shared_ptr<segmenter_factory> sf,
                                  std::shared_ptr<entry_factory> ef,
                                  std::shared_ptr<os_access> os,
                                  std::shared_ptr<script> scr,
                                  const scanner_options& options)
     : LOG_PROXY_INIT(lgr)
-    , wg_(wg)
-    , cfg_(cfg)
-    , options_(options)
-    , entry_(std::move(ef))
+    , wg_{wg}
+    , options_{options}
+    , segmenter_factory_{std::move(sf)}
+    , entry_factory_{std::move(ef)}
     , os_(std::move(os))
     , script_(std::move(scr)) {}
 
@@ -325,7 +326,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   std::shared_ptr<dir> parent, progress& prog,
                                   detail::file_scanner& fs, bool debug_filter) {
   try {
-    auto pe = entry_->create(*os_, name, parent);
+    auto pe = entry_factory_->create(*os_, name, parent);
     bool exclude = false;
 
     if (script_) {
@@ -429,7 +430,7 @@ template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
                                   progress& prog, detail::file_scanner& fs) {
-  auto root = entry_->create(*os_, path);
+  auto root = entry_factory_->create(*os_, path);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   if (root->type() != entry::E_DIR) {
@@ -489,7 +490,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
   auto ti = LOG_TIMED_INFO;
 
-  auto root = entry_->create(*os_, path);
+  auto root = entry_factory_->create(*os_, path);
 
   if (root->type() != entry::E_DIR) {
     DWARFS_THROW(runtime_error,
@@ -673,8 +674,6 @@ void scanner_<LoggerPolicy>::scan(
   //   which gets run on a worker groups; each batch keeps track of
   //   its CPU time and affects thread naming
 
-  // segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
-
   auto blockmgr = std::make_shared<block_manager>();
 
   {
@@ -695,12 +694,11 @@ void scanner_<LoggerPolicy>::scan(
         wg_blockify.add_job(
             [this, catmgr, blockmgr, category, meta, &prog, &fsw,
              span = im.ordered_span(category, wg_ordering)]() mutable {
-              // TODO: segmenter config per-category
-              segmenter seg(LOG_GET_LOGGER, prog, blockmgr, cfg_,
-                            [category, meta, &fsw](auto block) {
-                              return fsw.write_block(category.value(),
-                                                     std::move(block), meta);
-                            });
+              auto seg = segmenter_factory_->create(
+                  category, blockmgr, [category, meta, &fsw](auto block) {
+                    return fsw.write_block(category.value(), std::move(block),
+                                           meta);
+                  });
 
               for (auto ino : span) {
                 prog.current.store(ino.get());
@@ -844,7 +842,7 @@ void scanner_<LoggerPolicy>::scan(
   mv2.gids() = ge_data.get_gids();
   mv2.modes() = ge_data.get_modes();
   mv2.timestamp_base() = ge_data.get_timestamp_base();
-  mv2.block_size() = UINT32_C(1) << cfg_.block_size_bits;
+  mv2.block_size() = segmenter_factory_->get_block_size();
   mv2.total_fs_size() = prog.original_size;
   mv2.total_hardlink_size() = prog.hardlink_size;
   mv2.options() = fsopts;
@@ -870,12 +868,13 @@ void scanner_<LoggerPolicy>::scan(
            << ")";
 }
 
-scanner::scanner(logger& lgr, worker_group& wg, const segmenter::config& cfg,
+scanner::scanner(logger& lgr, worker_group& wg,
+                 std::shared_ptr<segmenter_factory> sf,
                  std::shared_ptr<entry_factory> ef,
                  std::shared_ptr<os_access> os, std::shared_ptr<script> scr,
                  const scanner_options& options)
     : impl_(make_unique_logging_object<impl, scanner_, logger_policies>(
-          lgr, wg, cfg, std::move(ef), std::move(os), std::move(scr),
+          lgr, wg, std::move(sf), std::move(ef), std::move(os), std::move(scr),
           options)) {}
 
 } // namespace dwarfs
