@@ -19,13 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cstdlib>
 #include <cstring>
 #include <sstream>
-
-#include <folly/Conv.h>
-#include <folly/String.h>
-#include <folly/small_vector.h>
 
 #include <fmt/format.h>
 
@@ -47,15 +42,6 @@ constexpr std::array<char const*, 8> asc_bar{
     {"=", "=", "=", "=", "=", "=", "=", "="}};
 constexpr std::array<char const*, 8> uni_bar{
     {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}};
-
-bool is_debug_progress() {
-  if (auto var = ::getenv("DWARFS_DEBUG_PROGRESS")) {
-    if (auto val = folly::tryTo<bool>(var)) {
-      return *val;
-    }
-  }
-  return false;
-}
 
 std::string progress_bar(size_t width, double frac, bool unicode) {
   size_t barlen = 8 * width * frac;
@@ -89,7 +75,7 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , pg_mode_(pg_mode)
     , get_term_width_(get_term_width)
     , mode_(mode)
-    , debug_progress_(is_debug_progress())
+    , debug_progress_(getenv_is_enabled("DWARFS_DEBUG_PROGRESS"))
     , read_speed_{std::chrono::seconds(5)} {}
 
 void console_writer::rewind() {

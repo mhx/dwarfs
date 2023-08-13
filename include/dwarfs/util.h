@@ -52,4 +52,6 @@ void shorten_path_string(std::string& path, char separator, size_t max_len);
 
 std::filesystem::path canonical_path(std::filesystem::path p);
 
+bool getenv_is_enabled(char const* var);
+
 } // namespace dwarfs

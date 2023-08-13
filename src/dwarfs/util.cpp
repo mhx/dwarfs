@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cstdlib>
 
 #include <utf8cpp/utf8.h>
 
@@ -185,6 +186,15 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
 #endif
 
   return p;
+}
+
+bool getenv_is_enabled(char const* var) {
+  if (auto val = std::getenv(var)) {
+    if (auto maybeBool = folly::tryTo<bool>(val); maybeBool && *maybeBool) {
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace dwarfs
