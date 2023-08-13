@@ -44,11 +44,10 @@ namespace {
 class zstd_block_compressor final : public block_compressor::impl {
  public:
   explicit zstd_block_compressor(int level)
-      : ctxmgr_(get_context_manager())
-      , level_(level) {}
+      : ctxmgr_{get_context_manager()}
+      , level_{level} {}
 
-  zstd_block_compressor(const zstd_block_compressor& rhs)
-      : level_(rhs.level_) {}
+  zstd_block_compressor(const zstd_block_compressor& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<zstd_block_compressor>(*this);
