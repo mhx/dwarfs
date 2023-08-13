@@ -631,11 +631,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     window_step.push_back(folly::to<std::string>(defaults.window_step));
   }
 
-  if (!vm.count("order")) {
-    // TODO:
-    order.push_back(std::string(defaults.order));
-  }
-
   if (cfg.block_size_bits < min_block_size_bits ||
       cfg.block_size_bits > max_block_size_bits) {
     std::cerr << "error: block size must be between " << min_block_size_bits
@@ -987,6 +982,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   try {
     contextual_option_parser cop("--order", options.inode.fragment_order, cp,
                                  order_parser);
+    cop.parse(defaults.order);
     cop.parse(order);
     LOG_DEBUG << cop.as_string();
   } catch (std::exception const& e) {
