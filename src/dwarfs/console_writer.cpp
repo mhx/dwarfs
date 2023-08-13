@@ -177,9 +177,16 @@ void console_writer::update(const progress& p, bool last) {
           << size_with_unit(p.saved_by_segmentation) << newline
 
           << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
-          << p.block_count << " blocks (" << p.chunk_count << " chunks, "
-          << (p.inodes_written > 0 ? p.inodes_written : p.inodes_scanned) << "/"
-          << p.files_found - p.duplicate_files - p.hardlinks << " inodes)"
+          << p.block_count << " blocks (" << p.chunk_count << " chunks, ";
+
+      if (p.fragments_written > 0) {
+        oss << p.fragments_written << "/" << p.fragments_found
+            << " fragments, ";
+      } else {
+        oss << p.fragments_found << " fragments, " << p.inodes_scanned << "/";
+      }
+
+      oss << p.files_found - p.duplicate_files - p.hardlinks << " inodes)"
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"

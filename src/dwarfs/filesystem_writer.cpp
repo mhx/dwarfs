@@ -26,7 +26,9 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
+#include <unordered_map>
 
 #include <folly/system/ThreadName.h>
 
@@ -52,10 +54,14 @@ class fsblock {
   fsblock(section_type type, compression_type compression,
           std::span<uint8_t const> data, uint32_t number);
 
-  void compress(worker_group& wg) { impl_->compress(wg); }
+  void
+  compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
+    impl_->compress(wg, std::move(meta));
+  }
   void wait_until_compressed() { impl_->wait_until_compressed(); }
   section_type type() const { return impl_->type(); }
   compression_type compression() const { return impl_->compression(); }
+  std::string description() const { return impl_->description(); }
   std::span<uint8_t const> data() const { return impl_->data(); }
   size_t uncompressed_size() const { return impl_->uncompressed_size(); }
   size_t size() const { return impl_->size(); }
@@ -66,10 +72,12 @@ class fsblock {
    public:
     virtual ~impl() = default;
 
-    virtual void compress(worker_group& wg) = 0;
+    virtual void
+    compress(worker_group& wg, std::optional<std::string> meta) = 0;
     virtual void wait_until_compressed() = 0;
     virtual section_type type() const = 0;
     virtual compression_type compression() const = 0;
+    virtual std::string description() const = 0;
     virtual std::span<uint8_t const> data() const = 0;
     virtual size_t uncompressed_size() const = 0;
     virtual size_t size() const = 0;
@@ -95,14 +103,20 @@ class raw_fsblock : public fsblock::impl {
       , number_{number}
       , comp_type_{bc_.type()} {}
 
-  void compress(worker_group& wg) override {
+  void compress(worker_group& wg, std::optional<std::string> meta) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job([this, prom = std::move(prom)]() mutable {
+    wg.add_job([this, prom = std::move(prom),
+                meta = std::move(meta)]() mutable {
       try {
-        // TODO: metadata
-        auto tmp = std::make_shared<block_data>(bc_.compress(data_->vec()));
+        std::shared_ptr<block_data> tmp;
+
+        if (meta) {
+          tmp = std::make_shared<block_data>(bc_.compress(data_->vec(), *meta));
+        } else {
+          tmp = std::make_shared<block_data>(bc_.compress(data_->vec()));
+        }
 
         {
           std::lock_guard lock(mx_);
@@ -123,6 +137,8 @@ class raw_fsblock : public fsblock::impl {
   section_type type() const override { return type_; }
 
   compression_type compression() const override { return comp_type_; }
+
+  std::string description() const override { return bc_.describe(); }
 
   std::span<uint8_t const> data() const override { return data_->vec(); }
 
@@ -158,7 +174,8 @@ class compressed_fsblock : public fsblock::impl {
       , range_{range}
       , number_{number} {}
 
-  void compress(worker_group& wg) override {
+  void
+  compress(worker_group& wg, std::optional<std::string> /* meta */) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
@@ -172,6 +189,9 @@ class compressed_fsblock : public fsblock::impl {
 
   section_type type() const override { return type_; }
   compression_type compression() const override { return compression_; }
+
+  // TODO
+  std::string description() const override { return "<compressed>"; }
 
   std::span<uint8_t const> data() const override { return range_; }
 
@@ -229,26 +249,32 @@ template <typename LoggerPolicy>
 class filesystem_writer_ final : public filesystem_writer::impl {
  public:
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
-                     progress& prog, const block_compressor& bc,
-                     const block_compressor& schema_bc,
+                     progress& prog, const block_compressor& schema_bc,
                      const block_compressor& metadata_bc,
                      filesystem_writer_options const& options,
                      std::istream* header);
   ~filesystem_writer_() noexcept override;
 
+  void add_default_compressor(block_compressor bc) override;
+  void add_category_compressor(fragment_category::value_type cat,
+                               block_compressor bc) override;
   void copy_header(std::span<uint8_t const> header) override;
-  void write_block(std::shared_ptr<block_data>&& data) override;
+  uint32_t write_block(fragment_category::value_type cat,
+                       std::shared_ptr<block_data>&& data,
+                       std::optional<std::string> meta) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
   void write_compressed_section(section_type type, compression_type compression,
                                 std::span<uint8_t const> data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
-  int queue_fill() const override { return static_cast<int>(wg_.queue_size()); }
 
  private:
-  void write_section(section_type type, std::shared_ptr<block_data>&& data,
-                     block_compressor const& bc);
+  block_compressor const&
+  compressor_for_category(fragment_category::value_type cat) const;
+  uint32_t write_section(section_type type, std::shared_ptr<block_data>&& data,
+                         block_compressor const& bc,
+                         std::optional<std::string> meta = std::nullopt);
   void write(fsblock const& fsb);
   void write(const char* data, size_t size);
   template <typename T>
@@ -263,7 +289,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   std::istream* header_;
   worker_group& wg_;
   progress& prog_;
-  const block_compressor& bc_;
+  std::optional<block_compressor> default_bc_;
+  std::unordered_map<fragment_category::value_type, block_compressor> bc_;
   const block_compressor& schema_bc_;
   const block_compressor& metadata_bc_;
   const filesystem_writer_options options_;
@@ -281,14 +308,12 @@ class filesystem_writer_ final : public filesystem_writer::impl {
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
-    const block_compressor& bc, const block_compressor& schema_bc,
-    const block_compressor& metadata_bc,
+    const block_compressor& schema_bc, const block_compressor& metadata_bc,
     filesystem_writer_options const& options, std::istream* header)
     : os_(os)
     , header_(header)
     , wg_(wg)
     , prog_(prog)
-    , bc_(bc)
     , schema_bc_(schema_bc)
     , metadata_bc_(metadata_bc)
     , options_(options)
@@ -344,9 +369,11 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
 
     fsb->wait_until_compressed();
 
-    LOG_DEBUG << get_section_name(fsb->type()) << " compressed from "
+    LOG_DEBUG << get_section_name(fsb->type()) << " [" << fsb->number()
+              << "] compressed from "
               << size_with_unit(fsb->uncompressed_size()) << " to "
-              << size_with_unit(fsb->size());
+              << size_with_unit(fsb->size()) << " [" << fsb->description()
+              << "]";
 
     write(*fsb);
   }
@@ -396,9 +423,25 @@ void filesystem_writer_<LoggerPolicy>::write(fsblock const& fsb) {
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_section(
+block_compressor const&
+filesystem_writer_<LoggerPolicy>::compressor_for_category(
+    fragment_category::value_type cat) const {
+  if (auto it = bc_.find(cat); it != bc_.end()) {
+    LOG_DEBUG << "using compressor (" << it->second.describe()
+              << ") for category " << cat;
+    return it->second;
+  }
+  LOG_DEBUG << "using default compressor (" << default_bc_.value().describe()
+            << ") for category " << cat;
+  return default_bc_.value();
+}
+
+template <typename LoggerPolicy>
+uint32_t filesystem_writer_<LoggerPolicy>::write_section(
     section_type type, std::shared_ptr<block_data>&& data,
-    block_compressor const& bc) {
+    block_compressor const& bc, std::optional<std::string> meta) {
+  uint32_t block_no;
+
   {
     std::unique_lock lock(mx_);
 
@@ -406,15 +449,17 @@ void filesystem_writer_<LoggerPolicy>::write_section(
       cond_.wait(lock);
     }
 
-    auto fsb =
-        std::make_unique<fsblock>(type, bc, std::move(data), section_number_++);
+    block_no = section_number_++;
+    auto fsb = std::make_unique<fsblock>(type, bc, std::move(data), block_no);
 
-    fsb->compress(wg_);
+    fsb->compress(wg_, meta);
 
     queue_.push_back(std::move(fsb));
   }
 
   cond_.notify_one();
+
+  return block_no;
 }
 
 template <typename LoggerPolicy>
@@ -436,6 +481,26 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
 }
 
 template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::add_default_compressor(
+    block_compressor bc) {
+  if (default_bc_) {
+    DWARFS_THROW(runtime_error, "default compressor registered more than once");
+  }
+  default_bc_ = std::move(bc);
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::add_category_compressor(
+    fragment_category::value_type cat, block_compressor bc) {
+  LOG_DEBUG << "adding compressor (" << bc.describe() << ") for category "
+            << cat;
+  if (!bc_.emplace(cat, std::move(bc)).second) {
+    DWARFS_THROW(runtime_error,
+                 "category compressor registered more than once");
+  }
+}
+
+template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::copy_header(
     std::span<uint8_t const> header) {
   if (!options_.remove_header) {
@@ -449,9 +514,11 @@ void filesystem_writer_<LoggerPolicy>::copy_header(
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_block(
-    std::shared_ptr<block_data>&& data) {
-  write_section(section_type::BLOCK, std::move(data), bc_);
+uint32_t filesystem_writer_<LoggerPolicy>::write_block(
+    fragment_category::value_type cat, std::shared_ptr<block_data>&& data,
+    std::optional<std::string> meta) {
+  return write_section(section_type::BLOCK, std::move(data),
+                       compressor_for_category(cat), std::move(meta));
 }
 
 template <typename LoggerPolicy>
@@ -512,21 +579,12 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
-                                     const block_compressor& bc,
-                                     filesystem_writer_options const& options,
-                                     std::istream* header)
-    : filesystem_writer(os, lgr, wg, prog, bc, bc, bc, options, header) {}
-
-filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
-                                     worker_group& wg, progress& prog,
-                                     const block_compressor& bc,
                                      const block_compressor& schema_bc,
                                      const block_compressor& metadata_bc,
                                      filesystem_writer_options const& options,
                                      std::istream* header)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, bc, schema_bc, metadata_bc, options, header)) {
-}
+              lgr, os, wg, prog, schema_bc, metadata_bc, options, header)) {}
 
 } // namespace dwarfs

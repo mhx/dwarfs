@@ -93,7 +93,7 @@ std::string inode_element_view::description(size_t i) const {
 }
 
 nilsimsa::hash_type const& inode_element_view::get_bits(size_t i) const {
-  return inodes_[i]->nilsimsa_similarity_hash();
+  return *hash_cache_[i];
 }
 
 } // namespace dwarfs

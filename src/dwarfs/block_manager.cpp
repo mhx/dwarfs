@@ -19,38 +19,38 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <cassert>
 
-#include <memory>
-
-#include "dwarfs/chunkable.h"
+#include "dwarfs/block_manager.h"
 
 namespace dwarfs {
 
-class categorizer_manager;
-class inode;
-class mmif;
-class single_inode_fragment;
+size_t block_manager::get_logical_block() const {
+  size_t block_no;
+  {
+    std::lock_guard lock{mx_};
+    block_no = num_blocks_++;
+  }
+  return block_no;
+}
 
-class fragment_chunkable : public chunkable {
- public:
-  fragment_chunkable(inode const& ino, single_inode_fragment& frag,
-                     file_off_t offset, mmif& mm,
-                     categorizer_manager const* catmgr);
-  ~fragment_chunkable();
+void block_manager::set_written_block(size_t logical_block,
+                                      size_t written_block) {
+  std::lock_guard lock{mx_};
+  assert(logical_block < num_blocks_);
+  if (block_map_.size() < num_blocks_) {
+    block_map_.resize(num_blocks_);
+  }
+  block_map_[logical_block] = written_block;
+}
 
-  size_t size() const override;
-  std::string description() const override;
-  std::span<uint8_t const> span() const override;
-  void add_chunk(size_t block, size_t offset, size_t size) override;
-  void release_until(size_t offset) override;
-
- private:
-  inode const& ino_;
-  single_inode_fragment& frag_;
-  file_off_t offset_;
-  mmif& mm_;
-  categorizer_manager const* catmgr_;
-};
+void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) {
+  std::lock_guard lock{mx_};
+  for (auto& c : vec) {
+    size_t block = c.get_block();
+    assert(block < num_blocks_);
+    c.block() = block_map_[block];
+  }
+}
 
 } // namespace dwarfs

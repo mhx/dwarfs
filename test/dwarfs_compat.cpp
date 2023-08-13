@@ -1109,7 +1109,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   std::ostringstream rewritten, idss;
 
   {
-    filesystem_writer fsw(rewritten, lgr, wg, prog, bc);
+    filesystem_writer fsw(rewritten, lgr, wg, prog, bc, bc);
+    fsw.add_default_compressor(bc);
     auto mm = std::make_shared<mmap>(filename);
     EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm));
@@ -1130,7 +1131,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     std::istringstream hdr_iss(format_sh);
     filesystem_writer_options fsw_opts;
-    filesystem_writer fsw(rewritten, lgr, wg, prog, bc, fsw_opts, &hdr_iss);
+    filesystem_writer fsw(rewritten, lgr, wg, prog, bc, bc, fsw_opts, &hdr_iss);
+    fsw.add_default_compressor(bc);
     filesystem_v2::rewrite(lgr, prog, std::make_shared<mmap>(filename), fsw,
                            opts);
   }
@@ -1155,7 +1157,9 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     std::istringstream hdr_iss("D");
     filesystem_writer_options fsw_opts;
-    filesystem_writer fsw(rewritten2, lgr, wg, prog, bc, fsw_opts, &hdr_iss);
+    filesystem_writer fsw(rewritten2, lgr, wg, prog, bc, bc, fsw_opts,
+                          &hdr_iss);
+    fsw.add_default_compressor(bc);
     filesystem_v2::rewrite(lgr, prog,
                            std::make_shared<test::mmap_mock>(rewritten.str()),
                            fsw, opts);
@@ -1173,7 +1177,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   std::ostringstream rewritten3;
 
   {
-    filesystem_writer fsw(rewritten3, lgr, wg, prog, bc);
+    filesystem_writer fsw(rewritten3, lgr, wg, prog, bc, bc);
+    fsw.add_default_compressor(bc);
     filesystem_v2::rewrite(lgr, prog,
                            std::make_shared<test::mmap_mock>(rewritten2.str()),
                            fsw, opts);
@@ -1193,7 +1198,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     filesystem_writer_options fsw_opts;
     fsw_opts.remove_header = true;
-    filesystem_writer fsw(rewritten4, lgr, wg, prog, bc, fsw_opts);
+    filesystem_writer fsw(rewritten4, lgr, wg, prog, bc, bc, fsw_opts);
+    fsw.add_default_compressor(bc);
     filesystem_v2::rewrite(lgr, prog,
                            std::make_shared<test::mmap_mock>(rewritten3.str()),
                            fsw, opts);
@@ -1213,7 +1219,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     filesystem_writer_options fsw_opts;
     fsw_opts.no_section_index = true;
-    filesystem_writer fsw(rewritten5, lgr, wg, prog, bc, fsw_opts);
+    filesystem_writer fsw(rewritten5, lgr, wg, prog, bc, bc, fsw_opts);
+    fsw.add_default_compressor(bc);
     filesystem_v2::rewrite(lgr, prog,
                            std::make_shared<test::mmap_mock>(rewritten4.str()),
                            fsw, opts);

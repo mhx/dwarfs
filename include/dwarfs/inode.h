@@ -48,6 +48,7 @@ class inode : public object {
   using files_vector = folly::small_vector<file*, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
+  virtual void populate(size_t size) = 0;
   virtual void scan(mmif* mm, inode_options const& options) = 0;
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
@@ -63,7 +64,7 @@ class inode : public object {
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
-  virtual inode_fragments const& fragments() const = 0;
+  virtual inode_fragments& fragments() = 0;
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
 };
 

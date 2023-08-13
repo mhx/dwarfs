@@ -54,10 +54,6 @@ class inode_manager {
 
   size_t count() const { return impl_->count(); }
 
-  void order_inodes(worker_group& wg, inode_cb const& fn) {
-    impl_->order_inodes(wg, fn);
-  }
-
   void for_each_inode_in_order(inode_cb const& fn) const {
     impl_->for_each_inode_in_order(fn);
   }
@@ -80,13 +76,17 @@ class inode_manager {
 
   sortable_inode_span sortable_span() const { return impl_->sortable_span(); }
 
+  sortable_inode_span
+  ordered_span(fragment_category cat, worker_group& wg) const {
+    return impl_->ordered_span(cat, wg);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual std::shared_ptr<inode> create_inode() = 0;
     virtual size_t count() const = 0;
-    virtual void order_inodes(worker_group& wg, inode_cb const& fn) = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual std::vector<std::pair<fragment_category::value_type, size_t>>
@@ -97,6 +97,8 @@ class inode_manager {
                     file const* p) const = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual sortable_inode_span sortable_span() const = 0;
+    virtual sortable_inode_span
+    ordered_span(fragment_category cat, worker_group& wg) const = 0;
   };
 
  private:

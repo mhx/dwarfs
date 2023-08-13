@@ -39,12 +39,12 @@
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_data.h"
+#include "dwarfs/block_manager.h"
 #include "dwarfs/chunkable.h"
 #include "dwarfs/compiler.h"
 #include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
-#include "dwarfs/filesystem_writer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/segmenter.h"
@@ -288,12 +288,14 @@ class active_block {
 template <typename LoggerPolicy>
 class segmenter_ final : public segmenter::impl {
  public:
-  segmenter_(logger& lgr, progress& prog, const segmenter::config& cfg,
-             filesystem_writer& fsw)
+  segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
+             const segmenter::config& cfg,
+             segmenter::block_ready_cb block_ready)
       : LOG_PROXY_INIT(lgr)
       , prog_{prog}
+      , blkmgr_{std::move(blkmgr)}
       , cfg_{cfg}
-      , fsw_{fsw}
+      , block_ready_{std::move(block_ready)}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_{block_size(cfg)}
@@ -346,13 +348,13 @@ class segmenter_ final : public segmenter::impl {
 
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
+  std::shared_ptr<block_manager> blkmgr_;
   const segmenter::config& cfg_;
-  filesystem_writer& fsw_;
+  segmenter::block_ready_cb block_ready_;
 
   size_t const window_size_;
   size_t const window_step_;
   size_t const block_size_;
-  size_t block_count_{0};
 
   chunk_state chunk_;
 
@@ -512,7 +514,8 @@ template <typename LoggerPolicy>
 void segmenter_<LoggerPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
-  fsw_.write_block(block.data());
+  auto written_block_num = block_ready_(block.data());
+  blkmgr_->set_written_block(block.num(), written_block_num);
   ++prog_.block_count;
 }
 
@@ -529,7 +532,7 @@ void segmenter_<LoggerPolicy>::append_to_block(chunkable& chkable,
       filter_.merge(b.filter());
     }
 
-    blocks_.emplace_back(block_count_++, block_size_,
+    blocks_.emplace_back(blkmgr_->get_logical_block(), block_size_,
                          cfg_.max_active_blocks > 0 ? window_size_ : 0,
                          window_step_, filter_.size());
   }
@@ -711,9 +714,10 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(chunkable& chkable,
   finish_chunk(chkable);
 }
 
-segmenter::segmenter(logger& lgr, progress& prog, const config& cfg,
-                     filesystem_writer& fsw)
+segmenter::segmenter(logger& lgr, progress& prog,
+                     std::shared_ptr<block_manager> blkmgr, const config& cfg,
+                     block_ready_cb block_ready)
     : impl_(make_unique_logging_object<impl, segmenter_, logger_policies>(
-          lgr, prog, cfg, fsw)) {}
+          lgr, prog, std::move(blkmgr), cfg, std::move(block_ready))) {}
 
 } // namespace dwarfs
