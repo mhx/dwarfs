@@ -23,12 +23,14 @@
 
 #include <cstdlib>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <folly/Conv.h>
 
 #include "dwarfs/logger.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs::test {
 
@@ -48,9 +50,9 @@ class test_logger : public ::dwarfs::logger {
     int line;
   };
 
-  test_logger(level_type threshold = TRACE)
-      : threshold_{threshold}
-      , output_{debug_output_enabled()} {
+  test_logger(std::optional<level_type> threshold = std::nullopt)
+      : threshold_{threshold ? *threshold : default_threshold()}
+      , output_{::dwarfs::getenv_is_enabled("DWARFS_TEST_LOGGER_OUTPUT")} {
     if (output_ || threshold > level_type::INFO) {
       set_policy<debug_logger_policy>();
     } else {
@@ -79,13 +81,11 @@ class test_logger : public ::dwarfs::logger {
   void clear() { log_.clear(); }
 
  private:
-  static bool debug_output_enabled() {
-    if (auto var = std::getenv("DWARFS_TEST_LOGGER_OUTPUT")) {
-      if (auto val = folly::tryTo<bool>(var); val && *val) {
-        return true;
-      }
+  static level_type default_threshold() {
+    if (auto var = std::getenv("DWARFS_TEST_LOGGER_LEVEL")) {
+      return ::dwarfs::logger::parse_level(var);
     }
-    return false;
+    return level_type::INFO;
   }
 
   std::mutex mx_;
