@@ -661,6 +661,12 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "building blocks...";
   segmenter seg(LOG_GET_LOGGER, prog, cfg_, fsw);
 
+  // TODO:
+  // - get rid of multiple worker groups
+  // - instead, introduce "batches" to which work can be added, and
+  //   which gets run on a worker groups; each batch keeps track of
+  //   its CPU time and affects thread naming
+
   {
     worker_group blockify("blockify", 1, 1 << 20);
 
