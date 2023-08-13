@@ -340,7 +340,6 @@ class inode_ : public inode {
       switch (opts.fragment_order.get(f.category()).mode) {
       case file_order_mode::NONE:
       case file_order_mode::PATH:
-      case file_order_mode::SCRIPT:
         break;
       case file_order_mode::SIMILARITY:
         sc.try_emplace(f.category());
@@ -397,7 +396,6 @@ class inode_ : public inode {
     switch (order_mode) {
     case file_order_mode::NONE:
     case file_order_mode::PATH:
-    case file_order_mode::SCRIPT:
       break;
 
     case file_order_mode::SIMILARITY: {
@@ -469,8 +467,8 @@ class inode_manager_ final : public inode_manager::impl {
 
   size_t count() const override { return inodes_.size(); }
 
-  void order_inodes(worker_group& wg, std::shared_ptr<script> scr,
-                    inode_manager::order_cb const& fn) override;
+  void
+  order_inodes(worker_group& wg, inode_manager::order_cb const& fn) override;
 
   void for_each_inode_in_order(
       std::function<void(std::shared_ptr<inode> const&)> const& fn)
@@ -608,8 +606,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::order_inodes(
-    worker_group& wg, std::shared_ptr<script> scr,
-    inode_manager::order_cb const& fn) {
+    worker_group& wg, inode_manager::order_cb const& fn) {
   // TODO: only use an index, never actually reorder inodes
 
   // TODO:
@@ -622,17 +619,6 @@ void inode_manager_<LoggerPolicy>::order_inodes(
     LOG_INFO << "ordering " << count() << " inodes by path name...";
     auto ti = LOG_CPU_TIMED_INFO;
     order_inodes_by_path();
-    ti << count() << " inodes ordered";
-    break;
-  }
-
-  case file_order_mode::SCRIPT: {
-    if (!scr->has_order()) {
-      DWARFS_THROW(runtime_error, "script cannot order inodes");
-    }
-    LOG_INFO << "ordering " << count() << " inodes using script...";
-    auto ti = LOG_CPU_TIMED_INFO;
-    scr->order(inodes_);
     ti << count() << " inodes ordered";
     break;
   }

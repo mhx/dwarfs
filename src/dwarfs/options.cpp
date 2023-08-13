@@ -39,9 +39,6 @@ std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
   case file_order_mode::PATH:
     modestr = "path";
     break;
-  case file_order_mode::SCRIPT:
-    modestr = "script";
-    break;
   case file_order_mode::SIMILARITY:
     modestr = "similarity";
     break;
