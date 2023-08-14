@@ -757,6 +757,7 @@ void scanner_<LoggerPolicy>::scan(
 
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
+  mv2.chunks().value().reserve(prog.chunk_count);
   im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
     DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = mv2.chunks()->size();
     ino->append_chunks_to(mv2.chunks().value());
