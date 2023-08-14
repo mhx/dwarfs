@@ -332,12 +332,20 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_{block_size(cfg)}
-      , filter_{bloom_filter_size(cfg)} {
+      , filter_{bloom_filter_size(cfg)}
+      , match_counts_{1, 0, 128} {
     if (segmentation_enabled()) {
       LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
                << size_with_unit(window_step_) << " steps for segment analysis";
       LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
     }
+  }
+
+  ~segmenter_() {
+    auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
+    LOG_DEBUG << "match counts p50: " << pct(0.5) << ", p75: " << pct(0.75)
+              << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
+              << ", p99: " << pct(0.99);
   }
 
   void add_chunkable(chunkable& chkable) override;
@@ -402,6 +410,8 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
   // All active blocks except for the last one are immutable and potentially
   // already being compressed.
   std::deque<active_block_type> blocks_;
+
+  folly::Histogram<size_t> match_counts_;
 };
 
 template <typename GranularityPolicy>
@@ -678,6 +688,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
 
       if (!matches.empty()) [[unlikely]] {
         ++stats_.bloom_true_positives;
+        match_counts_.addValue(matches.size());
 
         LOG_TRACE << "found " << matches.size() << " matches (hash=" << hasher()
                   << ", window size=" << window_size_ << ")";
