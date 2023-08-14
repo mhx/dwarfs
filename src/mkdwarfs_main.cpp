@@ -620,22 +620,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     metadata_compression = defaults.metadata_compression;
   }
 
-  if (!vm.count("max-lookback-blocks")) {
-    max_lookback_blocks.push_back(folly::to<std::string>(1));
-  }
-
-  if (!vm.count("window-size")) {
-    window_size.push_back(folly::to<std::string>(defaults.window_size));
-  }
-
-  if (!vm.count("window-step")) {
-    window_step.push_back(folly::to<std::string>(defaults.window_step));
-  }
-
-  if (!vm.count("bloom-filter-size")) {
-    bloom_filter_size.push_back(folly::to<std::string>(4));
-  }
-
   if (sf_config.block_size_bits < min_block_size_bits ||
       sf_config.block_size_bits > max_block_size_bits) {
     std::cerr << "error: block size must be between " << min_block_size_bits
@@ -994,6 +978,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       contextual_option_parser cop("--max-lookback-blocks",
                                    sf_config.max_active_blocks, cp,
                                    max_lookback_parser);
+      sf_config.max_active_blocks.set_default(1);
       cop.parse(max_lookback_blocks);
       LOG_DEBUG << cop.as_string();
     }
@@ -1002,6 +987,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       contextual_option_parser cop("--window-size",
                                    sf_config.blockhash_window_size, cp,
                                    window_size_parser);
+      sf_config.blockhash_window_size.set_default(defaults.window_size);
       cop.parse(window_size);
       LOG_DEBUG << cop.as_string();
     }
@@ -1010,6 +996,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       contextual_option_parser cop("--window-step",
                                    sf_config.window_increment_shift, cp,
                                    window_step_parser);
+      sf_config.window_increment_shift.set_default(defaults.window_step);
       cop.parse(window_step);
       LOG_DEBUG << cop.as_string();
     }
@@ -1018,6 +1005,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       contextual_option_parser cop("--bloom-filter-size",
                                    sf_config.bloom_filter_size, cp,
                                    bloom_filter_size_parser);
+      sf_config.bloom_filter_size.set_default(4);
       cop.parse(bloom_filter_size);
       LOG_DEBUG << cop.as_string();
     }
