@@ -31,6 +31,8 @@ namespace dwarfs {
 class logger;
 class progress;
 
+struct compression_constraints;
+
 class segmenter_factory {
  public:
   struct config {
@@ -43,9 +45,10 @@ class segmenter_factory {
 
   segmenter_factory(logger& lgr, progress& prog, config const& cfg);
 
-  segmenter create(fragment_category cat, std::shared_ptr<block_manager> blkmgr,
+  segmenter create(fragment_category cat, compression_constraints const& cc,
+                   std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const {
-    return impl_->create(cat, std::move(blkmgr), std::move(block_ready));
+    return impl_->create(cat, cc, std::move(blkmgr), std::move(block_ready));
   }
 
   size_t get_block_size() const { return impl_->get_block_size(); }
@@ -55,7 +58,8 @@ class segmenter_factory {
     virtual ~impl() = default;
 
     virtual segmenter
-    create(fragment_category cat, std::shared_ptr<block_manager> blkmgr,
+    create(fragment_category cat, compression_constraints const& cc,
+           std::shared_ptr<block_manager> blkmgr,
            segmenter::block_ready_cb block_ready) const = 0;
     virtual size_t get_block_size() const = 0;
   };

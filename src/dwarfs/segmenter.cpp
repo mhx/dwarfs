@@ -41,7 +41,7 @@
 #include "dwarfs/block_data.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/chunkable.h"
-#include "dwarfs/compiler.h"
+#include "dwarfs/compression_constraints.h"
 #include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -289,12 +289,13 @@ template <typename LoggerPolicy>
 class segmenter_ final : public segmenter::impl {
  public:
   segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
-             const segmenter::config& cfg,
+             segmenter::config const& cfg, compression_constraints const& cc,
              segmenter::block_ready_cb block_ready)
       : LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , blkmgr_{std::move(blkmgr)}
       , cfg_{cfg}
+      , granularity_{cc.granularity ? cc.granularity.value() : 1}
       , block_ready_{std::move(block_ready)}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
@@ -350,6 +351,7 @@ class segmenter_ final : public segmenter::impl {
   progress& prog_;
   std::shared_ptr<block_manager> blkmgr_;
   segmenter::config const cfg_;
+  uint_fast32_t const granularity_;
   segmenter::block_ready_cb block_ready_;
 
   size_t const window_size_;
@@ -715,9 +717,10 @@ void segmenter_<LoggerPolicy>::segment_and_add_data(chunkable& chkable,
 }
 
 segmenter::segmenter(logger& lgr, progress& prog,
-                     std::shared_ptr<block_manager> blkmgr, const config& cfg,
+                     std::shared_ptr<block_manager> blkmgr, config const& cfg,
+                     compression_constraints const& cc,
                      block_ready_cb block_ready)
     : impl_(make_unique_logging_object<impl, segmenter_, logger_policies>(
-          lgr, prog, std::move(blkmgr), cfg, std::move(block_ready))) {}
+          lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready))) {}
 
 } // namespace dwarfs

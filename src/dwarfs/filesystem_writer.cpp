@@ -258,6 +258,9 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void add_default_compressor(block_compressor bc) override;
   void add_category_compressor(fragment_category::value_type cat,
                                block_compressor bc) override;
+  compression_constraints
+  get_compression_constraints(fragment_category::value_type cat,
+                              std::string const& metadata) const override;
   void copy_header(std::span<uint8_t const> header) override;
   uint32_t write_block(fragment_category::value_type cat,
                        std::shared_ptr<block_data>&& data,
@@ -498,6 +501,13 @@ void filesystem_writer_<LoggerPolicy>::add_category_compressor(
     DWARFS_THROW(runtime_error,
                  "category compressor registered more than once");
   }
+}
+
+template <typename LoggerPolicy>
+auto filesystem_writer_<LoggerPolicy>::get_compression_constraints(
+    fragment_category::value_type cat, std::string const& metadata) const
+    -> compression_constraints {
+  return compressor_for_category(cat).get_compression_constraints(metadata);
 }
 
 template <typename LoggerPolicy>
