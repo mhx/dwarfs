@@ -35,6 +35,8 @@ class chunkable;
 class logger;
 class progress;
 
+struct compression_constraints;
+
 class segmenter {
  public:
   struct config {
@@ -48,7 +50,8 @@ class segmenter {
   using block_ready_cb = folly::Function<size_t(std::shared_ptr<block_data>)>;
 
   segmenter(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
-            const config& cfg, block_ready_cb block_ready);
+            config const& cfg, compression_constraints const& cc,
+            block_ready_cb block_ready);
 
   void add_chunkable(chunkable& chkable) { impl_->add_chunkable(chkable); }
 

@@ -76,6 +76,11 @@ class lzma_block_compressor final : public block_compressor::impl {
 
   std::string metadata_requirements() const override { return std::string(); }
 
+  compression_constraints
+  get_compression_constraints(std::string const&) const override {
+    return compression_constraints();
+  }
+
  private:
   std::vector<uint8_t>
   compress(const std::vector<uint8_t>& data, const lzma_filter* filters) const;

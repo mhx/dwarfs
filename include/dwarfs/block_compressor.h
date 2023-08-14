@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "dwarfs/compression.h"
+#include "dwarfs/compression_constraints.h"
 
 namespace dwarfs {
 
@@ -83,6 +84,11 @@ class block_compressor {
     return impl_->metadata_requirements();
   }
 
+  compression_constraints
+  get_compression_constraints(std::string const& metadata) const {
+    return impl_->get_compression_constraints(metadata);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -100,6 +106,9 @@ class block_compressor {
     virtual std::string describe() const = 0;
 
     virtual std::string metadata_requirements() const = 0;
+
+    virtual compression_constraints
+    get_compression_constraints(std::string const& metadata) const = 0;
   };
 
  private:

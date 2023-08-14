@@ -83,6 +83,11 @@ class brotli_block_compressor final : public block_compressor::impl {
 
   std::string metadata_requirements() const override { return std::string(); }
 
+  compression_constraints
+  get_compression_constraints(std::string const&) const override {
+    return compression_constraints();
+  }
+
  private:
   uint32_t const quality_;
   uint32_t const window_bits_;

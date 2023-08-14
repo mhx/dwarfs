@@ -54,6 +54,11 @@ class null_block_compressor final : public block_compressor::impl {
   std::string describe() const override { return "null"; }
 
   std::string metadata_requirements() const override { return std::string(); }
+
+  compression_constraints
+  get_compression_constraints(std::string const&) const override {
+    return compression_constraints();
+  }
 };
 
 class null_block_decompressor final : public block_decompressor::impl {

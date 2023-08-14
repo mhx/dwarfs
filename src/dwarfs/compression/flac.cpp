@@ -368,6 +368,20 @@ class flac_block_compressor final : public block_compressor::impl {
     return folly::toJson(req);
   }
 
+  compression_constraints
+  get_compression_constraints(std::string const& metadata) const override {
+    auto meta = folly::parseJson(metadata);
+
+    auto num_channels = meta["number_of_channels"].asInt();
+    auto bytes_per_sample = meta["bytes_per_sample"].asInt();
+
+    compression_constraints cc;
+
+    cc.granularity = num_channels * bytes_per_sample;
+
+    return cc;
+  }
+
  private:
   uint32_t const level_;
   bool const exhaustive_;

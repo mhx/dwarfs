@@ -689,13 +689,15 @@ void scanner_<LoggerPolicy>::scan(
         meta = catmgr->category_metadata(category);
       }
 
-      wg_ordering.add_job([this, catmgr, blockmgr, category, meta, &prog, &fsw,
-                           &im, &wg_ordering, &wg_blockify] {
+      auto cc = fsw.get_compression_constraints(category.value(), meta);
+
+      wg_ordering.add_job([this, catmgr, blockmgr, category, meta, cc, &prog,
+                           &fsw, &im, &wg_ordering, &wg_blockify] {
         wg_blockify.add_job(
-            [this, catmgr, blockmgr, category, meta, &prog, &fsw,
+            [this, catmgr, blockmgr, category, meta, cc, &prog, &fsw,
              span = im.ordered_span(category, wg_ordering)]() mutable {
               auto seg = segmenter_factory_->create(
-                  category, blockmgr, [category, meta, &fsw](auto block) {
+                  category, cc, blockmgr, [category, meta, &fsw](auto block) {
                     return fsw.write_block(category.value(), std::move(block),
                                            meta);
                   });
