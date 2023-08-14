@@ -663,8 +663,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
     hasher.update(p[offset]);
   }
 
-  // TODO: try folly::small_vector?
-  std::vector<segment_match<GranularityPolicy>> matches;
+  folly::small_vector<segment_match<GranularityPolicy>, 1> matches;
   const bool single_block_mode = cfg_.max_active_blocks == 1;
 
   auto total_bytes_read_before = prog_.total_bytes_read.load();
