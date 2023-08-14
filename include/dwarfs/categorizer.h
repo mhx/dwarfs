@@ -172,6 +172,19 @@ class categorizer_manager {
   std::unique_ptr<impl> impl_;
 };
 
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat);
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat);
+std::string
+category_prefix(categorizer_manager const* mgr, fragment_category cat);
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat);
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat);
+std::string category_prefix(categorizer_manager const* mgr,
+                            fragment_category::value_type cat);
+
 class categorizer_info {
  public:
   virtual ~categorizer_info() = default;

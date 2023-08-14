@@ -45,13 +45,9 @@ fragment_chunkable::~fragment_chunkable() = default;
 size_t fragment_chunkable::size() const { return frag_.size(); }
 
 std::string fragment_chunkable::description() const {
-  std::string prefix;
-  if (catmgr_) {
-    prefix =
-        fmt::format("{} ", catmgr_->category_name(frag_.category().value()));
-  }
   return fmt::format("{}fragment at offset {} of inode {} [{}] - size: {}",
-                     prefix, offset_, ino_.num(), ino_.any()->name(), size());
+                     category_prefix(catmgr_, frag_.category()), offset_,
+                     ino_.num(), ino_.any()->name(), size());
 }
 
 std::span<uint8_t const> fragment_chunkable::span() const {

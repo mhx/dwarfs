@@ -585,12 +585,7 @@ template <typename LoggerPolicy>
 auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
                                                 worker_group& wg) const
     -> sortable_inode_span {
-  std::string prefix;
-  if (opts_.categorizer_mgr) {
-    prefix =
-        fmt::format("[{}] ", opts_.categorizer_mgr->category_name(cat.value()));
-  }
-
+  auto prefix = category_prefix(opts_.categorizer_mgr, cat);
   auto opts = opts_.fragment_order.get(cat);
 
   auto span = sortable_span();
