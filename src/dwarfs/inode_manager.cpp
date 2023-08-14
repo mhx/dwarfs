@@ -211,7 +211,9 @@ class inode_ : public inode {
   void append_chunks_to(std::vector<chunk_type>& vec) const override {
     for (auto const& frag : fragments_) {
       auto chks = frag.chunks();
-      vec.insert(vec.end(), chks.begin(), chks.end());
+      if (!chks.empty()) {
+        vec.insert(vec.end(), chks.begin(), chks.end());
+      }
     }
   }
 
