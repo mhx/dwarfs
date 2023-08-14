@@ -223,6 +223,34 @@ class alignas(64) bloom_filter {
   size_t const size_;
 };
 
+/**
+ * Granularity
+ *
+ * Segmenter granularity is needed because some compressors (e.g. FLAC or
+ * other pcmaudio compressors) expect that their input data always starts
+ * and ends with a full "frame", i.e. a complete set of samples for all
+ * channels. So we must ensure we don't cut the data in the middle of a
+ * frame (or even a sample) in the segmenter.
+ *
+ * The compressor will know the granularity from the metadata provided by
+ * the categorizer and this granularity is passed to the segmenter.
+ *
+ * A granularity of 1 means we can cut the data as we see fit. A granularity
+ * of e.g. 6 means we can only cut at offsets that are a multiple of 6.
+ * It also means we need to e.g. truncate the block size accordingly if it
+ * is not a multiple of the granularity.
+ *
+ * Algorithmically, we'll just pretend that the smallest unit of data is
+ * `granularity` Bytes. That means, if our window size is 1024 and the
+ * granularity is 6, the window will be 6*1024 bytes wide.
+ *
+ * Because we don't want to sacrifice performance for the most common
+ * case (granularity == 1), we use two policies: a constant granularity
+ * policy, which at N == 1 represents granularity == 1, and a variable
+ * granularity policy. The constant granularity policy should compile
+ * down to much more efficient code as it avoids a lot of run-time checks.
+ */
+
 template <size_t N>
 class ConstantGranularityPolicy {
  public:
