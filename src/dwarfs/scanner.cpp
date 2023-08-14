@@ -696,6 +696,8 @@ void scanner_<LoggerPolicy>::scan(
         wg_blockify.add_job(
             [this, catmgr, blockmgr, category, meta, cc, &prog, &fsw,
              span = im.ordered_span(category, wg_ordering)]() mutable {
+              auto ti = LOG_CPU_TIMED_INFO;
+
               auto seg = segmenter_factory_->create(
                   category, cc, blockmgr, [category, meta, &fsw](auto block) {
                     return fsw.write_block(category.value(), std::move(block),
@@ -727,19 +729,22 @@ void scanner_<LoggerPolicy>::scan(
               }
 
               seg.finish();
+
+              ti << category_prefix(catmgr, category) << "segmenting";
             });
       });
     }
 
     LOG_INFO << "waiting for segmenting/blockifying to finish...";
 
-    wg_blockify.wait();
     wg_ordering.wait();
 
-    LOG_INFO << "ordering CPU time: "
+    LOG_INFO << "total ordering CPU time: "
              << time_with_unit(wg_ordering.get_cpu_time());
 
-    LOG_INFO << "segmenting CPU time: "
+    wg_blockify.wait();
+
+    LOG_INFO << "total segmenting CPU time: "
              << time_with_unit(wg_blockify.get_cpu_time());
   }
 
