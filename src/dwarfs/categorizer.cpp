@@ -42,6 +42,42 @@ using namespace std::placeholders;
 
 namespace po = boost::program_options;
 
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(categorizer_manager const* mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr, fragment_category(cat));
+}
+
+std::string
+category_prefix(categorizer_manager const* mgr, fragment_category cat) {
+  std::string prefix;
+  if (mgr) {
+    prefix = fmt::format(
+        "[{}{}] ", mgr->category_name(cat.value()),
+        cat.has_subcategory() ? fmt::format("/{}", cat.subcategory()) : "");
+  }
+  return prefix;
+}
+
 std::string
 categorizer::category_metadata(std::string_view, fragment_category) const {
   return std::string();
