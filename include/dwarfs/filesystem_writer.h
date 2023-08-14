@@ -28,6 +28,7 @@
 #include <span>
 #include <utility>
 
+#include "dwarfs/compression_constraints.h"
 #include "dwarfs/fragment_category.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/options.h"
@@ -56,6 +57,12 @@ class filesystem_writer {
   void add_category_compressor(fragment_category::value_type cat,
                                block_compressor bc) {
     impl_->add_category_compressor(cat, std::move(bc));
+  }
+
+  compression_constraints
+  get_compression_constraints(fragment_category::value_type cat,
+                              std::string const& metadata) const {
+    return impl_->get_compression_constraints(cat, metadata);
   }
 
   void copy_header(std::span<uint8_t const> header) {
@@ -92,6 +99,9 @@ class filesystem_writer {
     virtual void add_default_compressor(block_compressor bc) = 0;
     virtual void add_category_compressor(fragment_category::value_type cat,
                                          block_compressor bc) = 0;
+    virtual compression_constraints
+    get_compression_constraints(fragment_category::value_type cat,
+                                std::string const& metadata) const = 0;
     virtual void copy_header(std::span<uint8_t const> header) = 0;
     virtual uint32_t write_block(fragment_category::value_type cat,
                                  std::shared_ptr<block_data>&& data,
