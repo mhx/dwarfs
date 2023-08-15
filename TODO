@@ -1,19 +1,10 @@
-filesystem_writer holds compressors for all categories:
-
-    filesystem_writer::write_block(data, category);
-
-There's one block_manager for each category. We should probably
-rename it to something like category_block_manager? Or even something
-with `segmenter` in the name? Or maybe just segmenter?
-
-The new block_manager would be shared between all segmenters and take
-care of providing new blocks and enforcing limits.
-
-There might also be a segmenter_manager that would queue all segmenters
-and run them in a worker group.
-
-
-
+- Compress long repetitions of the same byte more efficiently.
+  Currently, segmentation finds an overlap after about one
+  window size. This goes on and on repeatedly. So we end up
+  with a *lot* of chunks pointing to the same segment. The
+  smaller the window size, the larger the number of chunks.
+  It's definitely a trade off, as storing large segments of
+  repeating bytes is wasteful when mounting the image.
 
 
 - Forward compatibility
@@ -27,30 +18,6 @@ and run them in a worker group.
   - Compression of filesystem images for forensic purposes
 
 - Mounting lots of images with shared cache?
-
-inode -> list of fragments
-
-categorizer returns list of fragments OR single category
-
-fragment -> [offset, length, category]
-
-
-
-TODO: with PCM audio signals, we need to categorize by:
-
-      - # of channels
-      - bit depth
-      - endian-ness
-      - signed-ness
-      - sample rate (not necessarily)
-
-      we also need to keep track of endian-ness and signed-ness
-      outside of the FLAC stream, as this information isn't
-      stored in FLAC; we could always get this information from
-      the metadata of the original file, but that would be a lot
-      more complicated than just storing two extra bits in the
-      block itself; we'll have to store the decoded length as
-      well, so this won't make a real difference
 
 - how do we make multiple parallel block chains (categories)
   reproducible?
