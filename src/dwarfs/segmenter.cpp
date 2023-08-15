@@ -255,26 +255,37 @@ template <size_t N>
 class ConstantGranularityPolicy {
  public:
   template <typename T>
-  void add_new_block(T& blocks, size_t num, size_t size, size_t window_size,
-                     size_t window_step, size_t bloom_filter_size) {
+  static void
+  add_new_block(T& blocks, size_t num, size_t size, size_t window_size,
+                size_t window_step, size_t bloom_filter_size) {
     blocks.emplace_back(num, size, window_size, window_step, bloom_filter_size);
+  }
+
+  template <typename T, typename U>
+  static void add_match(T& matches, U const* block, uint32_t off) {
+    matches.emplace_back(block, off);
   }
 };
 
 class VariableGranularityPolicy {
  public:
-  VariableGranularityPolicy(uint32_t granularity)
+  VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
 
   template <typename T>
   void add_new_block(T& blocks, size_t num, size_t size, size_t window_size,
-                     size_t window_step, size_t bloom_filter_size) {
+                     size_t window_step, size_t bloom_filter_size) const {
     blocks.emplace_back(num, size, window_size, window_step, bloom_filter_size,
                         granularity_);
   }
 
+  template <typename T, typename U>
+  void add_match(T& matches, U const* block, uint32_t off) const {
+    matches.emplace_back(block, off, granularity_);
+  }
+
  private:
-  uint_fast32_t granularity_;
+  uint_fast32_t const granularity_;
 };
 
 template <typename GranularityPolicy>
@@ -443,12 +454,15 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
 };
 
 template <typename GranularityPolicy>
-class segment_match {
+class segment_match : private GranularityPolicy {
  public:
   using active_block_type = active_block<GranularityPolicy>;
 
-  segment_match(active_block_type const* blk, uint32_t off) noexcept
-      : block_{blk}
+  template <typename... PolicyArgs>
+  segment_match(active_block_type const* blk, uint32_t off,
+                PolicyArgs&&... args) noexcept
+      : GranularityPolicy(std::forward<PolicyArgs>(args)...)
+      , block_{blk}
       , offset_{off} {}
 
   void verify_and_extend(uint8_t const* pos, size_t len, uint8_t const* begin,
@@ -704,12 +718,14 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
       ++stats_.bloom_hits;
       if (single_block_mode) {
         auto& block = blocks_.front();
-        block.for_each_offset(
-            hasher(), [&](auto off) { matches.emplace_back(&block, off); });
+        block.for_each_offset(hasher(), [&](auto off) {
+          GranularityPolicy::add_match(matches, &block, off);
+        });
       } else {
         for (auto const& block : blocks_) {
-          block.for_each_offset_filter(
-              hasher(), [&](auto off) { matches.emplace_back(&block, off); });
+          block.for_each_offset_filter(hasher(), [&](auto off) {
+            GranularityPolicy::add_match(matches, &block, off);
+          });
         }
       }
 
