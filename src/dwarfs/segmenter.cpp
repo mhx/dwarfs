@@ -251,9 +251,20 @@ class alignas(64) bloom_filter {
  * down to much more efficient code as it avoids a lot of run-time checks.
  */
 
-template <size_t N>
-class ConstantGranularityPolicy {
+class GranularityPolicyBase {
  public:
+  static std::string chunkable_size_fail_message(auto size, auto granularity) {
+    return fmt::format(
+        "unexpected size {} for given granularity {} (modulus: {})", size,
+        granularity, size % granularity);
+  }
+};
+
+template <size_t N>
+class ConstantGranularityPolicy : private GranularityPolicyBase {
+ public:
+  static constexpr size_t const kGranularity{N};
+
   template <typename T>
   static void
   add_new_block(T& blocks, size_t num, size_t size, size_t window_size,
@@ -265,9 +276,16 @@ class ConstantGranularityPolicy {
   static void add_match(T& matches, U const* block, uint32_t off) {
     matches.emplace_back(block, off);
   }
+
+  static void check_chunkable_size(auto size) {
+    if constexpr (kGranularity > 1) {
+      DWARFS_CHECK(size % kGranularity == 0,
+                   chunkable_size_fail_message(size, kGranularity));
+    }
+  }
 };
 
-class VariableGranularityPolicy {
+class VariableGranularityPolicy : private GranularityPolicyBase {
  public:
   VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
@@ -282,6 +300,13 @@ class VariableGranularityPolicy {
   template <typename T, typename U>
   void add_match(T& matches, U const* block, uint32_t off) const {
     matches.emplace_back(block, off, granularity_);
+  }
+
+  void check_chunkable_size(auto size) const {
+    if (granularity_ > 1) {
+      DWARFS_CHECK(size % granularity_ == 0,
+                   chunkable_size_fail_message(size, granularity_));
+    }
   }
 
  private:
@@ -552,13 +577,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::add_chunkable(
   if (auto size = chkable.size(); size > 0) {
     LOG_TRACE << "adding " << chkable.description();
 
-    // if (granularity_ > 1) {
-    //   DWARFS_CHECK(
-    //       size % granularity_ == 0,
-    //       fmt::format(
-    //           "unexpected size {} for given granularity {} (modulus: {})",
-    //           size, granularity_, size % granularity_));
-    // }
+    this->check_chunkable_size(size);
 
     if (!segmentation_enabled() or size < window_size_) {
       // no point dealing with hashing, just write it out
@@ -718,13 +737,12 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
       ++stats_.bloom_hits;
       if (single_block_mode) {
         auto& block = blocks_.front();
-        block.for_each_offset(hasher(), [&](auto off) {
-          GranularityPolicy::add_match(matches, &block, off);
-        });
+        block.for_each_offset(
+            hasher(), [&](auto off) { this->add_match(matches, &block, off); });
       } else {
         for (auto const& block : blocks_) {
           block.for_each_offset_filter(hasher(), [&](auto off) {
-            GranularityPolicy::add_match(matches, &block, off);
+            this->add_match(matches, &block, off);
           });
         }
       }
