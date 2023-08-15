@@ -355,7 +355,7 @@ class active_block : private GranularityPolicy {
   bool full() const { return size() == capacity_; }
   std::shared_ptr<block_data> data() const { return data_; }
 
-  void append(std::span<uint8_t const> data, bloom_filter* filter);
+  void append(std::span<uint8_t const> data, bloom_filter& global_filter);
 
   size_t next_hash_distance() const {
     return window_step_mask_ + 1 - (data_->size() & window_step_mask_);
@@ -410,12 +410,13 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_{this->constrained_block_size(block_size(cfg))}
-      , filter_{bloom_filter_size(cfg)}
+      , global_filter_{bloom_filter_size(cfg)}
       , match_counts_{1, 0, 128} {
     if (segmentation_enabled()) {
       LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
                << size_with_unit(window_step_) << " steps for segment analysis";
-      LOG_INFO << "bloom filter size: " << size_with_unit(filter_.size() / 8);
+      LOG_INFO << "bloom filter size: "
+               << size_with_unit(global_filter_.size() / 8);
     }
   }
 
@@ -477,7 +478,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
 
   chunk_state chunk_;
 
-  bloom_filter filter_;
+  bloom_filter global_filter_;
 
   segmenter_stats stats_;
 
@@ -528,7 +529,7 @@ class segment_match : private GranularityPolicy {
 
 template <typename GranularityPolicy>
 void active_block<GranularityPolicy>::append(std::span<uint8_t const> data,
-                                             bloom_filter* filter) {
+                                             bloom_filter& global_filter) {
   auto& v = data_->vec();
   auto offset = v.size();
   DWARFS_CHECK(offset + data.size() <= capacity_,
@@ -547,9 +548,7 @@ void active_block<GranularityPolicy>::append(std::span<uint8_t const> data,
           auto hashval = hasher_();
           offsets_.insert(hashval, offset - window_size_);
           filter_.add(hashval);
-          if (filter) {
-            filter->add(hashval);
-          }
+          global_filter.add(hashval);
         }
       }
     }
@@ -663,19 +662,19 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::append_to_block(
       blocks_.pop_front();
     }
 
-    filter_.clear();
+    global_filter_.clear();
     for (auto const& b : blocks_) {
-      filter_.merge(b.filter());
+      global_filter_.merge(b.filter());
     }
 
     this->add_new_block(blocks_, blkmgr_->get_logical_block(), block_size_,
                         cfg_.max_active_blocks > 0 ? window_size_ : 0,
-                        window_step_, filter_.size());
+                        window_step_, global_filter_.size());
   }
 
   auto& block = blocks_.back();
 
-  block.append(chkable.span().subspan(offset, size), &filter_);
+  block.append(chkable.span().subspan(offset, size), global_filter_);
   chunk_.size += size;
 
   prog_.filesystem_size += size;
@@ -747,9 +746,9 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
 
   while (offset < size) {
     ++stats_.bloom_lookups;
-    if (filter_.test(hasher())) [[unlikely]] {
+    if (global_filter_.test(hasher())) [[unlikely]] {
       ++stats_.bloom_hits;
-      if (single_block_mode) {
+      if (single_block_mode) { // TODO: can we constexpr this?
         auto& block = blocks_.front();
         block.for_each_offset(
             hasher(), [&](auto off) { this->add_match(matches, &block, off); });
