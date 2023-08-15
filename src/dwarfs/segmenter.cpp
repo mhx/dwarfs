@@ -283,6 +283,13 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
                    chunkable_size_fail_message(size, kGranularity));
     }
   }
+
+  static size_t constrained_block_size(size_t size) {
+    if constexpr (kGranularity > 1) {
+      size -= size % kGranularity;
+    }
+    return size;
+  }
 };
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
@@ -307,6 +314,13 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
       DWARFS_CHECK(size % granularity_ == 0,
                    chunkable_size_fail_message(size, granularity_));
     }
+  }
+
+  size_t constrained_block_size(size_t size) const {
+    if (granularity_ > 1) {
+      size -= size % granularity_;
+    }
+    return size;
   }
 
  private:
@@ -395,7 +409,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
       , block_ready_{std::move(block_ready)}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
-      , block_size_{block_size(cfg)}
+      , block_size_{this->constrained_block_size(block_size(cfg))}
       , filter_{bloom_filter_size(cfg)}
       , match_counts_{1, 0, 128} {
     if (segmentation_enabled()) {
