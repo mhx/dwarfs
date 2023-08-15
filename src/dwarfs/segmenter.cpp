@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <deque>
@@ -277,9 +278,17 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
     matches.emplace_back(block, off);
   }
 
+  static bool is_valid_granularity_size(auto size) {
+    if constexpr (kGranularity > 1) {
+      return size % kGranularity == 0;
+    } else {
+      return true;
+    }
+  }
+
   static void check_chunkable_size(auto size) {
     if constexpr (kGranularity > 1) {
-      DWARFS_CHECK(size % kGranularity == 0,
+      DWARFS_CHECK(is_valid_granularity_size(size),
                    chunkable_size_fail_message(size, kGranularity));
     }
   }
@@ -309,9 +318,13 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
     matches.emplace_back(block, off, granularity_);
   }
 
+  bool is_valid_granularity_size(auto size) const {
+    return size % granularity_ == 0;
+  }
+
   void check_chunkable_size(auto size) const {
     if (granularity_ > 1) {
-      DWARFS_CHECK(size % granularity_ == 0,
+      DWARFS_CHECK(is_valid_granularity_size(size),
                    chunkable_size_fail_message(size, granularity_));
     }
   }
@@ -532,9 +545,13 @@ void active_block<GranularityPolicy>::append(std::span<uint8_t const> data,
                                              bloom_filter& global_filter) {
   auto& v = data_->vec();
   auto offset = v.size();
+
+  assert(this->is_valid_granularity_size(data.size()));
+
   DWARFS_CHECK(offset + data.size() <= capacity_,
                fmt::format("block capacity exceeded: {} + {} > {}", offset,
                            data.size(), capacity_));
+
   v.resize(offset + data.size());
   ::memcpy(v.data() + offset, data.data(), data.size());
 
@@ -657,6 +674,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::block_ready() {
 template <typename LoggerPolicy, typename GranularityPolicy>
 void segmenter_<LoggerPolicy, GranularityPolicy>::append_to_block(
     chunkable& chkable, size_t offset, size_t size) {
+  assert(this->is_valid_granularity_size(size));
+
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
       blocks_.pop_front();
@@ -690,6 +709,8 @@ template <typename LoggerPolicy, typename GranularityPolicy>
 void segmenter_<LoggerPolicy, GranularityPolicy>::add_data(chunkable& chkable,
                                                            size_t offset,
                                                            size_t size) {
+  assert(this->is_valid_granularity_size(size));
+
   while (size > 0) {
     size_t block_offset = 0;
 
@@ -730,6 +751,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
       (blocks_.empty() ? window_step_ : blocks_.back().next_hash_distance());
   auto data = chkable.span();
   auto p = data.data();
+
+  assert(this->is_valid_granularity_size(size));
 
   DWARFS_CHECK(size >= window_size_, "unexpected call to segment_and_add_data");
 
