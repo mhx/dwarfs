@@ -608,10 +608,6 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     sf_config.block_size_bits = defaults.block_size_bits;
   }
 
-  if (!vm.count("compression")) {
-    compression.push_back(std::string(defaults.data_compression));
-  }
-
   if (!vm.count("schema-compression")) {
     schema_compression = defaults.schema_compression;
   }
@@ -1024,6 +1020,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
                                  compressor_parser);
+    compression_opt.set_default(
+        block_compressor(std::string(defaults.data_compression)));
     cop.parse(compression);
     LOG_DEBUG << cop.as_string();
 
