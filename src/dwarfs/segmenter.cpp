@@ -24,7 +24,6 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
-#include <ranges>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -704,19 +703,19 @@ bool active_block<LoggerPolicy, GranularityPolicy>::
     is_existing_repeating_sequence(hash_t hashval, size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
     auto& raw = data_->vec();
-    auto window = raw | std::views::drop(this->frames_to_bytes(offset)) |
-                  std::views::take(this->frames_to_bytes(window_size_));
+    auto winbeg = raw.begin() + this->frames_to_bytes(offset);
+    auto winend = winbeg + this->frames_to_bytes(window_size_);
 
-    if (std::ranges::find_if(window, [byte = it->second](auto b) {
+    if (std::find_if(winbeg, winend, [byte = it->second](auto b) {
           return b != byte;
-        }) == window.end()) {
+        }) == winend) {
       return offsets_.any_value_is(hashval, [&, this](auto off) {
-        auto offwin = raw | std::views::drop(this->frames_to_bytes(off)) |
-                      std::views::take(this->frames_to_bytes(window_size_));
+        auto offbeg = raw.begin() + this->frames_to_bytes(off);
+        auto offend = offbeg + this->frames_to_bytes(window_size_);
 
-        if (std::ranges::find_if(offwin, [byte = it->second](auto b) {
+        if (std::find_if(offbeg, offend, [byte = it->second](auto b) {
               return b != byte;
-            }) == offwin.end()) {
+            }) == offend) {
           ++repeating_collisions_[it->second];
           return true;
         }
