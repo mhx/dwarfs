@@ -50,6 +50,13 @@ class rsync_hash {
     len_ = 0;
   }
 
+  static constexpr uint32_t repeating_window(uint8_t byte, size_t length) {
+    uint16_t v = static_cast<uint16_t>(byte);
+    uint16_t a{static_cast<uint16_t>(v * length)};
+    uint16_t b{static_cast<uint16_t>(v * (length * (length + 1)) / 2)};
+    return static_cast<uint32_t>(a) | (static_cast<uint32_t>(b) << 16);
+  }
+
  private:
   uint16_t a_{0};
   uint16_t b_{0};
