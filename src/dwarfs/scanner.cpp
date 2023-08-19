@@ -611,8 +611,10 @@ void scanner_<LoggerPolicy>::scan(
            << prog.duplicate_files << "/" << prog.files_found
            << " duplicate files";
 
+  auto frag_info = im.fragment_category_info();
+
   if (auto catmgr = options_.inode.categorizer_mgr) {
-    for (auto const& ci : im.fragment_category_info()) {
+    for (auto const& ci : frag_info.info) {
       LOG_VERBOSE << "found " << ci.fragment_count << " "
                   << catmgr->category_name(ci.category) << " fragments ("
                   << size_with_unit(ci.total_size) << ")";
@@ -674,7 +676,7 @@ void scanner_<LoggerPolicy>::scan(
     worker_group wg_ordering("ordering", num_threads);
     worker_group wg_blockify("blockify", num_threads);
 
-    for (auto category : im.inode_categories()) {
+    for (auto category : frag_info.categories) {
       auto catmgr = options_.inode.categorizer_mgr.get();
       std::string meta;
 
