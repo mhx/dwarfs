@@ -604,36 +604,37 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
 
   switch (opts.mode) {
   case file_order_mode::NONE:
-    LOG_INFO << prefix << "keeping inode order";
+    LOG_VERBOSE << prefix << "keeping inode order";
     break;
 
   case file_order_mode::PATH: {
-    LOG_INFO << prefix << "ordering " << span.size()
-             << " inodes by path name...";
-    auto ti = LOG_CPU_TIMED_INFO;
+    LOG_VERBOSE << prefix << "ordering " << span.size()
+                << " inodes by path name...";
+    auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_path(span);
-    ti << prefix << span.size() << " inodes ordered";
+    tv << prefix << span.size() << " inodes ordered";
     break;
   }
 
   case file_order_mode::SIMILARITY: {
-    LOG_INFO << prefix << "ordering " << span.size()
-             << " inodes by similarity...";
-    auto ti = LOG_CPU_TIMED_INFO;
+    LOG_VERBOSE << prefix << "ordering " << span.size()
+                << " inodes by similarity...";
+    auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_similarity(span, cat);
-    ti << prefix << span.size() << " inodes ordered";
+    tv << prefix << span.size() << " inodes ordered";
     break;
   }
 
   case file_order_mode::NILSIMSA: {
-    LOG_INFO << prefix << "ordering " << span.size()
-             << " inodes using nilsimsa similarity...";
+    LOG_VERBOSE << prefix << "ordering " << span.size()
+                << " inodes using nilsimsa similarity...";
     similarity_ordering_options soo;
+    soo.context = prefix;
     soo.max_children = opts.nilsimsa_max_children;
     soo.max_cluster_size = opts.nilsimsa_max_cluster_size;
-    auto ti = LOG_TIMED_INFO;
+    auto tv = LOG_TIMED_VERBOSE;
     order.by_nilsimsa(wg, soo, span, cat);
-    ti << prefix << span.size() << " inodes ordered";
+    tv << prefix << span.size() << " inodes ordered";
     break;
   }
   }

@@ -320,7 +320,7 @@ void file_scanner_<LoggerPolicy>::add_inode(file* p) {
 template <typename LoggerPolicy>
 template <typename Lookup>
 void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup&& lookup) {
-  auto ti = LOG_TIMED_INFO;
+  auto tv = LOG_TIMED_VERBOSE;
 
   for (auto& kv : hardlinks_) {
     auto& hlv = kv.second;
@@ -336,7 +336,7 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup&& lookup) {
 
   hardlinks_.clear();
 
-  ti << "finalized " << hardlinks_.size() << " hardlinks";
+  tv << "finalized " << hardlinks_.size() << " hardlinks";
 }
 
 template <typename LoggerPolicy>
@@ -346,7 +346,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
     uint32_t& obj_num) {
   std::vector<std::pair<KeyType, inode::files_vector>> ent;
 
-  auto ti = LOG_TIMED_INFO;
+  auto tv = LOG_TIMED_VERBOSE;
 
   ent.reserve(fmap.size());
   fmap.eraseInto(
@@ -369,7 +369,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
     finalize_inodes<false>(ent, inode_num, obj_num);
   }
 
-  ti << "finalized " << ent.size() << (UniqueOnly ? " " : " non-")
+  tv << "finalized " << ent.size() << (UniqueOnly ? " " : " non-")
      << "unique files";
 }
 
