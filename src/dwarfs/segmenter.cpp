@@ -1090,13 +1090,15 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
       if constexpr (is_multi_block_mode()) {
         for (auto const& block : blocks_) {
-          block.for_each_offset_filter(
-              hasher(), [&](auto off) { add_match(matches, &block, off); });
+          block.for_each_offset_filter(hasher(), [&, this](auto off) {
+            this->add_match(matches, &block, off);
+          });
         }
       } else {
         auto& block = blocks_.front();
-        block.for_each_offset(
-            hasher(), [&](auto off) { add_match(matches, &block, off); });
+        block.for_each_offset(hasher(), [&, this](auto off) {
+          this->add_match(matches, &block, off);
+        });
       }
 
       if (!matches.empty()) [[unlikely]] {
