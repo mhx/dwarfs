@@ -75,7 +75,6 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , pg_mode_(pg_mode)
     , get_term_width_(get_term_width)
     , mode_(mode)
-    , debug_progress_(getenv_is_enabled("DWARFS_DEBUG_PROGRESS"))
     , read_speed_{std::chrono::seconds(5)} {}
 
 void console_writer::rewind() {
@@ -191,15 +190,6 @@ void console_writer::update(const progress& p, bool last) {
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
           << size_with_unit(p.compressed_size) << " written";
-
-      if (debug_progress_) {
-        oss << " [" << p.nilsimsa_depth << "/" << p.blockify_queue << "/"
-            << p.compress_queue << "]";
-      } else {
-        if (p.nilsimsa_depth > 0) {
-          oss << " [depth: " << p.nilsimsa_depth << "]";
-        }
-      }
 
       oss << newline;
       break;
