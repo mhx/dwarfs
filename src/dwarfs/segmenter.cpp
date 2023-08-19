@@ -582,17 +582,6 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
     }
   }
 
-  ~segmenter_() {
-    auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
-    LOG_DEBUG << "match counts p50: " << pct(0.5) << ", p75: " << pct(0.75)
-              << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
-              << ", p99: " << pct(0.99);
-    for (auto [k, v] : repeating_collisions_) {
-      LOG_INFO << fmt::format(
-          "avoided {} collisions in 0x{:02x}-byte sequences", v, k);
-    }
-  }
-
   void add_chunkable(chunkable& chkable) override;
   void finish() override;
 
@@ -859,6 +848,17 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::finish() {
     LOG_DEBUG << "collision vector size p50: " << pct(0.5)
               << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
               << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+  }
+
+  auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
+
+  LOG_DEBUG << "match counts p50: " << pct(0.5) << ", p75: " << pct(0.75)
+            << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
+            << ", p99: " << pct(0.99);
+
+  for (auto [k, v] : repeating_collisions_) {
+    LOG_INFO << fmt::format("avoided {} collisions in 0x{:02x}-byte sequences",
+                            v, k);
   }
 }
 
