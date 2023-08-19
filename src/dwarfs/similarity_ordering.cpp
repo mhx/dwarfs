@@ -276,7 +276,8 @@ auto similarity_ordering_<LoggerPolicy>::build_index(
     }
     index.shrink_to_fit();
 
-    tt << "build index: " << ev.size() << " -> " << index.size();
+    tt << opts_.context << "build index: " << ev.size() << " -> "
+       << index.size();
   }
 
   return index;
@@ -294,7 +295,7 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
     std::sort(index.begin(), index.end(),
               [&ev](auto a, auto b) { return ev.bitvec_less(a, b); });
 
-    tt << "sort index of " << index.size() << " elements";
+    tt << opts_.context << "sort index of " << index.size() << " elements";
   }
 
   {
@@ -315,8 +316,8 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
       index.erase(++dst, index.end());
     }
 
-    tt << "find duplicates: " << index.size() << " unique / " << dm.size()
-       << " groups";
+    tt << opts_.context << "find duplicates: " << index.size() << " unique / "
+       << dm.size() << " groups";
   }
 
   return dm;
@@ -494,8 +495,8 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
     match->index.push_back(i);
   }
 
-  td << "cluster_by_distance: " << node.cluster().index.size() << " -> "
-     << children.size() << ")";
+  td << opts_.context << "cluster_by_distance: " << node.cluster().index.size()
+     << " -> " << children.size() << ")";
 
   node.v = std::move(children);
 }
@@ -550,7 +551,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
     duplicates_map& dup, index_type& ordered, std::string indent) const {
   if (node.is_leaf()) {
     for (auto e : node.cluster().index) {
-      LOG_TRACE << indent << "  " << ev.description(e) << " -> "
+      LOG_TRACE << opts_.context << indent << "  " << ev.description(e)
+                << " -> "
                 << node.cluster().centroid.distance_to(ev.get_bits(e));
 
       ordered.push_back(e);
@@ -562,7 +564,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
                   [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
         for (auto i : dupvec) {
-          LOG_TRACE << indent << "  + " << ev.description(i) << " -> "
+          LOG_TRACE << opts_.context << indent << "  + " << ev.description(i)
+                    << " -> "
                     << node.cluster().centroid.distance_to(ev.get_bits(i));
           ordered.push_back(i);
         }
@@ -573,7 +576,8 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
     //       step before collecting
 
     for (auto const& [i, cn] : folly::enumerate(node.children())) {
-      LOG_TRACE << indent << "[" << i << "] " << cn.description();
+      LOG_TRACE << opts_.context << indent << "[" << i << "] "
+                << cn.description();
       collect_rec(cn, ev, dup, ordered, indent + "  ");
     }
   }
@@ -592,7 +596,8 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
     index = build_index(ev);
   }
 
-  LOG_INFO << "total distance before ordering: " << total_distance(ev, index);
+  LOG_DEBUG << opts_.context
+            << "total distance before ordering: " << total_distance(ev, index);
 
   size_t size_hint = index.size();
   auto duplicates = find_duplicates(ev, index);
@@ -602,14 +607,15 @@ void similarity_ordering_<LoggerPolicy>::order_impl(
       [this, size_hint, &ev, rec = std::move(rec), root,
        dup = std::move(duplicates)]() mutable {
         {
-          auto ti = LOG_TIMED_INFO;
+          auto tv = LOG_TIMED_VERBOSE;
           order_tree_rec(*root, ev);
-          ti << "order_tree_rec";
+          tv << opts_.context << "nilsimsa recursive ordering finished";
         }
         index_type rv;
         rv.reserve(size_hint);
         collect_rec(*root, ev, dup, rv, "");
-        LOG_INFO << "total distance after ordering: " << total_distance(ev, rv);
+        LOG_DEBUG << opts_.context << "total distance after ordering: "
+                  << total_distance(ev, rv);
         rec.set_value(std::move(rv));
       });
 

@@ -58,6 +58,7 @@ class basic_array_similarity_element_view : public similarity_element_view {
 };
 
 struct similarity_ordering_options {
+  std::string context;
   size_t max_children{256};
   size_t max_cluster_size{256};
 };
