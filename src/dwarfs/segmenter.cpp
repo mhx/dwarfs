@@ -593,7 +593,7 @@ class active_block : private GranularityPolicy {
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
-  using GranularityPolicyT = SegmentingPolicy::GranularityPolicyT;
+  using GranularityPolicyT = typename SegmentingPolicy::GranularityPolicyT;
   using GranularityPolicyT::add_match;
   using GranularityPolicyT::add_new_block;
   using GranularityPolicyT::bytes_to_frames;
