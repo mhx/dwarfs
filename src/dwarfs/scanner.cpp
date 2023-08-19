@@ -677,6 +677,7 @@ void scanner_<LoggerPolicy>::scan(
     worker_group wg_blockify("blockify", num_threads);
 
     for (auto category : frag_info.categories) {
+      auto cat_size = frag_info.category_size.at(category);
       auto catmgr = options_.inode.categorizer_mgr.get();
       std::string meta;
 
@@ -686,15 +687,16 @@ void scanner_<LoggerPolicy>::scan(
 
       auto cc = fsw.get_compression_constraints(category.value(), meta);
 
-      wg_ordering.add_job([this, catmgr, blockmgr, category, meta, cc, &prog,
-                           &fsw, &im, &wg_ordering, &wg_blockify] {
+      wg_ordering.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
+                           &prog, &fsw, &im, &wg_ordering, &wg_blockify] {
         wg_blockify.add_job(
-            [this, catmgr, blockmgr, category, meta, cc, &prog, &fsw,
+            [this, catmgr, blockmgr, category, cat_size, meta, cc, &prog, &fsw,
              span = im.ordered_span(category, wg_ordering)]() mutable {
               auto tv = LOG_CPU_TIMED_VERBOSE;
 
               auto seg = segmenter_factory_->create(
-                  category, cc, blockmgr, [category, meta, &fsw](auto block) {
+                  category, cat_size, cc, blockmgr,
+                  [category, meta, &fsw](auto block) {
                     return fsw.write_block(category.value(), std::move(block),
                                            meta);
                   });
