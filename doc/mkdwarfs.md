@@ -251,14 +251,18 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
-- `--order=none`|`path`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
+- `--order=none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
   `path`, they will be sorted asciibetically by path name of the first file
-  representing this inode. With `similarity`, they will be ordered using a
-  simple, yet fast and efficient, similarity hash function. `nilsimsa` ordering
-  uses a more sophisticated similarity function that is typically better than
-  `similarity`, but it's significantly slower to determine a good ordering.
+  representing this inode. With `revpath`, they will also be ordered by path
+  name, but the path is being traversed from the leaf to the root, i.e. files
+  with the same name will be sorted next to each other. With `similarity`, they
+  will be ordered using a simple, yet fast and efficient, similarity hash
+  function.
+  `nilsimsa` ordering uses a more sophisticated similarity function that is
+  typically better than `similarity`, but can be significantly slower to
+  determine a good ordering.
   However, the new implementation of this algorithm can be parallelized and
   will perform much better on huge numbers of files. `nilsimsa` ordering can
   be tweaked by specifying a *max-children* and *max-cluster-size*. Both options
