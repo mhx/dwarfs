@@ -42,6 +42,7 @@ class inode_ordering_ final : public inode_ordering::impl {
 
   void by_inode_number(sortable_inode_span& sp) const override;
   void by_path(sortable_inode_span& sp) const override;
+  void by_reverse_path(sortable_inode_span& sp) const override;
   void by_similarity(sortable_inode_span& sp,
                      std::optional<fragment_category> cat) const override;
   void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
@@ -76,6 +77,17 @@ void inode_ordering_<LoggerPolicy>::by_path(sortable_inode_span& sp) const {
 
   std::sort(index.begin(), index.end(),
             [&](auto a, auto b) { return paths[a] < paths[b]; });
+}
+
+template <typename LoggerPolicy>
+void inode_ordering_<LoggerPolicy>::by_reverse_path(
+    sortable_inode_span& sp) const {
+  auto raw = sp.raw();
+  auto& index = sp.index();
+
+  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+    return raw[a]->any()->less_revpath(*raw[b]->any());
+  });
 }
 
 template <typename LoggerPolicy>

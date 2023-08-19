@@ -36,6 +36,7 @@ namespace {
 const std::map<std::string_view, file_order_mode> order_choices{
     {"none", file_order_mode::NONE},
     {"path", file_order_mode::PATH},
+    {"revpath", file_order_mode::REVPATH},
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA},
 };
@@ -132,6 +133,9 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
 
   case file_order_mode::PATH:
     return "path";
+
+  case file_order_mode::REVPATH:
+    return "revpath";
 
   case file_order_mode::SIMILARITY:
     return "similarity";

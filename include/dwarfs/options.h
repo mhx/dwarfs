@@ -78,7 +78,7 @@ struct filesystem_writer_options {
 };
 
 // TODO: rename
-enum class file_order_mode { NONE, PATH, SIMILARITY, NILSIMSA };
+enum class file_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
 
 // TODO: rename
 struct file_order_options {

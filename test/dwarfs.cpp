@@ -604,13 +604,12 @@ TEST_P(packing_test, regression_empty_fs) {
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, compression_test,
-    ::testing::Combine(::testing::ValuesIn(compressions),
-                       ::testing::Values(12, 15, 20, 28),
-                       ::testing::Values(file_order_mode::NONE,
-                                         file_order_mode::PATH,
-                                         file_order_mode::NILSIMSA,
-                                         file_order_mode::SIMILARITY),
-                       ::testing::Values(std::nullopt, "xxh3-128")));
+    ::testing::Combine(
+        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
+        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
+                          file_order_mode::REVPATH, file_order_mode::NILSIMSA,
+                          file_order_mode::SIMILARITY),
+        ::testing::Values(std::nullopt, "xxh3-128")));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
@@ -806,6 +805,7 @@ TEST_P(file_scanner, inode_ordering) {
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, file_scanner,
     ::testing::Combine(::testing::Values(file_order_mode::PATH,
+                                         file_order_mode::REVPATH,
                                          file_order_mode::SIMILARITY),
                        ::testing::Values(std::nullopt, "xxh3-128")));
 

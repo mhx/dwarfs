@@ -336,6 +336,7 @@ class inode_ : public inode {
       switch (opts.fragment_order.get(f.category()).mode) {
       case file_order_mode::NONE:
       case file_order_mode::PATH:
+      case file_order_mode::REVPATH:
         break;
       case file_order_mode::SIMILARITY:
         sc.try_emplace(f.category());
@@ -391,6 +392,7 @@ class inode_ : public inode {
     switch (order_mode) {
     case file_order_mode::NONE:
     case file_order_mode::PATH:
+    case file_order_mode::REVPATH:
       break;
 
     case file_order_mode::SIMILARITY: {
@@ -612,6 +614,15 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
                 << " inodes by path name...";
     auto tv = LOG_CPU_TIMED_VERBOSE;
     order.by_path(span);
+    tv << prefix << span.size() << " inodes ordered";
+    break;
+  }
+
+  case file_order_mode::REVPATH: {
+    LOG_VERBOSE << prefix << "ordering " << span.size()
+                << " inodes by reverse path name...";
+    auto tv = LOG_CPU_TIMED_VERBOSE;
+    order.by_reverse_path(span);
     tv << prefix << span.size() << " inodes ordered";
     break;
   }
