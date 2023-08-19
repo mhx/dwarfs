@@ -148,6 +148,24 @@ size_t utf8_display_width(std::string const& str) {
   return utf8_display_width(str.data(), str.size());
 }
 
+void utf8_truncate(std::string& str, size_t len) {
+  char const* p = str.data();
+  char const* const e = p + str.size();
+  size_t l = 0;
+
+  while (p < e && l < len) {
+    auto np = p;
+    auto cp = utf8::next(np, e);
+    l += dwarfs_wcwidth(cp);
+    if (l > len) {
+      break;
+    }
+    p = np;
+  }
+
+  str.resize(p - str.data());
+}
+
 void shorten_path_string(std::string& path, char separator, size_t max_len) {
   auto len = utf8_display_width(path);
 
@@ -158,19 +176,26 @@ void shorten_path_string(std::string& path, char separator, size_t max_len) {
     }
 
     size_t start = 0;
-    max_len -= 3;
 
-    while (start != std::string::npos &&
-           utf8_display_width(path.data() + start, path.size() - start) >
-               max_len) {
-      start = path.find(separator, start + 1);
-    }
-
-    if (start == std::string::npos) {
-      start = max_len - len;
+    while (utf8_display_width(path.data() + start, path.size() - start) >
+           max_len - 3) {
+      auto next = path.find(separator, start + 1);
+      if (next == std::string::npos) {
+        break;
+      }
+      start = next;
     }
 
     path.replace(0, start, "...");
+
+    if (auto len = utf8_display_width(path); len > max_len) {
+      if (max_len >= 7) {
+        utf8_truncate(path, max_len - 3);
+        path += "...";
+      } else {
+        path = "...";
+      }
+    }
   }
 }
 
