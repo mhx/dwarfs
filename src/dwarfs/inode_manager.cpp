@@ -469,26 +469,31 @@ class inode_manager_ final : public inode_manager::impl {
     }
   }
 
-  std::vector<std::pair<fragment_category::value_type, size_t>>
-  fragment_category_counts() const override {
-    std::unordered_map<fragment_category::value_type, size_t> tmp;
+  std::vector<inode_manager::fragment_info>
+  fragment_category_info() const override {
+    std::unordered_map<fragment_category::value_type, std::pair<size_t, size_t>>
+        tmp;
 
     for (auto const& i : inodes_) {
       if (auto const& fragments = i->fragments(); !fragments.empty()) {
         for (auto const& frag : fragments) {
-          ++tmp[frag.category().value()];
+          auto& mv = tmp[frag.category().value()];
+          ++mv.first;
+          mv.second += frag.size();
         }
       }
     }
 
-    std::vector<std::pair<fragment_category::value_type, size_t>> rv;
+    std::vector<inode_manager::fragment_info> rv;
 
     for (auto const& [k, v] : tmp) {
-      rv.emplace_back(k, v);
+      rv.emplace_back(k, v.first, v.second);
     }
 
-    std::sort(rv.begin(), rv.end(),
-              [](auto const& a, auto const& b) { return a.first < b.first; });
+    std::sort(rv.begin(), rv.end(), [](auto const& a, auto const& b) {
+      return a.total_size > b.total_size ||
+             (a.total_size == b.total_size && a.category < b.category);
+    });
 
     return rv;
   }
