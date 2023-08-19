@@ -617,8 +617,8 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
   void segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
   size_t bloom_filter_size(const segmenter::config& cfg) const {
-    auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
-                      (block_size_in_frames(cfg) / window_step(cfg));
+    auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks) *
+                               (block_size_in_frames(cfg) / window_step(cfg)));
     return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
   }
 
