@@ -633,7 +633,8 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
   }
 
   size_t block_size_in_frames(const segmenter::config& cfg) const {
-    return this->bytes_to_frames(static_cast<size_t>(1) << cfg.block_size_bits);
+    auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
+    return this->bytes_to_frames(this->constrained_block_size(raw_size));
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
