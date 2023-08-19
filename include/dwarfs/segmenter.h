@@ -40,6 +40,7 @@ struct compression_constraints;
 class segmenter {
  public:
   struct config {
+    std::string context;
     unsigned blockhash_window_size{12};
     unsigned window_increment_shift{1};
     size_t max_active_blocks{1};

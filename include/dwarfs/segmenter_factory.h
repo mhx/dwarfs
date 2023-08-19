@@ -28,6 +28,7 @@
 
 namespace dwarfs {
 
+class categorizer_manager;
 class logger;
 class progress;
 
@@ -42,6 +43,10 @@ class segmenter_factory {
     categorized_option<unsigned> bloom_filter_size;
     unsigned block_size_bits{22};
   };
+
+  segmenter_factory(logger& lgr, progress& prog,
+                    std::shared_ptr<categorizer_manager> catmgr,
+                    config const& cfg);
 
   segmenter_factory(logger& lgr, progress& prog, config const& cfg);
 

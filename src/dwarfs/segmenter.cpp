@@ -619,10 +619,11 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       , global_filter_{bloom_filter_size(cfg)}
       , match_counts_{1, 0, 128} {
     if constexpr (is_segmentation_enabled()) {
-      LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
-               << size_with_unit(window_step_) << " steps for segment analysis";
-      LOG_INFO << "bloom filter size: "
-               << size_with_unit(global_filter_.size() / 8);
+      LOG_VERBOSE << cfg_.context << "using a " << size_with_unit(window_size_)
+                  << " window at " << size_with_unit(window_step_)
+                  << " steps for segment analysis";
+      LOG_VERBOSE << cfg_.context << "bloom filter size: "
+                  << size_with_unit(global_filter_.size() / 8);
 
       repeating_sequence_hash_values_.reserve(256);
 
@@ -851,7 +852,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
     chunkable& chkable) {
   if (auto size_in_frames = bytes_to_frames(chkable.size());
       size_in_frames > 0) {
-    LOG_TRACE << "adding " << chkable.description();
+    LOG_TRACE << cfg_.context << "adding " << chkable.description();
 
     if (!is_segmentation_enabled() or size_in_frames < window_size_) {
       // no point dealing with hashing, just write it out
@@ -872,50 +873,53 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
   auto l1_collisions = stats_.l2_collision_vec_size.computeTotalCount();
 
   if (stats_.bloom_lookups > 0) {
-    LOG_INFO << "bloom filter reject rate: "
-             << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
-                                                   stats_.bloom_lookups)
-             << " (TPR="
-             << fmt::format("{:.3f}%", 100.0 * stats_.bloom_true_positives /
-                                           stats_.bloom_hits)
-             << ", lookups=" << stats_.bloom_lookups << ")";
+    LOG_VERBOSE << cfg_.context << "bloom filter reject rate: "
+                << fmt::format("{:.3f}%", 100.0 - 100.0 * stats_.bloom_hits /
+                                                      stats_.bloom_lookups)
+                << " (TPR="
+                << fmt::format("{:.3f}%", 100.0 * stats_.bloom_true_positives /
+                                              stats_.bloom_hits)
+                << ", lookups=" << stats_.bloom_lookups << ")";
   }
   if (stats_.total_matches > 0) {
-    LOG_INFO << "segmentation matches: good=" << stats_.good_matches
-             << ", bad=" << stats_.bad_matches << ", collisions="
-             << (stats_.total_matches -
-                 (stats_.bad_matches + stats_.good_matches))
-             << ", total=" << stats_.total_matches;
+    LOG_VERBOSE << cfg_.context
+                << "segmentation matches: good=" << stats_.good_matches
+                << ", bad=" << stats_.bad_matches << ", collisions="
+                << (stats_.total_matches -
+                    (stats_.bad_matches + stats_.good_matches))
+                << ", total=" << stats_.total_matches;
   }
   if (stats_.total_hashes > 0) {
-    LOG_INFO << "segmentation collisions: L1="
-             << fmt::format("{:.3f}%",
-                            100.0 * (l1_collisions + stats_.l2_collisions) /
-                                stats_.total_hashes)
-             << ", L2="
-             << fmt::format("{:.3f}%",
-                            100.0 * stats_.l2_collisions / stats_.total_hashes)
-             << " [" << stats_.total_hashes << " hashes]";
+    LOG_VERBOSE << cfg_.context << "segmentation collisions: L1="
+                << fmt::format("{:.3f}%",
+                               100.0 * (l1_collisions + stats_.l2_collisions) /
+                                   stats_.total_hashes)
+                << ", L2="
+                << fmt::format("{:.3f}%", 100.0 * stats_.l2_collisions /
+                                              stats_.total_hashes)
+                << " [" << stats_.total_hashes << " hashes]";
   }
 
   if (l1_collisions > 0) {
     auto pct = [&](double p) {
       return stats_.l2_collision_vec_size.getPercentileEstimate(p);
     };
-    LOG_DEBUG << "collision vector size p50: " << pct(0.5)
+    LOG_DEBUG << cfg_.context << "collision vector size p50: " << pct(0.5)
               << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
               << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
   }
 
   auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
 
-  LOG_DEBUG << "match counts p50: " << pct(0.5) << ", p75: " << pct(0.75)
-            << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
-            << ", p99: " << pct(0.99);
+  LOG_DEBUG << cfg_.context << "match counts p50: " << pct(0.5)
+            << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
+            << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
 
   for (auto [k, v] : repeating_collisions_) {
-    LOG_INFO << fmt::format("avoided {} collisions in 0x{:02x}-byte sequences",
-                            v, k);
+    LOG_VERBOSE << cfg_.context
+                << fmt::format(
+                       "avoided {} collisions in 0x{:02x}-byte sequences", v,
+                       k);
   }
 }
 
@@ -952,8 +956,9 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
   auto const size_in_bytes = frames_to_bytes(size_in_frames);
   auto& block = blocks_.back();
 
-  LOG_TRACE << "appending " << size_in_bytes << " bytes to block "
-            << block.num() << " @ " << frames_to_bytes(block.size_in_frames())
+  LOG_TRACE << cfg_.context << "appending " << size_in_bytes
+            << " bytes to block " << block.num() << " @ "
+            << frames_to_bytes(block.size_in_frames())
             << " from chunkable offset " << offset_in_bytes;
 
   block.append_bytes(chkable.span().subspan(offset_in_bytes, size_in_bytes),
@@ -1064,7 +1069,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         ++stats_.bloom_true_positives;
         match_counts_.addValue(matches.size());
 
-        LOG_TRACE << "[" << blocks_.back().num() << " @ "
+        LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
                   << frames_to_bytes(blocks_.back().size_in_frames())
                   << ", chunkable @ " << frames_to_bytes(offset_in_frames)
                   << "] found " << matches.size()
@@ -1072,13 +1077,15 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
                   << ", window size=" << window_size_ << ")";
 
         for (auto& m : matches) {
-          LOG_TRACE << "  block " << m.block_num() << " @ " << m.offset();
+          LOG_TRACE << cfg_.context << "  block " << m.block_num() << " @ "
+                    << m.offset();
           // m.verify_and_extend(p + offset_in_frames - window_size_,
           // window_size_,
           //                     p + frames_written, p + size_in_frames);
           m.verify_and_extend(data, offset_in_frames - window_size_,
                               window_size_, frames_written, size_in_frames);
-          LOG_TRACE << "    -> " << m.offset() << " -> " << m.size();
+          LOG_TRACE << cfg_.context << "    -> " << m.offset() << " -> "
+                    << m.size();
         }
 
         stats_.total_matches += matches.size();
@@ -1091,8 +1098,8 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
         if (match_len > 0) {
           ++stats_.good_matches;
-          LOG_TRACE << "successful match of length " << match_len << " @ "
-                    << best->offset();
+          LOG_TRACE << cfg_.context << "successful match of length "
+                    << match_len << " @ " << best->offset();
 
           auto block_num = best->block_num();
           auto match_off = best->offset();

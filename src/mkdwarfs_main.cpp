@@ -1053,9 +1053,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                              fsw, rw_opts);
       wg_compress.wait();
     } else {
-      auto sf = std::make_shared<segmenter_factory>(lgr, prog, sf_config);
+      auto sf = std::make_shared<segmenter_factory>(
+          lgr, prog, options.inode.categorizer_mgr, sf_config);
 
-      scanner s(lgr, wg_scanner, sf, entry_factory::create(),
+      scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(),
                 std::make_shared<os_access_generic>(), std::move(script),
                 options);
 
