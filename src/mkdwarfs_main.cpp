@@ -292,7 +292,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   uint16_t uid, gid;
 
   integral_value_parser<size_t> max_lookback_parser;
-  integral_value_parser<unsigned> window_size_parser(6, 24);
+  integral_value_parser<unsigned> window_size_parser(0, 24);
   integral_value_parser<unsigned> window_step_parser(0, 8);
   integral_value_parser<unsigned> bloom_filter_size_parser(0, 8);
   fragment_order_parser order_parser;
