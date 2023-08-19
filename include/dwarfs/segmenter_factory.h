@@ -50,10 +50,12 @@ class segmenter_factory {
 
   segmenter_factory(logger& lgr, progress& prog, config const& cfg);
 
-  segmenter create(fragment_category cat, compression_constraints const& cc,
+  segmenter create(fragment_category cat, size_t cat_size,
+                   compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const {
-    return impl_->create(cat, cc, std::move(blkmgr), std::move(block_ready));
+    return impl_->create(cat, cat_size, cc, std::move(blkmgr),
+                         std::move(block_ready));
   }
 
   size_t get_block_size() const { return impl_->get_block_size(); }
@@ -62,10 +64,10 @@ class segmenter_factory {
    public:
     virtual ~impl() = default;
 
-    virtual segmenter
-    create(fragment_category cat, compression_constraints const& cc,
-           std::shared_ptr<block_manager> blkmgr,
-           segmenter::block_ready_cb block_ready) const = 0;
+    virtual segmenter create(fragment_category cat, size_t cat_size,
+                             compression_constraints const& cc,
+                             std::shared_ptr<block_manager> blkmgr,
+                             segmenter::block_ready_cb block_ready) const = 0;
     virtual size_t get_block_size() const = 0;
   };
 

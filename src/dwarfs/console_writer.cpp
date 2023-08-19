@@ -77,13 +77,13 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , mode_(mode)
     , read_speed_{std::chrono::seconds(5)} {}
 
-void console_writer::rewind() {
+void console_writer::rewind(int next_rewind_lines) {
   if (!statebuf_.empty()) {
     int lines = 0;
 
     switch (mode_) {
     case NORMAL:
-      lines = 9;
+      lines = rewind_lines_;
       break;
     case REWRITE:
       lines = 4;
@@ -94,13 +94,21 @@ void console_writer::rewind() {
 
     os << '\r';
 
+    int num_erase = rewind_lines_ - next_rewind_lines;
+
     for (int i = 0; i < lines; ++i) {
       os << "\x1b[A";
+      if (num_erase > 0) {
+        os << "\x1b[2K";
+        --num_erase;
+      }
     }
   }
+
+  rewind_lines_ = next_rewind_lines;
 }
 
-void console_writer::preamble() { rewind(); }
+void console_writer::preamble() { rewind(rewind_lines_); }
 
 void console_writer::postamble() {
   if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
@@ -120,6 +128,8 @@ void console_writer::update(const progress& p, bool last) {
   auto newline = get_newline();
 
   std::ostringstream oss;
+  std::vector<std::shared_ptr<progress::context>> ctxs;
+
   lazy_value width(get_term_width_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
@@ -151,13 +161,35 @@ void console_writer::update(const progress& p, bool last) {
             << newline;
       }
 
-      {
-        auto cur_size = p.current_size.load();
-        double cur_offs = std::min(p.current_offset.load(), cur_size);
-        double cur_frac = cur_size > 0 ? cur_offs / cur_size : 0.0;
+      if (fancy) {
+        auto w = width.get();
+        size_t progress_w = w / 4;
+        size_t speed_w = 11;
+        size_t status_w = w - (progress_w + speed_w);
 
-        oss << progress_bar(64, cur_frac, pg_mode_ == UNICODE) << " "
-            << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
+        if (status_w >= 20) {
+          ctxs = p.get_active_contexts();
+        }
+
+        for (auto const& c : ctxs) {
+          auto st = c->get_status(status_w - 1);
+          std::string line;
+
+          if (st.bytes_processed) {
+            c->speed.put(st.bytes_processed->first);
+
+            double frac = static_cast<double>(st.bytes_processed->first) /
+                          st.bytes_processed->second;
+            line =
+                fmt::format("{:<{}}{}{}/s", st.status_string, status_w,
+                            progress_bar(progress_w, frac, pg_mode_ == UNICODE),
+                            size_with_unit(c->speed.num_per_second()));
+          } else {
+            line = st.status_string;
+          }
+
+          oss << terminal_colored(line, st.color, log_is_colored()) << newline;
+        }
       }
 
       oss << p.dirs_scanned << " dirs, " << p.symlinks_scanned << "/"
@@ -189,9 +221,10 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written";
+          << size_with_unit(p.compressed_size) << " written, "
+          << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
 
-      oss << newline;
+      // TODO: read speed should be somewhere else
       break;
 
     case REWRITE:
@@ -253,7 +286,7 @@ void console_writer::update(const progress& p, bool last) {
 
     std::lock_guard lock(log_mutex());
 
-    rewind();
+    rewind(8 + ctxs.size());
 
     statebuf_ = oss.str();
 

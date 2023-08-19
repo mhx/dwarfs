@@ -52,9 +52,10 @@ class console_writer : public stream_logger {
   void preamble() override;
   void postamble() override;
   std::string_view get_newline() const override;
-  void rewind();
+  void rewind(int next_rewind_lines);
 
   std::string statebuf_;
+  int rewind_lines_{0};
   double frac_;
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
