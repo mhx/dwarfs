@@ -44,6 +44,10 @@ class inode_ordering {
 
   void by_path(sortable_inode_span& sp) const { impl_->by_path(sp); }
 
+  void by_reverse_path(sortable_inode_span& sp) const {
+    impl_->by_reverse_path(sp);
+  }
+
   void
   by_similarity(sortable_inode_span& sp,
                 std::optional<fragment_category> cat = std::nullopt) const {
@@ -62,6 +66,7 @@ class inode_ordering {
 
     virtual void by_inode_number(sortable_inode_span& sp) const = 0;
     virtual void by_path(sortable_inode_span& sp) const = 0;
+    virtual void by_reverse_path(sortable_inode_span& sp) const = 0;
     virtual void by_similarity(sortable_inode_span& sp,
                                std::optional<fragment_category> cat) const = 0;
     virtual void
