@@ -811,17 +811,14 @@ template <typename LoggerPolicy, typename GranularityPolicy>
 void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
     granular_span_adapter<uint8_t const, GranularityPolicy> data, size_t pos,
     size_t len, size_t begin, size_t end) {
-  //// auto const& v = block_->data()->vec();
   auto v = this->template create<
       granular_vector_adapter<uint8_t, GranularityPolicy>>(
       block_->data()->vec());
 
   // First, check if the regions actually match
-  //// if (::memcmp(v.data() + offset_, pos, len) == 0) {
   if (v.compare(offset_, data.subspan(pos, len)) == 0) {
     // scan backward
     auto tmp = offset_;
-    //// while (tmp > 0 && pos > begin && v[tmp - 1] == pos[-1]) {
     while (tmp > 0 && pos > begin &&
            v.compare(tmp - 1, data.subspan(pos - 1, 1)) == 0) {
       --tmp;
@@ -834,7 +831,6 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
     // scan forward
     pos += len;
     tmp = offset_ + len;
-    //// while (tmp < v.size() && pos < end && v[tmp] == *pos) {
     while (tmp < v.size() && pos < end &&
            v.compare(tmp, data.subspan(pos, 1)) == 0) {
       ++tmp;
@@ -1013,24 +1009,18 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   rsync_hash hasher;
   size_t offset_in_frames = 0;
   size_t frames_written = 0;
-  // TODO: can we potentially improve segmenter performance by using
-  //       a larger lookback here?
   size_t lookback_size_in_frames = window_size_ + window_step_;
   size_t next_hash_offset_in_frames =
       lookback_size_in_frames +
       (blocks_.empty() ? window_step_
                        : blocks_.back().next_hash_distance_in_frames());
-  // auto data = chkable.span();
   auto data = this->template create<
       granular_span_adapter<uint8_t const, GranularityPolicyT>>(chkable.span());
-  // auto p = data.data();
-  // auto p = chkable.span().data();
 
   DWARFS_CHECK(size_in_frames >= window_size_,
                "unexpected call to segment_and_add_data");
 
   for (; offset_in_frames < window_size_; ++offset_in_frames) {
-    // hasher.update(p[offset]);
     data.update_hash(hasher, offset_in_frames);
   }
 
@@ -1042,8 +1032,6 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   prog_.current_offset.store(
       frames_to_bytes(offset_in_frames)); // TODO: what do we do with this?
   prog_.current_size.store(frames_to_bytes(size_in_frames)); // TODO
-
-  // TODO: matches need to work with frames
 
   // TODO: how can we reasonably update the top progress bar with
   //       multiple concurrent segmenters?
@@ -1079,11 +1067,10 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         for (auto& m : matches) {
           LOG_TRACE << cfg_.context << "  block " << m.block_num() << " @ "
                     << m.offset();
-          // m.verify_and_extend(p + offset_in_frames - window_size_,
-          // window_size_,
-          //                     p + frames_written, p + size_in_frames);
+
           m.verify_and_extend(data, offset_in_frames - window_size_,
                               window_size_, frames_written, size_in_frames);
+
           LOG_TRACE << cfg_.context << "    -> " << m.offset() << " -> "
                     << m.size();
         }
@@ -1128,12 +1115,11 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           for (; offset_in_frames < frames_written + window_size_;
                ++offset_in_frames) {
-            // hasher.update(p[offset]);
             data.update_hash(hasher, offset_in_frames);
           }
 
-          prog_.current_offset.store(
-              frames_to_bytes(offset_in_frames)); // TODO: again, what's this?
+          // TODO: again, what's this?
+          prog_.current_offset.store(frames_to_bytes(offset_in_frames));
           prog_.total_bytes_read.store(total_bytes_read_before +
                                        frames_to_bytes(offset_in_frames));
 
@@ -1159,14 +1145,13 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       add_data(chkable, frames_written, num_to_write);
       frames_written += num_to_write;
       next_hash_offset_in_frames += window_step_;
-      prog_.current_offset.store(
-          frames_to_bytes(offset_in_frames)); // TODO: ???
-      prog_.total_bytes_read.store(
-          total_bytes_read_before +
-          frames_to_bytes(offset_in_frames)); // TODO: ???
+
+      // TODO: ???
+      prog_.current_offset.store(frames_to_bytes(offset_in_frames));
+      prog_.total_bytes_read.store(total_bytes_read_before +
+                                   frames_to_bytes(offset_in_frames));
     }
 
-    // hasher.update(p[offset - window_size_], p[offset]);
     data.update_hash(hasher, offset_in_frames - window_size_, offset_in_frames);
     ++offset_in_frames;
   }
