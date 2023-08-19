@@ -471,49 +471,43 @@ class inode_manager_ final : public inode_manager::impl {
     }
   }
 
-  std::vector<inode_manager::fragment_info>
-  fragment_category_info() const override {
+  inode_manager::fragment_infos fragment_category_info() const override {
+    inode_manager::fragment_infos rv;
+
     std::unordered_map<fragment_category::value_type, std::pair<size_t, size_t>>
         tmp;
 
     for (auto const& i : inodes_) {
       if (auto const& fragments = i->fragments(); !fragments.empty()) {
         for (auto const& frag : fragments) {
+          auto s = frag.size();
           auto& mv = tmp[frag.category().value()];
           ++mv.first;
-          mv.second += frag.size();
+          mv.second += s;
+          rv.category_size[frag.category()] += s;
+          rv.total_size += s;
         }
       }
     }
 
-    std::vector<inode_manager::fragment_info> rv;
+    rv.info.reserve(tmp.size());
 
     for (auto const& [k, v] : tmp) {
-      rv.emplace_back(k, v.first, v.second);
+      rv.info.emplace_back(k, v.first, v.second);
     }
 
-    std::sort(rv.begin(), rv.end(), [](auto const& a, auto const& b) {
+    rv.categories.reserve(rv.category_size.size());
+
+    for (auto cs : rv.category_size) {
+      rv.categories.emplace_back(cs.first);
+    }
+
+    std::sort(rv.info.begin(), rv.info.end(), [](auto const& a, auto const& b) {
       return a.total_size > b.total_size ||
              (a.total_size == b.total_size && a.category < b.category);
     });
 
-    return rv;
-  }
-
-  std::vector<fragment_category> inode_categories() const override {
-    std::unordered_set<fragment_category> tmp;
-
-    for (auto const& i : inodes_) {
-      if (auto const& fragments = i->fragments(); !fragments.empty()) {
-        for (auto const& frag : fragments) {
-          tmp.emplace(frag.category());
-        }
-      }
-    }
-
-    std::vector<fragment_category> rv(tmp.begin(), tmp.end());
-
-    std::sort(rv.begin(), rv.end());
+    std::sort(rv.categories.begin(), rv.categories.end());
 
     return rv;
   }
