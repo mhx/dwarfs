@@ -379,7 +379,6 @@ list(
   src/dwarfs/fstypes.cpp
   src/dwarfs/fs_section.cpp
   src/dwarfs/global_entry_data.cpp
-  src/dwarfs/inode_chunkable.cpp
   src/dwarfs/inode_element_view.cpp
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp
