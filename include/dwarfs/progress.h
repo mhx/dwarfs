@@ -57,12 +57,6 @@ class progress {
            unsigned interval_ms);
   ~progress() noexcept;
 
-  template <typename T>
-  void sync(T&& func) {
-    std::unique_lock lock(mx_);
-    func();
-  }
-
   std::shared_ptr<context> create_context(std::string const& name) const;
   std::vector<std::shared_ptr<context const>> get_active_contexts() const;
 
