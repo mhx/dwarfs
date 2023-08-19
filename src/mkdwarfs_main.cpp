@@ -344,7 +344,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         "compression level (0=fast, 9=best, please see man page for details)")
     ("log-level",
         po::value<std::string>(&log_level_str)->default_value("info"),
-        "log level (error, warn, info, debug, trace)")
+        "log level (error, warn, info, verbose, debug, trace)")
     ("help,h",
         "output help message and exit")
     ("long-help,H",
