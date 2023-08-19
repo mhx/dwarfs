@@ -440,6 +440,34 @@ class granular_span_adapter : private GranularityPolicy {
   std::span<T> s_;
 };
 
+template <typename GranularityPolicy, bool SegmentationEnabled, bool MultiBlock>
+class BasicSegmentationPolicy : public GranularityPolicy {
+ public:
+  using GranularityPolicyT = GranularityPolicy;
+
+  template <typename... PolicyArgs>
+  BasicSegmentationPolicy(PolicyArgs&&... args)
+      : GranularityPolicy(std::forward<PolicyArgs>(args)...) {}
+
+  static constexpr bool is_segmentation_enabled() {
+    return SegmentationEnabled;
+  }
+
+  static constexpr bool is_multi_block_mode() { return MultiBlock; }
+};
+
+template <typename GranularityPolicy>
+using SegmentationDisabledPolicy =
+    BasicSegmentationPolicy<GranularityPolicy, false, false>;
+
+template <typename GranularityPolicy>
+using SingleBlockSegmentationPolicy =
+    BasicSegmentationPolicy<GranularityPolicy, true, false>;
+
+template <typename GranularityPolicy>
+using MultiBlockSegmentationPolicy =
+    BasicSegmentationPolicy<GranularityPolicy, true, true>;
+
 template <typename T, typename GranularityPolicy>
 class granular_vector_adapter : private GranularityPolicy {
  public:
@@ -484,6 +512,8 @@ class granular_vector_adapter : private GranularityPolicy {
 template <typename LoggerPolicy, typename GranularityPolicy>
 class active_block : private GranularityPolicy {
  private:
+  using GranularityPolicy::bytes_to_frames;
+  using GranularityPolicy::frames_to_bytes;
   using offset_t = uint32_t;
   using hash_t = uint32_t;
 
@@ -560,14 +590,24 @@ class active_block : private GranularityPolicy {
   std::shared_ptr<block_data> data_;
 };
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-class segmenter_ final : public segmenter::impl, private GranularityPolicy {
+template <typename LoggerPolicy, typename SegmentingPolicy>
+class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
+ private:
+  using GranularityPolicyT = typename SegmentingPolicy::GranularityPolicyT;
+  using GranularityPolicyT::add_match;
+  using GranularityPolicyT::add_new_block;
+  using GranularityPolicyT::bytes_to_frames;
+  using GranularityPolicyT::constrained_block_size;
+  using GranularityPolicyT::frames_to_bytes;
+  using SegmentingPolicy::is_multi_block_mode;
+  using SegmentingPolicy::is_segmentation_enabled;
+
  public:
   template <typename... PolicyArgs>
   segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
              segmenter::config const& cfg,
              segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
-      : GranularityPolicy(std::forward<PolicyArgs>(args)...)
+      : SegmentingPolicy(std::forward<PolicyArgs>(args)...)
       , LOG_PROXY_INIT(lgr)
       , prog_{prog}
       , blkmgr_{std::move(blkmgr)}
@@ -578,7 +618,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
       , block_size_in_frames_{block_size_in_frames(cfg)}
       , global_filter_{bloom_filter_size(cfg)}
       , match_counts_{1, 0, 128} {
-    if (segmentation_enabled()) {
+    if constexpr (is_segmentation_enabled()) {
       LOG_INFO << "using a " << size_with_unit(window_size_) << " window at "
                << size_with_unit(window_step_) << " steps for segment analysis";
       LOG_INFO << "bloom filter size: "
@@ -588,9 +628,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
 
       for (int i = 0; i < 256; ++i) {
         repeating_sequence_hash_values_.emplace(
-            rsync_hash::repeating_window(i,
-                                         this->frames_to_bytes(window_size_)),
-            i);
+            rsync_hash::repeating_window(i, frames_to_bytes(window_size_)), i);
       }
     }
   }
@@ -603,10 +641,6 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
     size_t offset_in_frames{0};
     size_t size_in_frames{0};
   };
-
-  bool segmentation_enabled() const {
-    return cfg_.max_active_blocks > 0 and window_size_ > 0;
-  }
 
   void block_ready();
   void finish_chunk(chunkable& chkable);
@@ -634,7 +668,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
 
   size_t block_size_in_frames(const segmenter::config& cfg) const {
     auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
-    return this->bytes_to_frames(this->constrained_block_size(raw_size));
+    return bytes_to_frames(constrained_block_size(raw_size));
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -653,7 +687,7 @@ class segmenter_ final : public segmenter::impl, private GranularityPolicy {
 
   segmenter_stats stats_;
 
-  using active_block_type = active_block<LoggerPolicy, GranularityPolicy>;
+  using active_block_type = active_block<LoggerPolicy, GranularityPolicyT>;
 
   // Active blocks are blocks that can still be referenced from new chunks.
   // Up to N blocks (configurable) can be active and are kept in this queue.
@@ -707,15 +741,15 @@ bool active_block<LoggerPolicy, GranularityPolicy>::
     is_existing_repeating_sequence(hash_t hashval, size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
     auto& raw = data_->vec();
-    auto winbeg = raw.begin() + this->frames_to_bytes(offset);
-    auto winend = winbeg + this->frames_to_bytes(window_size_);
+    auto winbeg = raw.begin() + frames_to_bytes(offset);
+    auto winend = winbeg + frames_to_bytes(window_size_);
 
     if (std::find_if(winbeg, winend, [byte = it->second](auto b) {
           return b != byte;
         }) == winend) {
       return offsets_.any_value_is(hashval, [&, this](auto off) {
-        auto offbeg = raw.begin() + this->frames_to_bytes(off);
-        auto offend = offbeg + this->frames_to_bytes(window_size_);
+        auto offbeg = raw.begin() + frames_to_bytes(off);
+        auto offend = offbeg + frames_to_bytes(window_size_);
 
         if (std::find_if(offbeg, offend, [byte = it->second](auto b) {
               return b != byte;
@@ -745,9 +779,8 @@ void active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
 
   DWARFS_CHECK(offset + src.size() <= capacity_in_frames_,
                fmt::format("block capacity exceeded: {} + {} > {}",
-                           this->frames_to_bytes(offset),
-                           this->frames_to_bytes(src.size()),
-                           this->frames_to_bytes(capacity_in_frames_)));
+                           frames_to_bytes(offset), frames_to_bytes(src.size()),
+                           frames_to_bytes(capacity_in_frames_)));
 
   v.append(src);
 
@@ -813,14 +846,14 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
   // size_ defaults to 0 unless we have a real match and set it above.
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::add_chunkable(
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
     chunkable& chkable) {
-  if (auto size_in_frames = this->bytes_to_frames(chkable.size());
+  if (auto size_in_frames = bytes_to_frames(chkable.size());
       size_in_frames > 0) {
     LOG_TRACE << "adding " << chkable.description();
 
-    if (!segmentation_enabled() or size_in_frames < window_size_) {
+    if (!is_segmentation_enabled() or size_in_frames < window_size_) {
       // no point dealing with hashing, just write it out
       add_data(chkable, 0, size_in_frames);
       finish_chunk(chkable);
@@ -830,8 +863,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::add_chunkable(
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::finish() {
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
   if (!blocks_.empty() && !blocks_.back().full()) {
     block_ready();
   }
@@ -886,8 +919,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::finish() {
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::block_ready() {
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
   auto written_block_num = block_ready_(block.data());
@@ -895,8 +928,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::block_ready() {
   ++prog_.block_count;
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::append_to_block(
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
     chunkable& chkable, size_t offset_in_frames, size_t size_in_frames) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
@@ -908,20 +941,19 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::append_to_block(
       global_filter_.merge(b.filter());
     }
 
-    this->add_new_block(blocks_, LOG_GET_LOGGER,
-                        repeating_sequence_hash_values_, repeating_collisions_,
-                        blkmgr_->get_logical_block(), block_size_in_frames_,
-                        cfg_.max_active_blocks > 0 ? window_size_ : 0,
-                        window_step_, global_filter_.size());
+    add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
+                  repeating_collisions_, blkmgr_->get_logical_block(),
+                  block_size_in_frames_,
+                  cfg_.max_active_blocks > 0 ? window_size_ : 0, window_step_,
+                  global_filter_.size());
   }
 
-  auto const offset_in_bytes = this->frames_to_bytes(offset_in_frames);
-  auto const size_in_bytes = this->frames_to_bytes(size_in_frames);
+  auto const offset_in_bytes = frames_to_bytes(offset_in_frames);
+  auto const size_in_bytes = frames_to_bytes(size_in_frames);
   auto& block = blocks_.back();
 
   LOG_TRACE << "appending " << size_in_bytes << " bytes to block "
-            << block.num() << " @ "
-            << this->frames_to_bytes(block.size_in_frames())
+            << block.num() << " @ " << frames_to_bytes(block.size_in_frames())
             << " from chunkable offset " << offset_in_bytes;
 
   block.append_bytes(chkable.span().subspan(offset_in_bytes, size_in_bytes),
@@ -937,8 +969,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::append_to_block(
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::add_data(
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::add_data(
     chunkable& chkable, size_t offset_in_frames, size_t size_in_frames) {
   while (size_in_frames > 0) {
     size_t block_offset_in_frames = 0;
@@ -957,22 +989,21 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::add_data(
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::finish_chunk(
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
     chunkable& chkable) {
   if (chunk_.size_in_frames > 0) {
     auto& block = blocks_.back();
-    chkable.add_chunk(block.num(),
-                      this->frames_to_bytes(chunk_.offset_in_frames),
-                      this->frames_to_bytes(chunk_.size_in_frames));
+    chkable.add_chunk(block.num(), frames_to_bytes(chunk_.offset_in_frames),
+                      frames_to_bytes(chunk_.size_in_frames));
     chunk_.offset_in_frames = block.full() ? 0 : block.size_in_frames();
     chunk_.size_in_frames = 0;
     prog_.chunk_count++;
   }
 }
 
-template <typename LoggerPolicy, typename GranularityPolicy>
-void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
+template <typename LoggerPolicy, typename SegmentingPolicy>
+void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     chunkable& chkable, size_t size_in_frames) {
   rsync_hash hasher;
   size_t offset_in_frames = 0;
@@ -986,7 +1017,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
                        : blocks_.back().next_hash_distance_in_frames());
   // auto data = chkable.span();
   auto data = this->template create<
-      granular_span_adapter<uint8_t const, GranularityPolicy>>(chkable.span());
+      granular_span_adapter<uint8_t const, GranularityPolicyT>>(chkable.span());
   // auto p = data.data();
   // auto p = chkable.span().data();
 
@@ -998,15 +1029,14 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
     data.update_hash(hasher, offset_in_frames);
   }
 
-  folly::small_vector<segment_match<LoggerPolicy, GranularityPolicy>, 1>
+  folly::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
       matches;
-  const bool single_block_mode = cfg_.max_active_blocks == 1;
 
   // TODO: we have multiple segmenter threads, so this doesn't fly anymore
   auto total_bytes_read_before = prog_.total_bytes_read.load();
-  prog_.current_offset.store(this->frames_to_bytes(
-      offset_in_frames)); // TODO: what do we do with this?
-  prog_.current_size.store(this->frames_to_bytes(size_in_frames)); // TODO
+  prog_.current_offset.store(
+      frames_to_bytes(offset_in_frames)); // TODO: what do we do with this?
+  prog_.current_size.store(frames_to_bytes(size_in_frames)); // TODO
 
   // TODO: matches need to work with frames
 
@@ -1019,16 +1049,15 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
     if (global_filter_.test(hasher())) [[unlikely]] {
       ++stats_.bloom_hits;
 
-      if (single_block_mode) { // TODO: can we constexpr this?
+      if constexpr (is_multi_block_mode()) {
+        for (auto const& block : blocks_) {
+          block.for_each_offset_filter(
+              hasher(), [&](auto off) { add_match(matches, &block, off); });
+        }
+      } else {
         auto& block = blocks_.front();
         block.for_each_offset(
-            hasher(), [&](auto off) { this->add_match(matches, &block, off); });
-      } else {
-        for (auto const& block : blocks_) {
-          block.for_each_offset_filter(hasher(), [&](auto off) {
-            this->add_match(matches, &block, off);
-          });
-        }
+            hasher(), [&](auto off) { add_match(matches, &block, off); });
       }
 
       if (!matches.empty()) [[unlikely]] {
@@ -1036,8 +1065,8 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
         match_counts_.addValue(matches.size());
 
         LOG_TRACE << "[" << blocks_.back().num() << " @ "
-                  << this->frames_to_bytes(blocks_.back().size_in_frames())
-                  << ", chunkable @ " << this->frames_to_bytes(offset_in_frames)
+                  << frames_to_bytes(blocks_.back().size_in_frames())
+                  << ", chunkable @ " << frames_to_bytes(offset_in_frames)
                   << "] found " << matches.size()
                   << " matches (hash=" << fmt::format("{:08x}", hasher())
                   << ", window size=" << window_size_ << ")";
@@ -1074,13 +1103,13 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
           frames_written += num_to_write;
           finish_chunk(chkable);
 
-          chkable.add_chunk(block_num, this->frames_to_bytes(match_off),
-                            this->frames_to_bytes(match_len));
+          chkable.add_chunk(block_num, frames_to_bytes(match_off),
+                            frames_to_bytes(match_len));
 
           prog_.chunk_count++;
           frames_written += match_len;
 
-          prog_.saved_by_segmentation += this->frames_to_bytes(match_len);
+          prog_.saved_by_segmentation += frames_to_bytes(match_len);
 
           offset_in_frames = frames_written;
 
@@ -1096,10 +1125,10 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
             data.update_hash(hasher, offset_in_frames);
           }
 
-          prog_.current_offset.store(this->frames_to_bytes(
-              offset_in_frames)); // TODO: again, what's this?
+          prog_.current_offset.store(
+              frames_to_bytes(offset_in_frames)); // TODO: again, what's this?
           prog_.total_bytes_read.store(total_bytes_read_before +
-                                       this->frames_to_bytes(offset_in_frames));
+                                       frames_to_bytes(offset_in_frames));
 
           next_hash_offset_in_frames =
               frames_written + lookback_size_in_frames +
@@ -1124,10 +1153,10 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
       frames_written += num_to_write;
       next_hash_offset_in_frames += window_step_;
       prog_.current_offset.store(
-          this->frames_to_bytes(offset_in_frames)); // TODO: ???
+          frames_to_bytes(offset_in_frames)); // TODO: ???
       prog_.total_bytes_read.store(
           total_bytes_read_before +
-          this->frames_to_bytes(offset_in_frames)); // TODO: ???
+          frames_to_bytes(offset_in_frames)); // TODO: ???
     }
 
     // hasher.update(p[offset - window_size_], p[offset]);
@@ -1135,24 +1164,49 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
     ++offset_in_frames;
   }
 
-  prog_.current_offset.store(this->frames_to_bytes(size_in_frames)); // TODO
+  prog_.current_offset.store(frames_to_bytes(size_in_frames)); // TODO
   prog_.total_bytes_read.store(total_bytes_read_before +
-                               this->frames_to_bytes(size_in_frames)); // TODO
+                               frames_to_bytes(size_in_frames)); // TODO
 
   add_data(chkable, frames_written, size_in_frames - frames_written);
   finish_chunk(chkable);
 }
 
-template <size_t N>
+template <template <typename> typename SegmentingPolicy, size_t N>
 struct constant_granularity_segmenter_ {
   template <typename LoggerPolicy>
-  using type = segmenter_<LoggerPolicy, ConstantGranularityPolicy<N>>;
+  using type =
+      segmenter_<LoggerPolicy, SegmentingPolicy<ConstantGranularityPolicy<N>>>;
 };
 
+template <template <typename> typename SegmentingPolicy>
 struct variable_granularity_segmenter_ {
   template <typename LoggerPolicy>
-  using type = segmenter_<LoggerPolicy, VariableGranularityPolicy>;
+  using type =
+      segmenter_<LoggerPolicy, SegmentingPolicy<VariableGranularityPolicy>>;
 };
+
+template <template <typename> typename SegmentingPolicy>
+std::unique_ptr<segmenter::impl>
+create_segmenter2(logger& lgr, progress& prog,
+                  std::shared_ptr<block_manager> blkmgr,
+                  segmenter::config const& cfg,
+                  compression_constraints const& cc,
+                  segmenter::block_ready_cb block_ready) {
+  if (!cc.granularity || cc.granularity.value() == 1) {
+    return make_unique_logging_object<
+        segmenter::impl,
+        constant_granularity_segmenter_<SegmentingPolicy, 1>::template type,
+        logger_policies>(lgr, prog, std::move(blkmgr), cfg,
+                         std::move(block_ready));
+  }
+
+  return make_unique_logging_object<
+      segmenter::impl,
+      variable_granularity_segmenter_<SegmentingPolicy>::template type,
+      logger_policies>(lgr, prog, std::move(blkmgr), cfg,
+                       std::move(block_ready), cc.granularity.value());
+}
 
 std::unique_ptr<segmenter::impl>
 create_segmenter(logger& lgr, progress& prog,
@@ -1160,17 +1214,18 @@ create_segmenter(logger& lgr, progress& prog,
                  segmenter::config const& cfg,
                  compression_constraints const& cc,
                  segmenter::block_ready_cb block_ready) {
-  if (!cc.granularity || cc.granularity.value() == 1) {
-    return make_unique_logging_object<segmenter::impl,
-                                      constant_granularity_segmenter_<1>::type,
-                                      logger_policies>(
-        lgr, prog, std::move(blkmgr), cfg, std::move(block_ready));
+  if (cfg.max_active_blocks == 0 or cfg.blockhash_window_size == 0) {
+    return create_segmenter2<SegmentationDisabledPolicy>(
+        lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
   }
 
-  return make_unique_logging_object<
-      segmenter::impl, variable_granularity_segmenter_::type, logger_policies>(
-      lgr, prog, std::move(blkmgr), cfg, std::move(block_ready),
-      cc.granularity.value());
+  if (cfg.max_active_blocks == 1) {
+    return create_segmenter2<SingleBlockSegmentationPolicy>(
+        lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
+  }
+
+  return create_segmenter2<MultiBlockSegmentationPolicy>(
+      lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
 }
 
 } // namespace
