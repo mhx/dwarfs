@@ -749,7 +749,7 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function([](progress const&, size_t) {
     return "waiting for block compression to finish";
   });
-  prog.sync([&] { prog.current.store(nullptr); });
+  prog.current.store(nullptr);
 
   // this is actually needed
   root->set_name(std::string());
