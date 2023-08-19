@@ -59,6 +59,13 @@ class inode_manager {
     size_t total_size;
   };
 
+  struct fragment_infos {
+    std::vector<fragment_category> categories;
+    std::vector<fragment_info> info;
+    std::unordered_map<fragment_category, size_t> category_size;
+    size_t total_size{0};
+  };
+
   inode_manager(logger& lgr, progress& prog, inode_options const& opts);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
@@ -69,12 +76,8 @@ class inode_manager {
     impl_->for_each_inode_in_order(fn);
   }
 
-  std::vector<fragment_info> fragment_category_info() const {
+  fragment_infos fragment_category_info() const {
     return impl_->fragment_category_info();
-  }
-
-  std::vector<fragment_category> inode_categories() const {
-    return impl_->inode_categories();
   }
 
   void scan_background(worker_group& wg, os_access& os,
@@ -99,8 +102,7 @@ class inode_manager {
     virtual size_t count() const = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
-    virtual std::vector<fragment_info> fragment_category_info() const = 0;
-    virtual std::vector<fragment_category> inode_categories() const = 0;
+    virtual fragment_infos fragment_category_info() const = 0;
     virtual void
     scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
                     file const* p) const = 0;
