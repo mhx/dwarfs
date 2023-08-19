@@ -530,6 +530,14 @@ class inode_manager_ final : public inode_manager::impl {
   ordered_span(fragment_category cat, worker_group& wg) const override;
 
  private:
+  void update_prog(std::shared_ptr<inode> const& ino, file const* p) const {
+    if (p->size() > 0) {
+      prog_.fragments_found += ino->fragments().size();
+    }
+    ++prog_.inodes_scanned;
+    ++prog_.files_scanned;
+  }
+
   static bool inodes_need_scanning(inode_options const& opts) {
     if (opts.categorizer_mgr) {
       return true;
@@ -566,17 +574,13 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
         mm = os.map_file(p->fs_path(), size);
       }
       ino->scan(mm.get(), opts_);
-      prog_.fragments_found += ino->fragments().size();
       ++prog_.similarity_scans; // TODO: we probably don't want this here
       prog_.similarity_bytes += size;
-      ++prog_.inodes_scanned;
-      ++prog_.files_scanned;
+      update_prog(ino, p);
     });
   } else {
     ino->populate(p->size());
-    prog_.fragments_found += ino->fragments().size();
-    ++prog_.inodes_scanned;
-    ++prog_.files_scanned;
+    update_prog(ino, p);
   }
 }
 
