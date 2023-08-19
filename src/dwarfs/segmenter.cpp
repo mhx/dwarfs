@@ -417,6 +417,12 @@ class granular_span_adapter : private GranularityPolicy {
 
   std::span<T> raw() const { return s_; }
 
+  granular_span_adapter subspan(size_t offset, size_t count) const {
+    return this->template create<granular_span_adapter<T, GranularityPolicy>>(
+        s_.subspan(this->frames_to_bytes(offset),
+                   this->frames_to_bytes(count)));
+  }
+
   template <typename H>
   void update_hash(H& hasher, size_t offset) const {
     offset = this->frames_to_bytes(offset);
@@ -449,6 +455,13 @@ class granular_vector_adapter : private GranularityPolicy {
     auto off = v_.size();
     v_.resize(off + raw.size());
     ::memcpy(v_.data() + off, raw.data(), raw.size());
+  }
+
+  int compare(size_t offset,
+              granular_span_adapter<T const, GranularityPolicy> span) const {
+    auto raw = span.raw();
+    return std::memcmp(v_.data() + this->frames_to_bytes(offset), raw.data(),
+                       raw.size());
   }
 
   template <typename H>
@@ -665,8 +678,9 @@ class segment_match : private GranularityPolicy {
       , block_{blk}
       , offset_{off} {}
 
-  void verify_and_extend(uint8_t const* pos, size_t len, uint8_t const* begin,
-                         uint8_t const* end);
+  void verify_and_extend(
+      granular_span_adapter<uint8_t const, GranularityPolicy> data, size_t pos,
+      size_t len, size_t begin, size_t end);
 
   bool operator<(segment_match const& rhs) const {
     return size_ < rhs.size_ ||
@@ -675,7 +689,7 @@ class segment_match : private GranularityPolicy {
              (block_->num() == rhs.block_->num() && offset_ < rhs.offset_)));
   }
 
-  uint8_t const* data() const { return data_; }
+  size_t pos() const { return pos_; }
   uint32_t size() const { return size_; }
   uint32_t offset() const { return offset_; }
   size_t block_num() const { return block_->num(); }
@@ -684,7 +698,7 @@ class segment_match : private GranularityPolicy {
   active_block_type const* block_;
   uint32_t offset_;
   uint32_t size_{0};
-  uint8_t const* data_{nullptr};
+  size_t pos_{0};
 };
 
 template <typename LoggerPolicy, typename GranularityPolicy>
@@ -760,25 +774,34 @@ void active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
 
 template <typename LoggerPolicy, typename GranularityPolicy>
 void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
-    uint8_t const* pos, size_t len, uint8_t const* begin, uint8_t const* end) {
-  auto const& v = block_->data()->vec();
+    granular_span_adapter<uint8_t const, GranularityPolicy> data, size_t pos,
+    size_t len, size_t begin, size_t end) {
+  //// auto const& v = block_->data()->vec();
+  auto v = this->template create<
+      granular_vector_adapter<uint8_t, GranularityPolicy>>(
+      block_->data()->vec());
 
   // First, check if the regions actually match
-  if (::memcmp(v.data() + offset_, pos, len) == 0) {
+  //// if (::memcmp(v.data() + offset_, pos, len) == 0) {
+  if (v.compare(offset_, data.subspan(pos, len)) == 0) {
     // scan backward
     auto tmp = offset_;
-    while (tmp > 0 && pos > begin && v[tmp - 1] == pos[-1]) {
+    //// while (tmp > 0 && pos > begin && v[tmp - 1] == pos[-1]) {
+    while (tmp > 0 && pos > begin &&
+           v.compare(tmp - 1, data.subspan(pos - 1, 1)) == 0) {
       --tmp;
       --pos;
     }
     len += offset_ - tmp;
     offset_ = tmp;
-    data_ = pos;
+    pos_ = pos;
 
     // scan forward
     pos += len;
     tmp = offset_ + len;
-    while (tmp < v.size() && pos < end && v[tmp] == *pos) {
+    //// while (tmp < v.size() && pos < end && v[tmp] == *pos) {
+    while (tmp < v.size() && pos < end &&
+           v.compare(tmp, data.subspan(pos, 1)) == 0) {
       ++tmp;
       ++pos;
     }
@@ -964,7 +987,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
   auto data = this->template create<
       granular_span_adapter<uint8_t const, GranularityPolicy>>(chkable.span());
   // auto p = data.data();
-  auto p = chkable.span().data();
+  // auto p = chkable.span().data();
 
   DWARFS_CHECK(size_in_frames >= window_size_,
                "unexpected call to segment_and_add_data");
@@ -1020,8 +1043,11 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
 
         for (auto& m : matches) {
           LOG_TRACE << "  block " << m.block_num() << " @ " << m.offset();
-          m.verify_and_extend(p + offset_in_frames - window_size_, window_size_,
-                              p + frames_written, p + size_in_frames);
+          // m.verify_and_extend(p + offset_in_frames - window_size_,
+          // window_size_,
+          //                     p + frames_written, p + size_in_frames);
+          m.verify_and_extend(data, offset_in_frames - window_size_,
+                              window_size_, frames_written, size_in_frames);
           LOG_TRACE << "    -> " << m.offset() << " -> " << m.size();
         }
 
@@ -1040,7 +1066,7 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
 
           auto block_num = best->block_num();
           auto match_off = best->offset();
-          auto num_to_write = best->data() - (p + frames_written);
+          auto num_to_write = best->pos() - frames_written;
 
           // best->block can be invalidated by this call to add_data()!
           add_data(chkable, frames_written, num_to_write);
