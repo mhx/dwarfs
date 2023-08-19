@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <chrono>
 #include <utility>
 
@@ -55,8 +56,41 @@ progress::~progress() noexcept {
   }
 }
 
+auto progress::create_context(std::string const& name) const
+    -> std::shared_ptr<context> {
+  auto ctx = std::make_shared<context>(name);
+  {
+    std::lock_guard lock(mx_);
+    contexts_.push_back(ctx);
+  }
+  return ctx;
+}
+
+auto progress::get_active_contexts() const
+    -> std::vector<std::shared_ptr<context const>> {
+  std::vector<std::shared_ptr<context const>> rv;
+
+  rv.reserve(16);
+
+  {
+    std::lock_guard lock(mx_);
+
+    contexts_.erase(std::remove_if(contexts_.begin(), contexts_.end(),
+                                   [&rv](auto& wp) {
+                                     if (auto sp = wp.lock()) {
+                                       rv.push_back(std::move(sp));
+                                       return false;
+                                     }
+                                     return true;
+                                   }),
+                    contexts_.end());
+  }
+
+  return rv;
+}
+
 void progress::set_status_function(status_function_type status_fun) {
-  std::unique_lock lock(mx_);
+  std::lock_guard lock(mx_);
   status_fun_ = std::move(status_fun);
 }
 

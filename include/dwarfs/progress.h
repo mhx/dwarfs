@@ -26,8 +26,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include <folly/Function.h>
 
@@ -37,6 +39,17 @@ class object;
 
 class progress {
  public:
+  class context {
+   public:
+    explicit context(std::string const& name)
+        : name_{name} {}
+
+    std::string const& name() const { return name_; }
+
+   private:
+    std::string const name_;
+  };
+
   using status_function_type =
       folly::Function<std::string(progress const&, size_t) const>;
 
@@ -49,6 +62,9 @@ class progress {
     std::unique_lock lock(mx_);
     func();
   }
+
+  std::shared_ptr<context> create_context(std::string const& name) const;
+  std::vector<std::shared_ptr<context const>> get_active_contexts() const;
 
   void set_status_function(status_function_type status_fun);
 
@@ -95,6 +111,7 @@ class progress {
   mutable std::mutex mx_;
   std::condition_variable cond_;
   status_function_type status_fun_;
+  std::vector<std::weak_ptr<context const>> mutable contexts_;
   std::thread thread_;
 };
 } // namespace dwarfs
