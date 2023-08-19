@@ -38,7 +38,8 @@ progress::progress(folly::Function<void(const progress&, bool)>&& func,
 #ifdef _WIN32
       ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 #endif
-      std::unique_lock lock(mx_);
+      std::mutex mx_thread;
+      std::unique_lock lock(mx_thread);
       while (running_) {
         func(*this, false);
         cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
@@ -56,19 +57,14 @@ progress::~progress() noexcept {
   }
 }
 
-auto progress::create_context(std::string const& name) const
-    -> std::shared_ptr<context> {
-  auto ctx = std::make_shared<context>(name);
-  {
-    std::lock_guard lock(mx_);
-    contexts_.push_back(ctx);
-  }
-  return ctx;
+void progress::add_context(std::shared_ptr<context> const& ctx) const {
+  std::lock_guard lock(mx_);
+  contexts_.push_back(ctx);
 }
 
 auto progress::get_active_contexts() const
-    -> std::vector<std::shared_ptr<context const>> {
-  std::vector<std::shared_ptr<context const>> rv;
+    -> std::vector<std::shared_ptr<context>> {
+  std::vector<std::shared_ptr<context>> rv;
 
   rv.reserve(16);
 
@@ -91,12 +87,17 @@ auto progress::get_active_contexts() const
 
 void progress::set_status_function(status_function_type status_fun) {
   std::lock_guard lock(mx_);
-  status_fun_ = std::move(status_fun);
+  status_fun_ = std::make_shared<status_function_type>(std::move(status_fun));
 }
 
 std::string progress::status(size_t max_len) const {
-  if (status_fun_) {
-    return status_fun_(*this, max_len);
+  std::shared_ptr<status_function_type> fun;
+  {
+    std::lock_guard lock(mx_);
+    fun = status_fun_;
+  }
+  if (fun) {
+    return (*fun)(*this, max_len);
   }
   return std::string();
 }
