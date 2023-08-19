@@ -613,16 +613,9 @@ void scanner_<LoggerPolicy>::scan(
 
   if (auto catmgr = options_.inode.categorizer_mgr) {
     for (auto const& ci : im.fragment_category_info()) {
-      LOG_INFO << ci.fragment_count << " " << catmgr->category_name(ci.category)
-               << " fragments (" << size_with_unit(ci.total_size) << ")";
-    }
-
-    for (auto const& cat : im.inode_categories()) {
-      std::string str(catmgr->category_name(cat.value()));
-      if (cat.has_subcategory()) {
-        str += fmt::format("/{}", cat.subcategory());
-      }
-      LOG_INFO << str;
+      LOG_VERBOSE << "found " << ci.fragment_count << " "
+                  << catmgr->category_name(ci.category) << " fragments ("
+                  << size_with_unit(ci.total_size) << ")";
     }
   }
 
@@ -696,7 +689,7 @@ void scanner_<LoggerPolicy>::scan(
         wg_blockify.add_job(
             [this, catmgr, blockmgr, category, meta, cc, &prog, &fsw,
              span = im.ordered_span(category, wg_ordering)]() mutable {
-              auto ti = LOG_CPU_TIMED_INFO;
+              auto tv = LOG_CPU_TIMED_VERBOSE;
 
               auto seg = segmenter_factory_->create(
                   category, cc, blockmgr, [category, meta, &fsw](auto block) {
@@ -730,7 +723,7 @@ void scanner_<LoggerPolicy>::scan(
 
               seg.finish();
 
-              ti << category_prefix(catmgr, category) << "segmenting";
+              tv << category_prefix(catmgr, category) << "segmenting finished";
             });
       });
     }
