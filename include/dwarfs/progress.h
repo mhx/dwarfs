@@ -28,10 +28,14 @@
 #include <iosfwd>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include <folly/Function.h>
+
+#include "dwarfs/speedometer.h"
+#include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
@@ -41,13 +45,17 @@ class progress {
  public:
   class context {
    public:
-    explicit context(std::string const& name)
-        : name_{name} {}
+    struct status {
+      termcolor color;
+      std::string status_string;
+      std::optional<std::pair<size_t, size_t>> bytes_processed;
+    };
 
-    std::string const& name() const { return name_; }
+    virtual ~context() = default;
 
-   private:
-    std::string const name_;
+    virtual status get_status(size_t width) const = 0;
+
+    speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
 
   using status_function_type =
@@ -57,12 +65,18 @@ class progress {
            unsigned interval_ms);
   ~progress() noexcept;
 
-  std::shared_ptr<context> create_context(std::string const& name) const;
-  std::vector<std::shared_ptr<context const>> get_active_contexts() const;
-
   void set_status_function(status_function_type status_fun);
 
   std::string status(size_t max_len) const;
+
+  template <typename T, typename... Args>
+  std::shared_ptr<T> create_context(Args&&... args) const {
+    auto ctx = std::make_shared<T>(std::forward<Args>(args)...);
+    add_context(ctx);
+    return ctx;
+  }
+
+  std::vector<std::shared_ptr<context>> get_active_contexts() const;
 
   std::atomic<object const*> current{nullptr};
   std::atomic<uint64_t> total_bytes_read{0};
@@ -98,11 +112,13 @@ class progress {
   std::atomic<uint64_t> hash_bytes{0};
 
  private:
+  void add_context(std::shared_ptr<context> const& ctx) const;
+
   std::atomic<bool> running_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
-  status_function_type status_fun_;
-  std::vector<std::weak_ptr<context const>> mutable contexts_;
+  std::shared_ptr<status_function_type> status_fun_;
+  std::vector<std::weak_ptr<context>> mutable contexts_;
   std::thread thread_;
 };
 } // namespace dwarfs
