@@ -42,6 +42,8 @@ fragment_chunkable::fragment_chunkable(inode const& ino,
 
 fragment_chunkable::~fragment_chunkable() = default;
 
+file const* fragment_chunkable::get_file() const { return ino_.any(); }
+
 size_t fragment_chunkable::size() const { return frag_.size(); }
 
 std::string fragment_chunkable::description() const {

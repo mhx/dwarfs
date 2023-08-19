@@ -39,6 +39,7 @@ class fragment_chunkable : public chunkable {
                      categorizer_manager const* catmgr);
   ~fragment_chunkable();
 
+  file const* get_file() const override;
   size_t size() const override;
   std::string description() const override;
   std::span<uint8_t const> span() const override;
