@@ -26,10 +26,13 @@
 
 namespace dwarfs {
 
+class file;
+
 class chunkable {
  public:
   virtual ~chunkable() = default;
 
+  virtual file const* get_file() const = 0;
   virtual size_t size() const = 0;
   virtual std::string description() const = 0;
   virtual std::span<uint8_t const> span() const = 0;
