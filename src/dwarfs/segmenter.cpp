@@ -1074,11 +1074,13 @@ void segmenter_<LoggerPolicy, GranularityPolicy>::segment_and_add_data(
           frames_written += num_to_write;
           finish_chunk(chkable);
 
-          chkable.add_chunk(block_num, match_off, match_len);
+          chkable.add_chunk(block_num, this->frames_to_bytes(match_off),
+                            this->frames_to_bytes(match_len));
+
           prog_.chunk_count++;
           frames_written += match_len;
 
-          prog_.saved_by_segmentation += match_len;
+          prog_.saved_by_segmentation += this->frames_to_bytes(match_len);
 
           offset_in_frames = frames_written;
 
