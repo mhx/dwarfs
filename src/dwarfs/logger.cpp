@@ -53,6 +53,9 @@ logger::level_type logger::parse_level(std::string_view level) {
   if (level == "info") {
     return INFO;
   }
+  if (level == "verbose") {
+    return VERBOSE;
+  }
   if (level == "debug") {
     return DEBUG;
   }

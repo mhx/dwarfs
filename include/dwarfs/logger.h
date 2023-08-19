@@ -46,10 +46,10 @@ namespace dwarfs {
 
 class logger {
  public:
-  enum level_type : unsigned { ERROR, WARN, INFO, DEBUG, TRACE };
+  enum level_type : unsigned { ERROR, WARN, INFO, VERBOSE, DEBUG, TRACE };
 
   static char level_char(level_type level) {
-    static std::array<char, 5> lchars = {{'E', 'W', 'I', 'D', 'T'}};
+    static std::array<char, 6> lchars = {{'E', 'W', 'I', 'V', 'D', 'T'}};
     return lchars.at(level);
   }
 
@@ -250,6 +250,11 @@ class log_proxy {
         lgr_, logger::INFO, file, line);
   }
 
+  auto verbose(char const* file, int line) const {
+    return typename LogPolicy::template logger_type<logger::VERBOSE>(
+        lgr_, logger::VERBOSE, file, line);
+  }
+
   auto debug(char const* file, int line) const {
     return typename LogPolicy::template logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, file, line);
@@ -275,6 +280,11 @@ class log_proxy {
         lgr_, logger::INFO, file, line);
   }
 
+  auto timed_verbose(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
+        lgr_, logger::VERBOSE, file, line);
+  }
+
   auto timed_debug(char const* file, int line) const {
     return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, file, line);
@@ -298,6 +308,11 @@ class log_proxy {
   auto cpu_timed_info(char const* file, int line) const {
     return typename LogPolicy::template timed_logger_type<logger::INFO>(
         lgr_, logger::INFO, file, line, true);
+  }
+
+  auto cpu_timed_verbose(char const* file, int line) const {
+    return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
+        lgr_, logger::VERBOSE, file, line, true);
   }
 
   auto cpu_timed_debug(char const* file, int line) const {
@@ -328,20 +343,23 @@ class log_proxy {
 #define LOG_ERROR LOG_DETAIL_LEVEL(ERROR, log_, error)
 #define LOG_WARN LOG_DETAIL_LEVEL(WARN, log_, warn)
 #define LOG_INFO LOG_DETAIL_LEVEL(INFO, log_, info)
+#define LOG_VERBOSE LOG_DETAIL_LEVEL(VERBOSE, log_, verbose)
 #define LOG_DEBUG LOG_DETAIL_LEVEL(DEBUG, log_, debug)
 #define LOG_TRACE LOG_DETAIL_LEVEL(TRACE, log_, trace)
 #define LOG_TIMED_ERROR log_.timed_error(__FILE__, __LINE__)
 #define LOG_TIMED_WARN log_.timed_warn(__FILE__, __LINE__)
 #define LOG_TIMED_INFO log_.timed_info(__FILE__, __LINE__)
+#define LOG_TIMED_VERBOSE log_.timed_verbose(__FILE__, __LINE__)
 #define LOG_TIMED_DEBUG log_.timed_debug(__FILE__, __LINE__)
 #define LOG_TIMED_TRACE log_.timed_trace(__FILE__, __LINE__)
 #define LOG_CPU_TIMED_ERROR log_.cpu_timed_error(__FILE__, __LINE__)
 #define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(__FILE__, __LINE__)
 #define LOG_CPU_TIMED_INFO log_.cpu_timed_info(__FILE__, __LINE__)
+#define LOG_CPU_TIMED_VERBOSE log_.cpu_timed_verbose(__FILE__, __LINE__)
 #define LOG_CPU_TIMED_DEBUG log_.cpu_timed_debug(__FILE__, __LINE__)
 #define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(__FILE__, __LINE__)
 
-class prod_logger_policy : public MinimumLogLevelPolicy<logger::INFO> {
+class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {
  public:
   static std::string name() { return "prod"; }
 };
