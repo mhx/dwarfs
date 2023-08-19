@@ -94,7 +94,7 @@ TEST(shorten_path, string_ascii) {
     for (size_t max_len = 0; max_len < expected.size(); ++max_len) {
       std::string path = "/aa/bb/cc/dd/ee";
       shorten_path_string(path, '/', max_len);
-      EXPECT_EQ(expected[max_len], path);
+      EXPECT_EQ(expected[max_len], path) << "[" << max_len << "]" << path;
     }
   }
 }
