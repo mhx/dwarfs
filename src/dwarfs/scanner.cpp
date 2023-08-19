@@ -612,9 +612,9 @@ void scanner_<LoggerPolicy>::scan(
            << " duplicate files";
 
   if (auto catmgr = options_.inode.categorizer_mgr) {
-    for (auto const& cc : im.fragment_category_counts()) {
-      LOG_INFO << cc.second << " " << catmgr->category_name(cc.first)
-               << " fragments";
+    for (auto const& ci : im.fragment_category_info()) {
+      LOG_INFO << ci.fragment_count << " " << catmgr->category_name(ci.category)
+               << " fragments (" << size_with_unit(ci.total_size) << ")";
     }
 
     for (auto const& cat : im.inode_categories()) {

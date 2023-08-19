@@ -48,6 +48,17 @@ class inode_manager {
  public:
   using inode_cb = std::function<void(std::shared_ptr<inode> const&)>;
 
+  struct fragment_info {
+    fragment_info(fragment_category::value_type cat, size_t count, size_t size)
+        : category{cat}
+        , fragment_count{count}
+        , total_size{size} {}
+
+    fragment_category::value_type category;
+    size_t fragment_count;
+    size_t total_size;
+  };
+
   inode_manager(logger& lgr, progress& prog, inode_options const& opts);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
@@ -58,9 +69,8 @@ class inode_manager {
     impl_->for_each_inode_in_order(fn);
   }
 
-  std::vector<std::pair<fragment_category::value_type, size_t>>
-  fragment_category_counts() const {
-    return impl_->fragment_category_counts();
+  std::vector<fragment_info> fragment_category_info() const {
+    return impl_->fragment_category_info();
   }
 
   std::vector<fragment_category> inode_categories() const {
@@ -89,8 +99,7 @@ class inode_manager {
     virtual size_t count() const = 0;
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
-    virtual std::vector<std::pair<fragment_category::value_type, size_t>>
-    fragment_category_counts() const = 0;
+    virtual std::vector<fragment_info> fragment_category_info() const = 0;
     virtual std::vector<fragment_category> inode_categories() const = 0;
     virtual void
     scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
