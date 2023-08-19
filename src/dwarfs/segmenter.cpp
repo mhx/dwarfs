@@ -590,6 +590,39 @@ class active_block : private GranularityPolicy {
   std::shared_ptr<block_data> data_;
 };
 
+class segmenter_progress : public progress::context {
+ public:
+  using status = progress::context::status;
+
+  segmenter_progress(std::string context, size_t total_size)
+      : context_{context}
+      , bytes_total_{total_size} {}
+
+  status get_status(size_t width) const override {
+    auto f = current_file.load();
+    status st;
+    st.color = termcolor::GREEN;
+    if (f) {
+      auto path = f->path_as_string();
+      shorten_path_string(
+          path, static_cast<char>(std::filesystem::path::preferred_separator),
+          width - context_.size());
+      st.status_string = fmt::format("{}{}", context_, path);
+    } else {
+      st.status_string = context_;
+    }
+    st.bytes_processed.emplace(bytes_processed.load(), bytes_total_);
+    return st;
+  }
+
+  std::atomic<file const*> current_file{nullptr};
+  std::atomic<size_t> bytes_processed{0};
+
+ private:
+  std::string const context_;
+  size_t const bytes_total_;
+};
+
 template <typename LoggerPolicy, typename SegmentingPolicy>
 class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  private:
@@ -605,7 +638,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
  public:
   template <typename... PolicyArgs>
   segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
-             segmenter::config const& cfg,
+             segmenter::config const& cfg, size_t total_size,
              segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
       : SegmentingPolicy(std::forward<PolicyArgs>(args)...)
       , LOG_PROXY_INIT(lgr)
@@ -613,6 +646,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       , blkmgr_{std::move(blkmgr)}
       , cfg_{cfg}
       , block_ready_{std::move(block_ready)}
+      , pctx_{prog.create_context<segmenter_progress>(cfg.context, total_size)}
       , window_size_{window_size(cfg)}
       , window_step_{window_step(cfg)}
       , block_size_in_frames_{block_size_in_frames(cfg)}
@@ -677,6 +711,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   std::shared_ptr<block_manager> blkmgr_;
   segmenter::config const cfg_;
   segmenter::block_ready_cb block_ready_;
+  std::shared_ptr<segmenter_progress> pctx_;
 
   size_t const window_size_;
   size_t const window_step_;
@@ -850,10 +885,14 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::add_chunkable(
       size_in_frames > 0) {
     LOG_TRACE << cfg_.context << "adding " << chkable.description();
 
+    pctx_->current_file = chkable.get_file();
+
     if (!is_segmentation_enabled() or size_in_frames < window_size_) {
       // no point dealing with hashing, just write it out
       add_data(chkable, 0, size_in_frames);
       finish_chunk(chkable);
+      prog_.total_bytes_read += chkable.size();
+      pctx_->bytes_processed += chkable.size();
     } else {
       segment_and_add_data(chkable, size_in_frames);
     }
@@ -1027,14 +1066,21 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   folly::small_vector<segment_match<LoggerPolicy, GranularityPolicyT>, 1>
       matches;
 
-  // TODO: we have multiple segmenter threads, so this doesn't fly anymore
-  auto total_bytes_read_before = prog_.total_bytes_read.load();
-  prog_.current_offset.store(
-      frames_to_bytes(offset_in_frames)); // TODO: what do we do with this?
-  prog_.current_size.store(frames_to_bytes(size_in_frames)); // TODO
+  // // TODO: we have multiple segmenter threads, so this doesn't fly anymore
+  // auto total_bytes_read_before = prog_.total_bytes_read.load();
+  // prog_.current_offset.store(
+  //     frames_to_bytes(offset_in_frames)); // TODO: what do we do with this?
+  // prog_.current_size.store(frames_to_bytes(size_in_frames)); // TODO
 
   // TODO: how can we reasonably update the top progress bar with
   //       multiple concurrent segmenters?
+
+  auto update_progress = [this, last_offset = 0](size_t offset) mutable {
+    auto bytes = frames_to_bytes(offset - last_offset);
+    prog_.total_bytes_read += bytes;
+    pctx_->bytes_processed += bytes;
+    last_offset = offset;
+  };
 
   while (offset_in_frames < size_in_frames) {
     ++stats_.bloom_lookups;
@@ -1118,10 +1164,7 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
             data.update_hash(hasher, offset_in_frames);
           }
 
-          // TODO: again, what's this?
-          prog_.current_offset.store(frames_to_bytes(offset_in_frames));
-          prog_.total_bytes_read.store(total_bytes_read_before +
-                                       frames_to_bytes(offset_in_frames));
+          update_progress(offset_in_frames);
 
           next_hash_offset_in_frames =
               frames_written + lookback_size_in_frames +
@@ -1146,19 +1189,14 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
       frames_written += num_to_write;
       next_hash_offset_in_frames += window_step_;
 
-      // TODO: ???
-      prog_.current_offset.store(frames_to_bytes(offset_in_frames));
-      prog_.total_bytes_read.store(total_bytes_read_before +
-                                   frames_to_bytes(offset_in_frames));
+      update_progress(offset_in_frames);
     }
 
     data.update_hash(hasher, offset_in_frames - window_size_, offset_in_frames);
     ++offset_in_frames;
   }
 
-  prog_.current_offset.store(frames_to_bytes(size_in_frames)); // TODO
-  prog_.total_bytes_read.store(total_bytes_read_before +
-                               frames_to_bytes(size_in_frames)); // TODO
+  update_progress(size_in_frames);
 
   add_data(chkable, frames_written, size_in_frames - frames_written);
   finish_chunk(chkable);
@@ -1183,20 +1221,20 @@ std::unique_ptr<segmenter::impl>
 create_segmenter2(logger& lgr, progress& prog,
                   std::shared_ptr<block_manager> blkmgr,
                   segmenter::config const& cfg,
-                  compression_constraints const& cc,
+                  compression_constraints const& cc, size_t total_size,
                   segmenter::block_ready_cb block_ready) {
   if (!cc.granularity || cc.granularity.value() == 1) {
     return make_unique_logging_object<
         segmenter::impl,
         constant_granularity_segmenter_<SegmentingPolicy, 1>::template type,
-        logger_policies>(lgr, prog, std::move(blkmgr), cfg,
+        logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
                          std::move(block_ready));
   }
 
   return make_unique_logging_object<
       segmenter::impl,
       variable_granularity_segmenter_<SegmentingPolicy>::template type,
-      logger_policies>(lgr, prog, std::move(blkmgr), cfg,
+      logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
                        std::move(block_ready), cc.granularity.value());
 }
 
@@ -1204,29 +1242,32 @@ std::unique_ptr<segmenter::impl>
 create_segmenter(logger& lgr, progress& prog,
                  std::shared_ptr<block_manager> blkmgr,
                  segmenter::config const& cfg,
-                 compression_constraints const& cc,
+                 compression_constraints const& cc, size_t total_size,
                  segmenter::block_ready_cb block_ready) {
   if (cfg.max_active_blocks == 0 or cfg.blockhash_window_size == 0) {
     return create_segmenter2<SegmentationDisabledPolicy>(
-        lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
+        lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+        std::move(block_ready));
   }
 
   if (cfg.max_active_blocks == 1) {
     return create_segmenter2<SingleBlockSegmentationPolicy>(
-        lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
+        lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+        std::move(block_ready));
   }
 
   return create_segmenter2<MultiBlockSegmentationPolicy>(
-      lgr, prog, std::move(blkmgr), cfg, cc, std::move(block_ready));
+      lgr, prog, std::move(blkmgr), cfg, cc, total_size,
+      std::move(block_ready));
 }
 
 } // namespace
 
 segmenter::segmenter(logger& lgr, progress& prog,
                      std::shared_ptr<block_manager> blkmgr, config const& cfg,
-                     compression_constraints const& cc,
+                     compression_constraints const& cc, size_t total_size,
                      block_ready_cb block_ready)
-    : impl_(create_segmenter(lgr, prog, std::move(blkmgr), cfg, cc,
+    : impl_(create_segmenter(lgr, prog, std::move(blkmgr), cfg, cc, total_size,
                              std::move(block_ready))) {}
 
 } // namespace dwarfs

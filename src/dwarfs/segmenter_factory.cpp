@@ -34,7 +34,8 @@ class segmenter_factory_ final : public segmenter_factory::impl {
       , catmgr_{catmgr}
       , cfg_{cfg} {}
 
-  segmenter create(fragment_category cat, compression_constraints const& cc,
+  segmenter create(fragment_category cat, size_t cat_size,
+                   compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
     segmenter::config cfg;
@@ -49,7 +50,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
     cfg.bloom_filter_size = cfg_.bloom_filter_size.get(cat);
     cfg.block_size_bits = cfg_.block_size_bits;
 
-    return segmenter(lgr_, prog_, std::move(blkmgr), cfg, cc,
+    return segmenter(lgr_, prog_, std::move(blkmgr), cfg, cc, cat_size,
                      std::move(block_ready));
   }
 
