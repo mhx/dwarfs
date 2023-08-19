@@ -20,21 +20,28 @@
  */
 
 #include "dwarfs/segmenter_factory.h"
+#include "dwarfs/categorizer.h"
 
 namespace dwarfs {
 
 class segmenter_factory_ final : public segmenter_factory::impl {
  public:
   segmenter_factory_(logger& lgr, progress& prog,
+                     std::shared_ptr<categorizer_manager> catmgr,
                      const segmenter_factory::config& cfg)
       : lgr_{lgr}
       , prog_{prog}
+      , catmgr_{catmgr}
       , cfg_{cfg} {}
 
   segmenter create(fragment_category cat, compression_constraints const& cc,
                    std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
     segmenter::config cfg;
+
+    if (catmgr_) {
+      cfg.context = category_prefix(catmgr_, cat);
+    }
 
     cfg.blockhash_window_size = cfg_.blockhash_window_size.get(cat);
     cfg.window_increment_shift = cfg_.window_increment_shift.get(cat);
@@ -53,11 +60,18 @@ class segmenter_factory_ final : public segmenter_factory::impl {
  private:
   logger& lgr_;
   progress& prog_;
+  std::shared_ptr<categorizer_manager> catmgr_;
   segmenter_factory::config cfg_;
 };
 
+segmenter_factory::segmenter_factory(
+    logger& lgr, progress& prog, std::shared_ptr<categorizer_manager> catmgr,
+    config const& cfg)
+    : impl_(std::make_unique<segmenter_factory_>(lgr, prog, std::move(catmgr),
+                                                 cfg)) {}
+
 segmenter_factory::segmenter_factory(logger& lgr, progress& prog,
                                      config const& cfg)
-    : impl_(std::make_unique<segmenter_factory_>(lgr, prog, cfg)) {}
+    : segmenter_factory(lgr, prog, nullptr, cfg) {}
 
 } // namespace dwarfs
