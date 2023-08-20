@@ -43,8 +43,18 @@ enum class termcolor {
   BOLD_CYAN,
   BOLD_WHITE,
   BOLD_GRAY,
+  DIM_RED,
+  DIM_GREEN,
+  DIM_YELLOW,
+  DIM_BLUE,
+  DIM_MAGENTA,
+  DIM_CYAN,
+  DIM_WHITE,
+  DIM_GRAY,
   NUM_COLORS
 };
+
+enum class termstyle { NORMAL, BOLD, DIM };
 
 void setup_terminal();
 
@@ -52,9 +62,11 @@ size_t get_term_width();
 
 bool stream_is_fancy_terminal(std::ostream& os);
 
-char const* terminal_color(termcolor color);
+char const*
+terminal_color(termcolor color, termstyle style = termstyle::NORMAL);
 
 std::string
-terminal_colored(std::string text, termcolor color, bool enable = true);
+terminal_colored(std::string text, termcolor color, bool enable = true,
+                 termstyle style = termstyle::NORMAL);
 
 } // namespace dwarfs
