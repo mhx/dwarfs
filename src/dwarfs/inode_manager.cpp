@@ -67,8 +67,8 @@ namespace dwarfs {
 
 namespace {
 
-constexpr size_t const kMinScannerProgressFileSize{128 * 1024 * 1024};
-constexpr size_t const kMinCategorizerProgressFileSize{32 * 1024 * 1024};
+constexpr size_t const kMinScannerProgressFileSize{64 * 1024 * 1024};
+constexpr size_t const kMinCategorizerProgressFileSize{64 * 1024 * 1024};
 
 constexpr std::string_view const kScanContext{"[scanning] "};
 constexpr std::string_view const kCategorizeContext{"[categorizing] "};
@@ -366,7 +366,7 @@ class inode_ : public inode {
   template <typename T>
   void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
                   T&& scanner) {
-    static constexpr size_t const chunk_size = 32 << 20;
+    static constexpr size_t const chunk_size = 16 << 20;
 
     while (size >= chunk_size) {
       scanner(mm->span(offset, chunk_size));
