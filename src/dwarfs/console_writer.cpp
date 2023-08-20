@@ -133,12 +133,12 @@ void output_context_line(std::ostream& os, progress::context& ctx, size_t width,
     }
   }
 
-  os << terminal_colored(st.context, st.color, colored);
+  os << terminal_colored(st.context, st.color, colored, termstyle::BOLD);
 
   os << terminal_colored(fmt::format("{:<{}} {}{}", st.status_string,
                                      status_w - st.context.size(), progress,
                                      speed),
-                         st.color, colored, termstyle::DIM);
+                         st.color, colored);
 }
 
 } // namespace
