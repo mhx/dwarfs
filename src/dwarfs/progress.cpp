@@ -82,6 +82,10 @@ auto progress::get_active_contexts() const
                     contexts_.end());
   }
 
+  std::stable_sort(rv.begin(), rv.end(), [](const auto& a, const auto& b) {
+    return a->get_priority() > b->get_priority();
+  });
+
   return rv;
 }
 

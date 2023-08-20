@@ -57,6 +57,7 @@ class progress {
     virtual ~context() = default;
 
     virtual status get_status() const = 0;
+    virtual int get_priority() const { return 0; }
 
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
