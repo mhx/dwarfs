@@ -164,7 +164,7 @@ void console_writer::update(const progress& p, bool last) {
       if (fancy) {
         auto w = width.get();
         size_t progress_w = w / 4;
-        size_t speed_w = 11;
+        size_t speed_w = 12;
         size_t status_w = w - (progress_w + speed_w);
 
         if (status_w >= 20) {
