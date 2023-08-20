@@ -103,9 +103,10 @@ bool stream_is_fancy_terminal(std::ostream& os [[maybe_unused]]) {
 #endif
 }
 
-char const* terminal_color(termcolor color) {
+char const* terminal_color(termcolor color, termstyle style) {
   static constexpr std::array<char const*,
                               static_cast<size_t>(termcolor::NUM_COLORS)>
+      // clang-format off
       colors = {{
           "\033[0m",
           "\033[31m",
@@ -124,15 +125,46 @@ char const* terminal_color(termcolor color) {
           "\033[1;36m",
           "\033[1;37m",
           "\033[1;90m",
+          "\033[2;31m",
+          "\033[2;32m",
+          "\033[2;33m",
+          "\033[2;34m",
+          "\033[2;35m",
+          "\033[2;36m",
+          "\033[2;37m",
+          "\033[2;90m",
       }};
+  // clang-format on
+
+  static constexpr size_t const kBoldOffset{
+      static_cast<size_t>(termcolor::BOLD_RED) -
+      static_cast<size_t>(termcolor::RED)};
+  static constexpr size_t const kDimOffset{
+      static_cast<size_t>(termcolor::DIM_RED) -
+      static_cast<size_t>(termcolor::RED)};
+
+  switch (style) {
+  case termstyle::BOLD:
+  case termstyle::DIM: {
+    auto ix = static_cast<size_t>(color);
+    if (ix < static_cast<size_t>(termcolor::BOLD_RED)) {
+      color = static_cast<termcolor>(
+          ix + (style == termstyle::BOLD ? kBoldOffset : kDimOffset));
+    }
+  } break;
+
+  default:
+    break;
+  }
 
   return colors.at(static_cast<size_t>(color));
 }
 
-std::string terminal_colored(std::string text, termcolor color, bool enable) {
-  return enable
-             ? terminal_color(color) + text + terminal_color(termcolor::NORMAL)
-             : text;
+std::string terminal_colored(std::string text, termcolor color, bool enable,
+                             termstyle style) {
+  return enable ? terminal_color(color, style) + text +
+                      terminal_color(termcolor::NORMAL)
+                : text;
 }
 
 } // namespace dwarfs
