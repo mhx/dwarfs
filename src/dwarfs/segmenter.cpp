@@ -598,20 +598,16 @@ class segmenter_progress : public progress::context {
       : context_{context}
       , bytes_total_{total_size} {}
 
-  status get_status(size_t width) const override {
+  status get_status() const override {
     auto f = current_file.load();
     status st;
     st.color = termcolor::GREEN;
+    st.context = context_;
     if (f) {
-      auto path = f->path_as_string();
-      shorten_path_string(
-          path, static_cast<char>(std::filesystem::path::preferred_separator),
-          width - context_.size());
-      st.status_string = fmt::format("{}{}", context_, path);
-    } else {
-      st.status_string = context_;
+      st.path.emplace(f->path_as_string());
     }
-    st.bytes_processed.emplace(bytes_processed.load(), bytes_total_);
+    st.bytes_processed.emplace(bytes_processed.load());
+    st.bytes_total.emplace(bytes_total_);
     return st;
   }
 

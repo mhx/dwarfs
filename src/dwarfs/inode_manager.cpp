@@ -67,8 +67,8 @@ namespace dwarfs {
 
 namespace {
 
-constexpr size_t const kMinScannerProgressFileSize{64 * 1024 * 1024};
-constexpr size_t const kMinCategorizerProgressFileSize{64 * 1024 * 1024};
+constexpr size_t const kMinScannerProgressFileSize{16 * 1024 * 1024};
+constexpr size_t const kMinCategorizerProgressFileSize{16 * 1024 * 1024};
 
 constexpr std::string_view const kScanContext{"[scanning] "};
 constexpr std::string_view const kCategorizeContext{"[categorizing] "};
@@ -82,15 +82,13 @@ class scanner_progress : public progress::context {
       , file_{std::move(file)}
       , bytes_total_{size} {}
 
-  status get_status(size_t width) const override {
+  status get_status() const override {
     status st;
     st.color = termcolor::YELLOW;
-    auto path = file_;
-    shorten_path_string(
-        path, static_cast<char>(std::filesystem::path::preferred_separator),
-        width - context_.size());
-    st.status_string = context_ + path;
-    st.bytes_processed.emplace(bytes_processed.load(), bytes_total_);
+    st.context = context_;
+    st.path.emplace(file_);
+    st.bytes_processed.emplace(bytes_processed.load());
+    st.bytes_total.emplace(bytes_total_);
     return st;
   }
 
@@ -366,7 +364,7 @@ class inode_ : public inode {
   template <typename T>
   void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
                   T&& scanner) {
-    static constexpr size_t const chunk_size = 16 << 20;
+    static constexpr size_t const chunk_size = 4 << 20;
 
     while (size >= chunk_size) {
       scanner(mm->span(offset, chunk_size));

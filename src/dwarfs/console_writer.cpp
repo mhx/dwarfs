@@ -64,6 +64,83 @@ std::string progress_bar(size_t width, double frac, bool unicode) {
   return rv;
 }
 
+void output_context_line(std::ostream& os, progress::context& ctx, size_t width,
+                         bool unicode_bar, bool colored) {
+  auto st = ctx.get_status();
+  size_t progress_w = 0;
+  size_t speed_w = 0;
+
+  // Progress bar width and speed width are both fixed
+  if (st.bytes_processed) {
+    speed_w = 12;
+    if (st.bytes_total) {
+      progress_w = width / 4;
+    }
+  }
+
+  assert(width >= progress_w + speed_w + 1);
+
+  size_t status_w = width - (progress_w + speed_w + 1);
+  auto path_len = st.path ? utf8_display_width(*st.path) : 0;
+  size_t extra_len = st.path && !st.status_string.empty() ? 2 : 0;
+
+  if (status_w <
+      st.context.size() + st.status_string.size() + path_len + extra_len) {
+    // need to shorten things
+    if (path_len > 0) {
+      auto max_path_len =
+          status_w -
+          std::min(status_w,
+                   st.context.size() + st.status_string.size() + extra_len);
+
+      if (max_path_len > 0) {
+        shorten_path_string(
+            *st.path,
+            static_cast<char>(std::filesystem::path::preferred_separator),
+            max_path_len);
+
+        path_len = utf8_display_width(*st.path);
+      }
+    }
+
+    if (path_len == 0 &&
+        status_w < st.context.size() + st.status_string.size()) {
+      if (status_w < st.context.size()) {
+        st.context.clear();
+      }
+
+      st.status_string.resize(status_w - st.context.size());
+    }
+  }
+
+  if (path_len > 0) {
+    if (!st.status_string.empty()) {
+      st.status_string += ": ";
+    }
+    st.status_string += *st.path;
+  }
+
+  std::string progress;
+  std::string speed;
+
+  if (st.bytes_processed) {
+    ctx.speed.put(*st.bytes_processed);
+    speed = fmt::format("{}/s", size_with_unit(ctx.speed.num_per_second()));
+
+    if (st.bytes_total) {
+      double frac = static_cast<double>(*st.bytes_processed) / *st.bytes_total;
+      progress = progress_bar(progress_w, frac, unicode_bar);
+    }
+  }
+
+  os << terminal_colored(st.context, st.color, colored);
+
+  os << terminal_colored(fmt::format("{:<{}} {}{}", st.status_string,
+                                     status_w - st.context.size(), progress,
+                                     speed),
+                         st.color, colored, termstyle::DIM);
+}
+
 } // namespace
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
@@ -163,32 +240,15 @@ void console_writer::update(const progress& p, bool last) {
 
       if (fancy) {
         auto w = width.get();
-        size_t progress_w = w / 4;
-        size_t speed_w = 12;
-        size_t status_w = w - (progress_w + speed_w);
 
-        if (status_w >= 20) {
+        if (w >= 60) {
           ctxs = p.get_active_contexts();
         }
 
         for (auto const& c : ctxs) {
-          auto st = c->get_status(status_w - 1);
-          std::string line;
-
-          if (st.bytes_processed) {
-            c->speed.put(st.bytes_processed->first);
-
-            double frac = static_cast<double>(st.bytes_processed->first) /
-                          st.bytes_processed->second;
-            line =
-                fmt::format("{:<{}}{}{}/s", st.status_string, status_w,
-                            progress_bar(progress_w, frac, pg_mode_ == UNICODE),
-                            size_with_unit(c->speed.num_per_second()));
-          } else {
-            line = st.status_string;
-          }
-
-          oss << terminal_colored(line, st.color, log_is_colored()) << newline;
+          output_context_line(oss, *c, w, pg_mode_ == UNICODE,
+                              log_is_colored());
+          oss << newline;
         }
       }
 
