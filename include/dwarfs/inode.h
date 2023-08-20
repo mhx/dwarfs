@@ -40,6 +40,7 @@ class chunk;
 
 class file;
 class mmif;
+class progress;
 
 struct inode_options;
 
@@ -49,7 +50,7 @@ class inode : public object {
 
   virtual void set_files(files_vector&& fv) = 0;
   virtual void populate(size_t size) = 0;
-  virtual void scan(mmif* mm, inode_options const& options) = 0;
+  virtual void scan(mmif* mm, inode_options const& options, progress& prog) = 0;
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
   virtual bool has_category(fragment_category cat) const = 0;
