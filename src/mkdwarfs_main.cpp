@@ -364,7 +364,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         "compression worker threads niceness")
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers),
-        "number of scanner (hashing) worker threads")
+        "number of scanner (hashing/categorizing) worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
