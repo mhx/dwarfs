@@ -47,6 +47,7 @@ std::string sys_string_to_string(sys_string const& in);
 
 size_t utf8_display_width(char const* p, size_t len);
 size_t utf8_display_width(std::string const& str);
+void utf8_truncate(std::string& str, size_t len);
 
 void shorten_path_string(std::string& path, char separator, size_t max_len);
 
