@@ -1075,12 +1075,13 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
   // TODO: how can we reasonably update the top progress bar with
   //       multiple concurrent segmenters?
 
-  auto update_progress = [this, last_offset = 0](size_t offset) mutable {
-    auto bytes = frames_to_bytes(offset - last_offset);
-    prog_.total_bytes_read += bytes;
-    pctx_->bytes_processed += bytes;
-    last_offset = offset;
-  };
+  auto update_progress =
+      [this, last_offset = static_cast<size_t>(0)](size_t offset) mutable {
+        auto bytes = frames_to_bytes(offset - last_offset);
+        prog_.total_bytes_read += bytes;
+        pctx_->bytes_processed += bytes;
+        last_offset = offset;
+      };
 
   while (offset_in_frames < size_in_frames) {
     ++stats_.bloom_lookups;
