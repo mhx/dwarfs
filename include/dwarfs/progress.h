@@ -47,13 +47,16 @@ class progress {
    public:
     struct status {
       termcolor color;
+      std::string context;
       std::string status_string;
-      std::optional<std::pair<size_t, size_t>> bytes_processed;
+      std::optional<std::string> path;
+      std::optional<size_t> bytes_processed;
+      std::optional<size_t> bytes_total;
     };
 
     virtual ~context() = default;
 
-    virtual status get_status(size_t width) const = 0;
+    virtual status get_status() const = 0;
 
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
