@@ -464,6 +464,12 @@ class driver_runner {
   }
 
   bool unmount() {
+#ifdef _WIN32
+    static constexpr int const kSigIntExitCode{-1073741510};
+#else
+    static constexpr int const kSigIntExitCode{SIGINT};
+#endif
+
     if (!mountpoint_.empty()) {
 #ifndef _WIN32
       if (process_) {
@@ -471,11 +477,7 @@ class driver_runner {
         process_->interrupt();
         process_->wait();
         auto ec = process_->exit_code();
-        bool is_expected_exit_code = ec == 0
-#ifndef _WIN32
-                                     || ec == SIGINT
-#endif
-            ;
+        bool is_expected_exit_code = ec == 0 || ec == kSigIntExitCode;
         if (!is_expected_exit_code) {
           std::cerr << "driver failed to unmount:\nout:\n"
                     << process_->out() << "err:\n"
