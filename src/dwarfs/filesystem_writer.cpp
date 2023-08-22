@@ -358,7 +358,6 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     , metadata_bc_(metadata_bc)
     , options_(options)
     , LOG_PROXY_INIT(lgr)
-    , pctx_{prog.create_context<compression_progress>()}
     , flush_(false)
     , writer_thread_(&filesystem_writer_::writer_thread, this) {
   if (header_) {
@@ -485,6 +484,10 @@ uint32_t filesystem_writer_<LoggerPolicy>::write_section(
 
   {
     std::unique_lock lock(mx_);
+
+    if (!pctx_) {
+      pctx_ = prog_.create_context<compression_progress>();
+    }
 
     while (mem_used() > options_.max_queue_size) {
       cond_.wait(lock);
