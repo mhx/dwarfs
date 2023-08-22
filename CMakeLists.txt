@@ -392,6 +392,7 @@ list(
   src/dwarfs/progress.cpp
   src/dwarfs/safe_main.cpp
   src/dwarfs/scanner.cpp
+  src/dwarfs/scanner_progress.cpp
   src/dwarfs/segmenter.cpp
   src/dwarfs/segmenter_factory.cpp
   src/dwarfs/similarity.cpp
