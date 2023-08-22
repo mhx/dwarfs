@@ -56,6 +56,7 @@
 #include "dwarfs/overloaded.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/promise_receiver.h"
+#include "dwarfs/scanner_progress.h"
 #include "dwarfs/script.h"
 #include "dwarfs/similarity.h"
 #include "dwarfs/similarity_ordering.h"
@@ -72,33 +73,6 @@ constexpr size_t const kMinCategorizerProgressFileSize{16 * 1024 * 1024};
 
 constexpr std::string_view const kScanContext{"[scanning] "};
 constexpr std::string_view const kCategorizeContext{"[categorizing] "};
-
-class scanner_progress : public progress::context {
- public:
-  using status = progress::context::status;
-
-  scanner_progress(std::string_view context, std::string file, size_t size)
-      : context_{context}
-      , file_{std::move(file)}
-      , bytes_total_{size} {}
-
-  status get_status() const override {
-    status st;
-    st.color = termcolor::YELLOW;
-    st.context = context_;
-    st.path.emplace(file_);
-    st.bytes_processed.emplace(bytes_processed.load());
-    st.bytes_total.emplace(bytes_total_);
-    return st;
-  }
-
-  std::atomic<size_t> bytes_processed{0};
-
- private:
-  std::string const context_;
-  std::string const file_;
-  size_t const bytes_total_;
-};
 
 class inode_ : public inode {
  public:
