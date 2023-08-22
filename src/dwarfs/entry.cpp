@@ -36,11 +36,19 @@
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/scanner_progress.h"
 #include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
+
+namespace {
+
+constexpr size_t const kMinHasherProgressFileSize{64 * 1024 * 1024};
+constexpr std::string_view const kHashContext{"[hashing] "};
+
+} // namespace
 
 entry::entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
@@ -226,7 +234,14 @@ void file::scan(mmif* mm, progress& prog,
     checksum cs(*hash_alg);
 
     if (s > 0) {
-      constexpr size_t chunk_size = 32 << 20;
+      std::shared_ptr<scanner_progress> pctx;
+
+      if (s >= kMinHasherProgressFileSize) {
+        pctx = prog.create_context<scanner_progress>(
+            termcolor::MAGENTA, kHashContext, path_as_string(), s);
+      }
+
+      constexpr size_t chunk_size = 16 << 20;
       size_t offset = 0;
 
       assert(mm);
@@ -236,6 +251,9 @@ void file::scan(mmif* mm, progress& prog,
         mm->release_until(offset);
         offset += chunk_size;
         s -= chunk_size;
+        if (pctx) {
+          pctx->bytes_processed += chunk_size;
+        }
       }
 
       cs.update(mm->as<void>(offset), s);
