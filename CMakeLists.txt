@@ -47,14 +47,17 @@ else()
   option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
   option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
+  option(PREFER_SYSTEM_FLAC "use system libflac++ if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
+  set(FLAC_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/flac)
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
 else()
+  set(FLAC_GIT_REPO https://github.com/xiph/flac.git)
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
 endif()
@@ -214,9 +217,11 @@ if(PKG_CONFIG_FOUND)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
   pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
   pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
-  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.3.3)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
+  if(PREFER_SYSTEM_FLAC)
+    pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
+  endif()
 endif()
 
 if(XXHASH_FOUND)
@@ -230,6 +235,21 @@ if(XXHASH_FOUND)
       return 0;
     }"
     XXHASH_VERSION_OK)
+endif()
+
+if(NOT FLAC_FOUND)
+  include(FetchContent)
+  set(INSTALL_MANPAGES OFF CACHE BOOL "no man pages")
+  set(BUILD_PROGRAMS OFF CACHE BOOL "no programs")
+  set(BUILD_EXAMPLES OFF CACHE BOOL "no examples")
+  set(BUILD_TESTING OFF CACHE BOOL "no testing")
+  set(BUILD_DOCS OFF CACHE BOOL "no docs")
+  FetchContent_Declare(
+    flac
+    GIT_REPOSITORY ${FLAC_GIT_REPO}
+    GIT_TAG 1.4.3
+  )
+  FetchContent_MakeAvailable(flac)
 endif()
 
 if(WIN32)
@@ -429,9 +449,7 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
 endif()
 
-if(FLAC_FOUND)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/flac.cpp)
-endif()
+list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/flac.cpp)
 
 list(
   APPEND
@@ -612,11 +630,9 @@ if(WITH_TESTS)
                         "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
   list(APPEND TEST_TARGETS dwarfs_incompressible_categorizer_test)
 
-  if(FLAC_FOUND)
-    add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
-    target_link_libraries(dwarfs_flac_compressor_test gtest gtest_main)
-    list(APPEND TEST_TARGETS dwarfs_flac_compressor_test)
-  endif()
+  add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
+  target_link_libraries(dwarfs_flac_compressor_test gtest gtest_main)
+  list(APPEND TEST_TARGETS dwarfs_flac_compressor_test)
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
@@ -851,7 +867,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
-            $<$<BOOL:${FLAC_FOUND}>:DWARFS_HAVE_FLAC>
+            DWARFS_HAVE_FLAC
   )
 
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -940,6 +956,8 @@ endif()
 
 if(FLAC_FOUND)
   target_link_libraries(dwarfs PkgConfig::FLAC)
+else()
+  target_link_libraries(dwarfs FLAC++)
 endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
