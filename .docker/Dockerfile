@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
-FROM $ARCH/ubuntu:22.04
+FROM $ARCH/ubuntu:23.04
 RUN apt update && apt install -y gnupg wget software-properties-common
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
 RUN apt-add-repository 'deb https://apt.kitware.com/ubuntu/ jammy main'
 RUN apt install -y \
         gcc \
         g++ \
-        gcc-12 \
-        g++-12 \
+        gcc-13 \
+        g++-13 \
         clang \
-        clang-15 \
+        clang-16 \
         git \
         vim \
         zstd \
@@ -57,9 +57,9 @@ RUN apt install -y \
         upx
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 RUN bash /usr/local/bin/install-static-libs.sh
-RUN useradd -g users -u 1000 -m mhx
+# RUN useradd -g users -u 1000 -m mhx
 ARG SCRIPT=build-linux.sh
 COPY $SCRIPT /usr/local/bin/run.sh
 RUN chmod +x /usr/local/bin/run.sh
-USER mhx
+USER ubuntu
 ENTRYPOINT /usr/local/bin/run.sh
