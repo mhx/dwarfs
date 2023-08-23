@@ -89,9 +89,6 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
 endif()
 
-# Strangely this is needed when linking statically against FLAC++
-add_compile_options(-fno-omit-frame-pointer)
-
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
 endif()
@@ -115,6 +112,9 @@ include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 if(STATIC_BUILD_DO_NOT_USE)
+  # Strangely this is needed when linking statically against FLAC++
+  add_compile_options(-fno-omit-frame-pointer)
+
   if(STATIC_BUILD_EXTRA_PREFIX)
     include_directories(BEFORE ${STATIC_BUILD_EXTRA_PREFIX}/include)
     set(CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
