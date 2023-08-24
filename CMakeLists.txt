@@ -119,7 +119,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 if(STATIC_BUILD_DO_NOT_USE)
   # Strangely this is needed when linking statically against FLAC++
-  add_compile_options(-fno-omit-frame-pointer)
+  #add_compile_options(-fno-omit-frame-pointer)
 
   if(STATIC_BUILD_EXTRA_PREFIX)
     include_directories(BEFORE ${STATIC_BUILD_EXTRA_PREFIX}/include)
