@@ -165,7 +165,11 @@ class lz4_compression_factory : public compression_factory {
  public:
   std::string_view name() const override { return "lz4"; }
 
-  std::string_view description() const override { return "LZ4 compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("LZ4 compression (liblz4 {})", ::LZ4_versionString())};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 
@@ -192,7 +196,11 @@ class lz4hc_compression_factory : public compression_factory {
 
   std::string_view name() const override { return "lz4hc"; }
 
-  std::string_view description() const override { return "LZ4 HC compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("LZ4 HC compression (liblz4 {})", ::LZ4_versionString())};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 

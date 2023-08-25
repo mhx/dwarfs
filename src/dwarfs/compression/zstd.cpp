@@ -237,7 +237,11 @@ class zstd_compression_factory : public compression_factory {
 
   std::string_view name() const override { return "zstd"; }
 
-  std::string_view description() const override { return "ZSTD compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("ZSTD compression (libzstd {})", ::ZSTD_versionString())};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 
