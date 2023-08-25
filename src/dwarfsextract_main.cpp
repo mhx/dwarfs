@@ -25,6 +25,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <archive.h>
+
 #include <folly/String.h>
 
 #include "dwarfs/filesystem_extractor.h"
@@ -104,7 +106,9 @@ int dwarfsextract_main(int argc, sys_char** argv) {
   }
 
   if (vm.count("help") or !vm.count("input")) {
-    std::cerr << tool_header("dwarfsextract") << opts << "\n";
+    std::cerr << tool_header("dwarfsextract") << "using "
+              << ::archive_version_string() << "\n\n"
+              << opts << "\n";
     return 0;
   }
 
