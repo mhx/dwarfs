@@ -181,7 +181,13 @@ class brotli_compression_factory : public compression_factory {
 
   std::string_view name() const override { return "brotli"; }
 
-  std::string_view description() const override { return "Brotli compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("Brotli compression (encoder {}, decoder {})",
+                    version_string(::BrotliEncoderVersion()),
+                    version_string(::BrotliDecoderVersion()))};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 
@@ -200,6 +206,10 @@ class brotli_compression_factory : public compression_factory {
   }
 
  private:
+  static std::string version_string(uint32_t hex) {
+    return fmt::format("{}.{}.{}", hex >> 24, (hex >> 12) & 0xFFF, hex & 0xFFF);
+  }
+
   std::vector<std::string> const options_;
 };
 

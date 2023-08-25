@@ -337,7 +337,11 @@ class lzma_compression_factory : public compression_factory {
  public:
   std::string_view name() const override { return "lzma"; }
 
-  std::string_view description() const override { return "LZMA compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("LZMA compression (liblzma {})", ::lzma_version_string())};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 
