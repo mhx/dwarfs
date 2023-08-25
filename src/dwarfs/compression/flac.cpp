@@ -484,7 +484,11 @@ class flac_compression_factory : public compression_factory {
 
   std::string_view name() const override { return "flac"; }
 
-  std::string_view description() const override { return "FLAC compression"; }
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("FLAC compression (libFLAC++ {})", ::FLAC__VERSION_STRING)};
+    return s_desc;
+  }
 
   std::vector<std::string> const& options() const override { return options_; }
 
