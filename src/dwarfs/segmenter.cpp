@@ -342,6 +342,10 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
       func();
     }
   }
+
+  static uint_fast32_t granularity_bytes() { return kGranularity; }
+
+  static bool compile_time_granularity() { return true; }
 };
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
@@ -400,6 +404,10 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
       func();
     }
   }
+
+  uint_fast32_t granularity_bytes() const { return granularity_; }
+
+  static bool compile_time_granularity() { return false; }
 
  private:
   uint_fast32_t const granularity_;
@@ -626,8 +634,10 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   using GranularityPolicyT::add_match;
   using GranularityPolicyT::add_new_block;
   using GranularityPolicyT::bytes_to_frames;
+  using GranularityPolicyT::compile_time_granularity;
   using GranularityPolicyT::constrained_block_size;
   using GranularityPolicyT::frames_to_bytes;
+  using GranularityPolicyT::granularity_bytes;
   using SegmentingPolicy::is_multi_block_mode;
   using SegmentingPolicy::is_segmentation_enabled;
 
@@ -649,9 +659,14 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       , global_filter_{bloom_filter_size(cfg)}
       , match_counts_{1, 0, 128} {
     if constexpr (is_segmentation_enabled()) {
-      LOG_VERBOSE << cfg_.context << "using a " << size_with_unit(window_size_)
-                  << " window at " << size_with_unit(window_step_)
-                  << " steps for segment analysis";
+      LOG_VERBOSE << cfg_.context << "using a "
+                  << size_with_unit(frames_to_bytes(window_size_))
+                  << " window at "
+                  << size_with_unit(frames_to_bytes(window_step_))
+                  << " steps with "
+                  << (compile_time_granularity() ? "compile" : "run")
+                  << "-time " << granularity_bytes()
+                  << "-byte frames for segment analysis";
       LOG_VERBOSE << cfg_.context << "bloom filter size: "
                   << size_with_unit(global_filter_.size() / 8);
 
