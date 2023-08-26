@@ -683,6 +683,10 @@ void scanner_<LoggerPolicy>::scan(
 
       if (catmgr) {
         meta = catmgr->category_metadata(category);
+        if (!meta.empty()) {
+          LOG_VERBOSE << category_prefix(catmgr, category)
+                      << "metadata: " << meta;
+        }
       }
 
       auto cc = fsw.get_compression_constraints(category.value(), meta);
