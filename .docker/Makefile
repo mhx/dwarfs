@@ -10,6 +10,7 @@ run:
             --cap-add SYS_ADMIN --device /dev/fuse --privileged \
             --mount type=bind,source="$(ROOT_DIR)"/..,target=/workspace,readonly \
             --mount type=bind,source="$(ROOT_DIR)"/../@docker-ccache,target=/ccache \
+            --mount type=bind,source="$(ROOT_DIR)"/../@docker-home,target=/home/ubuntu \
             --mount type=bind,source="$(ROOT_DIR)"/../@docker-build,target=/home/ubuntu/build \
             --env CCACHE_DIR=/ccache --env CTEST_PARALLEL_LEVEL=$(nproc) \
             --entrypoint /bin/bash $(IMAGE)
