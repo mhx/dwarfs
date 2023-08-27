@@ -9,6 +9,7 @@ cd pkgs
 LIBARCHIVE_VERSION=3.7.2
 FILE_VERSION=5.45
 FLAC_VERSION=1.4.3
+# BENCHMARK_VERSION=1.8.2
 
 export CC=clang-16
 export CXX=clang++-16
@@ -16,6 +17,7 @@ export CXX=clang++-16
 wget https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/libarchive-${LIBARCHIVE_VERSION}.tar.xz
 wget ftp://ftp.astron.com/pub/file/file-${FILE_VERSION}.tar.gz
 wget https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/flac-${FLAC_VERSION}.tar.xz
+# wget https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}.tar.gz
 
 tar xf libarchive-${LIBARCHIVE_VERSION}.tar.xz
 cd libarchive-${LIBARCHIVE_VERSION}
@@ -36,6 +38,15 @@ cd flac-${FLAC_VERSION}
 ./configure --prefix=/opt/static-libs --enable-static=yes --enable-shared=no --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
 make -j$(nproc)
 make install
+
+# cd "$HOME/pkgs"
+# tar xf v${BENCHMARK_VERSION}.tar.gz
+# cd benchmark-${BENCHMARK_VERSION}
+# mkdir build
+# cd build
+# cmake .. -DBENCHMARK_DOWNLOAD_DEPENDENCIES=1 -DCMAKE_INSTALL_PREFIX=/opt/static-libs
+# make -j$(nproc)
+# make install
 
 cd "$HOME"
 rm -rf pkgs
