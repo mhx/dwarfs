@@ -133,7 +133,7 @@ void stream_logger::write(level_type level, const std::string& output,
 void stream_logger::set_threshold(level_type threshold) {
   threshold_ = threshold;
 
-  if (threshold > level_type::INFO) {
+  if (threshold >= level_type::DEBUG) {
     set_policy<debug_logger_policy>();
   } else {
     set_policy<prod_logger_policy>();
