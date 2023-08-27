@@ -624,9 +624,15 @@ endif()
 
 if(WITH_BENCHMARKS)
   pkg_check_modules(BENCHMARK IMPORTED_TARGET benchmark)
-  add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
-  target_link_libraries(dwarfs_benchmark test_helpers PkgConfig::BENCHMARK)
-  list(APPEND BINARY_TARGETS dwarfs_benchmark)
+  if(BENCHMARK_FOUND)
+    add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
+    target_link_libraries(dwarfs_benchmark test_helpers PkgConfig::BENCHMARK)
+    list(APPEND BINARY_TARGETS dwarfs_benchmark)
+  endif()
+
+  add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
+  target_link_libraries(segmenter_benchmark follybenchmark test_helpers)
+  list(APPEND BINARY_TARGETS segmenter_benchmark)
 endif()
 
 if(WITH_FUZZ)
