@@ -1237,12 +1237,30 @@ create_segmenter2(logger& lgr, progress& prog,
                   segmenter::config const& cfg,
                   compression_constraints const& cc, size_t total_size,
                   segmenter::block_ready_cb block_ready) {
-  if (!cc.granularity || cc.granularity.value() == 1) {
+  uint32_t granularity = cc.granularity ? cc.granularity.value() : 1;
+
+  auto make_const_granularity_segmenter = [&]<uint32_t Granularity>() {
     return make_unique_logging_object<
         segmenter::impl,
-        constant_granularity_segmenter_<SegmentingPolicy, 1>::template type,
+        constant_granularity_segmenter_<SegmentingPolicy,
+                                        Granularity>::template type,
         logger_policies>(lgr, prog, std::move(blkmgr), cfg, total_size,
                          std::move(block_ready));
+  };
+
+  switch (granularity) {
+  case 1:
+    return make_const_granularity_segmenter.template operator()<1>();
+  case 2: // 16-bit mono PCM audio
+    return make_const_granularity_segmenter.template operator()<2>();
+  case 3: // 24-bit mono PCM audio
+    return make_const_granularity_segmenter.template operator()<3>();
+  case 4: // 16-bit stereo PCM audio
+    return make_const_granularity_segmenter.template operator()<4>();
+  case 6: // 24-bit stereo PCM audio
+    return make_const_granularity_segmenter.template operator()<6>();
+  default:
+    break;
   }
 
   return make_unique_logging_object<
