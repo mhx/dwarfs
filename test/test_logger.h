@@ -52,8 +52,10 @@ class test_logger : public ::dwarfs::logger {
 
   test_logger(std::optional<level_type> threshold = std::nullopt)
       : threshold_{threshold ? *threshold : default_threshold()}
+      , output_threshold_{output_threshold(default_threshold())}
       , output_{::dwarfs::getenv_is_enabled("DWARFS_TEST_LOGGER_OUTPUT")} {
-    if (output_ || threshold > level_type::INFO) {
+    if (threshold_ >= level_type::DEBUG ||
+        (output_ && output_threshold_ > level_type::DEBUG)) {
       set_policy<debug_logger_policy>();
     } else {
       set_policy<prod_logger_policy>();
@@ -62,7 +64,7 @@ class test_logger : public ::dwarfs::logger {
 
   void write(level_type level, std::string const& output, char const* file,
              int line) override {
-    if (output_) {
+    if (output_ && level <= output_threshold_) {
       std::lock_guard lock(mx_);
       std::cerr << level_char(level) << " [" << file << ":" << line << "] "
                 << output << "\n";
@@ -81,16 +83,19 @@ class test_logger : public ::dwarfs::logger {
   void clear() { log_.clear(); }
 
  private:
-  static level_type default_threshold() {
+  static level_type default_threshold() { return level_type::INFO; }
+
+  static level_type output_threshold(level_type default_level) {
     if (auto var = std::getenv("DWARFS_TEST_LOGGER_LEVEL")) {
       return ::dwarfs::logger::parse_level(var);
     }
-    return level_type::INFO;
+    return default_level;
   }
 
   std::mutex mx_;
   std::vector<log_entry> log_;
   level_type const threshold_;
+  level_type const output_threshold_;
   bool const output_;
 };
 
