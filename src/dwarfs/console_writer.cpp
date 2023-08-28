@@ -151,8 +151,7 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , frac_(0.0)
     , pg_mode_(pg_mode)
     , get_term_width_(get_term_width)
-    , mode_(mode)
-    , read_speed_{std::chrono::seconds(5)} {}
+    , mode_(mode) {}
 
 void console_writer::rewind(int next_rewind_lines) {
   if (!statebuf_.empty()) {
@@ -221,17 +220,6 @@ void console_writer::update(const progress& p, bool last) {
 
     switch (mode_) {
     case NORMAL:
-      if (writing_) {
-        read_speed_.put(p.total_bytes_read.load());
-      } else {
-        if (p.total_bytes_read.load() > 0) {
-          read_speed_.clear();
-          writing_ = true;
-        } else {
-          read_speed_.put(p.similarity_bytes.load());
-        }
-      }
-
       if (fancy) {
         oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
                                 log_is_colored())
@@ -281,10 +269,7 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written, "
-          << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
-
-      // TODO: read speed should be somewhere else
+          << size_with_unit(p.compressed_size) << " written" << newline;
       break;
 
     case REWRITE:
