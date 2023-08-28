@@ -185,7 +185,7 @@ else()
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
-    GIT_TAG 10.1.0
+    GIT_TAG 10.1.1
   )
   FetchContent_MakeAvailable(fmt)
 endif()
