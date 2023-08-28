@@ -29,7 +29,6 @@
 #include <string>
 
 #include "dwarfs/logger.h"
-#include "dwarfs/speedometer.h"
 
 namespace dwarfs {
 
@@ -61,7 +60,5 @@ class console_writer : public stream_logger {
   progress_mode const pg_mode_;
   get_term_width_type get_term_width_;
   display_mode const mode_;
-  bool writing_{false};
-  speedometer<uint64_t> read_speed_;
 };
 } // namespace dwarfs
