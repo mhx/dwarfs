@@ -149,7 +149,8 @@ class libmagic_categorizer_ final : public libmagic_categorizer_base {
   categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
-  bool is_single_fragment() const override { return true; }
+  bool
+  subcategory_less(fragment_category a, fragment_category b) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -178,6 +179,12 @@ inode_fragments libmagic_categorizer_<LoggerPolicy>::categorize(
     ++(*wlock)[id];
   }
   return fragments;
+}
+
+template <typename LoggerPolicy>
+bool libmagic_categorizer_<LoggerPolicy>::subcategory_less(
+    fragment_category, fragment_category) const {
+  return false; // TODO
 }
 
 class libmagic_categorizer_factory : public categorizer_factory {

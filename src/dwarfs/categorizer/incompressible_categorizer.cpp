@@ -213,7 +213,8 @@ class incompressible_categorizer_ final : public sequential_categorizer {
   job(std::filesystem::path const& path, size_t total_size,
       category_mapper const& mapper) const override;
 
-  bool is_single_fragment() const override { return true; }
+  bool
+  subcategory_less(fragment_category a, fragment_category b) const override;
 
  private:
   logger& lgr_;
@@ -245,6 +246,11 @@ incompressible_categorizer_::job(std::filesystem::path const& path,
                                     incompressible_categorizer_job_,
                                     logger_policies>(lgr_, config_, path,
                                                      total_size, mapper);
+}
+
+bool incompressible_categorizer_::subcategory_less(fragment_category,
+                                                   fragment_category) const {
+  return false; // TODO
 }
 
 class incompressible_categorizer_factory : public categorizer_factory {

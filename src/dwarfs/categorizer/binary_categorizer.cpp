@@ -62,7 +62,8 @@ class binary_categorizer_ final : public binary_categorizer_base {
   categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
-  bool is_single_fragment() const override { return false; }
+  bool
+  subcategory_less(fragment_category a, fragment_category b) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -106,6 +107,12 @@ inode_fragments binary_categorizer_<LoggerPolicy>::categorize(
 #endif
 
   return fragments;
+}
+
+template <typename LoggerPolicy>
+bool binary_categorizer_<LoggerPolicy>::subcategory_less(
+    fragment_category, fragment_category) const {
+  return false; // TODO
 }
 
 class binary_categorizer_factory : public categorizer_factory {
