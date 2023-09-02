@@ -245,6 +245,9 @@ class categorizer_manager_ final : public categorizer_manager_private {
   void set_metadata_requirements(fragment_category::value_type c,
                                  std::string req) override;
 
+  bool
+  deterministic_less(fragment_category a, fragment_category b) const override;
+
   std::vector<std::shared_ptr<categorizer>> const&
   categorizers() const override {
     return categorizers_;
@@ -320,6 +323,18 @@ void categorizer_manager_<LoggerPolicy>::set_metadata_requirements(
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
 
   categorizer->set_metadata_requirements(cat.first, req);
+}
+
+template <typename LoggerPolicy>
+bool categorizer_manager_<LoggerPolicy>::deterministic_less(
+    fragment_category a, fragment_category b) const {
+  auto cmp = category_name(a.value()) <=> category_name(b.value());
+  if (cmp != 0) {
+    return cmp < 0;
+  }
+  auto cat = DWARFS_NOTHROW(categories_.at(a.value()));
+  auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
+  return categorizer->subcategory_less(a, b);
 }
 
 categorizer_manager::categorizer_manager(logger& lgr)

@@ -52,11 +52,12 @@ class categorizer {
   virtual ~categorizer() = default;
 
   virtual std::span<std::string_view const> categories() const = 0;
-  virtual bool is_single_fragment() const = 0;
   virtual std::string
   category_metadata(std::string_view category_name, fragment_category c) const;
   virtual void set_metadata_requirements(std::string_view category_name,
                                          std::string requirements);
+  virtual bool
+  subcategory_less(fragment_category a, fragment_category b) const = 0;
 };
 
 class random_access_categorizer : public categorizer {
@@ -153,6 +154,10 @@ class categorizer_manager {
     impl_->set_metadata_requirements(c, std::move(req));
   }
 
+  bool deterministic_less(fragment_category a, fragment_category b) const {
+    return impl_->deterministic_less(a, b);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -166,6 +171,8 @@ class categorizer_manager {
     virtual std::string category_metadata(fragment_category c) const = 0;
     virtual void set_metadata_requirements(fragment_category::value_type c,
                                            std::string req) = 0;
+    virtual bool
+    deterministic_less(fragment_category a, fragment_category b) const = 0;
   };
 
  private:

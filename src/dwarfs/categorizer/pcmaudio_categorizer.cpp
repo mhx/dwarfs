@@ -429,6 +429,12 @@ class pcmaudio_metadata_store {
     return folly::toJson(obj);
   }
 
+  bool less(size_t a, size_t b) const {
+    auto const& ma = DWARFS_NOTHROW(forward_index_.at(a));
+    auto const& mb = DWARFS_NOTHROW(forward_index_.at(b));
+    return ma < mb;
+  }
+
  private:
   std::vector<pcmaudio_metadata> forward_index_;
   std::map<pcmaudio_metadata, size_t> reverse_index_;
@@ -462,8 +468,6 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
   categorize(fs::path const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
-  bool is_single_fragment() const override { return false; }
-
   std::string category_metadata(std::string_view category_name,
                                 fragment_category c) const override {
     if (category_name == WAVEFORM_CATEGORY) {
@@ -476,6 +480,9 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
 
   void set_metadata_requirements(std::string_view category_name,
                                  std::string requirements) override;
+
+  bool
+  subcategory_less(fragment_category a, fragment_category b) const override;
 
  private:
   bool check_aiff(inode_fragments& frag, fs::path const& path,
@@ -1064,6 +1071,12 @@ void pcmaudio_categorizer_<LoggerPolicy>::set_metadata_requirements(
       compression_metadata_requirements().parse(req);
     }
   }
+}
+
+template <typename LoggerPolicy>
+bool pcmaudio_categorizer_<LoggerPolicy>::subcategory_less(
+    fragment_category a, fragment_category b) const {
+  return meta_.rlock()->less(a.subcategory(), b.subcategory());
 }
 
 class pcmaudio_categorizer_factory : public categorizer_factory {

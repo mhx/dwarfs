@@ -544,7 +544,14 @@ class inode_manager_ final : public inode_manager::impl {
              (a.total_size == b.total_size && a.category < b.category);
     });
 
-    std::sort(rv.categories.begin(), rv.categories.end());
+    if (opts_.categorizer_mgr) {
+      std::sort(rv.categories.begin(), rv.categories.end(),
+                [&catmgr = *opts_.categorizer_mgr](auto a, auto b) {
+                  return catmgr.deterministic_less(a, b);
+                });
+    } else {
+      std::sort(rv.categories.begin(), rv.categories.end());
+    }
 
     return rv;
   }
