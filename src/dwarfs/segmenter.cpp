@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -154,22 +155,6 @@ class fast_multimap {
 using repeating_sequence_map_type = phmap::flat_hash_map<uint32_t, uint8_t>;
 using repeating_collisions_map_type = std::unordered_map<uint8_t, uint32_t>;
 
-constexpr unsigned bitcount(unsigned n) {
-  return n > 0 ? (n & 1) + bitcount(n >> 1) : 0;
-}
-
-constexpr uint64_t pow2ceil(uint64_t n) {
-  n--;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n |= n >> 32;
-  n++;
-  return n;
-}
-
 /**
  * A very simple bloom filter. This is not generalized at all and highly
  * optimized for the cyclic hash use case.
@@ -186,9 +171,9 @@ class alignas(64) bloom_filter {
  public:
   using bits_type = uint64_t;
 
-  static constexpr size_t value_mask = 8 * sizeof(bits_type) - 1;
-  static constexpr size_t index_shift = bitcount(value_mask);
-  static constexpr size_t alignment = 64;
+  static constexpr size_t const value_mask = 8 * sizeof(bits_type) - 1;
+  static constexpr size_t const index_shift = std::popcount(value_mask);
+  static constexpr size_t const alignment = 64;
 
   explicit bloom_filter(size_t size)
       : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
@@ -697,8 +682,9 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   void segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
   size_t bloom_filter_size(const segmenter::config& cfg) const {
-    auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks) *
-                               (block_size_in_frames(cfg) / window_step(cfg)));
+    auto hash_count =
+        std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
+                      (block_size_in_frames(cfg) / window_step(cfg)));
     return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
   }
 
