@@ -83,8 +83,8 @@ enum class file_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
 // TODO: rename
 struct file_order_options {
   file_order_mode mode{file_order_mode::NONE};
-  int nilsimsa_max_children{8192};
-  int nilsimsa_max_cluster_size{8192};
+  int nilsimsa_max_children{16384};
+  int nilsimsa_max_cluster_size{16384};
 };
 
 struct inode_options {
