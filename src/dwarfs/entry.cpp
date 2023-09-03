@@ -45,7 +45,6 @@ namespace dwarfs {
 
 namespace {
 
-constexpr size_t const kMinHasherProgressFileSize{64 * 1024 * 1024};
 constexpr std::string_view const kHashContext{"[hashing] "};
 
 } // namespace
@@ -231,17 +230,18 @@ void file::scan(mmif* mm, progress& prog,
   size_t s = size();
 
   if (hash_alg) {
+    progress::scan_updater supd(prog.hash, s);
     checksum cs(*hash_alg);
 
     if (s > 0) {
       std::shared_ptr<scanner_progress> pctx;
+      auto const chunk_size = prog.hash.chunk_size.load();
 
-      if (s >= kMinHasherProgressFileSize) {
+      if (s >= 4 * chunk_size) {
         pctx = prog.create_context<scanner_progress>(
             termcolor::MAGENTA, kHashContext, path_as_string(), s);
       }
 
-      constexpr size_t chunk_size = 16 << 20;
       size_t offset = 0;
 
       assert(mm);
@@ -260,9 +260,6 @@ void file::scan(mmif* mm, progress& prog,
     }
 
     data_->hash.resize(cs.digest_size());
-
-    ++prog.hash_scans;
-    prog.hash_bytes += s;
 
     DWARFS_CHECK(cs.finalize(data_->hash.data()),
                  "checksum computation failed");

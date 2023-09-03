@@ -45,7 +45,7 @@ class console_writer : public stream_logger {
                  get_term_width_type get_term_width, level_type threshold,
                  display_mode mode = NORMAL, bool verbose = false);
 
-  void update(const progress& p, bool last);
+  void update(progress& p, bool last);
 
  private:
   void preamble() override;

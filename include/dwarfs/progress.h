@@ -22,6 +22,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -65,13 +66,12 @@ class progress {
   using status_function_type =
       folly::Function<std::string(progress const&, size_t) const>;
 
-  progress(folly::Function<void(const progress&, bool)>&& func,
-           unsigned interval_ms);
+  progress(folly::Function<void(progress&, bool)>&& func, unsigned interval_ms);
   ~progress() noexcept;
 
   void set_status_function(status_function_type status_fun);
 
-  std::string status(size_t max_len) const;
+  std::string status(size_t max_len);
 
   template <typename T, typename... Args>
   std::shared_ptr<T> create_context(Args&&... args) const {
@@ -110,10 +110,39 @@ class progress {
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};
   std::atomic<uint64_t> compressed_size{0};
-  std::atomic<size_t> similarity_scans{0};
-  std::atomic<uint64_t> similarity_bytes{0};
-  std::atomic<size_t> hash_scans{0};
-  std::atomic<uint64_t> hash_bytes{0};
+
+  struct scan_progress {
+    std::atomic<size_t> scans{0};
+    std::atomic<uint64_t> bytes{0};
+    std::atomic<uint64_t> usec{0};
+    std::atomic<uint64_t> chunk_size{UINT64_C(16) << 20};
+  };
+
+  class scan_updater {
+   public:
+    scan_updater(scan_progress& sp, size_t bytes)
+        : sp_{sp}
+        , bytes_{bytes}
+        , start_{std::chrono::steady_clock::now()} {}
+
+    ~scan_updater() {
+      auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::steady_clock::now() - start_)
+                      .count();
+      ++sp_.scans;
+      sp_.bytes += bytes_;
+      sp_.usec += usec;
+    }
+
+   private:
+    scan_progress& sp_;
+    size_t const bytes_;
+    std::chrono::steady_clock::time_point const start_;
+  };
+
+  scan_progress similarity;
+  scan_progress categorize;
+  scan_progress hash;
 
  private:
   void add_context(std::shared_ptr<context> const& ctx) const;
@@ -125,4 +154,5 @@ class progress {
   std::vector<std::weak_ptr<context>> mutable contexts_;
   std::thread thread_;
 };
+
 } // namespace dwarfs

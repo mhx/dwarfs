@@ -196,7 +196,7 @@ std::string_view console_writer::get_newline() const {
   return pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 }
 
-void console_writer::update(const progress& p, bool last) {
+void console_writer::update(progress& p, bool last) {
   if (pg_mode_ == NONE && !last) {
     return;
   }
@@ -209,6 +209,20 @@ void console_writer::update(const progress& p, bool last) {
   lazy_value width(get_term_width_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
+
+  auto update_chunk_size = [](progress::scan_progress& sp) {
+    if (auto usec = sp.usec.load(); usec > 10'000) {
+      auto bytes = sp.bytes.load();
+      auto bytes_per_second = (bytes << 20) / usec;
+      sp.chunk_size.store(std::min(
+          UINT64_C(1) << 25,
+          std::max(UINT64_C(1) << 15, std::bit_ceil(bytes_per_second / 32))));
+    }
+  };
+
+  update_chunk_size(p.hash);
+  update_chunk_size(p.similarity);
+  update_chunk_size(p.categorize);
 
   if (last || fancy) {
     if (fancy) {
@@ -246,9 +260,9 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "original size: " << size_with_unit(p.original_size)
-          << ", scanned: " << size_with_unit(p.similarity_bytes)
-          << ", hashed: " << size_with_unit(p.hash_bytes) << " ("
-          << p.hash_scans << " files)" << newline
+          << ", scanned: " << size_with_unit(p.similarity.bytes)
+          << ", hashed: " << size_with_unit(p.hash.bytes) << " ("
+          << p.hash.scans << " files)" << newline
 
           << "saved by deduplication: "
           << size_with_unit(p.saved_by_deduplication) << " ("
@@ -269,7 +283,10 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written" << newline;
+          << size_with_unit(p.compressed_size) << " written"
+          << " [" << size_with_unit(p.hash.chunk_size) << ", "
+          << size_with_unit(p.similarity.chunk_size) << ", "
+          << size_with_unit(p.categorize.chunk_size) << "]" << newline;
       break;
 
     case REWRITE:
