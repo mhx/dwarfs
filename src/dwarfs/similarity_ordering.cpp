@@ -98,6 +98,32 @@ int distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b)
   return distance<uint64_t, 4>(a, b);
 }
 
+template <typename GetI, typename GetK, typename Swap>
+void order_by_shortest_path(size_t count, GetI&& geti, GetK&& getk,
+                            Swap&& swapper) {
+  for (size_t i = 0; i < count - 1; ++i) {
+    auto bi = geti(i);
+    int best_distance = std::numeric_limits<int>::max();
+    size_t best_index = 0;
+
+    for (size_t k = i + 1; k < count; ++k) {
+      auto bk = getk(k);
+      auto d = distance(*bi, *bk);
+      if (d < best_distance) {
+        best_distance = d;
+        best_index = k;
+        if (best_distance <= 1) {
+          break;
+        }
+      }
+    }
+
+    if (best_index > 0 && i + 1 != best_index) {
+      swapper(i + 1, best_index);
+    }
+  }
+}
+
 template <size_t Bits, typename BitsType = uint64_t,
           typename CountsType = uint32_t>
 class basic_centroid {
@@ -370,34 +396,28 @@ template <size_t Bits, typename BitsType>
 void similarity_ordering_<LoggerPolicy>::order_cluster(
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
     index_type& index) const {
+  using bitvec_type =
+      typename basic_array_similarity_element_view<Bits, BitsType>::bitvec_type;
+
   if (!index.empty()) {
     // TODO: try simulated annealing again? reproducibly?
 
     std::sort(index.begin(), index.end(),
               [&ev](auto a, auto b) { return ev.order_less(a, b); });
 
-    // TODO: maybe it's worth caching bits pointers beforehand?
-    for (size_t i = 0; i < index.size() - 1; ++i) {
-      auto& bi = ev.get_bits(index[i]);
-      int best_distance = std::numeric_limits<int>::max();
-      size_t best_index = 0;
-
-      for (size_t k = i + 1; k < index.size(); ++k) {
-        auto& bk = ev.get_bits(index[k]);
-        auto d = distance(bi, bk);
-        if (d < best_distance) {
-          best_distance = d;
-          best_index = k;
-          if (best_distance <= 1) {
-            break;
-          }
-        }
-      }
-
-      if (best_index > 0 && i + 1 != best_index) {
-        std::swap(index[i + 1], index[best_index]);
-      }
+    std::vector<bitvec_type const*> bits;
+    bits.reserve(index.size());
+    for (auto i : index) {
+      bits.push_back(&ev.get_bits(i));
     }
+
+    auto getter = [&bits](auto i) { return bits[i]; };
+    auto swapper = [&bits, &index](auto i, auto k) {
+      std::swap(bits[i], bits[k]);
+      std::swap(index[i], index[k]);
+    };
+
+    order_by_shortest_path(index.size(), getter, getter, swapper);
   }
 }
 
@@ -438,27 +458,10 @@ size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
     return std::get<3>(a) > std::get<3>(b);
   });
 
-  for (size_t i = 0; i < bits.size() - 1; ++i) {
-    auto& bi = *std::get<1>(bits[i]);
-    int best_distance = std::numeric_limits<int>::max();
-    size_t best_index = 0;
-
-    for (size_t k = i + 1; k < bits.size(); ++k) {
-      auto& bk = *std::get<0>(bits[k]);
-      auto d = distance(bi, bk);
-      if (d < best_distance) {
-        best_distance = d;
-        best_index = k;
-        if (best_distance <= 1) {
-          break;
-        }
-      }
-    }
-
-    if (best_index > 0 && i + 1 != best_index) {
-      std::swap(bits[i + 1], bits[best_index]);
-    }
-  }
+  order_by_shortest_path(
+      bits.size(), [&bits](auto i) { return std::get<1>(bits[i]); },
+      [&bits](auto k) { return std::get<0>(bits[k]); },
+      [&bits](auto i, auto k) { std::swap(bits[i], bits[k]); });
 
   std::vector<node_type> ordered_children;
   ordered_children.reserve(children.size());
