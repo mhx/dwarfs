@@ -22,6 +22,7 @@ A fast high compression read-only file system for Linux and Windows.
 - [Usage](#usage)
 - [Windows Support](#windows-support)
   - [Building on Windows](#building-on-windows)
+- [Extended Attributes](#extended-attributes)
 - [Comparison](#comparison)
   - [With SquashFS](#with-squashfs)
   - [With SquashFS &amp; xz](#with-squashfs--xz)
@@ -479,6 +480,25 @@ your machine.
 > set CTEST_PARALLEL_LEVEL=10
 > ninja test
 ```
+
+## Extended Attributes
+
+Extended attributes are not currently supported. Any extended attributes
+stored in the source file system will not currently be preserved when
+building a DwarFS image using `mkdwarfs`.
+
+That being said, the root inode of a mounted DwarFS image currently exposes
+one or two extended attributes on Linux:
+
+```
+$ attr -l mnt
+Attribute "dwarfs.driver.pid" has a 4 byte value for mnt
+Attribute "dwarfs.driver.perfmon" has a 4849 byte value for mnt
+```
+
+The `dwarfs.driver.pid` attribute simply contains the PID of the DwarFS
+FUSE driver. The `dwarfs.driver.perfmon` attribute contains the current
+results of the [performance monitor](#performance-monitoring).
 
 ## Comparison
 
@@ -1959,3 +1979,6 @@ Currently, the supported components are `fuse` for the FUSE
 operations, `filesystem_v2` for the DwarFS file system component
 and `inode_reader_v2` for the component that handles all `read()`
 system calls.
+
+The FUSE driver also exposes the performance monitor metrics via
+an [extended attribute](#extended-attributes).
