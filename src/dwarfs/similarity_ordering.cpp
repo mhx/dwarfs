@@ -28,6 +28,7 @@
 #include <folly/container/Enumerate.h>
 #include <folly/experimental/Bits.h>
 
+#include "dwarfs/compiler.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/similarity_ordering.h"
@@ -74,6 +75,27 @@ int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
     d += folly::popcount(a[i] ^ b[i]);
   }
   return d;
+}
+
+#ifdef DWARFS_MULTIVERSIONING
+#ifdef __clang__
+__attribute__((target("avx512vpopcntdq"))) int
+distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+  return distance<uint64_t, 4>(a, b);
+}
+#endif
+
+__attribute__((target("popcnt"))) int
+distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+  return distance<uint64_t, 4>(a, b);
+}
+#endif
+
+#ifdef DWARFS_MULTIVERSIONING
+__attribute__((target("default")))
+#endif
+int distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+  return distance<uint64_t, 4>(a, b);
 }
 
 template <size_t Bits, typename BitsType = uint64_t,

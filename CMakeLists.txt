@@ -629,6 +629,10 @@ if(WITH_BENCHMARKS)
       add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
       target_link_libraries(dwarfs_benchmark test_helpers PkgConfig::BENCHMARK)
       list(APPEND BINARY_TARGETS dwarfs_benchmark)
+
+      add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
+      target_link_libraries(multiversioning_benchmark test_helpers PkgConfig::BENCHMARK)
+      list(APPEND BINARY_TARGETS multiversioning_benchmark)
     endif()
   endif()
 
