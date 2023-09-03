@@ -40,6 +40,7 @@
 #include <folly/container/F14Set.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
+#include <folly/stats/Histogram.h>
 
 #include <fsst.h>
 
@@ -547,6 +548,8 @@ class metadata_ final : public metadata_v2::impl {
     return directory_view(iv.inode_num(), &global_);
   }
 
+  void analyze_chunks(std::ostream& os) const;
+
   // TODO: see if we really need to pass the extra dir_entry_view in
   //       addition to directory_view
   void dump(std::ostream& os, const std::string& indent, dir_entry_view entry,
@@ -779,6 +782,42 @@ class metadata_ final : public metadata_v2::impl {
 };
 
 template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
+  folly::Histogram<size_t> block_refs{1, 0, 1024};
+  folly::Histogram<size_t> chunk_count{1, 0, 65536};
+
+  walk([&](auto entry) {
+    auto ino = entry.inode();
+    if (ino.is_regular_file()) {
+      std::unordered_set<size_t> blocks;
+      if (auto chunks = get_chunks(ino.inode_num())) {
+        for (auto chk : *chunks) {
+          blocks.emplace(chk.block());
+        }
+        chunk_count.addValue(chunks->size());
+      }
+      block_refs.addValue(blocks.size());
+    }
+  });
+
+  {
+    auto pct = [&](double p) { return block_refs.getPercentileEstimate(p); };
+
+    os << "single file block refs p50: " << pct(0.5) << ", p75: " << pct(0.75)
+       << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
+       << ", p99: " << pct(0.99) << ", p99.9: " << pct(0.999) << "\n";
+  }
+
+  {
+    auto pct = [&](double p) { return chunk_count.getPercentileEstimate(p); };
+
+    os << "single file chunk count p50: " << pct(0.5) << ", p75: " << pct(0.75)
+       << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
+       << ", p99: " << pct(0.99) << ", p99.9: " << pct(0.999) << "\n";
+  }
+}
+
+template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, dir_entry_view entry,
     int detail_level,
@@ -949,6 +988,7 @@ void metadata_<LoggerPolicy>::dump(
       }
       os << "unique files: " << unique_files_ << "\n";
     }
+    analyze_chunks(os);
   }
 
   if (detail_level > 5) {
