@@ -79,6 +79,8 @@ int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
 
 #ifdef DWARFS_MULTIVERSIONING
 #ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
 __attribute__((target("avx512vpopcntdq"))) int
 distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
   return distance<uint64_t, 4>(a, b);
@@ -89,6 +91,9 @@ __attribute__((target("popcnt"))) int
 distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
   return distance<uint64_t, 4>(a, b);
 }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #endif
 
 #ifdef DWARFS_MULTIVERSIONING
