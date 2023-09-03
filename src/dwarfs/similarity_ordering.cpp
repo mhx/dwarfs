@@ -439,13 +439,13 @@ size_t similarity_ordering_<LoggerPolicy>::order_tree_rec(
   });
 
   for (size_t i = 0; i < bits.size() - 1; ++i) {
-    auto bi = std::get<1>(bits[i]);
+    auto& bi = *std::get<1>(bits[i]);
     int best_distance = std::numeric_limits<int>::max();
     size_t best_index = 0;
 
     for (size_t k = i + 1; k < bits.size(); ++k) {
-      auto bk = std::get<0>(bits[k]);
-      auto d = distance(*bi, *bk);
+      auto& bk = *std::get<0>(bits[k]);
+      auto d = distance(bi, bk);
       if (d < best_distance) {
         best_distance = d;
         best_index = k;
