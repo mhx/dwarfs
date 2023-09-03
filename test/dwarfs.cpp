@@ -198,12 +198,12 @@ void basic_end_to_end_test(std::string const& compressor,
   // TODO:
   // EXPECT_EQ(prog.similarity_scans, similarity ? prog.inodes_scanned.load() :
   // 0);
-  EXPECT_EQ(prog.similarity_bytes,
+  EXPECT_EQ(prog.similarity.bytes,
             similarity ? prog.original_size -
                              (prog.saved_by_deduplication + prog.symlink_size)
                        : 0);
-  EXPECT_EQ(prog.hash_scans, file_hash_algo ? 5 + num_fail_empty : 0);
-  EXPECT_EQ(prog.hash_bytes, file_hash_algo ? 46912 : 0);
+  EXPECT_EQ(prog.hash.scans, file_hash_algo ? 5 + num_fail_empty : 0);
+  EXPECT_EQ(prog.hash.bytes, file_hash_algo ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
   filesystem_options opts;

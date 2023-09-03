@@ -30,7 +30,7 @@
 
 namespace dwarfs {
 
-progress::progress(folly::Function<void(const progress&, bool)>&& func,
+progress::progress(folly::Function<void(progress&, bool)>&& func,
                    unsigned interval_ms)
     : running_(true)
     , thread_([this, interval_ms, func = std::move(func)]() mutable {
@@ -94,7 +94,7 @@ void progress::set_status_function(status_function_type status_fun) {
   status_fun_ = std::make_shared<status_function_type>(std::move(status_fun));
 }
 
-std::string progress::status(size_t max_len) const {
+std::string progress::status(size_t max_len) {
   std::shared_ptr<status_function_type> fun;
   {
     std::lock_guard lock(mx_);

@@ -898,12 +898,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
-  folly::Function<void(const progress&, bool)> updater;
+  folly::Function<void(progress&, bool)> updater;
 
   if (options.debug_filter_function) {
-    updater = [](const progress&, bool) {};
+    updater = [](progress&, bool) {};
   } else {
-    updater = [&](const progress& p, bool last) { lgr.update(p, last); };
+    updater = [&](progress& p, bool last) { lgr.update(p, last); };
   }
 
   progress prog(std::move(updater), interval_ms);
