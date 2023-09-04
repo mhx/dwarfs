@@ -240,20 +240,6 @@ void console_writer::update(progress& p, bool last) {
             << newline;
       }
 
-      if (fancy) {
-        auto w = width.get();
-
-        if (w >= 60) {
-          ctxs = p.get_active_contexts();
-        }
-
-        for (auto const& c : ctxs) {
-          output_context_line(oss, *c, w, pg_mode_ == UNICODE,
-                              log_is_colored());
-          oss << newline;
-        }
-      }
-
       oss << p.dirs_scanned << " dirs, " << p.symlinks_scanned << "/"
           << p.hardlinks << " soft/hard links, " << p.files_scanned << "/"
           << p.files_found << " files, " << p.specials_found << " other"
@@ -340,11 +326,22 @@ void console_writer::update(progress& p, bool last) {
       log_stream() << oss.str();
     }
   } else {
-    oss << progress_bar(width.get() - 6, frac_, pg_mode_ == UNICODE)
+    auto w = width.get();
+
+    oss << progress_bar(w - 6, frac_, pg_mode_ == UNICODE)
         << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
         << '\n';
 
     ++counter_;
+
+    if (w >= 60) {
+      ctxs = p.get_active_contexts();
+    }
+
+    for (auto const& c : ctxs) {
+      output_context_line(oss, *c, w, pg_mode_ == UNICODE, log_is_colored());
+      oss << newline;
+    }
 
     std::lock_guard lock(log_mutex());
 
