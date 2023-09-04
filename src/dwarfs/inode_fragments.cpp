@@ -26,6 +26,25 @@
 
 namespace dwarfs {
 
+void single_inode_fragment::add_chunk(size_t block, size_t offset,
+                                      size_t size) {
+  if (!chunks_.empty()) {
+    auto& last = chunks_.back();
+    if (last.block() == block &&
+        last.offset().value() + last.size().value() == offset) [[unlikely]] {
+      // merge chunks
+      last.size() = last.size().value() + size;
+      return;
+    }
+  }
+
+  thrift::metadata::chunk c;
+  c.block() = block;
+  c.offset() = offset;
+  c.size() = size;
+  chunks_.push_back(std::move(c));
+}
+
 std::ostream&
 inode_fragments::to_stream(std::ostream& os,
                            mapper_function_type const& mapper) const {
