@@ -192,19 +192,4 @@ void nilsimsa::update(uint8_t const* data, size_t size) {
 
 void nilsimsa::finalize(hash_type& hash) const { impl_->finalize(hash); }
 
-#ifdef DWARFS_MULTIVERSIONING
-__attribute__((target("popcnt"))) int
-nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
-  DWARFS_NILSIMSA_SIMILARITY(return, a, b);
-}
-
-__attribute__((target("default")))
-#endif
-int nilsimsa::similarity(uint64_t const* a, uint64_t const* b) {
-  DWARFS_NILSIMSA_SIMILARITY(return, a, b);
-}
-
-static_assert(std::is_same_v<unsigned long, uint64_t> ||
-              std::is_same_v<unsigned long long, uint64_t>);
-
 } // namespace dwarfs
