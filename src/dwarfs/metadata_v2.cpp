@@ -785,20 +785,39 @@ template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
   folly::Histogram<size_t> block_refs{1, 0, 1024};
   folly::Histogram<size_t> chunk_count{1, 0, 65536};
+  size_t mergeable_chunks{0};
 
-  walk([&](auto entry) {
-    auto ino = entry.inode();
-    if (ino.is_regular_file()) {
+  for (size_t i = 1; i < meta_.chunk_table().size(); ++i) {
+    uint32_t beg = chunk_table_lookup(i - 1);
+    uint32_t end = chunk_table_lookup(i);
+    uint32_t num = end - beg;
+
+    assert(beg <= end);
+
+    if (num > 1) {
       std::unordered_set<size_t> blocks;
-      if (auto chunks = get_chunks(ino.inode_num())) {
-        for (auto chk : *chunks) {
-          blocks.emplace(chk.block());
+
+      for (uint32_t k = beg; k < end; ++k) {
+        auto chk = meta_.chunks()[k];
+        blocks.emplace(chk.block());
+
+        if (k > beg) {
+          auto prev = meta_.chunks()[k - 1];
+          if (prev.block() == chk.block()) {
+            if (prev.offset() + prev.size() == chk.offset()) {
+              ++mergeable_chunks;
+            }
+          }
         }
-        chunk_count.addValue(chunks->size());
       }
+
       block_refs.addValue(blocks.size());
+    } else {
+      block_refs.addValue(num);
     }
-  });
+
+    chunk_count.addValue(num);
+  }
 
   {
     auto pct = [&](double p) { return block_refs.getPercentileEstimate(p); };
@@ -815,6 +834,10 @@ void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
        << ", p90: " << pct(0.9) << ", p95: " << pct(0.95)
        << ", p99: " << pct(0.99) << ", p99.9: " << pct(0.999) << "\n";
   }
+
+  // TODO: we can remove this once we have no more mergeable chunks :-)
+  os << "mergeable chunks: " << mergeable_chunks << "/" << meta_.chunks().size()
+     << "\n";
 }
 
 template <typename LoggerPolicy>
