@@ -27,18 +27,7 @@
 #include <span>
 #include <type_traits>
 
-#include <folly/lang/Bits.h>
-
 #include "dwarfs/compiler.h"
-
-#define DWARFS_NILSIMSA_SIMILARITY(r, a, b)                                    \
-  do {                                                                         \
-    int bits = 0;                                                              \
-    for (int i = 0; i < 4; ++i) {                                              \
-      bits += folly::popcount(a[i] ^ b[i]);                                    \
-    }                                                                          \
-    r 255 - bits;                                                              \
-  } while (false)
 
 namespace dwarfs {
 
@@ -51,15 +40,6 @@ class nilsimsa {
 
   void update(uint8_t const* data, size_t size);
   void finalize(hash_type& hash) const;
-
-#ifdef DWARFS_MULTIVERSIONING
-  __attribute__((target("popcnt"))) static int
-  similarity(uint64_t const* a, uint64_t const* b);
-
-  __attribute__((target("default")))
-#endif
-  static int
-  similarity(uint64_t const* a, uint64_t const* b);
 
   void operator()(std::span<uint8_t const> data) {
     update(data.data(), data.size());
