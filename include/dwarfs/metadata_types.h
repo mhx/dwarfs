@@ -265,6 +265,8 @@ class chunk_range {
 
   bool empty() const { return end_ == begin_; }
 
+  chunk_view operator[](uint32_t index) const { return meta_->chunks()[index]; }
+
  private:
   chunk_range(Meta const* meta, uint32_t begin, uint32_t end)
       : meta_(meta)
