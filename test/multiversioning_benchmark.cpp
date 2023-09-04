@@ -28,6 +28,7 @@
 #include <benchmark/benchmark.h>
 
 #include "dwarfs/compiler.h"
+#include "dwarfs/nilsimsa.h"
 
 #include "test_helpers.h"
 #include "test_strings.h"
@@ -87,8 +88,24 @@ void nilsimsa_distance(::benchmark::State& state) {
   }
 }
 
+void nilsimsa_update(::benchmark::State& state) {
+  std::independent_bits_engine<std::mt19937_64,
+                               std::numeric_limits<uint8_t>::digits, uint16_t>
+      rng;
+  static constexpr unsigned const kNumData{8 * 1024 * 1024};
+  std::vector<uint8_t> data(kNumData);
+  std::generate(begin(data), end(data), std::ref(rng));
+
+  dwarfs::nilsimsa s;
+
+  for (auto _ : state) {
+    s.update(data.data(), data.size());
+  }
+}
+
 } // namespace
 
 BENCHMARK(nilsimsa_distance);
+BENCHMARK(nilsimsa_update);
 
 BENCHMARK_MAIN();
