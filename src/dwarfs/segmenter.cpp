@@ -936,16 +936,16 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
     auto pct = [&](double p) {
       return stats_.l2_collision_vec_size.getPercentileEstimate(p);
     };
-    LOG_DEBUG << cfg_.context << "collision vector size p50: " << pct(0.5)
-              << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
-              << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+    LOG_VERBOSE << cfg_.context << "collision vector size p50: " << pct(0.5)
+                << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
+                << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
   }
 
   auto pct = [&](double p) { return match_counts_.getPercentileEstimate(p); };
 
-  LOG_DEBUG << cfg_.context << "match counts p50: " << pct(0.5)
-            << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
-            << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
+  LOG_VERBOSE << cfg_.context << "match counts p50: " << pct(0.5)
+              << ", p75: " << pct(0.75) << ", p90: " << pct(0.9)
+              << ", p95: " << pct(0.95) << ", p99: " << pct(0.99);
 
   for (auto [k, v] : repeating_collisions_) {
     LOG_VERBOSE << cfg_.context
