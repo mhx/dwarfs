@@ -178,18 +178,24 @@ class alignas(64) bloom_filter {
   explicit bloom_filter(size_t size)
       : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
       , size_{std::max(size, value_mask + 1)} {
-    if (size & (size - 1)) {
-      throw std::runtime_error("size must be a power of two");
+    if (size > 0) {
+      if (size & (size - 1)) {
+        throw std::runtime_error("size must be a power of two");
+      }
+      bits_ = reinterpret_cast<bits_type*>(
+          boost::alignment::aligned_alloc(alignment, size_ / 8));
+      if (!bits_) {
+        throw std::runtime_error("failed to allocate aligned memory");
+      }
+      clear();
     }
-    bits_ = reinterpret_cast<bits_type*>(
-        boost::alignment::aligned_alloc(alignment, size_ / 8));
-    if (!bits_) {
-      throw std::runtime_error("failed to allocate aligned memory");
-    }
-    clear();
   }
 
-  ~bloom_filter() { boost::alignment::aligned_free(bits_); }
+  ~bloom_filter() {
+    if (bits_) {
+      boost::alignment::aligned_free(bits_);
+    }
+  }
 
   void add(size_t ix) {
     auto bits = bits_;
@@ -225,7 +231,7 @@ class alignas(64) bloom_filter {
   bits_type* begin() { return bits_; }
   bits_type* end() { return bits_ + (size_ >> index_shift); }
 
-  bits_type* bits_;
+  bits_type* bits_{nullptr};
   size_t const index_mask_;
   size_t const size_;
 };
@@ -682,10 +688,14 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   void segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
   size_t bloom_filter_size(const segmenter::config& cfg) const {
-    auto hash_count =
-        std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
-                      (block_size_in_frames(cfg) / window_step(cfg)));
-    return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
+    if constexpr (is_segmentation_enabled()) {
+      auto hash_count =
+          std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
+                        (block_size_in_frames(cfg) / window_step(cfg)));
+      return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
+    }
+
+    return 0;
   }
 
   static size_t window_size(const segmenter::config& cfg) {
@@ -972,9 +982,11 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
       blocks_.pop_front();
     }
 
-    global_filter_.clear();
-    for (auto const& b : blocks_) {
-      global_filter_.merge(b.filter());
+    if constexpr (is_segmentation_enabled()) {
+      global_filter_.clear();
+      for (auto const& b : blocks_) {
+        global_filter_.merge(b.filter());
+      }
     }
 
     add_new_block(blocks_, LOG_GET_LOGGER, repeating_sequence_hash_values_,
