@@ -29,12 +29,13 @@
 
 #include <fmt/format.h>
 
-#include <lz4.h>
+#include <zstd.h>
 
 #include "dwarfs/categorizer.h"
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/util.h"
+#include "dwarfs/zstd_context_manager.h"
 
 namespace dwarfs {
 
@@ -44,19 +45,12 @@ namespace {
 
 constexpr std::string_view const INCOMPRESSIBLE_CATEGORY{"incompressible"};
 
-// TODO: We could actually split large files into compressible and
-//       incompressible fragments. This may be beneficial for use cases
-//       such as wrapping file system images, where we can separate out
-//       compressed parts in the original image.
-//
-//       We probably need to reintroduce the <default> category for that.
-
 struct incompressible_categorizer_config {
   size_t min_input_size{0};
   size_t block_size{0};
   bool generate_fragments{false};
   double max_ratio{0.0};
-  int lz4_acceleration{0};
+  int zstd_level{0};
 };
 
 template <typename LoggerPolicy>
@@ -64,11 +58,13 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
  public:
   incompressible_categorizer_job_(logger& lgr,
                                   incompressible_categorizer_config const& cfg,
+                                  std::shared_ptr<zstd_context_manager> ctxmgr,
                                   std::filesystem::path const& path,
                                   size_t total_size,
                                   category_mapper const& mapper)
       : LOG_PROXY_INIT(lgr)
       , cfg_{cfg}
+      , ctxmgr_{std::move(ctxmgr)}
       , path_{path}
       , default_category_{mapper(categorizer::DEFAULT_CATEGORY)}
       , incompressible_category_{mapper(INCOMPRESSIBLE_CATEGORY)} {
@@ -76,12 +72,9 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
               << ", block_size=" << cfg_.block_size
               << ", generate_fragments=" << cfg_.generate_fragments
               << ", max_ratio=" << cfg_.max_ratio
-              << ", lz4_acceleration=" << cfg_.lz4_acceleration << "}";
+              << ", zstd_level=" << cfg_.zstd_level << "}";
     input_.reserve(total_size < cfg_.block_size ? total_size : cfg_.block_size);
-    state_ = ::malloc(LZ4_sizeofState());
   }
-
-  ~incompressible_categorizer_job_() { ::free(state_); }
 
   void add(std::span<uint8_t const> data) override {
     while (!data.empty()) {
@@ -142,22 +135,25 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   void compress() {
     total_input_size_ += input_.size();
 
-    output_.resize(::LZ4_compressBound(input_.size()));
+    output_.resize(ZSTD_compressBound(input_.size()));
 
-    auto rv = ::LZ4_compress_fast_extState(
-        state_, reinterpret_cast<char*>(input_.data()),
-        reinterpret_cast<char*>(output_.data()), input_.size(), output_.size(),
-        cfg_.lz4_acceleration);
+    size_t size;
 
-    if (rv == 0) {
-      DWARFS_THROW(runtime_error,
-                   "unexpected error in LZ4_compress_fast_extState");
+    {
+      auto ctx = ctxmgr_->make_context();
+      size = ZSTD_compressCCtx(ctx.get(), output_.data(), output_.size(),
+                               input_.data(), input_.size(), cfg_.zstd_level);
     }
 
-    total_output_size_ += rv;
+    if (ZSTD_isError(size)) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("ZSTD: {}", ZSTD_getErrorName(size)));
+    }
+
+    total_output_size_ += size;
     ++total_blocks_;
 
-    if (rv >= static_cast<int>(cfg_.max_ratio * input_.size())) {
+    if (size >= cfg_.max_ratio * input_.size()) {
       ++incompressible_blocks_;
       add_fragment(incompressible_category_, input_.size());
     } else {
@@ -189,7 +185,6 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  void* state_;
   std::vector<uint8_t> input_;
   std::vector<uint8_t> output_;
   size_t total_input_size_{0};
@@ -197,6 +192,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   size_t total_blocks_{0};
   size_t incompressible_blocks_{0};
   incompressible_categorizer_config const& cfg_;
+  std::shared_ptr<zstd_context_manager> ctxmgr_;
   std::filesystem::path const& path_;
   fragment_category::value_type const default_category_;
   fragment_category::value_type const incompressible_category_;
@@ -219,12 +215,14 @@ class incompressible_categorizer_ final : public sequential_categorizer {
  private:
   logger& lgr_;
   incompressible_categorizer_config const config_;
+  std::shared_ptr<zstd_context_manager> ctxmgr_;
 };
 
 incompressible_categorizer_::incompressible_categorizer_(
     logger& lgr, incompressible_categorizer_config const& cfg)
     : lgr_{lgr}
-    , config_{cfg} {}
+    , config_{cfg}
+    , ctxmgr_{std::make_shared<zstd_context_manager>()} {}
 
 std::span<std::string_view const>
 incompressible_categorizer_::categories() const {
@@ -244,8 +242,8 @@ incompressible_categorizer_::job(std::filesystem::path const& path,
 
   return make_unique_logging_object<sequential_categorizer_job,
                                     incompressible_categorizer_job_,
-                                    logger_policies>(lgr_, config_, path,
-                                                     total_size, mapper);
+                                    logger_policies>(lgr_, config_, ctxmgr_,
+                                                     path, total_size, mapper);
 }
 
 bool incompressible_categorizer_::subcategory_less(fragment_category,
@@ -260,6 +258,8 @@ class incompressible_categorizer_factory : public categorizer_factory {
             "Incompressible categorizer options")} {
     static constexpr double const default_ratio{0.99};
     auto const default_ratio_str{fmt::format("{:.2f}", default_ratio)};
+    auto const zstd_level_str{fmt::format("ZSTD compression level [{}..{}]",
+                                          ZSTD_minCLevel(), ZSTD_maxCLevel())};
     // clang-format off
     opts_->add_options()
       ("incompressible-min-input-size",
@@ -275,10 +275,10 @@ class incompressible_categorizer_factory : public categorizer_factory {
       ("incompressible-ratio",
           po::value<double>(&cfg_.max_ratio)
             ->default_value(default_ratio, default_ratio_str),
-          "LZ4 compression ratio above which files are considered incompressible")
-      ("incompressible-lz4-acceleration (1..65537)",
-          po::value<int>(&cfg_.lz4_acceleration)->default_value(1),
-          "LZ4 acceleration value")
+          "compression ratio above which files are considered incompressible")
+      ("incompressible-zstd-level",
+          po::value<int>(&cfg_.zstd_level)->default_value(-1),
+          zstd_level_str.c_str())
       ;
     // clang-format on
   }
