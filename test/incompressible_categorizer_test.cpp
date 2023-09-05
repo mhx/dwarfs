@@ -219,12 +219,12 @@ INSTANTIATE_TEST_SUITE_P(incompressible_categorizer, max_ratio_test,
                          ::testing::Values(std::make_pair(0.4, true),
                                            std::make_pair(0.6, false)));
 
-using lz4_accel_test = incompressible_categorizer_fixture<
+using zstd_accel_test = incompressible_categorizer_fixture<
     ::testing::TestWithParam<std::pair<int, bool>>>;
 
-TEST_P(lz4_accel_test, lz4_acceleration) {
+TEST_P(zstd_accel_test, zstd_acceleration) {
   auto [accel, is_incompressible] = GetParam();
-  auto arg = fmt::format("--incompressible-lz4-acceleration={}", accel);
+  auto arg = fmt::format("--incompressible-zstd-level={}", accel);
 
   create_catmgr({arg.c_str()});
 
@@ -239,7 +239,7 @@ TEST_P(lz4_accel_test, lz4_acceleration) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(incompressible_categorizer, lz4_accel_test,
-                         ::testing::Values(std::make_pair(1, false),
-                                           std::make_pair(10, false),
-                                           std::make_pair(100, true)));
+INSTANTIATE_TEST_SUITE_P(incompressible_categorizer, zstd_accel_test,
+                         ::testing::Values(std::make_pair(-1, false),
+                                           std::make_pair(-10, false),
+                                           std::make_pair(-100, true)));
