@@ -401,7 +401,7 @@ must be discoverable by the `dwarfs.exe` driver.
 
 The different tools should behave pretty much the same whether you're
 using them on Linux or Windows. The file system images can be copied
-between Linux and Windows and images created on one OS should work find
+between Linux and Windows and images created on one OS should work fine
 on the other.
 
 There are a few things worth pointing out, though:
