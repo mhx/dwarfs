@@ -32,13 +32,13 @@ class rsync_hash {
 
   uint32_t operator()() const { return a_ | (uint32_t(b_) << 16); }
 
-  void update(int8_t inbyte) {
+  void update(uint8_t inbyte) {
     a_ += inbyte;
     b_ += a_;
     ++len_;
   }
 
-  void update(int8_t outbyte, int8_t inbyte) {
+  void update(uint8_t outbyte, uint8_t inbyte) {
     a_ = a_ - outbyte + inbyte;
     b_ -= len_ * outbyte;
     b_ += a_;
