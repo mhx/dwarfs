@@ -864,6 +864,8 @@ void scanner_<LoggerPolicy>::scan(
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
+  LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
+
   fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
   fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
 
