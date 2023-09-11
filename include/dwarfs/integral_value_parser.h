@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <functional>
 #include <initializer_list>
 #include <set>
 #include <string>
@@ -43,6 +44,8 @@ class integral_value_parser {
       : valid_{std::in_place_type<std::pair<T, T>>, min, max} {}
   integral_value_parser(std::initializer_list<T> choices)
       : valid_{std::in_place_type<std::set<T>>, choices} {}
+  integral_value_parser(std::function<bool(T)> check)
+      : valid_{std::in_place_type<std::function<bool(T)>>, check} {}
 
   T parse(std::string_view arg) const {
     auto val = folly::to<T>(arg);
@@ -63,6 +66,12 @@ class integral_value_parser {
                                        val, folly::join(", ", choices)));
                      }
                    },
+                   [val](std::function<bool(T)> const& check) {
+                     if (!check(val)) {
+                       throw std::range_error(
+                           fmt::format("value {} out of range", val));
+                     }
+                   },
                },
                valid_);
 
@@ -74,7 +83,9 @@ class integral_value_parser {
   }
 
  private:
-  std::variant<std::monostate, std::pair<T, T>, std::set<T>> valid_;
+  std::variant<std::monostate, std::pair<T, T>, std::set<T>,
+               std::function<bool(T)>>
+      valid_;
 };
 
 } // namespace dwarfs
