@@ -217,6 +217,7 @@ void console_writer::update(progress& p, bool last) {
       sp.chunk_size.store(std::min(
           UINT64_C(1) << 25,
           std::max(UINT64_C(1) << 15, std::bit_ceil(bytes_per_second / 32))));
+      sp.bytes_per_sec.store(bytes_per_second);
     }
   };
 
@@ -246,9 +247,15 @@ void console_writer::update(progress& p, bool last) {
           << newline
 
           << "original size: " << size_with_unit(p.original_size)
-          << ", scanned: " << size_with_unit(p.similarity.bytes)
           << ", hashed: " << size_with_unit(p.hash.bytes) << " ("
-          << p.hash.scans << " files)" << newline
+          << p.hash.scans << " files, " << size_with_unit(p.hash.bytes_per_sec)
+          << "/s)" << newline
+
+          << "scanned: " << size_with_unit(p.similarity.bytes) << " ("
+          << p.similarity.scans << " files, "
+          << size_with_unit(p.similarity.bytes_per_sec) << "/s)"
+          << ", categorizing: " << size_with_unit(p.categorize.bytes_per_sec)
+          << "/s" << newline
 
           << "saved by deduplication: "
           << size_with_unit(p.saved_by_deduplication) << " ("
@@ -269,10 +276,7 @@ void console_writer::update(progress& p, bool last) {
           << newline
 
           << "compressed filesystem: " << p.blocks_written << " blocks/"
-          << size_with_unit(p.compressed_size) << " written"
-          << " [" << size_with_unit(p.hash.chunk_size) << ", "
-          << size_with_unit(p.similarity.chunk_size) << ", "
-          << size_with_unit(p.categorize.chunk_size) << "]" << newline;
+          << size_with_unit(p.compressed_size) << " written" << newline;
       break;
 
     case REWRITE:
@@ -345,7 +349,7 @@ void console_writer::update(progress& p, bool last) {
 
     std::lock_guard lock(log_mutex());
 
-    rewind(8 + ctxs.size());
+    rewind(9 + ctxs.size());
 
     statebuf_ = oss.str();
 

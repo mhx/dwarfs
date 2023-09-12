@@ -116,6 +116,7 @@ class progress {
     std::atomic<uint64_t> bytes{0};
     std::atomic<uint64_t> usec{0};
     std::atomic<uint64_t> chunk_size{UINT64_C(16) << 20};
+    std::atomic<uint64_t> bytes_per_sec{0};
   };
 
   class scan_updater {
