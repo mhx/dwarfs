@@ -14,3 +14,7 @@
 .vs/
 out/
 CMakeSettings.json
+
+# Tebako
+.vscode/
+deps

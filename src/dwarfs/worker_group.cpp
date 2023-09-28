@@ -31,6 +31,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <unistd.h>
+
 #include <folly/Conv.h>
 #include <folly/portability/PThread.h>
 #include <folly/portability/Windows.h>

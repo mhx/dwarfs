@@ -26,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <sstream>
 
 #include <cstddef>
 #include <cstdlib>
@@ -84,8 +85,8 @@ using native_stat = struct ::fuse_stat;
 using native_statvfs = struct ::fuse_statvfs;
 using native_off_t = ::fuse_off_t;
 #else
-using native_stat = struct ::stat;
-using native_statvfs = struct ::statvfs;
+using native_stat = struct stat;
+using native_statvfs = struct statvfs;
 using native_off_t = ::off_t;
 #endif
 } // namespace
@@ -830,7 +831,7 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
       }
     }
 
-    auto value = oss.view();
+    auto value = oss.str();
 
     LOG_TRACE << __func__ << ": value.size=" << value.size()
               << ", extra_size=" << extra_size;
@@ -888,7 +889,7 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
       oss << perfmon_xattr << '\0';
     }
 
-    auto xattrs = oss.view();
+    auto xattrs = oss.str();
 
     LOG_TRACE << __func__ << ": xattrs.size=" << xattrs.size();
 

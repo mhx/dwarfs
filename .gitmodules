@@ -13,3 +13,6 @@
 [submodule "parallel-hashmap"]
 	path = parallel-hashmap
 	url = https://github.com/greg7mdp/parallel-hashmap
+[submodule "tools"]
+	path = tools
+	url = git@github.com:tamatebako/tebako-tools.git
