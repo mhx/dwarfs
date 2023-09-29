@@ -75,10 +75,9 @@ jobs:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
         setup:
-          - scope: 'ALL'
-            tests: 'ON'
-          - scope: 'MKD'
-            tests: 'OFF'
+          - { scope: 'ALL',  tests: 'ON'  }
+          - { scope: 'MKD',  tests: 'OFF' }
+
         include:
           - config: { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: Debug, extra_opts: '-DENABLE_ASAN=1' }
             setup:  { scope: 'ALL', tests: 'ON'  }

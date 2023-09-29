@@ -65,16 +65,17 @@ jobs:
 #  We are running two configurations:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
+      matrix:
+        config:
+          - { os: ubuntu-20.04, env: { CC: gcc,   CXX: g++     }, build_type: Release, extra_opts: '' }
+          - { os: ubuntu-20.04, env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
+#  We are running two configurations:
+#   - ALL in order to run regression tests
+#   - MKD just to be sure that it build ok
         setup:
-          - scope: 'ALL'
-            tests: 'ON'
-          - scope: 'MKD'
-            tests: 'OFF'
-        env:
-          - CC: gcc
-            CXX: g++
-          - CC: clang
-            CXX: clang++
+          - { scope: 'ALL',  tests: 'ON'  }
+          - { scope: 'MKD',  tests: 'OFF' }
+
     env: ${{ matrix.env }}
     container:
       image: alpine:3.17
@@ -82,27 +83,39 @@ jobs:
     steps:
       - name: Install packages
         run: |
-          apk --no-cache --upgrade add cmake git bash build-base   \
+          apk --no-cache --upgrade add git bash build-base         \
             autoconf boost-static boost-dev fmt-dev flex-dev bison \
-            binutils-dev libevent-dev acl-dev                      \
+            binutils-dev libevent-dev acl-dev clang-dev            \
             double-conversion-dev lz4-dev openssl-dev xz-dev       \
             libunwind-dev libdwarf-dev glog-dev elfutils-dev       \
-            fuse3-dev clang-dev
+            fuse3 fuse3-dev
 
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: true
 
+      - name: Install cmake
+        run:  tools/ci-scripts/tools.sh install_cmake
+
       - name: Declare directory safe
         run: git config --global --add safe.directory "$(pwd)"
 
       - name: Configure
-        run: cmake -B build -DWITH_TESTS=${{ matrix.setup.tests }} -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} -DCMAKE_INSTALL_PREFIX=install
+        run: |
+          echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+          cmake -B build                                                 \
+                -DFOLLY_NO_EXCEPTION_TRACER=ON                           \
+                -DWITH_MAN_PAGES=OFF                                     \
+                -DNIXPKGS_DWARFS_VERSION_OVERRIDE=tebako                 \
+                -DWITH_TESTS=${{ matrix.setup.tests }}                   \
+                -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}           \
+                -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}       \
+                ${{ matrix.config.extra_opts }} .
 
       - name: Build
-        run: cmake --build build --parallel 4
+        run: cmake --build build --parallel "$CORES"
 
       - name: Test
         if: ${{ matrix.setup.tests == 'ON' }}
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --output-on-failure --parallel "$CORES"

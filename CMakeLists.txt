@@ -114,7 +114,7 @@ endif()
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 # -----------------------------------------------------------------------------------------
-message(STATUS "Applying tebako settings")
+message(STATUS ">>>>> Applying tebako settings")
 
 # THis is the default that may be overwritten
 set(GNU_BASH "bash")
@@ -185,6 +185,8 @@ set(PATCH_FOLLY OFF)
 if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
   message(STATUS "Adding __musl__ compile definition")
   add_compile_definitions(__musl__)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
   set(PATCH_FOLLY ON)
 endif()
 
@@ -207,7 +209,7 @@ if (${PATCH_FOLLY})
   endif(PATCH_FOLLY_RES EQUAL 0)
 endif(${PATCH_FOLLY})
 
-message(STATUS "Applied tebako settings")
+message(STATUS "<<<<< Applied tebako settings")
 # -----------------------------------------------------------------------------------------
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
