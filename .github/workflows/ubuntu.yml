@@ -23,12 +23,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# The purpose of this workflow is to check that build procedures work correctly
-# in specific environment. Due to this reason there is no caching. It is done by
-# intention. All caching is in upstream projects.
-#
-# Also this file contains comments that will be useful is dwarfs has to be build
-# in different environment, not GHA.
+
 name: Ubuntu
 
 on:
