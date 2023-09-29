@@ -65,7 +65,6 @@ jobs:
 #  We are running two configurations:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
-      matrix:
         config:
           - { os: ubuntu-20.04, env: { CC: gcc,   CXX: g++     }, build_type: Release, extra_opts: '' }
           - { os: ubuntu-20.04, env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
