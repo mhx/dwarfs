@@ -114,7 +114,10 @@ endif()
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 # -----------------------------------------------------------------------------------------
-message(STATUS "Appling tebako settings")
+message(STATUS ">>>>> Applying tebako settings")
+
+# THis is the default that may be overwritten
+set(GNU_BASH "bash")
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Build scopes
@@ -160,6 +163,53 @@ include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
+
+execute_process(
+  COMMAND "${GNU_BASH}"
+          "-c"
+          "echo \$OSTYPE"
+  RESULT_VARIABLE OSTYPE_RES
+  OUTPUT_VARIABLE OSTYPE_TXT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_STRIP_TRAILING_WHITESPACE
+)
+
+if(OSTYPE_RES EQUAL 0)
+  message(STATUS "OSTYPE: '${OSTYPE_TXT}'")
+else(OSTYPE_RES EQUAL 0)
+  message(FATAL_ERROR "Failed to detect OSTYPE: ${OSTYPE_TXT}")
+endif(OSTYPE_RES EQUAL 0)
+
+set(PATCH_FOLLY OFF)
+
+if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
+  message(STATUS "Adding __musl__ compile definition")
+  add_compile_definitions(__musl__)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+  set(PATCH_FOLLY ON)
+endif()
+
+if (${PATCH_FOLLY})
+  set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
+  execute_process(
+    COMMAND "${GNU_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh"
+            "${FOLLY_ROOT}"
+    RESULT_VARIABLE PATCH_FOLLY_RES
+    OUTPUT_VARIABLE PATCH_FOLLY_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(PATCH_FOLLY_RES EQUAL 0)
+    message(STATUS "Patched folly at '${FOLLY_ROOT}'")
+  else(PATCH_FOLLY_RES EQUAL 0)
+    message(FATAL_ERROR "Failed to patch folly at '${FOLLY_ROOT}': ${PATH_FOLLY_TXT}")
+  endif(PATCH_FOLLY_RES EQUAL 0)
+endif(${PATCH_FOLLY})
+
+message(STATUS "<<<<< Applied tebako settings")
 # -----------------------------------------------------------------------------------------
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
@@ -326,11 +376,13 @@ set(
   "The C++ standard argument to pass to the compiler."
 )
 
-add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
-add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
+add_subdirectory(folly EXCLUDE_FROM_ALL)                        # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
+                                                                # which requires installation on Alpine 3.18 which needs gcompat
+                                                                # that I would like to avoid
+add_subdirectory(fbthrift EXCLUDE_FROM_ALL)                     # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   set(ZSTD_BUILD_SHARED OFF)
-  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL SYSTEM)
+  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)           # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
 endif()
 
 set_property(TARGET folly PROPERTY CXX_STANDARD 20)

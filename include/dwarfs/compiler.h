@@ -37,6 +37,8 @@
 #endif
 #endif
 
-#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__)
+#if !defined(DWARFS_SANITIZE_THREAD) && defined(FOLLY_HAVE_IFUNC)    // tebako - was ... defined(__x86_64__) and not ... defined(FOLLY_HAVE_IFUNC)
+                                                                     // but it dows not seem systematic. Though folly does it wrong anyway and
+                                                                     // I have to patch $1/CMake/FollyConfigChecks.cmake
 #define DWARFS_MULTIVERSIONING 1
 #endif
