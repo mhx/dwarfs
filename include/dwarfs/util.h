@@ -43,6 +43,14 @@ inline std::string u8string_to_string(std::u8string const& in) {
   return std::string(reinterpret_cast<char const*>(in.data()), in.size());
 }
 
+// std::string u8string() const;  (since C++17)  (until C++20)
+// std::u8string u8string() const; (since C++20)
+
+inline std::string u8string_to_string(std::string const& in) {
+  return in;
+}
+
+
 std::string sys_string_to_string(sys_string const& in);
 
 size_t utf8_display_width(char const* p, size_t len);

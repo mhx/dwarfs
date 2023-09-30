@@ -73,7 +73,12 @@ class filesystem_parser {
       auto ss = mm.span<char>(start);
       auto it = std::search(
           ss.begin(), ss.end(),
-          std::boyer_moore_horspool_searcher(magic.begin(), magic.end()));
+#if __cpp_lib_boyer_moore_searcher
+          std::boyer_moore_horspool_searcher
+#else     
+          std::default_searcher
+#endif 
+          (magic.begin(), magic.end()));
 
       if (it == ss.end()) {
         break;

@@ -190,6 +190,13 @@ if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
   set(PATCH_FOLLY ON)
 endif()
 
+if ("${OSTYPE_TXT}" MATCHES "^darwin*")
+  include(${TOOLS}/cmake-scripts/macos-environment.cmake)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+  set(PATCH_FOLLY ON)
+endif()
+
 if (${PATCH_FOLLY})
   set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
   execute_process(
@@ -208,6 +215,20 @@ if (${PATCH_FOLLY})
     message(FATAL_ERROR "Failed to patch folly at '${FOLLY_ROOT}': ${PATH_FOLLY_TXT}")
   endif(PATCH_FOLLY_RES EQUAL 0)
 endif(${PATCH_FOLLY})
+
+check_cxx_source_compiles(
+  "#include <filesystem>
+  int main() {
+    std::filesystem::path p = \"\";
+    std::u8string s;
+    p = p / s;
+    return 0;
+  }"
+  U8STRING_AND_PATH_OK)
+
+if(U8STRING_AND_PATH_OK)
+  add_compile_definitions(U8STRING_AND_PATH_OK)
+endif()
 
 message(STATUS "<<<<< Applied tebako settings")
 # -----------------------------------------------------------------------------------------
@@ -333,7 +354,8 @@ if ("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
     endif()
   else()
     if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
-      message(FATAL_ERROR "No FUSE or FUSE3 library found")
+      message(WARNING "No FUSE or FUSE3 library found")
+      add_compile_definitions(WITHOUT_FUSE)
     endif()
   endif()
 endif("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
@@ -640,22 +662,32 @@ if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
   add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
-  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
+  endif()
   add_executable(dwarfs_utils_test test/utils_test.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
   target_link_libraries(dwarfs_badfs_test gtest gtest_main)
-  target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
+  endif()
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
-       dwarfs_tools_test dwarfs_utils_test)
+       dwarfs_utils_test)
+
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    list(APPEND BINARY_TARGETS dwarfs_tools_test)
+  endif()    
 
   gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_badfs_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
+  endif()
   gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
 
   target_compile_definitions(dwarfs_compat_test
@@ -664,10 +696,12 @@ if(WITH_TESTS)
   target_compile_definitions(dwarfs_badfs_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
-  target_compile_definitions(
-    dwarfs_tools_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)                            
+    target_compile_definitions(
+      dwarfs_tools_test
+      PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+              TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  endif()
 endif()
 
 if(WITH_BENCHMARKS)

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <sstream>
 #include <boost/program_options.hpp>
 
 #include "dwarfs/types.h"
@@ -38,5 +39,16 @@ auto po_sys_value(T* v) {
   return boost::program_options::value<T>(v);
 }
 #endif
+
+// https://stackoverflow.com/questions/45211248/boosts-is-any-of-causes-compile-warning
+inline std::vector<std::string> split(const std::string_view &str, char delim) {
+  std::vector<std::string> out;
+  std::stringstream ss((std::string(str)));
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+      out.push_back(item);
+  }
+  return out;
+}
 
 } // namespace dwarfs

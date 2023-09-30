@@ -831,8 +831,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         chmod_str = "ug-st,=Xr";
       }
 
-      std::vector<std::string_view> chmod_exprs;
-      boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
+      auto chmod_exprs = split(chmod_str, ',');
+      // https://stackoverflow.com/questions/45211248/boosts-is-any-of-causes-compile-warning 
+      // std::vector<std::string_view> chmod_exprs;
+      // boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
 
       // I'm pretty certain these warnings by Flawfinder are false positives.
       // After all, we're just doing a no-op by re-setting the original value

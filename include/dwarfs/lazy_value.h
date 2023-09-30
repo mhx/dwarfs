@@ -35,7 +35,11 @@ class lazy_value {
       : v_{f} {}
 
   T const& get() {
-    if (std::holds_alternative<function_type>(v_)) [[unlikely]] {
+    if (std::holds_alternative<function_type>(v_)) 
+#if __has_cpp_attribute(unlikely)
+    [[unlikely]]
+#endif
+    {
       v_ = std::get<function_type>(v_)();
     }
     return std::get<T>(v_);

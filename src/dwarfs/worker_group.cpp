@@ -33,6 +33,16 @@
 
 #include <unistd.h>
 
+#if __MACH__
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_info.h>
+#include <mach/mach_vm.h>
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
+#include <mach/thread_act.h>
+#endif
+
 #include <folly/Conv.h>
 #include <folly/portability/PThread.h>
 #include <folly/portability/Windows.h>
@@ -79,12 +89,24 @@ pthread_t std_to_pthread_id(std::thread::id tid) {
 }
 
 double get_thread_cpu_time(std::thread const& t) {
+#if __MACH__
+//  https://www.programcreek.com/cpp/?CodeExample=thread+cpu+usage
+      mach_msg_type_number_t count;
+      thread_basic_info_data_t info;
+      count = THREAD_BASIC_INFO_COUNT;
+      mach_port_t thread = pthread_mach_thread_np(std_to_pthread_id(t.get_id()));
+      if (::thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count) == KERN_SUCCESS) {
+        return (info.user_time.seconds + info.user_time.microseconds * 1e-6) +
+               (info.system_time.seconds + info.system_time.microseconds * 1e-6);
+      }
+#else  
   ::clockid_t cid;
   struct ::timespec ts;
   if (::pthread_getcpuclockid(std_to_pthread_id(t.get_id()), &cid) == 0 &&
       ::clock_gettime(cid, &ts) == 0) {
     return ts.tv_sec + 1e-9 * ts.tv_nsec;
   }
+#endif
   throw std::runtime_error("get_thread_cpu_time");
 }
 

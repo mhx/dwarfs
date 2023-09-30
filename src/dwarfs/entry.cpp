@@ -65,10 +65,17 @@ std::u8string entry::u8name() const { return string_to_u8string(name_); }
 
 std::filesystem::path entry::fs_path() const {
   if (auto parent = parent_.lock()) {
+#ifdef U8STRING_AND_PATH_OK
     return parent->fs_path() / u8name();
+#else
+    return parent->fs_path() / name_;
+#endif
   }
-
+#ifdef U8STRING_AND_PATH_OK
   return std::filesystem::path(u8name());
+#else
+  return std::filesystem::path(name_);
+#endif
 }
 
 std::string entry::path_as_string() const {
@@ -380,7 +387,7 @@ void dir::remove_empty_dirs(progress& prog) {
 
 std::shared_ptr<entry> dir::find(std::filesystem::path const& path) {
   auto name = u8string_to_string(path.filename().u8string());
-
+  
   if (!lookup_ && entries_.size() >= 16) {
     populate_lookup_table();
   }

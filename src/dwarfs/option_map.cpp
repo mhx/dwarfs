@@ -28,18 +28,26 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/option_map.h"
+#include "dwarfs/program_options_helpers.h"
 
 namespace dwarfs {
 
 option_map::option_map(const std::string_view spec) {
-  std::vector<std::string_view> arg;
-  boost::split(arg, spec, boost::is_any_of(":"));
+
+  auto arg = split(spec,':'); 
+
+//  https://stackoverflow.com/questions/45211248/boosts-is-any-of-causes-compile-warning
+//  std::vector<std::string_view> arg;
+//  boost::split(arg, spec, boost::is_any_of(std::string(":")));
 
   choice_ = arg[0];
 
   for (size_t i = 1; i < arg.size(); ++i) {
-    std::vector<std::string> kv;
-    boost::split(kv, arg[i], boost::is_any_of("="));
+      auto kv = split(arg[i], '=');
+
+//    https://stackoverflow.com/questions/45211248/boosts-is-any-of-causes-compile-warning
+//    std::vector<std::string> kv;
+//    boost::split(kv, arg[i], boost::is_any_of(std::string("=")));
 
     if (kv.size() > 2) {
       DWARFS_THROW(runtime_error,

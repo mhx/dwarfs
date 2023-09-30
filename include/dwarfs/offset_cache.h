@@ -136,7 +136,10 @@ class basic_offset_cache {
 
     void add_offset(chunk_index_type index, file_offset_type offset) {
       if (index < chunk_index_interval || index % chunk_index_interval != 0)
-          [[likely]] {
+#if __has_cpp_attribute(likely)
+          [[likely]]
+#endif
+      {
         return;
       }
 
