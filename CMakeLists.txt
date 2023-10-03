@@ -59,6 +59,9 @@ if(NOT DISABLE_CCACHE)
   if(CCACHE_EXE)
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_EXE})
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_EXE})
+    message(STATUS "Using ccache at ${CCACHE_EXE}")
+  else()
+    message(STATUS "Could not find ccache")
   endif()
 endif()
 
@@ -680,7 +683,7 @@ if(WITH_TESTS)
 
   if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
     list(APPEND BINARY_TARGETS dwarfs_tools_test)
-  endif()    
+  endif()
 
   gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
@@ -696,7 +699,7 @@ if(WITH_TESTS)
   target_compile_definitions(dwarfs_badfs_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
-  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)                            
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
     target_compile_definitions(
       dwarfs_tools_test
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
