@@ -87,7 +87,7 @@ task:
     memory: 12G
   env:
     matrix:
-      - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF', CC: 'gcc-10', CXX: 'g++-10'        }
+      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON', CC: 'gcc-10', CXX: 'g++-10'         }
       - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF', CC: 'clang-12', CXX: 'clang++-12'  }
 
   pre_install_script: |
