@@ -821,8 +821,9 @@ if(NOT
 endif()
 
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
-if(NOT STATIC_BUILD_DO_NOT_USE)
+if(NOT STATIC_BUILD_DO_NOT_USE AND NOT FOLLY_NO_EXCEPTION_TRACER)
   if(TARGET folly_exception_tracer)
+    message(STATUS "Folly exception tracer enabled")
     set(DWARFS_USE_EXCEPTION_TRACER ON)
   endif()
 endif()
