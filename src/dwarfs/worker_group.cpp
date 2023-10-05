@@ -99,7 +99,7 @@ double get_thread_cpu_time(std::thread const& t) {
         return (info.user_time.seconds + info.user_time.microseconds * 1e-6) +
                (info.system_time.seconds + info.system_time.microseconds * 1e-6);
       }
-#else  
+#else
   ::clockid_t cid;
   struct ::timespec ts;
   if (::pthread_getcpuclockid(std_to_pthread_id(t.get_id()), &cid) == 0 &&

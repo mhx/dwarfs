@@ -41,7 +41,7 @@ build_and_test_task_template: &BUILD_AND_TEST_TASK_TEMPLATE
           .
 
   ccache_cache:
-    folder: $CCACHE_DIR
+    folder: ccache
     reupload_on_changes: false
     fingerprint_script:
       - echo $CIRRUS_OS

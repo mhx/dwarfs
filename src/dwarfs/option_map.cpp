@@ -34,7 +34,7 @@ namespace dwarfs {
 
 option_map::option_map(const std::string_view spec) {
 
-  auto arg = split(spec,':'); 
+  auto arg = split(spec,':');
 
 //  https://stackoverflow.com/questions/45211248/boosts-is-any-of-causes-compile-warning
 //  std::vector<std::string_view> arg;

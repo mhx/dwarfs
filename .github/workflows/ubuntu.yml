@@ -128,7 +128,6 @@ jobs:
 
       - name: Get number of CPU cores
         run:  echo "CORES=$(nproc --all)" >> $GITHUB_ENV
-        
+
       - name: Build and test
         uses: ./.github/actions/build-and-test
-        

@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-# Need XCode 14.3 for std::boyer_moore_horspool_searcher 
+# Need XCode 14.3 for std::boyer_moore_horspool_searcher
           - { os: macos-11, xcode: '12.4' , build_type: Release, extra_opts: '' }
 
 #  We are running two configurations:
@@ -99,7 +99,6 @@ jobs:
 
       - name: Get number of CPU cores
         run:  echo "CORES=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
-   
+
       - name: Build and test
         uses: ./.github/actions/build-and-test
-  

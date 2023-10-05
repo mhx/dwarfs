@@ -387,7 +387,7 @@ void dir::remove_empty_dirs(progress& prog) {
 
 std::shared_ptr<entry> dir::find(std::filesystem::path const& path) {
   auto name = u8string_to_string(path.filename().u8string());
-  
+
   if (!lookup_ && entries_.size() >= 16) {
     populate_lookup_table();
   }

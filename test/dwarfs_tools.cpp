@@ -82,7 +82,7 @@ pid_t get_dwarfs_pid(fs::path const& path) {
   std::array<char, 32> attr_buf;
   auto attr_len = ::getxattr(path.c_str(), "user.dwarfs.driver.pid",
                              attr_buf.data(), attr_buf.size()
-#ifdef __MACH__                              
+#ifdef __MACH__
                              , 0, 0
 #endif
                              );

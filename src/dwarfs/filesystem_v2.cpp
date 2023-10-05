@@ -75,9 +75,9 @@ class filesystem_parser {
           ss.begin(), ss.end(),
 #if __cpp_lib_boyer_moore_searcher
           std::boyer_moore_horspool_searcher
-#else     
+#else
           std::default_searcher
-#endif 
+#endif
           (magic.begin(), magic.end()));
 
       if (it == ss.end()) {

@@ -695,11 +695,11 @@ void dir_entry_view::append_to(std::filesystem::path& p) const {
     }
   }
   if (!is_root()) {
-#ifdef U8STRING_AND_PATH_OK   
+#ifdef U8STRING_AND_PATH_OK
     p /= string_to_u8string(name());
 #else
     p /= name();
-#endif   
+#endif
   }
 }
 

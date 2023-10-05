@@ -70,7 +70,7 @@ FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
 #endif
 
 std::map<std::string_view, int (*)(int, sys_char**)> const functions{
-#ifndef WITHOUT_FUSE  
+#ifndef WITHOUT_FUSE
     {"dwarfs", &dwarfs_main},
 #endif
     {"mkdwarfs", &mkdwarfs_main},
