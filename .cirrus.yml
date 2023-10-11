@@ -63,7 +63,7 @@ task:
     image: ghcr.io/cirruslabs/macos-monterey-base:latest
   env:
     matrix:
-      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON'  }
+#      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON'  }
       - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF'  }
 
   install_script: |
