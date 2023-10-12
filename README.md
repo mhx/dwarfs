@@ -1,11 +1,11 @@
 # Build status for tebako fork
 
-[![Ubuntu](https://github.com/tamatebako/dwarfs-2/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs-2/actions/workflows/ubuntu.yml)
-[![MacOS](https://github.com/tamatebako/dwarfs-2/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs-2/actions/workflows/macos.yml)
-[![Alpine](https://github.com/tamatebako/dwarfs-2/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs-2/actions/workflows/alpine.yml)
+[![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)
+[![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml)
+[![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml)
 
-[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs-2.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs-2)
-[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs-2.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs-2)
+[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
+[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
 
 # DwarFS
 
