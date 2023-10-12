@@ -22,7 +22,8 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
+
+#include <boost/iostreams/device/mapped_file.hpp>
 
 #include "dwarfs/mmif.h"
 
@@ -30,22 +31,24 @@ namespace dwarfs {
 
 class mmap : public mmif {
  public:
-  explicit mmap(const std::string& path);
-  mmap(const std::string& path, size_t size);
-
-  ~mmap() noexcept override;
+  explicit mmap(std::filesystem::path const& path);
+  explicit mmap(std::string const& path);
+  explicit mmap(char const* path);
+  mmap(std::filesystem::path const& path, size_t size);
+  mmap(std::string const& path, size_t size);
 
   void const* addr() const override;
   size_t size() const override;
 
-  boost::system::error_code lock(off_t offset, size_t size) override;
-  boost::system::error_code release(off_t offset, size_t size) override;
-  boost::system::error_code release_until(off_t offset) override;
+  std::error_code lock(file_off_t offset, size_t size) override;
+  std::error_code release(file_off_t offset, size_t size) override;
+  std::error_code release_until(file_off_t offset) override;
+
+  std::filesystem::path const& path() const override;
 
  private:
-  int fd_;
-  size_t size_;
-  void* addr_;
-  off_t const page_size_;
+  boost::iostreams::mapped_file mutable mf_;
+  uint64_t const page_size_;
+  std::filesystem::path const path_;
 };
 } // namespace dwarfs

@@ -28,6 +28,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/compression.h"
 #include "dwarfs/fstypes.h"
 
 namespace dwarfs {
@@ -39,14 +40,16 @@ const std::map<section_type, std::string_view> sections{
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
     SECTION_TYPE_(METADATA_V2),
+    SECTION_TYPE_(SECTION_INDEX),
 #undef SECTION_TYPE_
 };
 
 const std::map<compression_type, std::string_view> compressions{
-#define COMPRESSION_TYPE_(x) {compression_type::x, #x}
-    COMPRESSION_TYPE_(NONE), COMPRESSION_TYPE_(LZMA), COMPRESSION_TYPE_(ZSTD),
-    COMPRESSION_TYPE_(LZ4), COMPRESSION_TYPE_(LZ4HC)
-#undef COMPRESSION_TYPE_
+#define DWARFS_COMPRESSION_TYPE_(name, value) {compression_type::name, #name}
+#define DWARFS_COMMA_ ,
+    DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_, DWARFS_COMMA_)
+#undef DWARFS_COMPRESSION_TYPE_
+#undef DWARFS_COMMA_
 };
 
 template <typename HT>

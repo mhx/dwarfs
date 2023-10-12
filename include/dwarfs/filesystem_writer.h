@@ -25,9 +25,8 @@
 #include <cstdint>
 #include <memory>
 #include <ostream>
+#include <span>
 #include <utility>
-
-#include <folly/Range.h>
 
 #include "dwarfs/fstypes.h"
 #include "dwarfs/options.h"
@@ -56,7 +55,9 @@ class filesystem_writer {
                     filesystem_writer_options const& options,
                     std::istream* header = nullptr);
 
-  void copy_header(folly::ByteRange header) { impl_->copy_header(header); }
+  void copy_header(std::span<uint8_t const> header) {
+    impl_->copy_header(header);
+  }
 
   void write_block(std::shared_ptr<block_data>&& data) {
     impl_->write_block(std::move(data));
@@ -71,7 +72,7 @@ class filesystem_writer {
   }
 
   void write_compressed_section(section_type type, compression_type compression,
-                                folly::ByteRange data) {
+                                std::span<uint8_t const> data) {
     impl_->write_compressed_section(type, compression, data);
   }
 
@@ -85,14 +86,14 @@ class filesystem_writer {
    public:
     virtual ~impl() = default;
 
-    virtual void copy_header(folly::ByteRange header) = 0;
+    virtual void copy_header(std::span<uint8_t const> header) = 0;
     virtual void write_block(std::shared_ptr<block_data>&& data) = 0;
     virtual void
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
     virtual void
     write_compressed_section(section_type type, compression_type compression,
-                             folly::ByteRange data) = 0;
+                             std::span<uint8_t const> data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
     virtual int queue_fill() const = 0;

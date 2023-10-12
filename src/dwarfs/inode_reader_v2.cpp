@@ -30,23 +30,76 @@
 
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
+#include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_cache.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/inode_reader_v2.h"
+#include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/offset_cache.h"
+#include "dwarfs/performance_monitor.h"
 
 namespace dwarfs {
 
 namespace {
 
+/**
+ * Offset cache configuration
+ *
+ * The offset cache is a small cache that improves both random
+ * and sequential read speed in large, fragmented files.
+ *
+ * Due to the way file metadata is organized, accessing a random
+ * location inside a file requires iteration over all chunks until
+ * the correct offset is found. When sequentially reading a file in
+ * multiple requests, this becomes an O(n**2) operation.
+ *
+ * For files with a small enough number of chunks, performing the
+ * linear scan isn't really a problem. For very fragmented files,
+ * it can definitely be an issue.
+ *
+ * The offset cache saves absolute file offsets every
+ * `offset_cache_chunk_index_interval` chunks, so it'll only be
+ * used for files with at least that many chunks in the first
+ * place. The saved offsets can be used to find a nearby chunk
+ * using binary search instead of a linear scan. From that chunk,
+ * the requested offset can be found using a linear scan.
+ *
+ * For the most common use case, sequential reads, the cache entry
+ * includes the last chunk index along with its absolute offset,
+ * so both the binary search and the linear scan can be completely
+ * avoided when a subsequent read request starts at the end of the
+ * previous read request.
+ *
+ * The `offset_cache_updater_max_inline_offsets` constant defines
+ * how many (offset, index) pairs can be stored "inline" (i.e.
+ * without requiring any memory allocations) by the cache updater
+ * while performing the read request. 4 is plenty.
+ *
+ * Last but not least, `offset_cache_size` defines the number of
+ * inodes that can live in the cache simultaneously. The number
+ * of cached offsets for each inode is not limited.
+ */
+constexpr size_t const offset_cache_chunk_index_interval = 256;
+constexpr size_t const offset_cache_updater_max_inline_offsets = 4;
+constexpr size_t const offset_cache_size = 64;
+
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
-  inode_reader_(logger& lgr, block_cache&& bc)
+  inode_reader_(logger& lgr, block_cache&& bc,
+                std::shared_ptr<performance_monitor const> perfmon
+                [[maybe_unused]])
       : cache_(std::move(bc))
       , LOG_PROXY_INIT(lgr)
+      // clang-format off
+      PERFMON_CLS_PROXY_INIT(perfmon, "inode_reader_v2")
+      PERFMON_CLS_TIMER_INIT(read)
+      PERFMON_CLS_TIMER_INIT(readv_iovec)
+      PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
+      , offset_cache_{offset_cache_size}
       , iovec_sizes_(1, 0, 256) {}
 
   ~inode_reader_() override {
@@ -60,26 +113,42 @@ class inode_reader_ final : public inode_reader_v2::impl {
     }
   }
 
-  ssize_t
-  read(char* buf, size_t size, off_t offset, chunk_range chunks) const override;
-  ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
-                chunk_range chunks) const override;
+  ssize_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
+               chunk_range chunks) const override;
+  ssize_t readv(iovec_read_buf& buf, uint32_t inode, size_t size,
+                file_off_t offset, chunk_range chunks) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(size_t size, off_t offset, chunk_range chunks) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        chunk_range chunks) const override;
   void dump(std::ostream& os, const std::string& indent,
             chunk_range chunks) const override;
   void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) override {
+    cache_.set_tidy_config(cfg);
+  }
+  size_t num_blocks() const override { return cache_.block_count(); }
 
  private:
+  using offset_cache_type =
+      basic_offset_cache<uint32_t, file_off_t, size_t,
+                         offset_cache_chunk_index_interval,
+                         offset_cache_updater_max_inline_offsets>;
+
   folly::Expected<std::vector<std::future<block_range>>, int>
-  read(size_t size, off_t offset, chunk_range chunks) const;
+  read_internal(uint32_t inode, size_t size, file_off_t offset,
+                chunk_range chunks) const;
 
   template <typename StoreFunc>
-  ssize_t read(size_t size, off_t offset, chunk_range chunks,
-               const StoreFunc& store) const;
+  ssize_t read_internal(uint32_t inode, size_t size, file_off_t offset,
+                        chunk_range chunks, const StoreFunc& store) const;
 
   block_cache cache_;
   LOG_PROXY_DECL(LoggerPolicy);
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(read)
+  PERFMON_CLS_TIMER_DECL(readv_iovec)
+  PERFMON_CLS_TIMER_DECL(readv_future)
+  mutable offset_cache_type offset_cache_;
   mutable folly::Histogram<size_t> iovec_sizes_;
   mutable std::mutex iovec_sizes_mutex_;
 };
@@ -96,8 +165,9 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
 
 template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
-inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
-                                   chunk_range chunks) const {
+inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
+                                           file_off_t offset,
+                                           chunk_range chunks) const {
   if (offset < 0) {
     return folly::makeUnexpected(-EINVAL);
   }
@@ -112,6 +182,22 @@ inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
   auto it = chunks.begin();
   auto end = chunks.end();
 
+  size_t it_index = 0;
+  file_off_t it_offset = 0;
+
+  offset_cache_type::value_type oc_ent;
+  offset_cache_type::updater oc_upd;
+
+  // Check if we can find this inode in the offset cache
+  if (offset > 0 && chunks.size() >= offset_cache_type::chunk_index_interval) {
+    oc_ent = offset_cache_.find(inode, chunks.size());
+
+    std::tie(it_index, it_offset) = oc_ent->find(offset, oc_upd);
+
+    std::advance(it, it_index);
+    offset -= it_offset;
+  }
+
   // search for the first chunk that contains data from this request
   while (it < end) {
     size_t chunksize = it->size();
@@ -121,7 +207,10 @@ inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
     }
 
     offset -= chunksize;
+    it_offset += chunksize;
     ++it;
+
+    oc_upd.add_offset(++it_index, it_offset);
   }
 
   if (it == end) {
@@ -129,23 +218,40 @@ inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
     return ranges;
   }
 
-  for (size_t num_read = 0; it != end && num_read < size; ++it) {
-    size_t chunksize = it->size() - offset;
-    size_t chunkoff = it->offset() + offset;
+  size_t num_read = 0;
 
-    if (chunksize == 0) {
+  while (it != end) {
+    size_t const chunksize = it->size();
+    size_t const copyoff = it->offset() + offset;
+    size_t copysize = chunksize - offset;
+
+    if (copysize == 0) {
       LOG_ERROR << "invalid zero-sized chunk";
       return folly::makeUnexpected(-EIO);
     }
 
-    if (num_read + chunksize > size) {
-      chunksize = size - num_read;
+    if (num_read + copysize > size) {
+      copysize = size - num_read;
     }
 
-    ranges.emplace_back(cache_.get(it->block(), chunkoff, chunksize));
+    ranges.emplace_back(cache_.get(it->block(), copyoff, copysize));
 
-    num_read += chunksize;
+    num_read += copysize;
+
+    if (num_read == size) {
+      if (oc_ent) {
+        oc_ent->update(oc_upd, it_index, it_offset, chunksize);
+        offset_cache_.set(inode, std::move(oc_ent));
+      }
+
+      break;
+    }
+
     offset = 0;
+    it_offset += chunksize;
+    ++it;
+
+    oc_upd.add_offset(++it_index, it_offset);
   }
 
   return ranges;
@@ -154,9 +260,11 @@ inode_reader_<LoggerPolicy>::readv(size_t size, off_t offset,
 template <typename LoggerPolicy>
 template <typename StoreFunc>
 ssize_t
-inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
-                                  const StoreFunc& store) const {
-  auto ranges = readv(size, offset, chunks);
+inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t size,
+                                           file_off_t offset,
+                                           chunk_range chunks,
+                                           const StoreFunc& store) const {
+  auto ranges = read_internal(inode, size, offset, chunks);
 
   if (!ranges) {
     return ranges.error();
@@ -181,24 +289,40 @@ inode_reader_<LoggerPolicy>::read(size_t size, off_t offset, chunk_range chunks,
 }
 
 template <typename LoggerPolicy>
-ssize_t inode_reader_<LoggerPolicy>::read(char* buf, size_t size, off_t offset,
-                                          chunk_range chunks) const {
-  return read(size, offset, chunks,
-              [&](size_t num_read, const block_range& br) {
-                ::memcpy(buf + num_read, br.data(), br.size());
-              });
+folly::Expected<std::vector<std::future<block_range>>, int>
+inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
+                                   file_off_t offset,
+                                   chunk_range chunks) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
+
+  return read_internal(inode, size, offset, chunks);
 }
 
 template <typename LoggerPolicy>
 ssize_t
-inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, size_t size,
-                                   off_t offset, chunk_range chunks) const {
-  auto rv = read(size, offset, chunks, [&](size_t, const block_range& br) {
-    buf.buf.resize(buf.buf.size() + 1);
-    buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
-    buf.buf.back().iov_len = br.size();
-    buf.ranges.emplace_back(br);
-  });
+inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
+                                  file_off_t offset, chunk_range chunks) const {
+  PERFMON_CLS_SCOPED_SECTION(read)
+
+  return read_internal(inode, size, offset, chunks,
+                       [&](size_t num_read, const block_range& br) {
+                         ::memcpy(buf + num_read, br.data(), br.size());
+                       });
+}
+
+template <typename LoggerPolicy>
+ssize_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
+                                           size_t size, file_off_t offset,
+                                           chunk_range chunks) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec)
+
+  auto rv = read_internal(
+      inode, size, offset, chunks, [&](size_t, const block_range& br) {
+        buf.buf.resize(buf.buf.size() + 1);
+        buf.buf.back().iov_base = const_cast<uint8_t*>(br.data());
+        buf.buf.back().iov_len = br.size();
+        buf.ranges.emplace_back(br);
+      });
   {
     std::lock_guard lock(iovec_sizes_mutex_);
     iovec_sizes_.addValue(buf.buf.size());
@@ -208,8 +332,11 @@ inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, size_t size,
 
 } // namespace
 
-inode_reader_v2::inode_reader_v2(logger& lgr, block_cache&& bc)
+inode_reader_v2::inode_reader_v2(
+    logger& lgr, block_cache&& bc,
+    std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<inode_reader_v2::impl, inode_reader_,
-                                       logger_policies>(lgr, std::move(bc))) {}
+                                       logger_policies>(lgr, std::move(bc),
+                                                        std::move(perfmon))) {}
 
 } // namespace dwarfs

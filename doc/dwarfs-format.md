@@ -1,18 +1,17 @@
-dwarfs-format(5) -- DwarFS File System Format v2.3
-==================================================
+# dwarfs-format(5) -- DwarFS File System Format v2.5
 
 ## DESCRIPTION
 
-This document describes the DwarFS file system format, version 2.3.
-
+This document describes the DwarFS file system format, version 2.5.
 
 ## FILE STRUCTURE
 
-A DwarFS file system image is just a sequence of blocks. Each block has the
-following format:
+A DwarFS file system image is just a sequence of blocks, optionally
+prefixed by a "header", which is typically some sort of shell script.
+Each block has the following format:
 
          ┌───┬───┬───┬───┬───┬───┬───┬───┐
-    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x03 for v2.3
+    0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x05 for v2.5
          ├───┴───┴───┴───┴───┴───┴───┴───┤
     0x08 │                               │  Used for full (slow) integrity
          ├─ SHA-512/256 integrity hash  ─┤  check with `dwarfsck`.
@@ -65,25 +64,55 @@ A couple of notes:
   larger than the one it supports. However, a new program will still
   read all file systems with a smaller minor version number.
 
+### Header Detection
+
+In order to access the file system data when it is prefixed by a header,
+the size of the header must be known. It can either be given to the
+tools or the FUSE driver explicitly (using e.g. the `--image-offset` or
+`-o offset` options), or it can be determined automatically (by passing
+`auto` as the argument to the aforementioned options).
+
+Automatic detection works by scanning the file for the section header
+magic (`DWARFS`) and validating the match by looking up the second
+section header using the length of the first section and also checking
+its magic. It is rather unlikely that a file is created accidentally
+that would pass this check, although one could be crafted manually
+without any problems.
 
 ### Section Types
 
-There are currently 3 different section types.
+There are currently 4 different section types.
 
-  * `BLOCK` (0):
-    A block of data. This is where all file data is stored. There can be
-    an arbitrary number of blocks of this type.
+- `BLOCK` (0):
+  A block of data. This is where all file data is stored. There can be
+  an arbitrary number of blocks of this type.
 
-  * `METADATA_V2_SCHEMA` (7):
-    The schema used to layout the `METADATA_V2` block contents. This is
-    stored in "compact" thrift encoding.
+- `METADATA_V2_SCHEMA` (7):
+  The schema used to layout the `METADATA_V2` block contents. This is
+  stored in "compact" thrift encoding.
 
-  * `METADATA_V2` (8):
-    This section contains the bulk of the metadata. It's essentially just
-    a collection of bit-packed arrays and structures. The exact layout of
-    each list and structure depends on the actual data and is stored
-    separately in `METADATA_V2_SCHEMA`.
+- `METADATA_V2` (8):
+  This section contains the bulk of the metadata. It's essentially just
+  a collection of bit-packed arrays and structures. The exact layout of
+  each list and structure depends on the actual data and is stored
+  separately in `METADATA_V2_SCHEMA`.
 
+- `SECTION_INDEX` (9):
+  The section index is, well, an index of all sections in the file
+  system. If present (creation of the index can be suppressed with
+  `--no-section-index`), this is *required* to be the last section.
+  Each entry in the section index is a 64-bit value with the upper
+  16 bits being the section type and the lower 48 bits being the
+  offset relative to the first section. That is, the section index
+  is independent of whether or not a header is present before the
+  first section. The whole point of the section index is to avoid
+  having to build an index by visiting all section headers.
+  In order to find the start of the section index, you only have
+  to read the last 64-bit value from the file, check if the upper
+  16 bits match the `SECTION_INDEX`, then add the image offset
+  (header size) to the lower 48 bits. At that position in the
+  file, you should find a valid section header for the section
+  index.
 
 ## METADATA FORMAT
 
@@ -91,7 +120,7 @@ Here is a high-level overview of how all the bits and pieces relate
 to each other:
 
     ═════════════           ┌─────────────────────────────────────────────────────────────────────────┐
-     DwarFS v2.3            │                                                                         │
+     DwarFS v2.5            │                                                                         │
     ═════════════           │         ┌───────────────────────────────────────────┐                   │
                             │         │                                           │                   │
               dir_entries[] ▼         │              inodes[]                     │   directories[]   │
@@ -169,17 +198,12 @@ list. The index into this list is the `inode_num` from `dir_entries`,
 but you can perform direct lookups based on the inode number as well.
 The `inodes` list is strictly in the following order:
 
-* directory inodes (`S_IFDIR`)
-
-* symlink inodes (`S_IFLNK`)
-
-* regular *unique* file inodes (`S_IREG`)
-
-* regular *shared* file inodes (`S_IREG`)
-
-* character/block device inodes (`S_IFCHR`, `S_IFBLK`)
-
-* socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
+- directory inodes (`S_IFDIR`)
+- symlink inodes (`S_IFLNK`)
+- regular *unique* file inodes (`S_IREG`)
+- regular *shared* file inodes (`S_IREG`)
+- character/block device inodes (`S_IFCHR`, `S_IFBLK`)
+- socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
 
 The offsets can thus be found by using a binary search with a
 predicate on the inode more. The shared file offset can be found
@@ -287,7 +311,7 @@ is true.
 
 The `directories` table, when stored in packed format, omits
 all `parent_entry` fields and uses delta compression for the
-`first_entry` fields. 
+`first_entry` fields.
 
 In order to unpack all information, you first have to delta-
 decompress the `first_entry` fields, then traverse the whole
@@ -313,7 +337,7 @@ is true.
 Both the `names` and `symlinks` tables can be stored in a
 packed format in `compact_names` and `compact_symlinks`.
 
-There are two separate packing schemes that can be combined.
+There are two separate packing schemes which can be combined.
 If none of these schemes is active, the difference between
 e.g. `names` and `compact_names` is that the former is stored
 as a "proper" list, whereas the latter is stored as a single

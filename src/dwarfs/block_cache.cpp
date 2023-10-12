@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <exception>
 #include <future>
@@ -37,8 +39,11 @@
 
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
+#include <folly/system/HardwareConcurrency.h>
+#include <folly/system/ThreadName.h>
 
 #include "dwarfs/block_cache.h"
+#include "dwarfs/cached_block.h"
 #include "dwarfs/fs_section.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
@@ -46,75 +51,6 @@
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
-
-class cached_block {
- public:
-  cached_block(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-               bool release)
-      : decompressor_(std::make_unique<block_decompressor>(
-            b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_))
-      , mm_(std::move(mm))
-      , section_(b)
-      , LOG_PROXY_INIT(lgr)
-      , release_(release) {
-    if (!section_.check_fast(*mm_)) {
-      DWARFS_THROW(runtime_error, "block data integrity check failed");
-    }
-  }
-
-  ~cached_block() {
-    if (decompressor_) {
-      try_release();
-    }
-  }
-
-  // once the block is fully decompressed, we can reset the decompressor_
-
-  // This can be called from any thread
-  size_t range_end() const { return range_end_.load(); }
-
-  const uint8_t* data() const { return data_.data(); }
-
-  void decompress_until(size_t end) {
-    while (data_.size() < end) {
-      if (!decompressor_) {
-        DWARFS_THROW(runtime_error, "no decompressor for block");
-      }
-
-      if (decompressor_->decompress_frame()) {
-        // We're done, free the memory
-        decompressor_.reset();
-
-        // And release the memory from the mapping
-        try_release();
-      }
-
-      range_end_ = data_.size();
-    }
-  }
-
-  size_t uncompressed_size() const {
-    return decompressor_ ? decompressor_->uncompressed_size()
-                         : range_end_.load();
-  }
-
- private:
-  void try_release() {
-    if (release_) {
-      if (auto ec = mm_->release(section_.start(), section_.length())) {
-        LOG_INFO << "madvise() failed: " << ec.message();
-      }
-    }
-  }
-
-  std::atomic<size_t> range_end_{0};
-  std::vector<uint8_t> data_;
-  std::unique_ptr<block_decompressor> decompressor_;
-  std::shared_ptr<mmif> mm_;
-  fs_section section_;
-  LOG_PROXY_DECL(debug_logger_policy);
-  bool const release_;
-};
 
 class block_request {
  public:
@@ -208,16 +144,20 @@ class block_cache_ final : public block_cache::impl {
       , LOG_PROXY_INIT(lgr)
       , options_(options) {
     if (options.init_workers) {
-      wg_ = worker_group("blkcache",
-                         std::max(options.num_workers > 0
-                                      ? options.num_workers
-                                      : std::thread::hardware_concurrency(),
-                                  static_cast<size_t>(1)));
+      wg_ =
+          worker_group("blkcache", std::max(options.num_workers > 0
+                                                ? options.num_workers
+                                                : folly::hardware_concurrency(),
+                                            static_cast<size_t>(1)));
     }
   }
 
   ~block_cache_() noexcept override {
     LOG_DEBUG << "stopping cache workers";
+
+    if (tidy_running_) {
+      stop_tidy_thread();
+    }
 
     if (wg_) {
       wg_.stop();
@@ -250,6 +190,7 @@ class block_cache_ final : public block_cache::impl {
     // number of evicted blocks outgrow the number of created blocks.
     LOG_INFO << "blocks created: " << blocks_created_.load();
     LOG_INFO << "blocks evicted: " << blocks_evicted_.load();
+    LOG_INFO << "blocks tidied: " << blocks_tidied_.load();
     LOG_INFO << "request sets merged: " << sets_merged_.load();
     LOG_INFO << "total requests: " << range_requests_.load();
     LOG_INFO << "active hits (fast): " << active_hits_fast_.load();
@@ -309,12 +250,53 @@ class block_cache_ final : public block_cache::impl {
     wg_ = worker_group("blkcache", num);
   }
 
+  void set_tidy_config(cache_tidy_config const& cfg) override {
+    if (cfg.strategy == cache_tidy_strategy::NONE) {
+      if (tidy_running_) {
+        stop_tidy_thread();
+      }
+    } else {
+      std::lock_guard lock(mx_);
+
+      tidy_config_ = cfg;
+
+      if (tidy_running_) {
+        tidy_cond_.notify_all();
+      } else {
+        tidy_running_ = true;
+        tidy_thread_ = std::thread(&block_cache_::tidy_thread, this);
+      }
+    }
+  }
+
   std::future<block_range>
   get(size_t block_no, size_t offset, size_t size) const override {
     ++range_requests_;
 
     std::promise<block_range> promise;
     auto future = promise.get_future();
+
+    // First, let's see if it's an uncompressed block, in which case we
+    // can completely bypass the cache
+    try {
+      if (block_no >= block_.size()) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("block number out of range {0} >= {1}",
+                                 block_no, block_.size()));
+      }
+
+      auto const& section = DWARFS_NOTHROW(block_.at(block_no));
+
+      if (section.compression() == compression_type::NONE) {
+        LOG_TRACE << "block " << block_no
+                  << " is uncompressed, bypassing cache";
+        promise.set_value(block_range(section.data(*mm_).data(), offset, size));
+        return future;
+      }
+    } catch (...) {
+      promise.set_exception(std::current_exception());
+      return future;
+    }
 
     // That is a mighty long lock, let's see how it works...
     std::lock_guard lock(mx_);
@@ -425,17 +407,11 @@ class block_cache_ final : public block_cache::impl {
     // Bummer. We don't know anything about the block.
 
     try {
-      if (block_no >= block_.size()) {
-        DWARFS_THROW(runtime_error,
-                     fmt::format("block number out of range {0} >= {1}",
-                                 block_no, block_.size()));
-      }
-
       LOG_TRACE << "block " << block_no << " not found";
 
-      auto block = std::make_shared<cached_block>(
+      std::shared_ptr<cached_block> block = cached_block::create(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
-          options_.mm_release);
+          options_.mm_release, options_.disable_block_integrity_check);
       ++blocks_created_;
 
       // Make a new set for the block
@@ -454,6 +430,15 @@ class block_cache_ final : public block_cache::impl {
   }
 
  private:
+  void stop_tidy_thread() {
+    {
+      std::lock_guard lock(mx_);
+      tidy_running_ = false;
+    }
+    tidy_cond_.notify_all();
+    tidy_thread_.join();
+  }
+
   void update_block_stats(cached_block const& cb) {
     if (cb.range_end() < cb.uncompressed_size()) {
       ++partially_decompressed_;
@@ -549,7 +534,57 @@ class block_cache_ final : public block_cache::impl {
     // the LRU queue.
     {
       std::lock_guard lock(mx_);
+
+      if (tidy_config_.strategy == cache_tidy_strategy::EXPIRY_TIME) {
+        block->touch();
+      }
+
       cache_.set(block_no, std::move(block));
+    }
+  }
+
+  template <typename Pred>
+  void remove_block_if(Pred const& predicate) {
+    auto it = cache_.begin();
+
+    while (it != cache_.end()) {
+      if (predicate(*it->second)) {
+        it = cache_.erase(it);
+        ++blocks_tidied_;
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  void tidy_thread() {
+    folly::setThreadName("cache-tidy");
+
+    std::unique_lock lock(mx_);
+
+    while (tidy_running_) {
+      if (tidy_cond_.wait_for(lock, tidy_config_.interval) ==
+          std::cv_status::timeout) {
+        switch (tidy_config_.strategy) {
+        case cache_tidy_strategy::EXPIRY_TIME:
+          remove_block_if(
+              [tp = std::chrono::steady_clock::now() -
+                    tidy_config_.expiry_time](cached_block const& blk) {
+                return blk.last_used_before(tp);
+              });
+          break;
+
+        case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
+          std::vector<uint8_t> tmp;
+          remove_block_if([&tmp](cached_block const& blk) {
+            return blk.any_pages_swapped_out(tmp);
+          });
+        } break;
+
+        default:
+          break;
+        }
+      }
     }
   }
 
@@ -561,6 +596,9 @@ class block_cache_ final : public block_cache::impl {
   mutable folly::F14FastMap<size_t,
                             std::deque<std::weak_ptr<block_request_set>>>
       active_;
+  std::thread tidy_thread_;
+  std::condition_variable tidy_cond_;
+  bool tidy_running_{false};
 
   mutable std::mutex mx_dec_;
   mutable folly::F14FastMap<size_t, std::weak_ptr<block_request_set>>
@@ -577,6 +615,7 @@ class block_cache_ final : public block_cache::impl {
   mutable std::atomic<size_t> partially_decompressed_{0};
   mutable std::atomic<size_t> total_block_bytes_{0};
   mutable std::atomic<size_t> total_decompressed_bytes_{0};
+  mutable std::atomic<size_t> blocks_tidied_{0};
 
   mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;
@@ -584,27 +623,12 @@ class block_cache_ final : public block_cache::impl {
   std::shared_ptr<mmif> mm_;
   LOG_PROXY_DECL(LoggerPolicy);
   const block_cache_options options_;
+  cache_tidy_config tidy_config_;
 };
 
 block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,
                          const block_cache_options& options)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
           lgr, std::move(mm), options)) {}
-
-// TODO: clean up: this is defined in fstypes.h...
-block_range::block_range(std::shared_ptr<cached_block const> block,
-                         size_t offset, size_t size)
-    : begin_(block->data() + offset)
-    , end_(begin_ + size)
-    , block_(std::move(block)) {
-  if (!block_->data()) {
-    DWARFS_THROW(runtime_error, "block_range: block data is null");
-  }
-  if (size > block_->range_end()) {
-    DWARFS_THROW(runtime_error,
-                 fmt::format("block_range: size out of range ({0} > {1})", size,
-                             block_->range_end()));
-  }
-}
 
 } // namespace dwarfs

@@ -21,51 +21,18 @@
 
 #pragma once
 
-#include <folly/portability/SysUio.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
-#include <memory>
 #include <string>
-
-#include <folly/small_vector.h>
 
 #include "dwarfs/block_compressor.h" // TODO: or the other way round?
 #include "dwarfs/checksum.h"
 
 namespace dwarfs {
 
-class cached_block;
-
-// TODO: move elsewhere
-class block_range {
- public:
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
-
-  uint8_t const* data() const { return begin_; }
-  uint8_t const* begin() const { return begin_; }
-  uint8_t const* end() const { return end_; }
-  size_t size() const { return end_ - begin_; }
-
- private:
-  uint8_t const* const begin_;
-  uint8_t const* const end_;
-  std::shared_ptr<cached_block const> block_;
-};
-
-// TODO: move elsewhere
-struct iovec_read_buf {
-  // This covers more than 95% of reads
-  static constexpr size_t inline_storage = 16;
-
-  folly::small_vector<struct ::iovec, inline_storage> buf;
-  folly::small_vector<block_range, inline_storage> ranges;
-};
-
 constexpr uint8_t MAJOR_VERSION = 2;
-constexpr uint8_t MINOR_VERSION = 3;
+constexpr uint8_t MINOR_VERSION = 5;
 
 enum class section_type : uint16_t {
   BLOCK = 0,
@@ -76,6 +43,9 @@ enum class section_type : uint16_t {
 
   METADATA_V2 = 8,
   // Frozen metadata.
+
+  SECTION_INDEX = 9,
+  // Section index.
 };
 
 struct file_header {
@@ -104,11 +74,6 @@ struct section_header_v2 {
   uint16_t type;            // [52] section type
   uint16_t compression;     // [54] compression
   uint64_t length;          // [56] length of section
-
-  static_assert(checksum::digest_size(checksum::algorithm::XXH3_64) ==
-                sizeof(xxh3_64));
-  static_assert(checksum::digest_size(checksum::algorithm::SHA2_512_256) ==
-                sizeof(sha2_512_256));
 
   std::string to_string() const;
   void dump(std::ostream& os) const;

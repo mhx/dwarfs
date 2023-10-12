@@ -19,22 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/portability/Fcntl.h>
-#ifndef _WIN32
-#include <sys/statvfs.h>
-#else
-#include <pro-statvfs.h>
-#include <folly/portability/SysStat.h>
-#endif
-#include <folly/portability/Time.h>
-#include <folly/portability/Unistd.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
 #include <climits>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
 #include <numeric>
 #include <ostream>
 
@@ -44,25 +35,23 @@
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
-#include <fmt/core.h>
 #include <fmt/format.h>
-#if FMT_VERSION>=80000
-#include <fmt/xchar.h>
-#else
-#include <fmt/locale.h>
-#endif
 
 #include <folly/container/F14Set.h>
+#include <folly/portability/Stdlib.h>
+#include <folly/portability/Unistd.h>
 
 #include <fsst.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
+#include "dwarfs/vfs_stat.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
@@ -70,6 +59,8 @@
 #include "thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h"
 
 namespace dwarfs {
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -101,7 +92,7 @@ freeze_to_buffer(const T& x) {
   return {schema_buffer, data_buffer};
 }
 
-void check_schema(folly::ByteRange data) {
+void check_schema(std::span<uint8_t const> data) {
   using namespace ::apache::thrift;
   frozen::schema::Schema schema;
   size_t schemaSize = CompactSerializer::deserialize(data, schema);
@@ -109,23 +100,23 @@ void check_schema(folly::ByteRange data) {
   if (schemaSize != data.size()) {
     DWARFS_THROW(runtime_error, "invalid schema size");
   }
-  if (schema.layouts_ref()->count(*schema.rootLayout_ref()) == 0) {
+  if (schema.layouts()->count(*schema.rootLayout()) == 0) {
     DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
   }
-  for (auto const& kvl : *schema.layouts_ref()) {
+  for (auto const& kvl : *schema.layouts()) {
     auto const& layout = kvl.second;
-    if (kvl.first >= static_cast<int64_t>(schema.layouts_ref()->size())) {
+    if (kvl.first >= static_cast<int64_t>(schema.layouts()->size())) {
       DWARFS_THROW(runtime_error, "invalid layout key in schema");
     }
-    if (*layout.size_ref() < 0) {
+    if (*layout.size() < 0) {
       DWARFS_THROW(runtime_error, "negative size in schema");
     }
-    if (*layout.bits_ref() < 0) {
+    if (*layout.bits() < 0) {
       DWARFS_THROW(runtime_error, "negative bits in schema");
     }
-    for (auto const& kvf : *layout.fields_ref()) {
+    for (auto const& kvf : *layout.fields()) {
       auto const& field = kvf.second;
-      if (schema.layouts_ref()->count(*field.layoutId_ref()) == 0) {
+      if (schema.layouts()->count(*field.layoutId()) == 0) {
         DWARFS_THROW(runtime_error, "invalid layoutId in field");
       }
     }
@@ -133,61 +124,22 @@ void check_schema(folly::ByteRange data) {
 }
 
 template <typename T>
-MappedFrozen<T> map_frozen(folly::ByteRange schema, folly::ByteRange data) {
+MappedFrozen<T>
+map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
   using namespace ::apache::thrift::frozen;
   check_schema(schema);
   auto layout = std::make_unique<Layout<T>>();
-  deserializeRootLayout(schema, *layout);
-  MappedFrozen<T> ret(layout->view({data.begin(), 0}));
+  folly::ByteRange tmp(schema.data(), schema.size());
+  deserializeRootLayout(tmp, *layout);
+  MappedFrozen<T> ret(layout->view({data.data(), 0}));
   ret.hold(std::move(layout));
   return ret;
-}
-
-#if FMT_VERSION >= 70000
-#define DWARFS_FMT_L "L"
-#else
-#define DWARFS_FMT_L "n"
-#endif
-
-static std::string fmt_size(const char * name, size_t count, size_t size,
-                     size_t total_size, std::locale& loc) {
-  return fmt::format(loc,
-                     "{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
-                     "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
-                     count, name, size, 100.0 * size / total_size,
-                     count > 0 ? static_cast<double>(size) / count : 0.0);
-}
-
-static std::string fmt_detail(const char * name, size_t count, size_t size,
-                       std::string num, std::locale& loc) {
-  return fmt::format(
-        loc,
-        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
-        "{3:5.1f} bytes/item\n",
-        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
-}
-
-static std::string fmt_detail_pct(const char * name, size_t count, size_t size,
-                    size_t total_size, std::locale& loc) {
-  return fmt_detail(name, count, size,
-                    fmt::format("{0:5.1f}%", 100.0 * size / total_size),
-                    loc);
-}
-
-static std::string fmt_u_size(size_t unpacked_size, size_t data_size) {
-  return  fmt::format("{0:5.2f}x",
-                        static_cast<double>(unpacked_size) / data_size);
 }
 
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
-#ifdef _WIN32
-  std::locale loc("C");
-#else
-  std::locale loc("");
-#endif
   std::ostringstream oss;
   stream_logger lgr(oss);
 
@@ -197,8 +149,34 @@ void analyze_frozen(std::ostream& os,
   auto& l = *layout;
   std::vector<std::pair<size_t, std::string>> usage;
 
+#if FMT_VERSION >= 70000
+#define DWARFS_FMT_L "L"
+#else
+#define DWARFS_FMT_L "n"
+#endif
+
+  auto fmt_size = [&](auto const& name, size_t count, size_t size) {
+    return fmt::format("{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
+                       "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
+                       count, name, size, 100.0 * size / total_size,
+                       count > 0 ? static_cast<double>(size) / count : 0.0);
+  };
+
+  auto fmt_detail = [&](auto const& name, size_t count, size_t size,
+                        std::string num) {
+    return fmt::format(
+        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
+        "{3:5.1f} bytes/item\n",
+        name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
+  };
+
+  auto fmt_detail_pct = [&](auto const& name, size_t count, size_t size) {
+    return fmt_detail(name, count, size,
+                      fmt::format("{0:5.1f}%", 100.0 * size / total_size));
+  };
+
   auto add_size = [&](auto const& name, size_t count, size_t size) {
-    usage.emplace_back(size, fmt_size(name, count, size, total_size, loc));
+    usage.emplace_back(size, fmt_size(name, count, size));
   };
 
   auto list_size = [&](auto const& list, auto const& field) {
@@ -217,9 +195,9 @@ void analyze_frozen(std::ostream& os,
       auto index_size = list_size(list, field);
       auto data_size = list.back().end() - list.front().begin();
       auto size = index_size + data_size;
-      auto fmt = fmt_size(name, count, size, total_size, loc) +
-                 fmt_detail_pct("|- data", count, data_size, total_size, loc) +
-                 fmt_detail_pct("'- index", count, index_size, total_size, loc);
+      auto fmt = fmt_size(name, count, size) +
+                 fmt_detail_pct("|- data", count, data_size) +
+                 fmt_detail_pct("'- index", count, index_size);
       usage.emplace_back(size, fmt);
     }
   };
@@ -232,16 +210,18 @@ void analyze_frozen(std::ostream& os,
       auto index_size = list_size(table.index(), field.layout.indexField);
       auto size = index_size + data_size + dict_size;
       auto count = table.index().size() - (table.packed_index() ? 0 : 1);
-      auto fmt = fmt_size(name, count, size, total_size, loc) +
-                 fmt_detail_pct("|- data", count, data_size, total_size, loc);
+      auto fmt = fmt_size(name, count, size) +
+                 fmt_detail_pct("|- data", count, data_size);
       if (table.symtab()) {
         string_table st(lgr, "tmp", table);
         auto unpacked_size = st.unpacked_size();
-        fmt += fmt_detail("|- unpacked", count, unpacked_size,
-                          fmt_u_size(unpacked_size, data_size), loc);
-        fmt += fmt_detail_pct("|- dict", count, dict_size, total_size, loc);
+        fmt += fmt_detail(
+            "|- unpacked", count, unpacked_size,
+            fmt::format("{0:5.2f}x",
+                        static_cast<double>(unpacked_size) / data_size));
+        fmt += fmt_detail_pct("|- dict", count, dict_size);
       }
-      fmt += fmt_detail_pct("'- index", count, index_size, total_size, loc);
+      fmt += fmt_detail_pct("'- index", count, index_size);
       usage.emplace_back(size, fmt);
     }
   };
@@ -293,8 +273,7 @@ void analyze_frozen(std::ostream& os,
   });
 
   os << "metadata memory usage:\n";
-  os << fmt::format(loc,
-                    "               {0:.<20}{1:.>16" DWARFS_FMT_L
+  os << fmt::format("               {0:.<20}{1:.>16" DWARFS_FMT_L
                     "} bytes       {2:6.1f} bytes/inode\n",
                     "total metadata", total_size,
                     static_cast<double>(total_size) / meta.inodes().size());
@@ -311,16 +290,17 @@ void analyze_frozen(std::ostream& os,
   }
 }
 
-const uint16_t READ_ONLY_MASK = ~(S_IWUSR | S_IWGRP | S_IWOTH);
+const uint16_t READ_ONLY_MASK = ~uint16_t(
+    fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
 } // namespace
 
 template <typename LoggerPolicy>
 class metadata_ final : public metadata_v2::impl {
  public:
-  metadata_(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-            metadata_options const& options, int inode_offset,
-            bool force_consistency_check)
+  metadata_(logger& lgr, std::span<uint8_t const> schema,
+            std::span<uint8_t const> data, metadata_options const& options,
+            int inode_offset, bool force_consistency_check)
       : data_(data)
       , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
       , global_(lgr, &meta_,
@@ -421,7 +401,7 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
 
-  int getattr(inode_view iv, struct ::stat* stbuf) const override;
+  int getattr(inode_view iv, file_stat* stbuf) const override;
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
@@ -436,15 +416,19 @@ class metadata_ final : public metadata_v2::impl {
 
   int open(inode_view iv) const override;
 
-  int readlink(inode_view iv, std::string* buf) const override;
+  int readlink(inode_view iv, std::string* buf,
+               readlink_mode mode) const override;
 
-  folly::Expected<std::string, int> readlink(inode_view iv) const override;
+  folly::Expected<std::string, int>
+  readlink(inode_view iv, readlink_mode mode) const override;
 
-  int statvfs(struct ::statvfs* stbuf) const override;
+  int statvfs(vfs_stat* stbuf) const override;
 
   std::optional<chunk_range> get_chunks(int inode) const override;
 
   size_t block_size() const override { return meta_.block_size(); }
+
+  bool has_symlinks() const override { return !meta_.symlink_table().empty(); }
 
  private:
   template <typename K>
@@ -475,21 +459,20 @@ class metadata_ final : public metadata_v2::impl {
     INO_OTH,
   };
 
+  // TODO: merge with mode_rank in metadata_types
   static inode_rank get_inode_rank(uint16_t mode) {
-    switch (mode & S_IFMT) {
-    case S_IFDIR:
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::directory:
       return inode_rank::INO_DIR;
-    case S_IFLNK:
+    case posix_file_type::symlink:
       return inode_rank::INO_LNK;
-    case S_IFREG:
+    case posix_file_type::regular:
       return inode_rank::INO_REG;
-    case S_IFBLK:
-    case S_IFCHR:
+    case posix_file_type::block:
+    case posix_file_type::character:
       return inode_rank::INO_DEV;
-#ifndef _WIN32
-    case S_IFSOCK:
-#endif
-    case S_IFIFO:
+    case posix_file_type::socket:
+    case posix_file_type::fifo:
       return inode_rank::INO_OTH;
     default:
       DWARFS_THROW(runtime_error,
@@ -498,23 +481,21 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   static char get_filetype_label(uint16_t mode) {
-    switch ((mode)&S_IFMT) {
-    case S_IFDIR:
-      return 'd';
-    case S_IFLNK:
-      return 'l';
-    case S_IFREG:
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::regular:
       return '-';
-    case S_IFBLK:
+    case posix_file_type::directory:
+      return 'd';
+    case posix_file_type::symlink:
+      return 'l';
+    case posix_file_type::block:
       return 'b';
-    case S_IFCHR:
+    case posix_file_type::character:
       return 'c';
-#ifndef _WIN32
-    case S_IFSOCK:
-      return 's';
-#endif
-    case S_IFIFO:
+    case posix_file_type::fifo:
       return 'p';
+    case posix_file_type::socket:
+      return 's';
     default:
       DWARFS_THROW(runtime_error,
                    fmt::format("unknown file type: {:#06x}", mode));
@@ -615,11 +596,12 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t file_size(inode_view iv, uint16_t mode) const {
-    if (S_ISREG(mode)) {
+    switch (posix_file_type::from_mode(mode)) {
+    case posix_file_type::regular:
       return reg_file_size(iv);
-    } else if (S_ISLNK(mode)) {
+    case posix_file_type::symlink:
       return link_value(iv).size();
-    } else {
+    default:
       return 0;
     }
   }
@@ -652,9 +634,28 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  std::string link_value(inode_view iv) const {
-    return symlinks_[meta_.symlink_table()[iv.inode_num() -
-                                           symlink_inode_offset_]];
+  std::string
+  link_value(inode_view iv, readlink_mode mode = readlink_mode::raw) const {
+    std::string rv =
+        symlinks_[meta_
+                      .symlink_table()[iv.inode_num() - symlink_inode_offset_]];
+
+    if (mode != readlink_mode::raw) {
+      char meta_preferred = '/';
+      if (auto ps = meta_.preferred_path_separator()) {
+        meta_preferred = static_cast<char>(*ps);
+      }
+      char host_preferred =
+          static_cast<char>(std::filesystem::path::preferred_separator);
+      if (mode == readlink_mode::unix) {
+        host_preferred = '/';
+      }
+      if (meta_preferred != host_preferred) {
+        std::replace(rv.begin(), rv.end(), meta_preferred, host_preferred);
+      }
+    }
+
+    return rv;
   }
 
   uint64_t get_device_id(int inode) const {
@@ -743,7 +744,7 @@ class metadata_ final : public metadata_v2::impl {
     return nlinks;
   }
 
-  folly::ByteRange data_;
+  std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   const global_metadata global_;
   dir_entry_view root_;
@@ -776,7 +777,8 @@ void metadata_<LoggerPolicy>::dump(
     os << " " << entry.name();
   }
 
-  if (S_ISREG(mode)) {
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::regular: {
     auto cr = get_chunk_range(inode);
     DWARFS_CHECK(cr, "invalid chunk range");
     os << " [" << cr->begin_ << ", " << cr->end_ << "]";
@@ -784,21 +786,32 @@ void metadata_<LoggerPolicy>::dump(
     if (detail_level > 4) {
       icb(indent + "  ", inode);
     }
-  } else if (S_ISDIR(mode)) {
+  } break;
+
+  case posix_file_type::directory:
     dump(os, indent + "  ", make_directory_view(iv), entry, detail_level,
          std::move(icb));
-  } else if (S_ISLNK(mode)) {
+    break;
+
+  case posix_file_type::symlink:
     os << " -> " << link_value(iv) << "\n";
-  } else if (S_ISBLK(mode)) {
+    break;
+
+  case posix_file_type::block:
     os << " (block device: " << get_device_id(inode) << ")\n";
-  } else if (S_ISCHR(mode)) {
+    break;
+
+  case posix_file_type::character:
     os << " (char device: " << get_device_id(inode) << ")\n";
-  } else if (S_ISFIFO(mode)) {
+    break;
+
+  case posix_file_type::fifo:
     os << " (named pipe)\n";
-#ifndef _WIN32
-  } else if (S_ISSOCK(mode)) {
+    break;
+
+  case posix_file_type::socket:
     os << " (socket)\n";
-#endif
+    break;
   }
 }
 
@@ -823,41 +836,43 @@ template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, int detail_level, filesystem_info const& fsinfo,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  struct ::statvfs stbuf;
+  vfs_stat stbuf;
   statvfs(&stbuf);
 
   if (auto version = meta_.dwarfs_version()) {
-    os << "created by: " << *version << std::endl;
+    os << "created by: " << *version << "\n";
   }
 
   if (auto ts = meta_.create_timestamp()) {
     time_t tp = *ts;
     std::string str(32, '\0');
     str.resize(
-        std::strftime(str.data(), str.size(), "%Y-%m-%d %H:%M:%S", std::localtime(&tp)));
-    os << "created on: " << str << std::endl;
+        std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
+    os << "created on: " << str << "\n";
   }
 
   if (detail_level > 0) {
-    os << "block size: " << size_with_unit(stbuf.f_bsize) << std::endl;
-    os << "block count: " << fsinfo.block_count << std::endl;
-    os << "inode count: " << stbuf.f_files << std::endl;
-    os << "original filesystem size: " << size_with_unit(stbuf.f_blocks)
-       << std::endl;
+    os << "block size: " << size_with_unit(stbuf.bsize) << "\n";
+    os << "block count: " << fsinfo.block_count << "\n";
+    os << "inode count: " << stbuf.files << "\n";
+    if (auto ps = meta_.preferred_path_separator()) {
+      os << "preferred path separator: " << static_cast<char>(*ps) << "\n";
+    }
+    os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
     os << "compressed block size: "
        << size_with_unit(fsinfo.compressed_block_size)
        << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
                                          fsinfo.uncompressed_block_size)
-       << std::endl;
+       << "\n";
     os << "uncompressed block size: "
-       << size_with_unit(fsinfo.uncompressed_block_size) << std::endl;
+       << size_with_unit(fsinfo.uncompressed_block_size) << "\n";
     os << "compressed metadata size: "
        << size_with_unit(fsinfo.compressed_metadata_size)
        << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_metadata_size) /
                                          fsinfo.uncompressed_metadata_size)
-       << std::endl;
+       << "\n";
     os << "uncompressed metadata size: "
-       << size_with_unit(fsinfo.uncompressed_metadata_size) << std::endl;
+       << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       auto boolopt = [&](auto const& name, bool value) {
@@ -877,9 +892,9 @@ void metadata_<LoggerPolicy>::dump(
         boolopt("packed_symlinks", static_cast<bool>(symlinks->symtab()));
         boolopt("packed_symlinks_index", symlinks->packed_index());
       }
-      os << "options: " << boost::join(options, "\n         ") << std::endl;
+      os << "options: " << boost::join(options, "\n         ") << "\n";
       if (auto res = opt->time_resolution_sec()) {
-        os << "time resolution: " << *res << " seconds" << std::endl;
+        os << "time resolution: " << *res << " seconds\n";
       }
     }
   }
@@ -889,35 +904,34 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (detail_level > 2) {
-    os << "symlink_inode_offset: " << symlink_inode_offset_ << std::endl;
-    os << "file_inode_offset: " << file_inode_offset_ << std::endl;
-    os << "dev_inode_offset: " << dev_inode_offset_ << std::endl;
-    os << "chunks: " << meta_.chunks().size() << std::endl;
-    os << "directories: " << meta_.directories().size() << std::endl;
-    os << "inodes: " << meta_.inodes().size() << std::endl;
-    os << "chunk_table: " << meta_.chunk_table().size() << std::endl;
-    os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << std::endl;
-    os << "symlink_table: " << meta_.symlink_table().size() << std::endl;
-    os << "uids: " << meta_.uids().size() << std::endl;
-    os << "gids: " << meta_.gids().size() << std::endl;
-    os << "modes: " << meta_.modes().size() << std::endl;
-    os << "names: " << meta_.names().size() << std::endl;
-    os << "symlinks: " << meta_.symlinks().size() << std::endl;
+    os << "symlink_inode_offset: " << symlink_inode_offset_ << "\n";
+    os << "file_inode_offset: " << file_inode_offset_ << "\n";
+    os << "dev_inode_offset: " << dev_inode_offset_ << "\n";
+    os << "chunks: " << meta_.chunks().size() << "\n";
+    os << "directories: " << meta_.directories().size() << "\n";
+    os << "inodes: " << meta_.inodes().size() << "\n";
+    os << "chunk_table: " << meta_.chunk_table().size() << "\n";
+    os << "entry_table_v2_2: " << meta_.entry_table_v2_2().size() << "\n";
+    os << "symlink_table: " << meta_.symlink_table().size() << "\n";
+    os << "uids: " << meta_.uids().size() << "\n";
+    os << "gids: " << meta_.gids().size() << "\n";
+    os << "modes: " << meta_.modes().size() << "\n";
+    os << "names: " << meta_.names().size() << "\n";
+    os << "symlinks: " << meta_.symlinks().size() << "\n";
     if (auto dev = meta_.devices()) {
-      os << "devices: " << dev->size() << std::endl;
+      os << "devices: " << dev->size() << "\n";
     }
     if (auto de = meta_.dir_entries()) {
-      os << "dir_entries: " << de->size() << std::endl;
+      os << "dir_entries: " << de->size() << "\n";
     }
     if (auto sfp = meta_.shared_files_table()) {
       if (meta_.options()->packed_shared_files_table()) {
-        os << "packed shared_files_table: " << sfp->size() << std::endl;
-        os << "unpacked shared_files_table: " << shared_files_.size()
-           << std::endl;
+        os << "packed shared_files_table: " << sfp->size() << "\n";
+        os << "unpacked shared_files_table: " << shared_files_.size() << "\n";
       } else {
-        os << "shared_files_table: " << sfp->size() << std::endl;
+        os << "shared_files_table: " << sfp->size() << "\n";
       }
-      os << "unique files: " << unique_files_ << std::endl;
+      os << "unique files: " << unique_files_ << "\n";
     }
   }
 
@@ -962,27 +976,39 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
     obj["name"] = std::string(entry.name());
   }
 
-  if (S_ISREG(mode)) {
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::regular:
     obj["type"] = "file";
     obj["size"] = file_size(iv, mode);
-  } else if (S_ISDIR(mode)) {
+    break;
+
+  case posix_file_type::directory:
     obj["type"] = "directory";
     obj["inodes"] = as_dynamic(make_directory_view(iv), entry);
-  } else if (S_ISLNK(mode)) {
+    break;
+
+  case posix_file_type::symlink:
     obj["type"] = "link";
-    obj["target"] = std::string(link_value(iv));
-  } else if (S_ISBLK(mode)) {
+    obj["target"] = link_value(iv);
+    break;
+
+  case posix_file_type::block:
     obj["type"] = "blockdev";
     obj["device_id"] = get_device_id(inode);
-  } else if (S_ISCHR(mode)) {
+    break;
+
+  case posix_file_type::character:
     obj["type"] = "chardev";
     obj["device_id"] = get_device_id(inode);
-  } else if (S_ISFIFO(mode)) {
+    break;
+
+  case posix_file_type::fifo:
     obj["type"] = "fifo";
-#ifndef _WIN32
-  } else if (S_ISSOCK(mode)) {
+    break;
+
+  case posix_file_type::socket:
     obj["type"] = "socket";
-#endif
+    break;
   }
 
   return obj;
@@ -992,11 +1018,11 @@ template <typename LoggerPolicy>
 folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
   folly::dynamic obj = folly::dynamic::object;
 
-  struct ::statvfs stbuf;
+  vfs_stat stbuf;
   statvfs(&stbuf);
 
-  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.f_bsize)(
-      "f_files", stbuf.f_files)("f_blocks", stbuf.f_blocks);
+  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.bsize)(
+      "f_files", stbuf.files)("f_blocks", stbuf.blocks);
 
   obj["root"] = as_dynamic(root_);
 
@@ -1007,27 +1033,27 @@ template <typename LoggerPolicy>
 thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
   auto meta = meta_.thaw();
 
-  if (auto opts = meta.options_ref()) {
-    if (opts->packed_chunk_table) {
-      meta.chunk_table = chunk_table_;
+  if (auto opts = meta.options()) {
+    if (opts->packed_chunk_table().value()) {
+      meta.chunk_table() = chunk_table_;
     }
-    if (opts->packed_directories) {
-      meta.directories = global_.directories();
+    if (opts->packed_directories().value()) {
+      meta.directories() = global_.directories();
     }
-    if (opts->packed_shared_files_table) {
-      meta.shared_files_table_ref() = shared_files_;
+    if (opts->packed_shared_files_table().value()) {
+      meta.shared_files_table() = shared_files_;
     }
     if (auto const& names = global_.names(); names.is_packed()) {
-      meta.names = names.unpack();
-      meta.compact_names_ref().reset();
+      meta.names() = names.unpack();
+      meta.compact_names().reset();
     }
     if (symlinks_.is_packed()) {
-      meta.symlinks = symlinks_.unpack();
-      meta.compact_symlinks_ref().reset();
+      meta.symlinks() = symlinks_.unpack();
+      meta.compact_symlinks().reset();
     }
-    opts->packed_chunk_table = false;
-    opts->packed_directories = false;
-    opts->packed_shared_files_table = false;
+    opts->packed_chunk_table() = false;
+    opts->packed_directories() = false;
+    opts->packed_shared_files_table() = false;
   }
 
   return meta;
@@ -1050,23 +1076,19 @@ template <typename LoggerPolicy>
 std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
   std::ostringstream oss;
 
-#ifndef _WIN32
-  oss << (mode & S_ISUID ? 'U' : '-');
-  oss << (mode & S_ISGID ? 'G' : '-');
-  oss << (mode & S_ISVTX ? 'S' : '-');
-#else
-  oss << "---";
-#endif
+  oss << (mode & uint16_t(fs::perms::set_uid) ? 'U' : '-');
+  oss << (mode & uint16_t(fs::perms::set_gid) ? 'G' : '-');
+  oss << (mode & uint16_t(fs::perms::sticky_bit) ? 'S' : '-');
   oss << get_filetype_label(mode);
-  oss << (mode & S_IRUSR ? 'r' : '-');
-  oss << (mode & S_IWUSR ? 'w' : '-');
-  oss << (mode & S_IXUSR ? 'x' : '-');
-  oss << (mode & S_IRGRP ? 'r' : '-');
-  oss << (mode & S_IWGRP ? 'w' : '-');
-  oss << (mode & S_IXGRP ? 'x' : '-');
-  oss << (mode & S_IROTH ? 'r' : '-');
-  oss << (mode & S_IWOTH ? 'w' : '-');
-  oss << (mode & S_IXOTH ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::owner_exec) ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::group_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::group_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::group_exec) ? 'x' : '-');
+  oss << (mode & uint16_t(fs::perms::others_read) ? 'r' : '-');
+  oss << (mode & uint16_t(fs::perms::others_write) ? 'w' : '-');
+  oss << (mode & uint16_t(fs::perms::others_exec) ? 'x' : '-');
 
   return oss.str();
 }
@@ -1080,7 +1102,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
   auto entry = make_dir_entry_view(self_index, parent_index);
   auto iv = entry.inode();
 
-  if (S_ISDIR(iv.mode())) {
+  if (iv.is_directory()) {
     auto inode = iv.inode_num();
 
     if (!seen.emplace(inode).second) {
@@ -1201,7 +1223,7 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 template <typename LoggerPolicy>
 std::optional<inode_view>
 metadata_<LoggerPolicy>::find(const char* path) const {
-  while (*path and *path == '/') {
+  while (*path == '/') {
     ++path;
   }
 
@@ -1209,7 +1231,7 @@ metadata_<LoggerPolicy>::find(const char* path) const {
 
   while (*path) {
     const char* next = ::strchr(path, '/');
-    size_t clen = next ? next - path : ::strlen(path);
+    size_t clen = next ? next - path : ::strlen(path); // Flawfinder: ignore
 
     iv = find(make_directory_view(*iv), std::string_view(path, clen));
 
@@ -1241,8 +1263,7 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(inode_view iv,
-                                     struct ::stat* stbuf) const {
+int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = iv.mode();
@@ -1257,33 +1278,32 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv,
     }
   }
 
-  stbuf->st_mode = mode;
+  stbuf->mode = mode;
 
   if (options_.readonly) {
-    stbuf->st_mode &= READ_ONLY_MASK;
+    stbuf->mode &= READ_ONLY_MASK;
   }
 
-  stbuf->st_size = S_ISDIR(mode) ? make_directory_view(iv).entry_count()
-                                 : file_size(iv, mode);
-  stbuf->st_ino = inode + inode_offset_;
-#ifndef _WIN32
-  stbuf->st_blocks = (stbuf->st_size + 511) / 512;
-#endif
-  stbuf->st_uid = iv.getuid();
-  stbuf->st_gid = iv.getgid();
-  stbuf->st_mtime = resolution * (timebase + iv.mtime_offset());
+  stbuf->size = stbuf->is_directory() ? make_directory_view(iv).entry_count()
+                                      : file_size(iv, mode);
+  stbuf->ino = inode + inode_offset_;
+  stbuf->blksize = 512;
+  stbuf->blocks = (stbuf->size + 511) / 512;
+  stbuf->uid = iv.getuid();
+  stbuf->gid = iv.getgid();
+  stbuf->mtime = resolution * (timebase + iv.mtime_offset());
   if (mtime_only) {
-    stbuf->st_atime = stbuf->st_ctime = stbuf->st_mtime;
+    stbuf->atime = stbuf->ctime = stbuf->mtime;
   } else {
-    stbuf->st_atime = resolution * (timebase + iv.atime_offset());
-    stbuf->st_ctime = resolution * (timebase + iv.ctime_offset());
+    stbuf->atime = resolution * (timebase + iv.atime_offset());
+    stbuf->ctime = resolution * (timebase + iv.ctime_offset());
   }
-  stbuf->st_nlink = options_.enable_nlink && S_ISREG(mode)
-                        ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                        : 1;
+  stbuf->nlink = options_.enable_nlink && stbuf->is_regular_file()
+                     ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
+                     : 1;
 
-  if (S_ISBLK(mode) || S_ISCHR(mode)) {
-    stbuf->st_rdev = get_device_id(inode);
+  if (stbuf->is_device()) {
+    stbuf->rdev = get_device_id(inode);
   }
 
   return 0;
@@ -1294,7 +1314,7 @@ std::optional<directory_view>
 metadata_<LoggerPolicy>::opendir(inode_view iv) const {
   std::optional<directory_view> rv;
 
-  if (S_ISDIR(iv.mode())) {
+  if (iv.is_directory()) {
     rv = make_directory_view(iv);
   }
 
@@ -1335,26 +1355,26 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
   }
 
   int access_mode = 0;
-  int e_mode = iv.mode();
 
-  auto test = [e_mode, &access_mode](uint16_t r_bit, uint16_t x_bit) {
-    if (e_mode & r_bit) {
+  auto test = [e_mode = iv.mode(), &access_mode](fs::perms r_bit,
+                                                 fs::perms x_bit) {
+    if (e_mode & uint16_t(r_bit)) {
       access_mode |= R_OK;
     }
-    if (e_mode & x_bit) {
+    if (e_mode & uint16_t(x_bit)) {
       access_mode |= X_OK;
     }
   };
 
   // Let's build the inode's access mask
-  test(S_IROTH, S_IXOTH);
+  test(fs::perms::others_read, fs::perms::others_exec);
 
   if (iv.getgid() == gid) {
-    test(S_IRGRP, S_IXGRP);
+    test(fs::perms::group_read, fs::perms::group_exec);
   }
 
   if (iv.getuid() == uid) {
-    test(S_IRUSR, S_IXUSR);
+    test(fs::perms::owner_read, fs::perms::owner_exec);
   }
 
   return (access_mode & mode) == mode ? 0 : EACCES;
@@ -1362,7 +1382,7 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
 
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::open(inode_view iv) const {
-  if (S_ISREG(iv.mode())) {
+  if (iv.is_regular_file()) {
     return iv.inode_num();
   }
 
@@ -1370,45 +1390,41 @@ int metadata_<LoggerPolicy>::open(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf) const {
-  if (S_ISLNK(iv.mode())) {
-    buf->assign(link_value(iv));
+int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf,
+                                      readlink_mode mode) const {
+  if (iv.is_symlink()) {
+    buf->assign(link_value(iv, mode));
     return 0;
   }
+
   return -EINVAL;
 }
 
 template <typename LoggerPolicy>
 folly::Expected<std::string, int>
-metadata_<LoggerPolicy>::readlink(inode_view iv) const {
-  if (S_ISLNK(iv.mode())) {
-    return link_value(iv);
+metadata_<LoggerPolicy>::readlink(inode_view iv, readlink_mode mode) const {
+  if (iv.is_symlink()) {
+    return link_value(iv, mode);
   }
+
   return folly::makeUnexpected(-EINVAL);
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  stbuf->f_bsize = meta_.block_size();
-  stbuf->f_frsize = 1UL;
-  stbuf->f_blocks = meta_.total_fs_size();
+  stbuf->bsize = meta_.block_size();
+  stbuf->frsize = 1UL;
+  stbuf->blocks = meta_.total_fs_size();
   if (!options_.enable_nlink) {
     if (auto ths = meta_.total_hardlink_size()) {
-      stbuf->f_blocks += *ths;
+      stbuf->blocks += *ths;
     }
   }
-  stbuf->f_files = inode_count_;
-  stbuf->f_flag = ST_RDONLY;
-  stbuf->f_namemax = PATH_MAX;
-
-#ifdef _WIN32
-// Does not support the semantics of the ST_ISUID and ST_ISGID file mode bits.
-// [The set-user-ID and set-group-ID bits are ignored by
-//  exec(3) for executable files on this filesystem]
-  stbuf->f_flag |= ST_NOSUID;
-#endif
+  stbuf->files = inode_count_;
+  stbuf->readonly = true;
+  stbuf->namemax = PATH_MAX;
 
   return 0;
 }
@@ -1424,9 +1440,10 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
   return freeze_to_buffer(data);
 }
 
-metadata_v2::metadata_v2(logger& lgr, folly::ByteRange schema,
-                         folly::ByteRange data, metadata_options const& options,
-                         int inode_offset, bool force_consistency_check)
+metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
+                         std::span<uint8_t const> data,
+                         metadata_options const& options, int inode_offset,
+                         bool force_consistency_check)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
           lgr, schema, data, options, inode_offset, force_consistency_check)) {}

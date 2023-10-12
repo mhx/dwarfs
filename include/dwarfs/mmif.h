@@ -21,12 +21,14 @@
 
 #pragma once
 
+#include <filesystem>
+#include <span>
 #include <string>
+#include <system_error>
 
 #include <boost/noncopyable.hpp>
-#include <boost/system/system_error.hpp>
 
-#include <folly/Range.h>
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
@@ -35,20 +37,28 @@ class mmif : public boost::noncopyable {
   virtual ~mmif() = default;
 
   template <typename T>
-  T const* as(off_t offset = 0) const {
+  T const* as(file_off_t offset = 0) const {
     return reinterpret_cast<T const*>(
         reinterpret_cast<char const*>(this->addr()) + offset);
   }
 
-  folly::ByteRange range(off_t offset, size_t length) const {
-    return folly::ByteRange(this->as<uint8_t>(offset), length);
+  template <typename T = uint8_t>
+  std::span<T const> span(file_off_t offset, size_t length) const {
+    return std::span(this->as<T>(offset), length);
+  }
+
+  template <typename T = uint8_t>
+  std::span<T const> span(file_off_t offset = 0) const {
+    return span<T>(offset, size() - offset);
   }
 
   virtual void const* addr() const = 0;
   virtual size_t size() const = 0;
 
-  virtual boost::system::error_code lock(off_t offset, size_t size) = 0;
-  virtual boost::system::error_code release(off_t offset, size_t size) = 0;
-  virtual boost::system::error_code release_until(off_t offset) = 0;
+  virtual std::error_code lock(file_off_t offset, size_t size) = 0;
+  virtual std::error_code release(file_off_t offset, size_t size) = 0;
+  virtual std::error_code release_until(file_off_t offset) = 0;
+
+  virtual std::filesystem::path const& path() const = 0;
 };
 } // namespace dwarfs

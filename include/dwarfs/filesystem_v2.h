@@ -21,13 +21,6 @@
 
 #pragma once
 
-#include <folly/portability/SysTypes.h>
-#ifndef _WIN32
-#include <sys/statvfs.h>
-#else
-#include <pro-statvfs.h>
-#endif
-
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -35,24 +28,31 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 
 #include <folly/Expected.h>
 #include <folly/dynamic.h>
 
+#include "dwarfs/block_range.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
+struct cache_tidy_config;
 struct filesystem_options;
 struct rewrite_options;
 struct iovec_read_buf;
+struct file_stat;
+struct vfs_stat;
 
 class filesystem_writer;
 class logger;
 class mmif;
+class performance_monitor;
 class progress;
 
 class filesystem_v2 {
@@ -62,19 +62,22 @@ class filesystem_v2 {
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                const filesystem_options& options, int inode_offset = 0);
+                const filesystem_options& options, int inode_offset = 0,
+                std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
   static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
                       filesystem_writer& writer, rewrite_options const& opts);
 
-  static int identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
-                      int detail_level = 0, size_t num_readers = 1,
-                      bool check_integrity = false, off_t image_offset = 0);
+  static int
+  identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
+           int detail_level = 0, size_t num_readers = 1,
+           bool check_integrity = false, file_off_t image_offset = 0);
 
-  static std::optional<folly::ByteRange> header(std::shared_ptr<mmif> mm);
+  static std::optional<std::span<uint8_t const>>
+  header(std::shared_ptr<mmif> mm);
 
-  static std::optional<folly::ByteRange>
-  header(std::shared_ptr<mmif> mm, off_t image_offset);
+  static std::optional<std::span<uint8_t const>>
+  header(std::shared_ptr<mmif> mm, file_off_t image_offset);
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);
@@ -106,7 +109,7 @@ class filesystem_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view entry, struct ::stat* stbuf) const {
+  int getattr(inode_view entry, file_stat* stbuf) const {
     return impl_->getattr(entry, stbuf);
   }
 
@@ -125,35 +128,48 @@ class filesystem_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int readlink(inode_view entry, std::string* buf) const {
-    return impl_->readlink(entry, buf);
+  int readlink(inode_view entry, std::string* buf,
+               readlink_mode mode = readlink_mode::preferred) const {
+    return impl_->readlink(entry, buf, mode);
   }
 
-  folly::Expected<std::string, int> readlink(inode_view entry) const {
-    return impl_->readlink(entry);
+  folly::Expected<std::string, int>
+  readlink(inode_view entry,
+           readlink_mode mode = readlink_mode::preferred) const {
+    return impl_->readlink(entry, mode);
   }
 
-  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
+  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
 
   int open(inode_view entry) const { return impl_->open(entry); }
 
-  ssize_t read(uint32_t inode, char* buf, size_t size, off_t offset = 0) const {
+  ssize_t
+  read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
     return impl_->read(inode, buf, size, offset);
   }
 
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                off_t offset = 0) const {
+                file_off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
   }
 
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(uint32_t inode, size_t size, off_t offset = 0) const {
+  readv(uint32_t inode, size_t size, file_off_t offset = 0) const {
     return impl_->readv(inode, size, offset);
   }
 
-  std::optional<folly::ByteRange> header() const { return impl_->header(); }
+  std::optional<std::span<uint8_t const>> header() const {
+    return impl_->header();
+  }
 
   void set_num_workers(size_t num) { return impl_->set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) {
+    return impl_->set_cache_tidy_config(cfg);
+  }
+
+  size_t num_blocks() const { return impl_->num_blocks(); }
+
+  bool has_symlinks() const { return impl_->has_symlinks(); }
 
   class impl {
    public:
@@ -170,26 +186,30 @@ class filesystem_v2 {
     virtual std::optional<inode_view> find(int inode) const = 0;
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
-    virtual int getattr(inode_view entry, struct ::stat* stbuf) const = 0;
+    virtual int getattr(inode_view entry, file_stat* stbuf) const = 0;
     virtual int
     access(inode_view entry, int mode, uid_t uid, gid_t gid) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
     virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;
     virtual size_t dirsize(directory_view dir) const = 0;
-    virtual int readlink(inode_view entry, std::string* buf) const = 0;
+    virtual int
+    readlink(inode_view entry, std::string* buf, readlink_mode mode) const = 0;
     virtual folly::Expected<std::string, int>
-    readlink(inode_view entry) const = 0;
-    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
+    readlink(inode_view entry, readlink_mode mode) const = 0;
+    virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual ssize_t
-    read(uint32_t inode, char* buf, size_t size, off_t offset) const = 0;
+    read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                          off_t offset) const = 0;
+                          file_off_t offset) const = 0;
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
-    readv(uint32_t inode, size_t size, off_t offset) const = 0;
-    virtual std::optional<folly::ByteRange> header() const = 0;
+    readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
+    virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
+    virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
+    virtual size_t num_blocks() const = 0;
+    virtual bool has_symlinks() const = 0;
   };
 
  private:

@@ -21,5 +21,5 @@ FSST ensures that strings that are equal, are also equal in their compressed for
 
 FSST compression is quite useful in database systems and data file formats. It e.g., allows fine-grained decompression of values in case of selection predicates that are pushed down into a scan operator. But, very often FSST even allows to postpone decompression of string data. This means hash tables (in joins and aggregations) become smaller, and network communication (in case of distributed query processing) is reduced. All of this without requiring much structural changes to existing systems: after all, FSST compressed strings still remain strings.
 
-The implementation of FSST is quite portable, using CMake and has been verified to work on 64-bits x86 computers running Linux, MacOS and Windows.
+The implementation of FSST is quite portable, using CMake and has been verified to work on 64-bits x86 computers running Linux, Windows and MacOS (the latter also using arm64).
 

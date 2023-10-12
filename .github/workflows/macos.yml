@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, [Ribose Inc](https://www.ribose.com).
+# Copyright (c) 2021-2023, [Ribose Inc](https://www.ribose.com).
 # All rights reserved.
 # This file is a part of tamatebako
 #
@@ -58,56 +58,47 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MAKEFLAGS: -j4
+  CCACHE_FLD: ccache
   CC: clang
   CXX: clang++
-  CXXFLAGS: -std=gnu++14 -DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0
+  CXXFLAGS: -DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0
 
 jobs:
   build:
-    name: "macos-${{ matrix.setup.version }} [ scope:${{ matrix.setup.scope }} ]"
-    runs-on: macos-${{ matrix.setup.version }}
+    name: ${{ matrix.config.os }} [ XCode ${{ matrix.config.xcode }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }} ]
+    runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
+      matrix:
+        config:
+# Need XCode 14.3 for std::boyer_moore_horspool_searcher
+          - { os: macos-11, xcode: '12.4' , build_type: Release, extra_opts: '' }
+
 #  We are running two configurations:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
-      matrix:
         setup:
-          - version: '11.0'
-            xcode: '12.4'
-            scope: 'ALL'
-            tests: 'ON'
-          - version: '11.0'
-            xcode: '12.4'
-            scope: 'MKD'
-            tests: 'OFF'
+          - { scope: 'ALL',  tests: 'ON'  }
+          - { scope: 'MKD',  tests: 'OFF' }
 
     steps:
       - name: Select XCode version
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ matrix.setup.xcode }}
+          xcode-version: ${{ matrix.config.xcode }}
+
+      - name: Install packages
+        run: |
+          brew install  \
+          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config ccache
 
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: true
 
-      - name: Install packages
-        run: |
-          brew install  \
-          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config
+      - name: Get number of CPU cores
+        run:  echo "CORES=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
-      - name: Configure
-        run: |
-          cmake -B build -DWITH_TESTS=${{ matrix.setup.tests }}         \
-                         -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }} \
-                         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
-
-      - name: Build
-        run: cmake --build build --parallel 4
-
-      - name: Test
-        if: ${{ matrix.setup.tests == 'ON' }}
-        run: ctest --test-dir build --output-on-failure
+      - name: Build and test
+        uses: ./.github/actions/build-and-test

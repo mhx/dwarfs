@@ -6,16 +6,17 @@
 /man/*.1.html
 *.log
 /.gdb_history
-/include/dwarfs/version.h
-/src/dwarfs/version.cpp
+
+*~
+.*.swp
 
 # VS build environment
 .vs/
-.vscode/
 out/
 CMakeSettings.json
 
-# More build artifacts
-arm-homebrew/
-deps/
-*.old
+# Tebako
+.vscode/
+deps
+include/dwarfs/version.h
+src/dwarfs/version.cpp

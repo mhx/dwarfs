@@ -21,15 +21,21 @@
 
 #pragma once
 
-#include <folly/portability/SysTypes.h>
-
+#include <chrono>
 #include <cstddef>
+#include <functional>
 #include <iosfwd>
 #include <optional>
 
+#include "dwarfs/types.h"
+
 namespace dwarfs {
 
+class entry;
+
 enum class mlock_mode { NONE, TRY, MUST };
+
+enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
 
 struct block_cache_options {
   size_t max_bytes{0};
@@ -37,6 +43,13 @@ struct block_cache_options {
   double decompress_ratio{1.0};
   bool mm_release{true};
   bool init_workers{true};
+  bool disable_block_integrity_check{false};
+};
+
+struct cache_tidy_config {
+  cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
+  std::chrono::milliseconds interval;
+  std::chrono::milliseconds expiry_time;
 };
 
 struct metadata_options {
@@ -46,10 +59,10 @@ struct metadata_options {
 };
 
 struct filesystem_options {
-  static constexpr off_t IMAGE_OFFSET_AUTO{-1};
+  static constexpr file_off_t IMAGE_OFFSET_AUTO{-1};
 
   mlock_mode lock_mode{mlock_mode::NONE};
-  off_t image_offset{0};
+  file_off_t image_offset{0};
   block_cache_options block_cache;
   metadata_options metadata;
 };
@@ -57,13 +70,19 @@ struct filesystem_options {
 struct filesystem_writer_options {
   size_t max_queue_size{64 << 20};
   bool remove_header{false};
+  bool no_section_index{false};
 };
 
 struct inode_options {
   bool with_similarity{false};
   bool with_nilsimsa{false};
+  std::optional<size_t> max_similarity_scan_size;
 
-  bool needs_scan() const { return with_similarity || with_nilsimsa; }
+  bool needs_scan(size_t size) const {
+    return (with_similarity || with_nilsimsa) &&
+           (!max_similarity_scan_size ||
+            size <= max_similarity_scan_size.value());
+  }
 };
 
 enum class file_order_mode { NONE, PATH, SCRIPT, SIMILARITY, NILSIMSA };
@@ -77,6 +96,7 @@ struct file_order_options {
 
 struct scanner_options {
   file_order_options file_order;
+  std::optional<std::string> file_hash_algorithm{"xxh3-128"};
   std::optional<uint16_t> uid;
   std::optional<uint16_t> gid;
   std::optional<uint64_t> timestamp;
@@ -96,12 +116,14 @@ struct scanner_options {
   bool pack_symlinks{false};
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
+  bool no_create_timestamp{true};
+  std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
 };
 
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
-  off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
+  file_off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

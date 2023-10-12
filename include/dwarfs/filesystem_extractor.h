@@ -24,11 +24,20 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
+
+#include <folly/Function.h>
 
 namespace dwarfs {
 
 class filesystem_v2;
 class logger;
+
+struct filesystem_extractor_options {
+  size_t max_queued_bytes{4096};
+  bool continue_on_error{false};
+  folly::Function<void(std::string_view, uint64_t, uint64_t) const> progress;
+};
 
 class filesystem_extractor {
  public:
@@ -46,8 +55,10 @@ class filesystem_extractor {
 
   void close() { return impl_->close(); }
 
-  void extract(filesystem_v2 const& fs, size_t max_queued_bytes) {
-    return impl_->extract(fs, max_queued_bytes);
+  bool
+  extract(filesystem_v2 const& fs, filesystem_extractor_options const& opts =
+                                       filesystem_extractor_options()) {
+    return impl_->extract(fs, opts);
   }
 
   class impl {
@@ -59,7 +70,8 @@ class filesystem_extractor {
     virtual void open_stream(std::ostream& os, std::string const& format) = 0;
     virtual void open_disk(std::string const& output) = 0;
     virtual void close() = 0;
-    virtual void extract(filesystem_v2 const& fs, size_t max_queued_bytes) = 0;
+    virtual bool extract(filesystem_v2 const& fs,
+                         filesystem_extractor_options const& opts) = 0;
   };
 
  private:

@@ -24,6 +24,8 @@
 #include <cstddef>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "dwarfs/error.h"
 
@@ -38,27 +40,14 @@ class checksum {
     XXH3_128,
   };
 
-  static constexpr size_t digest_size(algorithm alg) {
-    switch (alg) {
-    case algorithm::SHA1:
-      return 20;
-    case algorithm::SHA2_512_256:
-      return 32;
-    case algorithm::XXH3_64:
-      return 8;
-    case algorithm::XXH3_128:
-      return 16;
-    }
-    DWARFS_CHECK(false, "unknown algorithm");
-  }
+  static bool is_available(std::string const& algo);
+  static std::vector<std::string> available_algorithms();
 
-  static bool
-  compute(algorithm alg, void const* data, size_t size, void* digest);
-
-  static bool
-  verify(algorithm alg, void const* data, size_t size, void const* digest);
+  static bool verify(algorithm alg, void const* data, size_t size,
+                     void const* digest, size_t digest_size);
 
   checksum(algorithm alg);
+  checksum(std::string const& alg);
 
   checksum& update(void const* data, size_t size) {
     impl_->update(data, size);
@@ -69,7 +58,7 @@ class checksum {
 
   bool verify(void const* digest) const;
 
-  algorithm type() const { return alg_; }
+  size_t digest_size() const { return impl_->digest_size(); }
 
   class impl {
    public:
@@ -77,11 +66,11 @@ class checksum {
 
     virtual void update(void const* data, size_t size) = 0;
     virtual bool finalize(void* digest) = 0;
+    virtual size_t digest_size() = 0;
   };
 
  private:
   std::unique_ptr<impl> impl_;
-  algorithm const alg_;
 };
 
 } // namespace dwarfs

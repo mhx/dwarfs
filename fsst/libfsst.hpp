@@ -71,22 +71,12 @@ struct Symbol {
    explicit Symbol(const char* begin, const char* end) : Symbol(begin, (u32) (end-begin)) {}
    explicit Symbol(u8* begin, u8* end) : Symbol((const char*)begin, (u32) (end-begin)) {}
    explicit Symbol(const char* input, u32 len) {
-      u8 ignoredBits = 0;
+      val.num = 0;
       if (len>=8) {
-         val.num = reinterpret_cast<const uint64_t*>(input)[0];
-         len = 8;
+          len = 8;
+          memcpy(val.str, input, 8);
       } else {
-#ifdef MEMDEBUG 
-         for(u32 i=0; i<len; i++) val.str[i] = input[i];
-#else
-         ignoredBits = 8*(8-len);
-         if ((reinterpret_cast<uintptr_t>(input)&63)<=(64-8)) {
-            u64 eight = reinterpret_cast<const uint64_t*>(input)[0];
-            val.num = (eight<<ignoredBits)>>ignoredBits;
-         } else {
-            val.num = reinterpret_cast<const uint64_t*>(input+len-8)[0]>>ignoredBits;
-         }
-#endif
+          memcpy(val.str, input, len);
       }
       set_code_len(FSST_CODE_MAX, len);
    }

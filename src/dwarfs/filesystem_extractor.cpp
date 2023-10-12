@@ -19,17 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifdef _WIN32
-#include <folly/portability/Unistd.h>
-#include <folly/portability/SysStat.h>
-#include <folly/portability/Windows.h>
-#endif
-
 #include <array>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <thread>
+
+// This is required to avoid Windows.h being pulled in by libarchive
+// and polluting our environment with all sorts of shit.
+#if _WIN32
+#include <folly/portability/Windows.h>
+#endif
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -38,11 +38,14 @@
 #include <folly/ScopeGuard.h>
 #include <folly/system/ThreadName.h>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options.h"
+#include "dwarfs/util.h"
+#include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
@@ -76,6 +79,11 @@ class cache_semaphore {
   int64_t size_{0};
 };
 
+class archive_error : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
 } // namespace
 
 template <typename LoggerPolicy>
@@ -104,9 +112,15 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   }
 
   void open_stream(std::ostream& os, std::string const& format) override {
+#ifdef _WIN32
+    if (::_pipe(pipefd_, 8192, _O_BINARY) != 0) {
+      DWARFS_THROW(system_error, "_pipe()");
+    }
+#else
     if (::pipe(pipefd_) != 0) {
       DWARFS_THROW(system_error, "pipe()");
     }
+#endif
 
     iot_ = std::make_unique<std::thread>(
         [this, &os, fd = pipefd_[0]] { pump(os, fd); });
@@ -136,7 +150,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   void close() override {
     if (a_) {
-      check_result(::archive_write_free(a_));
+      check_result(::archive_write_close(a_));
+      ::archive_write_free(a_);
       a_ = nullptr;
     }
 
@@ -150,7 +165,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     closefd(pipefd_[0]);
   }
 
-  void extract(filesystem_v2 const& fs, size_t max_queued_bytes) override;
+  bool extract(filesystem_v2 const& fs,
+               filesystem_extractor_options const& opts) override;
 
  private:
   void closefd(int& fd) {
@@ -168,14 +184,16 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     std::array<char, 1024> buf;
 
     for (;;) {
+      // This is fine, we're simply reusing the buffer.
+      // Flawfinder: ignore
       auto rv = ::read(fd, buf.data(), buf.size());
 
-      if (rv == 0) {
-        break;
-      }
+      if (rv <= 0) {
+        if (rv < 0) {
+          LOG_ERROR << "read(): " << ::strerror(errno);
+        }
 
-      if (rv < 0) {
-        LOG_ERROR << "read(): " << ::strerror(errno);
+        break;
       }
 
       os.write(buf.data(), rv);
@@ -190,8 +208,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       LOG_WARN << std::string(archive_error_string(a_));
       break;
     case ARCHIVE_RETRY:
+    case ARCHIVE_FAILED:
     case ARCHIVE_FATAL:
-      DWARFS_THROW(runtime_error, std::string(archive_error_string(a_)));
+      throw archive_error(std::string(archive_error_string(a_)));
     }
   }
 
@@ -202,8 +221,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 };
 
 template <typename LoggerPolicy>
-void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
-                                                  size_t max_queued_bytes) {
+bool filesystem_extractor_<LoggerPolicy>::extract(
+    filesystem_v2 const& fs, filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto lr = ::archive_entry_linkresolver_new();
@@ -219,48 +238,89 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
   worker_group archiver("archiver", 1);
   cache_semaphore sem;
 
-  sem.post(max_queued_bytes);
+  LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
+            << " bytes";
 
-  std::atomic<bool> abort{false};
+  sem.post(opts.max_queued_bytes);
+
+  vfs_stat vfs;
+  fs.statvfs(&vfs);
+
+  std::atomic<size_t> hard_error{0};
+  std::atomic<size_t> soft_error{0};
+  std::atomic<uint64_t> bytes_written{0};
+  uint64_t const bytes_total{vfs.blocks};
 
   auto do_archive = [&](::archive_entry* ae,
                         inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
-        S_ISREG(entry.mode()) && size > 0) {
+        entry.is_regular_file() && size > 0) {
       auto fd = fs.open(entry);
+      std::string_view path{::archive_entry_pathname(ae)};
+      size_t pos = 0;
+      size_t remain = size;
 
-      sem.wait(size);
+      while (remain > 0 && hard_error == 0) {
+        size_t bs =
+            remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
 
-      if (auto ranges = fs.readv(fd, size, 0)) {
-        archiver.add_job([this, &sem, &abort, ranges = std::move(*ranges), ae,
-                          size]() mutable {
-          SCOPE_EXIT { ::archive_entry_free(ae); };
-          try {
-            LOG_TRACE << "archiving " << ::archive_entry_pathname(ae);
-            check_result(::archive_write_header(a_, ae));
-            for (auto& r : ranges) {
-              auto br = r.get();
-              LOG_TRACE << "writing " << br.size() << " bytes";
-              check_result(::archive_write_data(a_, br.data(), br.size()));
+        sem.wait(bs);
+
+        if (auto ranges = fs.readv(fd, bs, pos)) {
+          archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
+                            ranges = std::move(*ranges), ae, pos, remain, bs,
+                            size, path, &bytes_written, bytes_total]() mutable {
+            try {
+              if (pos == 0) {
+                LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
+                check_result(::archive_write_header(a_, ae));
+              }
+              for (auto& r : ranges) {
+                auto br = r.get();
+                LOG_TRACE << "[" << pos << "] writing " << br.size()
+                          << " bytes for " << path;
+                check_result(::archive_write_data(a_, br.data(), br.size()));
+                if (opts.progress) {
+                  bytes_written += br.size();
+                  opts.progress(path, bytes_written, bytes_total);
+                }
+              }
+              if (bs == remain) {
+                archive_entry_free(ae);
+              }
+              sem.post(bs);
+            } catch (archive_error const& e) {
+              LOG_ERROR << folly::exceptionStr(e);
+              ++hard_error;
+            } catch (...) {
+              if (opts.continue_on_error) {
+                LOG_WARN << folly::exceptionStr(std::current_exception());
+                ++soft_error;
+              } else {
+                LOG_ERROR << folly::exceptionStr(std::current_exception());
+                ++hard_error;
+              }
+              archive_entry_free(ae);
             }
-            sem.post(size);
-          } catch (...) {
-            LOG_ERROR << folly::exceptionStr(std::current_exception());
-            abort = true;
-          }
-        });
-      } else {
-        LOG_ERROR << "error reading inode [" << fd
-                  << "]: " << ::strerror(-ranges.error());
+          });
+        } else {
+          LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
+                    << " from  inode [" << fd
+                    << "]: " << ::strerror(-ranges.error());
+          break;
+        }
+
+        pos += bs;
+        remain -= bs;
       }
     } else {
-      archiver.add_job([this, ae, &abort] {
+      archiver.add_job([this, ae, &hard_error] {
         SCOPE_EXIT { ::archive_entry_free(ae); };
         try {
           check_result(::archive_write_header(a_, ae));
         } catch (...) {
           LOG_ERROR << folly::exceptionStr(std::current_exception());
-          abort = true;
+          hard_error = true;
         }
       });
     }
@@ -268,28 +328,49 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
 
   fs.walk_data_order([&](auto entry) {
     // TODO: we can surely early abort walk() somehow
-    if (entry.is_root() || abort) {
+    if (entry.is_root() || hard_error) {
       return;
     }
 
     auto inode = entry.inode();
 
     auto ae = ::archive_entry_new();
-    struct ::stat stbuf;
+    file_stat stbuf;
 
     if (fs.getattr(inode, &stbuf) != 0) {
       DWARFS_THROW(runtime_error, "getattr() failed");
     }
 
-    ::archive_entry_set_pathname(ae, entry.path().c_str());
-    ::archive_entry_copy_stat(ae, &stbuf);
+    struct stat st;
 
-    if (S_ISLNK(inode.mode())) {
+    ::memset(&st, 0, sizeof(st));
+#ifdef _WIN32
+    copy_file_stat<false>(&st, stbuf);
+#else
+    copy_file_stat<true>(&st, stbuf);
+#endif
+
+#ifdef _WIN32
+    ::archive_entry_copy_pathname_w(ae, entry.wpath().c_str());
+#else
+    ::archive_entry_copy_pathname(ae, entry.path().c_str());
+#endif
+    ::archive_entry_copy_stat(ae, &st);
+
+    if (inode.is_symlink()) {
       std::string link;
       if (fs.readlink(inode, &link) != 0) {
         LOG_ERROR << "readlink() failed";
       }
-      ::archive_entry_set_symlink(ae, link.c_str());
+      if (opts.progress) {
+        bytes_written += link.size();
+      }
+#ifdef _WIN32
+      std::filesystem::path linkpath(string_to_u8string(link));
+      ::archive_entry_copy_symlink_w(ae, linkpath.wstring().c_str());
+#else
+      ::archive_entry_copy_symlink(ae, link.c_str());
+#endif
     }
 
     ::archive_entry_linkify(lr, &ae, &spare);
@@ -310,7 +391,7 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
 
   archiver.wait();
 
-  if (abort) {
+  if (hard_error) {
     DWARFS_THROW(runtime_error, "extraction aborted");
   }
 
@@ -321,6 +402,15 @@ void filesystem_extractor_<LoggerPolicy>::extract(filesystem_v2 const& fs,
   if (ae) {
     DWARFS_THROW(runtime_error, "unexpected deferred entry");
   }
+
+  if (soft_error > 0) {
+    LOG_ERROR << "extraction finished with " << soft_error << " error(s)";
+    return false;
+  }
+
+  LOG_INFO << "extraction finished without errors";
+
+  return true;
 }
 
 filesystem_extractor::filesystem_extractor(logger& lgr)

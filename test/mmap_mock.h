@@ -27,24 +27,32 @@ namespace test {
 class mmap_mock : public mmif {
  public:
   mmap_mock(const std::string& data)
-      : m_data(data) {}
+      : data_(data)
+      , path_{"<mock-file>"} {}
 
-  void const* addr() const override { return m_data.data(); }
+  mmap_mock(const std::string& data, std::filesystem::path const& path)
+      : data_{data}
+      , path_{path} {}
 
-  size_t size() const override { return m_data.size(); }
+  void const* addr() const override { return data_.data(); }
 
-  boost::system::error_code lock(off_t, size_t) override {
-    return boost::system::error_code();
+  size_t size() const override { return data_.size(); }
+
+  std::filesystem::path const& path() const override { return path_; }
+
+  std::error_code lock(file_off_t, size_t) override {
+    return std::error_code();
   }
-  boost::system::error_code release(off_t, size_t) override {
-    return boost::system::error_code();
+  std::error_code release(file_off_t, size_t) override {
+    return std::error_code();
   }
-  boost::system::error_code release_until(off_t) override {
-    return boost::system::error_code();
+  std::error_code release_until(file_off_t) override {
+    return std::error_code();
   }
 
  private:
-  const std::string m_data;
+  std::string const data_;
+  std::filesystem::path const path_;
 };
 
 } // namespace test

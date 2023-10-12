@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
 #include <limits>
@@ -103,15 +104,17 @@ class inode_ : public inode {
   uint32_t num() const override { return num_.value(); }
 
   uint32_t similarity_hash() const override {
+    assert(similarity_valid_);
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (similarity)");
     }
     return similarity_hash_;
   }
 
   nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
+    assert(nilsimsa_valid_);
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (nilsimsa)");
     }
     return nilsimsa_similarity_hash_;
   }
@@ -125,11 +128,23 @@ class inode_ : public inode {
   }
 
   void
-  scan(std::shared_ptr<mmif> const& mm, inode_options const& opts) override {
-    if (opts.needs_scan()) {
-      similarity sc;
-      nilsimsa nc;
+  set_similarity_valid(inode_options const& opts [[maybe_unused]]) override {
+#ifndef NDEBUG
+    assert(!similarity_valid_);
+    assert(!nilsimsa_valid_);
+    similarity_valid_ = opts.with_similarity;
+    nilsimsa_valid_ = opts.with_nilsimsa;
+#endif
+  }
 
+  void scan(mmif* mm, inode_options const& opts) override {
+    assert(!similarity_valid_);
+    assert(!nilsimsa_valid_);
+
+    similarity sc;
+    nilsimsa nc;
+
+    if (mm) {
       auto update_hashes = [&](uint8_t const* data, size_t size) {
         if (opts.with_similarity) {
           sc.update(data, size);
@@ -152,22 +167,28 @@ class inode_ : public inode {
       }
 
       update_hashes(mm->as<uint8_t>(offset), size);
+    }
 
-      if (opts.with_similarity) {
-        similarity_hash_ = sc.finalize();
-      }
+    if (opts.with_similarity) {
+      similarity_hash_ = sc.finalize();
+#ifndef NDEBUG
+      similarity_valid_ = true;
+#endif
+    }
 
-      if (opts.with_nilsimsa) {
-        nc.finalize(nilsimsa_similarity_hash_);
-      }
+    if (opts.with_nilsimsa) {
+      nc.finalize(nilsimsa_similarity_hash_);
+#ifndef NDEBUG
+      nilsimsa_valid_ = true;
+#endif
     }
   }
 
   void add_chunk(size_t block, size_t offset, size_t size) override {
     chunk_type c;
-    c.block = block;
-    c.offset = offset;
-    c.size = size;
+    c.block() = block;
+    c.offset() = offset;
+    c.size() = size;
     chunks_.push_back(c);
   }
 
@@ -177,7 +198,7 @@ class inode_ : public inode {
 
   file const* any() const override {
     if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file");
+      DWARFS_THROW(runtime_error, "inode has no file (any)");
     }
     return files_.front();
   }
@@ -192,6 +213,10 @@ class inode_ : public inode {
   files_vector files_;
   std::vector<chunk_type> chunks_;
   nilsimsa::hash_type nilsimsa_similarity_hash_;
+#ifndef NDEBUG
+  bool similarity_valid_{false};
+  bool nilsimsa_valid_{false};
+#endif
 };
 
 } // namespace
@@ -237,7 +262,7 @@ class inode_manager_ final : public inode_manager::impl {
     paths.reserve(inodes_.size());
 
     for (auto const& ino : inodes_) {
-      paths.emplace_back(ino->any()->path());
+      paths.emplace_back(ino->any()->path_as_string());
     }
 
     std::iota(index.begin(), index.end(), size_t(0));
@@ -264,7 +289,7 @@ class inode_manager_ final : public inode_manager::impl {
           return ash < bsh ||
                  (ash == bsh && (a->size() > b->size() ||
                                  (a->size() == b->size() &&
-                                  a->any()->path() < b->any()->path())));
+                                  a->any()->fs_path() < b->any()->fs_path())));
         });
   }
 
@@ -365,7 +390,7 @@ void inode_manager_<LoggerPolicy>::presort_index(
 
     ++num_path;
 
-    return fa->path() > fb->path();
+    return fa->fs_path() > fb->fs_path();
   });
 
   ti << "pre-sorted index (" << num_name << " name, " << num_path
@@ -396,18 +421,46 @@ void inode_manager_<LoggerPolicy>::order_inodes_by_nilsimsa(
   index.resize(count);
   std::iota(index.begin(), index.end(), 0);
 
-  auto empty = std::partition(index.begin(), index.end(),
-                              [&](auto i) { return inodes[i]->size() > 0; });
-
   auto finalize_inode = [&]() {
     inodes_.push_back(std::move(inodes[index.back()]));
     index.pop_back();
     return fn(inodes_.back());
   };
 
-  if (empty != index.end()) {
-    assert(empty + 1 == index.end());
-    finalize_inode();
+  {
+    auto empty = std::partition(index.begin(), index.end(),
+                                [&](auto i) { return inodes[i]->size() > 0; });
+
+    if (empty != index.end()) {
+      auto count = std::distance(empty, index.end());
+
+      LOG_DEBUG << "finalizing " << count << " empty inodes...";
+
+      for (auto n = count; n > 0; --n) {
+        finalize_inode();
+      }
+    }
+  }
+
+  {
+    auto unhashed = std::partition(index.begin(), index.end(), [&](auto i) {
+      auto const& sh = inodes[i]->nilsimsa_similarity_hash();
+      return std::any_of(sh.begin(), sh.end(), [](auto v) { return v != 0; });
+    });
+
+    if (unhashed != index.end()) {
+      auto count = std::distance(unhashed, index.end());
+
+      std::sort(unhashed, index.end(), [&inodes](auto a, auto b) {
+        return inodes[a]->size() < inodes[b]->size();
+      });
+
+      LOG_INFO << "finalizing " << count << " unhashed inodes...";
+
+      for (auto n = count; n > 0; --n) {
+        finalize_inode();
+      }
+    }
   }
 
   if (!index.empty()) {

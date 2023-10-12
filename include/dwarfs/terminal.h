@@ -46,6 +46,10 @@ enum class termcolor {
   NUM_COLORS
 };
 
+void setup_terminal();
+
+size_t get_term_width();
+
 bool stream_is_fancy_terminal(std::ostream& os);
 
 char const* terminal_color(termcolor color);

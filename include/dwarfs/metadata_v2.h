@@ -21,34 +21,30 @@
 
 #pragma once
 
-#include <folly/portability/SysTypes.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <folly/Expected.h>
-#include <folly/Range.h>
 #include <folly/dynamic.h>
 
 #include "dwarfs/metadata_types.h"
-
-struct stat;
-struct statvfs;
 
 namespace dwarfs {
 
 class logger;
 
 struct metadata_options;
-
 struct filesystem_info;
+struct file_stat;
+struct vfs_stat;
 
 namespace thrift::metadata {
 class metadata;
@@ -58,9 +54,9 @@ class metadata_v2 {
  public:
   metadata_v2() = default;
 
-  metadata_v2(logger& lgr, folly::ByteRange schema, folly::ByteRange data,
-              metadata_options const& options, int inode_offset = 0,
-              bool force_consistency_check = false);
+  metadata_v2(logger& lgr, std::span<uint8_t const> schema,
+              std::span<uint8_t const> data, metadata_options const& options,
+              int inode_offset = 0, bool force_consistency_check = false);
 
   metadata_v2& operator=(metadata_v2&&) = default;
 
@@ -98,7 +94,7 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view iv, struct ::stat* stbuf) const {
+  int getattr(inode_view iv, file_stat* stbuf) const {
     return impl_->getattr(iv, stbuf);
   }
 
@@ -119,21 +115,24 @@ class metadata_v2 {
 
   int open(inode_view iv) const { return impl_->open(iv); }
 
-  int readlink(inode_view iv, std::string* buf) const {
-    return impl_->readlink(iv, buf);
+  int readlink(inode_view iv, std::string* buf, readlink_mode mode) const {
+    return impl_->readlink(iv, buf, mode);
   }
 
-  folly::Expected<std::string, int> readlink(inode_view iv) const {
-    return impl_->readlink(iv);
+  folly::Expected<std::string, int>
+  readlink(inode_view iv, readlink_mode mode) const {
+    return impl_->readlink(iv, mode);
   }
 
-  int statvfs(struct ::statvfs* stbuf) const { return impl_->statvfs(stbuf); }
+  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
 
   std::optional<chunk_range> get_chunks(int inode) const {
     return impl_->get_chunks(inode);
   }
 
   size_t block_size() const { return impl_->block_size(); }
+
+  bool has_symlinks() const { return impl_->has_symlinks(); }
 
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
@@ -163,7 +162,7 @@ class metadata_v2 {
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
 
-    virtual int getattr(inode_view iv, struct ::stat* stbuf) const = 0;
+    virtual int getattr(inode_view iv, file_stat* stbuf) const = 0;
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 
@@ -176,15 +175,19 @@ class metadata_v2 {
 
     virtual int open(inode_view iv) const = 0;
 
-    virtual int readlink(inode_view iv, std::string* buf) const = 0;
+    virtual int
+    readlink(inode_view iv, std::string* buf, readlink_mode mode) const = 0;
 
-    virtual folly::Expected<std::string, int> readlink(inode_view iv) const = 0;
+    virtual folly::Expected<std::string, int>
+    readlink(inode_view iv, readlink_mode mode) const = 0;
 
-    virtual int statvfs(struct ::statvfs* stbuf) const = 0;
+    virtual int statvfs(vfs_stat* stbuf) const = 0;
 
     virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
 
     virtual size_t block_size() const = 0;
+
+    virtual bool has_symlinks() const = 0;
   };
 
  private:

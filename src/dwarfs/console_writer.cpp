@@ -21,10 +21,7 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <locale>
 #include <sstream>
-
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <folly/Conv.h>
 
@@ -34,6 +31,8 @@
 #include "dwarfs/entry.h"
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/inode.h"
+#include "dwarfs/lazy_value.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/terminal.h"
 #include "dwarfs/util.h"
@@ -56,22 +55,43 @@ bool is_debug_progress() {
   return false;
 }
 
+std::string progress_bar(size_t width, double frac, bool unicode) {
+  size_t barlen = 8 * width * frac;
+  size_t w = barlen / 8;
+  size_t c = barlen % 8;
+
+  auto bar = unicode ? uni_bar.data() : asc_bar.data();
+  std::string rv;
+
+  for (size_t i = 0; i < width; ++i) {
+    if (i == (width - 1)) {
+      rv.append(bar[0]);
+    } else if (i == w) {
+      rv.append(bar[c]);
+    } else {
+      rv.append(i < w ? bar[7] : " ");
+    }
+  }
+
+  return rv;
+}
+
 } // namespace
 
 console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
-                               size_t width, level_type threshold,
-                               display_mode mode, bool with_context)
+                               get_term_width_type get_term_width,
+                               level_type threshold, display_mode mode,
+                               bool with_context)
     : os_(os)
     , threshold_(threshold)
     , frac_(0.0)
     , pg_mode_(pg_mode)
-    , width_(width)
+    , get_term_width_(get_term_width)
     , mode_(mode)
     , color_(stream_is_fancy_terminal(os))
     , with_context_(with_context)
-    , debug_progress_(is_debug_progress()) {
-  os_.imbue(std::locale(os_.getloc(),
-                        new boost::posix_time::time_facet("%H:%M:%S.%f")));
+    , debug_progress_(is_debug_progress())
+    , read_speed_{std::chrono::seconds(5)} {
   if (threshold > level_type::INFO) {
     set_policy<debug_logger_policy>();
   } else {
@@ -81,13 +101,21 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {
+    int lines = 0;
+
     switch (mode_) {
     case NORMAL:
-      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A";
+      lines = 9;
       break;
     case REWRITE:
-      os_ << "\x1b[A\r\x1b[A\x1b[A\x1b[A";
+      lines = 4;
       break;
+    }
+
+    os_ << '\r';
+
+    for (int i = 0; i < lines; ++i) {
+      os_ << "\x1b[A";
     }
   }
 }
@@ -95,7 +123,7 @@ void console_writer::rewind() {
 void console_writer::write(level_type level, const std::string& output,
                            char const* file, int line) {
   if (level <= threshold_) {
-    auto t = boost::posix_time::microsec_clock::local_time();
+    auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
 
@@ -120,7 +148,7 @@ void console_writer::write(level_type level, const std::string& output,
     std::string context;
 
     if (with_context_ && file) {
-      context = fmt::format("[{0}:{1}] ", ::strrchr(file, '/') + 1, line);
+      context = get_logger_context(file, line);
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,
@@ -154,12 +182,13 @@ void console_writer::update(const progress& p, bool last) {
   const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 
   std::ostringstream oss;
+  lazy_value width(get_term_width_);
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
   if (last || fancy) {
     if (fancy) {
-      for (size_t i = 0; i < width_; ++i) {
+      for (size_t i = 0; i < width.get(); ++i) {
         oss << (pg_mode_ == UNICODE ? "⎯" : "-");
       }
       oss << "\n";
@@ -167,9 +196,30 @@ void console_writer::update(const progress& p, bool last) {
 
     switch (mode_) {
     case NORMAL:
+      if (writing_) {
+        read_speed_.put(p.total_bytes_read.load());
+      } else {
+        if (p.total_bytes_read.load() > 0) {
+          read_speed_.clear();
+          writing_ = true;
+        } else {
+          read_speed_.put(p.similarity_bytes.load());
+        }
+      }
+
       if (fancy) {
-        oss << terminal_colored(p.status(width_), termcolor::BOLD_CYAN, color_)
+        oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
+                                color_)
             << newline;
+      }
+
+      {
+        auto cur_size = p.current_size.load();
+        double cur_offs = std::min(p.current_offset.load(), cur_size);
+        double cur_frac = cur_size > 0 ? cur_offs / cur_size : 0.0;
+
+        oss << progress_bar(64, cur_frac, pg_mode_ == UNICODE) << " "
+            << size_with_unit(read_speed_.num_per_second()) << "/s" << newline;
       }
 
       oss << p.dirs_scanned << " dirs, " << p.symlinks_scanned << "/"
@@ -178,10 +228,14 @@ void console_writer::update(const progress& p, bool last) {
           << newline
 
           << "original size: " << size_with_unit(p.original_size)
-          << ", dedupe: " << size_with_unit(p.saved_by_deduplication) << " ("
-          << p.duplicate_files
-          << " files), segment: " << size_with_unit(p.saved_by_segmentation)
-          << newline
+          << ", scanned: " << size_with_unit(p.similarity_bytes)
+          << ", hashed: " << size_with_unit(p.hash_bytes) << " ("
+          << p.hash_scans << " files)" << newline
+
+          << "saved by deduplication: "
+          << size_with_unit(p.saved_by_deduplication) << " ("
+          << p.duplicate_files << " files), saved by segmenting: "
+          << size_with_unit(p.saved_by_segmentation) << newline
 
           << "filesystem: " << size_with_unit(p.filesystem_size) << " in "
           << p.block_count << " blocks (" << p.chunk_count << " chunks, "
@@ -224,7 +278,7 @@ void console_writer::update(const progress& p, bool last) {
     return;
   }
 
-  size_t orig = p.original_size - p.saved_by_deduplication;
+  size_t orig = p.original_size - (p.saved_by_deduplication + p.symlink_size);
   double frac_fs =
       orig > 0 ? double(p.filesystem_size + p.saved_by_segmentation) / orig
                : 0.0;
@@ -232,26 +286,20 @@ void console_writer::update(const progress& p, bool last) {
       p.block_count > 0 ? double(p.blocks_written) / p.block_count : 0.0;
   double frac = mode_ == NORMAL ? (frac_fs + frac_comp) / 2.0 : frac_comp;
 
+  if (last) {
+    frac = 1.0;
+  }
+
   if (frac > frac_) {
     frac_ = frac;
   }
 
-  size_t barlen = 8 * (width_ - 6) * frac_;
-  size_t w = barlen / 8;
-  size_t c = barlen % 8;
-
-  auto bar = pg_mode_ == UNICODE ? uni_bar.data() : asc_bar.data();
-
   if (pg_mode_ == SIMPLE) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
-#if FMT_VERSION >= 100000
                     p.blocks_written.load(), size_with_unit(p.compressed_size));
-#else
-                    p.blocks_written, size_with_unit(p.compressed_size));
-#endif
     if (tmp != statebuf_) {
-      auto t = boost::posix_time::microsec_clock::local_time();
+      auto t = get_current_time_string();
       statebuf_ = tmp;
       std::lock_guard lock(mx_);
       os_ << "- " << t << statebuf_ << "\n";
@@ -261,16 +309,8 @@ void console_writer::update(const progress& p, bool last) {
       os_ << oss.str();
     }
   } else {
-    for (size_t i = 0; i < width_ - 6; ++i) {
-      if (i == (width_ - 7)) {
-        oss << bar[0];
-      } else if (i == w && !last) {
-        oss << bar[c];
-      } else {
-        oss << (i < w ? bar[7] : " ");
-      }
-    }
-    oss << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
+    oss << progress_bar(width.get() - 6, frac_, pg_mode_ == UNICODE)
+        << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
         << '\n';
 
     ++counter_;

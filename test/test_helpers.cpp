@@ -19,24 +19,19 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _WIN32
-#include <sys/stat.h>
-#include <unistd.h>
-#else
-#include <folly/portability/SysStat.h>
-#include <folly/portability/Unistd.h>
-#endif
-
-
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
 
+#include <fmt/format.h>
+
 #include <folly/String.h>
+#include <folly/portability/Unistd.h>
 
 #include "dwarfs/overloaded.h"
+#include "dwarfs/util.h"
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
@@ -44,22 +39,39 @@
 namespace dwarfs {
 namespace test {
 
+namespace fs = std::filesystem;
+
+namespace {
+
+file_stat make_file_stat(simplestat const& ss) {
+  file_stat rv;
+  ::memset(&rv, 0, sizeof(rv));
+  rv.ino = ss.ino;
+  rv.nlink = ss.nlink;
+  rv.mode = ss.mode;
+  rv.uid = ss.uid;
+  rv.gid = ss.gid;
+  rv.rdev = ss.rdev;
+  rv.size = ss.size;
+  rv.atime = ss.atime;
+  rv.mtime = ss.mtime;
+  rv.ctime = ss.ctime;
+  return rv;
+}
+
+} // namespace
+
 struct os_access_mock::mock_dirent {
   std::string name;
-  struct ::stat stat;
-  std::variant<std::monostate, std::string, std::function<std::string()>,
-               std::unique_ptr<mock_directory>>
-      v;
+  simplestat status;
+  value_variant_type v;
 
   size_t size() const;
 
   mock_dirent* find(std::string const& name);
 
   void
-  add(std::string const& name, struct ::stat const& st,
-      std::variant<std::monostate, std::string, std::function<std::string()>,
-                   std::unique_ptr<mock_directory>>
-          var);
+  add(std::string const& name, simplestat const& st, value_variant_type var);
 };
 
 struct os_access_mock::mock_directory {
@@ -70,10 +82,7 @@ struct os_access_mock::mock_directory {
   mock_dirent* find(std::string const& name);
 
   void
-  add(std::string const& name, struct ::stat const& st,
-      std::variant<std::monostate, std::string, std::function<std::string()>,
-                   std::unique_ptr<mock_directory>>
-          var);
+  add(std::string const& name, simplestat const& st, value_variant_type var);
 };
 
 size_t os_access_mock::mock_dirent::size() const {
@@ -89,11 +98,9 @@ auto os_access_mock::mock_dirent::find(std::string const& name)
   return std::get<std::unique_ptr<mock_directory>>(v)->find(name);
 }
 
-void os_access_mock::mock_dirent::add(
-    std::string const& name, struct ::stat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::mock_dirent::add(std::string const& name,
+                                      simplestat const& st,
+                                      value_variant_type var) {
   return std::get<std::unique_ptr<mock_directory>>(v)->add(name, st,
                                                            std::move(var));
 }
@@ -113,14 +120,12 @@ auto os_access_mock::mock_directory::find(std::string const& name)
   return it != ent.end() ? &*it : nullptr;
 }
 
-void os_access_mock::mock_directory::add(
-    std::string const& name, struct ::stat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::mock_directory::add(std::string const& name,
+                                         simplestat const& st,
+                                         value_variant_type var) {
   assert(!find(name));
 
-  if (S_ISDIR(st.st_mode)) {
+  if (st.type() == posix_file_type::directory) {
     assert(std::holds_alternative<std::unique_ptr<mock_directory>>(var));
   } else {
     assert(!std::holds_alternative<std::unique_ptr<mock_directory>>(var));
@@ -128,17 +133,17 @@ void os_access_mock::mock_directory::add(
 
   auto& de = ent.emplace_back();
   de.name = name;
-  de.stat = st;
+  de.status = st;
   de.v = std::move(var);
 }
 
 class dir_reader_mock : public dir_reader {
  public:
-  dir_reader_mock(std::vector<std::string>&& files)
+  explicit dir_reader_mock(std::vector<fs::path>&& files)
       : files_(files)
       , index_(0) {}
 
-  bool read(std::string& name) const override {
+  bool read(fs::path& name) override {
     if (index_ < files_.size()) {
       name = files_[index_++];
       return true;
@@ -148,8 +153,8 @@ class dir_reader_mock : public dir_reader {
   }
 
  private:
-  std::vector<std::string> files_;
-  mutable size_t index_;
+  std::vector<fs::path> files_;
+  size_t index_;
 };
 
 os_access_mock::os_access_mock() = default;
@@ -157,25 +162,49 @@ os_access_mock::~os_access_mock() = default;
 
 std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
   static const std::vector<std::pair<std::string, simplestat>> statmap{
-      {"", {1, S_IFDIR | 0777, 1, 1000, 100, 0, 0, 1, 2, 3}},
-      {"test.pl", {3, S_IFREG | 0644, 2, 1000, 100, 0, 0, 1001, 1002, 1003}},
-      {"somelink", {4, S_IFLNK | 0777, 1, 1000, 100, 16, 0, 2001, 2002, 2003}},
-      {"somedir", {5, S_IFDIR | 0777, 1, 1000, 100, 0, 0, 3001, 3002, 3003}},
-      {"foo.pl", {6, S_IFREG | 0600, 2, 1337, 0, 23456, 0, 4001, 4002, 4003}},
-      {"bar.pl", {6, S_IFREG | 0600, 2, 1337, 0, 23456, 0, 4001, 4002, 4003}},
-      {"baz.pl", {16, S_IFREG | 0600, 2, 1337, 0, 23456, 0, 8001, 8002, 8003}},
+      {"", {1, posix_file_type::directory | 0777, 1, 1000, 100, 0, 0, 1, 2, 3}},
+      {"test.pl",
+       {3, posix_file_type::regular | 0644, 2, 1000, 100, 0, 0, 1001, 1002,
+        1003}},
+      {"somelink",
+       {4, posix_file_type::symlink | 0777, 1, 1000, 100, 16, 0, 2001, 2002,
+        2003}},
+      {"somedir",
+       {5, posix_file_type::directory | 0777, 1, 1000, 100, 0, 0, 3001, 3002,
+        3003}},
+      {"foo.pl",
+       {6, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 4001, 4002,
+        4003}},
+      {"bar.pl",
+       {6, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 4001, 4002,
+        4003}},
+      {"baz.pl",
+       {16, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 8001, 8002,
+        8003}},
       {"ipsum.txt",
-       {7, S_IFREG | 0644, 1, 1000, 100, 2000000, 0, 5001, 5002, 5003}},
+       {7, posix_file_type::regular | 0644, 1, 1000, 100, 2000000, 0, 5001,
+        5002, 5003}},
       {"somedir/ipsum.py",
-       {9, S_IFREG | 0644, 1, 1000, 100, 10000, 0, 6001, 6002, 6003}},
+       {9, posix_file_type::regular | 0644, 1, 1000, 100, 10000, 0, 6001, 6002,
+        6003}},
       {"somedir/bad",
-       {10, S_IFLNK | 0777, 1, 1000, 100, 6, 0, 7001, 7002, 7003}},
+       {10, posix_file_type::symlink | 0777, 1, 1000, 100, 6, 0, 7001, 7002,
+        7003}},
       {"somedir/pipe",
-       {12, S_IFIFO | 0644, 1, 1000, 100, 0, 0, 8001, 8002, 8003}},
-      {"somedir/null", {13, S_IFCHR | 0666, 1, 0, 0, 0, 259, 9001, 9002, 9003}},
+       {12, posix_file_type::fifo | 0644, 1, 1000, 100, 0, 0, 8001, 8002,
+        8003}},
+      {"somedir/null",
+       {13, posix_file_type::character | 0666, 1, 0, 0, 0, 259, 9001, 9002,
+        9003}},
       {"somedir/zero",
-       {14, S_IFCHR | 0666, 1, 0, 0, 0, 261, 4000010001, 4000020002,
-        4000030003}},
+       {14, posix_file_type::character | 0666, 1, 0, 0, 0, 261, 4000010001,
+        4000020002, 4000030003}},
+      {"somedir/empty",
+       {212, posix_file_type::regular | 0644, 1, 1000, 100, 0, 0, 8101, 8102,
+        8103}},
+      {"empty",
+       {210, posix_file_type::regular | 0644, 3, 1337, 0, 0, 0, 8201, 8202,
+        8203}},
   };
 
   static std::map<std::string, std::string> linkmap{
@@ -186,97 +215,89 @@ std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
   auto m = std::make_shared<os_access_mock>();
 
   for (auto const& kv : statmap) {
-    const auto& sst = kv.second;
-    struct ::stat st;
+    const auto& stat = kv.second;
 
-    std::memset(&st, 0, sizeof(st));
-
-    st.st_ino = sst.st_ino;
-    st.st_mode = sst.st_mode;
-    st.st_nlink = sst.st_nlink;
-    st.st_uid = sst.st_uid;
-    st.st_gid = sst.st_gid;
-    st.st_size = sst.st_size;
-    st.st_atime = sst.atime;
-    st.st_mtime = sst.mtime;
-    st.st_ctime = sst.ctime;
-    st.st_rdev = sst.st_rdev;
-
-    if (S_ISREG(st.st_mode)) {
-      m->add(kv.first, st, [size = st.st_size] { return loremipsum(size); });
-    } else if (S_ISLNK(st.st_mode)) {
-      m->add(kv.first, st, linkmap.at(kv.first));
-    } else {
-      m->add(kv.first, st);
+    switch (stat.type()) {
+    case posix_file_type::regular:
+      m->add(kv.first, stat, [size = stat.size] { return loremipsum(size); });
+      break;
+    case posix_file_type::symlink:
+      m->add(kv.first, stat, linkmap.at(kv.first));
+      break;
+    default:
+      m->add(kv.first, stat);
+      break;
     }
   }
 
   return m;
 }
 
-void os_access_mock::add(std::filesystem::path const& path,
-                         struct ::stat const& st) {
+void os_access_mock::add(fs::path const& path, simplestat const& st) {
   add_internal(path, st, std::monostate{});
 }
 
-void os_access_mock::add(std::filesystem::path const& path,
-                         struct ::stat const& st, std::string const& contents) {
+void os_access_mock::add(fs::path const& path, simplestat const& st,
+                         std::string const& contents) {
   add_internal(path, st, contents);
 }
 
-void os_access_mock::add(std::filesystem::path const& path,
-                         struct ::stat const& st,
+void os_access_mock::add(fs::path const& path, simplestat const& st,
                          std::function<std::string()> generator) {
   add_internal(path, st, generator);
 }
 
-void os_access_mock::add_dir(std::filesystem::path const& path) {
-  struct ::stat st;
+void os_access_mock::add_dir(fs::path const& path) {
+  simplestat st;
   std::memset(&st, 0, sizeof(st));
-  st.st_ino = ino_++;
-  st.st_mode = S_IFDIR | 0755;
-  st.st_uid = 1000;
-  st.st_gid = 100;
+  st.ino = ino_++;
+  st.mode = posix_file_type::directory | 0755;
+  st.uid = 1000;
+  st.gid = 100;
   add(path, st);
 }
 
-void os_access_mock::add_file(std::filesystem::path const& path, size_t size) {
-  struct ::stat st;
+void os_access_mock::add_file(fs::path const& path, size_t size) {
+  simplestat st;
   std::memset(&st, 0, sizeof(st));
-  st.st_ino = ino_++;
-  st.st_mode = S_IFREG | 0644;
-  st.st_uid = 1000;
-  st.st_gid = 100;
-  st.st_size = size;
+  st.ino = ino_++;
+  st.mode = posix_file_type::regular | 0644;
+  st.uid = 1000;
+  st.gid = 100;
+  st.size = size;
   add(path, st, [size] { return loremipsum(size); });
 }
 
-void os_access_mock::add_file(std::filesystem::path const& path,
+void os_access_mock::add_file(fs::path const& path,
                               std::string const& contents) {
-  struct ::stat st;
+  simplestat st;
   std::memset(&st, 0, sizeof(st));
-  st.st_ino = ino_++;
-  st.st_mode = S_IFREG | 0644;
-  st.st_uid = 1000;
-  st.st_gid = 100;
-  st.st_size = contents.size();
+  st.ino = ino_++;
+  st.mode = posix_file_type::regular | 0644;
+  st.uid = 1000;
+  st.gid = 100;
+  st.size = contents.size();
   add(path, st, contents);
+}
+
+void os_access_mock::set_access_fail(fs::path const& path) {
+  access_fail_set_.emplace(path);
 }
 
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
-std::vector<std::string>
-os_access_mock::splitpath(std::filesystem::path const& path) {
+std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
   std::vector<std::string> parts;
-  folly::split('/', path.string().c_str(), parts);
-  while (!parts.empty() && parts.front().empty()) {
+  for (auto const& p : path) {
+    parts.emplace_back(u8string_to_string(p.u8string()));
+  }
+  while (!parts.empty() && (parts.front().empty() || parts.front() == "/")) {
     parts.erase(parts.begin());
   }
   return parts;
 }
 
-auto os_access_mock::find(std::filesystem::path const& path) const
-    -> mock_dirent* {
+auto os_access_mock::find(fs::path const& path) const -> mock_dirent* {
   return find(splitpath(path));
 }
 
@@ -285,7 +306,7 @@ auto os_access_mock::find(std::vector<std::string> parts) const
   assert(root_);
   auto* de = root_.get();
   while (!parts.empty()) {
-    if (!S_ISDIR(de->stat.st_mode)) {
+    if (de->status.type() != posix_file_type::directory) {
       return nullptr;
     }
     de = de->find(parts.front());
@@ -297,23 +318,21 @@ auto os_access_mock::find(std::vector<std::string> parts) const
   return de;
 }
 
-void os_access_mock::add_internal(
-    std::filesystem::path const& path, struct ::stat const& st,
-    std::variant<std::monostate, std::string, std::function<std::string()>,
-                 std::unique_ptr<mock_directory>>
-        var) {
+void os_access_mock::add_internal(fs::path const& path, simplestat const& st,
+                                  value_variant_type var) {
   auto parts = splitpath(path);
 
-  if (S_ISDIR(st.st_mode) && std::holds_alternative<std::monostate>(var)) {
+  if (st.type() == posix_file_type::directory &&
+      std::holds_alternative<std::monostate>(var)) {
     var = std::make_unique<mock_directory>();
   }
 
   if (parts.empty()) {
     assert(!root_);
-    assert(S_ISDIR(st.st_mode));
+    assert(st.type() == posix_file_type::directory);
     assert(std::holds_alternative<std::unique_ptr<mock_directory>>(var));
     root_ = std::make_unique<mock_dirent>();
-    root_->stat = st;
+    root_->status = st;
     root_->v = std::move(var);
   } else {
     auto name = parts.back();
@@ -325,53 +344,62 @@ void os_access_mock::add_internal(
 }
 
 std::shared_ptr<dir_reader>
-os_access_mock::opendir(const std::string& path) const {
-  if (auto de = find(path); de && S_ISDIR(de->stat.st_mode)) {
-    std::vector<std::string> files{".", ".."};
+os_access_mock::opendir(fs::path const& path) const {
+  if (auto de = find(path);
+      de && de->status.type() == posix_file_type::directory) {
+    std::vector<fs::path> files;
     for (auto const& e :
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
-      files.push_back(e.name);
+      files.push_back(path / e.name);
     }
     return std::make_shared<dir_reader_mock>(std::move(files));
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(fmt::format("oops in opendir: {}", path.string()));
 }
 
-void os_access_mock::lstat(const std::string& path, struct ::stat* st) const {
+file_stat os_access_mock::symlink_info(fs::path const& path) const {
   if (auto de = find(path)) {
-    std::memcpy(st, &de->stat, sizeof(*st));
+    return make_file_stat(de->status);
   }
+
+  throw std::runtime_error(
+      fmt::format("oops in symlink_info: {}", path.string()));
 }
 
-std::string
-os_access_mock::readlink(const std::string& path, size_t /* size */ ) const {
-  if (auto de = find(path); de && S_ISLNK(de->stat.st_mode)) {
+fs::path os_access_mock::read_symlink(fs::path const& path) const {
+  if (auto de = find(path);
+      de && de->status.type() == posix_file_type::symlink) {
     return std::get<std::string>(de->v);
   }
-  throw std::runtime_error("oops");
+
+  throw std::runtime_error(
+      fmt::format("oops in read_symlink: {}", path.string()));
 }
 
 std::shared_ptr<mmif>
-os_access_mock::map_file(const std::string& path, size_t /* size */ ) const {
-  if (auto de = find(path); de && S_ISREG(de->stat.st_mode)) {
+os_access_mock::map_file(fs::path const& path, size_t size) const {
+  if (auto de = find(path);
+      de && de->status.type() == posix_file_type::regular) {
     return std::make_shared<mmap_mock>(std::visit(
         overloaded{
             [this](std::string const& str) { return str; },
             [this](std::function<std::string()> const& fun) { return fun(); },
             [this](auto const&) -> std::string {
-              throw std::runtime_error("oops");
+              throw std::runtime_error("oops in overloaded");
             },
         },
         de->v));
   }
 
-  throw std::runtime_error("oops");
+  throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
 }
 
-int os_access_mock::access(const std::string&, int) const { return 0; }
+int os_access_mock::access(fs::path const& path, int) const {
+  return access_fail_set_.count(path) ? -1 : 0;
+}
 
-std::optional<std::filesystem::path> find_binary(std::string_view name) {
+std::optional<fs::path> find_binary(std::string_view name) {
   auto path_str = std::getenv("PATH");
   if (!path_str) {
     return std::nullopt;
@@ -381,8 +409,8 @@ std::optional<std::filesystem::path> find_binary(std::string_view name) {
   folly::split(':', path_str, path);
 
   for (auto dir : path) {
-    auto cand = std::filesystem::path(dir) / name;
-    if (std::filesystem::exists(cand) and ::access(cand.string().c_str(), X_OK) == 0) {
+    auto cand = fs::path(dir) / name;
+    if (fs::exists(cand) and ::access(cand.string().c_str(), X_OK) == 0) {
       return cand;
     }
   }

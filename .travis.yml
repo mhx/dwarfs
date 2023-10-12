@@ -2,7 +2,7 @@ language: cpp
 
 os: linux
 
-dist: focal
+dist: jammy
 
 addons:
   apt:
@@ -26,6 +26,7 @@ addons:
       - libboost-regex-dev
       - libboost-system-dev
       - libboost-thread-dev
+      - libbrotli-dev
       - libevent-dev
       - libjemalloc-dev
       - libdouble-conversion-dev
@@ -42,6 +43,14 @@ addons:
 
 cache: ccache
 
+git:
+  depth: false
+
+branches:
+  only:
+  - main
+  - wip
+
 compiler:
   - gcc
 
@@ -54,7 +63,7 @@ before_script:
   - ccache --set-config=compression_level=3
   - ccache -p
   - ccache -s
-  - cmake -DWITH_TESTS=1 -DWITH_BENCHMARKS=1 -DWITH_LEGACY_FUSE=1 ..
+  - cmake -DWITH_TESTS=1 -DWITH_BENCHMARKS=1 -DWITH_LEGACY_FUSE=1 -DWITH_MAN_PAGES=0 ..
 
 script:
   - make -j$(nproc)

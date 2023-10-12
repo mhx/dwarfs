@@ -21,18 +21,21 @@
 
 #pragma once
 
-#include <folly/portability/SysStat.h>
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
+#include <folly/small_vector.h>
+
 #include "dwarfs/entry_interface.h"
+#include "dwarfs/file_stat.h"
 
 namespace dwarfs {
 
@@ -66,17 +69,22 @@ class entry : public entry_interface {
  public:
   enum type_t { E_FILE, E_DIR, E_LINK, E_DEVICE, E_OTHER };
 
-  entry(const std::string& name, std::shared_ptr<entry> parent,
-        const struct ::stat& st);
+  entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
+        file_stat const& st);
 
   bool has_parent() const;
   std::shared_ptr<entry> parent() const;
-  void set_name(const std::string& name);
-  std::string path() const override;
-  const std::string& name() const override { return name_; }
-  size_t size() const override { return stat_.st_size; }
+  void set_name(std::string const& name);
+  std::filesystem::path fs_path() const;
+  std::string path_as_string() const override;
+  std::string dpath() const override;
+  std::string unix_dpath() const override;
+  std::string const& name() const override { return name_; }
+  bool less_revpath(entry const& rhs) const;
+  size_t size() const override { return stat_.size; }
   virtual type_t type() const = 0;
   std::string type_string() const override;
+  bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
   void pack(thrift::metadata::inode_data& entry_v2,
@@ -84,11 +92,11 @@ class entry : public entry_interface {
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual void scan(os_access& os, progress& prog) = 0;
-  const struct ::stat& status() const { return stat_; }
+  file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  uint64_t raw_inode_num() const { return stat_.st_ino; }
-  uint64_t num_hard_links() const { return stat_.st_nlink; }
+  uint64_t raw_inode_num() const { return stat_.ino; }
+  uint64_t num_hard_links() const { return stat_.nlink; }
   virtual void set_inode_num(uint32_t ino) = 0;
   virtual std::optional<uint32_t> const& inode_num() const = 0;
 
@@ -106,18 +114,20 @@ class entry : public entry_interface {
   uint64_t get_ctime() const override;
   void set_ctime(uint64_t ctime) override;
 
+  void override_size(size_t size) { stat_.size = size; }
+
  private:
+  std::u8string u8name() const;
+
   std::string name_;
   std::weak_ptr<entry> parent_;
-  struct ::stat stat_;
+  file_stat stat_;
   std::optional<uint32_t> entry_index_;
 };
 
 class file : public entry {
  public:
-  file(const std::string& name, std::shared_ptr<entry> parent,
-       const struct ::stat& st)
-      : entry(name, std::move(parent), st) {}
+  using entry::entry;
 
   type_t type() const override;
   std::string_view hash() const;
@@ -125,7 +135,8 @@ class file : public entry {
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access& os, progress& prog) override;
-  void scan(std::shared_ptr<mmif> const& mm, progress& prog);
+  void
+  scan(mmif* mm, progress& prog, std::optional<std::string> const& hash_alg);
   void create_data();
   void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;
@@ -137,8 +148,8 @@ class file : public entry {
 
  private:
   struct data {
-    using hash_type = std::array<char, 16>;
-    hash_type hash{0};
+    using hash_type = folly::small_vector<char, 16>;
+    hash_type hash;
     uint32_t refcount{1};
     std::optional<uint32_t> inode_num;
   };
@@ -170,11 +181,17 @@ class dir : public entry {
     return inode_num_;
   }
 
+  std::shared_ptr<entry> find(std::filesystem::path const& path);
+
  private:
   using entry_ptr = std::shared_ptr<entry>;
+  using lookup_table = std::unordered_map<std::string_view, entry_ptr>;
+
+  void populate_lookup_table();
 
   std::vector<std::shared_ptr<entry>> entries_;
   std::optional<uint32_t> inode_num_;
+  std::unique_ptr<lookup_table> lookup_;
 };
 
 class link : public entry {
@@ -225,7 +242,7 @@ class entry_factory {
   virtual ~entry_factory() = default;
 
   virtual std::shared_ptr<entry>
-  create(os_access& os, const std::string& name,
+  create(os_access& os, std::filesystem::path const& path,
          std::shared_ptr<entry> parent = nullptr) = 0;
 };
 } // namespace dwarfs

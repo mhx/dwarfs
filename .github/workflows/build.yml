@@ -1,0 +1,126 @@
+name: 'DwarFS CI Build'
+
+on:
+  workflow_dispatch:
+#  push:
+#    branches:
+#      - main
+#      - 'mhx/**'
+#    tags:
+#      - v*
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on:
+      - self-hosted
+      - Windows
+
+    strategy:
+      matrix:
+        arch:
+          - X64
+        build_mode:
+          - Release
+          - Debug
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Set MSVC Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure Build
+        shell: cmd
+        run: |
+          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs
+
+      - name: Run Build
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build
+
+      - name: Run Test
+        shell: cmd
+        run: |
+          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
+          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j8
+
+      - name: Build Package
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target package
+
+      - name: Compress Universal Binary
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target universal_upx
+
+      - name: Copy Artifacts
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target copy_artifacts
+        if: matrix.build_mode == 'Release'
+
+  linux:
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - arm64v8
+        build_type:
+          - gcc-debug-make
+          - gcc12-debug-ninja
+          - gcc12-release-ninja
+          - clang15-release-ninja
+          - clang15-release-ninja-static
+        include:
+          - arch: amd64
+            build_type: clang15-asan-ninja
+          - arch: amd64
+            build_type: clang15-tsan-ninja
+          - arch: amd64
+            build_type: clang15-ubsan-ninja
+          - arch: amd64
+            build_type: gcc12-debug-noperfmon-ninja
+
+    runs-on:
+      - self-hosted
+      - Linux
+      - ${{ matrix.arch }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -t dwarfs-linux-build \
+            --build-arg ARCH=${{ matrix.arch }} \
+            --build-arg SCRIPT=build-linux.sh \
+            .docker
+
+      - name: Run Build (${{ matrix.build_type }})
+        run: |
+          docker run --rm \
+            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
+            --env BUILD_TYPE=${{ matrix.build_type }} \
+            --env BUILD_ARCH=${{ matrix.arch }} \
+            --env GITHUB_REF_NAME \
+            --env GITHUB_REF_TYPE \
+            dwarfs-linux-build

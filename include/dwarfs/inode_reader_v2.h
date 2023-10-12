@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include <folly/portability/SysTypes.h>
-
 #include <cstddef>
 #include <iosfwd>
 #include <memory>
@@ -30,34 +28,41 @@
 
 #include <folly/Expected.h>
 
+#include "dwarfs/block_range.h"
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/types.h"
 
 namespace dwarfs {
 
+struct cache_tidy_config;
 class block_cache;
 class logger;
 struct iovec_read_buf;
+class performance_monitor;
 
 class inode_reader_v2 {
  public:
   inode_reader_v2() = default;
 
-  inode_reader_v2(logger& lgr, block_cache&& bc);
+  inode_reader_v2(logger& lgr, block_cache&& bc,
+                  std::shared_ptr<performance_monitor const> perfmon);
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
-  ssize_t read(char* buf, size_t size, off_t offset, chunk_range chunks) const {
-    return impl_->read(buf, size, offset, chunks);
+  ssize_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
+               chunk_range chunks) const {
+    return impl_->read(buf, inode, size, offset, chunks);
   }
 
-  ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
-                chunk_range chunks) const {
-    return impl_->readv(buf, size, offset, chunks);
+  ssize_t readv(iovec_read_buf& buf, uint32_t inode, size_t size,
+                file_off_t offset, chunk_range chunks) const {
+    return impl_->readv(buf, inode, size, offset, chunks);
   }
 
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(size_t size, off_t offset, chunk_range chunks) const {
-    return impl_->readv(size, offset, chunks);
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        chunk_range chunks) const {
+    return impl_->readv(inode, size, offset, chunks);
   }
 
   void
@@ -67,19 +72,28 @@ class inode_reader_v2 {
 
   void set_num_workers(size_t num) { impl_->set_num_workers(num); }
 
+  void set_cache_tidy_config(cache_tidy_config const& cfg) {
+    impl_->set_cache_tidy_config(cfg);
+  }
+
+  size_t num_blocks() const { return impl_->num_blocks(); }
+
   class impl {
    public:
     virtual ~impl() = default;
 
-    virtual ssize_t
-    read(char* buf, size_t size, off_t offset, chunk_range chunks) const = 0;
-    virtual ssize_t readv(iovec_read_buf& buf, size_t size, off_t offset,
-                          chunk_range chunks) const = 0;
+    virtual ssize_t read(char* buf, uint32_t inode, size_t size,
+                         file_off_t offset, chunk_range chunks) const = 0;
+    virtual ssize_t readv(iovec_read_buf& buf, uint32_t inode, size_t size,
+                          file_off_t offset, chunk_range chunks) const = 0;
     virtual folly::Expected<std::vector<std::future<block_range>>, int>
-    readv(size_t size, off_t offset, chunk_range chunks) const = 0;
+    readv(uint32_t inode, size_t size, file_off_t offset,
+          chunk_range chunks) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
     virtual void set_num_workers(size_t num) = 0;
+    virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
+    virtual size_t num_blocks() const = 0;
   };
 
  private:

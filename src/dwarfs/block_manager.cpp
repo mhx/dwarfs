@@ -57,7 +57,7 @@ namespace dwarfs {
 /**
  * Block Manager Strategy
  *
- * For each *block*, start new rolling hash. The the hashes are associcated
+ * For each *block*, start new rolling hash. The hashes are associcated
  * with the block, new hash-offset-pairs will only be added as the block
  * grows. We only need to store a hash-offset-pair every N bytes, with N
  * being configurable (typically half of the window size so we find all
@@ -160,7 +160,7 @@ constexpr uint64_t pow2ceil(uint64_t n) {
  *   extremely cheap, so we can't afford e.g. using two hashes instead
  *   of one.
  */
-class bloom_filter {
+class alignas(64) bloom_filter {
  public:
   using bits_type = uint64_t;
 
@@ -168,7 +168,7 @@ class bloom_filter {
   static constexpr size_t index_shift = bitcount(value_mask);
   static constexpr size_t alignment = 64;
 
-  bloom_filter(size_t size)
+  explicit bloom_filter(size_t size)
       : index_mask_{(std::max(size, value_mask + 1) >> index_shift) - 1}
       , size_{std::max(size, value_mask + 1)} {
     if (size & (size - 1)) {
@@ -221,7 +221,7 @@ class bloom_filter {
   bits_type* bits_;
   size_t const index_mask_;
   size_t const size_;
-} __attribute__((aligned(64)));
+};
 
 class active_block {
  private:
@@ -239,7 +239,7 @@ class active_block {
       , data_{std::make_shared<block_data>()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
-    data_->vec().reserve(capacity_);
+    data_->reserve(capacity_);
   }
 
   size_t num() const { return num_; }
@@ -251,7 +251,7 @@ class active_block {
   void append(uint8_t const* p, size_t size, bloom_filter* filter);
 
   size_t next_hash_distance() const {
-    return window_step_mask_ + 1 - (data_->vec().size() & window_step_mask_);
+    return window_step_mask_ + 1 - (data_->size() & window_step_mask_);
   }
 
   template <typename F>
@@ -330,7 +330,7 @@ class block_manager_ final : public block_manager::impl {
   static size_t bloom_filter_size(const block_manager::config& cfg) {
     auto hash_count = pow2ceil(std::max<size_t>(1, cfg.max_active_blocks)) *
                       (block_size(cfg) / window_step(cfg));
-    return (1 << cfg.bloom_filter_size) * hash_count;
+    return (static_cast<size_t>(1) << cfg.bloom_filter_size) * hash_count;
   }
 
   static size_t window_size(const block_manager::config& cfg) {
@@ -396,7 +396,7 @@ class segment_match {
   active_block const* block_;
   uint32_t offset_;
   uint32_t size_{0};
-  uint8_t const* data_;
+  uint8_t const* data_{nullptr};
 };
 
 void active_block::append(uint8_t const* p, size_t size, bloom_filter* filter) {
@@ -459,7 +459,7 @@ void block_manager_<LoggerPolicy>::add_inode(std::shared_ptr<inode> ino) {
   auto e = ino->any();
 
   if (size_t size = e->size(); size > 0) {
-    auto mm = os_->map_file(e->path(), size);
+    auto mm = os_->map_file(e->fs_path(), size);
 
     LOG_TRACE << "adding inode " << ino->num() << " [" << ino->any()->name()
               << "] - size: " << size;
@@ -608,6 +608,10 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
   std::vector<segment_match> matches;
   const bool single_block_mode = cfg_.max_active_blocks == 1;
 
+  auto total_bytes_read_before = prog_.total_bytes_read.load();
+  prog_.current_offset.store(offset);
+  prog_.current_size.store(size);
+
   while (offset < size) {
     ++stats_.bloom_lookups;
     if (DWARFS_UNLIKELY(filter_.test(hasher()))) {
@@ -677,6 +681,9 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
             hasher.update(p[offset]);
           }
 
+          prog_.current_offset.store(offset);
+          prog_.total_bytes_read.store(total_bytes_read_before + offset);
+
           next_hash_offset =
               written + lookback_size + blocks_.back().next_hash_distance();
         }
@@ -697,11 +704,16 @@ void block_manager_<LoggerPolicy>::segment_and_add_data(inode& ino, mmif& mm,
       add_data(ino, mm, written, num_to_write);
       written += num_to_write;
       next_hash_offset += window_step_;
+      prog_.current_offset.store(offset);
+      prog_.total_bytes_read.store(total_bytes_read_before + offset);
     }
 
     hasher.update(p[offset - window_size_], p[offset]);
     ++offset;
   }
+
+  prog_.current_offset.store(size);
+  prog_.total_bytes_read.store(total_bytes_read_before + size);
 
   add_data(ino, mm, written, size - written);
   finish_chunk(ino);

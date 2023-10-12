@@ -19,17 +19,18 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-
-#include <folly/portability/Unistd.h>
-
+#include <algorithm>
 #include <array>
-#include <climits>
-#include <string>
+#include <charconv>
+
+#include <utf8.h>
 
 #include <folly/String.h>
 
 #include "dwarfs/error.h"
 #include "dwarfs/util.h"
+
+extern "C" int dwarfs_wcwidth(int ucs);
 
 namespace dwarfs {
 
@@ -48,10 +49,10 @@ std::string size_with_unit(size_t size) {
 }
 
 std::string time_with_unit(double sec) {
-  return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME, false));
+  return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME_HMS, false));
 }
 
-size_t parse_size_with_unit(const std::string& str) {
+size_t parse_size_with_unit(std::string const& str) {
   size_t end = 0;
   size_t size = std::stoul(str, &end);
 
@@ -85,26 +86,105 @@ size_t parse_size_with_unit(const std::string& str) {
   DWARFS_THROW(runtime_error, "invalid size suffix");
 }
 
-std::string get_program_path() {
-  static const std::array<const char*, 3> paths = {{
-      "/proc/self/exe",
-      "/proc/curproc/file",
-      "/proc/self/path/a.out",
-  }};
+std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
+  uint64_t value;
+  auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
 
-  for (auto cand : paths) {
-    std::array<char, PATH_MAX> linkname;
-
-    auto r = readlink(cand, linkname.data(), PATH_MAX);
-
-    if (r == -1) {
-      continue;
-    }
-
-    return std::string(linkname.data(), r);
+  if (ec != std::errc()) {
+    DWARFS_THROW(runtime_error, "cannot parse time value");
   }
 
-  return std::string();
+  switch (ptr[0]) {
+  case 'h':
+    if (ptr[1] == '\0') {
+      return std::chrono::hours(value);
+    }
+    break;
+
+  case 'm':
+    if (ptr[1] == '\0') {
+      return std::chrono::minutes(value);
+    } else if (ptr[1] == 's' && ptr[2] == '\0') {
+      return std::chrono::milliseconds(value);
+    }
+    break;
+
+  case '\0':
+  case 's':
+    return std::chrono::seconds(value);
+
+  default:
+    break;
+  }
+
+  DWARFS_THROW(runtime_error, "unsupported time suffix");
+}
+
+std::string sys_string_to_string(sys_string const& in) {
+#ifdef _WIN32
+  std::u16string tmp(in.size(), 0);
+  std::transform(in.begin(), in.end(), tmp.begin(),
+                 [](sys_char c) { return static_cast<char16_t>(c); });
+  return utf8::utf16to8(tmp);
+#else
+  return in;
+#endif
+}
+
+size_t utf8_display_width(char const* p, size_t len) {
+  char const* const e = p + len;
+  size_t rv = 0;
+
+  while (p < e) {
+    auto cp = utf8::next(p, e);
+    rv += dwarfs_wcwidth(cp);
+  }
+
+  return rv;
+}
+
+size_t utf8_display_width(std::string const& str) {
+  return utf8_display_width(str.data(), str.size());
+}
+
+void shorten_path_string(std::string& path, char separator, size_t max_len) {
+  auto len = utf8_display_width(path);
+
+  if (len > max_len) {
+    if (max_len < 3) {
+      path.clear();
+      return;
+    }
+
+    size_t start = 0;
+    max_len -= 3;
+
+    while (start != std::string::npos &&
+           utf8_display_width(path.data() + start, path.size() - start) >
+               max_len) {
+      start = path.find(separator, start + 1);
+    }
+
+    if (start == std::string::npos) {
+      start = max_len - len;
+    }
+
+    path.replace(0, start, "...");
+  }
+}
+
+std::filesystem::path canonical_path(std::filesystem::path p) {
+  try {
+    p = std::filesystem::canonical(p);
+  } catch (std::filesystem::filesystem_error const&) {
+    p = std::filesystem::absolute(p);
+  }
+
+#ifdef _WIN32
+  p = std::filesystem::path(L"\\\\?\\" + p.wstring());
+#endif
+
+  return p;
 }
 
 } // namespace dwarfs

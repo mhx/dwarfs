@@ -1,0 +1,61 @@
+# Copyright (c) 2023 [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+name: 'build-and-test'
+description: 'Build and test dwarfs'
+runs:
+  using: "composite"
+  steps:
+      - name: Configure
+        shell: bash
+        run: |
+          echo "CCACHE_DIR=$PWD/${{ env.CCACHE_FLD }}"  >> $GITHUB_ENV
+          mkdir -p ${{ env.CCACHE_FLD }}
+          cmake -B build                                                 \
+                -DFOLLY_NO_EXCEPTION_TRACER=ON                           \
+                -DWITH_MAN_PAGES=OFF                                     \
+                -DNIXPKGS_DWARFS_VERSION_OVERRIDE=tebako                 \
+                -DWITH_TESTS=${{ matrix.setup.tests }}                   \
+                -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}           \
+                -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}       \
+                ${{ matrix.config.extra_opts }} .
+
+      - name: Load Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.CCACHE_FLD }}
+          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --parallel "$CORES"
+
+      - name: Test
+        shell: bash
+        if: ${{ matrix.setup.tests == 'ON' }}
+        run: ctest --test-dir build --output-on-failure --parallel "$CORES"

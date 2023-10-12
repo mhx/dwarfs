@@ -19,10 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/portability/SysResource.h>
-#include <folly/portability/SysTime.h>
-#include <folly/portability/Unistd.h>
-
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -35,15 +31,7 @@
 #include <type_traits>
 #include <vector>
 
-#include <pthread.h>
-
-#include <folly/Conv.h>
-#include <folly/system/ThreadName.h>
-
-#include "dwarfs/error.h"
-#include "dwarfs/semaphore.h"
-#include "dwarfs/util.h"
-#include "dwarfs/worker_group.h"
+#include <unistd.h>
 
 #if __MACH__
 #include <mach/mach.h>
@@ -55,41 +43,41 @@
 #include <mach/thread_act.h>
 #endif
 
+#include <folly/Conv.h>
+#include <folly/portability/PThread.h>
+#include <folly/portability/Windows.h>
+#include <folly/system/ThreadName.h>
+
+#include "dwarfs/error.h"
+#include "dwarfs/semaphore.h"
+#include "dwarfs/util.h"
+#include "dwarfs/worker_group.h"
+
 namespace dwarfs {
 
 namespace {
 
-static int getrusage_thread(struct rusage *rusage)
-{
-    int ret = -1;
-#if __MACH__
-    thread_basic_info_data_t info;
-    memset(&info, 0, sizeof(info));
-    mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-    kern_return_t kern_err;
+#ifdef _WIN32
 
-    mach_port_t port = mach_thread_self();
-    kern_err = thread_info(port,
-                           THREAD_BASIC_INFO,
-                           (thread_info_t)&info,
-                           &info_count);
-    mach_port_deallocate(mach_task_self(), port);
-
-    if (kern_err == KERN_SUCCESS) {
-        memset(rusage, 0, sizeof(struct rusage));
-        rusage->ru_utime.tv_sec = info.user_time.seconds;
-        rusage->ru_utime.tv_usec = info.user_time.microseconds;
-        rusage->ru_stime.tv_sec = info.system_time.seconds;
-        rusage->ru_stime.tv_usec = info.system_time.microseconds;
-        ret = 0;
-    } else {
-        errno = EINVAL;
-    }
-#else
-    ret = getrusage(RUSAGE_THREAD, rusage);
-#endif
-    return ret;
+double get_thread_cpu_time(std::thread const& t) {
+  static_assert(sizeof(std::thread::id) == sizeof(DWORD),
+                "Win32 thread id type mismatch");
+  auto tid = t.get_id();
+  DWORD id;
+  std::memcpy(&id, &tid, sizeof(id));
+  HANDLE h = ::OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, id);
+  FILETIME t_create, t_exit, t_sys, t_user;
+  if (::GetThreadTimes(h, &t_create, &t_exit, &t_sys, &t_user)) {
+    uint64_t sys = (static_cast<uint64_t>(t_sys.dwHighDateTime) << 32) +
+                   t_sys.dwLowDateTime;
+    uint64_t user = (static_cast<uint64_t>(t_user.dwHighDateTime) << 32) +
+                    t_user.dwLowDateTime;
+    return 1e-7 * (sys + user);
+  }
+  throw std::runtime_error("get_thread_cpu_time");
 }
+
+#else
 
 pthread_t std_to_pthread_id(std::thread::id tid) {
   static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
@@ -100,6 +88,30 @@ pthread_t std_to_pthread_id(std::thread::id tid) {
   return id;
 }
 
+double get_thread_cpu_time(std::thread const& t) {
+#if __MACH__
+//  https://www.programcreek.com/cpp/?CodeExample=thread+cpu+usage
+      mach_msg_type_number_t count;
+      thread_basic_info_data_t info;
+      count = THREAD_BASIC_INFO_COUNT;
+      mach_port_t thread = pthread_mach_thread_np(std_to_pthread_id(t.get_id()));
+      if (::thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count) == KERN_SUCCESS) {
+        return (info.user_time.seconds + info.user_time.microseconds * 1e-6) +
+               (info.system_time.seconds + info.system_time.microseconds * 1e-6);
+      }
+#else
+  ::clockid_t cid;
+  struct ::timespec ts;
+  if (::pthread_getcpuclockid(std_to_pthread_id(t.get_id()), &cid) == 0 &&
+      ::clock_gettime(cid, &ts) == 0) {
+    return ts.tv_sec + 1e-9 * ts.tv_nsec;
+  }
+#endif
+  throw std::runtime_error("get_thread_cpu_time");
+}
+
+#endif
+
 } // namespace
 
 template <typename Policy>
@@ -107,12 +119,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
   basic_worker_group(const char* group_name, size_t num_workers,
-                     size_t max_queue_len,
-#ifndef _WIN32
-                     int niceness,
-#else
-                     int nPriority,
-#endif
+                     size_t max_queue_len, int niceness [[maybe_unused]],
                      Args&&... args)
       : Policy(std::forward<Args>(args)...)
       , running_(true)
@@ -127,14 +134,10 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     }
 
     for (size_t i = 0; i < num_workers; ++i) {
-      workers_.emplace_back([=] {
+      workers_.emplace_back([this, niceness, group_name, i] {
         folly::setThreadName(folly::to<std::string>(group_name, i + 1));
-#ifndef _WIN32
-        [[maybe_unused]] auto rv = nice(niceness);
-#else
-        [[maybe_unused]] auto rv = SetThreadPriority(GetCurrentThread(), nPriority);
-#endif
-        do_work();
+        set_thread_niceness(niceness);
+        do_work(niceness > 10);
       });
     }
   }
@@ -202,6 +205,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       }
 
       cond_.notify_one();
+
+      return true;
     }
 
     return false;
@@ -228,44 +233,44 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     std::lock_guard lock(mx_);
     double t = 0.0;
 
+    // TODO:
+    // return workers_ | std::views::transform(get_thread_cpu_time) |
+    // std::ranges::accumulate;
     for (auto const& w : workers_) {
-#if __MACH__
-//  https://www.programcreek.com/cpp/?CodeExample=thread+cpu+usage
-      mach_msg_type_number_t count;
-      thread_basic_info_data_t info;
-      count = THREAD_BASIC_INFO_COUNT;
-      mach_port_t thread = pthread_mach_thread_np(std_to_pthread_id(w.get_id()));
-      if (::thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count) == KERN_SUCCESS) {
-        t += info.user_time.seconds + info.user_time.microseconds * 1e-6;
-        t += info.system_time.seconds + info.system_time.microseconds * 1e-6;
-      }
-#elif defined(_WIN32)
-      FILETIME CreationTime, ExitTime, KernelTime, UserTime;
-// pthread_gethandle is MINGW private extension
-// MSVC provides pthread_getw32threadid_np [it is just a note in case anyone decides to support MSVC ]
-      HANDLE hThread = pthread_gethandle(std_to_pthread_id(w.get_id()));
-      BOOL r = GetThreadTimes(hThread, &CreationTime, &ExitTime, &KernelTime, &UserTime);
-      if (r) {
-        t = UserTime.dwLowDateTime * 1e-7 + KernelTime.dwLowDateTime * 1e-7;
-      }
-// We do nothing on error, just leave time equal to 0
-// Also note that GetThreadTimes is not really reliable
-#else
-      ::clockid_t cid;
-      struct ::timespec ts;
-      if (::pthread_getcpuclockid(std_to_pthread_id(w.get_id()), &cid) == 0 &&
-          ::clock_gettime(cid, &ts) == 0) {
-        t += ts.tv_sec + 1e-9 * ts.tv_nsec;
-      }
-#endif
+      t += get_thread_cpu_time(w);
     }
+
     return t;
   }
 
  private:
   using jobs_t = std::queue<worker_group::job_t>;
 
-  void do_work() {
+  // TODO: move out of this class
+  static void set_thread_niceness(int niceness) {
+    if (niceness > 0) {
+#ifdef _WIN32
+      auto hthr = ::GetCurrentThread();
+      int priority =
+          niceness > 5 ? THREAD_PRIORITY_LOWEST : THREAD_PRIORITY_BELOW_NORMAL;
+      ::SetThreadPriority(hthr, priority);
+#else
+      // XXX:
+      // According to POSIX, the nice value is a per-process setting. However,
+      // under the current Linux/NPTL implementation of POSIX threads, the nice
+      // value is a per-thread attribute: different threads in the same process
+      // can have different nice values. Portable applications should avoid
+      // relying on the Linux behavior, which may be made standards conformant
+      // in the future.
+      auto rv [[maybe_unused]] = ::nice(niceness);
+#endif
+    }
+  }
+
+  void do_work(bool is_background [[maybe_unused]]) {
+#ifdef _WIN32
+    auto hthr = ::GetCurrentThread();
+#endif
     for (;;) {
       worker_group::job_t job;
 
@@ -291,7 +296,17 @@ class basic_worker_group final : public worker_group::impl, private Policy {
 
       {
         typename Policy::task task(this);
+#ifdef _WIN32
+        if (is_background) {
+          ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_BEGIN);
+        }
+#endif
         job();
+#ifdef _WIN32
+        if (is_background) {
+          ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_END);
+        }
+#endif
       }
 
       {
@@ -323,112 +338,9 @@ class no_policy {
   };
 };
 
-class load_adaptive_policy {
- public:
-  class task {
-   public:
-    explicit task(load_adaptive_policy* policy)
-        : policy_(policy) {
-      policy_->start_task();
-
-      struct rusage usage;
-      getrusage_thread(&usage);
-      utime_ = usage.ru_utime;
-      stime_ = usage.ru_stime;
-      clock_gettime(CLOCK_MONOTONIC, &wall_);
-    }
-
-    ~task();
-
-   private:
-    load_adaptive_policy* policy_;
-    struct timespec wall_;
-    struct timeval utime_, stime_;
-  };
-
-  explicit load_adaptive_policy(size_t workers)
-      : sem_(workers)
-      , max_throttled_(static_cast<int>(workers) - 1) {}
-
-  void start_task() { sem_.acquire(); }
-
-  void stop_task(uint64_t wall_ns, uint64_t cpu_ns);
-
- private:
-  semaphore sem_;
-  int max_throttled_;
-  std::mutex mx_;
-  uint64_t wall_ns_, cpu_ns_;
-  int throttled_;
-};
-
-load_adaptive_policy::task::~task() {
-  struct rusage usage;
-  getrusage_thread(&usage);
-  struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
-
-  uint64_t wall_ns = UINT64_C(1000000000) * (now.tv_sec - wall_.tv_sec);
-  wall_ns += now.tv_nsec;
-  wall_ns -= wall_.tv_nsec;
-
-  uint64_t cpu_ns =
-      UINT64_C(1000000000) * (usage.ru_utime.tv_sec + usage.ru_stime.tv_sec -
-                              (utime_.tv_sec + stime_.tv_sec));
-  cpu_ns += UINT64_C(1000) * (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec);
-  cpu_ns -= UINT64_C(1000) * (utime_.tv_usec + stime_.tv_usec);
-
-  policy_->stop_task(wall_ns, cpu_ns);
-}
-
-void load_adaptive_policy::stop_task(uint64_t wall_ns, uint64_t cpu_ns) {
-  int adjust = 0;
-
-  {
-    std::unique_lock lock(mx_);
-
-    wall_ns_ += wall_ns;
-    cpu_ns_ += cpu_ns;
-
-    if (wall_ns_ >= 1000000000) {
-      auto load = float(cpu_ns_) / float(wall_ns_);
-      if (load > 0.75f) {
-        if (throttled_ > 0) {
-          --throttled_;
-          adjust = 1;
-        }
-      } else if (load < 0.25f) {
-        if (throttled_ < max_throttled_) {
-          ++throttled_;
-          adjust = -1;
-        }
-      }
-      wall_ns_ = 0;
-      cpu_ns_ = 0;
-    }
-  }
-
-  if (adjust < 0) {
-    return;
-  }
-
-  if (adjust > 0) {
-    sem_.release();
-  }
-
-  sem_.release();
-}
-
 worker_group::worker_group(const char* group_name, size_t num_workers,
                            size_t max_queue_len, int niceness)
     : impl_{std::make_unique<basic_worker_group<no_policy>>(
           group_name, num_workers, max_queue_len, niceness)} {}
-
-worker_group::worker_group(load_adaptive_tag, const char* group_name,
-                           size_t max_num_workers, size_t max_queue_len,
-                           int niceness)
-    : impl_{std::make_unique<basic_worker_group<load_adaptive_policy>>(
-          group_name, max_num_workers, max_queue_len, niceness,
-          max_num_workers)} {}
 
 } // namespace dwarfs

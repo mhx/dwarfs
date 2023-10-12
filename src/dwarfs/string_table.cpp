@@ -34,7 +34,7 @@ namespace dwarfs {
 
 class legacy_string_table : public string_table::impl {
  public:
-  legacy_string_table(string_table::LegacyTableView v)
+  explicit legacy_string_table(string_table::LegacyTableView v)
       : v_{v} {}
 
   std::string lookup(size_t index) const override {
@@ -185,7 +185,7 @@ string_table::string_table(logger& lgr, std::string_view name,
 
 template <typename T>
 thrift::metadata::string_table
-string_table::pack_generic(folly::Range<T const*> input,
+string_table::pack_generic(std::span<T const> input,
                            pack_options const& options) {
   auto size = input.size();
   bool pack_data = options.pack_data;
@@ -270,39 +270,39 @@ string_table::pack_generic(folly::Range<T const*> input,
                  "string table compression pointer mismatch");
 
     buffer.resize(compressed_size);
-    output.buffer.swap(buffer);
-    output.symtab_ref() = std::move(symtab);
-    output.index.resize(size);
-    std::copy(out_len_vec.begin(), out_len_vec.end(), output.index.begin());
+    output.buffer()->swap(buffer);
+    output.symtab() = std::move(symtab);
+    output.index()->resize(size);
+    std::copy(out_len_vec.begin(), out_len_vec.end(), output.index()->begin());
   } else {
     // store uncompressed
-    output.buffer.reserve(total_input_size);
-    output.index.reserve(size);
+    output.buffer()->reserve(total_input_size);
+    output.index()->reserve(size);
     for (auto const& s : input) {
-      output.buffer += s;
-      output.index.emplace_back(s.size());
+      output.buffer().value() += s;
+      output.index()->emplace_back(s.size());
     }
   }
 
-  output.packed_index = options.pack_index;
+  output.packed_index() = options.pack_index;
 
   if (!options.pack_index) {
-    output.index.insert(output.index.begin(), 0);
-    std::partial_sum(output.index.begin(), output.index.end(),
-                     output.index.begin());
+    output.index()->insert(output.index()->begin(), 0);
+    std::partial_sum(output.index()->begin(), output.index()->end(),
+                     output.index()->begin());
   }
 
   return output;
 }
 
 thrift::metadata::string_table
-string_table::pack(folly::Range<std::string const*> input,
+string_table::pack(std::span<std::string const> input,
                    pack_options const& options) {
   return pack_generic(input, options);
 }
 
 thrift::metadata::string_table
-string_table::pack(folly::Range<std::string_view const*> input,
+string_table::pack(std::span<std::string_view const> input,
                    pack_options const& options) {
   return pack_generic(input, options);
 }

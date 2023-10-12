@@ -19,21 +19,14 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/portability/SysMman.h>
-#ifndef _WIN32
-#include <sys/statvfs.h>
-#else
-#include <pro-statvfs.h>
-#endif
-
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <functional>
+#include <iostream>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
-
-#include <boost/system/system_error.hpp>
-
-#include <folly/Range.h>
 
 #include <fmt/format.h>
 
@@ -50,47 +43,20 @@
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/worker_group.h"
-
-#ifdef __MINGW32__
-/* Return the first occurrence of NEEDLE in HAYSTACK.  */
-void *
-memmem (const void *haystack, size_t haystack_len, const void *needle,
-	size_t needle_len)
-{
-  const char *begin;
-  const char *const last_possible
-    = (const char *) haystack + haystack_len - needle_len;
-
-  if (needle_len == 0)
-    /* The first occurrence of the empty string is deemed to occur at
-       the beginning of the string.  */
-    return (void *) haystack;
-
-  /* Sanity check, otherwise the loop might search through the whole
-     memory.  */
-  if (haystack_len < needle_len)
-    return NULL;
-
-  for (begin = (const char *) haystack; begin <= last_possible; ++begin)
-    if (begin[0] == ((const char *) needle)[0] &&
-	!memcmp ((const void *) &begin[1],
-		 (const void *) ((const char *) needle + 1),
-		 needle_len - 1))
-      return (void *) begin;
-
-  return NULL;
-}
-#endif
 
 namespace dwarfs {
 
 namespace {
 
 class filesystem_parser {
+ private:
+  static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
+
  public:
-  static off_t find_image_offset(mmif& mm, off_t image_offset) {
+  static file_off_t find_image_offset(mmif& mm, file_off_t image_offset) {
     if (image_offset != filesystem_options::IMAGE_OFFSET_AUTO) {
       return image_offset;
     }
@@ -98,21 +64,27 @@ class filesystem_parser {
     static constexpr std::array<char, 7> magic{
         {'D', 'W', 'A', 'R', 'F', 'S', MAJOR_VERSION}};
 
-    off_t start = 0;
+    file_off_t start = 0;
     for (;;) {
       if (start + magic.size() >= mm.size()) {
         break;
       }
 
-      auto ps = mm.as<void>(start);
-      auto pc = ::memmem(ps, mm.size() - start, magic.data(), magic.size());
+      auto ss = mm.span<char>(start);
+      auto it = std::search(
+          ss.begin(), ss.end(),
+#if __cpp_lib_boyer_moore_searcher
+          std::boyer_moore_horspool_searcher
+#else
+          std::default_searcher
+#endif
+          (magic.begin(), magic.end()));
 
-      if (!pc) {
+      if (it == ss.end()) {
         break;
       }
 
-      off_t pos = start + static_cast<uint8_t const*>(pc) -
-                  static_cast<uint8_t const*>(ps);
+      file_off_t pos = start + std::distance(ss.begin(), it);
 
       if (pos + sizeof(file_header) >= mm.size()) {
         break;
@@ -144,7 +116,7 @@ class filesystem_parser {
           break;
         }
 
-        ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
+        auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
 
         if (::memcmp(ps, magic.data(), magic.size()) == 0 and
             reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
@@ -158,7 +130,8 @@ class filesystem_parser {
     DWARFS_THROW(runtime_error, "no filesystem found");
   }
 
-  explicit filesystem_parser(std::shared_ptr<mmif> mm, off_t image_offset = 0)
+  explicit filesystem_parser(std::shared_ptr<mmif> mm,
+                             file_off_t image_offset = 0)
       : mm_{mm}
       , image_offset_{find_image_offset(*mm_, image_offset)} {
     if (mm_->size() < image_offset_ + sizeof(file_header)) {
@@ -183,45 +156,94 @@ class filesystem_parser {
     major_ = fh->major;
     minor_ = fh->minor;
 
+    if (minor_ >= 4) {
+      find_index();
+    }
+
     rewind();
   }
 
   std::optional<fs_section> next_section() {
-    if (offset_ < static_cast<off_t>(mm_->size())) {
-      auto section = fs_section(*mm_, offset_, version_);
-      offset_ = section.end();
-      return section;
+    if (index_.empty()) {
+      if (offset_ < static_cast<file_off_t>(mm_->size())) {
+        auto section = fs_section(*mm_, offset_, version_);
+        offset_ = section.end();
+        return section;
+      }
+    } else {
+      if (offset_ < static_cast<file_off_t>(index_.size())) {
+        uint64_t id = index_[offset_++];
+        uint64_t offset = id & section_offset_mask;
+        uint64_t next_offset = offset_ < static_cast<file_off_t>(index_.size())
+                                   ? index_[offset_] & section_offset_mask
+                                   : mm_->size() - image_offset_;
+        return fs_section(mm_, static_cast<section_type>(id >> 48),
+                          image_offset_ + offset, next_offset - offset,
+                          version_);
+      }
     }
 
     return std::nullopt;
   }
 
-  std::optional<folly::ByteRange> header() const {
+  std::optional<std::span<uint8_t const>> header() const {
     if (image_offset_ == 0) {
       return std::nullopt;
     }
-    return folly::ByteRange(mm_->as<uint8_t>(), image_offset_);
+    return mm_->span(0, image_offset_);
   }
 
   void rewind() {
-    offset_ = image_offset_ + (version_ == 1 ? sizeof(file_header) : 0);
+    if (index_.empty()) {
+      offset_ = image_offset_;
+      if (version_ == 1) {
+        offset_ += sizeof(file_header);
+      }
+    } else {
+      offset_ = 0;
+    }
   }
 
   std::string version() const {
     return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
   }
 
-  off_t image_offset() const { return image_offset_; }
+  file_off_t image_offset() const { return image_offset_; }
 
   bool has_checksums() const { return version_ >= 2; }
 
+  bool has_index() const { return !index_.empty(); }
+
  private:
+  void find_index() {
+    uint64_t index_pos;
+
+    ::memcpy(&index_pos, mm_->as<void>(mm_->size() - sizeof(uint64_t)),
+             sizeof(uint64_t));
+
+    if ((index_pos >> 48) ==
+        static_cast<uint16_t>(section_type::SECTION_INDEX)) {
+      index_pos &= section_offset_mask;
+      index_pos += image_offset_;
+
+      if (index_pos < mm_->size()) {
+        auto section = fs_section(*mm_, index_pos, version_);
+
+        if (section.check_fast(*mm_)) {
+          index_.resize(section.length() / sizeof(uint64_t));
+          ::memcpy(index_.data(), section.data(*mm_).data(), section.length());
+        }
+      }
+    }
+  }
+
   std::shared_ptr<mmif> mm_;
-  off_t const image_offset_;
-  off_t offset_{0};
+  file_off_t const image_offset_;
+  file_off_t offset_{0};
   int version_{0};
   uint8_t major_{0};
   uint8_t minor_{0};
+  std::vector<uint64_t> index_;
 };
 
 using section_map = std::unordered_map<section_type, fs_section>;
@@ -234,7 +256,7 @@ get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
   return bd.uncompressed_size();
 }
 
-folly::ByteRange
+std::span<uint8_t const>
 get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
   auto compression = section.compression();
@@ -242,7 +264,7 @@ get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
   auto length = section.length();
 
   if (!force_buffer && compression == compression_type::NONE) {
-    return mm->range(start, length);
+    return mm->span(start, length);
   }
 
   buffer = block_decompressor::decompress(compression, mm->as<uint8_t>(start),
@@ -303,7 +325,8 @@ template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-              const filesystem_options& options, int inode_offset);
+              const filesystem_options& options, int inode_offset,
+              std::shared_ptr<performance_monitor const> perfmon);
 
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
@@ -314,56 +337,129 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<inode_view> find(const char* path) const override;
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
-  int getattr(inode_view entry, struct ::stat* stbuf) const override;
+  int getattr(inode_view entry, file_stat* stbuf) const override;
   int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
   std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const override;
   size_t dirsize(directory_view dir) const override;
-  int readlink(inode_view entry, std::string* buf) const override;
-  folly::Expected<std::string, int> readlink(inode_view entry) const override;
-  int statvfs(struct ::statvfs* stbuf) const override;
+  int readlink(inode_view entry, std::string* buf,
+               readlink_mode mode) const override;
+  folly::Expected<std::string, int>
+  readlink(inode_view entry, readlink_mode mode) const override;
+  int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
-  ssize_t
-  read(uint32_t inode, char* buf, size_t size, off_t offset) const override;
+  ssize_t read(uint32_t inode, char* buf, size_t size,
+               file_off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                off_t offset) const override;
+                file_off_t offset) const override;
   folly::Expected<std::vector<std::future<block_range>>, int>
-  readv(uint32_t inode, size_t size, off_t offset) const override;
-  std::optional<folly::ByteRange> header() const override;
+  readv(uint32_t inode, size_t size, file_off_t offset) const override;
+  std::optional<std::span<uint8_t const>> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) override {
+    ir_.set_cache_tidy_config(cfg);
+  }
+  size_t num_blocks() const override { return ir_.num_blocks(); }
+  bool has_symlinks() const override { return meta_.has_symlinks(); }
 
  private:
+  filesystem_info const& get_info() const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   std::shared_ptr<mmif> mm_;
   metadata_v2 meta_;
   inode_reader_v2 ir_;
+  mutable std::mutex mx_;
+  mutable filesystem_parser parser_;
   std::vector<uint8_t> meta_buffer_;
-  std::optional<folly::ByteRange> header_;
-  filesystem_info fsinfo_;
+  std::optional<std::span<uint8_t const>> header_;
+  mutable std::unique_ptr<filesystem_info const> fsinfo_;
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(find_path)
+  PERFMON_CLS_TIMER_DECL(find_inode)
+  PERFMON_CLS_TIMER_DECL(find_inode_name)
+  PERFMON_CLS_TIMER_DECL(getattr)
+  PERFMON_CLS_TIMER_DECL(access)
+  PERFMON_CLS_TIMER_DECL(opendir)
+  PERFMON_CLS_TIMER_DECL(readdir)
+  PERFMON_CLS_TIMER_DECL(dirsize)
+  PERFMON_CLS_TIMER_DECL(readlink)
+  PERFMON_CLS_TIMER_DECL(readlink_expected)
+  PERFMON_CLS_TIMER_DECL(statvfs)
+  PERFMON_CLS_TIMER_DECL(open)
+  PERFMON_CLS_TIMER_DECL(read)
+  PERFMON_CLS_TIMER_DECL(readv_iovec)
+  PERFMON_CLS_TIMER_DECL(readv_future)
 };
 
 template <typename LoggerPolicy>
-filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-                                       const filesystem_options& options,
-                                       int inode_offset)
+filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
+  std::lock_guard lock(mx_);
+
+  if (!fsinfo_) {
+    filesystem_info info;
+
+    parser_.rewind();
+
+    while (auto s = parser_.next_section()) {
+      if (s->type() == section_type::BLOCK) {
+        ++info.block_count;
+        info.compressed_block_size += s->length();
+        info.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
+      } else if (s->type() == section_type::METADATA_V2) {
+        info.compressed_metadata_size += s->length();
+        info.uncompressed_metadata_size +=
+            get_uncompressed_section_size(mm_, *s);
+      }
+    }
+
+    fsinfo_ = std::make_unique<filesystem_info>(info);
+  }
+
+  return *fsinfo_;
+}
+
+template <typename LoggerPolicy>
+filesystem_<LoggerPolicy>::filesystem_(
+    logger& lgr, std::shared_ptr<mmif> mm, const filesystem_options& options,
+    int inode_offset,
+    std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
     : LOG_PROXY_INIT(lgr)
-    , mm_(std::move(mm)) {
-  filesystem_parser parser(mm_, options.image_offset);
+    , mm_(std::move(mm))
+    , parser_(mm_, options.image_offset)
+    // clang-format off
+    PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
+    PERFMON_CLS_TIMER_INIT(find_path)
+    PERFMON_CLS_TIMER_INIT(find_inode)
+    PERFMON_CLS_TIMER_INIT(find_inode_name)
+    PERFMON_CLS_TIMER_INIT(getattr)
+    PERFMON_CLS_TIMER_INIT(access)
+    PERFMON_CLS_TIMER_INIT(opendir)
+    PERFMON_CLS_TIMER_INIT(readdir)
+    PERFMON_CLS_TIMER_INIT(dirsize)
+    PERFMON_CLS_TIMER_INIT(readlink)
+    PERFMON_CLS_TIMER_INIT(readlink_expected)
+    PERFMON_CLS_TIMER_INIT(statvfs)
+    PERFMON_CLS_TIMER_INIT(open)
+    PERFMON_CLS_TIMER_INIT(read)
+    PERFMON_CLS_TIMER_INIT(readv_iovec)
+    PERFMON_CLS_TIMER_INIT(readv_future) { // clang-format on
   block_cache cache(lgr, mm_, options.block_cache);
 
-  header_ = parser.header();
+  if (parser_.has_index()) {
+    LOG_DEBUG << "found valid section index";
+  }
+
+  header_ = parser_.header();
 
   section_map sections;
 
-  while (auto s = parser.next_section()) {
-    LOG_DEBUG << "section " << s->description() << " @ " << s->start() << " ["
+  while (auto s = parser_.next_section()) {
+    LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
               << s->length() << " bytes]";
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
-      ++fsinfo_.block_count;
-      fsinfo_.compressed_block_size += s->length();
-      fsinfo_.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
     } else {
       if (!s->check_fast(*mm_)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
@@ -372,12 +468,6 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
-
-      if (s->type() == section_type::METADATA_V2) {
-        fsinfo_.compressed_metadata_size += s->length();
-        fsinfo_.uncompressed_metadata_size +=
-            get_uncompressed_section_size(mm_, *s);
-      }
     }
   }
 
@@ -385,19 +475,19 @@ filesystem_<LoggerPolicy>::filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
                         options.metadata, inode_offset, false,
-                        options.lock_mode, !parser.has_checksums());
+                        options.lock_mode, !parser_.has_checksums());
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader_v2(lgr, std::move(cache));
+  ir_ = inode_reader_v2(lgr, std::move(cache), perfmon);
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
-  meta_.dump(os, detail_level, fsinfo_,
+  meta_.dump(os, detail_level, get_info(),
              [&](const std::string& indent, uint32_t inode) {
                if (auto chunks = meta_.get_chunks(inode)) {
                  os << indent << chunks->size() << " chunks in inode " << inode
@@ -435,86 +525,101 @@ void filesystem_<LoggerPolicy>::walk_data_order(
 template <typename LoggerPolicy>
 std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(const char* path) const {
+  PERFMON_CLS_SCOPED_SECTION(find_path)
   return meta_.find(path);
 }
 
 template <typename LoggerPolicy>
 std::optional<inode_view> filesystem_<LoggerPolicy>::find(int inode) const {
+  PERFMON_CLS_SCOPED_SECTION(find_inode)
   return meta_.find(inode);
 }
 
 template <typename LoggerPolicy>
 std::optional<inode_view>
 filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
+  PERFMON_CLS_SCOPED_SECTION(find_inode_name)
   return meta_.find(inode, name);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::getattr(inode_view entry,
-                                       struct ::stat* stbuf) const {
+                                       file_stat* stbuf) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr)
   return meta_.getattr(entry, stbuf);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
                                       gid_t gid) const {
+  PERFMON_CLS_SCOPED_SECTION(access)
   return meta_.access(entry, mode, uid, gid);
 }
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
 filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(opendir)
   return meta_.opendir(entry);
 }
 
 template <typename LoggerPolicy>
 std::optional<std::pair<inode_view, std::string>>
 filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readdir)
   return meta_.readdir(dir, offset);
 }
 
 template <typename LoggerPolicy>
 size_t filesystem_<LoggerPolicy>::dirsize(directory_view dir) const {
+  PERFMON_CLS_SCOPED_SECTION(dirsize)
   return meta_.dirsize(dir);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::readlink(inode_view entry,
-                                        std::string* buf) const {
-  return meta_.readlink(entry, buf);
+int filesystem_<LoggerPolicy>::readlink(inode_view entry, std::string* buf,
+                                        readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink)
+  return meta_.readlink(entry, buf, mode);
 }
 
 template <typename LoggerPolicy>
 folly::Expected<std::string, int>
-filesystem_<LoggerPolicy>::readlink(inode_view entry) const {
-  return meta_.readlink(entry);
+filesystem_<LoggerPolicy>::readlink(inode_view entry,
+                                    readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink_expected)
+  return meta_.readlink(entry, mode);
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::statvfs(struct ::statvfs* stbuf) const {
+int filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
+  PERFMON_CLS_SCOPED_SECTION(statvfs)
   // TODO: not sure if that's the right abstraction...
   return meta_.statvfs(stbuf);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::open(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(open)
   return meta_.open(entry);
 }
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
-                                        off_t offset) const {
+                                        file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(read)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.read(buf, size, offset, *chunks);
+    return ir_.read(buf, inode, size, offset, *chunks);
   }
   return -EBADF;
 }
 
 template <typename LoggerPolicy>
 ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
-                                         size_t size, off_t offset) const {
+                                         size_t size, file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(buf, size, offset, *chunks);
+    return ir_.readv(buf, inode, size, offset, *chunks);
   }
   return -EBADF;
 }
@@ -522,15 +627,17 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
 template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
-                                 off_t offset) const {
+                                 file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
   if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(size, offset, *chunks);
+    return ir_.readv(inode, size, offset, *chunks);
   }
   return folly::makeUnexpected(-EBADF);
 }
 
 template <typename LoggerPolicy>
-std::optional<folly::ByteRange> filesystem_<LoggerPolicy>::header() const {
+std::optional<std::span<uint8_t const>>
+filesystem_<LoggerPolicy>::header() const {
   return header_;
 }
 
@@ -541,10 +648,11 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
-                             int inode_offset)
+                             int inode_offset,
+                             std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), options, inode_offset)) {}
+          lgr, std::move(mm), options, inode_offset, std::move(perfmon))) {}
 
 void filesystem_v2::rewrite(logger& lgr, progress& prog,
                             std::shared_ptr<mmif> mm, filesystem_writer& writer,
@@ -574,7 +682,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     prog.filesystem_size += s->length();
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
-    } else {
+    } else if (s->type() != section_type::SECTION_INDEX) {
       if (!sections.emplace(s->type(), *s).second) {
         DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
       }
@@ -586,9 +694,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   std::vector<uint8_t> meta_raw;
 
   // force metadata check
-  auto meta =
-      make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(),
-                    0, true, mlock_mode::NONE, !parser.has_checksums());
+  make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(), 0,
+                true, mlock_mode::NONE, !parser.has_checksums());
 
   parser.rewind();
 
@@ -624,7 +731,7 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,
                             size_t num_readers, bool check_integrity,
-                            off_t image_offset) {
+                            file_off_t image_offset) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm, image_offset);
@@ -634,7 +741,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     if (auto off = parser.image_offset(); off > 0) {
       os << " at offset " << off;
     }
-    os << std::endl;
+    os << "\n";
   }
 
   worker_group wg("reader", num_readers);
@@ -674,7 +781,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
         os << "SECTION " << s.description()
            << ", blocksize=" << uncompressed_size
            << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-           << std::endl;
+           << "\n";
       }
 
       if (s.type() != section_type::BLOCK) {
@@ -688,7 +795,7 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  if (errors == 0 and detail_level > 0) {
+  if (detail_level > 0) {
     filesystem_options fsopts;
     fsopts.metadata.check_consistency = true;
     fsopts.metadata.enable_nlink = true;
@@ -699,13 +806,13 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   return errors;
 }
 
-std::optional<folly::ByteRange>
+std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm) {
   return header(std::move(mm), filesystem_options::IMAGE_OFFSET_AUTO);
 }
 
-std::optional<folly::ByteRange>
-filesystem_v2::header(std::shared_ptr<mmif> mm, off_t image_offset) {
+std::optional<std::span<uint8_t const>>
+filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return filesystem_parser(mm, image_offset).header();
 }
 

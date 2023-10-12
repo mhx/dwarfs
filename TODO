@@ -1,3 +1,172 @@
+- Forward compatibility
+
+  - Feature flags (feature strings)
+
+- Wiki with use cases
+  - Perl releases
+  - Videos with shared streams
+  - Backups of audio files
+  - Compression of filesystem images for forensic purposes
+
+- Mounting lots of images with shared cache?
+
+inode -> list of fragments
+
+categorizer returns list of fragments OR single category
+
+fragment -> [offset, length, category]
+
+
+
+TODO: with PCM audio signals, we need to categorize by:
+
+      - # of channels
+      - bit depth
+      - endian-ness
+      - signed-ness
+      - sample rate (not necessarily)
+
+      we also need to keep track of endian-ness and signed-ness
+      outside of the FLAC stream, as this information isn't
+      stored in FLAC; we could always get this information from
+      the metadata of the original file, but that would be a lot
+      more complicated than just storing two extra bits in the
+      block itself; we'll have to store the decoded length as
+      well, so this won't make a real difference
+
+- how do we make multiple parallel block chains (categories)
+  reproducible?
+
+    => we could re-write the blocks and update the metadata;
+       however, data added to "uncategorized" blocks would
+       still be random
+
+    => oooh, easy: we can order all chunks before we start
+       writing them to blocks, so only the block order is
+       random after all, which we can fix by rewriting.
+       the tricky bit is (probably) going to be updating
+       the chunks in the metadata, as they won't be written
+       to the individual blocks sequentially; pretty sure
+       that's a solvable problem.
+
+    => indeed solvable; chunks aren't finalized until after
+       all blocks have been written. We simply need to subdivide
+       `inode_`s into smaller parts (as provided by the categorizer)
+       and then add chunks to the individual parts, assembling them
+       only after everything has been written
+
+    => as for re-writing the blocks: we need to keep track of
+       the category of each block, so that we can later sort
+       the blocks by category; we can do this in a separate
+       section, which can later be deleted; or we can even keep
+       it if we want to know later on what category a block
+       belonged to
+
+- configuration ideas:
+
+  --order FILETYPE::...
+  -B FILETYPE::...
+  -W FILETYPE::...
+  -w FILETYPE::...
+  -C FILETYPE::...
+
+  -B pcmaudio::64 -W pcmaudio::16 -C pcmaudio::flac:level=8
+  -C binary/x86::zstd:filter=x86
+  -C mime:application/x-archive::null
+
+  --filetype pcmaudio::mime:audio/x-wav,mime:audio/x-w64
+
+
+  --categorize=pcmaudio,incompressible,binary,libmagic
+  --libmagic-types=application/x-archive
+
+
+- different scenarios for categorized files / chunks:
+
+  - Video files
+    - just store without compression, but perform segmentation, nothing special
+    - keep in lookback buffer for longer, as it doesn't cost memory
+    - needs parallelized segmenter (see below)
+
+  - PCM audio (see also github #95)
+    - segment first in case of e.g. different trims or other types of overlap
+    - split into chunks (for parallel decompression)
+    - compress each chunk as flac
+    - headers to be saved separately
+    - need to store original size and other information
+
+    This is actually quite easy:
+
+    - Identify PCM audio files (libmagic?)
+    - Use libsndfile for parsing
+    - Nilsimsa similarity works surprisingly well
+    - We can potentially switch to larger window size for segmentation and use
+      larger lookback
+    - Group by format (# of channels, resolution, endian-ness, signedness, sample rate)
+    - Run segmentation as usual
+    - Compress each block using FLAC (hopefully we can configure how much header data
+      and/or seek points etc. gets stored) or maybe even WAVPACK is we don't need perf
+    - I *think* this can be done even with the current metadata format without any
+      additions
+    - The features needed should be largely orthogonal to the features needed for the
+      scenarios below
+
+  - Executables, Shared Libs, ...
+    - run filter over blocks that contain a certain kind of binary data before
+      compression
+    - a single binary may contain machine code for different architectures,
+      so we may have to store different parts of the binary in different blocks
+    - actually quite similar to audio files above, except for the additional
+      filter used during compression/decompression
+
+  - JPG
+    - just store a recompressed version
+    - need to store original size
+    - no need for segmentation except for exact 
+
+  - PDF
+    - decompress contents
+    - then segment
+    - then compress along with other PDFs (or documents in general)
+
+  - Other compressed format (gz, xz, ...)
+    - decompress
+    - segment
+    - compress
+    - essentially like PDF
+    - maybe only do this for small files? (option for size limit?)
+
+  - It should be possible to treat individual chunks differently, e.g.
+    WAV-header should be stored independently from contents; at some
+    point, we might look deeper into tar files and compress individual
+    contents differently.
+
+- in the metadata, we need to know:
+
+  - the fact that a stored inode is "special" (can be reflected in a single bit)
+  - the type of "specialness"
+  - the original file size
+
+
+- multi-threaded pre-matcher (for -Bn with n > 0)
+  - pre-compute matches/cyclic hashes for completed blocks; these don't
+    change and so we can do this with very little synchronization
+  - there are two possible strategies:
+    - split the input stream into chunks and then process each chunk in
+      a separate thread, checking all n blocks
+    - process the input stream in each thread and then only checking a
+      subset of past blocks (this seems more wasteful, but each thread
+      would only operate on a few instead of all bloom filters, which
+      could be better from a cache locality pov)
+
+- per-file progress for large files?
+- throughput indicator
+
+- similarity size limit to avoid similarity computation for huge files
+- store files without similarity hash first, sorted descending by size
+- allow ordering by *reverse* path
+
+
 - use streaming interface for zstd decompressor
 - json metadata recovery
 - add --chmod, --chown

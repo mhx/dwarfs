@@ -19,16 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/portability/Fcntl.h>
-#include <folly/portability/SysMman.h>
-#include <folly/portability/SysStat.h>
-#include <folly/portability/Unistd.h>
-
+#include <cassert>
 #include <cerrno>
 
-#include <boost/system/error_code.hpp>
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
-#include <fmt/format.h>
+#include <boost/filesystem/path.hpp>
 
 #include "dwarfs/error.h"
 #include "dwarfs/mmap.h"
@@ -37,93 +38,124 @@ namespace dwarfs {
 
 namespace {
 
-int safe_open(const std::string& path) {
-  int fd = ::open(path.c_str(), O_RDONLY);
-
-  if (fd == -1) {
-    DWARFS_THROW(system_error, fmt::format("open('{}')", path));
-  }
-
-  return fd;
+uint64_t get_page_size() {
+#ifdef _WIN32
+  ::SYSTEM_INFO info;
+  ::GetSystemInfo(&info);
+  return info.dwPageSize;
+#else
+  return ::sysconf(_SC_PAGESIZE);
+#endif
 }
 
-size_t safe_size(int fd) {
-  struct stat st;
-  if (::fstat(fd, &st) == -1) {
-    DWARFS_THROW(system_error, "fstat");
-  }
-  return st.st_size;
-}
-
-void* safe_mmap(int fd, size_t size) {
-  if (size == 0) {
-    DWARFS_THROW(runtime_error, "empty file");
-  }
-
-  void* addr = ::mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-
-  if (addr == MAP_FAILED) {
-    DWARFS_THROW(system_error, "mmap");
-  }
-
-  return addr;
+boost::filesystem::path boost_from_std_path(std::filesystem::path const& p) {
+#ifdef _WIN32
+  return boost::filesystem::path(p.wstring());
+#else
+  return boost::filesystem::path(p.string());
+#endif
 }
 
 } // namespace
 
-boost::system::error_code mmap::lock(off_t offset, size_t size) {
-  boost::system::error_code ec;
-  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
-  if (::mlock(addr, size) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+std::error_code
+mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
+  std::error_code ec;
+
+  auto data = mf_.const_data() + offset;
+
+#ifdef _WIN32
+  if (::VirtualLock(const_cast<char*>(data), size) == 0) {
+    ec.assign(::GetLastError(), std::system_category());
   }
+#else
+  if (::mlock(data, size) != 0) {
+    ec.assign(errno, std::generic_category());
+  }
+#endif
+
   return ec;
 }
 
-boost::system::error_code mmap::release(off_t offset, size_t size) {
-  boost::system::error_code ec;
+std::error_code mmap::release(file_off_t offset [[maybe_unused]],
+                              size_t size [[maybe_unused]]) {
+  std::error_code ec;
+
+#ifndef _WIN32
   auto misalign = offset % page_size_;
 
   offset -= misalign;
   size += misalign;
   size -= size % page_size_;
 
-  auto addr = reinterpret_cast<uint8_t*>(addr_) + offset;
-  if (::madvise(addr, size, MADV_DONTNEED) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+  auto data = const_cast<char*>(mf_.const_data() + offset);
+#endif
+
+#ifdef _WIN32
+  //// TODO: this doesn't currently work
+  // if (::VirtualFree(data, size, MEM_DECOMMIT) == 0) {
+  //   ec.assign(::GetLastError(), std::system_category());
+  // }
+#else
+  if (::madvise(data, size, MADV_DONTNEED) != 0) {
+    ec.assign(errno, std::generic_category());
   }
+#endif
+
   return ec;
 }
 
-boost::system::error_code mmap::release_until(off_t offset) {
-  boost::system::error_code ec;
+std::error_code mmap::release_until(file_off_t offset [[maybe_unused]]) {
+  std::error_code ec;
 
+#ifndef _WIN32
   offset -= offset % page_size_;
 
-  if (::madvise(addr_, offset, MADV_DONTNEED) != 0) {
-    ec.assign(errno, boost::system::generic_category());
+  auto data = const_cast<char*>(mf_.const_data());
+#endif
+
+#ifdef _WIN32
+  //// TODO: this doesn't currently work
+  // if (::VirtualFree(data, offset, MEM_DECOMMIT) == 0) {
+  //   ec.assign(::GetLastError(), std::system_category());
+  // }
+#else
+  if (::madvise(data, offset, MADV_DONTNEED) != 0) {
+    ec.assign(errno, std::generic_category());
   }
+#endif
+
   return ec;
 }
 
-void const* mmap::addr() const { return addr_; }
+void const* mmap::addr() const { return mf_.const_data(); }
 
-size_t mmap::size() const { return size_; }
+size_t mmap::size() const { return mf_.size(); }
 
-mmap::mmap(const std::string& path)
-    : fd_(safe_open(path))
-    , size_(safe_size(fd_))
-    , addr_(safe_mmap(fd_, size_))
-    , page_size_(::sysconf(_SC_PAGESIZE)) {}
+std::filesystem::path const& mmap::path() const { return path_; }
 
-mmap::mmap(const std::string& path, size_t size)
-    : fd_(safe_open(path))
-    , size_(size)
-    , addr_(safe_mmap(fd_, size_))
-    , page_size_(::sysconf(_SC_PAGESIZE)) {}
+mmap::mmap(char const* path)
+    : mmap(std::filesystem::path(path)) {}
 
-mmap::~mmap() noexcept {
-  ::munmap(addr_, size_);
-  ::close(fd_);
+mmap::mmap(std::string const& path)
+    : mmap(std::filesystem::path(path)) {}
+
+mmap::mmap(std::filesystem::path const& path)
+    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly)
+    , page_size_(get_page_size())
+    , path_{path} {
+  assert(mf_.is_open());
 }
+
+mmap::mmap(std::string const& path, size_t size)
+    : mmap(std::filesystem::path(path), size) {}
+
+mmap::mmap(std::filesystem::path const& path, size_t size)
+    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly,
+          size)
+    , page_size_(get_page_size())
+    , path_{path} {
+  assert(mf_.is_open());
+}
+
 } // namespace dwarfs

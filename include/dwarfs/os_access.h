@@ -21,10 +21,11 @@
 
 #pragma once
 
-#include <folly/portability/SysStat.h>
-
+#include <filesystem>
 #include <memory>
 #include <string>
+
+#include "dwarfs/file_stat.h"
 
 namespace dwarfs {
 
@@ -34,7 +35,7 @@ class dir_reader {
  public:
   virtual ~dir_reader() = default;
 
-  virtual bool read(std::string& name) const = 0;
+  virtual bool read(std::filesystem::path& name) = 0;
 };
 
 class os_access {
@@ -42,11 +43,12 @@ class os_access {
   virtual ~os_access() = default;
 
   virtual std::shared_ptr<dir_reader>
-  opendir(const std::string& path) const = 0;
-  virtual void lstat(const std::string& path, struct ::stat* st) const = 0;
-  virtual std::string readlink(const std::string& path, size_t size) const = 0;
+  opendir(std::filesystem::path const& path) const = 0;
+  virtual file_stat symlink_info(std::filesystem::path const& path) const = 0;
+  virtual std::filesystem::path
+  read_symlink(std::filesystem::path const& path) const = 0;
   virtual std::shared_ptr<mmif>
-  map_file(const std::string& path, size_t size) const = 0;
-  virtual int access(const std::string& path, int mode) const = 0;
+  map_file(std::filesystem::path const& path, size_t size) const = 0;
+  virtual int access(std::filesystem::path const& path, int mode) const = 0;
 };
 } // namespace dwarfs

@@ -22,11 +22,8 @@
 #pragma once
 
 #include <exception>
-#include <functional>
 #include <string>
-
-#include <boost/system/error_code.hpp>
-#include <boost/system/system_error.hpp>
+#include <system_error>
 
 namespace dwarfs {
 
@@ -39,7 +36,10 @@ class error : public std::exception {
   int line() const { return line_; }
 
  protected:
-  error(std::string const& s, char const* file, int line) noexcept;
+  error(std::string const& s, char const* file, int line) noexcept
+      : what_(s)
+      , file_(file)
+      , line_(line) {}
 
  private:
   std::string what_;
@@ -49,10 +49,11 @@ class error : public std::exception {
 
 class runtime_error : public error {
  public:
-  runtime_error(std::string const& s, char const* file, int line) noexcept;
+  runtime_error(std::string const& s, char const* file, int line) noexcept
+      : error(s, file, line) {}
 };
 
-class system_error : public boost::system::system_error {
+class system_error : public std::system_error {
  public:
   system_error(char const* file, int line) noexcept;
   system_error(std::string const& s, char const* file, int line) noexcept;
@@ -95,7 +96,5 @@ void dump_exceptions();
 
 [[noreturn]] void assertion_failed(char const* expr, std::string const& msg,
                                    char const* file, int line);
-
-int safe_main(std::function<int(void)> fn);
 
 } // namespace dwarfs

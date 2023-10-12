@@ -19,8 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/portability/Unistd.h>
-
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -28,11 +26,72 @@
 #include <cstring>
 #include <iostream>
 
+#ifndef _WIN32
+#include <sys/ioctl.h>
+#endif
+
+#include <folly/portability/Unistd.h>
+#include <folly/portability/Windows.h>
+
 #include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
-bool stream_is_fancy_terminal(std::ostream& os) {
+#if defined(_WIN32)
+void WindowsEmulateVT100Terminal(DWORD std_handle) {
+  static bool done = false;
+
+  if (done) {
+    return;
+  }
+
+  done = true;
+
+  // Enable VT processing on stdout and stdin
+  auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
+
+  DWORD out_mode = 0;
+  ::GetConsoleMode(hdl, &out_mode);
+
+  // https://docs.microsoft.com/en-us/windows/console/setconsolemode
+  static constexpr DWORD enable_virtual_terminal_processing = 0x0004;
+  static constexpr DWORD disable_newline_auto_return = 0x0008;
+  out_mode |= enable_virtual_terminal_processing;
+
+  ::SetConsoleMode(hdl, out_mode);
+}
+#endif
+
+void setup_terminal() {
+#ifdef _WIN32
+  WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
+  ::SetConsoleOutputCP(CP_UTF8);
+  ::SetConsoleCP(CP_UTF8);
+#endif
+}
+
+size_t get_term_width() {
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  ::GetConsoleScreenBufferInfo(::GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#else
+  struct ::winsize w;
+  ::ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+  return w.ws_col;
+#endif
+}
+
+bool stream_is_fancy_terminal(std::ostream& os [[maybe_unused]]) {
+#ifdef _WIN32
+  if (&os == &std::cout) {
+    return true;
+  }
+  if (&os == &std::cerr) {
+    return true;
+  }
+  return false;
+#else
   if (&os == &std::cout && !::isatty(::fileno(stdout))) {
     return false;
   }
@@ -41,6 +100,7 @@ bool stream_is_fancy_terminal(std::ostream& os) {
   }
   auto term = ::getenv("TERM");
   return term && term[0] != '\0' && ::strcmp(term, "dumb") != 0;
+#endif
 }
 
 char const* terminal_color(termcolor color) {

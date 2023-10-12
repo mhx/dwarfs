@@ -19,10 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifdef _WIN32
-#include <folly/portability/SysStat.h>
-#endif
-
 #include <algorithm>
 #include <numeric>
 #include <queue>
@@ -33,6 +29,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/overloaded.h"
+#include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
 
@@ -55,11 +52,11 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
     directories.resize(metadir.size());
 
     // delta-decode first entries first
-    directories[0].first_entry = metadir[0].first_entry();
+    directories[0].first_entry() = metadir[0].first_entry();
 
     for (size_t i = 1; i < directories.size(); ++i) {
-      directories[i].first_entry =
-          directories[i - 1].first_entry + metadir[i].first_entry();
+      directories[i].first_entry() =
+          directories[i - 1].first_entry().value() + metadir[i].first_entry();
     }
 
     // then traverse to recover parent entries
@@ -72,13 +69,13 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
 
       auto p_ino = dirent[parent].inode_num();
 
-      auto beg = directories[p_ino].first_entry;
-      auto end = directories[p_ino + 1].first_entry;
+      auto beg = directories[p_ino].first_entry().value();
+      auto end = directories[p_ino + 1].first_entry().value();
 
       for (auto e = beg; e < end; ++e) {
         if (auto e_ino = dirent[e].inode_num();
             e_ino < (directories.size() - 1)) {
-          directories[e_ino].parent_entry = parent;
+          directories[e_ino].parent_entry() = parent;
           queue.push(e);
         }
       }
@@ -90,16 +87,17 @@ unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
   return directories;
 }
 
+// TODO: merge with inode_rank in metadata_v2
 int mode_rank(uint16_t mode) {
-  switch (mode & S_IFMT) {
-  case S_IFDIR:
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::directory:
     return 0;
-  case S_IFLNK:
+  case posix_file_type::symlink:
     return 1;
-  case S_IFREG:
+  case posix_file_type::regular:
     return 2;
-  case S_IFBLK:
-  case S_IFCHR:
+  case posix_file_type::block:
+  case posix_file_type::character:
     return 3;
   default:
     return 4;
@@ -527,12 +525,12 @@ global_metadata::global_metadata(logger& lgr, Meta const* meta,
                  : string_table(meta_->names())} {}
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].first_entry
+  return directories_ ? directories_[ino].first_entry().value()
                       : meta_->directories()[ino].first_entry();
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].parent_entry
+  return directories_ ? directories_[ino].parent_entry().value()
                       : meta_->directories()[ino].parent_entry();
 }
 
@@ -667,20 +665,41 @@ inode_view dir_entry_view::inode(uint32_t index, global_metadata const* g) {
 }
 
 std::string dir_entry_view::path() const {
-  std::string p;
-  append_path_to(p);
+  return u8string_to_string(fs_path().u8string());
+}
+
+std::string dir_entry_view::unix_path() const {
+#ifdef _WIN32
+  auto p = fs_path().u8string();
+  std::replace(p.begin(), p.end(),
+               static_cast<char>(std::filesystem::path::preferred_separator),
+               '/');
+  return u8string_to_string(p);
+#else
+  return path();
+#endif
+}
+
+std::wstring dir_entry_view::wpath() const { return fs_path().wstring(); }
+
+std::filesystem::path dir_entry_view::fs_path() const {
+  std::filesystem::path p;
+  append_to(p);
   return p;
 }
 
-void dir_entry_view::append_path_to(std::string& s) const {
-  if (auto p = parent()) {
-    if (!p->is_root()) {
-      p->append_path_to(s);
-      s += '/';
+void dir_entry_view::append_to(std::filesystem::path& p) const {
+  if (auto ev = parent()) {
+    if (!ev->is_root()) {
+      ev->append_to(p);
     }
   }
   if (!is_root()) {
-    s += name();
+#ifdef U8STRING_AND_PATH_OK
+    p /= string_to_u8string(name());
+#else
+    p /= name();
+#endif
   }
 }
 

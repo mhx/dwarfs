@@ -23,11 +23,13 @@
 
 #include <atomic>
 #include <cstddef>
+#include <functional>
 #include <iosfwd>
 #include <mutex>
 #include <string>
 
 #include "dwarfs/logger.h"
+#include "dwarfs/speedometer.h"
 
 namespace dwarfs {
 
@@ -35,12 +37,14 @@ class progress;
 
 class console_writer : public logger {
  public:
+  using get_term_width_type = std::function<size_t()>;
+
   enum display_mode { NORMAL, REWRITE };
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
 
-  console_writer(std::ostream& os, progress_mode pg_mode, size_t width,
-                 level_type threshold, display_mode mode = NORMAL,
-                 bool verbose = false);
+  console_writer(std::ostream& os, progress_mode pg_mode,
+                 get_term_width_type get_term_width, level_type threshold,
+                 display_mode mode = NORMAL, bool verbose = false);
 
   void write(level_type level, const std::string& output, char const* file,
              int line) override;
@@ -57,10 +61,12 @@ class console_writer : public logger {
   double frac_;
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
-  size_t const width_;
+  get_term_width_type get_term_width_;
   display_mode const mode_;
   bool const color_;
   bool const with_context_;
   bool const debug_progress_;
+  bool writing_{false};
+  speedometer<uint64_t> read_speed_;
 };
 } // namespace dwarfs

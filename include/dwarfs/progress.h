@@ -55,6 +55,9 @@ class progress {
   std::string status(size_t max_len) const;
 
   std::atomic<object const*> current{nullptr};
+  std::atomic<uint64_t> total_bytes_read{0};
+  std::atomic<size_t> current_size{0};
+  std::atomic<size_t> current_offset{0};
   std::atomic<size_t> files_found{0};
   std::atomic<size_t> files_scanned{0};
   std::atomic<size_t> dirs_found{0};
@@ -75,10 +78,15 @@ class progress {
   std::atomic<size_t> compress_queue{0};
   std::atomic<uint64_t> original_size{0};
   std::atomic<uint64_t> hardlink_size{0};
+  std::atomic<uint64_t> symlink_size{0};
   std::atomic<uint64_t> saved_by_deduplication{0};
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};
   std::atomic<uint64_t> compressed_size{0};
+  std::atomic<size_t> similarity_scans{0};
+  std::atomic<uint64_t> similarity_bytes{0};
+  std::atomic<size_t> hash_scans{0};
+  std::atomic<uint64_t> hash_bytes{0};
 
  private:
   std::atomic<bool> running_;
