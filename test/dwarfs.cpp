@@ -889,3 +889,35 @@ TEST(file_scanner, input_list) {
 
   EXPECT_EQ(expected, got);
 }
+
+TEST(filesystem, uid_gid_32bit) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0}, "hello");
+  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0}, "world");
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, mm);
+
+  auto iv16 = fs.find("/foo16.txt");
+  auto iv32 = fs.find("/foo32.txt");
+
+  EXPECT_TRUE(iv16);
+  EXPECT_TRUE(iv32);
+
+  file_stat st16, st32;
+
+  EXPECT_EQ(0, fs.getattr(*iv16, &st16));
+  EXPECT_EQ(0, fs.getattr(*iv32, &st32));
+
+  EXPECT_EQ(60000, st16.uid);
+  EXPECT_EQ(65535, st16.gid);
+  EXPECT_EQ(65536, st32.uid);
+  EXPECT_EQ(4294967295, st32.gid);
+}

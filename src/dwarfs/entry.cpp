@@ -167,17 +167,17 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
 
 entry::type_t file::type() const { return E_FILE; }
 
-uint16_t entry::get_permissions() const { return stat_.permissions(); }
+auto entry::get_permissions() const -> mode_type { return stat_.permissions(); }
 
-void entry::set_permissions(uint16_t perm) { stat_.set_permissions(perm); }
+void entry::set_permissions(mode_type perm) { stat_.set_permissions(perm); }
 
-uint16_t entry::get_uid() const { return stat_.uid; }
+auto entry::get_uid() const -> uid_type { return stat_.uid; }
 
-void entry::set_uid(uint16_t uid) { stat_.uid = uid; }
+void entry::set_uid(uid_type uid) { stat_.uid = uid; }
 
-uint16_t entry::get_gid() const { return stat_.gid; }
+auto entry::get_gid() const -> gid_type { return stat_.gid; }
 
-void entry::set_gid(uint16_t gid) { stat_.gid = gid; }
+void entry::set_gid(gid_type gid) { stat_.gid = gid; }
 
 uint64_t entry::get_atime() const { return stat_.atime; }
 

@@ -27,6 +27,7 @@
 #include <iosfwd>
 #include <optional>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/types.h"
 
 namespace dwarfs {
@@ -97,8 +98,8 @@ struct file_order_options {
 struct scanner_options {
   file_order_options file_order;
   std::optional<std::string> file_hash_algorithm{"xxh3-128"};
-  std::optional<uint16_t> uid;
-  std::optional<uint16_t> gid;
+  std::optional<file_stat::uid_type> uid;
+  std::optional<file_stat::gid_type> gid;
   std::optional<uint64_t> timestamp;
   bool keep_all_times{false};
   bool remove_empty_dirs{false};

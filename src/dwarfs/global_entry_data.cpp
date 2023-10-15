@@ -35,23 +35,23 @@ std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
          get<0>() | as<std::vector>();
 }
 
-std::vector<uint16_t> global_entry_data::get_uids() const {
+auto global_entry_data::get_uids() const -> std::vector<uid_type> {
   return get_vector(uids_);
 }
 
-std::vector<uint16_t> global_entry_data::get_gids() const {
+auto global_entry_data::get_gids() const -> std::vector<gid_type> {
   return get_vector(gids_);
 }
 
-std::vector<uint16_t> global_entry_data::get_modes() const {
+auto global_entry_data::get_modes() const -> std::vector<mode_type> {
   return get_vector(modes_);
 }
 
-std::vector<std::string> global_entry_data::get_names() const {
+auto global_entry_data::get_names() const -> std::vector<std::string> {
   return get_vector(names_);
 }
 
-std::vector<std::string> global_entry_data::get_symlinks() const {
+auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
   return get_vector(symlinks_);
 }
 
@@ -84,15 +84,15 @@ uint64_t global_entry_data::get_timestamp_base() const {
          options_.time_resolution_sec;
 }
 
-uint16_t global_entry_data::get_uid_index(uint16_t uid) const {
+size_t global_entry_data::get_uid_index(uid_type uid) const {
   return options_.uid ? *options_.uid : DWARFS_NOTHROW(uids_.at(uid));
 }
 
-uint16_t global_entry_data::get_gid_index(uint16_t gid) const {
+size_t global_entry_data::get_gid_index(gid_type gid) const {
   return options_.gid ? *options_.gid : DWARFS_NOTHROW(gids_.at(gid));
 }
 
-uint16_t global_entry_data::get_mode_index(uint16_t mode) const {
+size_t global_entry_data::get_mode_index(mode_type mode) const {
   return DWARFS_NOTHROW(modes_.at(mode));
 }
 
@@ -105,13 +105,13 @@ global_entry_data::get_symlink_table_entry(std::string const& link) const {
   return DWARFS_NOTHROW(symlinks_.at(link));
 }
 
-void global_entry_data::add_uid(uint16_t uid) {
+void global_entry_data::add_uid(uid_type uid) {
   if (!options_.uid) {
     add(uid, uids_, next_uid_index_);
   }
 }
 
-void global_entry_data::add_gid(uint16_t gid) {
+void global_entry_data::add_gid(gid_type gid) {
   if (!options_.gid) {
     add(gid, gids_, next_gid_index_);
   }
