@@ -135,7 +135,6 @@ void basic_end_to_end_test(std::string const& compressor,
     options.timestamp = 4711;
   }
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   auto input = test::os_access_mock::create_test_instance();
@@ -557,7 +556,6 @@ TEST_P(packing_test, regression_empty_fs) {
   options.pack_symlinks_index = pack_symlinks_index;
   options.force_pack_string_tables = true;
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   auto input = std::make_shared<test::os_access_mock>();
@@ -631,7 +629,6 @@ TEST(block_manager, regression_block_boundary) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   std::vector<size_t> fs_blocks;
@@ -679,7 +676,6 @@ TEST_P(compression_regression, github45) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   std::independent_bits_engine<std::mt19937_64,
@@ -759,7 +755,6 @@ class file_scanner
 TEST_P(file_scanner, inode_ordering) {
   auto [order_mode, file_hash_algo] = GetParam();
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   auto bmcfg = block_manager::config();
@@ -809,7 +804,6 @@ TEST_P(filter, filesystem) {
 
   options.remove_empty_dirs = true;
 
-  std::ostringstream logss;
   test::test_logger lgr;
 
   auto scr = std::make_shared<builtin_script>(lgr);
@@ -861,7 +855,6 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
 
 TEST(file_scanner, input_list) {
-  std::ostringstream logss;
   test::test_logger lgr;
 
   auto bmcfg = block_manager::config();
