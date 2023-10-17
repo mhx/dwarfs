@@ -244,13 +244,13 @@ struct metadata {
    6: list<UInt32>     symlink_table
 
    // user ids, for lookup by `inode.owner_index`
-   7: list<UInt16>     uids
+   7: list<UInt32>     uids
 
    // group ids, for lookup by `inode.group_index`
-   8: list<UInt16>     gids
+   8: list<UInt32>     gids
 
    // inode modes, for lookup by `inode.mode_index`
-   9: list<UInt16>     modes
+   9: list<UInt32>     modes
 
    // directory entry names, for lookup by `dir_entry.name_index`
   10: list<string>     names

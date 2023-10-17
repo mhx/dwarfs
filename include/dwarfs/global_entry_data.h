@@ -28,21 +28,27 @@
 
 #include <folly/container/F14Map.h>
 
+#include "dwarfs/file_stat.h"
+
 namespace dwarfs {
 
 struct scanner_options;
 
 class global_entry_data {
  public:
+  using uid_type = file_stat::uid_type;
+  using gid_type = file_stat::gid_type;
+  using mode_type = file_stat::mode_type;
+
   enum class timestamp_type { ATIME, MTIME, CTIME };
 
   global_entry_data(scanner_options const& options)
       : options_(options) {}
 
-  void add_uid(uint16_t uid);
-  void add_gid(uint16_t gid);
+  void add_uid(uid_type uid);
+  void add_gid(gid_type gid);
 
-  void add_mode(uint16_t mode) { add(mode, modes_, next_mode_index_); }
+  void add_mode(mode_type mode) { add(mode, modes_, next_mode_index_); }
 
   void add_mtime(uint64_t time);
   void add_atime(uint64_t time);
@@ -56,9 +62,9 @@ class global_entry_data {
     index(symlinks_);
   }
 
-  uint16_t get_uid_index(uint16_t uid) const;
-  uint16_t get_gid_index(uint16_t gid) const;
-  uint16_t get_mode_index(uint16_t mode) const;
+  size_t get_uid_index(uid_type uid) const;
+  size_t get_gid_index(gid_type gid) const;
+  size_t get_mode_index(mode_type mode) const;
 
   uint32_t get_name_index(std::string const& name) const;
   uint32_t get_symlink_table_entry(std::string const& link) const;
@@ -67,9 +73,9 @@ class global_entry_data {
   uint64_t get_atime_offset(uint64_t time) const;
   uint64_t get_ctime_offset(uint64_t time) const;
 
-  std::vector<uint16_t> get_uids() const;
-  std::vector<uint16_t> get_gids() const;
-  std::vector<uint16_t> get_modes() const;
+  std::vector<uid_type> get_uids() const;
+  std::vector<gid_type> get_gids() const;
+  std::vector<mode_type> get_modes() const;
 
   std::vector<std::string> get_names() const;
   std::vector<std::string> get_symlinks() const;
@@ -85,8 +91,8 @@ class global_entry_data {
 
   static void index(map_type<std::string, uint32_t>& map);
 
-  void
-  add(uint16_t val, map_type<uint16_t, uint16_t>& map, uint16_t& next_index) {
+  template <typename T>
+  void add(T val, map_type<T, T>& map, T& next_index) {
     if (map.emplace(val, next_index).second) {
       ++next_index;
     }
@@ -94,14 +100,14 @@ class global_entry_data {
 
   uint64_t get_time_offset(uint64_t time) const;
 
-  map_type<uint16_t, uint16_t> uids_;
-  map_type<uint16_t, uint16_t> gids_;
-  map_type<uint16_t, uint16_t> modes_;
+  map_type<uid_type, uid_type> uids_;
+  map_type<gid_type, gid_type> gids_;
+  map_type<mode_type, mode_type> modes_;
   map_type<std::string, uint32_t> names_;
   map_type<std::string, uint32_t> symlinks_;
-  uint16_t next_uid_index_{0};
-  uint16_t next_gid_index_{0};
-  uint16_t next_mode_index_{0};
+  uid_type next_uid_index_{0};
+  gid_type next_gid_index_{0};
+  mode_type next_mode_index_{0};
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   scanner_options const& options_;
 };

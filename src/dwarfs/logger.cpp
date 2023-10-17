@@ -19,12 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <stdexcept>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
+#include <folly/small_vector.h>
 
 #ifndef NDEBUG
 #include <folly/experimental/symbolizer/Symbolizer.h>
@@ -38,6 +39,7 @@
 
 #include "dwarfs/logger.h"
 #include "dwarfs/terminal.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -64,9 +66,14 @@ stream_logger::stream_logger(std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)
     , color_(stream_is_fancy_terminal(os))
+    , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
     , with_context_(with_context) {
   set_threshold(threshold);
 }
+
+void stream_logger::preamble() {}
+void stream_logger::postamble() {}
+std::string_view stream_logger::get_newline() const { return "\n"; }
 
 void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
@@ -74,6 +81,7 @@ void stream_logger::write(level_type level, const std::string& output,
     auto t = get_current_time_string();
     const char* prefix = "";
     const char* suffix = "";
+    auto newline = get_newline();
 
     if (color_) {
       switch (level) {
@@ -93,24 +101,33 @@ void stream_logger::write(level_type level, const std::string& output,
     }
 
 #if DWARFS_SYMBOLIZE
-    folly::symbolizer::StringSymbolizePrinter printer(
-        color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
+    std::string stacktrace;
+    std::vector<std::string_view> st_lines;
 
-    if (threshold_ == TRACE) {
+    if (enable_stack_trace_) {
       using namespace folly::symbolizer;
       Symbolizer symbolizer(LocationInfoMode::FULL);
-      FrameArray<5> addresses;
+      FrameArray<8> addresses;
       getStackTraceSafe(addresses);
       symbolizer.symbolize(addresses);
-      printer.println(addresses, 0);
+      folly::symbolizer::StringSymbolizePrinter printer(
+          color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
+      printer.println(addresses, 3);
+      stacktrace = printer.str();
+      folly::split('\n', stacktrace, st_lines);
+      if (st_lines.back().empty()) {
+        st_lines.pop_back();
+      }
     }
 #endif
 
     char lchar = logger::level_char(level);
     std::string context;
+    size_t context_len = 0;
 
     if (with_context_ && file) {
       context = get_logger_context(file, line);
+      context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
             suffix, terminal_color(termcolor::MAGENTA), context,
@@ -118,22 +135,44 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
+    folly::small_vector<std::string_view, 2> lines;
+    folly::split('\n', output, lines);
+
+    if (lines.back().empty()) {
+      lines.pop_back();
+    }
+
+    bool clear_ctx = true;
+
     std::lock_guard lock(mx_);
-    os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
-        << "\n";
+
+    preamble();
+
+    for (auto l : lines) {
+      os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
+          << newline;
+
+      if (clear_ctx) {
+        std::fill(t.begin(), t.end(), '.');
+        context.assign(context_len, ' ');
+        clear_ctx = false;
+      }
+    }
 
 #if DWARFS_SYMBOLIZE
-    if (threshold_ == TRACE) {
-      os_ << printer.str();
+    for (auto l : st_lines) {
+      os_ << l << newline;
     }
 #endif
+
+    postamble();
   }
 }
 
 void stream_logger::set_threshold(level_type threshold) {
   threshold_ = threshold;
 
-  if (threshold > level_type::INFO) {
+  if (threshold >= level_type::DEBUG) {
     set_policy<debug_logger_policy>();
   } else {
     set_policy<prod_logger_policy>();

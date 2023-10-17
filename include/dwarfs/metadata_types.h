@@ -33,6 +33,7 @@
 
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/file_type.h"
 #include "dwarfs/string_table.h"
 
@@ -90,15 +91,19 @@ class inode_view
   friend class dir_entry_view;
 
  public:
-  uint16_t mode() const;
+  using uid_type = file_stat::uid_type;
+  using gid_type = file_stat::gid_type;
+  using mode_type = file_stat::mode_type;
+
+  mode_type mode() const;
   posix_file_type::value type() const {
     return posix_file_type::from_mode(mode());
   }
   bool is_regular_file() const { return type() == posix_file_type::regular; }
   bool is_directory() const { return type() == posix_file_type::directory; }
   bool is_symlink() const { return type() == posix_file_type::symlink; }
-  uint16_t getuid() const;
-  uint16_t getgid() const;
+  uid_type getuid() const;
+  gid_type getgid() const;
   uint32_t inode_num() const { return inode_num_; }
 
  private:

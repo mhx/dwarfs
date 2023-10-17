@@ -19,11 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cstdlib>
 #include <cstring>
 #include <sstream>
-
-#include <folly/Conv.h>
 
 #include <fmt/format.h>
 
@@ -45,15 +42,6 @@ constexpr std::array<char const*, 8> asc_bar{
     {"=", "=", "=", "=", "=", "=", "=", "="}};
 constexpr std::array<char const*, 8> uni_bar{
     {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}};
-
-bool is_debug_progress() {
-  if (auto var = ::getenv("DWARFS_DEBUG_PROGRESS")) {
-    if (auto val = folly::tryTo<bool>(var)) {
-      return *val;
-    }
-  }
-  return false;
-}
 
 std::string progress_bar(size_t width, double frac, bool unicode) {
   size_t barlen = 8 * width * frac;
@@ -82,22 +70,13 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
                                get_term_width_type get_term_width,
                                level_type threshold, display_mode mode,
                                bool with_context)
-    : os_(os)
-    , threshold_(threshold)
+    : stream_logger(os, threshold, with_context)
     , frac_(0.0)
     , pg_mode_(pg_mode)
     , get_term_width_(get_term_width)
     , mode_(mode)
-    , color_(stream_is_fancy_terminal(os))
-    , with_context_(with_context)
-    , debug_progress_(is_debug_progress())
-    , read_speed_{std::chrono::seconds(5)} {
-  if (threshold > level_type::INFO) {
-    set_policy<debug_logger_policy>();
-  } else {
-    set_policy<prod_logger_policy>();
-  }
-}
+    , debug_progress_(getenv_is_enabled("DWARFS_DEBUG_PROGRESS"))
+    , read_speed_{std::chrono::seconds(5)} {}
 
 void console_writer::rewind() {
   if (!statebuf_.empty()) {
@@ -112,66 +91,26 @@ void console_writer::rewind() {
       break;
     }
 
-    os_ << '\r';
+    auto& os = log_stream();
+
+    os << '\r';
 
     for (int i = 0; i < lines; ++i) {
-      os_ << "\x1b[A";
+      os << "\x1b[A";
     }
   }
 }
 
-void console_writer::write(level_type level, const std::string& output,
-                           char const* file, int line) {
-  if (level <= threshold_) {
-    auto t = get_current_time_string();
-    const char* prefix = "";
-    const char* suffix = "";
+void console_writer::preamble() { rewind(); }
 
-    if (color_) {
-      switch (level) {
-      case ERROR:
-        prefix = terminal_color(termcolor::BOLD_RED);
-        suffix = terminal_color(termcolor::NORMAL);
-        break;
-
-      case WARN:
-        prefix = terminal_color(termcolor::BOLD_YELLOW);
-        suffix = terminal_color(termcolor::NORMAL);
-        break;
-
-      default:
-        break;
-      }
-    }
-
-    char lchar = logger::level_char(level);
-    std::string context;
-
-    if (with_context_ && file) {
-      context = get_logger_context(file, line);
-      if (color_) {
-        context = folly::to<std::string>(
-            suffix, terminal_color(termcolor::MAGENTA), context,
-            terminal_color(termcolor::NORMAL), prefix);
-      }
-    }
-
-    std::lock_guard lock(mx_);
-
-    switch (pg_mode_) {
-    case UNICODE:
-    case ASCII:
-      rewind();
-      os_ << prefix << lchar << ' ' << t << ' ' << context << output << suffix
-          << "\x1b[K\n";
-      os_ << statebuf_;
-      break;
-
-    default:
-      os_ << lchar << ' ' << t << ' ' << context << output << "\n";
-      break;
-    }
+void console_writer::postamble() {
+  if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
+    log_stream() << statebuf_;
   }
+}
+
+std::string_view console_writer::get_newline() const {
+  return pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 }
 
 void console_writer::update(const progress& p, bool last) {
@@ -179,7 +118,7 @@ void console_writer::update(const progress& p, bool last) {
     return;
   }
 
-  const char* newline = pg_mode_ != NONE ? "\x1b[K\n" : "\n";
+  auto newline = get_newline();
 
   std::ostringstream oss;
   lazy_value width(get_term_width_);
@@ -209,7 +148,7 @@ void console_writer::update(const progress& p, bool last) {
 
       if (fancy) {
         oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
-                                color_)
+                                log_is_colored())
             << newline;
       }
 
@@ -271,9 +210,9 @@ void console_writer::update(const progress& p, bool last) {
   }
 
   if (pg_mode_ == NONE) {
-    if (INFO <= threshold_) {
-      std::lock_guard lock(mx_);
-      os_ << oss.str();
+    if (INFO <= log_threshold()) {
+      std::lock_guard lock(log_mutex());
+      log_stream() << oss.str();
     }
     return;
   }
@@ -301,12 +240,12 @@ void console_writer::update(const progress& p, bool last) {
     if (tmp != statebuf_) {
       auto t = get_current_time_string();
       statebuf_ = tmp;
-      std::lock_guard lock(mx_);
-      os_ << "- " << t << statebuf_ << "\n";
+      std::lock_guard lock(log_mutex());
+      log_stream() << "- " << t << statebuf_ << "\n";
     }
     if (last) {
-      std::lock_guard lock(mx_);
-      os_ << oss.str();
+      std::lock_guard lock(log_mutex());
+      log_stream() << oss.str();
     }
   } else {
     oss << progress_bar(width.get() - 6, frac_, pg_mode_ == UNICODE)
@@ -315,13 +254,13 @@ void console_writer::update(const progress& p, bool last) {
 
     ++counter_;
 
-    std::lock_guard lock(mx_);
+    std::lock_guard lock(log_mutex());
 
     rewind();
 
     statebuf_ = oss.str();
 
-    os_ << statebuf_;
+    log_stream() << statebuf_;
   }
 }
 

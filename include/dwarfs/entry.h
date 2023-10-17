@@ -101,12 +101,12 @@ class entry : public entry_interface {
   virtual std::optional<uint32_t> const& inode_num() const = 0;
 
   // more methods from entry_interface
-  uint16_t get_permissions() const override;
-  void set_permissions(uint16_t perm) override;
-  uint16_t get_uid() const override;
-  void set_uid(uint16_t uid) override;
-  uint16_t get_gid() const override;
-  void set_gid(uint16_t gid) override;
+  mode_type get_permissions() const override;
+  void set_permissions(mode_type perm) override;
+  uid_type get_uid() const override;
+  void set_uid(uid_type uid) override;
+  gid_type get_gid() const override;
+  void set_gid(gid_type gid) override;
   uint64_t get_atime() const override;
   void set_atime(uint64_t atime) override;
   uint64_t get_mtime() const override;

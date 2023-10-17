@@ -88,11 +88,22 @@ class stream_logger : public logger {
   void set_threshold(level_type threshold);
   void set_with_context(bool with_context) { with_context_ = with_context; }
 
+ protected:
+  virtual void preamble();
+  virtual void postamble();
+  virtual std::string_view get_newline() const;
+
+  std::ostream& log_stream() const { return os_; }
+  std::mutex& log_mutex() const { return mx_; }
+  bool log_is_colored() const { return color_; }
+  level_type log_threshold() const { return threshold_.load(); }
+
  private:
   std::ostream& os_;
-  std::mutex mx_;
+  std::mutex mutable mx_;
   std::atomic<level_type> threshold_;
   bool const color_;
+  bool const enable_stack_trace_;
   bool with_context_;
 };
 
@@ -306,7 +317,8 @@ class log_proxy {
 };
 
 #define LOG_DETAIL_LEVEL(level, lgr, method)                                   \
-  if (lgr.is_enabled_for(::dwarfs::logger::level))                             \
+  if constexpr (std::decay_t<decltype(lgr)>::is_enabled_for(                   \
+                    ::dwarfs::logger::level))                                  \
   lgr.method(__FILE__, __LINE__)
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)

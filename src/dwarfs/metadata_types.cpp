@@ -534,11 +534,17 @@ uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
                       : meta_->directories()[ino].parent_entry();
 }
 
-uint16_t inode_view::mode() const { return meta_->modes()[mode_index()]; }
+auto inode_view::mode() const -> mode_type {
+  return meta_->modes()[mode_index()];
+}
 
-uint16_t inode_view::getuid() const { return meta_->uids()[owner_index()]; }
+auto inode_view::getuid() const -> uid_type {
+  return meta_->uids()[owner_index()];
+}
 
-uint16_t inode_view::getgid() const { return meta_->gids()[group_index()]; }
+auto inode_view::getgid() const -> gid_type {
+  return meta_->gids()[group_index()];
+}
 
 // TODO: pretty certain some of this stuff can be simplified
 
