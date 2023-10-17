@@ -50,6 +50,7 @@
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
+#include "test_logger.h"
 
 using namespace dwarfs;
 
@@ -134,9 +135,7 @@ void basic_end_to_end_test(std::string const& compressor,
     options.timestamp = 4711;
   }
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto input = test::os_access_mock::create_test_instance();
 
@@ -557,9 +556,7 @@ TEST_P(packing_test, regression_empty_fs) {
   options.pack_symlinks_index = pack_symlinks_index;
   options.force_pack_string_tables = true;
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto input = std::make_shared<test::os_access_mock>();
 
@@ -632,9 +629,7 @@ TEST(block_manager, regression_block_boundary) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   std::vector<size_t> fs_blocks;
 
@@ -681,9 +676,7 @@ TEST_P(compression_regression, github45) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   std::independent_bits_engine<std::mt19937_64,
                                std::numeric_limits<uint8_t>::digits, uint16_t>
@@ -762,9 +755,7 @@ class file_scanner
 TEST_P(file_scanner, inode_ordering) {
   auto [order_mode, file_hash_algo] = GetParam();
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto bmcfg = block_manager::config();
   auto opts = scanner_options();
@@ -813,9 +804,7 @@ TEST_P(filter, filesystem) {
 
   options.remove_empty_dirs = true;
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto scr = std::make_shared<builtin_script>(lgr);
 
@@ -866,9 +855,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
 
 TEST(file_scanner, input_list) {
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto bmcfg = block_manager::config();
   auto opts = scanner_options();
@@ -901,4 +888,36 @@ TEST(file_scanner, input_list) {
   };
 
   EXPECT_EQ(expected, got);
+}
+
+TEST(filesystem, uid_gid_32bit) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0}, "hello");
+  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0}, "world");
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, mm);
+
+  auto iv16 = fs.find("/foo16.txt");
+  auto iv32 = fs.find("/foo32.txt");
+
+  EXPECT_TRUE(iv16);
+  EXPECT_TRUE(iv32);
+
+  file_stat st16, st32;
+
+  EXPECT_EQ(0, fs.getattr(*iv16, &st16));
+  EXPECT_EQ(0, fs.getattr(*iv32, &st32));
+
+  EXPECT_EQ(60000, st16.uid);
+  EXPECT_EQ(65535, st16.gid);
+  EXPECT_EQ(65536, st32.uid);
+  EXPECT_EQ(4294967295, st32.gid);
 }

@@ -70,9 +70,7 @@ task:
     brew update
     brew install openssl@3  \
       bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config \
-      libevent libsodium lz4 xz zlib
-
-# No ccache - it causes '/bin/sh: fork: Resource temporarily unavailable'  in 90% of runs
+      libevent libsodium lz4 xz zlib ccache
 
   pre_configure_script:
     echo CXX_FLAGS='-DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0' >> $CIRRUS_ENV

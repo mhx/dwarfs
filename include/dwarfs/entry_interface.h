@@ -23,12 +23,17 @@
 
 #include <string>
 
+#include "dwarfs/file_stat.h"
 #include "dwarfs/object.h"
 
 namespace dwarfs {
 
 class entry_interface : public object {
  public:
+  using uid_type = file_stat::uid_type;
+  using gid_type = file_stat::gid_type;
+  using mode_type = file_stat::mode_type;
+
   virtual std::string path_as_string() const = 0;
   virtual std::string dpath() const = 0;
   virtual std::string unix_dpath() const = 0;
@@ -37,12 +42,12 @@ class entry_interface : public object {
   virtual size_t size() const = 0;
   virtual bool is_directory() const = 0;
 
-  virtual uint16_t get_permissions() const = 0;
-  virtual void set_permissions(uint16_t perm) = 0;
-  virtual uint16_t get_uid() const = 0;
-  virtual void set_uid(uint16_t uid) = 0;
-  virtual uint16_t get_gid() const = 0;
-  virtual void set_gid(uint16_t gid) = 0;
+  virtual mode_type get_permissions() const = 0;
+  virtual void set_permissions(mode_type perm) = 0;
+  virtual uid_type get_uid() const = 0;
+  virtual void set_uid(uid_type uid) = 0;
+  virtual gid_type get_gid() const = 0;
+  virtual void set_gid(gid_type gid) = 0;
   virtual uint64_t get_atime() const = 0;
   virtual void set_atime(uint64_t atime) = 0;
   virtual uint64_t get_mtime() const = 0;
