@@ -100,20 +100,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "-force_load <LIB_ITEM>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE
-    "LINKER:--push-state,--whole-archive"
-    "<LINK_ITEM>"
-    "LINKER:--pop-state"
-  )
-else()
-  message(FATAL_ERROR "WHOLE_ARCHIVE is unsupported on this platform")
-endif()
-
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 # -----------------------------------------------------------------------------------------
@@ -608,28 +594,27 @@ if("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
       target_link_libraries(dwarfs_main ${WINFSP})
       target_link_libraries(dwarfsuniversal delayimp.lib)
       target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
-    else()
+    else(WINFSP)
       target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
       target_link_libraries(dwarfs_main PkgConfig::FUSE3)
-    endif()
+    endif(WINFSP)
     add_executable(dwarfs-bin src/dwarfs.cpp)
     target_link_libraries(dwarfs-bin dwarfs_main)
     set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
     target_link_libraries(dwarfsuniversal dwarfs_main)
     if(WINFSP)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
-    else()
+    else(WINFSP)
       add_custom_command(OUTPUT  mount.dwarfs
                        COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
                        DEPENDS dwarfs-bin)
       list(APPEND SYMLINKS mount.dwarfs)
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
-    endif()
+    endif(WINFSP)
     list(APPEND BINARY_TARGETS dwarfs-bin)
     list(APPEND MAIN_TARGETS dwarfs_main)
-  endif()
-endif()
+  endif(FUSE3_FOUND OR WINFSP)
 
 if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   add_library(dwarfs2_main src/dwarfs_main.cpp)
@@ -638,19 +623,20 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   target_link_libraries(dwarfs2_main PkgConfig::FUSE)
   add_executable(dwarfs2-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs2-bin dwarfs2_main)
-  if(NOT FUSE3_FOUND)
-    target_link_libraries(dwarfsuniversal dwarfs2_main)
-  endif()
-  set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-  add_custom_command(OUTPUT  mount.dwarfs2
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
-                     DEPENDS dwarfs2-bin)
-  list(APPEND SYMLINKS mount.dwarfs2)
-  install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
-  list(APPEND BINARY_TARGETS dwarfs2-bin)
-  list(APPEND MAIN_TARGETS dwarfs2_main)
-endif()
+    if(NOT FUSE3_FOUND)
+      target_link_libraries(dwarfsuniversal dwarfs2_main)
+    endif(NOT FUSE3_FOUND)
+    set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
+    add_custom_command(OUTPUT  mount.dwarfs2
+                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
+                       DEPENDS dwarfs2-bin)
+    list(APPEND SYMLINKS mount.dwarfs2)
+    install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
+    list(APPEND BINARY_TARGETS dwarfs2-bin)
+    list(APPEND MAIN_TARGETS dwarfs2_main)
+  endif(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+endif("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
 
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
