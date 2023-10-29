@@ -896,8 +896,10 @@ TEST(filesystem, uid_gid_32bit) {
   auto input = std::make_shared<test::os_access_mock>();
 
   input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0}, "hello");
-  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0}, "world");
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0},
+             "hello");
+  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0},
+             "world");
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
