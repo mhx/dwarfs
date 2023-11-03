@@ -77,13 +77,13 @@ struct directory {
  */
 struct inode_data {
    // index into `metadata.modes[]`
-   2: UInt16 mode_index
+   2: UInt32 mode_index
 
    // index into `metadata.uids[]`
-   4: UInt16 owner_index
+   4: UInt32 owner_index
 
    // index into `metadata.gids[]`
-   5: UInt16 group_index
+   5: UInt32 group_index
 
    // atime relative to `metadata.timestamp_base`
    6: UInt64 atime_offset

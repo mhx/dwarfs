@@ -76,6 +76,7 @@ struct os_access_mock::mock_dirent {
 
 struct os_access_mock::mock_directory {
   std::vector<mock_dirent> ent;
+  std::unordered_map<std::string, size_t> cache;
 
   size_t size() const;
 
@@ -115,9 +116,8 @@ size_t os_access_mock::mock_directory::size() const {
 
 auto os_access_mock::mock_directory::find(std::string const& name)
     -> mock_dirent* {
-  auto it = std::find_if(ent.begin(), ent.end(),
-                         [&](auto& de) { return de.name == name; });
-  return it != ent.end() ? &*it : nullptr;
+  auto it = cache.find(name);
+  return it != cache.end() ? &ent[it->second] : nullptr;
 }
 
 void os_access_mock::mock_directory::add(std::string const& name,
@@ -131,6 +131,7 @@ void os_access_mock::mock_directory::add(std::string const& name,
     assert(!std::holds_alternative<std::unique_ptr<mock_directory>>(var));
   }
 
+  cache.emplace(name, ent.size());
   auto& de = ent.emplace_back();
   de.name = name;
   de.status = st;

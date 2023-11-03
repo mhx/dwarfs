@@ -896,8 +896,10 @@ TEST(filesystem, uid_gid_32bit) {
   auto input = std::make_shared<test::os_access_mock>();
 
   input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0}, "hello");
-  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0}, "world");
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0},
+             "hello");
+  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0},
+             "world");
 
   auto fsimage = build_dwarfs(lgr, input, "null");
 
@@ -920,4 +922,45 @@ TEST(filesystem, uid_gid_32bit) {
   EXPECT_EQ(65535, st16.gid);
   EXPECT_EQ(65536, st32.uid);
   EXPECT_EQ(4294967295, st32.gid);
+}
+
+TEST(filesystem, uid_gid_count) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+
+  for (uint32_t i = 0; i < 100000; ++i) {
+    input->add(fmt::format("foo{:05d}.txt", i),
+               {2 + i, 0100644, 1, 50000 + i, 250000 + i, 10, 42, 0, 0, 0},
+               fmt::format("hello{:05d}", i));
+  }
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, mm);
+
+  auto iv00000 = fs.find("/foo00000.txt");
+  auto iv50000 = fs.find("/foo50000.txt");
+  auto iv99999 = fs.find("/foo99999.txt");
+
+  EXPECT_TRUE(iv00000);
+  EXPECT_TRUE(iv50000);
+  EXPECT_TRUE(iv99999);
+
+  file_stat st00000, st50000, st99999;
+
+  EXPECT_EQ(0, fs.getattr(*iv00000, &st00000));
+  EXPECT_EQ(0, fs.getattr(*iv50000, &st50000));
+  EXPECT_EQ(0, fs.getattr(*iv99999, &st99999));
+
+  EXPECT_EQ(50000, st00000.uid);
+  EXPECT_EQ(250000, st00000.gid);
+  EXPECT_EQ(100000, st50000.uid);
+  EXPECT_EQ(300000, st50000.gid);
+  EXPECT_EQ(149999, st99999.uid);
+  EXPECT_EQ(349999, st99999.gid);
 }
