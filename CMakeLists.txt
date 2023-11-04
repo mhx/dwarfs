@@ -16,9 +16,9 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-project(dwarfs)
-
 cmake_minimum_required(VERSION 3.24.0)
+
+project(dwarfs)
 
 include(ExternalProject)
 include(CheckCXXSourceCompiles)
