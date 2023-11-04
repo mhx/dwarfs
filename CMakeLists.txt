@@ -16,11 +16,12 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+include(ExternalProject)
+
 cmake_minimum_required(VERSION 3.24.0)
 
 project(dwarfs)
 
-include(ExternalProject)
 include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
