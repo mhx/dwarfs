@@ -18,10 +18,9 @@
 
 project(dwarfs)
 
-include(ExternalProject)
-
 cmake_minimum_required(VERSION 3.24.0)
 
+include(ExternalProject)
 include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
