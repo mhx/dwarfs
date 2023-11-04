@@ -165,9 +165,15 @@ file_stat make_file_stat(fs::path const& path) {
   rv.size = st.st_size;
   rv.blksize = st.st_blksize;
   rv.blocks = st.st_blocks;
-  rv.atime = st.st_atim.tv_sec;
-  rv.mtime = st.st_mtim.tv_sec;
-  rv.ctime = st.st_ctim.tv_sec;
+
+  rv.atime = st.st_atime;
+  rv.mtime = st.st_mtime;
+  rv.ctime = st.st_ctime;
+
+//  Tebako -- using legacy syntax above to comply with MacOS definitions (~ FreeBSD)
+//  rv.atime = st.st_atim.tv_sec;
+//  rv.mtime = st.st_mtim.tv_sec;
+//  rv.ctime = st.st_ctim.tv_sec;
 
   return rv;
 }

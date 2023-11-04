@@ -1,6 +1,11 @@
-[![DwarFS CI Build](https://github.com/mhx/dwarfs/actions/workflows/build.yml/badge.svg)](https://github.com/mhx/dwarfs/actions/workflows/build.yml)
-[![Build Status](https://app.travis-ci.com/mhx/dwarfs.svg?branch=main)](https://app.travis-ci.com/github/mhx/dwarfs)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/53489f77755248c999e380500267e889)](https://app.codacy.com/gh/mhx/dwarfs/dashboard)
+# Build status for tebako fork
+
+[![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)
+[![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml)
+[![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml)
+
+[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
+[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
 
 # DwarFS
 
@@ -10,29 +15,32 @@ A fast high compression read-only file system for Linux and Windows.
 
 ## Table of contents
 
-- [Overview](#overview)
-- [History](#history)
-- [Building and Installing](#building-and-installing)
-  - [Prebuilt Binaries](#prebuilt-binaries)
-  - [Universal Binaries](#universal-binaries)
-  - [Dependencies](#dependencies)
-  - [Building](#building)
-  - [Installing](#installing)
-  - [Static Builds](#static-builds)
-- [Usage](#usage)
-- [Windows Support](#windows-support)
-  - [Building on Windows](#building-on-windows)
-- [Extended Attributes](#extended-attributes)
-- [Comparison](#comparison)
-  - [With SquashFS](#with-squashfs)
-  - [With SquashFS &amp; xz](#with-squashfs--xz)
-  - [With lrzip](#with-lrzip)
-  - [With zpaq](#with-zpaq)
-  - [With wimlib](#with-wimlib)
-  - [With Cromfs](#with-cromfs)
-  - [With EROFS](#with-erofs)
-  - [With fuse-archive](#with-fuse-archive)
-- [Performance Monitoring](#performance-monitoring)
+- [Build status for tebako fork](#build-status-for-tebako-fork)
+- [DwarFS](#dwarfs)
+  - [Table of contents](#table-of-contents)
+  - [Overview](#overview)
+  - [History](#history)
+  - [Building and Installing](#building-and-installing)
+    - [Prebuilt Binaries](#prebuilt-binaries)
+    - [Universal Binaries](#universal-binaries)
+    - [Dependencies](#dependencies)
+    - [Building](#building)
+    - [Installing](#installing)
+    - [Static Builds](#static-builds)
+  - [Usage](#usage)
+  - [Windows Support](#windows-support)
+    - [Building on Windows](#building-on-windows)
+  - [Extended Attributes](#extended-attributes)
+  - [Comparison](#comparison)
+    - [With SquashFS](#with-squashfs)
+    - [With SquashFS \& xz](#with-squashfs--xz)
+    - [With lrzip](#with-lrzip)
+    - [With zpaq](#with-zpaq)
+    - [With wimlib](#with-wimlib)
+    - [With Cromfs](#with-cromfs)
+    - [With EROFS](#with-erofs)
+    - [With fuse-archive](#with-fuse-archive)
+  - [Performance Monitoring](#performance-monitoring)
 
 ## Overview
 

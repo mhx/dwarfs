@@ -24,7 +24,7 @@
 #include <charconv>
 #include <cstdlib>
 
-#include <utf8cpp/utf8.h>
+#include <utf8.h>
 
 #include <folly/String.h>
 

@@ -16,7 +16,7 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 3.25.0)
+cmake_minimum_required(VERSION 3.24.0)
 
 # Enable CMAKE_MSVC_RUNTIME_LIBRARY
 cmake_policy(SET CMP0091 NEW)
@@ -63,6 +63,9 @@ if(NOT DISABLE_CCACHE)
   if(CCACHE_EXE)
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_EXE})
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_EXE})
+    message(STATUS "Using ccache at ${CCACHE_EXE}")
+  else()
+    message(STATUS "Could not find ccache")
   endif()
 endif()
 
@@ -94,9 +97,10 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.0.0")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "13.0.0")
     # for some reason, clang-10 binaries crash upon throwing exceptions
-    add_compile_options(-fno-omit-frame-pointer)
+    # [maxirmx] This is true for clang-12 Release build, but no crash for RelWithDebugInfo
+  add_compile_options(-fno-omit-frame-pointer)
   endif()
 endif()
 
@@ -104,21 +108,127 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "-force_load <LIB_ITEM>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE
-    "LINKER:--push-state,--whole-archive"
-    "<LINK_ITEM>"
-    "LINKER:--pop-state"
-  )
-else()
-  message(FATAL_ERROR "WHOLE_ARCHIVE is unsupported on this platform")
+include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
+
+# -----------------------------------------------------------------------------------------
+message(STATUS ">>>>> Applying tebako settings")
+
+# THis is the default that may be overwritten
+set(GNU_BASH "bash")
+
+# -------------------------------------------------------------------------------------------------------------------------------
+# Build scopes
+#  ALL -- build library, all tools            [WITH_TEST or WITH_BENCHMARKS enforce this scope]
+#  MKD -- build library and mkdwarfs utility  [This is the configuration required for tebako]
+#  LIB -- build library only                  [This configuration is required for cross compilation of tebako packaged software]
+#                                             [For example in order to build MacOS arm64 package on MacOS x86_64               ]
+# -------------------------------------------------------------------------------------------------------------------------------
+
+if(NOT TEBAKO_BUILD_SCOPE)
+  set(TEBAKO_BUILD_SCOPE "ALL")
+  message(STATUS "Tebako build scope was not specified and has been set to ALL")
+endif()
+if((WITH_TESTS OR WITH_BENCHMARKS) AND NOT "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL" )
+  set(TEBAKO_BUILD_SCOPE "ALL")
+  message(STATUS "WITH_TESTS or WITH_BENCHMARKS option was specified. Tebako build scope has been forcefully set to ALL")
+endif()
+if(NOT "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL" AND
+   NOT "${TEBAKO_BUILD_SCOPE}" STREQUAL "MKD" AND
+   NOT "${TEBAKO_BUILD_SCOPE}" STREQUAL "LIB")
+   message(STATUS "Unknown build scope setting ${TEBAKO_BUILD_SCOPE}. Tebako build scope has been forcefully set to ALL")
+   set(TEBAKO_BUILD_SCOPE "ALL")
 endif()
 
-include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
+if (NOT DEPS)
+  set(DEPS "${CMAKE_CURRENT_SOURCE_DIR}/deps")
+  message(STATUS "Using local setting for DEPS folder: ${DEPS}")
+  set(EXTERNAL_DEPS OFF)
+else()
+  message(STATUS "Using upstream setting for DEPS folder: ${DEPS}")
+  set(EXTERNAL_DEPS ON)
+endif()
+
+set(DEPS_INCLUDE_DIR ${DEPS}/include)
+set(DEPS_LIB_DIR ${DEPS}/lib)
+set(DEPS_BIN_DIR ${DEPS}/bin)
+set(DEPS_SBIN_DIR ${DEPS}/sbin)
+
+set(TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+
+include(${TOOLS}/cmake-scripts/def-external-project.cmake)
+include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
+
+include_directories(${DEPS_INCLUDE_DIR})
+link_directories(${DEPS_LIB_DIR})
+
+execute_process(
+  COMMAND "${GNU_BASH}"
+          "-c"
+          "echo \$OSTYPE"
+  RESULT_VARIABLE OSTYPE_RES
+  OUTPUT_VARIABLE OSTYPE_TXT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_STRIP_TRAILING_WHITESPACE
+)
+
+if(OSTYPE_RES EQUAL 0)
+  message(STATUS "OSTYPE: '${OSTYPE_TXT}'")
+else(OSTYPE_RES EQUAL 0)
+  message(FATAL_ERROR "Failed to detect OSTYPE: ${OSTYPE_TXT}")
+endif(OSTYPE_RES EQUAL 0)
+
+set(PATCH_FOLLY OFF)
+
+if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
+  message(STATUS "Adding __musl__ compile definition")
+  add_compile_definitions(__musl__)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+  set(PATCH_FOLLY ON)
+endif()
+
+if ("${OSTYPE_TXT}" MATCHES "^darwin*")
+  include(${TOOLS}/cmake-scripts/macos-environment.cmake)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+  set(PATCH_FOLLY ON)
+endif()
+
+if (${PATCH_FOLLY})
+  set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
+  execute_process(
+    COMMAND "${GNU_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh"
+            "${FOLLY_ROOT}"
+    RESULT_VARIABLE PATCH_FOLLY_RES
+    OUTPUT_VARIABLE PATCH_FOLLY_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(PATCH_FOLLY_RES EQUAL 0)
+    message(STATUS "Patched folly at '${FOLLY_ROOT}'")
+  else(PATCH_FOLLY_RES EQUAL 0)
+    message(FATAL_ERROR "Failed to patch folly at '${FOLLY_ROOT}': ${PATH_FOLLY_TXT}")
+  endif(PATCH_FOLLY_RES EQUAL 0)
+endif(${PATCH_FOLLY})
+
+check_cxx_source_compiles(
+  "#include <filesystem>
+  int main() {
+    std::filesystem::path p = \"\";
+    std::u8string s;
+    p = p / s;
+    return 0;
+  }"
+  U8STRING_AND_PATH_OK)
+
+if(U8STRING_AND_PATH_OK)
+  add_compile_definitions(U8STRING_AND_PATH_OK)
+endif()
+
+message(STATUS "<<<<< Applied tebako settings")
+# -----------------------------------------------------------------------------------------
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
@@ -208,12 +318,12 @@ endif()
 
 if(PKG_CONFIG_FOUND)
   pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
-  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
+  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.9.0)
   pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
   pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
   pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
-  pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
+  pkg_check_modules(LIBBROTLICOMMON IMPORTED_TARGET libbrotlicommon>=1.0.9)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
 endif()
@@ -231,19 +341,22 @@ if(XXHASH_FOUND)
     XXHASH_VERSION_OK)
 endif()
 
-if(WIN32)
-  if(NOT WINFSP_PATH)
-    set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")
+if ("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
+  if(WIN32)
+    if(NOT WINFSP_PATH)
+      set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")
+    endif()
+    find_library(WINFSP winfsp-x64.lib "${WINFSP_PATH}/lib")
+    if (NOT WINFSP)
+      message(FATAL_ERROR "No WinFsp library found")
+    endif()
+  else()
+    if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
+      message(WARNING "No FUSE or FUSE3 library found")
+      add_compile_definitions(WITHOUT_FUSE)
+    endif()
   endif()
-  find_library(WINFSP winfsp-x64.lib "${WINFSP_PATH}/lib")
-  if (NOT WINFSP)
-    message(FATAL_ERROR "No WinFsp library found")
-  endif()
-else()
-  if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
-    message(FATAL_ERROR "No FUSE or FUSE3 library found")
-  endif()
-endif()
+endif("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
 
 if(USE_JEMALLOC)
   pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=5.2.1)
@@ -282,11 +395,13 @@ set(
   "The C++ standard argument to pass to the compiler."
 )
 
-add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
-add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
+add_subdirectory(folly EXCLUDE_FROM_ALL)                        # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
+                                                                # which requires installation on Alpine 3.18 which needs gcompat
+                                                                # that I would like to avoid
+add_subdirectory(fbthrift EXCLUDE_FROM_ALL)                     # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   set(ZSTD_BUILD_SHARED OFF)
-  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL SYSTEM)
+  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL)           # tebako -- was ... EXCLUDE_FROM_ALL SYSTEM ...  but it requires CMAKE 3.25
 endif()
 
 set_property(TARGET folly PROPERTY CXX_STANDARD 20)
@@ -410,7 +525,7 @@ if(LIBLZ4_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lz4.cpp)
 endif()
 
-if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
+if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND AND LIBBROTLICOMMON_FOUND)
   list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
 endif()
 
@@ -433,70 +548,80 @@ if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
-add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
-add_library(dwarfsck_main src/dwarfsck_main.cpp)
-add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
-add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
+if("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL" OR
+   "${TEBAKO_BUILD_SCOPE}" STREQUAL "MKD")
+   add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
+   target_link_libraries(mkdwarfs_main folly)
 
-target_link_libraries(mkdwarfs_main folly)
-target_link_libraries(dwarfsck_main folly)
-target_link_libraries(dwarfsbench_main folly)
-target_link_libraries(dwarfsextract_main folly)
+   add_executable(mkdwarfs src/mkdwarfs.cpp)
+   target_link_libraries(mkdwarfs mkdwarfs_main)
 
-add_executable(mkdwarfs src/mkdwarfs.cpp)
-add_executable(dwarfsck src/dwarfsck.cpp)
-add_executable(dwarfsbench src/dwarfsbench.cpp)
-add_executable(dwarfsextract src/dwarfsextract.cpp)
-add_executable(dwarfsuniversal src/universal.cpp)
+   list(APPEND BINARY_TARGETS mkdwarfs)
+   list(APPEND MAIN_TARGETS mkdwarfs_main)
 
-target_link_libraries(mkdwarfs mkdwarfs_main)
-target_link_libraries(dwarfsck dwarfsck_main)
-target_link_libraries(dwarfsbench dwarfsbench_main)
-target_link_libraries(dwarfsextract dwarfsextract_main)
-target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
+   install(TARGETS mkdwarfs RUNTIME DESTINATION bin)
+endif()
+
+if("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
+  add_library(dwarfsck_main src/dwarfsck_main.cpp)
+  add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
+  add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
+
+  target_link_libraries(dwarfsck_main folly)
+  target_link_libraries(dwarfsbench_main folly)
+  target_link_libraries(dwarfsextract_main folly)
+
+  add_executable(dwarfsck src/dwarfsck.cpp)
+  add_executable(dwarfsbench src/dwarfsbench.cpp)
+  add_executable(dwarfsextract src/dwarfsextract.cpp)
+  add_executable(dwarfsuniversal src/universal.cpp)
+
+  target_link_libraries(dwarfsck dwarfsck_main)
+  target_link_libraries(dwarfsbench dwarfsbench_main)
+  target_link_libraries(dwarfsextract dwarfsextract_main)
+  target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
         dwarfsextract_main)
-set_target_properties(dwarfsuniversal PROPERTIES
+  set_target_properties(dwarfsuniversal PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY universal
         OUTPUT_NAME dwarfs-universal)
 
-install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
+  install(TARGETS dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
-list(APPEND BINARY_TARGETS dwarfsuniversal)
-list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
+  list(APPEND BINARY_TARGETS dwarfsck dwarfsbench dwarfsextract)
+  list(APPEND BINARY_TARGETS dwarfsuniversal)
+  list(APPEND MAIN_TARGETS dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
-
-if(FUSE3_FOUND OR WINFSP)
-  add_library(dwarfs_main src/dwarfs_main.cpp)
-  target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
-  if(WINFSP)
-    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
+  if(FUSE3_FOUND OR WINFSP)
+    add_library(dwarfs_main src/dwarfs_main.cpp)
+    target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
+    if(WINFSP)
+      target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
                                                    DWARFS_FUSE_LOWLEVEL=0)
-    target_include_directories(dwarfs_main PRIVATE "${WINFSP_PATH}/inc")
-    target_link_libraries(dwarfs_main ${WINFSP})
-    target_link_libraries(dwarfsuniversal delayimp.lib)
-    target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
-  else()
-    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
-    target_link_libraries(dwarfs_main PkgConfig::FUSE3)
-  endif()
-  add_executable(dwarfs-bin src/dwarfs.cpp)
-  target_link_libraries(dwarfs-bin dwarfs_main)
-  set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-  target_link_libraries(dwarfsuniversal dwarfs_main)
-  if(WINFSP)
-    install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
-  else()
-    add_custom_command(OUTPUT  mount.dwarfs
+      target_include_directories(dwarfs_main PRIVATE "${WINFSP_PATH}/inc")
+      target_link_libraries(dwarfs_main ${WINFSP})
+      target_link_libraries(dwarfsuniversal delayimp.lib)
+      target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+    else(WINFSP)
+      target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
+      target_link_libraries(dwarfs_main PkgConfig::FUSE3)
+    endif(WINFSP)
+    add_executable(dwarfs-bin src/dwarfs.cpp)
+    target_link_libraries(dwarfs-bin dwarfs_main)
+    set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+    target_link_libraries(dwarfsuniversal dwarfs_main)
+    if(WINFSP)
+      install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
+    else(WINFSP)
+      add_custom_command(OUTPUT  mount.dwarfs
                        COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
                        DEPENDS dwarfs-bin)
-    list(APPEND SYMLINKS mount.dwarfs)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
-    install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
-  endif()
-  list(APPEND BINARY_TARGETS dwarfs-bin)
-  list(APPEND MAIN_TARGETS dwarfs_main)
-endif()
+      list(APPEND SYMLINKS mount.dwarfs)
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
+      install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
+    endif(WINFSP)
+    list(APPEND BINARY_TARGETS dwarfs-bin)
+    list(APPEND MAIN_TARGETS dwarfs_main)
+  endif(FUSE3_FOUND OR WINFSP)
 
 if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   add_library(dwarfs2_main src/dwarfs_main.cpp)
@@ -505,19 +630,20 @@ if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   target_link_libraries(dwarfs2_main PkgConfig::FUSE)
   add_executable(dwarfs2-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs2-bin dwarfs2_main)
-  if(NOT FUSE3_FOUND)
-    target_link_libraries(dwarfsuniversal dwarfs2_main)
-  endif()
-  set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-  add_custom_command(OUTPUT  mount.dwarfs2
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
-                     DEPENDS dwarfs2-bin)
-  list(APPEND SYMLINKS mount.dwarfs2)
-  install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
-  list(APPEND BINARY_TARGETS dwarfs2-bin)
-  list(APPEND MAIN_TARGETS dwarfs2_main)
-endif()
+    if(NOT FUSE3_FOUND)
+      target_link_libraries(dwarfsuniversal dwarfs2_main)
+    endif(NOT FUSE3_FOUND)
+    set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
+    add_custom_command(OUTPUT  mount.dwarfs2
+                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
+                       DEPENDS dwarfs2-bin)
+    list(APPEND SYMLINKS mount.dwarfs2)
+    install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
+    list(APPEND BINARY_TARGETS dwarfs2-bin)
+    list(APPEND MAIN_TARGETS dwarfs2_main)
+  endif(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+endif("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
 
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
@@ -533,22 +659,32 @@ if(WITH_TESTS)
   add_executable(dwarfs_test test/dwarfs.cpp)
   add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
   add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
-  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
+  endif()
   add_executable(dwarfs_utils_test test/utils_test.cpp)
 
   target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
   target_link_libraries(dwarfs_compat_test gtest gtest_main)
   target_link_libraries(dwarfs_badfs_test gtest gtest_main)
-  target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
+  endif()
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
 
   list(APPEND BINARY_TARGETS dwarfs_test dwarfs_compat_test dwarfs_badfs_test
-       dwarfs_tools_test dwarfs_utils_test)
+       dwarfs_utils_test)
+
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    list(APPEND BINARY_TARGETS dwarfs_tools_test)
+  endif()
 
   gtest_discover_tests(dwarfs_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_compat_test DISCOVERY_TIMEOUT 120)
   gtest_discover_tests(dwarfs_badfs_test DISCOVERY_TIMEOUT 120)
-  gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    gtest_discover_tests(dwarfs_tools_test DISCOVERY_TIMEOUT 120)
+  endif()
   gtest_discover_tests(dwarfs_utils_test DISCOVERY_TIMEOUT 120)
 
   target_compile_definitions(dwarfs_compat_test
@@ -557,10 +693,12 @@ if(WITH_TESTS)
   target_compile_definitions(dwarfs_badfs_test
                              PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
 
-  target_compile_definitions(
-    dwarfs_tools_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  if(FUSE3_FOUND OR WINFSP OR FUSE_FOUND)
+    target_compile_definitions(
+      dwarfs_tools_test
+      PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+              TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+  endif()
 endif()
 
 if(WITH_BENCHMARKS)
@@ -677,8 +815,9 @@ if(NOT
 endif()
 
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
-if(NOT STATIC_BUILD_DO_NOT_USE)
+if(NOT STATIC_BUILD_DO_NOT_USE AND NOT FOLLY_NO_EXCEPTION_TRACER)
   if(TARGET folly_exception_tracer)
+    message(STATUS "Folly exception tracer enabled")
     set(DWARFS_USE_EXCEPTION_TRACER ON)
   endif()
 endif()
@@ -816,12 +955,12 @@ if(LIBLZMA_FOUND)
   target_link_libraries(dwarfs PkgConfig::LIBLZMA)
 endif()
 
-if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND AND LIBBROTLICOMMON_FOUND)
+  target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC PkgConfig::LIBBROTLICOMMON)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  target_link_libraries(dwarfs _LIBARCHIVE)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
@@ -840,7 +979,7 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
-  target_link_libraries(${tgt} dwarfs dwarfs_tool)
+  target_link_libraries(${tgt} dwarfs dwarfs_tool _LIBARCHIVE)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)

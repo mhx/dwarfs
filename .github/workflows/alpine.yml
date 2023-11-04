@@ -1,0 +1,102 @@
+# Copyright (c) 2022-2023, [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+name: Alpine
+
+on:
+  schedule:
+    - cron: "0 9 * * 6"
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/alpine.yml'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/alpine.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.ref_name }}'
+  cancel-in-progress: true
+
+env:
+  CCACHE_FLD: ccache
+
+jobs:
+  build:
+    name: alpine 3.17 [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }} ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+#  We are running two configurations:
+#   - ALL in order to run regression tests
+#   - MKD just to be sure that it build ok
+        config:
+          - { os: 'alpine:3.17', env: { CC: gcc,   CXX: g++     }, build_type: Release, extra_opts: '' }
+          - { os: 'alpine:3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
+        setup:
+          - { scope: 'ALL',  tests: 'ON'  }
+          - { scope: 'MKD',  tests: 'OFF' }
+
+    env: ${{ matrix.config.env }}
+    container:
+      image: ${{ matrix.config.os }}
+      options: --privileged
+
+    steps:
+      - name: Install packages
+        run: |
+          apk --no-cache --upgrade add git bash build-base cmake   \
+            autoconf boost-static boost-dev flex-dev bison         \
+            binutils-dev libevent-dev acl-dev clang-dev fmt-dev    \
+            double-conversion-dev lz4-dev openssl-dev xz-dev       \
+            libunwind-dev libdwarf-dev glog-dev elfutils-dev       \
+            fuse3 fuse3-dev jemalloc-dev ccache tar
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Declare directory safe
+        run: git config --global --add safe.directory "$(pwd)"
+
+      - name: Get number of CPU cores
+        run:  echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+
+      - name: Build and test
+        uses: ./.github/actions/build-and-test

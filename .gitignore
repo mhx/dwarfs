@@ -14,3 +14,9 @@
 .vs/
 out/
 CMakeSettings.json
+
+# Tebako
+.vscode/
+deps
+include/dwarfs/version.h
+src/dwarfs/version.cpp

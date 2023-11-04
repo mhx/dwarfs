@@ -165,7 +165,7 @@ constexpr std::array<cache_type::file_offset_type, 32> const test_chunks{
     4, 14, 4,  16, 8,  12, 16, 2,  16, 10, 15, 15, 2,  15, 5,  8,
 };
 constexpr cache_type::inode_type const test_inode = 42;
-constexpr size_t const total_size =
+size_t const total_size =
     std::accumulate(test_chunks.begin(), test_chunks.end(), 0);
 
 std::tuple<cache_type::chunk_index_type, cache_type::file_offset_type, size_t>

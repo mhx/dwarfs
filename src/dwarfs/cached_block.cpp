@@ -93,7 +93,7 @@ class cached_block_ final : public cached_block {
 
   bool any_pages_swapped_out(std::vector<uint8_t>& tmp
                              [[maybe_unused]]) const override {
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MACH__)  // tebako patched - we do not expect to have fuse runtime on Mach
     auto page_size = ::sysconf(_SC_PAGESIZE);
     tmp.resize((data_.size() + page_size - 1) / page_size);
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
