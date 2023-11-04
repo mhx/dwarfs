@@ -33,6 +33,7 @@ class mmif;
 
 class fs_section {
  public:
+  fs_section(void) = default;	// This is required for MSVC toolset v142 or less
   fs_section(mmif const& mm, size_t offset, int version);
   fs_section(std::shared_ptr<mmif const> mm, section_type type, size_t offset,
              size_t size, int version);

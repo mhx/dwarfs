@@ -16,11 +16,14 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+cmake_minimum_required(VERSION 3.25.0)
+
+# Enable CMAKE_MSVC_RUNTIME_LIBRARY
+cmake_policy(SET CMP0091 NEW)
+
 project(dwarfs)
 
 include(ExternalProject)
-
-cmake_minimum_required(VERSION 3.25.0)
 
 include(CheckCXXSourceCompiles)
 
@@ -78,6 +81,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
       "${default_build_type}"
       CACHE STRING "Build Type" FORCE)
 endif()
+
+# Apply /MT or /MTd  (multithread, static version of the run-time library)
+# This is ignored if we are not running Cl or Clang-Cl
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
@@ -244,7 +251,6 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   foreach(CompilerFlag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
-    string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
     string(REPLACE "/RTC1" "" ${CompilerFlag} "${${CompilerFlag}}")
   endforeach()
 

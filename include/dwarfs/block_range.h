@@ -31,6 +31,7 @@ class cached_block;
 
 class block_range {
  public:
+  block_range(void) = default;     // This is required for MSVC toolset v142 or less
   block_range(uint8_t const* data, size_t offset, size_t size);
   block_range(std::shared_ptr<cached_block const> block, size_t offset,
               size_t size);
