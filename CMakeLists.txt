@@ -106,6 +106,8 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
+  # Apply /MT or /MTd  (multithread, static version of the run-time library)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
