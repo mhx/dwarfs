@@ -102,7 +102,7 @@ jobs:
           libunwind-dev libdwarf-dev libelf-dev libgoogle-glog-dev libutfcpp-dev      \
           libboost-filesystem-dev libboost-program-options-dev libboost-system-dev    \
           libboost-iostreams-dev  libboost-date-time-dev libboost-context-dev         \
-          libboost-regex-dev libboost-thread-dev
+          libboost-regex-dev libboost-thread-dev libbrotli-dev
 
       - name: Install libfuse 3 (Full mode)
         if: ${{ matrix.setup.scope == 'ALL' }}
