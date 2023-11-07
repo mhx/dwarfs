@@ -31,7 +31,9 @@
 #include <type_traits>
 #include <vector>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #if __MACH__
 #include <mach/mach.h>

@@ -1,0 +1,156 @@
+# Copyright (c) 2023, [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+name: Windows
+
+on:
+  schedule:
+    - cron: "0 8 * * 6"
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/windows.yml'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.ref_name }}'
+  cancel-in-progress: true
+
+env:
+  VCPKG_DIR: C:/vcpkg
+  VCPKG_DEFAULT_BINARY_CACHE: ${{github.workspace}}\cache
+  CCACHE_DIR: ${{github.workspace}}\ccache
+
+jobs:
+  build:
+    name: ${{ matrix.config.os }} [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }} ]
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { os: windows-2019, env: { CC: cl,   CXX: cl     }, build_type: Release, extra_opts: '' }
+          - { os: windows-2022, env: { CC: cl,   CXX: cl     }, build_type: Release, extra_opts: '' }
+
+#  We are running two configurations:
+#   - ALL in order to run regression tests
+#   - MKD just to be sure that it build ok
+        setup:
+          - { scope: 'ALL',  tests: 'ON'  }
+          - { scope: 'MKD',  tests: 'OFF' }
+
+    env: ${{ matrix.config.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Set MSVC Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install UPX
+        if: ${{ matrix.setup.scope == 'ALL' }}
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          install-only: true
+
+# Similar to fuse -- cannot mount in GHA container
+#      - name: Install WinFSP
+#        if: ${{ matrix.setup.scope == 'ALL' }}
+#        run: choco install winfsp
+#             copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
+
+      - name: Install ccache
+        run: choco install ccache
+
+      - name: Configure build environment
+        shell: cmd
+        run:  |
+          vcpkg version >> vcpkg.version
+          mkdir ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          mkdir ${{ env.CCACHE_DIR }}
+
+
+      - name: Set number of CPU cores
+        shell: bash
+        run:  |
+          echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+
+      - name: vcpkg cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ matrix.config.os }}-${{ hashFiles('vcpkg.version') }}
+
+      - name: ccache cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-
+
+      - name: Configure Build
+        shell: cmd
+        # Due to folly issue VCPKG_INSTALLED_DIR has to be outside of the project tree
+        run: |
+          cmake -B build -G Ninja                                                                 ^
+                -DVCPKG_INSTALLED_DIR="${{ runner.workspace }}/vcpkg-install-dwarfs"              ^
+                -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}                                ^
+                -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}                                    ^
+                -DWITH_TESTS=${{ matrix.setup.tests }}                                            ^
+                -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_DIR }}/scripts/buildsystems/vcpkg.cmake      ^
+                -DVCPKG_TARGET_TRIPLET=x64-windows-static                                         ^
+                -DFOLLY_NO_EXCEPTION_TRACER=ON                                                    ^
+                -DWITH_MAN_PAGES=OFF                                                              ^
+                -DNIXPKGS_DWARFS_VERSION_OVERRIDE=tebako                                          ^
+                ${{ matrix.config.extra_opts }} .
+
+      - name: Run Build
+        shell: cmd
+        run: |
+          cmake --build build --parallel ${{ env.CORES }}
+
+      - name: Test
+        shell: cmd
+        if: ${{ matrix.setup.tests == 'ON' }}
+        run: |
+          ctest --test-dir build --output-on-failure --parallel ${{ env.CORES }}

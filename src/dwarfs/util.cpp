@@ -24,7 +24,11 @@
 #include <charconv>
 #include <cstdlib>
 
+#ifdef _WIN32
+#include <utf8cpp/utf8.h>
+#else
 #include <utf8.h>
+#endif
 
 #include <folly/String.h>
 

@@ -18,6 +18,9 @@
 
 cmake_minimum_required(VERSION 3.24.0)
 
+# Enable CMAKE_MSVC_RUNTIME_LIBRARY
+cmake_policy(SET CMP0091 NEW)
+
 project(dwarfs)
 
 include(ExternalProject)
@@ -82,6 +85,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
       CACHE STRING "Build Type" FORCE)
 endif()
 
+# Apply /MT or /MTd  (multithread, static version of the run-time library)
+# This is ignored if we are not running Cl or Clang-Cl
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
   # For gcc, -O3 is *much* worse than -O2
@@ -99,6 +106,8 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
+  # Apply /MT or /MTd  (multithread, static version of the run-time library)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
@@ -149,26 +158,31 @@ set(DEPS_SBIN_DIR ${DEPS}/sbin)
 set(TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 
 include(${TOOLS}/cmake-scripts/def-external-project.cmake)
-include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
 
-execute_process(
-  COMMAND "${GNU_BASH}"
-          "-c"
-          "echo \$OSTYPE"
-  RESULT_VARIABLE OSTYPE_RES
-  OUTPUT_VARIABLE OSTYPE_TXT
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  ERROR_STRIP_TRAILING_WHITESPACE
-)
+if(MSVC)
+  set(OSTYPE_TXT "Windows")
+else(MSVC)
+  include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 
-if(OSTYPE_RES EQUAL 0)
-  message(STATUS "OSTYPE: '${OSTYPE_TXT}'")
-else(OSTYPE_RES EQUAL 0)
-  message(FATAL_ERROR "Failed to detect OSTYPE: ${OSTYPE_TXT}")
-endif(OSTYPE_RES EQUAL 0)
+  execute_process(
+    COMMAND "${GNU_BASH}"
+            "-c"
+            "echo \$OSTYPE"
+    RESULT_VARIABLE OSTYPE_RES
+    OUTPUT_VARIABLE OSTYPE_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(OSTYPE_RES EQUAL 0)
+    message(STATUS "OSTYPE: '${OSTYPE_TXT}'")
+  else(OSTYPE_RES EQUAL 0)
+    message(FATAL_ERROR "Failed to detect OSTYPE: ${OSTYPE_TXT}")
+  endif(OSTYPE_RES EQUAL 0)
+endif(MSVC)
 
 set(PATCH_FOLLY OFF)
 
@@ -317,6 +331,9 @@ if(PKG_CONFIG_FOUND)
   pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
   pkg_check_modules(LIBBROTLICOMMON IMPORTED_TARGET libbrotlicommon>=1.0.9)
+  if (MSVC)
+    pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
+  endif(MSVC)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
 endif()
@@ -341,7 +358,8 @@ if ("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
     endif()
     find_library(WINFSP winfsp-x64.lib "${WINFSP_PATH}/lib")
     if (NOT WINFSP)
-      message(FATAL_ERROR "No WinFsp library found")
+      message(WARNING "No WinFsp library found")
+      add_compile_definitions(WITHOUT_FUSE)
     endif()
   else()
     if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
@@ -357,7 +375,6 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   foreach(CompilerFlag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
-    string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
     string(REPLACE "/RTC1" "" ${CompilerFlag} "${${CompilerFlag}}")
   endforeach()
 
@@ -954,7 +971,11 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND AND LIBBROTLICOMMON_FOUND)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs _LIBARCHIVE)
+  if(MSVC)
+    target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  else(MSVC)
+    target_link_libraries(dwarfs _LIBARCHIVE)
+  endif(MSVC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
@@ -973,7 +994,11 @@ endif()
 
 foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
-  target_link_libraries(${tgt} dwarfs dwarfs_tool _LIBARCHIVE)
+  if(MSVC)
+    target_link_libraries(${tgt} dwarfs dwarfs_tool PkgConfig::LIBARCHIVE)
+  else(MSVC)
+    target_link_libraries(${tgt} dwarfs dwarfs_tool _LIBARCHIVE)
+  endif(MSVC)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
@@ -1127,7 +1152,7 @@ if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
   add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
 endif()
 
-if(STATIC_BUILD_DO_NOT_USE OR WIN32)
+if(STATIC_BUILD_DO_NOT_USE OR (WIN32 AND "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL"))
   find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
   set(UNIVERSAL_PACKED
