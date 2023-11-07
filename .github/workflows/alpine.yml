@@ -85,7 +85,7 @@ jobs:
             binutils-dev libevent-dev acl-dev clang-dev fmt-dev    \
             double-conversion-dev lz4-dev openssl-dev xz-dev       \
             libunwind-dev libdwarf-dev glog-dev elfutils-dev       \
-            fuse3 fuse3-dev jemalloc-dev ccache tar
+            fuse3 fuse3-dev jemalloc-dev ccache tar brotli-dev
 
       - name: Checkout
         uses: actions/checkout@v3
