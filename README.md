@@ -412,6 +412,12 @@ There are a few things worth pointing out, though:
   a DwarFS image that contains links of some sort, you might run into
   errors if you don't have the right privileges.
 
+- Due to a [problem](https://github.com/winfsp/winfsp/issues/454) in
+  WinFsp, symlinks cannot currently point outside of the mounted file
+  system.  Furthermore, due to another
+  [problem](https://github.com/winfsp/winfsp/issues/530) in WinFsp,
+  symlinks with a drive letter will appear with a mangled target path.
+
 - The DwarFS driver on Windows correctly reports hardlink counts via
   its API, but currently these counts are not correctly propagated
   to the Windows file system layer. This is presumably due to a
