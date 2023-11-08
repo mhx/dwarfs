@@ -1,3 +1,46 @@
+- Use Elias-Fano for delta-encoded lists in metadata?
+
+- Packaging of libs added via FetchContent
+- Remove [ MiB, MiB, MiB ]
+- Generic hashing / scanning / categorizing progress?
+
+- Re-assemble global bloom filter rather than merging?
+- Use smaller bloom filters for individual blocks?
+- Use bigger (non-resettable?) global bloom filter?
+
+
+
+- hashing progress? => yes
+
+- file discovery progress?
+
+- reasonable defaults when `--categorize` is given without
+  any arguments
+
+- show defaults for categorized options
+
+- scanner / compressor progress contexts?
+
+- file system rewriting with categories :-)
+
+- file system block reordering for bit-identical images
+  (does this require a new section type containing categories?)
+
+- take a look at CPU measurements, those for nilsimsa
+  ordering are probably wrong
+
+- segmenter tests with different granularities, block sizes,
+  any other options
+
+- configurable number of threads for ordering/segmenting
+
+
+- Bloom filters can be wasteful if lookback gets really long.
+  Maybe we can use smaller bloom filters for individual blocks
+  and one or two larger "global" bloom filters? It's going to
+  be impossible to rebuild those from the smaller filters,
+  though.
+
 - Compress long repetitions of the same byte more efficiently.
   Currently, segmentation finds an overlap after about one
   window size. This goes on and on repeatedly. So we end up
@@ -5,6 +48,17 @@
   smaller the window size, the larger the number of chunks.
   It's definitely a trade off, as storing large segments of
   repeating bytes is wasteful when mounting the image.
+
+  Intriguing idea: pre-compute 256 (or just 2, for 0x00 and 0xFF)
+  hash values for window_size bytes to detect long sequences of
+  identical bytes.
+
+  OTHER intriguing idea: let a categorizer (could even be the
+  incompressible categorizer, but also "sparse file" categorizer
+  or something like that) detect these repetitions up front so
+  the segmenter doesn't have to do it (and it can be optional).
+  Then, we can customize the segmenter to run *extremely* fast
+  in this case.
 
 
 - Forward compatibility
