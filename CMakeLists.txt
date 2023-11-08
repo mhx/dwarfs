@@ -407,6 +407,9 @@ list(
   src/dwarfs/wcwidth.c
   src/dwarfs/worker_group.cpp)
 
+# Just an example for setting per file compile options
+# set_source_files_properties(src/dwarfs/segmenter.cpp PROPERTIES COMPILE_FLAGS -march=tigerlake)
+
 if(DWARFS_GIT_BUILD)
   list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
 else()
