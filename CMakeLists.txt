@@ -490,6 +490,9 @@ add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
 add_executable(dwarfsuniversal src/universal.cpp)
 
+add_executable(block_merge playground/block_merge.cpp)
+target_link_libraries(block_merge folly)
+
 target_link_libraries(mkdwarfs mkdwarfs_main)
 target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
