@@ -598,6 +598,10 @@ if(WITH_TESTS)
   target_link_libraries(dwarfs_utils_test gtest gtest_main)
   list(APPEND TEST_TARGETS dwarfs_utils_test)
 
+  add_executable(block_merger_test test/block_merger_test.cpp)
+  target_link_libraries(block_merger_test gtest gtest_main)
+  list(APPEND TEST_TARGETS block_merger_test)
+
   add_executable(dwarfs_pcm_sample_transformer_test test/pcm_sample_transformer_test.cpp)
   target_link_libraries(dwarfs_pcm_sample_transformer_test gtest gtest_main)
   list(APPEND TEST_TARGETS dwarfs_pcm_sample_transformer_test)
