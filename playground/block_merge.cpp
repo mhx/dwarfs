@@ -277,10 +277,14 @@ void emitter(sync_queue<source>& sources, block_merger_interface& merger) {
 }
 
 std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
-  constexpr size_t const num_sources{100};
-  constexpr size_t const num_threads{16};
-  constexpr size_t const max_in_flight{16};
   std::mt19937 rng(run);
+  std::exponential_distribution<> sources_dist(0.1);
+  std::exponential_distribution<> threads_dist(0.1);
+  std::exponential_distribution<> inflight_dist(0.1);
+  std::uniform_real_distribution<> speed_dist(0.1, 10.0);
+  auto const num_sources{std::max<size_t>(1, sources_dist(rng))};
+  auto const num_threads{std::max<size_t>(1, threads_dist(rng))};
+  auto const max_in_flight{std::max<size_t>(1, inflight_dist(delay_rng))};
 
   std::vector<size_t> source_ids;
   sync_queue<source> sources;
@@ -288,7 +292,7 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
   std::chrono::nanoseconds total_time{};
 
   for (size_t i = 0; i < num_sources; ++i) {
-    auto src = source(i, delay_rng, rng);
+    auto src = source(i, delay_rng, rng, 30, 2000.0 * speed_dist(delay_rng));
     total_blocks += src.num_blocks();
     total_time += src.total_time();
     source_ids.emplace_back(src.id());
@@ -319,7 +323,11 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
       std::chrono::duration_cast<std::chrono::duration<double>>(elapsed)
           .count();
 
-  std::cout << fmt::format("efficiency: {:.2f}%", 100.0 * efficiency) << "\n";
+  std::cout << fmt::format("sources: {}, threads: {}, max in flight: {} => "
+                           "efficiency: {:.2f}%",
+                           num_sources, num_threads, max_in_flight,
+                           100.0 * efficiency)
+            << "\n";
 
   return merger.merged();
 }
@@ -341,7 +349,7 @@ int main() {
   std::random_device rd;
   std::mt19937 delay_rng(rd());
 
-  for (size_t run = 0; run < 10; ++run) {
+  for (size_t run = 0; run < 1000; ++run) {
     std::cout << "[" << run << "] ref\n";
     auto ref = do_run(run, delay_rng);
     // dump(ref);
