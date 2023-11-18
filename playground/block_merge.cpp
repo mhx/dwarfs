@@ -57,19 +57,19 @@ class source {
   std::vector<double> blocks_;
 };
 
-class block_merger_interface {
+class block_merger {
  public:
-  virtual ~block_merger_interface() = default;
+  virtual ~block_merger() = default;
 
   virtual void add(block blk, bool is_last) = 0;
   virtual std::vector<block> const& merged() const = 0;
 };
 
-class block_merger : public block_merger_interface {
+class simple_block_merger : public block_merger {
  public:
   static constexpr size_t const kEmpty{std::numeric_limits<size_t>::max()};
 
-  block_merger(size_t num_slots, std::vector<size_t> const& sources)
+  simple_block_merger(size_t num_slots, std::vector<size_t> const& sources)
       : sources_{sources.begin(), sources.end()}
       , active_(num_slots, kEmpty) {
     for (size_t i = 0; i < active_.size() && !sources_.empty(); ++i) {
@@ -131,12 +131,12 @@ class block_merger : public block_merger_interface {
   std::vector<block> merged_;
 };
 
-class block_merger_new : public block_merger_interface {
+class multi_queue_block_merger : public block_merger {
  public:
   static constexpr size_t const kEmpty{std::numeric_limits<size_t>::max()};
 
-  block_merger_new(size_t num_slots, size_t max_in_flight,
-                   std::vector<size_t> const& sources)
+  multi_queue_block_merger(size_t num_slots, size_t max_in_flight,
+                           std::vector<size_t> const& sources)
       : free_{max_in_flight}
       , sources_{sources.begin(), sources.end()}
       , active_(num_slots, kEmpty) {
@@ -245,7 +245,7 @@ class block_merger_new : public block_merger_interface {
   std::vector<block> merged_;
 };
 
-void emitter(sync_queue<source>& sources, block_merger_interface& merger) {
+void emitter(sync_queue<source>& sources, block_merger& merger) {
   for (;;) {
     auto src = sources.withWLock([](auto&& q) {
       std::optional<source> src;
@@ -300,7 +300,7 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
   }
 
   // block_merger merger(num_threads, source_ids);
-  block_merger_new merger(num_threads, max_in_flight, source_ids);
+  multi_queue_block_merger merger(num_threads, max_in_flight, source_ids);
 
   std::vector<std::thread> thr;
 
