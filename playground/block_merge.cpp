@@ -21,7 +21,7 @@ using sync_queue = folly::Synchronized<std::queue<T>>;
 class source {
  public:
   source(size_t id, std::mt19937& delay_rng, std::mt19937& rng,
-         size_t max_blocks = 20, double ips = 1000.0)
+         size_t max_blocks = 20, double ips = 5000.0)
       : id_{id}
       , blocks_{init_blocks(delay_rng, rng, max_blocks, ips)} {}
 
@@ -57,7 +57,15 @@ class source {
   std::vector<double> blocks_;
 };
 
-class block_merger {
+class block_merger_interface {
+ public:
+  virtual ~block_merger_interface() = default;
+
+  virtual void add(block blk, bool is_last) = 0;
+  virtual std::vector<block> const& merged() const = 0;
+};
+
+class block_merger : public block_merger_interface {
  public:
   static constexpr size_t const kEmpty{std::numeric_limits<size_t>::max()};
 
@@ -71,7 +79,7 @@ class block_merger {
     }
   }
 
-  void add(block blk, bool is_last) {
+  void add(block blk, bool is_last) override {
     std::unique_lock lock{mx_};
 
     auto it = std::find(begin(active_), end(active_), blk.first);
@@ -112,7 +120,7 @@ class block_merger {
     cv_.notify_all();
   }
 
-  std::vector<block> const& merged() const { return merged_; }
+  std::vector<block> const& merged() const override { return merged_; }
 
  private:
   std::mutex mx_;
@@ -123,7 +131,121 @@ class block_merger {
   std::vector<block> merged_;
 };
 
-void emitter(sync_queue<source>& sources, block_merger& merger) {
+class block_merger_new : public block_merger_interface {
+ public:
+  static constexpr size_t const kEmpty{std::numeric_limits<size_t>::max()};
+
+  block_merger_new(size_t num_slots, size_t max_in_flight,
+                   std::vector<size_t> const& sources)
+      : free_{max_in_flight}
+      , sources_{sources.begin(), sources.end()}
+      , active_(num_slots, kEmpty) {
+    for (size_t i = 0; i < active_.size() && !sources_.empty(); ++i) {
+      active_[i] = sources_.front();
+      sources_.pop_front();
+      // std::cout << "[" << i << "] -> " << active_[i] << "\n";
+    }
+  }
+
+  void add(block blk, bool is_last) override {
+    std::unique_lock lock{mx_};
+
+    cv_.wait(lock, [this, &blk] {
+      auto ix = index_;
+      size_t dist{0};
+      while (active_[ix] != blk.first) {
+        ++dist;
+        ix = (ix + 1) % active_.size();
+        if (ix == index_) {
+          break;
+        }
+      }
+      // std::cout << "free: " << free_ << ", dist: " << dist << "\n";
+      return free_ > dist;
+    });
+
+    --free_;
+
+    queues_[blk.first].emplace(blk, is_last);
+
+    // auto it = std::find(begin(active_), end(active_), blk.first);
+
+    // if (it == end(active_)) {
+    //   throw std::runtime_error(
+    //       fmt::format("unexpected source {}.{}", blk.first, blk.second));
+    // }
+
+    // auto ix = std::distance(begin(active_), it);
+
+    for (;;) {
+      auto const ix = index_;
+
+      auto src = active_[ix];
+
+      if (src == kEmpty) {
+        throw std::runtime_error("active source is empty");
+      }
+
+      auto it = queues_.find(src);
+
+      if (it == queues_.end()) {
+        // nothing yet...
+        break;
+      }
+
+      if (it->second.empty()) {
+        // nothing yet...
+        break;
+      }
+
+      auto [q_blk, q_is_last] = it->second.front();
+      it->second.pop();
+
+      ++free_;
+
+      merged_.emplace_back(q_blk);
+
+      if (q_is_last) {
+        // gone forever
+        queues_.erase(it);
+
+        if (sources_.empty()) {
+          active_[ix] = kEmpty;
+        } else {
+          active_[ix] = sources_.front();
+          sources_.pop_front();
+        }
+      }
+
+      for (;;) {
+        index_ = (index_ + 1) % active_.size();
+        if (index_ == ix || active_[index_] != kEmpty) {
+          break;
+        }
+      }
+
+      if (index_ == ix && active_[index_] == kEmpty) {
+        break;
+      }
+    }
+
+    cv_.notify_all();
+  }
+
+  std::vector<block> const& merged() const override { return merged_; }
+
+ private:
+  std::mutex mx_;
+  std::condition_variable cv_;
+  size_t index_{0};
+  size_t free_;
+  std::unordered_map<size_t, std::queue<std::pair<block, bool>>> queues_;
+  std::deque<size_t> sources_;
+  std::vector<size_t> active_;
+  std::vector<block> merged_;
+};
+
+void emitter(sync_queue<source>& sources, block_merger_interface& merger) {
   for (;;) {
     auto src = sources.withWLock([](auto&& q) {
       std::optional<source> src;
@@ -157,6 +279,7 @@ void emitter(sync_queue<source>& sources, block_merger& merger) {
 std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
   constexpr size_t const num_sources{100};
   constexpr size_t const num_threads{16};
+  constexpr size_t const max_in_flight{16};
   std::mt19937 rng(run);
 
   std::vector<size_t> source_ids;
@@ -172,7 +295,8 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
     sources.wlock()->emplace(std::move(src));
   }
 
-  block_merger merger(num_threads, source_ids);
+  // block_merger merger(num_threads, source_ids);
+  block_merger_new merger(num_threads, max_in_flight, source_ids);
 
   std::vector<std::thread> thr;
 
