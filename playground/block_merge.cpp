@@ -108,13 +108,18 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
   size_t source_distance(source_type src) const {
     auto ix = active_index_;
     size_t distance{0};
+
     while (active_[ix] && active_[ix].value() != src) {
       ++distance;
       ix = (ix + 1) % active_.size();
+
       if (ix == active_index_) {
+        auto it = std::find(begin(sources_), end(sources_), src);
+        distance += std::distance(begin(sources_), it);
         break;
       }
     }
+
     return distance;
   }
 
@@ -201,10 +206,12 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
   std::mt19937 rng(run);
   std::exponential_distribution<> sources_dist(0.1);
   std::exponential_distribution<> threads_dist(0.1);
+  std::exponential_distribution<> slots_dist(0.1);
   std::exponential_distribution<> inflight_dist(0.1);
   std::uniform_real_distribution<> speed_dist(0.1, 10.0);
   auto const num_sources{std::max<size_t>(1, sources_dist(rng))};
-  auto const num_threads{std::max<size_t>(1, threads_dist(rng))};
+  auto const num_slots{std::max<size_t>(1, slots_dist(rng))};
+  auto const num_threads{std::max<size_t>(num_slots, threads_dist(delay_rng))};
   auto const max_in_flight{std::max<size_t>(1, inflight_dist(delay_rng))};
 
   std::vector<size_t> source_ids;
@@ -220,11 +227,15 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
     sources.wlock()->emplace(std::move(src));
   }
 
+  std::cout << fmt::format(
+      "sources: {}, slots: {}, threads: {}, max in flight: {}", num_sources,
+      num_slots, num_threads, max_in_flight);
+  std::cout.flush();
+
   std::vector<block> merged;
 
-  // block_merger merger(num_threads, source_ids);
   multi_queue_block_merger<size_t, block> merger(
-      num_threads, max_in_flight, source_ids,
+      num_slots, max_in_flight, source_ids,
       [&merged](block blk) { merged.emplace_back(std::move(blk)); });
 
   std::vector<std::thread> thr;
@@ -248,11 +259,7 @@ std::vector<block> do_run(size_t run, std::mt19937& delay_rng) {
       std::chrono::duration_cast<std::chrono::duration<double>>(elapsed)
           .count();
 
-  std::cout << fmt::format("sources: {}, threads: {}, max in flight: {} => "
-                           "efficiency: {:.2f}%",
-                           num_sources, num_threads, max_in_flight,
-                           100.0 * efficiency)
-            << "\n";
+  std::cout << fmt::format(" => efficiency: {:.2f}%\n", 100.0 * efficiency);
 
   return merged;
 }
@@ -274,7 +281,7 @@ int main() {
   std::random_device rd;
   std::mt19937 delay_rng(rd());
 
-  for (size_t run = 0; run < 1000; ++run) {
+  for (size_t run = 0; run < 10000; ++run) {
     std::cout << "[" << run << "] ref\n";
     auto ref = do_run(run, delay_rng);
     // dump(ref);
