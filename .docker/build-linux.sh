@@ -29,16 +29,16 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-gcc-*)
-    export CC=gcc CXX=g++
+    export CC=gcc-13 CXX=g++-13
     ;;
-  *-clang-*)
-    export CC=clang CXX=clang++
-    ;;
-  *-gcc12-*)
+  *-oldgcc-*)
     export CC=gcc-12 CXX=g++-12
     ;;
-  *-clang15-*)
-    export CC=clang-15 CXX=clang++-15
+  *-clang-*)
+    export CC=clang-17 CXX=clang++-17
+    ;;
+  *-oldclang-*)
+    export CC=clang-16 CXX=clang++-16
     ;;
   *)
     echo "missing compiler in: $BUILD_TYPE"
