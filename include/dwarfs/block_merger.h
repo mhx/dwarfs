@@ -21,7 +21,58 @@
 
 #pragma once
 
+#include <memory>
+
 namespace dwarfs {
+
+class block_merger_base {
+ public:
+  virtual ~block_merger_base() = default;
+
+  virtual void release() = 0;
+};
+
+template <typename T>
+class merged_block_holder {
+ public:
+  using block_type = T;
+
+  merged_block_holder(block_type&& blk,
+                      std::shared_ptr<block_merger_base> merger)
+      : block_{std::move(blk)}
+      , merger_{std::move(merger)} {}
+
+  ~merged_block_holder() {
+    if (merger_) {
+      merger_->release();
+    }
+  }
+
+  merged_block_holder(merged_block_holder&&) = default;
+  merged_block_holder& operator=(merged_block_holder&&) = default;
+
+  merged_block_holder(merged_block_holder const&) = delete;
+  merged_block_holder& operator=(merged_block_holder const&) = delete;
+
+  block_type& value() & { return block_; }
+  block_type const& value() const& { return block_; }
+
+  block_type&& value() && { return std::move(block_); }
+  block_type const&& value() const&& { return std::move(block_); }
+
+  block_type* operator->() { return &block_; }
+  block_type const* operator->() const { return &block_; }
+
+  block_type& operator*() & { return block_; }
+  block_type const& operator*() const& { return block_; }
+
+  block_type&& operator*() && { return std::move(block_); }
+  block_type const&& operator*() const&& { return std::move(block_); }
+
+ private:
+  block_type block_;
+  std::shared_ptr<block_merger_base> merger_;
+};
 
 template <typename SourceT, typename BlockT>
 class block_merger {

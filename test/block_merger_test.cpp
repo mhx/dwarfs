@@ -140,10 +140,12 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
   std::exponential_distribution<> slots_dist(0.1);
   std::exponential_distribution<> inflight_dist(0.1);
   std::uniform_real_distribution<> speed_dist(0.1, 10.0);
+  std::uniform_int_distribution<> merged_queue_dist(0, 1);
   auto const num_sources{std::max<size_t>(1, sources_dist(rng))};
   auto const num_slots{std::max<size_t>(1, slots_dist(rng))};
   auto const num_threads{std::max<size_t>(num_slots, threads_dist(delay_rng))};
   auto const max_in_flight{std::max<size_t>(1, inflight_dist(delay_rng))};
+  bool const use_merged_queue{merged_queue_dist(delay_rng) != 0};
 
   std::vector<size_t> source_ids;
   sync_queue<source> sources;
@@ -165,13 +167,37 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
     std::cout << config << "\n";
   }
 
+  sync_queue<merged_block_holder<block>> merged_queue;
   std::vector<block> merged;
 
   dwarfs::multi_queue_block_merger<size_t, block> merger(
       num_slots, max_in_flight, source_ids,
-      [&merged](block blk) { merged.emplace_back(std::move(blk)); });
+      [&](merged_block_holder<block> holder) {
+        if (use_merged_queue) {
+          merged_queue.wlock()->emplace(std::move(holder));
+        } else {
+          merged.emplace_back(std::move(holder.value()));
+        }
+      });
 
   std::vector<std::thread> thr;
+  std::atomic<bool> running{use_merged_queue};
+
+  std::thread releaser([&] {
+    while (running || !merged_queue.rlock()->empty()) {
+      std::this_thread::sleep_for(std::chrono::microseconds(10));
+      std::vector<merged_block_holder<block>> holders;
+      merged_queue.withWLock([&](auto&& q) {
+        while (!q.empty()) {
+          holders.emplace_back(std::move(q.front()));
+          q.pop();
+        }
+      });
+      for (auto& holder : holders) {
+        merged.emplace_back(std::move(holder.value()));
+      }
+    }
+  });
 
   auto t0 = std::chrono::steady_clock::now();
 
@@ -182,6 +208,9 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
   for (auto& t : thr) {
     t.join();
   }
+
+  running = false;
+  releaser.join();
 
   auto t1 = std::chrono::steady_clock::now();
 
