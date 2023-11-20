@@ -691,48 +691,44 @@ void scanner_<LoggerPolicy>::scan(
 
       auto cc = fsw.get_compression_constraints(category.value(), meta);
 
-      wg_ordering.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
-                           &prog, &fsw, &im, &wg_ordering, &wg_blockify] {
-        wg_blockify.add_job(
-            [this, catmgr, blockmgr, category, cat_size, meta, cc, &prog, &fsw,
-             span = im.ordered_span(category, wg_ordering)]() mutable {
-              auto tv = LOG_CPU_TIMED_VERBOSE;
+      wg_blockify.add_job([this, catmgr, blockmgr, category, cat_size, meta, cc,
+                           &prog, &fsw, &im, &wg_ordering] {
+        auto span = im.ordered_span(category, wg_ordering);
+        auto tv = LOG_CPU_TIMED_VERBOSE;
 
-              auto seg = segmenter_factory_->create(
-                  category, cat_size, cc, blockmgr,
-                  [category, meta, &fsw](auto block) {
-                    return fsw.write_block(category.value(), std::move(block),
-                                           meta);
-                  });
+        auto seg = segmenter_factory_->create(
+            category, cat_size, cc, blockmgr,
+            [category, meta, &fsw](auto block) {
+              return fsw.write_block(category.value(), std::move(block), meta);
+            });
 
-              for (auto ino : span) {
-                prog.current.store(ino.get());
+        for (auto ino : span) {
+          prog.current.store(ino.get());
 
-                // TODO: factor this code out
-                auto f = ino->any();
+          // TODO: factor this code out
+          auto f = ino->any();
 
-                if (auto size = f->size(); size > 0) {
-                  auto mm = os_->map_file(f->fs_path(), size);
-                  file_off_t offset{0};
+          if (auto size = f->size(); size > 0) {
+            auto mm = os_->map_file(f->fs_path(), size);
+            file_off_t offset{0};
 
-                  for (auto& frag : ino->fragments()) {
-                    if (frag.category() == category) {
-                      fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
-                      seg.add_chunkable(fc);
-                      prog.fragments_written++;
-                    }
-
-                    offset += frag.size();
-                  }
-                }
-
-                prog.inodes_written++; // TODO: remove?
+            for (auto& frag : ino->fragments()) {
+              if (frag.category() == category) {
+                fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
+                seg.add_chunkable(fc);
+                prog.fragments_written++;
               }
 
-              seg.finish();
+              offset += frag.size();
+            }
+          }
 
-              tv << category_prefix(catmgr, category) << "segmenting finished";
-            });
+          prog.inodes_written++; // TODO: remove?
+        }
+
+        seg.finish();
+
+        tv << category_prefix(catmgr, category) << "segmenting finished";
       });
     }
 
