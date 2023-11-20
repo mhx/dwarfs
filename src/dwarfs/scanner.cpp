@@ -698,8 +698,9 @@ void scanner_<LoggerPolicy>::scan(
 
         auto seg = segmenter_factory_->create(
             category, cat_size, cc, blockmgr,
-            [category, meta, &fsw](auto block) {
-              return fsw.write_block(category.value(), std::move(block), meta);
+            [category, meta, &fsw](auto block, auto physical_block_cb) {
+              fsw.write_block(category, std::move(block),
+                              std::move(physical_block_cb), meta);
             });
 
         for (auto ino : span) {

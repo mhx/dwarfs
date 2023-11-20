@@ -28,6 +28,8 @@
 #include <span>
 #include <utility>
 
+#include <folly/Function.h>
+
 #include "dwarfs/compression_constraints.h"
 #include "dwarfs/fragment_category.h"
 #include "dwarfs/fstypes.h"
@@ -44,6 +46,8 @@ class worker_group;
 
 class filesystem_writer {
  public:
+  using physical_block_cb_type = folly::Function<void(size_t)>;
+
   filesystem_writer(
       std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
       const block_compressor& schema_bc, const block_compressor& metadata_bc,
@@ -69,10 +73,17 @@ class filesystem_writer {
     impl_->copy_header(header);
   }
 
-  uint32_t write_block(fragment_category::value_type cat,
-                       std::shared_ptr<block_data>&& data,
-                       std::optional<std::string> meta = std::nullopt) {
-    return impl_->write_block(cat, std::move(data), std::move(meta));
+  void write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
+                   physical_block_cb_type physical_block_cb,
+                   std::optional<std::string> meta = std::nullopt) {
+    impl_->write_block(cat, std::move(data), std::move(physical_block_cb),
+                       std::move(meta));
+  }
+
+  void write_block(fragment_category::value_type cat,
+                   std::shared_ptr<block_data>&& data,
+                   std::optional<std::string> meta = std::nullopt) {
+    impl_->write_block(cat, std::move(data), std::move(meta));
   }
 
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) {
@@ -103,9 +114,13 @@ class filesystem_writer {
     get_compression_constraints(fragment_category::value_type cat,
                                 std::string const& metadata) const = 0;
     virtual void copy_header(std::span<uint8_t const> header) = 0;
-    virtual uint32_t write_block(fragment_category::value_type cat,
-                                 std::shared_ptr<block_data>&& data,
-                                 std::optional<std::string> meta) = 0;
+    virtual void
+    write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
+                physical_block_cb_type physical_block_cb,
+                std::optional<std::string> meta) = 0;
+    virtual void write_block(fragment_category::value_type cat,
+                             std::shared_ptr<block_data>&& data,
+                             std::optional<std::string> meta) = 0;
     virtual void
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;

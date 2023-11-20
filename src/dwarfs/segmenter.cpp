@@ -969,8 +969,11 @@ template <typename LoggerPolicy, typename SegmentingPolicy>
 void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
-  auto written_block_num = block_ready_(block.data());
-  blkmgr_->set_written_block(block.num(), written_block_num);
+  block_ready_(block.data(), [blkmgr = blkmgr_,
+                              logical_block_num =
+                                  block.num()](size_t physical_block_num) {
+    blkmgr->set_written_block(logical_block_num, physical_block_num);
+  });
   ++prog_.block_count;
 }
 

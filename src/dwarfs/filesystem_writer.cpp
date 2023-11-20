@@ -284,6 +284,8 @@ void fsblock::build_section_header(section_header_v2& sh,
 template <typename LoggerPolicy>
 class filesystem_writer_ final : public filesystem_writer::impl {
  public:
+  using physical_block_cb_type = filesystem_writer::physical_block_cb_type;
+
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
                      progress& prog, const block_compressor& schema_bc,
                      const block_compressor& metadata_bc,
@@ -298,9 +300,12 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   get_compression_constraints(fragment_category::value_type cat,
                               std::string const& metadata) const override;
   void copy_header(std::span<uint8_t const> header) override;
-  uint32_t write_block(fragment_category::value_type cat,
-                       std::shared_ptr<block_data>&& data,
-                       std::optional<std::string> meta) override;
+  void write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
+                   physical_block_cb_type physical_block_cb,
+                   std::optional<std::string> meta) override;
+  void write_block(fragment_category::value_type cat,
+                   std::shared_ptr<block_data>&& data,
+                   std::optional<std::string> meta) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
   void write_compressed_section(section_type type, compression_type compression,
@@ -566,11 +571,21 @@ void filesystem_writer_<LoggerPolicy>::copy_header(
 }
 
 template <typename LoggerPolicy>
-uint32_t filesystem_writer_<LoggerPolicy>::write_block(
+void filesystem_writer_<LoggerPolicy>::write_block(
+    fragment_category cat, std::shared_ptr<block_data>&& data,
+    physical_block_cb_type physical_block_cb, std::optional<std::string> meta) {
+  auto physical_block =
+      write_section(section_type::BLOCK, std::move(data),
+                    compressor_for_category(cat.value()), std::move(meta));
+  physical_block_cb(physical_block);
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_block(
     fragment_category::value_type cat, std::shared_ptr<block_data>&& data,
     std::optional<std::string> meta) {
-  return write_section(section_type::BLOCK, std::move(data),
-                       compressor_for_category(cat), std::move(meta));
+  write_section(section_type::BLOCK, std::move(data),
+                compressor_for_category(cat), std::move(meta));
 }
 
 template <typename LoggerPolicy>

@@ -48,7 +48,9 @@ class segmenter {
     unsigned block_size_bits{22};
   };
 
-  using block_ready_cb = folly::Function<size_t(std::shared_ptr<block_data>)>;
+  using block_ready_cb =
+      folly::Function<void(std::shared_ptr<block_data>,
+                           folly::Function<void(size_t)> physical_block_cb)>;
 
   segmenter(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
             config const& cfg, compression_constraints const& cc,
