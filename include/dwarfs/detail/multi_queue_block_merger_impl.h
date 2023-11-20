@@ -28,6 +28,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -66,6 +67,10 @@ class multi_queue_block_merger_impl : public block_merger_base,
 
     --num_queueable_;
 
+    if (!is_valid_source(src)) {
+      throw std::runtime_error{"invalid source"};
+    }
+
     block_queues_[src].emplace(std::move(blk));
 
     while (try_merge_block()) {
@@ -97,6 +102,13 @@ class multi_queue_block_merger_impl : public block_merger_base,
   }
 
  private:
+  bool is_valid_source(source_type src) const {
+    return std::find(begin(active_slots_), end(active_slots_), src) !=
+               end(active_slots_) ||
+           std::find(begin(source_queue_), end(source_queue_), src) !=
+               end(source_queue_);
+  }
+
   size_t source_distance(source_type src) const {
     auto ix = active_slot_index_;
     size_t distance{0};
