@@ -37,6 +37,11 @@ class merged_block_holder {
  public:
   using block_type = T;
 
+  merged_block_holder() = default;
+
+  explicit merged_block_holder(block_type&& blk)
+      : block_{std::move(blk)} {}
+
   merged_block_holder(block_type&& blk,
                       std::shared_ptr<block_merger_base> merger)
       : block_{std::move(blk)}
