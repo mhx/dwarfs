@@ -284,7 +284,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
-  size_t num_workers, num_scanner_workers;
+  size_t num_workers, num_scanner_workers, num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false;
   unsigned level;
@@ -365,6 +365,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("num-scanner-workers",
         po::value<size_t>(&num_scanner_workers),
         "number of scanner (hashing/categorizing) worker threads")
+    ("num-segmenter-workers",
+        po::value<size_t>(&num_segmenter_workers),
+        "number of segmenter worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
         "block manager memory limit")
@@ -707,10 +710,16 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     num_scanner_workers = num_workers;
   }
 
+  if (!vm.count("num-segmenter-workers")) {
+    num_segmenter_workers = num_workers;
+  }
+
   worker_group wg_compress("compress", num_workers,
                            std::numeric_limits<size_t>::max(),
                            compress_niceness);
   worker_group wg_scanner("scanner", num_scanner_workers);
+
+  options.num_segmenter_workers = num_segmenter_workers;
 
   if (vm.count("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);

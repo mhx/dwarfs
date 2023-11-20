@@ -672,7 +672,7 @@ void scanner_<LoggerPolicy>::scan(
   auto blockmgr = std::make_shared<block_manager>();
 
   {
-    size_t const num_threads = std::max(folly::hardware_concurrency(), 1u);
+    size_t const num_threads = options_.num_segmenter_workers;
     worker_group wg_ordering("ordering", num_threads);
     worker_group wg_blockify("blockify", num_threads);
 

@@ -121,6 +121,7 @@ struct scanner_options {
   bool force_pack_string_tables{false};
   bool no_create_timestamp{true};
   std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
+  size_t num_segmenter_workers{1};
 };
 
 struct rewrite_options {
