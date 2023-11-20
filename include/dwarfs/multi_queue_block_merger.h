@@ -69,8 +69,8 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
  public:
   using source_type = SourceT;
   using block_type = BlockT;
-  using on_block_merged_callback_type =
-      std::function<void(merged_block_holder<block_type>)>;
+  using block_holder_type = merged_block_holder<block_type>;
+  using on_block_merged_callback_type = std::function<void(block_holder_type)>;
 
   multi_queue_block_merger(
       size_t num_active_slots, size_t max_queued_blocks,
@@ -90,8 +90,7 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
 
  private:
   void on_block_merged(block_type&& blk) {
-    on_block_merged_callback_(
-        merged_block_holder<block_type>{std::move(blk), impl_});
+    on_block_merged_callback_(block_holder_type{std::move(blk), impl_});
   }
 
   std::shared_ptr<detail::multi_queue_block_merger_impl<SourceT, BlockT>> impl_;
