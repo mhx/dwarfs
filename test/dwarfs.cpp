@@ -28,6 +28,8 @@
 #include <sstream>
 #include <vector>
 
+#include <folly/FileUtil.h>
+
 #include <gtest/gtest.h>
 
 #include <fmt/format.h>
@@ -798,7 +800,12 @@ TEST_P(file_scanner, inode_ordering) {
   auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts);
 
   for (int i = 0; i < 50; ++i) {
-    EXPECT_EQ(ref, build_dwarfs(lgr, input, "null", bmcfg, opts));
+    auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts);
+    EXPECT_EQ(ref, fs);
+    // if (ref != fs) {
+    //   folly::writeFile(ref, "ref.dwarfs");
+    //   folly::writeFile(fs, fmt::format("test{}.dwarfs", i).c_str());
+    // }
   }
 }
 
