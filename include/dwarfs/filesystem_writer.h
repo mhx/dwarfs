@@ -27,6 +27,7 @@
 #include <ostream>
 #include <span>
 #include <utility>
+#include <vector>
 
 #include <folly/Function.h>
 
@@ -69,6 +70,11 @@ class filesystem_writer {
     return impl_->get_compression_constraints(cat, metadata);
   }
 
+  void configure(std::vector<fragment_category> const& expected_categories,
+                 size_t max_active_slots) {
+    impl_->configure(expected_categories, max_active_slots);
+  }
+
   void copy_header(std::span<uint8_t const> header) {
     impl_->copy_header(header);
   }
@@ -79,6 +85,8 @@ class filesystem_writer {
     impl_->write_block(cat, std::move(data), std::move(physical_block_cb),
                        std::move(meta));
   }
+
+  void finish_category(fragment_category cat) { impl_->finish_category(cat); }
 
   void write_block(fragment_category::value_type cat,
                    std::shared_ptr<block_data>&& data,
@@ -113,11 +121,15 @@ class filesystem_writer {
     virtual compression_constraints
     get_compression_constraints(fragment_category::value_type cat,
                                 std::string const& metadata) const = 0;
+    virtual void
+    configure(std::vector<fragment_category> const& expected_categories,
+              size_t max_active_slots) = 0;
     virtual void copy_header(std::span<uint8_t const> header) = 0;
     virtual void
     write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
                 physical_block_cb_type physical_block_cb,
                 std::optional<std::string> meta) = 0;
+    virtual void finish_category(fragment_category cat) = 0;
     virtual void write_block(fragment_category::value_type cat,
                              std::shared_ptr<block_data>&& data,
                              std::optional<std::string> meta) = 0;

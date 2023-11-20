@@ -73,6 +73,7 @@ struct filesystem_options {
 
 struct filesystem_writer_options {
   size_t max_queue_size{64 << 20};
+  size_t max_queued_blocks{8};
   bool remove_header{false};
   bool no_section_index{false};
 };

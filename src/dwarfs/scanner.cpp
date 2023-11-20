@@ -676,6 +676,8 @@ void scanner_<LoggerPolicy>::scan(
     worker_group wg_ordering("ordering", num_threads);
     worker_group wg_blockify("blockify", num_threads);
 
+    fsw.configure(frag_info.categories, num_threads);
+
     for (auto category : frag_info.categories) {
       auto cat_size = frag_info.category_size.at(category);
       auto catmgr = options_.inode.categorizer_mgr.get();
@@ -728,6 +730,7 @@ void scanner_<LoggerPolicy>::scan(
         }
 
         seg.finish();
+        fsw.finish_category(category);
 
         tv << category_prefix(catmgr, category) << "segmenting finished";
       });
