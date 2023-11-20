@@ -19,11 +19,16 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+include "thrift/annotation/cpp.thrift"
+
 namespace cpp2 dwarfs.thrift.metadata
 
-typedef i16 (cpp2.type = "uint16_t") UInt16
-typedef i32 (cpp2.type = "uint32_t") UInt32
-typedef i64 (cpp2.type = "uint64_t") UInt64
+@cpp.Type{name = "uint16_t"}
+typedef i16 UInt16
+@cpp.Type{name = "uint32_t"}
+typedef i32 UInt32
+@cpp.Type{name = "uint64_t"}
+typedef i64 UInt64
 
 /**
  * One chunk of data
