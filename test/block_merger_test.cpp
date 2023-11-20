@@ -123,9 +123,10 @@ void emitter(sync_queue<source>& sources,
 
       std::this_thread::sleep_until(t);
 
-      merger.add(blk.first, blk, is_last);
+      merger.add(blk.first, blk);
 
       if (is_last) {
+        merger.finish(blk.first);
         break;
       }
     }

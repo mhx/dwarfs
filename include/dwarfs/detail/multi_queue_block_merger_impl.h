@@ -58,7 +58,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
     }
   }
 
-  void add(source_type src, block_type blk, bool is_last) override {
+  void add(source_type src, block_type blk) override {
     std::unique_lock lock{mx_};
 
     cv_.wait(lock,
@@ -66,7 +66,18 @@ class multi_queue_block_merger_impl : public block_merger_base,
 
     --num_queueable_;
 
-    block_queues_[src].emplace(std::move(blk), is_last);
+    block_queues_[src].emplace(std::move(blk));
+
+    while (try_merge_block()) {
+    }
+
+    cv_.notify_all();
+  }
+
+  void finish(source_type src) override {
+    std::unique_lock lock{mx_};
+
+    block_queues_[src].emplace(std::nullopt);
 
     while (try_merge_block()) {
     }
@@ -119,13 +130,13 @@ class multi_queue_block_merger_impl : public block_merger_base,
       return false;
     }
 
-    auto [blk, is_last] = std::move(it->second.front());
+    auto blk = std::move(it->second.front());
     it->second.pop();
 
-    ++num_releaseable_;
-    on_block_merged_callback_(std::move(blk));
-
-    if (is_last) {
+    if (blk) {
+      ++num_releaseable_;
+      on_block_merged_callback_(std::move(*blk));
+    } else {
       block_queues_.erase(it);
       update_active(ix);
     }
@@ -151,7 +162,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
   size_t active_slot_index_{0};
   size_t num_queueable_;
   size_t num_releaseable_{0};
-  std::unordered_map<source_type, std::queue<std::pair<block_type, bool>>>
+  std::unordered_map<source_type, std::queue<std::optional<block_type>>>
       block_queues_;
   std::deque<source_type> source_queue_;
   std::vector<std::optional<source_type>> active_slots_;

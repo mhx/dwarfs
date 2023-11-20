@@ -82,9 +82,11 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
             [this](block_type&& blk) { on_block_merged(std::move(blk)); })}
       , on_block_merged_callback_{on_block_merged_callback} {}
 
-  void add(source_type src, block_type blk, bool is_last) override {
-    impl_->add(std::move(src), std::move(blk), is_last);
+  void add(source_type src, block_type blk) override {
+    impl_->add(std::move(src), std::move(blk));
   }
+
+  void finish(source_type src) override { impl_->finish(std::move(src)); }
 
  private:
   void on_block_merged(block_type&& blk) {

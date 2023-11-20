@@ -82,7 +82,8 @@ class block_merger {
 
   virtual ~block_merger() = default;
 
-  virtual void add(source_type src, block_type blk, bool is_last) = 0;
+  virtual void add(source_type src, block_type blk) = 0;
+  virtual void finish(source_type src) = 0;
 };
 
 } // namespace dwarfs
