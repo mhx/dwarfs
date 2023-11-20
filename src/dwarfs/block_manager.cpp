@@ -49,7 +49,7 @@ void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) {
   for (auto& c : vec) {
     size_t block = c.get_block();
     assert(block < num_blocks_);
-    c.block() = block_map_[block];
+    c.block() = block_map_[block].value();
   }
 }
 

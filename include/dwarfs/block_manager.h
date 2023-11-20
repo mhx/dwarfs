@@ -22,6 +22,7 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 #include <vector>
 
 #include "dwarfs/gen-cpp2/metadata_types.h"
@@ -39,7 +40,7 @@ class block_manager {
  private:
   std::mutex mutable mx_;
   size_t mutable num_blocks_{0};
-  std::vector<size_t> block_map_;
+  std::vector<std::optional<size_t>> block_map_;
 };
 
 } // namespace dwarfs
