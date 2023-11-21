@@ -67,6 +67,9 @@ class worker_group {
   size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
   double get_cpu_time() const { return impl_->get_cpu_time(); }
+  bool set_affinity(std::vector<int> const& cpus) {
+    return impl_->set_affinity(cpus);
+  }
 
   template <typename T>
   bool add_job(std::packaged_task<T()>&& task) {
@@ -84,6 +87,7 @@ class worker_group {
     virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
     virtual double get_cpu_time() const = 0;
+    virtual bool set_affinity(std::vector<int> const& cpus) = 0;
   };
 
  private:
