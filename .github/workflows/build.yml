@@ -124,4 +124,7 @@ jobs:
             --env BUILD_ARCH=${{ matrix.arch }} \
             --env GITHUB_REF_NAME \
             --env GITHUB_REF_TYPE \
+            --env GITHUB_RUN_ID \
+            --env GITHUB_RUN_NUMBER \
+            --env GITHUB_RUN_ATTEMPT \
             dwarfs-linux-build
