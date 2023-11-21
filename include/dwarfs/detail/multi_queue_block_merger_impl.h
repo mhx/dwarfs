@@ -32,14 +32,30 @@
 #include <unordered_map>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include "dwarfs/block_merger.h"
 
 namespace dwarfs::detail {
+
+/**
+ * TODO: Support different policies for how much data can be queued.
+ *       The current behavior is to limit the total number of blocks that
+ *       can be queued. This is not ideal for sources that produce blocks
+ *       of different sizes, or when blocks that are still held without
+ *       being released change their size (because they have been compressed).
+ *
+ *       You can then release a *size* instead of a *block*, and each source
+ *       is assigned a worst-case size that is used to determine if a new
+ *       block can be queued or not (via the source_distance() function).
+ */
 
 template <typename SourceT, typename BlockT>
 class multi_queue_block_merger_impl : public block_merger_base,
                                       public block_merger<SourceT, BlockT> {
  public:
+  static constexpr bool const debug{false};
+
   using source_type = SourceT;
   using block_type = BlockT;
   using on_block_merged_callback_type = std::function<void(block_type&&)>;
@@ -73,6 +89,10 @@ class multi_queue_block_merger_impl : public block_merger_base,
 
     block_queues_[src].emplace(std::move(blk));
 
+    if constexpr (debug) {
+      dump_state(fmt::format("add({})", src));
+    }
+
     while (try_merge_block()) {
     }
 
@@ -83,6 +103,10 @@ class multi_queue_block_merger_impl : public block_merger_base,
     std::unique_lock lock{mx_};
 
     block_queues_[src].emplace(std::nullopt);
+
+    if constexpr (debug) {
+      dump_state(fmt::format("finish({})", src));
+    }
 
     while (try_merge_block()) {
     }
@@ -98,10 +122,44 @@ class multi_queue_block_merger_impl : public block_merger_base,
     --num_releaseable_;
     ++num_queueable_;
 
+    if constexpr (debug) {
+      dump_state("release");
+    }
+
     cv_.notify_all();
   }
 
  private:
+  void dump_state(std::string what) const {
+    std::cout << "**** " << what << " ****" << std::endl;
+
+    std::cout << "index: " << active_slot_index_
+              << ", queueable: " << num_queueable_
+              << ", releaseable: " << num_releaseable_ << std::endl;
+
+    std::cout << "active: ";
+    for (auto const& src : active_slots_) {
+      if (src) {
+        std::cout << src.value() << " ";
+      } else {
+        std::cout << "- ";
+      }
+    }
+    std::cout << std::endl;
+
+    std::cout << "queue: ";
+    for (auto const& src : source_queue_) {
+      std::cout << src << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "blocks: ";
+    for (auto const& [src, q] : block_queues_) {
+      std::cout << src << "(" << q.size() << ") ";
+    }
+    std::cout << std::endl;
+  }
+
   bool is_valid_source(source_type src) const {
     return std::find(begin(active_slots_), end(active_slots_), src) !=
                end(active_slots_) ||
@@ -127,6 +185,10 @@ class multi_queue_block_merger_impl : public block_merger_base,
       }
     }
 
+    if constexpr (debug) {
+      std::cout << "distance(" << src << "): " << distance << std::endl;
+    }
+
     return distance;
   }
 
@@ -145,7 +207,9 @@ class multi_queue_block_merger_impl : public block_merger_base,
     auto blk = std::move(it->second.front());
     it->second.pop();
 
-    if (blk) {
+    const bool not_last = blk.has_value();
+
+    if (not_last) {
       ++num_releaseable_;
       on_block_merged_callback_(std::move(*blk));
     } else {
@@ -156,6 +220,11 @@ class multi_queue_block_merger_impl : public block_merger_base,
     do {
       active_slot_index_ = (active_slot_index_ + 1) % active_slots_.size();
     } while (active_slot_index_ != ix && !active_slots_[active_slot_index_]);
+
+    if constexpr (debug) {
+      dump_state(not_last ? fmt::format("merge({})", src)
+                          : fmt::format("final({})", src));
+    }
 
     return active_slot_index_ != ix || active_slots_[active_slot_index_];
   }
