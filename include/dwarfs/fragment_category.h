@@ -24,8 +24,11 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <ostream>
 
 #include <folly/hash/Hash.h>
+
+#include <fmt/format.h>
 
 namespace dwarfs {
 
@@ -101,7 +104,40 @@ class fragment_category {
   value_type subcategory_{uninitialized};
 };
 
+inline std::ostream&
+operator<<(std::ostream& os, fragment_category const& cat) {
+  if (cat) {
+    os << cat.value();
+
+    if (cat.has_subcategory()) {
+      os << '.' << cat.subcategory();
+    }
+  } else {
+    os << "uninitialized";
+  }
+
+  return os;
+}
+
 } // namespace dwarfs
+
+template <>
+struct fmt::formatter<dwarfs::fragment_category> : formatter<std::string> {
+  template <typename FormatContext>
+  auto format(dwarfs::fragment_category const& cat, FormatContext& ctx) {
+    if (cat) {
+      if (cat.has_subcategory()) {
+        return formatter<std::string>::format(
+            fmt::format("{}.{}", cat.value(), cat.subcategory()), ctx);
+      } else {
+        return formatter<std::string>::format(fmt::format("{}", cat.value()),
+                                              ctx);
+      }
+    } else {
+      return formatter<std::string>::format("uninitialized", ctx);
+    }
+  }
+};
 
 namespace std {
 
