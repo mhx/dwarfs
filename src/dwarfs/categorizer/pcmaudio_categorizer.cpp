@@ -316,11 +316,12 @@ class iff_parser final {
           c.reset();
           return c;
         }
+        pos_ += c->header.size;
+        c->header.size -= sizeof(ChunkHeaderType);
       } else {
         pos_ += sizeof(ChunkHeaderType);
+        pos_ += c->header.size;
       }
-
-      pos_ += c->header.size;
 
       if (pos_ > data_.size()) {
         LOG_WARN << "[" << name_ << "] " << path_
