@@ -192,7 +192,7 @@ $ ln -s dwarfs-universal-0.7.0-Linux-aarch64 mkdwarfs
 $ ./mkdwarfs --help
 ```
 
-This also works on Windows ift the file system supports symbolic links:
+This also works on Windows if the file system supports symbolic links:
 
 ```
 > mklink mkdwarfs.exe dwarfs-universal-0.7.0-Windows-AMD64.exe
@@ -420,6 +420,12 @@ There are a few things worth pointing out, though:
   require admin privileges on Windows, so if you want to e.g. extract
   a DwarFS image that contains links of some sort, you might run into
   errors if you don't have the right privileges.
+
+- Due to a [problem](https://github.com/winfsp/winfsp/issues/454) in
+  WinFsp, symlinks cannot currently point outside of the mounted file
+  system.  Furthermore, due to another
+  [problem](https://github.com/winfsp/winfsp/issues/530) in WinFsp,
+  symlinks with a drive letter will appear with a mangled target path.
 
 - The DwarFS driver on Windows correctly reports hardlink counts via
   its API, but currently these counts are not correctly propagated

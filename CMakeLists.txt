@@ -771,6 +771,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
               -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
               --gen mstch_cpp2
               frozen.thrift
@@ -792,6 +793,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
               ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/metadata.thrift
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
               -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
               --gen mstch_cpp2:frozen2
               metadata.thrift

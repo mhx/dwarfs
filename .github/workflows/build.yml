@@ -76,20 +76,21 @@ jobs:
           - amd64
           - arm64v8
         build_type:
-          - gcc-debug-make
-          - gcc12-debug-ninja
-          - gcc12-release-ninja
-          - clang15-release-ninja
-          - clang15-release-ninja-static
+          - gcc-debug-ninja
+          - gcc-release-ninja
+          - oldgcc-debug-make
+          - clang-release-ninja
+          - clang-release-ninja-static
+          - oldclang-debug-make
         include:
           - arch: amd64
-            build_type: clang15-asan-ninja
+            build_type: clang-asan-ninja
           - arch: amd64
-            build_type: clang15-tsan-ninja
+            build_type: clang-tsan-ninja
           - arch: amd64
-            build_type: clang15-ubsan-ninja
+            build_type: clang-ubsan-ninja
           - arch: amd64
-            build_type: gcc12-debug-noperfmon-ninja
+            build_type: gcc-debug-noperfmon-ninja
 
     runs-on:
       - self-hosted
