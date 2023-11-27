@@ -86,6 +86,12 @@ class block_merger_whole_block_policy {
  * can be useful to keep an upper bound on the memory usage of the merger.
  * It is even possible to only partially release a block, e.g. after the
  * block has been compressed.
+ *
+ * TODO: The lifetime of block holders should be extended to before adding
+ *       a block to the merger. This would allow the merger to block even
+ *       before a block is added (which already consumes resources at that
+ *       point). It would also allow blocks to change size while being
+ *       processed by the merger.
  */
 template <typename SourceT, typename BlockT,
           typename BlockPolicy = block_merger_whole_block_policy>
