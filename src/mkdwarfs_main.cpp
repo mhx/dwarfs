@@ -888,11 +888,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           ? 2000
           : 200;
 
-  // TODO: clean up the use of both max_queued_blocks and max_queue_size
   filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
-  fswopts.max_queued_blocks =
-      mem_limit / (UINT64_C(1) << sf_config.block_size_bits);
+  fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
 

@@ -124,6 +124,23 @@ class fsblock {
   std::unique_ptr<impl> impl_;
 };
 
+class fsblock_merger_policy {
+ public:
+  fsblock_merger_policy(size_t worst_case_block_size)
+      : worst_case_block_size_{worst_case_block_size} {}
+
+  static size_t block_size(std::unique_ptr<fsblock> const& fsb) {
+    return fsb->size();
+  }
+
+  size_t worst_case_source_block_size(fragment_category /*source_id*/) const {
+    return worst_case_block_size_;
+  }
+
+ private:
+  size_t worst_case_block_size_;
+};
+
 class raw_fsblock : public fsblock::impl {
  public:
   raw_fsblock(section_type type, const block_compressor& bc,
@@ -347,7 +364,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
 
  private:
   using block_merger_type =
-      multi_queue_block_merger<fragment_category, std::unique_ptr<fsblock>>;
+      multi_queue_block_merger<fragment_category, std::unique_ptr<fsblock>,
+                               fsblock_merger_policy>;
   using block_holder_type = block_merger_type::block_holder_type;
 
   block_compressor const&
@@ -671,8 +689,9 @@ void filesystem_writer_<LoggerPolicy>::configure(
   }
 
   merger_ = std::make_unique<block_merger_type>(
-      max_active_slots, options_.max_queued_blocks, expected_categories,
-      [this](auto&& holder) { on_block_merged(std::move(holder)); });
+      max_active_slots, options_.max_queue_size, expected_categories,
+      [this](auto&& holder) { on_block_merged(std::move(holder)); },
+      fsblock_merger_policy{options_.worst_case_block_size});
 }
 
 template <typename LoggerPolicy>
