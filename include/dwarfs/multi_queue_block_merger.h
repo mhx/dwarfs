@@ -21,14 +21,29 @@
 
 #pragma once
 
-#include <functional>
+#include <cassert>
 #include <memory>
 #include <vector>
+
+#include <folly/Function.h>
 
 #include "dwarfs/block_merger.h"
 #include "dwarfs/detail/multi_queue_block_merger_impl.h"
 
 namespace dwarfs {
+
+class block_merger_whole_block_policy {
+ public:
+  template <typename BlockT>
+  static size_t block_size(BlockT const&) {
+    return 1;
+  }
+
+  template <typename SourceT>
+  static size_t worst_case_source_block_size(SourceT const&) {
+    return 1;
+  }
+};
 
 /**
  * Deterministically merge blocks from multiple sources into a single stream.
@@ -44,7 +59,9 @@ namespace dwarfs {
  * that are used to produce blocks. While it is possible to use more threads
  * than active slots, this will not improve performance and will only increase
  * the memory footprint. However, it is not possible to use less threads than
- * active slots, as this will cause the merger to eventually block.
+ * active slots, as this will cause the merger to ultimately block all threads
+ * and deadlock, since it is assuming that another thread will eventually add
+ * more blocks.
  *
  * The order of the blocks in the output stream is only determined by the order
  * of the sources and the number of active slots. The number of queued blocks
@@ -63,38 +80,70 @@ namespace dwarfs {
  * the holder is alive, the held block will count towards the number of
  * queued blocks. Once the holder is destroyed, the held block will be
  * released and the number of queued blocks will be decremented.
+ *
+ * It is also possible to provide a policy that returns the size of a block
+ * as well as the worst case size for a block from a certain source. This
+ * can be useful to keep an upper bound on the memory usage of the merger.
+ * It is even possible to only partially release a block, e.g. after the
+ * block has been compressed.
  */
-template <typename SourceT, typename BlockT>
+template <typename SourceT, typename BlockT,
+          typename BlockPolicy = block_merger_whole_block_policy>
 class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
  public:
   using source_type = SourceT;
   using block_type = BlockT;
   using block_holder_type = merged_block_holder<block_type>;
-  using on_block_merged_callback_type = std::function<void(block_holder_type)>;
+  using on_block_merged_callback_type =
+      folly::Function<void(block_holder_type)>;
+
+  multi_queue_block_merger() = default;
 
   multi_queue_block_merger(
       size_t num_active_slots, size_t max_queued_blocks,
       std::vector<source_type> const& sources,
-      on_block_merged_callback_type on_block_merged_callback)
-      : impl_{std::make_shared<
-            detail::multi_queue_block_merger_impl<SourceT, BlockT>>(
+      on_block_merged_callback_type&& on_block_merged_callback,
+      BlockPolicy&& policy = block_merger_whole_block_policy{})
+      : state_{std::make_unique<state>(
             num_active_slots, max_queued_blocks, sources,
-            [this](block_type&& blk) { on_block_merged(std::move(blk)); })}
-      , on_block_merged_callback_{on_block_merged_callback} {}
+            std::move(on_block_merged_callback), std::move(policy))} {}
 
   void add(source_type src, block_type blk) override {
-    impl_->add(std::move(src), std::move(blk));
+    assert(state_);
+    state_->impl->add(std::move(src), std::move(blk));
   }
 
-  void finish(source_type src) override { impl_->finish(std::move(src)); }
+  void finish(source_type src) override {
+    assert(state_);
+    state_->impl->finish(std::move(src));
+  }
 
  private:
-  void on_block_merged(block_type&& blk) {
-    on_block_merged_callback_(block_holder_type{std::move(blk), impl_});
-  }
+  using impl_type =
+      detail::multi_queue_block_merger_impl<SourceT, BlockT, BlockPolicy>;
 
-  std::shared_ptr<detail::multi_queue_block_merger_impl<SourceT, BlockT>> impl_;
-  on_block_merged_callback_type on_block_merged_callback_;
+  struct state {
+    state(size_t num_active_slots, size_t max_queued_blocks,
+          std::vector<source_type> const& sources,
+          on_block_merged_callback_type&& on_block_merged_callback,
+          BlockPolicy&& policy = block_merger_whole_block_policy{})
+        : callback{std::move(on_block_merged_callback)}
+        , impl{std::make_shared<impl_type>(
+              num_active_slots, max_queued_blocks, sources,
+              [this](block_type&& blk, size_t size) {
+                on_block_merged(std::move(blk), size);
+              },
+              std::move(policy))} {}
+
+    void on_block_merged(block_type&& blk, size_t size) {
+      callback(block_holder_type{std::move(blk), size, impl});
+    }
+
+    on_block_merged_callback_type callback;
+    std::shared_ptr<impl_type> impl;
+  };
+
+  std::unique_ptr<state> state_;
 };
 
 } // namespace dwarfs

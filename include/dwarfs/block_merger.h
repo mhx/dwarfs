@@ -22,6 +22,9 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
+
+#include <fmt/format.h>
 
 namespace dwarfs {
 
@@ -29,7 +32,7 @@ class block_merger_base {
  public:
   virtual ~block_merger_base() = default;
 
-  virtual void release() = 0;
+  virtual void release(size_t amount) = 0;
 };
 
 template <typename T>
@@ -42,14 +45,31 @@ class merged_block_holder {
   explicit merged_block_holder(block_type&& blk)
       : block_{std::move(blk)} {}
 
-  merged_block_holder(block_type&& blk,
+  merged_block_holder(block_type&& blk, size_t size,
                       std::shared_ptr<block_merger_base> merger)
       : block_{std::move(blk)}
+      , size_{size}
       , merger_{std::move(merger)} {}
 
-  ~merged_block_holder() {
+  ~merged_block_holder() { release(); }
+
+  void release() {
     if (merger_) {
-      merger_->release();
+      merger_->release(size_);
+    }
+  }
+
+  void release_partial(size_t amount) {
+    if (amount > size_) {
+      throw std::runtime_error(fmt::format(
+          "merged_block_holder::release_partial: amount {} > size {}", amount,
+          size_));
+    }
+
+    size_ -= amount;
+
+    if (merger_) {
+      merger_->release(amount);
     }
   }
 
@@ -76,6 +96,7 @@ class merged_block_holder {
 
  private:
   block_type block_;
+  size_t size_{0};
   std::shared_ptr<block_merger_base> merger_;
 };
 
