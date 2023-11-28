@@ -8,9 +8,21 @@
 - Use smaller bloom filters for individual blocks?
 - Use bigger (non-resettable?) global bloom filter?
 
+- filesystem re-writing with categories :-)
 
+- should we store block categories somewhere in the metadata
+  or even a new block?
 
-- hashing progress? => yes
+- let's try and keep forward compatibility for the 0.7 release
+  when not using new features; the only features relevant are
+  likely FLAC compression support and "features" support; in
+  theory, we don't even need to increment the minor version at
+  all, since unknown compressions will be caught and feature
+  flags will simply be ignored; maybe it makes sense to have
+  this mode of compatibility only for the 0.8 releases and in
+  0.9 do a hard increment of the minor version; in 0.8, we can
+  use the old minor version if we don't use FLAC and the new
+  minor version if we do
 
 - file discovery progress?
 
@@ -22,9 +34,6 @@
 - scanner / compressor progress contexts?
 
 - file system rewriting with categories :-)
-
-- file system block reordering for bit-identical images
-  (does this require a new section type containing categories?)
 
 - take a look at CPU measurements, those for nilsimsa
   ordering are probably wrong
@@ -72,34 +81,6 @@
   - Compression of filesystem images for forensic purposes
 
 - Mounting lots of images with shared cache?
-
-- how do we make multiple parallel block chains (categories)
-  reproducible?
-
-    => we could re-write the blocks and update the metadata;
-       however, data added to "uncategorized" blocks would
-       still be random
-
-    => oooh, easy: we can order all chunks before we start
-       writing them to blocks, so only the block order is
-       random after all, which we can fix by rewriting.
-       the tricky bit is (probably) going to be updating
-       the chunks in the metadata, as they won't be written
-       to the individual blocks sequentially; pretty sure
-       that's a solvable problem.
-
-    => indeed solvable; chunks aren't finalized until after
-       all blocks have been written. We simply need to subdivide
-       `inode_`s into smaller parts (as provided by the categorizer)
-       and then add chunks to the individual parts, assembling them
-       only after everything has been written
-
-    => as for re-writing the blocks: we need to keep track of
-       the category of each block, so that we can later sort
-       the blocks by category; we can do this in a separate
-       section, which can later be deleted; or we can even keep
-       it if we want to know later on what category a block
-       belonged to
 
 - configuration ideas:
 
