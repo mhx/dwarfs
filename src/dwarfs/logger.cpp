@@ -98,6 +98,21 @@ void stream_logger::write(level_type level, const std::string& output,
         suffix = terminal_color(termcolor::NORMAL);
         break;
 
+      case VERBOSE:
+        prefix = terminal_color(termcolor::DIM_CYAN);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
+
+      case DEBUG:
+        prefix = terminal_color(termcolor::DIM_YELLOW);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
+
+      case TRACE:
+        prefix = terminal_color(termcolor::GRAY);
+        suffix = terminal_color(termcolor::NORMAL);
+        break;
+
       default:
         break;
       }
@@ -133,7 +148,7 @@ void stream_logger::write(level_type level, const std::string& output,
       context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
-            suffix, terminal_color(termcolor::MAGENTA), context,
+            suffix, terminal_color(termcolor::DIM_MAGENTA), context,
             terminal_color(termcolor::NORMAL), prefix);
       }
     }
