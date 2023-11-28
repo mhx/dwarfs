@@ -51,6 +51,24 @@ namespace dwarfs {
 
 namespace {
 
+void check_section_logger(logger& lgr, fs_section const& section) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
+  LOG_DEBUG << "section " << section.description() << " @ " << section.start()
+            << " [" << section.length() << " bytes]";
+
+  if (!section.is_known_type()) {
+    LOG_WARN << "unknown section type " << folly::to_underlying(section.type())
+             << " in section @ " << section.start();
+  }
+
+  if (!section.is_known_compression()) {
+    LOG_WARN << "unknown compression type "
+             << folly::to_underlying(section.compression()) << " in section @ "
+             << section.start();
+  }
+}
+
 class filesystem_parser {
  private:
   static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
@@ -359,6 +377,7 @@ class filesystem_ final : public filesystem_v2::impl {
 
  private:
   filesystem_info const& get_info() const;
+  void check_section(fs_section const& section) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   std::shared_ptr<mmif> mm_;
@@ -388,6 +407,11 @@ class filesystem_ final : public filesystem_v2::impl {
 };
 
 template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::check_section(fs_section const& section) const {
+  check_section_logger(LOG_GET_LOGGER, section);
+}
+
+template <typename LoggerPolicy>
 filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
   std::lock_guard lock(mx_);
 
@@ -397,14 +421,27 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
     parser_.rewind();
 
     while (auto s = parser_.next_section()) {
+      check_section(*s);
+
       if (s->type() == section_type::BLOCK) {
         ++info.block_count;
         info.compressed_block_size += s->length();
-        info.uncompressed_block_size += get_uncompressed_section_size(mm_, *s);
+        try {
+          info.uncompressed_block_size +=
+              get_uncompressed_section_size(mm_, *s);
+        } catch (std::exception const& e) {
+          info.uncompressed_block_size += s->length();
+          info.uncompressed_block_size_is_estimate = true;
+        }
       } else if (s->type() == section_type::METADATA_V2) {
         info.compressed_metadata_size += s->length();
-        info.uncompressed_metadata_size +=
-            get_uncompressed_section_size(mm_, *s);
+        try {
+          info.uncompressed_metadata_size +=
+              get_uncompressed_section_size(mm_, *s);
+        } catch (std::exception const& e) {
+          info.uncompressed_metadata_size += s->length();
+          info.uncompressed_metadata_size_is_estimate = true;
+        }
       }
     }
 
@@ -450,8 +487,8 @@ filesystem_<LoggerPolicy>::filesystem_(
   section_map sections;
 
   while (auto s = parser_.next_section()) {
-    LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
-              << s->length() << " bytes]";
+    check_section(*s);
+
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
     } else {
@@ -663,8 +700,8 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
   section_map sections;
 
   while (auto s = parser.next_section()) {
-    LOG_DEBUG << "section " << s->description() << " @ " << s->start() << " ["
-              << s->length() << " bytes]";
+    check_section_logger(lgr, *s);
+
     if (!s->check_fast(*mm)) {
       DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
     }
@@ -742,8 +779,8 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {
-    LOG_DEBUG << "section " << sp->description() << " @ " << sp->start() << " ["
-              << sp->length() << " bytes]";
+    check_section_logger(lgr, *sp);
+
     std::packaged_task<fs_section()> task{[&, s = *sp] {
       if (!s.check_fast(*mm)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());

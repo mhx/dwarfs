@@ -39,6 +39,8 @@ class fs_section {
 
   size_t start() const { return impl_->start(); }
   size_t length() const { return impl_->length(); }
+  bool is_known_compression() const { return impl_->is_known_compression(); }
+  bool is_known_type() const { return impl_->is_known_type(); }
   compression_type compression() const { return impl_->compression(); }
   section_type type() const { return impl_->type(); }
   std::string name() const { return impl_->name(); }
@@ -57,6 +59,8 @@ class fs_section {
 
     virtual size_t start() const = 0;
     virtual size_t length() const = 0;
+    virtual bool is_known_compression() const = 0;
+    virtual bool is_known_type() const = 0;
     virtual compression_type compression() const = 0;
     virtual section_type type() const = 0;
     virtual std::string name() const = 0;

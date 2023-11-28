@@ -62,11 +62,11 @@ std::string get_default(const HT& ht, const typename HT::key_type& key) {
 }
 } // namespace
 
-bool is_valid_compression_type(compression_type type) {
+bool is_known_compression_type(compression_type type) {
   return compressions.count(type) > 0;
 }
 
-bool is_valid_section_type(section_type type) {
+bool is_known_section_type(section_type type) {
   return sections.count(type) > 0;
 }
 
@@ -79,8 +79,8 @@ std::string get_section_name(section_type type) {
 }
 
 void section_header::dump(std::ostream& os) const {
-  os << "type=" << get_default(sections, type)
-     << ", compression=" << get_default(compressions, compression)
+  os << "type=" << get_default(sections, type) << ", compression="
+     << get_default(compressions, static_cast<compression_type>(compression))
      << ", length=" << length;
 }
 

@@ -35,7 +35,16 @@
 
 namespace dwarfs {
 
-enum class compression_type : uint8_t {
+enum class compression_type_v1 : uint8_t {
+#define DWARFS_COMPRESSION_TYPE_ENUMERATION_(name, value) name = value
+#define DWARFS_COMMA_ ,
+  DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_ENUMERATION_,
+                               DWARFS_COMMA_)
+#undef DWARFS_COMPRESSION_TYPE_ENUMERATION_
+#undef DWARFS_COMMA_
+};
+
+enum class compression_type : uint16_t {
 #define DWARFS_COMPRESSION_TYPE_ENUMERATION_(name, value) name = value
 #define DWARFS_COMMA_ ,
   DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_ENUMERATION_,
