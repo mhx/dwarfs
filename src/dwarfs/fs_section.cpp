@@ -59,28 +59,38 @@ void read_section_header_common(T& header, size_t& start, mmif const& mm,
 
 template <typename T>
 void check_section(T const& sec) {
-  if (!is_valid_section_type(sec.type())) {
-    DWARFS_THROW(runtime_error, fmt::format("invalid section type ({0})",
+  if (!is_known_section_type(sec.type())) {
+    DWARFS_THROW(runtime_error, fmt::format("unknown section type ({0})",
                                             static_cast<int>(sec.type())));
   }
 
-  if (!is_valid_compression_type(sec.compression())) {
+  if (!is_known_compression_type(sec.compression())) {
     DWARFS_THROW(runtime_error,
-                 fmt::format("invalid compression type ({0})",
+                 fmt::format("unknown compression type ({0})",
                              static_cast<int>(sec.compression())));
   }
 }
 
 } // namespace
 
-class fs_section_v1 : public fs_section::impl {
+class fs_section_v1 final : public fs_section::impl {
  public:
   fs_section_v1(mmif const& mm, size_t offset);
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
 
-  compression_type compression() const override { return hdr_.compression; }
+  bool is_known_compression() const override {
+    return is_known_compression_type(this->compression());
+  }
+
+  bool is_known_type() const override {
+    return is_known_section_type(this->type());
+  }
+
+  compression_type compression() const override {
+    return static_cast<compression_type>(hdr_.compression);
+  }
   section_type type() const override { return hdr_.type; }
 
   std::string name() const override { return get_section_name(hdr_.type); }
@@ -100,12 +110,20 @@ class fs_section_v1 : public fs_section::impl {
   section_header hdr_;
 };
 
-class fs_section_v2 : public fs_section::impl {
+class fs_section_v2 final : public fs_section::impl {
  public:
   fs_section_v2(mmif const& mm, size_t offset);
 
   size_t start() const override { return start_; }
   size_t length() const override { return hdr_.length; }
+
+  bool is_known_compression() const override {
+    return is_known_compression_type(this->compression());
+  }
+
+  bool is_known_type() const override {
+    return is_known_section_type(this->type());
+  }
 
   compression_type compression() const override {
     return static_cast<compression_type>(hdr_.compression);
@@ -149,13 +167,21 @@ class fs_section_v2 : public fs_section::impl {
   section_header_v2 hdr_;
 };
 
-class fs_section_v2_lazy : public fs_section::impl {
+class fs_section_v2_lazy final : public fs_section::impl {
  public:
   fs_section_v2_lazy(std::shared_ptr<mmif const> mm, section_type type,
                      size_t offset, size_t size);
 
   size_t start() const override { return offset_ + sizeof(section_header_v2); }
   size_t length() const override { return size_ - sizeof(section_header_v2); }
+
+  bool is_known_compression() const override {
+    return is_known_compression_type(this->compression());
+  }
+
+  bool is_known_type() const override {
+    return is_known_section_type(this->type());
+  }
 
   compression_type compression() const override {
     return section().compression();
@@ -227,7 +253,12 @@ fs_section_v1::fs_section_v1(mmif const& mm, size_t offset) {
 
 fs_section_v2::fs_section_v2(mmif const& mm, size_t offset) {
   read_section_header_common(hdr_, start_, mm, offset);
-  check_section(*this);
+  // TODO: Don't enforce these checks as we might want to add section types
+  //       and compression types in the future without necessarily incrementing
+  //       the file system version.
+  //       Only enforce them for v1 above, which doesn't have checksums and
+  //       where we know the exact set of section and compression types.
+  // check_section(*this);
 }
 
 fs_section_v2_lazy::fs_section_v2_lazy(std::shared_ptr<mmif const> mm,

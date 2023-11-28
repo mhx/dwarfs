@@ -938,19 +938,30 @@ void metadata_<LoggerPolicy>::dump(
     }
     os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
     os << "compressed block size: "
-       << size_with_unit(fsinfo.compressed_block_size)
-       << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
-                                         fsinfo.uncompressed_block_size)
-       << "\n";
-    os << "uncompressed block size: "
-       << size_with_unit(fsinfo.uncompressed_block_size) << "\n";
+       << size_with_unit(fsinfo.compressed_block_size);
+    if (!fsinfo.uncompressed_block_size_is_estimate) {
+      os << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
+                                           fsinfo.uncompressed_block_size);
+    }
+    os << "\n";
+    os << "uncompressed block size: ";
+    if (fsinfo.uncompressed_block_size_is_estimate) {
+      os << "(at least) ";
+    }
+    os << size_with_unit(fsinfo.uncompressed_block_size) << "\n";
     os << "compressed metadata size: "
-       << size_with_unit(fsinfo.compressed_metadata_size)
-       << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_metadata_size) /
-                                         fsinfo.uncompressed_metadata_size)
-       << "\n";
-    os << "uncompressed metadata size: "
-       << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
+       << size_with_unit(fsinfo.compressed_metadata_size);
+    if (!fsinfo.uncompressed_metadata_size_is_estimate) {
+      os << fmt::format(" ({0:.2f}%)",
+                        (100.0 * fsinfo.compressed_metadata_size) /
+                            fsinfo.uncompressed_metadata_size);
+    }
+    os << "\n";
+    os << "uncompressed metadata size: ";
+    if (fsinfo.uncompressed_metadata_size_is_estimate) {
+      os << "(at least) ";
+    }
+    os << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       auto boolopt = [&](auto const& name, bool value) {
