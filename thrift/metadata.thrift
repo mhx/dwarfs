@@ -23,6 +23,8 @@ include "thrift/annotation/cpp.thrift"
 
 namespace cpp2 dwarfs.thrift.metadata
 
+@cpp.Type{name = "uint8_t"}
+typedef byte UInt8
 @cpp.Type{name = "uint16_t"}
 typedef i16 UInt16
 @cpp.Type{name = "uint32_t"}
