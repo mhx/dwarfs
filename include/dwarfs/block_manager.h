@@ -25,6 +25,7 @@
 #include <optional>
 #include <vector>
 
+#include "dwarfs/fragment_category.h"
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
@@ -34,13 +35,17 @@ class block_manager {
   using chunk_type = thrift::metadata::chunk;
 
   size_t get_logical_block() const;
-  void set_written_block(size_t logical_block, size_t written_block);
+  void set_written_block(size_t logical_block, size_t written_block,
+                         fragment_category::value_type category);
   void map_logical_blocks(std::vector<chunk_type>& vec);
+  std::vector<fragment_category::value_type>
+  get_written_block_categories() const;
 
  private:
   std::mutex mutable mx_;
   size_t mutable num_blocks_{0};
-  std::vector<std::optional<size_t>> block_map_;
+  std::vector<std::optional<std::pair<size_t, fragment_category::value_type>>>
+      block_map_;
 };
 
 } // namespace dwarfs

@@ -144,13 +144,14 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
 
     std::vector<std::shared_ptr<dwarfs::block_data>> written;
 
-    dwarfs::segmenter seg(lgr, prog, blkmgr, cfg, cc, total_size,
-                          [&written](std::shared_ptr<dwarfs::block_data> blk,
-                                     auto physical_block_cb) {
-                            size_t num = written.size();
-                            written.push_back(blk);
-                            physical_block_cb(num);
-                          });
+    dwarfs::segmenter seg(
+        lgr, prog, blkmgr, cfg, cc, total_size,
+        [&written, blkmgr](std::shared_ptr<dwarfs::block_data> blk,
+                           auto logical_block_num) {
+          auto physical_block_num = written.size();
+          written.push_back(blk);
+          blkmgr->set_written_block(logical_block_num, physical_block_num, 0);
+        });
 
     suspender.dismiss();
 

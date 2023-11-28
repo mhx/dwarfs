@@ -35,13 +35,14 @@ size_t block_manager::get_logical_block() const {
 }
 
 void block_manager::set_written_block(size_t logical_block,
-                                      size_t written_block) {
+                                      size_t written_block,
+                                      fragment_category::value_type category) {
   std::lock_guard lock{mx_};
   assert(logical_block < num_blocks_);
   if (block_map_.size() < num_blocks_) {
     block_map_.resize(num_blocks_);
   }
-  block_map_[logical_block] = written_block;
+  block_map_[logical_block] = std::make_pair(written_block, category);
 }
 
 void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) {
@@ -49,8 +50,26 @@ void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) {
   for (auto& c : vec) {
     size_t block = c.get_block();
     assert(block < num_blocks_);
-    c.block() = block_map_[block].value();
+    c.block() = block_map_[block].value().first;
   }
+}
+
+std::vector<fragment_category::value_type>
+block_manager::get_written_block_categories() const {
+  std::vector<fragment_category::value_type> result;
+
+  {
+    std::lock_guard lock{mx_};
+
+    result.resize(num_blocks_);
+
+    for (auto& b : block_map_) {
+      auto& mapping = b.value();
+      result[mapping.first] = mapping.second;
+    }
+  }
+
+  return result;
 }
 
 } // namespace dwarfs

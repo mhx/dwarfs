@@ -361,8 +361,27 @@ struct metadata {
   // fields added with dwarfs-0.7.3, file system version 2.5 //
   //=========================================================//
 
+  // We don't need to increment the file system minor version
+  // as file systems created with this new version are still
+  // readable by older binaries as long as they don't use any
+  // unsupported features (e.g. FLAC compression).
+
   // The set of features used in this file system image. As long
   // as an older binary supports all features, it will be able
   // to use images created with newer versions.
   27: optional set<string>      features
+
+  //=========================================================//
+  // fields added with dwarfs-0.8.0, file system version 2.5 //
+  //=========================================================//
+
+  // The set of categories used in this file system image. Used
+  // for displaying and to select compression algorithms when
+  // recompressing the image.
+  28: optional list<string>     category_names
+
+  // The category of each block in the file system image. The
+  // index into this vector is the block number and the value
+  // is an index into `category_names`.
+  29: optional list<UInt32>     block_categories
 }

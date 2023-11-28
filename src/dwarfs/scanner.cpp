@@ -700,9 +700,17 @@ void scanner_<LoggerPolicy>::scan(
 
         auto seg = segmenter_factory_->create(
             category, cat_size, cc, blockmgr,
-            [category, meta, &fsw](auto block, auto physical_block_cb) {
-              fsw.write_block(category, std::move(block),
-                              std::move(physical_block_cb), meta);
+            [category, meta, blockmgr, &fsw](auto block,
+                                             auto logical_block_num) {
+              fsw.write_block(
+                  category, std::move(block),
+                  [blockmgr, logical_block_num,
+                   category](auto physical_block_num) {
+                    blockmgr->set_written_block(logical_block_num,
+                                                physical_block_num,
+                                                category.value());
+                  },
+                  meta);
             });
 
         for (auto ino : span) {
@@ -861,6 +869,33 @@ void scanner_<LoggerPolicy>::scan(
   }
   mv2.preferred_path_separator() =
       static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+
+  if (auto catmgr = options_.inode.categorizer_mgr) {
+    std::unordered_map<fragment_category::value_type,
+                       fragment_category::value_type>
+        category_indices;
+    std::vector<std::string> category_names;
+
+    category_indices.reserve(frag_info.info.size());
+    category_names.reserve(frag_info.info.size());
+
+    for (auto const& ci : frag_info.info) {
+      auto [it, inserted] =
+          category_indices.emplace(ci.category, category_names.size());
+      if (inserted) {
+        category_names.emplace_back(catmgr->category_name(ci.category));
+      }
+    }
+
+    auto written_categories = blockmgr->get_written_block_categories();
+
+    std::transform(written_categories.begin(), written_categories.end(),
+                   written_categories.begin(),
+                   [&](auto const& cat) { return category_indices.at(cat); });
+
+    mv2.category_names() = std::move(category_names);
+    mv2.block_categories() = std::move(written_categories);
+  }
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
