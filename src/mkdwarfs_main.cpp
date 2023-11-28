@@ -753,7 +753,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   console_writer lgr(std::cerr, pg_mode, get_term_width, log_level,
                      recompress ? console_writer::REWRITE
                                 : console_writer::NORMAL,
-                     log_level >= logger::DEBUG);
+                     log_level >= logger::VERBOSE);
 
   std::shared_ptr<script> script;
 
