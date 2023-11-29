@@ -6,6 +6,8 @@ export CCACHE_DIR=/ccache
 
 cd "$HOME"
 
+git config --global --add safe.directory /workspace
+
 rm -f dwarfs
 ln -s /workspace dwarfs
 
