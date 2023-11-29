@@ -51,7 +51,8 @@ class filesystem_writer {
 
   filesystem_writer(
       std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
-      const block_compressor& schema_bc, const block_compressor& metadata_bc,
+      block_compressor const& schema_bc, block_compressor const& metadata_bc,
+      block_compressor const& history_bc,
       filesystem_writer_options const& options = filesystem_writer_options(),
       std::istream* header = nullptr);
 

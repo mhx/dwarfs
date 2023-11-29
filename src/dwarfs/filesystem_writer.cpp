@@ -335,8 +335,9 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   using physical_block_cb_type = filesystem_writer::physical_block_cb_type;
 
   filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
-                     progress& prog, const block_compressor& schema_bc,
-                     const block_compressor& metadata_bc,
+                     progress& prog, block_compressor const& schema_bc,
+                     block_compressor const& metadata_bc,
+                     block_compressor const& history_bc,
                      filesystem_writer_options const& options,
                      std::istream* header);
   ~filesystem_writer_() noexcept override;
@@ -397,9 +398,10 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   progress& prog_;
   std::optional<block_compressor> default_bc_;
   std::unordered_map<fragment_category::value_type, block_compressor> bc_;
-  const block_compressor& schema_bc_;
-  const block_compressor& metadata_bc_;
-  const filesystem_writer_options options_;
+  block_compressor const& schema_bc_;
+  block_compressor const& metadata_bc_;
+  block_compressor const& history_bc_;
+  filesystem_writer_options const options_;
   LOG_PROXY_DECL(LoggerPolicy);
   std::deque<block_holder_type> queue_;
   std::shared_ptr<compression_progress> pctx_;
@@ -416,7 +418,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
-    const block_compressor& schema_bc, const block_compressor& metadata_bc,
+    block_compressor const& schema_bc, block_compressor const& metadata_bc,
+    block_compressor const& history_bc,
     filesystem_writer_options const& options, std::istream* header)
     : os_(os)
     , header_(header)
@@ -424,6 +427,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     , prog_(prog)
     , schema_bc_(schema_bc)
     , metadata_bc_(metadata_bc)
+    , history_bc_(history_bc)
     , options_(options)
     , LOG_PROXY_INIT(lgr)
     , flush_(false)
@@ -741,8 +745,7 @@ void filesystem_writer_<LoggerPolicy>::write_metadata_v2(
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_history(
     std::shared_ptr<block_data>&& data) {
-  write_section(section_type::HISTORY, std::move(data),
-                metadata_bc_); // TODO: history_bc_?
+  write_section(section_type::HISTORY, std::move(data), history_bc_);
 }
 
 template <typename LoggerPolicy>
@@ -791,12 +794,14 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      worker_group& wg, progress& prog,
-                                     const block_compressor& schema_bc,
-                                     const block_compressor& metadata_bc,
+                                     block_compressor const& schema_bc,
+                                     block_compressor const& metadata_bc,
+                                     block_compressor const& history_bc,
                                      filesystem_writer_options const& options,
                                      std::istream* header)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, schema_bc, metadata_bc, options, header)) {}
+              lgr, os, wg, prog, schema_bc, metadata_bc, history_bc, options,
+              header)) {}
 
 } // namespace dwarfs

@@ -159,7 +159,7 @@ void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
 struct level_defaults {
   unsigned block_size_bits;
   std::string_view data_compression;
-  std::string_view schema_compression;
+  std::string_view schema_history_compression;
   std::string_view metadata_compression;
   unsigned window_size;
   unsigned window_step;
@@ -221,7 +221,7 @@ struct level_defaults {
 #endif
 
 #if defined(DWARFS_HAVE_LIBZSTD)
-#define ALG_SCHEMA "zstd:level=12"
+#define ALG_SCHEMA "zstd:level=16"
 #elif defined(DWARFS_HAVE_LIBLZMA)
 #define ALG_SCHEMA "lzma:level=4"
 #elif defined(DWARFS_HAVE_LIBLZ4)
@@ -280,7 +280,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str,
-      categorizer_list_str;
+      categorizer_list_str, history_compression;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -458,6 +458,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("metadata-compression",
         po::value<std::string>(&metadata_compression),
         "metadata compression algorithm")
+    ("history-compression",
+        po::value<std::string>(&history_compression),
+        "history compression algorithm")
     ;
 
   po::options_description filter_opts("Filter options");
@@ -549,10 +552,14 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   auto const usage = "Usage: mkdwarfs [OPTIONS...]\n";
 
   if (vm.count("long-help")) {
-    size_t l_dc = 0, l_sc = 0, l_mc = 0, l_or = 0;
+    std::string_view constexpr block_data_hdr{"Block Data"};
+    std::string_view constexpr schema_history_hdr{"Schema/History"};
+    std::string_view constexpr metadata_hdr{"Metadata"};
+    size_t l_dc{block_data_hdr.size()}, l_sc{schema_history_hdr.size()},
+        l_mc{metadata_hdr.size()}, l_or{0};
     for (auto const& l : levels) {
       l_dc = std::max(l_dc, l.data_compression.size());
-      l_sc = std::max(l_sc, l.schema_compression.size());
+      l_sc = std::max(l_sc, l.schema_history_compression.size());
       l_mc = std::max(l_mc, l.metadata_compression.size());
       l_or = std::max(l_or, l.order.size());
     }
@@ -566,8 +573,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                              "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
                              "Window")
               << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
-                             "Block Data", l_dc, "Schema", l_sc, "Metadata",
-                             l_mc, "Size/Step  Order")
+                             block_data_hdr, l_dc, schema_history_hdr, l_sc,
+                             metadata_hdr, l_mc, "Size/Step  Order")
               << "  " << sep << "\n";
 
     int level = 0;
@@ -575,7 +582,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
                                "  {:2d} / {:1d}    {:{}s}",
                                level, l.block_size_bits, l.data_compression,
-                               l_dc, l.schema_compression, l_sc,
+                               l_dc, l.schema_history_compression, l_sc,
                                l.metadata_compression, l_mc, l.window_size,
                                l.window_step, l.order, l_or)
                 << "\n";
@@ -629,7 +636,11 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   if (!vm.count("schema-compression")) {
-    schema_compression = defaults.schema_compression;
+    schema_compression = defaults.schema_history_compression;
+  }
+
+  if (!vm.count("history-compression")) {
+    history_compression = defaults.schema_history_compression;
   }
 
   if (!vm.count("metadata-compression")) {
@@ -1048,9 +1059,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   block_compressor schema_bc(schema_compression);
   block_compressor metadata_bc(metadata_compression);
+  block_compressor history_bc(history_compression);
 
   filesystem_writer fsw(*os, lgr, wg_compress, prog, schema_bc, metadata_bc,
-                        fswopts, header_ifs.get());
+                        history_bc, fswopts, header_ifs.get());
 
   try {
     categorized_option<block_compressor> compression_opt;

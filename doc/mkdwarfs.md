@@ -188,6 +188,13 @@ Most other options are concerned with compression tuning:
   care about mount time, you can safely choose `lzma` compression here, as
   the data will only have to be decompressed once when mounting the image.
 
+- `--history-compression=`*algorithm*[`:`*algopt*[`=`*value*][`,`...]]:
+  The compression algorithm and configuration used for the file system
+  history. Takes the same arguments as `--compression` above. Like the
+  schema, history blocks are typically very small, so the default is the
+  same as for schema compression. This is irrelevant if `--no-history`
+  is present.
+
 - `--recompress`[`=all`|`=block`|`=metadata`|`=none`]:
   Take an existing DwarFS file system and recompress it using different
   compression algorithms. If no argument or `all` is given, all sections
