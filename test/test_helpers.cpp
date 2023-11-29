@@ -24,6 +24,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <random>
 
 #include <fmt/format.h>
 
@@ -258,7 +259,7 @@ void os_access_mock::add_dir(fs::path const& path) {
   add(path, st);
 }
 
-void os_access_mock::add_file(fs::path const& path, size_t size) {
+void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
   simplestat st;
   std::memset(&st, 0, sizeof(st));
   st.ino = ino_++;
@@ -266,6 +267,29 @@ void os_access_mock::add_file(fs::path const& path, size_t size) {
   st.uid = 1000;
   st.gid = 100;
   st.size = size;
+
+  if (random) {
+    thread_local std::mt19937_64 rng{42};
+
+    std::uniform_int_distribution<> choice_dist{0, 3};
+
+    switch (choice_dist(rng)) {
+    default:
+      break;
+
+    case 0:
+      add(path, st, [size, seed = rng()] {
+        std::mt19937_64 tmprng{seed};
+        std::string rv;
+        rv.resize(size);
+        std::uniform_int_distribution<> byte_dist{0, 255};
+        std::generate(rv.begin(), rv.end(), [&] { return byte_dist(tmprng); });
+        return rv;
+      });
+      return;
+    }
+  }
+
   add(path, st, [size] { return loremipsum(size); });
 }
 

@@ -80,7 +80,8 @@ class os_access_mock : public os_access {
            std::function<std::string()> generator);
 
   void add_dir(std::filesystem::path const& path);
-  void add_file(std::filesystem::path const& path, size_t size);
+  void
+  add_file(std::filesystem::path const& path, size_t size, bool random = false);
   void add_file(std::filesystem::path const& path, std::string const& contents);
 
   void set_access_fail(std::filesystem::path const& path);
