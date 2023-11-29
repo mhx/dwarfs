@@ -510,17 +510,12 @@ at the cost of using a lot more memory when using the filesystem.
 ### Producing bit-identical images
 
 By default, images produced by `mkdwarfs` will not be identical
-over multiple runs. There are two reasons for this:
-
-- A creation timestamp is embedded in the image.
-
-- The `nilsimsa` ordering algorithm is not deterministic by
-  default.
+over multiple runs. This is due to time stamps that are being added
+to the file system image.
 
 In order to produce bit-identical images, you need to pass
-`--no-create-timestamp` and set `--order` to `path` or `similarity`.
-You could also set `--order=none` and pass in files explicitly
-using `--input-list`.
+`--no-create-timestamp` and either `--no-history-timestamps` or
+`--no-history`.
 
 ## FILTER RULES
 
