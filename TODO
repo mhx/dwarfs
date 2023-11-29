@@ -1,5 +1,12 @@
 - Use Elias-Fano for delta-encoded lists in metadata?
 
+- Implement rewriting properly; keep order of blocks etc;
+  ability to remove history?; ability to re-pack metadata?;
+  ability to change other metadata properties (e.g. stuff
+  like --set-owner, --set-group, --chmod, --no-create-ts,
+  --set-time could all be done on existing metadata, but
+  obviously wouldn't be undo-able)
+
 - Packaging of libs added via FetchContent
 - Remove [ MiB, MiB, MiB ]
 - Generic hashing / scanning / categorizing progress?
@@ -9,9 +16,6 @@
 - Use bigger (non-resettable?) global bloom filter?
 
 - filesystem re-writing with categories :-)
-
-- should we store block categories somewhere in the metadata
-  or even a new block?
 
 - let's try and keep forward compatibility for the 0.7 release
   when not using new features; the only features relevant are
