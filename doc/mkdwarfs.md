@@ -321,6 +321,17 @@ Most other options are concerned with compression tuning:
   and is used to speed up mount times for large file systems, as it avoids
   a full scan through the file system blocks to figure out their location.
 
+- `--no-history`:
+  Don't add any history information to a file system.
+
+- `--no-history-timestamps`:
+  Don't add timestamps to history entries. This is necessary, along with
+  `--no-create-timestamp`, when trying to produce bit-identical file system
+  images.
+
+- `--no-history-command-line`:
+  Don't record command line arguments in history entries.
+
 - `--no-create-timestamp`:
   Don't add a creation timestamp. This is useful when bit-identical file
   system images are required to be produced from the same input.
