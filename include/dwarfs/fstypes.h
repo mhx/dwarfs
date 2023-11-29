@@ -46,6 +46,9 @@ enum class section_type : uint16_t {
 
   SECTION_INDEX = 9,
   // Section index.
+
+  HISTORY = 10,
+  // History of file system changes.
 };
 
 struct file_header {

@@ -50,6 +50,7 @@ struct file_stat;
 struct vfs_stat;
 
 class filesystem_writer;
+class history;
 class logger;
 class mmif;
 class performance_monitor;
@@ -171,6 +172,8 @@ class filesystem_v2 {
 
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
+  history const& get_history() const { return impl_->get_history(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -210,6 +213,7 @@ class filesystem_v2 {
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual bool has_symlinks() const = 0;
+    virtual history const& get_history() const = 0;
   };
 
  private:

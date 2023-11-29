@@ -286,7 +286,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       bloom_filter_size, compression;
   size_t num_workers, num_scanner_workers, num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
-       force_overwrite = false;
+       force_overwrite = false, no_history = false,
+       no_history_timestamps = false, no_history_command_line = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -414,6 +415,15 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("no-section-index",
         po::value<bool>(&no_section_index)->zero_tokens(),
         "don't add section index to file system")
+    ("no-history",
+        po::value<bool>(&no_history)->zero_tokens(),
+        "don't add history to file system")
+    ("no-history-timestamps",
+        po::value<bool>(&no_history_timestamps)->zero_tokens(),
+        "don't add timestamps to file system history")
+    ("no-history-command-line",
+        po::value<bool>(&no_history_command_line)->zero_tokens(),
+        "don't add command line to file system history")
     ;
 
   po::options_description segmenter_opts("Segmenter options");
@@ -509,6 +519,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   po::variables_map vm;
 
   auto& sys_err_out = SYS_CERR;
+
+  std::vector<std::string> command_line;
+  command_line.reserve(argc);
+
+  for (int i = 0; i < argc; ++i) {
+    command_line.emplace_back(sys_string_to_string(argv[i]));
+  }
 
   try {
     auto parsed = po::parse_command_line(argc, argv, opts);
@@ -952,6 +969,15 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     os = std::move(ofs);
   } else {
     os = std::make_unique<std::ostringstream>();
+  }
+
+  options.enable_history = !no_history;
+
+  if (options.enable_history) {
+    options.history.with_timestamps = !no_history_timestamps;
+    if (!no_history_command_line) {
+      options.command_line_arguments = command_line;
+    }
   }
 
   // TODO: the whole re-writing thing will be a bit weird in combination

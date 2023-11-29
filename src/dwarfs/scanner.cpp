@@ -46,6 +46,7 @@
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fragment_chunkable.h"
 #include "dwarfs/global_entry_data.h"
+#include "dwarfs/history.h"
 #include "dwarfs/inode.h"
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/inode_ordering.h"
@@ -903,6 +904,12 @@ void scanner_<LoggerPolicy>::scan(
 
   fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
   fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
+
+  if (options_.enable_history) {
+    history hist(options_.history);
+    hist.append(options_.command_line_arguments);
+    fsw.write_history(std::make_shared<block_data>(hist.serialize()));
+  }
 
   LOG_INFO << "waiting for compression to finish...";
 

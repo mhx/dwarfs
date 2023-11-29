@@ -359,6 +359,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
                    std::optional<std::string> meta) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
+  void write_history(std::shared_ptr<block_data>&& data) override;
   void write_compressed_section(section_type type, compression_type compression,
                                 std::span<uint8_t const> data) override;
   void flush() override;
@@ -735,6 +736,13 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_metadata_v2(
     std::shared_ptr<block_data>&& data) {
   write_section(section_type::METADATA_V2, std::move(data), metadata_bc_);
+}
+
+template <typename LoggerPolicy>
+void filesystem_writer_<LoggerPolicy>::write_history(
+    std::shared_ptr<block_data>&& data) {
+  write_section(section_type::HISTORY, std::move(data),
+                metadata_bc_); // TODO: history_bc_?
 }
 
 template <typename LoggerPolicy>

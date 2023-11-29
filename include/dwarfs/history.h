@@ -21,34 +21,32 @@
 
 #pragma once
 
-#include <cstdint>
-#include <string_view>
+#include <iosfwd>
+#include <optional>
+#include <span>
+#include <string>
 #include <vector>
+
+#include "dwarfs/options.h"
+
+#include "dwarfs/gen-cpp2/history_types.h"
 
 namespace dwarfs {
 
-class block_data {
+class history {
  public:
-  block_data() = default;
-  explicit block_data(std::vector<uint8_t>&& vec)
-      : vec_{std::move(vec)} {}
-  explicit block_data(std::string_view str)
-      : vec_{str.begin(), str.end()} {}
+  explicit history(history_config const& cfg = {});
 
-  std::vector<uint8_t> const& vec() const { return vec_; }
-  std::vector<uint8_t>& vec() { return vec_; }
-
-  void reserve(size_t size) { vec_.reserve(size); }
-
-  uint8_t const* data() const { return vec_.data(); }
-  uint8_t* data() { return vec_.data(); }
-
-  size_t size() const { return vec_.size(); }
-
-  bool empty() const { return vec_.empty(); }
+  void parse(std::span<uint8_t const> data);
+  void parse_append(std::span<uint8_t const> data);
+  thrift::history::history const& get() const { return history_; }
+  void append(std::optional<std::vector<std::string>> args);
+  std::vector<uint8_t> serialize() const;
+  void dump(std::ostream& os) const;
 
  private:
-  std::vector<uint8_t> vec_;
+  thrift::history::history history_;
+  history_config const cfg_;
 };
 
 } // namespace dwarfs

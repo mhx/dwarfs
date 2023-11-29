@@ -35,14 +35,17 @@ namespace dwarfs {
 
 namespace {
 
+// clang-format off
 const std::map<section_type, std::string_view> sections{
 #define SECTION_TYPE_(x) {section_type::x, #x}
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
     SECTION_TYPE_(METADATA_V2),
     SECTION_TYPE_(SECTION_INDEX),
+    SECTION_TYPE_(HISTORY),
 #undef SECTION_TYPE_
 };
+// clang-format on
 
 const std::map<compression_type, std::string_view> compressions{
 #define DWARFS_COMPRESSION_TYPE_(name, value) {compression_type::name, #name}

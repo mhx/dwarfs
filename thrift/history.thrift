@@ -19,36 +19,37 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+include "thrift/annotation/cpp.thrift"
 
-#include <cstdint>
-#include <string_view>
-#include <vector>
+namespace cpp2 dwarfs.thrift.history
 
-namespace dwarfs {
+@cpp.Type{name = "uint8_t"}
+typedef byte UInt8
+@cpp.Type{name = "uint16_t"}
+typedef i16 UInt16
+@cpp.Type{name = "uint32_t"}
+typedef i32 UInt32
+@cpp.Type{name = "uint64_t"}
+typedef i64 UInt64
 
-class block_data {
- public:
-  block_data() = default;
-  explicit block_data(std::vector<uint8_t>&& vec)
-      : vec_{std::move(vec)} {}
-  explicit block_data(std::string_view str)
-      : vec_{str.begin(), str.end()} {}
+struct dwarfs_version {
+   1: UInt16 major
+   2: UInt16 minor
+   3: UInt16 patch
+   4: bool is_release
+   5: optional string git_rev
+   6: optional string git_branch
+   7: optional string git_desc
+}
 
-  std::vector<uint8_t> const& vec() const { return vec_; }
-  std::vector<uint8_t>& vec() { return vec_; }
+struct history_entry {
+   1: dwarfs_version version
+   2: string system_id
+   3: string compiler_id
+   4: optional list<string> arguments
+   5: optional UInt64 timestamp
+}
 
-  void reserve(size_t size) { vec_.reserve(size); }
-
-  uint8_t const* data() const { return vec_.data(); }
-  uint8_t* data() { return vec_.data(); }
-
-  size_t size() const { return vec_.size(); }
-
-  bool empty() const { return vec_.empty(); }
-
- private:
-  std::vector<uint8_t> vec_;
-};
-
-} // namespace dwarfs
+struct history {
+   1: list<history_entry> entries
+}

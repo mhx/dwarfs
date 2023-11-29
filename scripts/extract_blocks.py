@@ -28,6 +28,7 @@ sectypes = {
     7: "schema",
     8: "metadata",
     9: "index",
+    10: "history",
 }
 
 compalgs = {

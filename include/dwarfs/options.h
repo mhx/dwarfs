@@ -27,6 +27,7 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "dwarfs/categorized_option.h"
 #include "dwarfs/file_stat.h"
@@ -48,6 +49,10 @@ struct block_cache_options {
   bool mm_release{true};
   bool init_workers{true};
   bool disable_block_integrity_check{false};
+};
+
+struct history_config {
+  bool with_timestamps{false};
 };
 
 struct cache_tidy_config {
@@ -123,6 +128,9 @@ struct scanner_options {
   bool no_create_timestamp{true};
   std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
   size_t num_segmenter_workers{1};
+  bool enable_history{true};
+  std::optional<std::vector<std::string>> command_line_arguments;
+  history_config history;
 };
 
 struct rewrite_options {

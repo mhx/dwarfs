@@ -102,6 +102,10 @@ class filesystem_writer {
     impl_->write_metadata_v2(std::move(data));
   }
 
+  void write_history(std::shared_ptr<block_data>&& data) {
+    impl_->write_history(std::move(data));
+  }
+
   void write_compressed_section(section_type type, compression_type compression,
                                 std::span<uint8_t const> data) {
     impl_->write_compressed_section(type, compression, data);
@@ -136,6 +140,7 @@ class filesystem_writer {
     virtual void
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
+    virtual void write_history(std::shared_ptr<block_data>&& data) = 0;
     virtual void
     write_compressed_section(section_type type, compression_type compression,
                              std::span<uint8_t const> data) = 0;

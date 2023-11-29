@@ -39,6 +39,7 @@
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fs_section.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/history.h"
 #include "dwarfs/inode_reader_v2.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
@@ -260,7 +261,7 @@ class filesystem_parser {
   std::vector<uint64_t> index_;
 };
 
-using section_map = std::unordered_map<section_type, fs_section>;
+using section_map = std::unordered_map<section_type, std::vector<fs_section>>;
 
 size_t
 get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
@@ -303,11 +304,19 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     DWARFS_THROW(runtime_error, "no metadata schema found");
   }
 
+  if (schema_it->second.size() > 1) {
+    DWARFS_THROW(runtime_error, "multiple metadata schemas found");
+  }
+
   if (meta_it == sections.end()) {
     DWARFS_THROW(runtime_error, "no metadata found");
   }
 
-  auto& meta_section = meta_it->second;
+  if (meta_it->second.size() > 1) {
+    DWARFS_THROW(runtime_error, "multiple metadata found");
+  }
+
+  auto& meta_section = meta_it->second.front();
 
   auto meta_section_range =
       get_section_data(mm, meta_section, meta_buffer, force_buffers);
@@ -329,10 +338,11 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  return metadata_v2(
-      lgr,
-      get_section_data(mm, schema_it->second, schema_buffer, force_buffers),
-      meta_section_range, options, inode_offset, force_consistency_check);
+  return metadata_v2(lgr,
+                     get_section_data(mm, schema_it->second.front(),
+                                      schema_buffer, force_buffers),
+                     meta_section_range, options, inode_offset,
+                     force_consistency_check);
 }
 
 template <typename LoggerPolicy>
@@ -376,6 +386,7 @@ class filesystem_ final : public filesystem_v2::impl {
   }
   size_t num_blocks() const override { return ir_.num_blocks(); }
   bool has_symlinks() const override { return meta_.has_symlinks(); }
+  history const& get_history() const override { return history_; }
 
  private:
   filesystem_info const& get_info() const;
@@ -390,6 +401,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
+  history history_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -461,6 +473,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     : LOG_PROXY_INIT(lgr)
     , mm_(std::move(mm))
     , parser_(mm_, options.image_offset)
+    , history_({.with_timestamps = true})
     // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
     PERFMON_CLS_TIMER_INIT(find_path)
@@ -498,9 +511,7 @@ filesystem_<LoggerPolicy>::filesystem_(
         DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
       }
 
-      if (!sections.emplace(s->type(), *s).second) {
-        DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
-      }
+      sections[s->type()].push_back(*s);
     }
   }
 
@@ -516,10 +527,21 @@ filesystem_<LoggerPolicy>::filesystem_(
   cache.set_block_size(meta_.block_size());
 
   ir_ = inode_reader_v2(lgr, std::move(cache), perfmon);
+
+  if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
+    for (auto& section : it->second) {
+      std::vector<uint8_t> buffer;
+      history_.parse_append(get_section_data(mm_, section, buffer, false));
+    }
+  }
 }
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
+  if (detail_level > 1) {
+    history_.dump(os);
+  }
+
   meta_.dump(os, detail_level, get_info(),
              [&](const std::string& indent, uint32_t inode) {
                if (auto chunks = meta_.get_chunks(inode)) {
@@ -716,10 +738,11 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     if (s->type() == section_type::BLOCK) {
       ++prog.block_count;
     } else if (s->type() != section_type::SECTION_INDEX) {
-      if (!sections.emplace(s->type(), *s).second) {
-        DWARFS_THROW(runtime_error, "duplicate section: " + s->name());
+      auto& secvec = sections[s->type()];
+      if (secvec.empty()) {
+        section_types.push_back(s->type());
       }
-      section_types.push_back(s->type());
+      secvec.push_back(*s);
     }
   }
 
@@ -755,8 +778,10 @@ void filesystem_v2::rewrite(logger& lgr, progress& prog,
     writer.write_metadata_v2(std::make_shared<block_data>(std::move(meta_raw)));
   } else {
     for (auto type : section_types) {
-      auto& sec = DWARFS_NOTHROW(sections.at(type));
-      writer.write_compressed_section(type, sec.compression(), sec.data(*mm));
+      auto& secvec = DWARFS_NOTHROW(sections.at(type));
+      for (auto& sec : secvec) {
+        writer.write_compressed_section(type, sec.compression(), sec.data(*mm));
+      }
     }
   }
 

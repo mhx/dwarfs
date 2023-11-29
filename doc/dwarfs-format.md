@@ -114,6 +114,11 @@ There are currently 4 different section types.
   file, you should find a valid section header for the section
   index.
 
+- `HISTORY` (10):
+  File system history information as defined `thrift/history.thrift`.
+  This is stored in "compact" thrift encoding. Zero or more history
+  sections are supported.
+
 ## METADATA FORMAT
 
 Here is a high-level overview of how all the bits and pieces relate
