@@ -782,7 +782,7 @@ TEST_P(file_scanner, inode_ordering) {
   opts.inode.fragment_order.set_default(order_opts);
 
   auto input = std::make_shared<test::os_access_mock>();
-  constexpr int dim = 14;
+  constexpr int dim{14};
 
   input->add_dir("");
 
@@ -792,7 +792,7 @@ TEST_P(file_scanner, inode_ordering) {
       input->add_dir(fmt::format("{}/{}", x, y));
       for (int z = 0; z < dim; ++z) {
         input->add_file(fmt::format("{}/{}/{}", x, y, z),
-                        (x + 1) * (y + 1) * (z + 1));
+                        (x + 1) * (y + 1) * (z + 1), true);
       }
     }
   }
@@ -813,7 +813,8 @@ INSTANTIATE_TEST_SUITE_P(
     dwarfs, file_scanner,
     ::testing::Combine(::testing::Values(file_order_mode::PATH,
                                          file_order_mode::REVPATH,
-                                         file_order_mode::SIMILARITY),
+                                         file_order_mode::SIMILARITY,
+                                         file_order_mode::NILSIMSA),
                        ::testing::Values(std::nullopt, "xxh3-128")));
 
 class filter : public testing::TestWithParam<dwarfs::test::filter_test_data> {};
