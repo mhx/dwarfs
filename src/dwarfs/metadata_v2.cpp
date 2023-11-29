@@ -447,6 +447,8 @@ class metadata_ final : public metadata_v2::impl {
 
   bool has_symlinks() const override { return !meta_.symlink_table().empty(); }
 
+  folly::dynamic get_inode_info(inode_view iv) const override;
+
  private:
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
@@ -1523,6 +1525,40 @@ template <typename LoggerPolicy>
 std::optional<chunk_range>
 metadata_<LoggerPolicy>::get_chunks(int inode) const {
   return get_chunk_range(inode - inode_offset_);
+}
+
+template <typename LoggerPolicy>
+folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
+  folly::dynamic obj = folly::dynamic::object;
+
+  auto chunk_range = get_chunk_range(iv.inode_num());
+
+  if (chunk_range) {
+    obj["chunks"] = folly::dynamic::array;
+
+    for (auto const& chunk : *chunk_range) {
+      folly::dynamic chk = folly::dynamic::object;
+
+      chk["block"] = chunk.block();
+      chk["offset"] = chunk.offset();
+      chk["size"] = chunk.size();
+
+      if (meta_.category_names() && meta_.block_categories()) {
+        chk["category"] =
+            meta_.category_names()
+                .value()[meta_.block_categories().value()[chunk.block()]];
+      }
+
+      obj["chunks"].push_back(chk);
+    }
+  }
+
+  obj["mode"] = iv.mode();
+  obj["modestring"] = modestring(iv.mode());
+  obj["uid"] = iv.getuid();
+  obj["gid"] = iv.getgid();
+
+  return obj;
 }
 
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>

@@ -134,6 +134,10 @@ class metadata_v2 {
 
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
+  folly::dynamic get_inode_info(inode_view iv) const {
+    return impl_->get_inode_info(iv);
+  }
+
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 
@@ -188,6 +192,8 @@ class metadata_v2 {
     virtual size_t block_size() const = 0;
 
     virtual bool has_symlinks() const = 0;
+
+    virtual folly::dynamic get_inode_info(inode_view iv) const = 0;
   };
 
  private:

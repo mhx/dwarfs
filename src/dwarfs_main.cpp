@@ -36,6 +36,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
+#include <folly/json.h>
 
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
@@ -182,6 +183,7 @@ namespace {
 
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
 constexpr std::string_view perfmon_xattr{"user.dwarfs.driver.perfmon"};
+constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
 
 } // namespace
 
@@ -828,6 +830,17 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
         oss << "no performance monitor support\n";
 #endif
       }
+    } else {
+      if (name == inodeinfo_xattr) {
+        auto entry = userdata->fs.find(ino);
+
+        if (entry) {
+          auto ii = userdata->fs.get_inode_info(*entry);
+          oss << folly::toPrettyJson(ii) << "\n";
+        } else {
+          err = ENOENT;
+        }
+      }
     }
 
     auto value = oss.view();
@@ -886,6 +899,8 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
     if (ino == FUSE_ROOT_ID) {
       oss << pid_xattr << '\0';
       oss << perfmon_xattr << '\0';
+    } else {
+      oss << inodeinfo_xattr << '\0';
     }
 
     auto xattrs = oss.view();

@@ -174,6 +174,10 @@ class filesystem_v2 {
 
   history const& get_history() const { return impl_->get_history(); }
 
+  folly::dynamic get_inode_info(inode_view entry) const {
+    return impl_->get_inode_info(entry);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -214,6 +218,7 @@ class filesystem_v2 {
     virtual size_t num_blocks() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual history const& get_history() const = 0;
+    virtual folly::dynamic get_inode_info(inode_view entry) const = 0;
   };
 
  private:

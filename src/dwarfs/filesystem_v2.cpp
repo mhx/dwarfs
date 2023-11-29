@@ -387,6 +387,9 @@ class filesystem_ final : public filesystem_v2::impl {
   size_t num_blocks() const override { return ir_.num_blocks(); }
   bool has_symlinks() const override { return meta_.has_symlinks(); }
   history const& get_history() const override { return history_; }
+  folly::dynamic get_inode_info(inode_view entry) const override {
+    return meta_.get_inode_info(entry);
+  }
 
  private:
   filesystem_info const& get_info() const;
