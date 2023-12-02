@@ -141,7 +141,7 @@ map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
 MappedFrozen<thrift::metadata::metadata>
 check_frozen(MappedFrozen<thrift::metadata::metadata> meta) {
   if (meta.features()) {
-    auto unsupported = get_unsupported_features(meta.features()->thaw());
+    auto unsupported = feature_set::get_unsupported(meta.features()->thaw());
     if (!unsupported.empty()) {
       DWARFS_THROW(runtime_error,
                    fmt::format("file system uses the following features "

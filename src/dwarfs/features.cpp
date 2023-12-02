@@ -22,38 +22,42 @@
 #include <algorithm>
 #include <iterator>
 
+#include <thrift/lib/cpp/util/EnumUtils.h>
+
 #include "dwarfs/features.h"
 
 namespace dwarfs {
 
 namespace {
 
-std::set<std::string> supported_features{
-#ifdef DWARFS_HAVE_LIBZSTD
-    "zstd",
-#endif
-#ifdef DWARFS_HAVE_LIBLZ4
-    "lz4",
-#endif
-#ifdef DWARFS_HAVE_LIBLZMA
-    "lzma",
-#endif
-#ifdef DWARFS_HAVE_LIBBROTLI
-    "brotli",
-#endif
-#ifdef DWARFS_HAVE_FLAC
-    "flac",
-#endif
-};
+constexpr bool is_supported_feature(feature /*f*/) { return true; }
+
+std::string feature_name(feature f) {
+  return apache::thrift::util::enumNameOrThrow(f);
+}
 
 } // namespace
 
-std::set<std::string> get_unsupported_features(std::set<std::string> features) {
+void feature_set::add(feature f) { features_.insert(feature_name(f)); }
+
+std::set<std::string> feature_set::get_supported() {
   std::set<std::string> rv;
-  std::set_difference(features.begin(), features.end(),
-                      supported_features.begin(), supported_features.end(),
-                      std::inserter(rv, rv.end()));
+  for (auto f : apache::thrift::TEnumTraits<feature>::values) {
+    if (is_supported_feature(f)) {
+      rv.insert(feature_name(f));
+    }
+  }
   return rv;
+};
+
+std::set<std::string>
+feature_set::get_unsupported(std::set<std::string> wanted_features) {
+  auto const supported_features = get_supported();
+  std::set<std::string> missing;
+  std::set_difference(wanted_features.begin(), wanted_features.end(),
+                      supported_features.begin(), supported_features.end(),
+                      std::inserter(missing, missing.end()));
+  return missing;
 }
 
 } // namespace dwarfs

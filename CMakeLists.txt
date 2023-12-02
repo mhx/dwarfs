@@ -748,6 +748,27 @@ list(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_visit_union.h
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_visitation.h)
 
+list(
+  APPEND
+  FEATURES_THRIFT_SRC
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_clients.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_constants.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_constants.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_for_each_field.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_handlers.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_metadata.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_metadata.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.tcc
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types_custom_protocol.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types_fwd.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visit_by_thrift_field_metadata.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visit_union.h
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visitation.h)
+
 add_custom_command(
   OUTPUT thrift/lib/thrift/_keep
   COMMAND ${CMAKE_COMMAND} -E make_directory thrift/lib/thrift
@@ -824,6 +845,21 @@ add_custom_command(
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
 )
 
+add_custom_command(
+  OUTPUT ${FEATURES_THRIFT_SRC}
+  COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_CURRENT_SOURCE_DIR}/thrift/features.thrift
+              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/features.thrift
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+              --gen mstch_cpp2
+              features.thrift
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
+          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
+          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/features.thrift
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
+)
+
 list(
   APPEND
   INCLUDE_DIRS
@@ -890,17 +926,25 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_data.cpp)
 
+add_library(
+  features_thrift
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.cpp)
+
 set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 20)
 set_property(TARGET compression_thrift PROPERTY CXX_STANDARD 20)
 set_property(TARGET history_thrift PROPERTY CXX_STANDARD 20)
+set_property(TARGET features_thrift PROPERTY CXX_STANDARD 20)
 
 target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
 target_include_directories(compression_thrift PRIVATE ${INCLUDE_DIRS})
 target_include_directories(history_thrift PRIVATE ${INCLUDE_DIRS})
+target_include_directories(features_thrift PRIVATE ${INCLUDE_DIRS})
 
 target_link_libraries(metadata_thrift thrift_light)
 target_link_libraries(compression_thrift thrift_light)
 target_link_libraries(history_thrift thrift_light)
+target_link_libraries(features_thrift thrift_light)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
@@ -992,7 +1036,7 @@ target_link_libraries(
   dwarfs
   metadata_thrift
   history_thrift
-  thrift_light
+  features_thrift
   folly
   fsst
   ${Boost_LIBRARIES})

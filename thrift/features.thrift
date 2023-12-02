@@ -19,26 +19,16 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+namespace cpp2 dwarfs
 
-#include <set>
-#include <string>
-
-#include "dwarfs/gen-cpp2/features_types.h"
-
-namespace dwarfs {
-
-class feature_set {
- public:
-  static std::set<std::string> get_supported();
-  static std::set<std::string> get_unsupported(std::set<std::string> features);
-
-  void add(feature f);
-
-  std::set<std::string> const& get() const { return features_; }
-
- private:
-  std::set<std::string> features_;
-};
-
-} // namespace dwarfs
+// It is actually ok to change the values of the enumerators,
+// to add new enumerators, or to remove existing enumerators.
+// However, *never* change the name of an enumerator, because
+// the stringified name is used to serialize feature sets in
+// the metadata. Also, *never* reuse an enumerator name, for
+// the same reason. Be extra careful when removing enumerators,
+// as this will break compatibility with older metadata using
+// the feature defined by the removed enumerator.
+enum feature {
+  // There are no features yet :-)
+}
