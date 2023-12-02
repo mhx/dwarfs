@@ -42,6 +42,7 @@
 #include "dwarfs/categorizer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
+#include "dwarfs/features.h"
 #include "dwarfs/file_scanner.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fragment_chunkable.h"
@@ -624,6 +625,7 @@ void scanner_<LoggerPolicy>::scan(
 
   global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
+  feature_set features;
 
   mv2.symlink_table()->resize(first_file_inode - first_link_inode);
 
@@ -897,6 +899,8 @@ void scanner_<LoggerPolicy>::scan(
     mv2.category_names() = std::move(category_names);
     mv2.block_categories() = std::move(written_categories);
   }
+
+  mv2.features() = features.get();
 
   auto [schema, data] = metadata_v2::freeze(mv2);
 
