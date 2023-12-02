@@ -370,7 +370,9 @@ struct metadata {
 
   // The set of features used in this file system image. As long
   // as an older binary supports all features, it will be able
-  // to use images created with newer versions.
+  // to use images created with newer versions. We use strings
+  // here instead of an enum so older versions can still output
+  // names of features used by a newer version.
   27: optional set<string>      features
 
   //=========================================================//
