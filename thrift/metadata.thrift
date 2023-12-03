@@ -345,6 +345,19 @@ struct metadata {
 
   25: optional string_table     compact_symlinks,
 
+  //=========================================================//
+  // fields added with dwarfs-0.7.0, file system version 2.5 //
+  //=========================================================//
+
    // preferred path separator of original file system
-  26: optional UInt32           preferred_path_separator,
+  26: optional UInt32           preferred_path_separator
+
+  //=========================================================//
+  // fields added with dwarfs-0.7.3, file system version 2.5 //
+  //=========================================================//
+
+  // The set of features used in this file system image. As long
+  // as an older binary supports all features, it will be able
+  // to use images created with newer versions.
+  27: optional set<string>      features,
 }

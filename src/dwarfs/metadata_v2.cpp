@@ -136,6 +136,20 @@ map_frozen(std::span<uint8_t const> schema, std::span<uint8_t const> data) {
   return ret;
 }
 
+MappedFrozen<thrift::metadata::metadata>
+check_frozen(MappedFrozen<thrift::metadata::metadata> meta) {
+  if (meta.features()) {
+    auto unsupported = meta.features()->thaw();
+    if (!unsupported.empty()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("file system uses the following features "
+                               "unsupported by this build: {}",
+                               boost::join(unsupported, ", ")));
+    }
+  }
+  return meta;
+}
+
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
@@ -302,7 +316,8 @@ class metadata_ final : public metadata_v2::impl {
             std::span<uint8_t const> data, metadata_options const& options,
             int inode_offset, bool force_consistency_check)
       : data_(data)
-      , meta_(map_frozen<thrift::metadata::metadata>(schema, data_))
+      , meta_(
+            check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_)))
       , global_(lgr, &meta_,
                 options.check_consistency || force_consistency_check)
       , root_(dir_entry_view::from_dir_entry_index(0, &global_))
