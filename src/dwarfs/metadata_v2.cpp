@@ -37,6 +37,7 @@
 
 #include <fmt/format.h>
 
+#include <folly/container/Enumerate.h>
 #include <folly/container/F14Set.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
@@ -987,6 +988,43 @@ void metadata_<LoggerPolicy>::dump(
       if (auto res = opt->time_resolution_sec()) {
         os << "time resolution: " << *res << " seconds\n";
       }
+    }
+  }
+
+  if (meta_.block_categories()) {
+    auto const& catnames = *meta_.category_names();
+    struct category_info {
+      size_t count{0};
+      size_t compressed_size{0};
+      size_t uncompressed_size{0};
+      bool uncompressed_size_is_estimate{false};
+    };
+    std::map<size_t, category_info> catinfo;
+    for (auto [block, category] : folly::enumerate(*meta_.block_categories())) {
+      auto& ci = catinfo[category];
+      ++ci.count;
+      ci.compressed_size += fsinfo.compressed_block_sizes.at(block);
+      if (auto size = fsinfo.uncompressed_block_sizes.at(block)) {
+        ci.uncompressed_size += *size;
+      } else {
+        ci.uncompressed_size_is_estimate = true;
+      }
+    }
+    os << "categories:\n";
+    for (auto const& [category, ci] : catinfo) {
+      os << "  " << catnames[category] << ": " << ci.count << " blocks";
+      if (ci.uncompressed_size_is_estimate ||
+          ci.uncompressed_size != ci.compressed_size) {
+        os << ", " << size_with_unit(ci.compressed_size) << " compressed";
+      }
+      if (!ci.uncompressed_size_is_estimate) {
+        os << ", " << size_with_unit(ci.uncompressed_size) << " uncompressed";
+        if (ci.uncompressed_size != ci.compressed_size) {
+          os << fmt::format(" ({0:.2f}%)", (100.0 * ci.compressed_size) /
+                                               ci.uncompressed_size);
+        }
+      }
+      os << "\n";
     }
   }
 

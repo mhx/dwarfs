@@ -443,19 +443,22 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
       if (s->type() == section_type::BLOCK) {
         ++info.block_count;
         info.compressed_block_size += s->length();
+        info.compressed_block_sizes.push_back(s->length());
         try {
-          info.uncompressed_block_size +=
-              get_uncompressed_section_size(mm_, *s);
-        } catch (std::exception const& e) {
+          auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
+          info.uncompressed_block_size += uncompressed_size;
+          info.uncompressed_block_sizes.push_back(uncompressed_size);
+        } catch (std::exception const&) {
           info.uncompressed_block_size += s->length();
           info.uncompressed_block_size_is_estimate = true;
+          info.uncompressed_block_sizes.push_back(std::nullopt);
         }
       } else if (s->type() == section_type::METADATA_V2) {
         info.compressed_metadata_size += s->length();
         try {
           info.uncompressed_metadata_size +=
               get_uncompressed_section_size(mm_, *s);
-        } catch (std::exception const& e) {
+        } catch (std::exception const&) {
           info.uncompressed_metadata_size += s->length();
           info.uncompressed_metadata_size_is_estimate = true;
         }

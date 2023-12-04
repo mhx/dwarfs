@@ -24,7 +24,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "dwarfs/block_compressor.h" // TODO: or the other way round?
 #include "dwarfs/checksum.h"
@@ -90,6 +92,8 @@ struct filesystem_info {
   uint64_t uncompressed_metadata_size{0};
   bool uncompressed_block_size_is_estimate{false};
   bool uncompressed_metadata_size_is_estimate{false};
+  std::vector<size_t> compressed_block_sizes;
+  std::vector<std::optional<size_t>> uncompressed_block_sizes;
 };
 
 bool is_known_compression_type(compression_type type);
