@@ -254,6 +254,15 @@ void analyze_frozen(std::ostream& os,
     }                                                                          \
   } while (0)
 
+#define META_OPT_STRING_LIST_SIZE(x)                                           \
+  do {                                                                         \
+    if (auto list = meta.x()) {                                                \
+      add_string_list_size(#x, *list, l->x##Field.layout.valueField);          \
+    }                                                                          \
+  } while (0)
+
+#define META_OPT_STRING_SET_SIZE(x) META_OPT_STRING_LIST_SIZE(x)
+
 #define META_OPT_STRING_TABLE_SIZE(x)                                          \
   do {                                                                         \
     if (auto table = meta.x()) {                                               \
@@ -280,7 +289,14 @@ void analyze_frozen(std::ostream& os,
   META_STRING_LIST_SIZE(names);
   META_STRING_LIST_SIZE(symlinks);
 
+  META_OPT_STRING_SET_SIZE(features);
+
+  META_OPT_STRING_LIST_SIZE(category_names);
+  META_OPT_LIST_SIZE(block_categories);
+
 #undef META_LIST_SIZE
+#undef META_OPT_STRING_SET_SIZE
+#undef META_OPT_STRING_LIST_SIZE
 #undef META_STRING_LIST_SIZE
 #undef META_OPT_LIST_SIZE
 #undef META_OPT_STRING_TABLE_SIZE
