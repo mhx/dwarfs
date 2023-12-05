@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.7.3 - 2023-12-05
+
+- (feature) Support forward-compatibility. Fixes github #158.
+
 ## Version 0.7.2 - 2023-07-24
 
 - (fix) Fix locale fallback if user-default locale cannot be set.
