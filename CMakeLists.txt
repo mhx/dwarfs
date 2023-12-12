@@ -48,6 +48,7 @@ else()
   option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
+  option(DISABLE_MOLD "disable mold" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
@@ -69,6 +70,15 @@ endif()
 
 if(DEFINED ENV{CCACHE_PREFIX})
   add_compile_options(-Wno-gnu-line-marker)
+endif()
+
+if(NOT WIN32)
+  if(NOT DISABLE_MOLD)
+    find_program(MOLD_EXE mold)
+    if(MOLD_EXE)
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=${MOLD_EXE}")
+    endif()
+  endif()
 endif()
 
 set(default_build_type "Release")
