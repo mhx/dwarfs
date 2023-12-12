@@ -81,6 +81,8 @@ class null_block_decompressor final : public block_decompressor::impl {
 
   compression_type type() const override { return compression_type::NONE; }
 
+  std::optional<std::string> metadata() const override { return std::nullopt; }
+
   bool decompress_frame(size_t frame_size) override {
     if (decompressed_.size() + frame_size > uncompressed_size_) {
       frame_size = uncompressed_size_ - decompressed_.size();

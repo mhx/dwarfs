@@ -425,6 +425,21 @@ class flac_block_decompressor final : public block_decompressor::impl {
 
   compression_type type() const override { return compression_type::FLAC; }
 
+  std::optional<std::string> metadata() const override {
+    auto const flags = header_.flags().value();
+    folly::dynamic meta = folly::dynamic::object
+        // clang-format off
+      ("endianness",         flags & kFlagBigEndian ? "big" : "little")
+      ("signedness",         flags & kFlagSigned ? "signed" : "unsigned")
+      ("padding",            flags & kFlagLsbPadding ? "lsb" : "msb")
+      ("bytes_per_sample",   (flags & kBytesPerSampleMask) + 1)
+      ("bits_per_sample",    header_.bits_per_sample().value())
+      ("number_of_channels", header_.num_channels().value())
+      ; // clang-format on
+
+    return folly::toJson(meta);
+  }
+
   bool decompress_frame(size_t frame_size) override {
     size_t pos = decompressed_.size();
 

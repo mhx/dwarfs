@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -128,6 +129,8 @@ class block_decompressor {
 
   compression_type type() const { return impl_->type(); }
 
+  std::optional<std::string> metadata() const { return impl_->metadata(); }
+
   static std::vector<uint8_t>
   decompress(compression_type type, const uint8_t* data, size_t size) {
     std::vector<uint8_t> target;
@@ -142,6 +145,7 @@ class block_decompressor {
 
     virtual bool decompress_frame(size_t frame_size) = 0;
     virtual size_t uncompressed_size() const = 0;
+    virtual std::optional<std::string> metadata() const = 0;
 
     virtual compression_type type() const = 0;
   };

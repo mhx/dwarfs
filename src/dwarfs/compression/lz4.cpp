@@ -125,6 +125,8 @@ class lz4_block_decompressor final : public block_decompressor::impl {
 
   compression_type type() const override { return compression_type::LZ4; }
 
+  std::optional<std::string> metadata() const override { return std::nullopt; }
+
   bool decompress_frame(size_t) override {
     if (!error_.empty()) {
       DWARFS_THROW(runtime_error, error_);
