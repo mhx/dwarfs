@@ -21,16 +21,21 @@
 
 #include <algorithm>
 
+#include <folly/json.h>
+
 #include "dwarfs/compression_metadata_requirements.h"
 
-namespace dwarfs::detail {
+namespace dwarfs {
+
+namespace detail {
 
 void check_dynamic_common(folly::dynamic const& dyn,
                           std::string_view expected_type, size_t expected_size,
                           std::string_view name) {
   if (dyn.type() != folly::dynamic::ARRAY) {
     throw std::runtime_error(
-        fmt::format("found non-array type for requirement '{}'", name));
+        fmt::format("found non-array type for requirement '{}', got type '{}'",
+                    name, dyn.typeName()));
   }
   if (dyn.empty()) {
     throw std::runtime_error(
@@ -56,8 +61,181 @@ void check_unsupported_metadata_requirements(folly::dynamic& req) {
     }
     std::sort(keys.begin(), keys.end());
     throw std::runtime_error(fmt::format(
-        "unsupported metadata requirements: {}", folly::join(", ", keys)));
+        "unsupported metadata requirements: {}", fmt::join(keys, ", ")));
   }
 }
 
-} // namespace dwarfs::detail
+template <typename T>
+class dynamic_metadata_requirement_set
+    : public dynamic_metadata_requirement_base {
+ public:
+  static_assert(std::is_same_v<T, std::string> || std::is_integral_v<T>);
+
+  dynamic_metadata_requirement_set(std::string const& name,
+                                   folly::dynamic const& req)
+      : dynamic_metadata_requirement_base{name} {
+    auto tmp = req;
+    if (!parse_metadata_requirements_set(set_, tmp, name,
+                                         detail::value_parser<T>)) {
+      throw std::runtime_error(
+          fmt::format("could not parse set requirement '{}'", name));
+    }
+  }
+
+  void check(folly::dynamic const& dyn) const override {
+    if constexpr (std::is_same_v<T, std::string>) {
+      if (!dyn.isString()) {
+        throw std::runtime_error(
+            fmt::format("non-string type for requirement '{}', got type '{}'",
+                        name(), dyn.typeName()));
+      }
+
+      if (set_.find(dyn.asString()) == set_.end()) {
+        throw std::runtime_error(
+            fmt::format("{} '{}' does not meet requirements [{}]", name(),
+                        dyn.asString(), fmt::join(ordered_set(), ", ")));
+      }
+    } else {
+      if (!dyn.isInt()) {
+        throw std::runtime_error(
+            fmt::format("non-integral type for requirement '{}', got type '{}'",
+                        name(), dyn.typeName()));
+      }
+
+      if (set_.find(dyn.asInt()) == set_.end()) {
+        throw std::runtime_error(
+            fmt::format("{} '{}' does not meet requirements [{}]", name(),
+                        dyn.asInt(), fmt::join(ordered_set(), ", ")));
+      }
+    }
+  }
+
+ private:
+  std::vector<T> ordered_set() const {
+    std::vector<T> result;
+    result.reserve(set_.size());
+    std::copy(set_.begin(), set_.end(), std::back_inserter(result));
+    std::sort(result.begin(), result.end());
+    return result;
+  }
+
+  std::unordered_set<T> set_;
+};
+
+class dynamic_metadata_requirement_range
+    : public dynamic_metadata_requirement_base {
+ public:
+  dynamic_metadata_requirement_range(std::string const& name,
+                                     folly::dynamic const& req)
+      : dynamic_metadata_requirement_base{name} {
+    auto tmp = req;
+    if (!parse_metadata_requirements_range(min_, max_, tmp, name,
+                                           detail::value_parser<int64_t>)) {
+      throw std::runtime_error(
+          fmt::format("could not parse range requirement '{}'", name));
+    }
+  }
+
+  void check(folly::dynamic const& dyn) const override {
+    if (!dyn.isInt()) {
+      throw std::runtime_error(
+          fmt::format("non-integral type for requirement '{}', got type '{}'",
+                      name(), dyn.typeName()));
+    }
+
+    auto v = dyn.asInt();
+
+    if (v < min_ || v > max_) {
+      throw std::runtime_error(
+          fmt::format("{} '{}' does not meet requirements [{}, {}]", name(), v,
+                      min_, max_));
+    }
+  }
+
+ private:
+  int64_t min_, max_;
+};
+
+} // namespace detail
+
+compression_metadata_requirements<
+    folly::dynamic>::compression_metadata_requirements(std::string const& req)
+    : compression_metadata_requirements(folly::parseJson(req)) {}
+
+compression_metadata_requirements<folly::dynamic>::
+    compression_metadata_requirements(folly::dynamic const& req) {
+  if (req.type() != folly::dynamic::OBJECT) {
+    throw std::runtime_error(
+        fmt::format("metadata requirements must be an object, got type '{}'",
+                    req.typeName()));
+  }
+
+  for (auto const& [k, v] : req.items()) {
+    if (v.type() != folly::dynamic::ARRAY) {
+      throw std::runtime_error(
+          fmt::format("requirement '{}' must be an array, got type '{}'",
+                      k.asString(), v.typeName()));
+    }
+
+    if (v.size() < 2) {
+      throw std::runtime_error(
+          fmt::format("requirement '{}' must be an array of at least 2 "
+                      "elements, got only {}",
+                      k.asString(), v.size()));
+    }
+
+    if (v[0].type() != folly::dynamic::STRING) {
+      throw std::runtime_error(fmt::format(
+          "type for requirement '{}' must be a string, got type '{}'",
+          k.asString(), v[0].typeName()));
+    }
+
+    if (v[0].asString() == "set") {
+      if (v[1].type() != folly::dynamic::ARRAY) {
+        throw std::runtime_error(fmt::format(
+            "set for requirement '{}' must be an array, got type '{}'",
+            k.asString(), v[1].typeName()));
+      }
+      if (v[1].empty()) {
+        throw std::runtime_error(fmt::format(
+            "set for requirement '{}' must not be empty", k.asString()));
+      }
+      if (v[1][0].isString()) {
+        req_.emplace_back(
+            std::make_unique<
+                detail::dynamic_metadata_requirement_set<std::string>>(
+                k.asString(), req));
+      } else {
+        req_.emplace_back(
+            std::make_unique<detail::dynamic_metadata_requirement_set<int64_t>>(
+                k.asString(), req));
+      }
+    } else if (v[0].asString() == "range") {
+      req_.emplace_back(
+          std::make_unique<detail::dynamic_metadata_requirement_range>(
+              k.asString(), req));
+    } else {
+      throw std::runtime_error(
+          fmt::format("unsupported requirement type '{}'", v[0].asString()));
+    }
+  }
+}
+
+void compression_metadata_requirements<folly::dynamic>::check(
+    folly::dynamic const& dyn) const {
+  for (auto const& r : req_) {
+    if (auto it = dyn.find(r->name()); it != dyn.items().end()) {
+      r->check(it->second);
+    } else {
+      throw std::runtime_error(
+          fmt::format("missing requirement '{}'", r->name()));
+    }
+  }
+}
+
+void compression_metadata_requirements<folly::dynamic>::check(
+    std::string const& metadata) const {
+  check(folly::parseJson(metadata));
+}
+
+} // namespace dwarfs

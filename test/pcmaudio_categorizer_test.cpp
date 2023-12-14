@@ -85,7 +85,7 @@ TEST(pcmaudio_categorizer, requirements) {
     EXPECT_THAT(
         ent.output,
         MatchesRegex(
-            R"(^\[WAV\] ".*": endianness 'little' does not meet requirements$)"));
+            R"(^\[WAV\] ".*": endianness 'little' does not meet requirements \[\]$)"));
 
     EXPECT_TRUE(frag.empty());
 

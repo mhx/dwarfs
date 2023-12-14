@@ -22,6 +22,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -61,7 +62,8 @@ bool parse_metadata_requirements_set(T& container, folly::dynamic& req,
 
     if (it->second[1].type() != folly::dynamic::ARRAY) {
       throw std::runtime_error(
-          fmt::format("non-array type argument for requirement '{}'", name));
+          fmt::format("non-array type argument for requirement '{}', got '{}'",
+                      name, it->second[1].typeName()));
     }
 
     for (auto v : it->second[1]) {
@@ -138,6 +140,21 @@ class checked_metadata_requirement_base : public metadata_requirement_base {
   virtual void check(Meta const& m) const = 0;
 };
 
+class dynamic_metadata_requirement_base {
+ public:
+  virtual ~dynamic_metadata_requirement_base() = default;
+
+  dynamic_metadata_requirement_base(std::string const& name)
+      : name_{name} {}
+
+  virtual void check(folly::dynamic const& m) const = 0;
+
+  std::string_view name() const { return name_; }
+
+ private:
+  std::string const name_;
+};
+
 template <typename Meta, typename T, typename U>
 class typed_metadata_requirement_base
     : public checked_metadata_requirement_base<Meta> {
@@ -188,8 +205,9 @@ class metadata_requirement_set
  protected:
   void check_value(T const& value) const override {
     if (set_ && set_->count(value) == 0) {
-      throw std::range_error(fmt::format("{} '{}' does not meet requirements",
-                                         this->name(), value));
+      throw std::range_error(
+          fmt::format("{} '{}' does not meet requirements [{}]", this->name(),
+                      value, fmt::join(*set_, ", ")));
     }
   }
 
@@ -286,6 +304,19 @@ class compression_metadata_requirements<void> {
   void parse(folly::dynamic req) const {
     detail::check_unsupported_metadata_requirements(req);
   }
+};
+
+template <>
+class compression_metadata_requirements<folly::dynamic> {
+ public:
+  compression_metadata_requirements(std::string const& req);
+  compression_metadata_requirements(folly::dynamic const& req);
+
+  void check(std::string const& meta) const;
+  void check(folly::dynamic const& meta) const;
+
+ private:
+  std::vector<std::unique_ptr<detail::dynamic_metadata_requirement_base>> req_;
 };
 
 } // namespace dwarfs
