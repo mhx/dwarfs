@@ -60,7 +60,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
       on_block_merged_callback_type&& on_block_merged_callback,
       BlockPolicy&& policy)
       : BlockPolicy{std::move(policy)}
-      , queueable_size_{max_queued_size}
+      , max_queueable_size_{max_queued_size}
       , source_queue_{sources.begin(), sources.end()}
       , active_slots_(num_active_slots)
       , on_block_merged_callback_{std::move(on_block_merged_callback)} {
@@ -84,18 +84,18 @@ class multi_queue_block_merger_impl : public block_merger_base,
     std::unique_lock lock{mx_};
 
     cv_.wait(lock, [this, &src, &block_size] {
+      auto queueable = this->queueable_size();
+
       // if this is the active slot, we can accept the block if there is
       // enough space left in the queue
       if (active_slots_[active_slot_index_] == src) {
-        return block_size <= queueable_size_;
+        return block_size <= queueable;
       }
 
       // otherwise, we must ensure that it is always possible to accept
       // a worst case sized block
-      return block_size + max_worst_case_source_block_size() <= queueable_size_;
+      return block_size + max_worst_case_source_block_size() <= queueable;
     });
-
-    queueable_size_ -= block_size;
 
     if (!is_valid_source(src)) {
       throw std::runtime_error{"invalid source"};
@@ -134,7 +134,6 @@ class multi_queue_block_merger_impl : public block_merger_base,
     assert(releaseable_size_ >= amount);
 
     releaseable_size_ -= amount;
-    queueable_size_ += amount;
 
     if constexpr (debug) {
       dump_state(fmt::format("release({})", amount), termcolor::YELLOW);
@@ -144,13 +143,32 @@ class multi_queue_block_merger_impl : public block_merger_base,
   }
 
  private:
+  size_t queueable_size() const {
+    size_t total_active_size{queued_size() + releaseable_size_};
+    assert(total_active_size <= max_queueable_size_);
+    return max_queueable_size_ - total_active_size;
+  }
+
+  size_t queued_size() const {
+    size_t size{0};
+    for (auto const& bq : block_queues_) {
+      for (auto const& blk : bq.second) {
+        if (blk.has_value()) {
+          size += this->block_size(*blk);
+        }
+      }
+    }
+    return size;
+  }
+
   void dump_state(std::string what, termcolor color) const {
     std::cout << terminal_colored(fmt::format("**** {} ****", what), color)
               << std::endl;
 
     std::cout << "index: " << active_slot_index_
-              << ", queueable: " << queueable_size_
-              << ", releaseable: " << releaseable_size_ << std::endl;
+              << ", queueable: " << queueable_size() << "/"
+              << max_queueable_size_ << ", releaseable: " << releaseable_size_
+              << std::endl;
 
     std::cout << "active: ";
     for (size_t i = 0; i < active_slots_.size(); ++i) {
@@ -280,7 +298,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
   std::recursive_mutex mx_;
   std::condition_variable_any cv_;
   size_t active_slot_index_{0};
-  size_t queueable_size_;
+  size_t const max_queueable_size_;
   size_t releaseable_size_{0};
   std::optional<size_t> mutable cached_max_worst_case_source_block_size_;
   std::unordered_map<source_type, std::deque<std::optional<block_type>>>

@@ -20,6 +20,7 @@
  */
 
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
@@ -129,7 +130,8 @@ class fsblock_merger_policy {
   fsblock_merger_policy(size_t worst_case_block_size)
       : worst_case_block_size_{worst_case_block_size} {}
 
-  static size_t block_size(std::unique_ptr<fsblock> const& fsb) {
+  size_t block_size(std::unique_ptr<fsblock> const& fsb) const {
+    assert(fsb->size() <= worst_case_block_size_);
     return fsb->size();
   }
 
