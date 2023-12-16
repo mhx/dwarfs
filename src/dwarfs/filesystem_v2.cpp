@@ -715,9 +715,10 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                                        logger_policies>(
           lgr, std::move(mm), options, inode_offset, std::move(perfmon))) {}
 
-void filesystem_v2::rewrite(logger& lgr, progress& prog,
-                            std::shared_ptr<mmif> mm, filesystem_writer& writer,
-                            rewrite_options const& opts) {
+void filesystem_v2::rewrite_deprecated(logger& lgr, progress& prog,
+                                       std::shared_ptr<mmif> mm,
+                                       filesystem_writer& writer,
+                                       rewrite_options const& opts) {
   // TODO:
   LOG_PROXY(debug_logger_policy, lgr);
   filesystem_parser parser(mm, opts.image_offset);

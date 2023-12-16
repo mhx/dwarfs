@@ -1097,8 +1097,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   try {
     if (recompress) {
-      filesystem_v2::rewrite(lgr, prog, std::make_shared<dwarfs::mmap>(path),
-                             fsw, rw_opts);
+      filesystem_v2::rewrite_deprecated(
+          lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw, rw_opts);
       wg_compress.wait();
     } else {
       auto sf = std::make_shared<segmenter_factory>(

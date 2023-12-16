@@ -66,8 +66,9 @@ class filesystem_v2 {
                 const filesystem_options& options, int inode_offset = 0,
                 std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
-  static void rewrite(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
-                      filesystem_writer& writer, rewrite_options const& opts);
+  static void
+  rewrite_deprecated(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
+                     filesystem_writer& writer, rewrite_options const& opts);
 
   static int
   identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
@@ -224,4 +225,5 @@ class filesystem_v2 {
  private:
   std::unique_ptr<impl> impl_;
 };
+
 } // namespace dwarfs
