@@ -155,24 +155,13 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
 
 void console_writer::rewind(int next_rewind_lines) {
   if (!statebuf_.empty()) {
-    int lines = 0;
-
-    switch (mode_) {
-    case NORMAL:
-      lines = rewind_lines_;
-      break;
-    case REWRITE:
-      lines = 4;
-      break;
-    }
-
     auto& os = log_stream();
 
     os << '\r';
 
     int num_erase = rewind_lines_ - next_rewind_lines;
 
-    for (int i = 0; i < lines; ++i) {
+    for (int i = 0; i < rewind_lines_; ++i) {
       os << "\x1b[A";
       if (num_erase > 0) {
         os << "\x1b[2K";
@@ -349,7 +338,7 @@ void console_writer::update(progress& p, bool last) {
 
     std::lock_guard lock(log_mutex());
 
-    rewind(9 + ctxs.size());
+    rewind((mode_ == NORMAL ? 9 : 4) + ctxs.size());
 
     statebuf_ = oss.str();
 
