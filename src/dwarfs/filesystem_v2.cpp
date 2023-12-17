@@ -615,6 +615,19 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
                                         s->data(*mm_));
       };
 
+  auto from_none_to_none =
+      [&](auto const& s,
+          std::optional<fragment_category::value_type> const& cat =
+              std::nullopt) {
+        if (s->compression() == compression_type::NONE) {
+          auto& bc = writer.get_compressor(s->type(), cat);
+          if (bc.type() == compression_type::NONE) {
+            return true;
+          }
+        }
+        return false;
+      };
+
   parser_.rewind();
 
   while (auto s = parser_.next_section()) {
@@ -644,6 +657,10 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
         }
       }
 
+      if (recompress_block && from_none_to_none(s, cat)) {
+        recompress_block = false;
+      }
+
       if (recompress_block) {
         log_recompress(s, cat);
 
@@ -658,7 +675,7 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
 
     case section_type::METADATA_V2_SCHEMA:
     case section_type::METADATA_V2:
-      if (opts.recompress_metadata) {
+      if (opts.recompress_metadata && !from_none_to_none(s)) {
         log_recompress(s);
         writer.write_section(s->type(), s->compression(), s->data(*mm_));
       } else {
