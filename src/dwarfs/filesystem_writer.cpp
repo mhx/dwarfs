@@ -127,7 +127,8 @@ class fsblock {
   };
 
   static void
-  build_section_header(section_header_v2& sh, fsblock::impl const& fsb);
+  build_section_header(section_header_v2& sh, fsblock::impl const& fsb,
+                       std::optional<fs_section> const& sec = std::nullopt);
 
  private:
   std::unique_ptr<impl> impl_;
@@ -276,7 +277,7 @@ class compressed_fsblock : public fsblock::impl {
     future_ = prom.get_future();
 
     wg.add_job([this, prom = std::move(prom)]() mutable {
-      fsblock::build_section_header(header_, *this);
+      fsblock::build_section_header(header_, *this, sec_);
       if (pctx_) {
         pctx_->bytes_in += size();
         pctx_->bytes_out += size();
@@ -444,7 +445,8 @@ fsblock::fsblock(section_type type, block_compressor const& bc,
                                                 std::move(pctx))) {}
 
 void fsblock::build_section_header(section_header_v2& sh,
-                                   fsblock::impl const& fsb) {
+                                   fsblock::impl const& fsb,
+                                   std::optional<fs_section> const& sec) {
   auto range = fsb.data();
 
   ::memcpy(&sh.magic[0], "DWARFS", 6);
@@ -454,6 +456,26 @@ void fsblock::build_section_header(section_header_v2& sh,
   sh.type = static_cast<uint16_t>(fsb.type());
   sh.compression = static_cast<uint16_t>(fsb.compression());
   sh.length = range.size();
+
+  if (sec) {
+    // This isn't just an optimization, it is actually a bit of a safety
+    // feature. If we have an existing section header that we've previously
+    // validated and we use its checksums, we can be sure that any mistake
+    // in copying the data will be detected.
+
+    auto secnum = sec->section_number();
+
+    if (secnum && secnum.value() == sh.number) {
+      auto xxh = sec->xxh3_64_value();
+      auto sha = sec->sha2_512_256_value();
+
+      if (xxh && sha && sha->size() == sizeof(sh.sha2_512_256)) {
+        sh.xxh3_64 = xxh.value();
+        std::copy(sha->begin(), sha->end(), &sh.sha2_512_256[0]);
+        return;
+      }
+    }
+  }
 
   checksum xxh(checksum::algorithm::XXH3_64);
   xxh.update(&sh.number,
