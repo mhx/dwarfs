@@ -23,7 +23,11 @@
 #include <array>
 #include <charconv>
 
+#if __has_include(<utf8cpp/utf8.h>)
 #include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
 
 #include <folly/String.h>
 
