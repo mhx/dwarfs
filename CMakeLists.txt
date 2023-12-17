@@ -222,7 +222,7 @@ if(PKG_CONFIG_FOUND)
   pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
   pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
   pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
-  pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
+  # pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
   pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
   pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
   pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
@@ -450,14 +450,14 @@ endif()
 list(
   APPEND
   LIBDWARFS_CATEGORIZER_SRC
-  src/dwarfs/categorizer/binary_categorizer.cpp
+  # src/dwarfs/categorizer/binary_categorizer.cpp
   src/dwarfs/categorizer/incompressible_categorizer.cpp
   src/dwarfs/categorizer/pcmaudio_categorizer.cpp
 )
 
-if(LIBMAGIC_FOUND)
-  list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
-endif()
+# if(LIBMAGIC_FOUND)
+#   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
+# endif()
 
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
@@ -1057,9 +1057,9 @@ target_link_libraries(
   fsst
   ${Boost_LIBRARIES})
 
-if(LIBMAGIC_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
-endif()
+# if(LIBMAGIC_FOUND)
+#   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
+# endif()
 
 if(LIBLZ4_FOUND)
   target_link_libraries(dwarfs PkgConfig::LIBLZ4)
@@ -1079,7 +1079,7 @@ endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
-  target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
+  # target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
