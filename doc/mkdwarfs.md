@@ -65,6 +65,10 @@ Most other options are concerned with compression tuning:
   `--window-step` and `--order`. See the output of `mkdwarfs --help` for
   a table listing the exact defaults used for each compression level.
 
+- `--categorize`[`=`*categorizer*[`,`...]]:
+  Enable one or more categorizers in the given order.
+  See [CATEGORIZERS](#categorizers) for more details.
+
 - `-S`, `--block-size-bits=`*value*:
   The block size used for the compressed filesystem. The actual block size
   is two to the power of this value. Larger block sizes will offer better
@@ -91,9 +95,8 @@ Most other options are concerned with compression tuning:
   and values greater than 10 are mapped to "background" priority.
 
 - `--num-scanner-workers=`*value*:
-  Number of worker threads used for building the filesystem. This defaults
-  to the number of processors available on your system. Use this option if
-  you want to limit the resources used by `mkdwarfs` or to optimize build
+  Number of worker threads used for scanning the filesystem. Use this option
+  if you want to limit the resources used by `mkdwarfs` or to optimize build
   speed. This option affects only the scanning phase. By default, the same
   value is used as for `--num-workers`.
   In the scanning phase, the worker threads are used to scan files in the
@@ -102,7 +105,20 @@ Most other options are concerned with compression tuning:
   computation, depending on the `--order` option. File discovery itself
   is single-threaded and runs independently from the scanning threads.
 
-- `-B`, `--max-lookback-blocks=`*value*:
+- `--num-segmenter-workers=`*value*:
+  Number of worker threads used for segmenting the input data. By default,
+  the same value is used as for `--num-workers`.
+  Segmenting the input data is one of the most time consuming tasks when
+  building a file system, and cannot easily be parallelized. However, when
+  using the categorizer, a separate segmenter will be used for each category
+  (and subcategory, if present). This option controls how many segmenters
+  can run simultaneously. When `--compress-niceness` is set to the default,
+  segmenter threads will always have a higher priority than compression
+  threads, making sure that compression doesn't slow down segmentation.
+  This option also controls the number of threads used for ordering the
+  input to the segmenter.
+
+- `-B`, `--max-lookback-blocks=[*category*`::`]`*value*:
   Specify how many of the most recent blocks to scan for duplicate segments.
   By default, only the current block will be scanned. The larger this number,
   the more duplicate segments will likely be found, which may further improve
@@ -111,7 +127,7 @@ Most other options are concerned with compression tuning:
   files can now potentially span multiple filesystem blocks. Passing `-B0`
   will completely disable duplicate segment search.
 
-- `-W`, `--window-size=`*value*:
+- `-W`, `--window-size=[*category*`::`]`*value*:
   Window size of cyclic hash used for segmenting. This is an exponent
   to a base of two. Cyclic hashes are used by `mkdwarfs` for finding
   identical segments across multiple files. This is done on top of duplicate
@@ -128,7 +144,7 @@ Most other options are concerned with compression tuning:
   size will grow. Passing `-W0` will completely disable duplicate segment
   search.
 
-- `-w`, `--window-step=`*value*:
+- `-w`, `--window-step=[*category*`::`]`*value*:
   This option specifies how often cyclic hash values are stored for lookup.
   It is specified relative to the window size, as a base-2 exponent that
   divides the window size. As a concrete example, if `--window-size=16`
@@ -141,7 +157,7 @@ Most other options are concerned with compression tuning:
   If you use a larger value for this option, the increments become *smaller*,
   and `mkdwarfs` will be slightly slower and use more memory.
 
-- `--bloom-filter-size`=*value*:
+- `--bloom-filter-size`=[*category*`::`]*value*:
   The segmenting algorithm uses a bloom filter to determine quickly if
   there is *no* match at a given position. This will filter out more than
   90% of bad matches quickly with the default bloom filter size. The default
@@ -161,7 +177,7 @@ Most other options are concerned with compression tuning:
   algorithms, so if you're short on memory it might be worth tweaking the
   compression options.
 
-- `-C`, `--compression=`*algorithm*[`:`*algopt*[`=`*value*][`:`...]]:
+- `-C`, `--compression=`[*category*`::`]*algorithm*[`:`*algopt*[`=`*value*][`:`...]]:
   The compression algorithm and configuration used for file system data.
   The value for this option is a colon-separated list. The first item is
   the compression algorithm, the remaining item are its options. Options
@@ -211,6 +227,12 @@ Most other options are concerned with compression tuning:
   metadata to uncompressed metadata without having to rebuild or recompress
   all the other data.
 
+- `--recompress-categories=`[`!`]*category*[`,`...]:
+  When `--recompress` is set to `all` or `block`, this option controls
+  which categories of blocks will be recompressed. Adding a `!` in front
+  of the list allows you to specify which categories will *not* be
+  recompressed.
+
 - `-P`, `--pack-metadata=auto`|`none`|[`all`|`chunk_table`|`directories`|`shared_files`|`names`|`names_index`|`symlinks`|`symlinks_index`|`force`|`plain`[`,`...]]:
   Which metadata information to store in packed format. This is primarily
   useful when storing metadata uncompressed, as it allows for smaller
@@ -258,7 +280,7 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
-- `--order=none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
+- `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
   `path`, they will be sorted asciibetically by path name of the first file
@@ -367,6 +389,24 @@ Most other options are concerned with compression tuning:
   you can switch to `ascii`, which is like `unicode`, but looks less
   fancy.
 
+- `--incompressible-min-input-size=`*value*
+  The minimum size of a file to be checked for incompressibility when
+  the `incompressible` categorizer is active.
+
+- `--incompressible-block-size=`*value*
+  The block size used to test data for compressibility. This will also
+  be the size of the fragments when `--incompressible-fragments` is used.
+
+- `--incompressible-fragments`
+  Categorize individual fragments of a file as incompressible instead of
+  only the file as a whole.
+
+- `--incompressible-ratio=`*value*
+  The ratio above which a file or fragment is categorized as `incompressible`.
+
+- `--incompressible-zstd-level=`*value*
+  The ZSTD compression level used for incompressible categorization.
+
 - `-h`, `--help`:
   Show usage and the most common basic options.
 
@@ -374,8 +414,82 @@ Most other options are concerned with compression tuning:
   Show full usage with all options, including defaults, compression level
   detail and supported compression algorithms.
 
-If experimental Python support was compiled into `mkdwarfs`, you can use the
-following option to enable customizations via the scripting interface:
+## CATEGORIZERS
+
+Categorizers will inspect the input files in the scanning phase and try to
+assign them a category. Each categorizer can define a set of categories,
+and each of these categories can optionally support subcategories.
+
+Running `mkdwarfs` with the `-H` or `--long-help` option will display the
+list of available categorizers and the categories they emit. At the moment,
+`mkdwarfs` supports two categorizers, `incompressible` and `pcmaudio`. The
+`incompressible` categorizer comes with its own set of options while the
+`pcmaudio` categorizer doesn't need any further configuration.
+
+Categorizers are only useful if at least some of the `mkdwarfs` configuration
+is category-dependent. The options that can be configured per category are
+`--compression`, `--order`, `--max-lookback-blocks`, `--window-size`,
+`--window-step`, and `--bloom-filter-size`.
+
+The resulting configuration matrix can be quite overwhelming, which is why
+`mkdwarfs` will run with a reasonable set of defaults if you specify the
+`--categorize` option with no arguments. These defaults are currently:
+
+    --categorize=pcmaudio,incompressible
+    --compression incompressible::null
+    --compression pcmaudio/waveform::flac
+    --order pcmaudio/waveform::revpath
+    --max-lookback-blocks pcmaudio/waveform::0
+    --window-size pcmaudio/waveform::0
+
+Note that in case of the `pcmaudio` categorizer, you can override each
+option per category (in this case `pcmaudio/waveform`).
+
+It's also worth noting that the order in which the categorizers are given
+is important. The first categorizer that will successfully categorize a
+file wins and, if possible, no other categorizers will run on the same
+file.
+
+### `incompressible` Categorizer
+
+The `incompressible` categorizer will try to compress each input with a
+very fast compression algorithm (`zstd` using a negative compression level
+by default). If it turns out that this doesn't reduce the size of the input
+significantly, the input will be categorized as `incompressible`.
+
+You can use the `incompressible` categorizer in two modes: whole-file or
+fragmented categorization. In the former, the whole input file will be
+categorized, whereas in the latter, each file can be further broken down
+into compressible and incompressible fragments. The size of these fragments
+will be equal to the block size used for categorization.
+
+It makes sense to use this categorizer as the last in a list of multiple
+categorizers. Not only because it'll likely have the biggest overhead, but
+also because it can wrongly classify data as incompressible that can be
+compressed properly with a specialized algorithm (e.g. audio data).
+
+### `pcmaudio` Categorizer
+
+The `pcmaudio` categorizer can identify and categorize a wide range of
+uncompressed audio data such as `.wav`, `.aiff` and more obscure formats.
+
+It produces two different categories: `pcmaudio/waveform` for the actual
+waveform data, and `pcmaudio/metadata` for all other data in the file such
+as the file header. The `pcmaudio/waveform` category is again divided into
+many subcategories depending on the type of waveform data (e.g. number of
+channels, bit depth, byte order, etc.).
+
+In order to efficiently compress `pcmaudio/waveform` data, a suitable
+compression algorithm must be selected for this category. `mkdwarfs`
+currently supports `flac` compression, which offers the best ratio of
+compression speed and achievable compression ratio.
+
+It is worth noting that options such as `--window-size` will operate on
+*sample* granularity instead of *byte* granularity when processing
+`pcmaudio/waveform` data, where *sample* granularity means one sample
+for each channel. For example, a 16-bit stereo file would have a
+granularity of 4 bytes and thus `--window-size=10` would refer to a
+4 KiB window instead of a 1 KiB windows.
 
 ## TIPS & TRICKS
 
@@ -642,7 +756,7 @@ own thread and continuously emits file inodes. These will be picked up
 by the segmenter thread, which scans the inode contents using a cyclic
 hash and determines overlapping segments between previously written
 data and new incoming data. The segmenter will look at up to
-`--max-lookback-block` previous filesystem blocks to find overlaps.
+`--max-lookback-blocks` previous filesystem blocks to find overlaps.
 
 Once the segmenter has produced enough data to fill a filesystem
 block, the block is added to a queue where from which the blocks
