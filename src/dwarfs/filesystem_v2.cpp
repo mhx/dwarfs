@@ -611,8 +611,7 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
           std::optional<fragment_category::value_type> const& cat =
               std::nullopt) {
         log_rewrite(false, s, cat);
-        writer.write_compressed_section(s->type(), s->compression(),
-                                        s->data(*mm_));
+        writer.write_compressed_section(*s, s->data(*mm_));
       };
 
   auto from_none_to_none =

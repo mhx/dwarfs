@@ -84,8 +84,10 @@ class fsblock {
           folly::Function<void(size_t)> set_block_cb = nullptr);
 
   fsblock(section_type type, compression_type compression,
-          std::span<uint8_t const> data,
-          std::shared_ptr<compression_progress> pctx = nullptr);
+          std::span<uint8_t const> data);
+
+  fsblock(fs_section sec, std::span<uint8_t const> data,
+          std::shared_ptr<compression_progress> pctx);
 
   fsblock(section_type type, block_compressor const& bc,
           std::span<uint8_t const> data, compression_type data_comp_type,
@@ -255,12 +257,18 @@ class raw_fsblock : public fsblock::impl {
 class compressed_fsblock : public fsblock::impl {
  public:
   compressed_fsblock(section_type type, compression_type compression,
-                     std::span<uint8_t const> range,
-                     std::shared_ptr<compression_progress> pctx)
+                     std::span<uint8_t const> range)
       : type_{type}
       , compression_{compression}
+      , range_{range} {}
+
+  compressed_fsblock(fs_section sec, std::span<uint8_t const> range,
+                     std::shared_ptr<compression_progress> pctx)
+      : type_{sec.type()}
+      , compression_{sec.compression()}
       , range_{range}
-      , pctx_{std::move(pctx)} {}
+      , pctx_{std::move(pctx)}
+      , sec_{std::move(sec)} {}
 
   void
   compress(worker_group& wg, std::optional<std::string> /* meta */) override {
@@ -303,6 +311,7 @@ class compressed_fsblock : public fsblock::impl {
   std::optional<uint32_t> number_;
   section_header_v2 header_;
   std::shared_ptr<compression_progress> pctx_;
+  std::optional<fs_section> sec_;
 };
 
 class rewritten_fsblock : public fsblock::impl {
@@ -420,9 +429,12 @@ fsblock::fsblock(section_type type, block_compressor const& bc,
                                           std::move(set_block_cb))) {}
 
 fsblock::fsblock(section_type type, compression_type compression,
-                 std::span<uint8_t const> data,
+                 std::span<uint8_t const> data)
+    : impl_(std::make_unique<compressed_fsblock>(type, compression, data)) {}
+
+fsblock::fsblock(fs_section sec, std::span<uint8_t const> data,
                  std::shared_ptr<compression_progress> pctx)
-    : impl_(std::make_unique<compressed_fsblock>(type, compression, data,
+    : impl_(std::make_unique<compressed_fsblock>(std::move(sec), data,
                                                  std::move(pctx))) {}
 
 fsblock::fsblock(section_type type, block_compressor const& bc,
@@ -497,7 +509,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void write_section(section_type type, compression_type compression,
                      std::span<uint8_t const> data,
                      std::optional<fragment_category::value_type> cat) override;
-  void write_compressed_section(section_type type, compression_type compression,
+  void write_compressed_section(fs_section sec,
                                 std::span<uint8_t const> data) override;
   void flush() override;
   size_t size() const override { return os_.tellp(); }
@@ -861,8 +873,7 @@ void filesystem_writer_<LoggerPolicy>::write_section(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
-    section_type type, compression_type compression,
-    std::span<uint8_t const> data) {
+    fs_section sec, std::span<uint8_t const> data) {
   {
     std::lock_guard lock(mx_);
 
@@ -870,7 +881,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    auto fsb = std::make_unique<fsblock>(type, compression, data, pctx_);
+    auto fsb = std::make_unique<fsblock>(std::move(sec), data, pctx_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);
