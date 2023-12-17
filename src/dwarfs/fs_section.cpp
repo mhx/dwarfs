@@ -105,6 +105,18 @@ class fs_section_v1 final : public fs_section::impl {
     return mm.span(start_, hdr_.length);
   }
 
+  std::optional<uint32_t> section_number() const override {
+    return std::nullopt;
+  }
+
+  std::optional<uint64_t> xxh3_64_value() const override {
+    return std::nullopt;
+  }
+
+  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
+    return std::nullopt;
+  }
+
  private:
   size_t start_;
   section_header hdr_;
@@ -162,6 +174,19 @@ class fs_section_v2 final : public fs_section::impl {
     return mm.span(start_, hdr_.length);
   }
 
+  std::optional<uint32_t> section_number() const override {
+    return hdr_.number;
+  }
+
+  std::optional<uint64_t> xxh3_64_value() const override {
+    return hdr_.xxh3_64;
+  }
+
+  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
+    return std::vector<uint8_t>(hdr_.sha2_512_256,
+                                hdr_.sha2_512_256 + sizeof(hdr_.sha2_512_256));
+  }
+
  private:
   size_t start_;
   section_header_v2 hdr_;
@@ -201,6 +226,18 @@ class fs_section_v2_lazy final : public fs_section::impl {
 
   std::span<uint8_t const> data(mmif const& mm) const override {
     return section().data(mm);
+  }
+
+  std::optional<uint32_t> section_number() const override {
+    return section().section_number();
+  }
+
+  std::optional<uint64_t> xxh3_64_value() const override {
+    return section().xxh3_64_value();
+  }
+
+  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
+    return section().sha2_512_256_value();
   }
 
  private:

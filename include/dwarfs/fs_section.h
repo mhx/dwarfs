@@ -22,8 +22,10 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 #include "dwarfs/fstypes.h"
 
@@ -53,6 +55,18 @@ class fs_section {
 
   size_t end() const { return start() + length(); }
 
+  std::optional<uint32_t> section_number() const {
+    return impl_->section_number();
+  }
+
+  std::optional<uint64_t> xxh3_64_value() const {
+    return impl_->xxh3_64_value();
+  }
+
+  std::optional<std::vector<uint8_t>> sha2_512_256_value() const {
+    return impl_->sha2_512_256_value();
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -68,6 +82,9 @@ class fs_section {
     virtual bool check_fast(mmif const& mm) const = 0;
     virtual bool verify(mmif const& mm) const = 0;
     virtual std::span<uint8_t const> data(mmif const& mm) const = 0;
+    virtual std::optional<uint32_t> section_number() const = 0;
+    virtual std::optional<uint64_t> xxh3_64_value() const = 0;
+    virtual std::optional<std::vector<uint8_t>> sha2_512_256_value() const = 0;
   };
 
  private:
