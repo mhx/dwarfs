@@ -268,6 +268,29 @@ constexpr std::array<level_defaults, 10> levels{{
 
 constexpr unsigned default_level = 7;
 
+class categorize_optval {
+ public:
+  std::string value;
+  bool is_explicit{false};
+
+  categorize_optval() = default;
+  categorize_optval(std::string const& val, bool expl = false)
+      : value{val}
+      , is_explicit{expl} {}
+
+  bool add_implicit_defaults() const { return !value.empty() && !is_explicit; }
+};
+
+std::ostream& operator<<(std::ostream& os, categorize_optval const& optval) {
+  return os << optval.value << (optval.is_explicit ? " (explicit)" : "");
+}
+
+void validate(boost::any& v, std::vector<std::string> const& values,
+              categorize_optval*, int) {
+  po::validators::check_first_occurrence(v);
+  v = categorize_optval{po::validators::get_single_string(values), true};
+}
+
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv) {
@@ -281,7 +304,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str,
-      categorizer_list_str, history_compression, recompress_categories;
+      history_compression, recompress_categories;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -292,6 +315,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
+  categorize_optval categorizer_list;
 
   integral_value_parser<size_t> max_lookback_parser;
   integral_value_parser<unsigned> window_size_parser(0, 24);
@@ -380,8 +404,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         po::value<std::string>(&recompress_categories),
         "only recompress blocks of these categories")
     ("categorize",
-        po::value<std::string>(&categorizer_list_str)
-          ->implicit_value("pcmaudio,incompressible"),
+        po::value<categorize_optval>(&categorizer_list)
+          ->implicit_value(categorize_optval("pcmaudio,incompressible")),
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)
@@ -1008,13 +1032,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     }
   }
 
-  if (!categorizer_list_str.empty()) {
-    std::vector<std::string> categorizer_list;
-    boost::split(categorizer_list, categorizer_list_str, boost::is_any_of(","));
+  if (!categorizer_list.value.empty()) {
+    std::vector<std::string> categorizers;
+    boost::split(categorizers, categorizer_list.value, boost::is_any_of(","));
 
     options.inode.categorizer_mgr = std::make_shared<categorizer_manager>(lgr);
 
-    for (auto const& name : categorizer_list) {
+    for (auto const& name : categorizers) {
       options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
     }
   }
@@ -1049,7 +1073,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    order_parser);
       cop.parse(defaults.order);
       cop.parse(order);
-      LOG_DEBUG << cop.as_string();
+      if (categorizer_list.add_implicit_defaults()) {
+        cop.parse_fallback("pcmaudio/waveform::revpath");
+      }
+      LOG_VERBOSE << cop.as_string();
     }
 
     {
@@ -1058,7 +1085,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    max_lookback_parser);
       sf_config.max_active_blocks.set_default(1);
       cop.parse(max_lookback_blocks);
-      LOG_DEBUG << cop.as_string();
+      if (categorizer_list.add_implicit_defaults()) {
+        cop.parse_fallback("pcmaudio/waveform::0");
+      }
+      LOG_VERBOSE << cop.as_string();
     }
 
     {
@@ -1067,7 +1097,10 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    window_size_parser);
       sf_config.blockhash_window_size.set_default(defaults.window_size);
       cop.parse(window_size);
-      LOG_DEBUG << cop.as_string();
+      if (categorizer_list.add_implicit_defaults()) {
+        cop.parse_fallback("pcmaudio/waveform::0");
+      }
+      LOG_VERBOSE << cop.as_string();
     }
 
     {
@@ -1076,7 +1109,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    window_step_parser);
       sf_config.window_increment_shift.set_default(defaults.window_step);
       cop.parse(window_step);
-      LOG_DEBUG << cop.as_string();
+      LOG_VERBOSE << cop.as_string();
     }
 
     {
@@ -1085,7 +1118,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    bloom_filter_size_parser);
       sf_config.bloom_filter_size.set_default(4);
       cop.parse(bloom_filter_size);
-      LOG_DEBUG << cop.as_string();
+      LOG_VERBOSE << cop.as_string();
     }
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
@@ -1109,7 +1142,11 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     compression_opt.set_default(
         block_compressor(std::string(defaults.data_compression)));
     cop.parse(compression);
-    LOG_DEBUG << cop.as_string();
+    if (categorizer_list.add_implicit_defaults()) {
+      cop.parse_fallback("incompressible::null");
+      cop.parse_fallback("pcmaudio/waveform::flac");
+    }
+    LOG_VERBOSE << cop.as_string();
 
     fsw->add_default_compressor(compression_opt.get());
 

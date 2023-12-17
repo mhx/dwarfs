@@ -33,6 +33,11 @@
 
 namespace dwarfs {
 
+enum class contextual_option_policy {
+  normal,
+  fallback,
+};
+
 template <typename OptionType, typename ContextParser, typename OptionParser>
 class contextual_option_parser;
 
@@ -53,8 +58,11 @@ class contextual_option {
 
   void set_default(value_type const& val) { default_ = val; }
 
-  bool add_contextual(context_type const& ctx, value_type const& val) {
-    return contextual_.emplace(ctx, val).second;
+  bool add_contextual(
+      context_type const& ctx, value_type const& val,
+      contextual_option_policy policy = contextual_option_policy::normal) {
+    return contextual_.emplace(ctx, val).second ||
+           policy == contextual_option_policy::fallback;
   }
 
   std::optional<value_type>
@@ -127,7 +135,8 @@ class contextual_option_parser {
       , op_{op}
       , name_{name} {}
 
-  void parse(std::string_view arg) const {
+  void parse(std::string_view arg, contextual_option_policy policy =
+                                       contextual_option_policy::normal) const {
     try {
       auto pos = arg.find("::");
 
@@ -140,10 +149,10 @@ class contextual_option_parser {
                           std::invoke_result_t<decltype(&ContextParser::parse),
                                                ContextParser, decltype(ctx)>,
                           typename option_type::context_type>) {
-          add_contextual(cp_.parse(ctx), val);
+          add_contextual(cp_.parse(ctx), val, policy);
         } else {
           for (auto c : cp_.parse(ctx)) {
-            add_contextual(c, val);
+            add_contextual(c, val, policy);
           }
         }
       }
@@ -152,6 +161,10 @@ class contextual_option_parser {
           fmt::format("failed to parse value '{}' for option '{}': {}", arg,
                       name_, e.what()));
     }
+  }
+
+  void parse_fallback(std::string_view arg) const {
+    parse(arg, contextual_option_policy::fallback);
   }
 
   void parse(std::span<std::string const> list) const {
@@ -187,8 +200,9 @@ class contextual_option_parser {
 
  private:
   void add_contextual(typename option_type::context_type const& ctx,
-                      typename option_type::value_type const& val) const {
-    if (!opt_.add_contextual(ctx, val)) {
+                      typename option_type::value_type const& val,
+                      contextual_option_policy policy) const {
+    if (!opt_.add_contextual(ctx, val, policy)) {
       throw std::runtime_error(fmt::format(
           "duplicate context '{}' for option '{}'", cp_.to_string(ctx), name_));
     }
