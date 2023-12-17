@@ -238,4 +238,13 @@ void compression_metadata_requirements<folly::dynamic>::check(
   check(folly::parseJson(metadata));
 }
 
+void compression_metadata_requirements<folly::dynamic>::check(
+    std::optional<std::string> const& metadata) const {
+  folly::dynamic obj = folly::dynamic::object;
+  if (metadata) {
+    obj = folly::parseJson(*metadata);
+  }
+  check(obj);
+}
+
 } // namespace dwarfs

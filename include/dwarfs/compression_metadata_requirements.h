@@ -312,6 +312,7 @@ class compression_metadata_requirements<folly::dynamic> {
   compression_metadata_requirements(std::string const& req);
   compression_metadata_requirements(folly::dynamic const& req);
 
+  void check(std::optional<std::string> const& meta) const;
   void check(std::string const& meta) const;
   void check(folly::dynamic const& meta) const;
 
