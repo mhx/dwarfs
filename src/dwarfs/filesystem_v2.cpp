@@ -48,6 +48,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/performance_monitor.h"
 #include "dwarfs/progress.h"
+#include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
@@ -581,51 +582,79 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
 
   size_t block_no{0};
 
-  auto log_recompress =
-      [&](const auto& s,
-          std::optional<fragment_category::value_type> const& cat =
-              std::nullopt) {
+  auto log_rewrite =
+      [&](bool compressing, const auto& s,
+          std::optional<fragment_category::value_type> const& cat) {
+        auto prefix = compressing ? "recompressing" : "copying";
         std::string catinfo;
+        std::string compinfo;
         if (cat) {
           catinfo = fmt::format(", {}", cat_resolver.category_name(*cat));
         }
-        LOG_VERBOSE << "recompressing " << get_section_name(s->type()) << " ("
-                    << get_compression_name(s->compression()) << catinfo
-                    << ") using '"
-                    << writer.get_compressor(s->type(), cat).describe() << "'";
+        if (compressing) {
+          compinfo = fmt::format(
+              " using '{}'", writer.get_compressor(s->type(), cat).describe());
+        }
+        LOG_VERBOSE << prefix << " " << size_with_unit(s->length()) << " "
+                    << get_section_name(s->type()) << " ("
+                    << get_compression_name(s->compression()) << catinfo << ")"
+                    << compinfo;
       };
 
-  auto copy_compressed = [&](const auto& s) {
-    LOG_VERBOSE << "copying " << get_section_name(s->type()) << " ("
-                << get_compression_name(s->compression()) << ")";
-    writer.write_compressed_section(s->type(), s->compression(), s->data(*mm_));
-  };
+  auto log_recompress =
+      [&](const auto& s,
+          std::optional<fragment_category::value_type> const& cat =
+              std::nullopt) { log_rewrite(true, s, cat); };
+
+  auto copy_compressed =
+      [&](const auto& s,
+          std::optional<fragment_category::value_type> const& cat =
+              std::nullopt) {
+        log_rewrite(false, s, cat);
+        writer.write_compressed_section(s->type(), s->compression(),
+                                        s->data(*mm_));
+      };
 
   parser_.rewind();
 
   while (auto s = parser_.next_section()) {
     switch (s->type()) {
-    case section_type::BLOCK:
-      if (opts.recompress_block) {
-        std::optional<fragment_category::value_type> cat;
+    case section_type::BLOCK: {
+      std::optional<fragment_category::value_type> cat;
+      bool recompress_block{true};
 
-        if (auto catstr = meta_.get_block_category(block_no)) {
+      if (opts.recompress_block) {
+        auto catstr = meta_.get_block_category(block_no);
+
+        if (catstr) {
           cat = cat_resolver.category_value(catstr.value());
+
           if (!cat) {
             LOG_ERROR << "unknown category '" << catstr.value()
                       << "' for block " << block_no;
           }
-        }
 
+          if (!opts.recompress_categories.empty()) {
+            bool is_in_set{opts.recompress_categories.count(catstr.value()) >
+                           0};
+
+            recompress_block =
+                opts.recompress_categories_exclude ? !is_in_set : is_in_set;
+          }
+        }
+      }
+
+      if (recompress_block) {
         log_recompress(s, cat);
 
         writer.write_section(section_type::BLOCK, s->compression(),
                              s->data(*mm_), cat);
       } else {
-        copy_compressed(s);
+        copy_compressed(s, cat);
       }
+
       ++block_no;
-      break;
+    } break;
 
     case section_type::METADATA_V2_SCHEMA:
     case section_type::METADATA_V2:

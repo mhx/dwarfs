@@ -281,7 +281,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
       debug_filter, max_similarity_size, input_list_str, chmod_str,
-      categorizer_list_str, history_compression;
+      categorizer_list_str, history_compression, recompress_categories;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -376,6 +376,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
+    ("recompress-categories",
+        po::value<std::string>(&recompress_categories),
+        "only recompress blocks of these categories")
     ("categorize",
         po::value<std::string>(&categorizer_list_str)
           ->implicit_value("pcmaudio,incompressible"),
@@ -383,7 +386,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     ("order",
         po::value<std::vector<std::string>>(&order)
           ->value_name("[cat::]arg")->multitoken()->composing(),
-        order_desc.c_str())  // TODO
+        order_desc.c_str())
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
         "maximum file size to compute similarity")
@@ -714,6 +717,15 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       std::cerr << "invalid recompress mode: " << recompress_opts << "\n";
       return 1;
     }
+
+    if (!recompress_categories.empty()) {
+      std::string_view input = recompress_categories;
+      if (input.front() == '!') {
+        rw_opts.recompress_categories_exclude = true;
+        input.remove_prefix(1);
+      }
+      boost::split(rw_opts.recompress_categories, input, boost::is_any_of(","));
+    }
   }
 
   if (file_hash_algo == "none") {
@@ -1018,6 +1030,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     cat_resolver = std::make_shared<filesystem_block_category_resolver>(
         input_filesystem->get_all_block_categories());
+
+    for (auto const& cat : rw_opts.recompress_categories) {
+      if (!cat_resolver->category_value(cat)) {
+        std::cerr << "error: no category '" << cat << "' in input filesystem\n";
+        return 1;
+      }
+    }
   } else {
     cat_resolver = options.inode.categorizer_mgr;
   }

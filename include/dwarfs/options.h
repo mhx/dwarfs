@@ -27,6 +27,7 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include "dwarfs/categorized_option.h"
@@ -136,6 +137,8 @@ struct scanner_options {
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
+  std::unordered_set<std::string> recompress_categories;
+  bool recompress_categories_exclude{false};
   bool enable_history{true};
   std::optional<std::vector<std::string>> command_line_arguments;
   history_config history;
