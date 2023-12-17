@@ -33,6 +33,7 @@ A fast high compression read-only file system for Linux and Windows.
   - [With EROFS](#with-erofs)
   - [With fuse-archive](#with-fuse-archive)
 - [Performance Monitoring](#performance-monitoring)
+- [Other Obscure Features](#other-obscure-features)
 
 ## Overview
 
@@ -2037,3 +2038,30 @@ system calls.
 
 The FUSE driver also exposes the performance monitor metrics via
 an [extended attribute](#extended-attributes).
+
+
+## Other Obscure Features
+
+### Setting Worker Thread CPU Affinity
+
+This only works on Linux and usually only makes sense if you have CPUs
+with different types of cores (e.g. "performance" vs "efficiency" cores)
+and are *really* trying to squeeze the last ounce of speed out of DwarFS.
+
+By setting the environment variable `DWARFS_WORKER_GROUP_AFFINITY`, you
+can set the CPU affinity of different worker thread groups, e.g.:
+
+```
+export DWARFS_WORKER_GROUP_AFFINITY=blockify=3:compress=6,7
+```
+
+This will set the affinity of the `blockify` worker group to CPU 3 and
+the affinity of the `compress` worker group to CPUs 6 and 7.
+
+You can use this feature for all tools that use one or more worker thread
+groups. For example, the FUSE driver `dwarfs` and `dwarfsextract` use a
+worker group `blkcache` that the block cache (i.e. block decompression and
+lookup) runs on. `mkdwarfs` uses a whole array of different worker groups,
+namely `compress` for compression, `scanner` for scanning, `ordering` for
+input ordering, and `blockify` for segmenting. `blockify` is what you would
+typically want to run on your "performance" cores.
