@@ -34,6 +34,7 @@
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/block_data.h"
 #include "dwarfs/categorizer.h"
+#include "dwarfs/category_resolver.h"
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -393,6 +394,9 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<std::string> get_all_block_categories() const override {
     return meta_.get_all_block_categories();
   }
+  void rewrite(progress& prog, filesystem_writer& writer,
+               category_resolver const& cat_resolver,
+               rewrite_options const& opts) const override;
 
  private:
   filesystem_info const& get_info() const;
@@ -543,6 +547,125 @@ filesystem_<LoggerPolicy>::filesystem_(
       history_.parse_append(get_section_data(mm_, section, buffer, false));
     }
   }
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::rewrite(progress& prog,
+                                        filesystem_writer& writer,
+                                        category_resolver const& cat_resolver,
+                                        rewrite_options const& opts) const {
+  if (opts.recompress_block) {
+    size_t block_no{0};
+    parser_.rewind();
+
+    while (auto s = parser_.next_section()) {
+      if (s->type() == section_type::BLOCK) {
+        if (auto catstr = meta_.get_block_category(block_no)) {
+          if (auto cat = cat_resolver.category_value(catstr.value())) {
+            writer.check_block_compression(s->compression(), s->data(*mm_),
+                                           cat);
+          }
+        }
+        ++block_no;
+      }
+    }
+  }
+
+  prog.original_size = mm_->size();
+  prog.filesystem_size = mm_->size();
+  prog.block_count = num_blocks();
+
+  if (header_) {
+    writer.copy_header(*header_);
+  }
+
+  size_t block_no{0};
+
+  auto log_recompress =
+      [&](const auto& s,
+          std::optional<fragment_category::value_type> const& cat =
+              std::nullopt) {
+        std::string catinfo;
+        if (cat) {
+          catinfo = fmt::format(", {}", cat_resolver.category_name(*cat));
+        }
+        LOG_VERBOSE << "recompressing " << get_section_name(s->type()) << " ("
+                    << get_compression_name(s->compression()) << catinfo
+                    << ") using '"
+                    << writer.get_compressor(s->type(), cat).describe() << "'";
+      };
+
+  auto copy_compressed = [&](const auto& s) {
+    LOG_VERBOSE << "copying " << get_section_name(s->type()) << " ("
+                << get_compression_name(s->compression()) << ")";
+    writer.write_compressed_section(s->type(), s->compression(), s->data(*mm_));
+  };
+
+  parser_.rewind();
+
+  while (auto s = parser_.next_section()) {
+    switch (s->type()) {
+    case section_type::BLOCK:
+      if (opts.recompress_block) {
+        std::optional<fragment_category::value_type> cat;
+
+        if (auto catstr = meta_.get_block_category(block_no)) {
+          cat = cat_resolver.category_value(catstr.value());
+          if (!cat) {
+            LOG_ERROR << "unknown category '" << catstr.value()
+                      << "' for block " << block_no;
+          }
+        }
+
+        log_recompress(s, cat);
+
+        writer.write_section(section_type::BLOCK, s->compression(),
+                             s->data(*mm_), cat);
+      } else {
+        copy_compressed(s);
+      }
+      ++block_no;
+      break;
+
+    case section_type::METADATA_V2_SCHEMA:
+    case section_type::METADATA_V2:
+      if (opts.recompress_metadata) {
+        log_recompress(s);
+        writer.write_section(s->type(), s->compression(), s->data(*mm_));
+      } else {
+        copy_compressed(s);
+      }
+      break;
+
+    case section_type::HISTORY:
+      if (opts.enable_history) {
+        history hist{opts.history};
+        hist.parse(history_.serialize());
+        hist.append(opts.command_line_arguments);
+
+        LOG_VERBOSE << "updating " << get_section_name(s->type()) << " ("
+                    << get_compression_name(s->compression())
+                    << "), compressing using '"
+                    << writer.get_compressor(s->type()).describe() << "'";
+
+        writer.write_history(std::make_shared<block_data>(hist.serialize()));
+      } else {
+        LOG_VERBOSE << "removing " << get_section_name(s->type());
+      }
+      break;
+
+    case section_type::SECTION_INDEX:
+      // this will be automatically added by the filesystem_writer
+      break;
+
+    default:
+      // verbatim copy everything else
+      copy_compressed(s);
+      break;
+    }
+  }
+
+  writer.flush();
 }
 
 template <typename LoggerPolicy>
@@ -717,86 +840,6 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
           lgr, std::move(mm), options, inode_offset, std::move(perfmon))) {}
-
-void filesystem_v2::rewrite_deprecated(logger& lgr, progress& prog,
-                                       std::shared_ptr<mmif> mm,
-                                       filesystem_writer& writer,
-                                       rewrite_options const& opts) {
-  // TODO:
-  LOG_PROXY(debug_logger_policy, lgr);
-  filesystem_parser parser(mm, opts.image_offset);
-
-  if (auto hdr = parser.header()) {
-    writer.copy_header(*hdr);
-  }
-
-  std::vector<section_type> section_types;
-  section_map sections;
-
-  while (auto s = parser.next_section()) {
-    check_section_logger(lgr, *s);
-
-    if (!s->check_fast(*mm)) {
-      DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
-    }
-    if (!s->verify(*mm)) {
-      DWARFS_THROW(runtime_error,
-                   "integrity check error in section: " + s->name());
-    }
-    prog.original_size += s->length();
-    prog.filesystem_size += s->length();
-    if (s->type() == section_type::BLOCK) {
-      ++prog.block_count;
-    } else if (s->type() != section_type::SECTION_INDEX) {
-      auto& secvec = sections[s->type()];
-      if (secvec.empty()) {
-        section_types.push_back(s->type());
-      }
-      secvec.push_back(*s);
-    }
-  }
-
-  std::vector<uint8_t> schema_raw;
-  std::vector<uint8_t> meta_raw;
-
-  // force metadata check
-  make_metadata(lgr, mm, sections, schema_raw, meta_raw, metadata_options(), 0,
-                true, mlock_mode::NONE, !parser.has_checksums());
-
-  parser.rewind();
-
-  while (auto s = parser.next_section()) {
-    // TODO: multi-thread this?
-    if (s->type() == section_type::BLOCK) {
-      if (opts.recompress_block) {
-        auto block =
-            std::make_shared<block_data>(block_decompressor::decompress(
-                s->compression(), mm->as<uint8_t>(s->start()), s->length()));
-        // TODO: re-write with different categories
-        writer.write_block(categorizer_manager::default_category().value(),
-                           std::move(block));
-      } else {
-        writer.write_compressed_section(s->type(), s->compression(),
-                                        s->data(*mm));
-      }
-    }
-  }
-
-  if (opts.recompress_metadata) {
-    writer.write_metadata_v2_schema(
-        std::make_shared<block_data>(std::move(schema_raw)));
-    writer.write_metadata_v2(std::make_shared<block_data>(std::move(meta_raw)));
-  } else {
-    for (auto type : section_types) {
-      auto& secvec = DWARFS_NOTHROW(sections.at(type));
-      for (auto& sec : secvec) {
-        writer.write_compressed_section(type, sec.compression(), sec.data(*mm));
-      }
-    }
-  }
-
-  writer.flush();
-}
 
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,

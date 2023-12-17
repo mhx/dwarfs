@@ -37,6 +37,7 @@
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/file_stat.h"
+#include "dwarfs/filesystem_block_category_resolver.h"
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -1108,13 +1109,21 @@ TEST_P(rewrite, filesystem_rewrite) {
   progress prog([](const progress&, bool) {}, 1000);
   std::ostringstream rewritten, idss;
 
+  auto rewrite_fs = [&](auto& fsw, auto const& mm) {
+    filesystem_options fsopts;
+    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+    filesystem_v2 fs(lgr, mm, fsopts);
+    filesystem_block_category_resolver resolver(fs.get_all_block_categories());
+    fs.rewrite(prog, fsw, resolver, opts);
+  };
+
   {
     filesystem_writer fsw(rewritten, lgr, wg, prog, bc, bc, bc);
     fsw.add_default_compressor(bc);
     auto mm = std::make_shared<mmap>(filename);
     EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm));
-    filesystem_v2::rewrite_deprecated(lgr, prog, mm, fsw, opts);
+    rewrite_fs(fsw, mm);
   }
 
   {
@@ -1134,8 +1143,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     filesystem_writer fsw(rewritten, lgr, wg, prog, bc, bc, bc, fsw_opts,
                           &hdr_iss);
     fsw.add_default_compressor(bc);
-    filesystem_v2::rewrite_deprecated(
-        lgr, prog, std::make_shared<mmap>(filename), fsw, opts);
+    rewrite_fs(fsw, std::make_shared<mmap>(filename));
   }
 
   {
@@ -1161,9 +1169,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     filesystem_writer fsw(rewritten2, lgr, wg, prog, bc, bc, bc, fsw_opts,
                           &hdr_iss);
     fsw.add_default_compressor(bc);
-    filesystem_v2::rewrite_deprecated(
-        lgr, prog, std::make_shared<test::mmap_mock>(rewritten.str()), fsw,
-        opts);
+    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten.str()));
   }
 
   {
@@ -1180,9 +1186,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     filesystem_writer fsw(rewritten3, lgr, wg, prog, bc, bc, bc);
     fsw.add_default_compressor(bc);
-    filesystem_v2::rewrite_deprecated(
-        lgr, prog, std::make_shared<test::mmap_mock>(rewritten2.str()), fsw,
-        opts);
+    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten2.str()));
   }
 
   {
@@ -1201,9 +1205,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     fsw_opts.remove_header = true;
     filesystem_writer fsw(rewritten4, lgr, wg, prog, bc, bc, bc, fsw_opts);
     fsw.add_default_compressor(bc);
-    filesystem_v2::rewrite_deprecated(
-        lgr, prog, std::make_shared<test::mmap_mock>(rewritten3.str()), fsw,
-        opts);
+    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten3.str()));
   }
 
   {
@@ -1222,9 +1224,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     fsw_opts.no_section_index = true;
     filesystem_writer fsw(rewritten5, lgr, wg, prog, bc, bc, bc, fsw_opts);
     fsw.add_default_compressor(bc);
-    filesystem_v2::rewrite_deprecated(
-        lgr, prog, std::make_shared<test::mmap_mock>(rewritten4.str()), fsw,
-        opts);
+    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten4.str()));
   }
 
   {

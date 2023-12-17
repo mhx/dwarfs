@@ -67,10 +67,6 @@ class filesystem_v2 {
                 filesystem_options const& options, int inode_offset = 0,
                 std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
-  static void
-  rewrite_deprecated(logger& lgr, progress& prog, std::shared_ptr<mmif> mm,
-                     filesystem_writer& writer, rewrite_options const& opts);
-
   static int
   identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
            int detail_level = 0, size_t num_readers = 1,
@@ -184,6 +180,12 @@ class filesystem_v2 {
     return impl_->get_all_block_categories();
   }
 
+  void rewrite(progress& prog, filesystem_writer& writer,
+               category_resolver const& cat_resolver,
+               rewrite_options const& opts) const {
+    return impl_->rewrite(prog, writer, cat_resolver, opts);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -226,6 +228,9 @@ class filesystem_v2 {
     virtual history const& get_history() const = 0;
     virtual folly::dynamic get_inode_info(inode_view entry) const = 0;
     virtual std::vector<std::string> get_all_block_categories() const = 0;
+    virtual void rewrite(progress& prog, filesystem_writer& writer,
+                         category_resolver const& cat_resolver,
+                         rewrite_options const& opts) const = 0;
   };
 
  private:

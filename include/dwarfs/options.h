@@ -136,7 +136,9 @@ struct scanner_options {
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
-  file_off_t image_offset{filesystem_options::IMAGE_OFFSET_AUTO};
+  bool enable_history{true};
+  std::optional<std::vector<std::string>> command_line_arguments;
+  history_config history;
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);

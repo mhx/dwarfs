@@ -71,6 +71,12 @@ class filesystem_writer {
     return impl_->get_compression_constraints(cat, metadata);
   }
 
+  block_compressor const& get_compressor(
+      section_type type,
+      std::optional<fragment_category::value_type> cat = std::nullopt) const {
+    return impl_->get_compressor(type, cat);
+  }
+
   void configure(std::vector<fragment_category> const& expected_categories,
                  size_t max_active_slots) {
     impl_->configure(expected_categories, max_active_slots);
@@ -79,6 +85,8 @@ class filesystem_writer {
   void copy_header(std::span<uint8_t const> header) {
     impl_->copy_header(header);
   }
+
+  // TODO: check which write_block() API is actually used
 
   void write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
                    physical_block_cb_type physical_block_cb,
@@ -107,6 +115,19 @@ class filesystem_writer {
     impl_->write_history(std::move(data));
   }
 
+  void check_block_compression(
+      compression_type compression, std::span<uint8_t const> data,
+      std::optional<fragment_category::value_type> cat = std::nullopt) {
+    impl_->check_block_compression(compression, data, cat);
+  }
+
+  void write_section(
+      section_type type, compression_type compression,
+      std::span<uint8_t const> data,
+      std::optional<fragment_category::value_type> cat = std::nullopt) {
+    impl_->write_section(type, compression, data, cat);
+  }
+
   void write_compressed_section(section_type type, compression_type compression,
                                 std::span<uint8_t const> data) {
     impl_->write_compressed_section(type, compression, data);
@@ -126,6 +147,9 @@ class filesystem_writer {
     virtual compression_constraints
     get_compression_constraints(fragment_category::value_type cat,
                                 std::string const& metadata) const = 0;
+    virtual block_compressor const&
+    get_compressor(section_type type,
+                   std::optional<fragment_category::value_type> cat) const = 0;
     virtual void
     configure(std::vector<fragment_category> const& expected_categories,
               size_t max_active_slots) = 0;
@@ -142,6 +166,13 @@ class filesystem_writer {
     write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
     virtual void write_history(std::shared_ptr<block_data>&& data) = 0;
+    virtual void check_block_compression(
+        compression_type compression, std::span<uint8_t const> data,
+        std::optional<fragment_category::value_type> cat) = 0;
+    virtual void
+    write_section(section_type type, compression_type compression,
+                  std::span<uint8_t const> data,
+                  std::optional<fragment_category::value_type> cat) = 0;
     virtual void
     write_compressed_section(section_type type, compression_type compression,
                              std::span<uint8_t const> data) = 0;

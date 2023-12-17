@@ -59,6 +59,7 @@
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
+#include "dwarfs/filesystem_block_category_resolver.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fragment_order_parser.h"
@@ -983,17 +984,17 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   options.enable_history = !no_history;
+  rw_opts.enable_history = !no_history;
 
   if (options.enable_history) {
     options.history.with_timestamps = !no_history_timestamps;
+    rw_opts.history.with_timestamps = !no_history_timestamps;
+
     if (!no_history_command_line) {
       options.command_line_arguments = command_line;
+      rw_opts.command_line_arguments = command_line;
     }
   }
-
-  // TODO: the whole re-writing thing will be a bit weird in combination
-  //       with categories; we'd likely require a "category"-section to be
-  //       present (which we'll also require for bit-identical mode)
 
   if (!categorizer_list_str.empty()) {
     std::vector<std::string> categorizer_list;
@@ -1006,7 +1007,22 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     }
   }
 
-  category_parser cp(options.inode.categorizer_mgr);
+  std::unique_ptr<filesystem_v2> input_filesystem;
+  std::shared_ptr<category_resolver> cat_resolver;
+
+  if (recompress) {
+    filesystem_options fsopts;
+    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+    input_filesystem = std::make_unique<filesystem_v2>(
+        lgr, std::make_shared<dwarfs::mmap>(path), fsopts);
+
+    cat_resolver = std::make_shared<filesystem_block_category_resolver>(
+        input_filesystem->get_all_block_categories());
+  } else {
+    cat_resolver = options.inode.categorizer_mgr;
+  }
+
+  category_parser cp(cat_resolver);
 
   try {
     {
@@ -1061,10 +1077,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   block_compressor metadata_bc(metadata_compression);
   block_compressor history_bc(history_compression);
 
-  filesystem_writer fsw(*os, lgr, wg_compress, prog, schema_bc, metadata_bc,
-                        history_bc, fswopts, header_ifs.get());
+  std::unique_ptr<filesystem_writer> fsw;
 
   try {
+    fsw = std::make_unique<filesystem_writer>(
+        *os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
+        fswopts, header_ifs.get());
+
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
                                  compressor_parser);
@@ -1073,21 +1092,28 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     cop.parse(compression);
     LOG_DEBUG << cop.as_string();
 
-    fsw.add_default_compressor(compression_opt.get());
+    fsw->add_default_compressor(compression_opt.get());
 
-    compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr,
-                                      &fsw](auto cat,
-                                            block_compressor const& bc) {
-      try {
-        catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
-        fsw.add_category_compressor(cat, bc);
-      } catch (std::exception const& e) {
-        throw std::runtime_error(
-            fmt::format("compression '{}' cannot be used for category '{}': "
-                        "metadata requirements not met ({})",
-                        bc.describe(), catmgr->category_name(cat), e.what()));
-      }
-    });
+    if (recompress) {
+      compression_opt.visit_contextual(
+          [catres = cat_resolver, &fsw](auto cat, block_compressor const& bc) {
+            fsw->add_category_compressor(cat, bc);
+          });
+    } else {
+      compression_opt.visit_contextual([catmgr = options.inode.categorizer_mgr,
+                                        &fsw](auto cat,
+                                              block_compressor const& bc) {
+        try {
+          catmgr->set_metadata_requirements(cat, bc.metadata_requirements());
+          fsw->add_category_compressor(cat, bc);
+        } catch (std::exception const& e) {
+          throw std::runtime_error(
+              fmt::format("compression '{}' cannot be used for category '{}': "
+                          "metadata requirements not met ({})",
+                          bc.describe(), catmgr->category_name(cat), e.what()));
+        }
+      });
+    }
   } catch (std::exception const& e) {
     LOG_ERROR << e.what();
     return 1;
@@ -1097,8 +1123,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   try {
     if (recompress) {
-      filesystem_v2::rewrite_deprecated(
-          lgr, prog, std::make_shared<dwarfs::mmap>(path), fsw, rw_opts);
+      input_filesystem->rewrite(prog, *fsw, *cat_resolver, rw_opts);
       wg_compress.wait();
     } else {
       auto sf = std::make_shared<segmenter_factory>(
@@ -1109,9 +1134,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                 options);
 
       if (input_list) {
-        s.scan(fsw, path, prog, *input_list);
+        s.scan(*fsw, path, prog, *input_list);
       } else {
-        s.scan(fsw, path, prog);
+        s.scan(*fsw, path, prog);
       }
 
       options.inode.categorizer_mgr.reset();
