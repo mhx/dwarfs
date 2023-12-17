@@ -138,6 +138,14 @@ class metadata_v2 {
     return impl_->get_inode_info(iv);
   }
 
+  std::optional<std::string> get_block_category(size_t block_number) const {
+    return impl_->get_block_category(block_number);
+  }
+
+  std::vector<std::string> get_all_block_categories() const {
+    return impl_->get_all_block_categories();
+  }
+
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 
@@ -194,6 +202,11 @@ class metadata_v2 {
     virtual bool has_symlinks() const = 0;
 
     virtual folly::dynamic get_inode_info(inode_view iv) const = 0;
+
+    virtual std::optional<std::string>
+    get_block_category(size_t block_number) const = 0;
+
+    virtual std::vector<std::string> get_all_block_categories() const = 0;
   };
 
  private:

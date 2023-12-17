@@ -390,6 +390,9 @@ class filesystem_ final : public filesystem_v2::impl {
   folly::dynamic get_inode_info(inode_view entry) const override {
     return meta_.get_inode_info(entry);
   }
+  std::vector<std::string> get_all_block_categories() const override {
+    return meta_.get_all_block_categories();
+  }
 
  private:
   filesystem_info const& get_info() const;

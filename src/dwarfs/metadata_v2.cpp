@@ -466,6 +466,11 @@ class metadata_ final : public metadata_v2::impl {
 
   folly::dynamic get_inode_info(inode_view iv) const override;
 
+  std::optional<std::string>
+  get_block_category(size_t block_number) const override;
+
+  std::vector<std::string> get_all_block_categories() const override;
+
  private:
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
@@ -1597,10 +1602,8 @@ folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
       chk["offset"] = chunk.offset();
       chk["size"] = chunk.size();
 
-      if (meta_.category_names() && meta_.block_categories()) {
-        chk["category"] =
-            meta_.category_names()
-                .value()[meta_.block_categories().value()[chunk.block()]];
+      if (auto catname = get_block_category(chunk.block())) {
+        chk["category"] = catname.value();
       }
 
       obj["chunks"].push_back(chk);
@@ -1613,6 +1616,32 @@ folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
   obj["gid"] = iv.getgid();
 
   return obj;
+}
+
+template <typename LoggerPolicy>
+std::optional<std::string>
+metadata_<LoggerPolicy>::get_block_category(size_t block_number) const {
+  if (auto const& catnames = meta_.category_names()) {
+    if (auto const& categories = meta_.block_categories()) {
+      return std::string(catnames.value()[categories.value()[block_number]]);
+    }
+  }
+  return std::nullopt;
+}
+
+template <typename LoggerPolicy>
+std::vector<std::string>
+metadata_<LoggerPolicy>::get_all_block_categories() const {
+  std::vector<std::string> rv;
+
+  if (auto const& catnames = meta_.category_names()) {
+    rv.reserve(catnames.value().size());
+    for (auto const& name : catnames.value()) {
+      rv.emplace_back(name);
+    }
+  }
+
+  return rv;
 }
 
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>

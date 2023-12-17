@@ -63,7 +63,7 @@ class filesystem_v2 {
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                const filesystem_options& options, int inode_offset = 0,
+                filesystem_options const& options, int inode_offset = 0,
                 std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
   static void
@@ -179,6 +179,10 @@ class filesystem_v2 {
     return impl_->get_inode_info(entry);
   }
 
+  std::vector<std::string> get_all_block_categories() const {
+    return impl_->get_all_block_categories();
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -220,6 +224,7 @@ class filesystem_v2 {
     virtual bool has_symlinks() const = 0;
     virtual history const& get_history() const = 0;
     virtual folly::dynamic get_inode_info(inode_view entry) const = 0;
+    virtual std::vector<std::string> get_all_block_categories() const = 0;
   };
 
  private:
