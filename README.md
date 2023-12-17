@@ -489,9 +489,13 @@ your machine.
 
 ## Extended Attributes
 
+### Preserving Extended Attributes in DwarFS Images
+
 Extended attributes are not currently supported. Any extended attributes
 stored in the source file system will not currently be preserved when
 building a DwarFS image using `mkdwarfs`.
+
+### Extended Attributes exposed by the FUSE Driver
 
 That being said, the root inode of a mounted DwarFS image currently exposes
 one or two extended attributes on Linux:
@@ -505,6 +509,51 @@ Attribute "dwarfs.driver.perfmon" has a 4849 byte value for mnt
 The `dwarfs.driver.pid` attribute simply contains the PID of the DwarFS
 FUSE driver. The `dwarfs.driver.perfmon` attribute contains the current
 results of the [performance monitor](#performance-monitoring).
+
+Furthermore, each regular file exposes an attribute `dwarfs.inodeinfo`
+with information about the undelying inode:
+
+```
+$ attr -l "05 Disappear.caf"
+Attribute "dwarfs.inodeinfo" has a 448 byte value for 05 Disappear.caf
+```
+
+The attribute contains a JSON object with information about the
+underlying inode:
+
+```
+$ attr -qg dwarfs.inodeinfo "05 Disappear.caf"
+{
+  "chunks": [
+    {
+      "block": 2,
+      "category": "pcmaudio/metadata",
+      "offset": 270976,
+      "size": 4096
+    },
+    {
+      "block": 414,
+      "category": "pcmaudio/waveform",
+      "offset": 37594368,
+      "size": 29514492
+    },
+    {
+      "block": 419,
+      "category": "pcmaudio/waveform",
+      "offset": 0,
+      "size": 29385468
+    }
+  ],
+  "gid": 100,
+  "mode": 33188,
+  "modestring": "----rw-r--r--",
+  "uid": 1000
+}
+```
+
+This is useful, for example, to check how a particular file is spread
+across multiple blocks or which categories have been assigned to the
+file.
 
 ## Comparison
 
