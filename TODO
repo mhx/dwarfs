@@ -8,45 +8,20 @@
   obviously wouldn't be undo-able)
 
 - Packaging of libs added via FetchContent
-- Remove [ MiB, MiB, MiB ]
-- Generic hashing / scanning / categorizing progress?
 
 - Re-assemble global bloom filter rather than merging?
 - Use smaller bloom filters for individual blocks?
 - Use bigger (non-resettable?) global bloom filter?
 
-- filesystem re-writing with categories :-)
-
-- let's try and keep forward compatibility for the 0.7 release
-  when not using new features; the only features relevant are
-  likely FLAC compression support and "features" support; in
-  theory, we don't even need to increment the minor version at
-  all, since unknown compressions will be caught and feature
-  flags will simply be ignored; maybe it makes sense to have
-  this mode of compatibility only for the 0.8 releases and in
-  0.9 do a hard increment of the minor version; in 0.8, we can
-  use the old minor version if we don't use FLAC and the new
-  minor version if we do
-
 - file discovery progress?
 
-- reasonable defaults when `--categorize` is given without
-  any arguments
-
 - show defaults for categorized options
-
-- scanner / compressor progress contexts?
-
-- file system rewriting with categories :-)
 
 - take a look at CPU measurements, those for nilsimsa
   ordering are probably wrong
 
 - segmenter tests with different granularities, block sizes,
   any other options
-
-- configurable number of threads for ordering/segmenting
-
 
 - Bloom filters can be wasteful if lookback gets really long.
   Maybe we can use smaller bloom filters for individual blocks
@@ -74,10 +49,6 @@
   in this case.
 
 
-- Forward compatibility
-
-  - Feature flags (feature strings)
-
 - Wiki with use cases
   - Perl releases
   - Videos with shared streams
@@ -85,25 +56,6 @@
   - Compression of filesystem images for forensic purposes
 
 - Mounting lots of images with shared cache?
-
-- configuration ideas:
-
-  --order FILETYPE::...
-  -B FILETYPE::...
-  -W FILETYPE::...
-  -w FILETYPE::...
-  -C FILETYPE::...
-
-  -B pcmaudio::64 -W pcmaudio::16 -C pcmaudio::flac:level=8
-  -C binary/x86::zstd:filter=x86
-  -C mime:application/x-archive::null
-
-  --filetype pcmaudio::mime:audio/x-wav,mime:audio/x-w64
-
-
-  --categorize=pcmaudio,incompressible,binary,libmagic
-  --libmagic-types=application/x-archive
-
 
 - different scenarios for categorized files / chunks:
 
@@ -122,11 +74,9 @@
     This is actually quite easy:
 
     - Identify PCM audio files (libmagic?)
-    - Use libsndfile for parsing
     - Nilsimsa similarity works surprisingly well
     - We can potentially switch to larger window size for segmentation and use
       larger lookback
-    - Group by format (# of channels, resolution, endian-ness, signedness, sample rate)
     - Run segmentation as usual
     - Compress each block using FLAC (hopefully we can configure how much header data
       and/or seek points etc. gets stored) or maybe even WAVPACK is we don't need perf
@@ -183,18 +133,12 @@
       would only operate on a few instead of all bloom filters, which
       could be better from a cache locality pov)
 
-- per-file progress for large files?
-- throughput indicator
-
 - similarity size limit to avoid similarity computation for huge files
 - store files without similarity hash first, sorted descending by size
-- allow ordering by *reverse* path
 
 
 - use streaming interface for zstd decompressor
 - json metadata recovery
-- add --chmod, --chown
-- add some simple filter rules?
 - handle sparse files?
 - try to be more resilient to modifications of the input while creating fs
 
@@ -220,8 +164,6 @@
 - --unpack option
 
 - readahead?
-
-- remove multiple blockhash window sizes, one is enough apparently?
 
 - window-increment-shift seems silly to configure?
 
