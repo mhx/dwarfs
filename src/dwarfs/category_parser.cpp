@@ -23,19 +23,20 @@
 
 #include <folly/String.h>
 
-#include "dwarfs/categorizer.h"
 #include "dwarfs/category_parser.h"
+#include "dwarfs/category_resolver.h"
 
 namespace dwarfs {
 
-category_parser::category_parser(std::shared_ptr<categorizer_manager> catmgr)
-    : catmgr_{catmgr} {}
+category_parser::category_parser(
+    std::shared_ptr<category_resolver const> resolver)
+    : resolver_{resolver} {}
 
 std::vector<fragment_category::value_type>
 category_parser::parse(std::string_view arg) const {
-  if (!catmgr_) {
+  if (!resolver_) {
     throw std::runtime_error(
-        "cannot configure category-specific options without any categorizers");
+        "cannot configure category-specific options without any categories");
   }
 
   std::vector<fragment_category::value_type> rv;
@@ -45,7 +46,7 @@ category_parser::parse(std::string_view arg) const {
   rv.reserve(categories.size());
 
   for (auto const& name : categories) {
-    if (auto val = catmgr_->category_value(name)) {
+    if (auto val = resolver_->category_value(name)) {
       rv.emplace_back(*val);
     } else {
       throw std::range_error(fmt::format("unknown category: '{}'", name));
@@ -57,7 +58,7 @@ category_parser::parse(std::string_view arg) const {
 
 std::string
 category_parser::to_string(fragment_category::value_type const& val) const {
-  return std::string(catmgr_->category_name(val));
+  return std::string(resolver_->category_name(val));
 }
 
 } // namespace dwarfs

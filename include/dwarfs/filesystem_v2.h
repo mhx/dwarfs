@@ -49,6 +49,7 @@ struct iovec_read_buf;
 struct file_stat;
 struct vfs_stat;
 
+class category_resolver;
 class filesystem_writer;
 class history;
 class logger;

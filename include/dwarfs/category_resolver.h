@@ -21,24 +21,21 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <optional>
+#include <string_view>
 
 #include "dwarfs/fragment_category.h"
 
 namespace dwarfs {
 
-class category_resolver;
-
-class category_parser {
+class category_resolver {
  public:
-  category_parser(std::shared_ptr<category_resolver const> resolver);
+  virtual ~category_resolver() = default;
 
-  std::vector<fragment_category::value_type> parse(std::string_view arg) const;
-  std::string to_string(fragment_category::value_type const& val) const;
-
- private:
-  std::shared_ptr<category_resolver const> resolver_;
+  virtual std::string_view
+  category_name(fragment_category::value_type c) const = 0;
+  virtual std::optional<fragment_category::value_type>
+  category_value(std::string_view name) const = 0;
 };
 
 } // namespace dwarfs

@@ -21,24 +21,29 @@
 
 #pragma once
 
-#include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "dwarfs/fragment_category.h"
+#include "dwarfs/category_resolver.h"
 
 namespace dwarfs {
 
-class category_resolver;
-
-class category_parser {
+class filesystem_block_category_resolver : public category_resolver {
  public:
-  category_parser(std::shared_ptr<category_resolver const> resolver);
+  filesystem_block_category_resolver() = default;
+  explicit filesystem_block_category_resolver(
+      std::vector<std::string> categories);
 
-  std::vector<fragment_category::value_type> parse(std::string_view arg) const;
-  std::string to_string(fragment_category::value_type const& val) const;
+  std::string_view
+  category_name(fragment_category::value_type c) const override;
+  std::optional<fragment_category::value_type>
+  category_value(std::string_view name) const override;
 
  private:
-  std::shared_ptr<category_resolver const> resolver_;
+  std::vector<std::string> categories_;
+  std::unordered_map<std::string_view, fragment_category::value_type>
+      category_map_;
 };
 
 } // namespace dwarfs

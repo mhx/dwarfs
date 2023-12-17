@@ -31,6 +31,7 @@
 #include <span>
 #include <string_view>
 
+#include "dwarfs/category_resolver.h"
 #include "dwarfs/inode_fragments.h"
 
 namespace boost::program_options {
@@ -124,7 +125,7 @@ class categorizer_job {
   std::unique_ptr<impl> impl_;
 };
 
-class categorizer_manager {
+class categorizer_manager : public category_resolver {
  public:
   categorizer_manager(logger& lgr);
 
@@ -136,12 +137,13 @@ class categorizer_manager {
     return impl_->job(path);
   }
 
-  std::string_view category_name(fragment_category::value_type c) const {
+  std::string_view
+  category_name(fragment_category::value_type c) const override {
     return impl_->category_name(c);
   }
 
   std::optional<fragment_category::value_type>
-  category_value(std::string_view name) const {
+  category_value(std::string_view name) const override {
     return impl_->category_value(name);
   }
 
