@@ -275,7 +275,7 @@ class incompressible_categorizer_factory : public categorizer_factory {
       ("incompressible-ratio",
           po::value<double>(&cfg_.max_ratio)
             ->default_value(default_ratio, default_ratio_str),
-          "compression ratio above which files are considered incompressible")
+          "compression ratio above which files or fragments are considered incompressible")
       ("incompressible-zstd-level",
           po::value<int>(&cfg_.zstd_level)->default_value(-1),
           zstd_level_str.c_str())
