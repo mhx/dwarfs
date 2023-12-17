@@ -749,12 +749,13 @@ void scanner_<LoggerPolicy>::scan(
 
     LOG_INFO << "waiting for segmenting/blockifying to finish...";
 
+    // We must wait for blockify first, since the blockify jobs are what
+    // trigger the ordering jobs.
+    wg_blockify.wait();
     wg_ordering.wait();
 
     LOG_INFO << "total ordering CPU time: "
              << time_with_unit(wg_ordering.get_cpu_time());
-
-    wg_blockify.wait();
 
     LOG_INFO << "total segmenting CPU time: "
              << time_with_unit(wg_blockify.get_cpu_time());
