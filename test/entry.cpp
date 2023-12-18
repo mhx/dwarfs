@@ -26,8 +26,16 @@
 #include "test_helpers.h"
 
 using namespace dwarfs;
+namespace fs = std::filesystem;
 
 struct entry_test : public ::testing::Test {
+  fs::path sep{
+#ifdef _WIN32
+      std::wstring
+#else
+      std::string
+#endif
+      (1, fs::path::preferred_separator)};
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<entry_factory> ef;
 
@@ -43,19 +51,19 @@ struct entry_test : public ::testing::Test {
 };
 
 TEST_F(entry_test, path) {
-  auto e1 = ef->create(*os, "/");
-  auto e2 = ef->create(*os, "somelink", e1);
-  auto e3 = ef->create(*os, "somedir", e1);
-  auto e4 = ef->create(*os, "somedir/ipsum.py", e3);
+  auto e1 = ef->create(*os, sep);
+  auto e2 = ef->create(*os, fs::path("somelink"), e1);
+  auto e3 = ef->create(*os, fs::path("somedir"), e1);
+  auto e4 = ef->create(*os, fs::path("somedir") / "ipsum.py", e3);
 
   EXPECT_FALSE(e1->has_parent());
   EXPECT_TRUE(e1->is_directory());
   EXPECT_EQ(e1->type(), entry::E_DIR);
 
-  EXPECT_EQ("/", e1->name());
-  EXPECT_EQ("/", e1->fs_path());
-  EXPECT_EQ("/", e1->path_as_string());
-  EXPECT_EQ("/", e1->dpath());
+  EXPECT_EQ(sep.string(), e1->name());
+  EXPECT_EQ(sep, e1->fs_path());
+  EXPECT_EQ(sep.string(), e1->path_as_string());
+  EXPECT_EQ(sep.string(), e1->dpath());
   EXPECT_EQ("/", e1->unix_dpath());
 
   EXPECT_TRUE(e2->has_parent());
@@ -63,9 +71,9 @@ TEST_F(entry_test, path) {
   EXPECT_EQ(e2->type(), entry::E_LINK);
 
   EXPECT_EQ("somelink", e2->name());
-  EXPECT_EQ("/somelink", e2->fs_path());
-  EXPECT_EQ("/somelink", e2->path_as_string());
-  EXPECT_EQ("/somelink", e2->dpath());
+  EXPECT_EQ(sep / "somelink", e2->fs_path());
+  EXPECT_EQ((sep / "somelink").string(), e2->path_as_string());
+  EXPECT_EQ((sep / "somelink").string(), e2->dpath());
   EXPECT_EQ("/somelink", e2->unix_dpath());
 
   EXPECT_TRUE(e3->has_parent());
@@ -73,9 +81,9 @@ TEST_F(entry_test, path) {
   EXPECT_EQ(e3->type(), entry::E_DIR);
 
   EXPECT_EQ("somedir", e3->name());
-  EXPECT_EQ("/somedir", e3->fs_path());
-  EXPECT_EQ("/somedir", e3->path_as_string());
-  EXPECT_EQ("/somedir/", e3->dpath());
+  EXPECT_EQ(sep / "somedir", e3->fs_path());
+  EXPECT_EQ((sep / "somedir").string(), e3->path_as_string());
+  EXPECT_EQ((sep / "somedir").string() + sep.string(), e3->dpath());
   EXPECT_EQ("/somedir/", e3->unix_dpath());
 
   EXPECT_TRUE(e4->has_parent());
@@ -83,8 +91,8 @@ TEST_F(entry_test, path) {
   EXPECT_EQ(e4->type(), entry::E_FILE);
 
   EXPECT_EQ("ipsum.py", e4->name());
-  EXPECT_EQ("/somedir/ipsum.py", e4->fs_path());
-  EXPECT_EQ("/somedir/ipsum.py", e4->path_as_string());
-  EXPECT_EQ("/somedir/ipsum.py", e4->dpath());
+  EXPECT_EQ(sep / "somedir" / "ipsum.py", e4->fs_path());
+  EXPECT_EQ((sep / "somedir" / "ipsum.py").string(), e4->path_as_string());
+  EXPECT_EQ((sep / "somedir" / "ipsum.py").string(), e4->dpath());
   EXPECT_EQ("/somedir/ipsum.py", e4->unix_dpath());
 }
