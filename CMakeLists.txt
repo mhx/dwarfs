@@ -589,21 +589,39 @@ if(WITH_TESTS OR WITH_BENCHMARKS)
 endif()
 
 if(WITH_TESTS)
-  add_executable(dwarfs_test test/dwarfs.cpp)
-  target_link_libraries(dwarfs_test test_helpers gtest gtest_main)
+  list(
+    APPEND
+    DWARFS_TEST_SRC
+    test/dwarfs.cpp
+    test/dwarfs_compat.cpp
+    test/dwarfs_badfs.cpp
+    test/utils_test.cpp
+    test/block_merger_test.cpp
+    test/metadata_requirements_test.cpp
+    test/pcm_sample_transformer_test.cpp
+    test/pcmaudio_categorizer_test.cpp
+    test/incompressible_categorizer_test.cpp
+  )
+
+  if(FLAC_FOUND)
+    list(APPEND DWARFS_TEST_SRC test/flac_compressor_test.cpp)
+  endif()
+
+  add_executable(dwarfs_test ${DWARFS_TEST_SRC})
+
+  target_link_libraries(
+    dwarfs_test
+    test_helpers
+    gmock
+    gtest
+    gtest_main
+    "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>"
+  )
+
+  target_compile_definitions(dwarfs_test
+    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
+
   list(APPEND TEST_TARGETS dwarfs_test)
-
-  add_executable(dwarfs_compat_test test/dwarfs_compat.cpp)
-  target_link_libraries(dwarfs_compat_test gtest gtest_main)
-  target_compile_definitions(dwarfs_compat_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-  list(APPEND TEST_TARGETS dwarfs_compat_test)
-
-  add_executable(dwarfs_badfs_test test/dwarfs_badfs.cpp)
-  target_link_libraries(dwarfs_badfs_test gtest gtest_main)
-  target_compile_definitions(dwarfs_badfs_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-  list(APPEND TEST_TARGETS dwarfs_badfs_test)
 
   add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
   target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
@@ -611,41 +629,6 @@ if(WITH_TESTS)
     PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
             TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
   list(APPEND TEST_TARGETS dwarfs_tools_test)
-
-  add_executable(dwarfs_utils_test test/utils_test.cpp)
-  target_link_libraries(dwarfs_utils_test gtest gtest_main)
-  list(APPEND TEST_TARGETS dwarfs_utils_test)
-
-  add_executable(block_merger_test test/block_merger_test.cpp)
-  target_link_libraries(block_merger_test gtest gtest_main)
-  list(APPEND TEST_TARGETS block_merger_test)
-
-  add_executable(dwarfs_metadata_requirements_test test/metadata_requirements_test.cpp)
-  target_link_libraries(dwarfs_metadata_requirements_test test_helpers
-                        gtest gtest_main gmock_main)
-  list(APPEND TEST_TARGETS dwarfs_metadata_requirements_test)
-
-  add_executable(dwarfs_pcm_sample_transformer_test test/pcm_sample_transformer_test.cpp)
-  target_link_libraries(dwarfs_pcm_sample_transformer_test gtest gtest_main)
-  list(APPEND TEST_TARGETS dwarfs_pcm_sample_transformer_test)
-
-  add_executable(dwarfs_pcmaudio_categorizer_test test/pcmaudio_categorizer_test.cpp)
-  target_link_libraries(dwarfs_pcmaudio_categorizer_test gtest gtest_main gmock_main
-                        "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
-  target_compile_definitions(dwarfs_pcmaudio_categorizer_test PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-  list(APPEND TEST_TARGETS dwarfs_pcmaudio_categorizer_test)
-
-  add_executable(dwarfs_incompressible_categorizer_test test/incompressible_categorizer_test.cpp)
-  target_link_libraries(dwarfs_incompressible_categorizer_test test_helpers
-                        gtest gtest_main gmock_main
-                        "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
-  list(APPEND TEST_TARGETS dwarfs_incompressible_categorizer_test)
-
-  if(FLAC_FOUND)
-    add_executable(dwarfs_flac_compressor_test test/flac_compressor_test.cpp)
-    target_link_libraries(dwarfs_flac_compressor_test gtest gtest_main)
-    list(APPEND TEST_TARGETS dwarfs_flac_compressor_test)
-  endif()
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
