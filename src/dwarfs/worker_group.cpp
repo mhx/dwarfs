@@ -38,7 +38,6 @@
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/error.h"
-#include "dwarfs/semaphore.h"
 #include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
 
