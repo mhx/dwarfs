@@ -60,7 +60,6 @@ namespace bp = boost::process;
 namespace fs = std::filesystem;
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
-auto test_data_tar = test_dir / "data.tar";
 auto test_data_dwarfs = test_dir / "data.dwarfs";
 
 #ifdef _WIN32
