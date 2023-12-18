@@ -106,6 +106,12 @@ Distinct features of DwarFS are:
   using the compressed file system and thus potentially allows for
   higher cache hit rates as more data can be kept in the cache.
 
+- [Categorization framework](doc/mkdwarfs.md#categorizers) to categorize
+  files or even fragments of files and then process individual categories
+  differently. For example, this allows you to not waste time trying to
+  compress incompressible files or to compress PCM audio data using FLAC
+  compression.
+
 - Highly multi-threaded implementation. Both the
   [file system creation tool](doc/mkdwarfs.md) as well as the
   [FUSE driver](doc/dwarfs.md) are able to make good use of the
