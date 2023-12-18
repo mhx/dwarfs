@@ -595,6 +595,7 @@ if(WITH_TESTS)
     test/dwarfs.cpp
     test/dwarfs_compat.cpp
     test/dwarfs_badfs.cpp
+    test/entry.cpp
     test/utils_test.cpp
     test/block_merger_test.cpp
     test/metadata_requirements_test.cpp

@@ -316,7 +316,8 @@ std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
   for (auto const& p : path) {
     parts.emplace_back(u8string_to_string(p.u8string()));
   }
-  while (!parts.empty() && (parts.front().empty() || parts.front() == "/")) {
+  while (!parts.empty() && (parts.front().empty() ||
+                            (parts.front() == "/" || parts.front() == "\\"))) {
     parts.erase(parts.begin());
   }
   return parts;

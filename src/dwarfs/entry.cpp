@@ -46,6 +46,16 @@ namespace dwarfs {
 namespace {
 
 constexpr std::string_view const kHashContext{"[hashing] "};
+constexpr char const kLocalPathSeparator{
+    static_cast<char>(std::filesystem::path::preferred_separator)};
+
+bool is_root_path(std::string_view path) {
+#if _WIN32
+  return path == "/" || path == "\\";
+#else
+  return path == "/";
+#endif
+}
 
 } // namespace
 
@@ -84,8 +94,11 @@ std::string entry::path_as_string() const {
 
 std::string entry::dpath() const {
   auto p = path_as_string();
+  if (is_root_path(p)) {
+    return std::string(1, kLocalPathSeparator);
+  }
   if (type() == E_DIR) {
-    p += '/';
+    p += kLocalPathSeparator;
   }
   return p;
 }
@@ -93,7 +106,11 @@ std::string entry::dpath() const {
 std::string entry::unix_dpath() const {
   auto p = name_;
 
-  if (type() == E_DIR) {
+  if (is_root_path(p)) {
+    return "/";
+  }
+
+  if (type() == E_DIR && !p.empty()) {
     p += '/';
   }
 
