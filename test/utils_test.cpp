@@ -31,7 +31,7 @@
 
 using namespace dwarfs;
 
-TEST(utf8_display_width, basic) {
+TEST(utils, utf8_display_width) {
   EXPECT_EQ(0, utf8_display_width(""));
   EXPECT_EQ(1, utf8_display_width(u8string_to_string(u8"a")));
   EXPECT_EQ(5, utf8_display_width(u8string_to_string(u8"abcde")));
@@ -45,7 +45,7 @@ TEST(utf8_display_width, basic) {
                     u8"unicode/我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️/Карибського")));
 }
 
-TEST(shorten_path, string_ascii) {
+TEST(utils, shorten_path_ascii) {
   std::string const orig =
       "/foo/bar/home/bla/mnt/doc/html/boost_asio/reference/"
       "async_result_lt__basic_yield_context_lt__Executor__gt__comma__Signature_"
@@ -99,7 +99,7 @@ TEST(shorten_path, string_ascii) {
   }
 }
 
-TEST(shorten_path, string_utf8) {
+TEST(utils, shorten_path_utf8) {
   std::u8string const orig_u8 =
       u8"/unicode/我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️/Карибського";
   std::string const orig = u8string_to_string(orig_u8);
@@ -222,7 +222,7 @@ find_file_position(cache_type::inode_type const inode,
 
 } // namespace
 
-TEST(offset_cache, basic) {
+TEST(utils, offset_cache_basic) {
   cache_type cache(4);
 
   size_t total_ref_lookups = 0;
@@ -276,7 +276,7 @@ TEST(offset_cache, basic) {
   }
 }
 
-TEST(offset_cache, prefill) {
+TEST(utils, offset_cache_prefill) {
   cache_type prefilled_cache(4);
 
   auto [prefill_ix, prefill_off, prefill_lookups] = find_file_position(
