@@ -83,16 +83,13 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     ("cache-size,s",
         po::value<std::string>(&cache_size_str)->default_value("512m"),
         "block cache size")
-    ("log-level,l",
-        po::value<std::string>(&log_level)->default_value("warn"),
-        "log level (error, warn, info, debug, trace)")
 #if DWARFS_PERFMON_ENABLED
     ("perfmon",
         po::value<std::string>(&perfmon_str),
         "enable performance monitor")
 #endif
-    ("help,h",
-        "output help message and exit");
+    ;
+  add_common_options(opts, log_level);
   // clang-format on
 
   po::variables_map vm;

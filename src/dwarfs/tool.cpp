@@ -21,6 +21,7 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/logger.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/version.h"
 
@@ -37,6 +38,21 @@ tool_header(std::string_view tool_name, std::string_view extra_info) {
       // clang-format on
       "{} ({}{})\nbuilt on {}\n\n",
       tool_name, PRJ_GIT_ID, extra_info, PRJ_BUILD_ID);
+}
+
+void add_common_options(boost::program_options::options_description& opts,
+                        std::string& log_level_str) {
+  auto log_level_desc = "log level (" + logger::all_level_names() + ")";
+
+  // clang-format off
+  opts.add_options()
+    ("log-level",
+        boost::program_options::value<std::string>(&log_level_str)
+            ->default_value("info"),
+        log_level_desc.c_str())
+    ("help,h",
+        "output help message and exit");
+  // clang-format on
 }
 
 } // namespace dwarfs

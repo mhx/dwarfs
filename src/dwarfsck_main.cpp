@@ -83,11 +83,8 @@ int dwarfsck_main(int argc, sys_char** argv) {
     ("export-metadata",
         po::value<std::string>(&export_metadata),
         "export raw metadata as JSON to file")
-    ("log-level",
-        po::value<std::string>(&log_level)->default_value("info"),
-        "log level (error, warn, info, debug, trace)")
-    ("help,h",
-        "output help message and exit");
+      ;
+  add_common_options(opts, log_level);
   // clang-format on
 
   po::positional_options_description pos;

@@ -73,6 +73,8 @@ class logger {
 
   static level_type parse_level(std::string_view level);
 
+  static std::string all_level_names();
+
  private:
   std::string policy_name_; // TODO: const?
 };

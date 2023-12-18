@@ -65,6 +65,10 @@ logger::level_type logger::parse_level(std::string_view level) {
   DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}", level));
 }
 
+std::string logger::all_level_names() {
+  return "error, warn, info, verbose, debug, trace";
+}
+
 stream_logger::stream_logger(std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)

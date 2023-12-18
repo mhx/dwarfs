@@ -969,7 +969,7 @@ void usage(std::filesystem::path const& progname) {
       << "    -o readonly            show read-only file system\n"
       << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
       << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
-      << "    -o debuglevel=NAME     error, warn, info, debug, trace\n"
+      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
       << "    -o tidy_strategy=NAME  (none)|time|swap\n"
       << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
       << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
