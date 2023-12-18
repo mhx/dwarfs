@@ -84,7 +84,7 @@ std::string entry::path_as_string() const {
 
 std::string entry::dpath() const {
   auto p = path_as_string();
-  if (type() == E_DIR) {
+  if (type() == E_DIR && !p.empty() && p.back() != '/') {
     p += '/';
   }
   return p;
@@ -93,7 +93,7 @@ std::string entry::dpath() const {
 std::string entry::unix_dpath() const {
   auto p = name_;
 
-  if (type() == E_DIR) {
+  if (type() == E_DIR && !p.empty() && p.back() != '/') {
     p += '/';
   }
 
