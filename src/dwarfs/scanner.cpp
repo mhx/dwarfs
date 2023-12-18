@@ -89,8 +89,6 @@ class dir_set_inode_visitor : public visitor_base {
     p->set_inode_num(inode_num_++);
   }
 
-  uint32_t inode_num() const { return inode_num_; }
-
  private:
   uint32_t& inode_num_;
 };
