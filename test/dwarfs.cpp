@@ -41,6 +41,7 @@
 #include "dwarfs/file_type.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/filter_debug.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
@@ -817,44 +818,163 @@ INSTANTIATE_TEST_SUITE_P(
                                          file_order_mode::NILSIMSA),
                        ::testing::Values(std::nullopt, "xxh3-128")));
 
-class filter : public testing::TestWithParam<dwarfs::test::filter_test_data> {};
-
-TEST_P(filter, filesystem) {
-  auto spec = GetParam();
-
-  segmenter::config cfg;
-  scanner_options options;
-
-  options.remove_empty_dirs = true;
-
+class filter_test
+    : public testing::TestWithParam<dwarfs::test::filter_test_data> {
+ public:
   test::test_logger lgr;
+  std::shared_ptr<builtin_script> scr;
+  std::shared_ptr<test::os_access_mock> input;
 
-  auto scr = std::make_shared<builtin_script>(lgr);
+  void SetUp() override {
+    scr = std::make_shared<builtin_script>(lgr);
+    scr->set_root_path("");
 
-  scr->set_root_path("");
-  {
+    input = std::make_shared<test::os_access_mock>();
+
+    for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
+      auto path = name.substr(name.size() == 5 ? 5 : 6);
+
+      switch (stat.type()) {
+      case posix_file_type::regular:
+        input->add(path, stat,
+                   [size = stat.size] { return test::loremipsum(size); });
+        break;
+      case posix_file_type::symlink:
+        input->add(path, stat, test::loremipsum(stat.size));
+        break;
+      default:
+        input->add(path, stat);
+        break;
+      }
+    }
+  }
+
+  void set_filter_rules(test::filter_test_data const& spec) {
     std::istringstream iss(spec.filter());
     scr->add_filter_rules(iss);
   }
 
-  auto input = std::make_shared<test::os_access_mock>();
+  std::string get_filter_debug_output(test::filter_test_data const& spec,
+                                      debug_filter_mode mode) {
+    set_filter_rules(spec);
 
-  for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
-    auto path = name.substr(name.size() == 5 ? 5 : 6);
+    std::ostringstream oss;
 
-    switch (stat.type()) {
-    case posix_file_type::regular:
-      input->add(path, stat,
-                 [size = stat.size] { return test::loremipsum(size); });
-      break;
-    case posix_file_type::symlink:
-      input->add(path, stat, test::loremipsum(stat.size));
-      break;
-    default:
-      input->add(path, stat);
-      break;
-    }
+    scanner_options options;
+    options.remove_empty_dirs = false;
+    options.debug_filter_function = [&](bool exclude, entry const* pe) {
+      debug_filter_output(oss, exclude, pe, mode);
+    };
+
+    progress prog([](const progress&, bool) {}, 1000);
+    worker_group wg("worker", 1);
+    auto sf = std::make_shared<segmenter_factory>(lgr, prog,
+                                                  segmenter_factory::config{});
+    scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);
+
+    block_compressor bc("null");
+    std::ostringstream null;
+    filesystem_writer fsw(null, lgr, wg, prog, bc, bc, bc);
+    s.scan(fsw, std::filesystem::path("/"), prog);
+
+    return oss.str();
   }
+
+  std::string get_expected_filter_output(test::filter_test_data const& spec,
+                                         debug_filter_mode mode) {
+    std::string expected;
+    auto expected_files = spec.expected_files();
+
+    auto check_included = [&](auto const& stat, std::string const& path,
+                              std::string_view prefix = "") {
+      if (stat.type() == posix_file_type::directory) {
+        expected += fmt::format("{}/{}/\n", prefix, path);
+      } else if (expected_files.count(path)) {
+        expected += fmt::format("{}/{}\n", prefix, path);
+      }
+    };
+
+    auto check_included_files = [&](auto const& stat, std::string const& path,
+                                    std::string_view prefix = "") {
+      if (stat.type() != posix_file_type::directory &&
+          expected_files.count(path)) {
+        expected += fmt::format("{}/{}\n", prefix, path);
+      }
+    };
+
+    auto check_excluded = [&](auto const& stat, std::string const& path,
+                              std::string_view prefix = "") {
+      if (stat.type() != posix_file_type::directory &&
+          expected_files.count(path) == 0) {
+        expected += fmt::format("{}/{}\n", prefix, path);
+      }
+    };
+
+    auto check_excluded_files = [&](auto const& stat, std::string const& path,
+                                    std::string_view prefix = "") {
+      if (stat.type() != posix_file_type::directory &&
+          expected_files.count(path) == 0) {
+        expected += fmt::format("{}/{}\n", prefix, path);
+      }
+    };
+
+    for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
+      std::string path(name.substr(name.size() == 5 ? 5 : 6));
+
+      if (path.empty()) {
+        continue;
+      }
+
+      switch (mode) {
+      case debug_filter_mode::INCLUDED_FILES:
+        check_included_files(stat, path);
+        break;
+
+      case debug_filter_mode::INCLUDED:
+        check_included(stat, path);
+        break;
+
+      case debug_filter_mode::EXCLUDED_FILES:
+        check_excluded_files(stat, path);
+        break;
+
+      case debug_filter_mode::EXCLUDED:
+        check_excluded(stat, path);
+        break;
+
+      case debug_filter_mode::FILES:
+        check_included_files(stat, path, "+ ");
+        check_excluded_files(stat, path, "- ");
+        break;
+
+      case debug_filter_mode::ALL:
+        check_included(stat, path, "+ ");
+        check_excluded(stat, path, "- ");
+        break;
+
+      case debug_filter_mode::OFF:
+        throw std::logic_error("invalid debug filter mode");
+      }
+    }
+
+    return expected;
+  }
+
+  void TearDown() override {
+    scr.reset();
+    input.reset();
+  }
+};
+
+TEST_P(filter_test, filesystem) {
+  auto spec = GetParam();
+
+  set_filter_rules(spec);
+
+  segmenter::config cfg;
+
+  scanner_options options;
+  options.remove_empty_dirs = true;
 
   auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr, scr);
 
@@ -874,7 +994,53 @@ TEST_P(filter, filesystem) {
   EXPECT_EQ(spec.expected_files(), got);
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, filter,
+TEST_P(filter_test, debug_filter_function_included) {
+  auto spec = GetParam();
+  auto output = get_filter_debug_output(spec, debug_filter_mode::INCLUDED);
+  auto expected = get_expected_filter_output(spec, debug_filter_mode::INCLUDED);
+  EXPECT_EQ(expected, output);
+}
+
+TEST_P(filter_test, debug_filter_function_included_files) {
+  auto spec = GetParam();
+  auto output =
+      get_filter_debug_output(spec, debug_filter_mode::INCLUDED_FILES);
+  auto expected =
+      get_expected_filter_output(spec, debug_filter_mode::INCLUDED_FILES);
+  EXPECT_EQ(expected, output);
+}
+
+TEST_P(filter_test, debug_filter_function_excluded) {
+  auto spec = GetParam();
+  auto output = get_filter_debug_output(spec, debug_filter_mode::EXCLUDED);
+  auto expected = get_expected_filter_output(spec, debug_filter_mode::EXCLUDED);
+  EXPECT_EQ(expected, output);
+}
+
+TEST_P(filter_test, debug_filter_function_excluded_files) {
+  auto spec = GetParam();
+  auto output =
+      get_filter_debug_output(spec, debug_filter_mode::EXCLUDED_FILES);
+  auto expected =
+      get_expected_filter_output(spec, debug_filter_mode::EXCLUDED_FILES);
+  EXPECT_EQ(expected, output);
+}
+
+TEST_P(filter_test, debug_filter_function_all) {
+  auto spec = GetParam();
+  auto output = get_filter_debug_output(spec, debug_filter_mode::ALL);
+  auto expected = get_expected_filter_output(spec, debug_filter_mode::ALL);
+  EXPECT_EQ(expected, output);
+}
+
+TEST_P(filter_test, debug_filter_function_files) {
+  auto spec = GetParam();
+  auto output = get_filter_debug_output(spec, debug_filter_mode::FILES);
+  auto expected = get_expected_filter_output(spec, debug_filter_mode::FILES);
+  EXPECT_EQ(expected, output);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, filter_test,
                          ::testing::ValuesIn(dwarfs::test::get_filter_tests()));
 
 TEST(file_scanner, input_list) {

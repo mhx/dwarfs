@@ -384,6 +384,7 @@ list(
   src/dwarfs/filesystem_extractor.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/filesystem_writer.cpp
+  src/dwarfs/filter_debug.cpp
   src/dwarfs/fragment_chunkable.cpp
   src/dwarfs/fragment_order_parser.cpp
   src/dwarfs/fstypes.cpp

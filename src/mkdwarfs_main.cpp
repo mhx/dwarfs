@@ -62,6 +62,7 @@
 #include "dwarfs/filesystem_block_category_resolver.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/filter_debug.h"
 #include "dwarfs/fragment_order_parser.h"
 #include "dwarfs/integral_value_parser.h"
 #include "dwarfs/logger.h"
@@ -84,16 +85,6 @@ namespace po = boost::program_options;
 namespace dwarfs {
 
 namespace {
-
-enum class debug_filter_mode {
-  OFF,
-  INCLUDED,
-  INCLUDED_FILES,
-  EXCLUDED,
-  EXCLUDED_FILES,
-  FILES,
-  ALL
-};
 
 const std::map<std::string, console_writer::progress_mode> progress_modes{
     {"none", console_writer::NONE},
@@ -130,32 +121,6 @@ const std::map<std::string, uint32_t> time_resolutions{
 
 constexpr size_t min_block_size_bits{10};
 constexpr size_t max_block_size_bits{30};
-
-void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
-                         debug_filter_mode mode) {
-  if (exclude ? mode == debug_filter_mode::INCLUDED or
-                    mode == debug_filter_mode::INCLUDED_FILES
-              : mode == debug_filter_mode::EXCLUDED or
-                    mode == debug_filter_mode::EXCLUDED_FILES) {
-    return;
-  }
-
-  bool const files_only = mode == debug_filter_mode::FILES or
-                          mode == debug_filter_mode::INCLUDED_FILES or
-                          mode == debug_filter_mode::EXCLUDED_FILES;
-
-  if (files_only and pe->type() == entry::E_DIR) {
-    return;
-  }
-
-  char const* prefix = "";
-
-  if (mode == debug_filter_mode::FILES or mode == debug_filter_mode::ALL) {
-    prefix = exclude ? "- " : "+ ";
-  }
-
-  os << prefix << pe->unix_dpath() << "\n";
-}
 
 struct level_defaults {
   unsigned block_size_bits;

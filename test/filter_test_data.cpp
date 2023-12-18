@@ -61,6 +61,20 @@ R"(
   "lib",
   "lib/libpcprofile.so",
 }},
+{
+  "IncludeSomeObjects",
+R"(
+- gcc/**.o
++ *.o
+- *
+)", {
+  "",
+  "usr",
+  "usr/lib",
+  "usr/lib/Mcrt1.o",
+  "usr/lib64",
+  "usr/lib64/gcrt1.o",
+}},
     // clang-format on
 };
 
