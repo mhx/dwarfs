@@ -85,7 +85,11 @@ std::string entry::path_as_string() const {
 std::string entry::dpath() const {
   auto p = path_as_string();
   if (type() == E_DIR && !p.empty() && p.back() != '/' && p.back() != '\\') {
+#if _WIN32
+    p += '\\';
+#else
     p += '/';
+#endif
   }
   return p;
 }
@@ -93,7 +97,15 @@ std::string entry::dpath() const {
 std::string entry::unix_dpath() const {
   auto p = name_;
 
-  if (type() == E_DIR && !p.empty() && p.back() != '/' && p.back() != '\\') {
+#if _WIN32
+  if (name_ == "/" || name_ == "\\") {
+#else
+  if (name_ == "/") {
+#endif
+    return "/";
+  }
+
+  if (type() == E_DIR && !p.empty()) {
     p += '/';
   }
 
