@@ -22,6 +22,9 @@ with a non-zero exit code.
   mean more output. Values larger than 6 will currently not provide any
   further detail.
 
+- `-q`, `--quiet`:
+  Don't produce any output unless there is an error.
+
 - `-O`, `--image-offset=`*value*|`auto`:
   Specify the byte offset at which the filesystem is located in the image.
   Use `auto` to detect the offset automatically. This is also the default.
@@ -36,12 +39,29 @@ with a non-zero exit code.
   Number of worker threads used for integrity checking.
 
 - `--check-integrity`:
-  In addition to performing a fast checksum check, also perform a (much
-  slower) verification of the embedded SHA-512/256 hashes.
+  Instead of performing a fast checksum check, perform a (much slower)
+  integrity check using the embedded SHA-512/256 hashes.
 
-- `--json`:
+- `--no-check`:
+  Don't even perform a fast checksum check on the file system blocks.
+  The metadata will still be checked to make sure it can safely be read.
+  Use this if you want to quickly query file system information rather
+  than performing an actual file system check.
+
+- `-j`, `--json`:
   Print a simple JSON representation of the filesystem metadata. Please
-  note that the format is *not* stable.
+  note that the format is *not* stable. The level of detail also depends
+  on the `--detail` switch. This can be useful in conjunction with the
+  `jq` tool to extract file system information, for example generate a
+  list of all categories in a file system image:
+
+```
+$ dwarfsck image.dwarfs --no-check -j | jq -r '.categories | keys .[]'
+<default>
+incompressible
+pcmaudio/metadata
+pcmaudio/waveform
+```
 
 - `--export-metadata=`*file*:
   Export all filesystem metadata in JSON format.
