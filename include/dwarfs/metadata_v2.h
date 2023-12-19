@@ -68,8 +68,9 @@ class metadata_v2 {
     impl_->dump(os, detail_level, fsinfo, icb);
   }
 
-  folly::dynamic info_as_dynamic(int detail_level) const {
-    return impl_->info_as_dynamic(detail_level);
+  folly::dynamic
+  info_as_dynamic(int detail_level, filesystem_info const& fsinfo) const {
+    return impl_->info_as_dynamic(detail_level, fsinfo);
   }
 
   folly::dynamic as_dynamic() const { return impl_->as_dynamic(); }
@@ -165,7 +166,8 @@ class metadata_v2 {
         std::ostream& os, int detail_level, filesystem_info const& fsinfo,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
-    virtual folly::dynamic info_as_dynamic(int detail_level) const = 0;
+    virtual folly::dynamic
+    info_as_dynamic(int detail_level, filesystem_info const& fsinfo) const = 0;
 
     virtual folly::dynamic as_dynamic() const = 0;
     virtual std::string serialize_as_json(bool simple) const = 0;

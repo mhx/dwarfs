@@ -836,9 +836,33 @@ filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
   info["version"] = folly::dynamic::object("major", parser.major_version())(
       "minor", parser.minor_version())("header", parser.header_version());
   info["image_offset"] = parser.image_offset();
-  info["history"] = history_.as_dynamic();
 
-  info.update(meta_.info_as_dynamic(detail_level));
+  if (detail_level > 1) {
+    info["history"] = history_.as_dynamic();
+  }
+
+  if (detail_level > 2) {
+    info["sections"] = folly::dynamic::array;
+
+    while (auto sp = parser.next_section()) {
+      auto const& s = *sp;
+
+      auto uncompressed_size = get_uncompressed_section_size(mm_, s);
+      float compression_ratio = float(s.length()) / uncompressed_size;
+
+      info["sections"].push_back(
+          folly::dynamic::object
+          // clang-format off
+          ("type", s.name())
+          ("size", uncompressed_size)
+          ("compressed_size", s.length())
+          ("ratio", compression_ratio)
+          // clang-format on
+      );
+    }
+  }
+
+  info.update(meta_.info_as_dynamic(detail_level, get_info()));
 
   return info;
 }

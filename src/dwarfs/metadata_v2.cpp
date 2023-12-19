@@ -35,6 +35,7 @@
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 #include <folly/container/Enumerate.h>
@@ -332,6 +333,53 @@ void analyze_frozen(std::ostream& os,
   }
 }
 
+template <typename Function>
+void parse_metadata_options(
+    MappedFrozen<thrift::metadata::metadata> const& meta, Function&& func) {
+  if (auto opt = meta.options()) {
+    func("mtime_only", opt->mtime_only());
+    func("packed_chunk_table", opt->packed_chunk_table());
+    func("packed_directories", opt->packed_directories());
+    func("packed_shared_files_table", opt->packed_shared_files_table());
+  }
+  if (auto names = meta.compact_names()) {
+    func("packed_names", static_cast<bool>(names->symtab()));
+    func("packed_names_index", names->packed_index());
+  }
+  if (auto symlinks = meta.compact_symlinks()) {
+    func("packed_symlinks", static_cast<bool>(symlinks->symtab()));
+    func("packed_symlinks_index", symlinks->packed_index());
+  }
+}
+
+struct category_info {
+  size_t count{0};
+  size_t compressed_size{0};
+  size_t uncompressed_size{0};
+  bool uncompressed_size_is_estimate{false};
+};
+
+std::map<size_t, category_info>
+get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
+                  filesystem_info const& fsinfo) {
+  std::map<size_t, category_info> catinfo;
+
+  if (auto blockcat = meta.block_categories()) {
+    for (auto [block, category] : folly::enumerate(blockcat.value())) {
+      auto& ci = catinfo[category];
+      ++ci.count;
+      ci.compressed_size += fsinfo.compressed_block_sizes.at(block);
+      if (auto size = fsinfo.uncompressed_block_sizes.at(block)) {
+        ci.uncompressed_size += *size;
+      } else {
+        ci.uncompressed_size_is_estimate = true;
+      }
+    }
+  }
+
+  return catinfo;
+}
+
 const uint16_t READ_ONLY_MASK = ~uint16_t(
     fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
@@ -425,7 +473,8 @@ class metadata_ final : public metadata_v2::impl {
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
-  folly::dynamic info_as_dynamic(int detail_level) const override;
+  folly::dynamic info_as_dynamic(int detail_level,
+                                 filesystem_info const& fsinfo) const override;
 
   folly::dynamic as_dynamic() const override;
   std::string serialize_as_json(bool simple) const override;
@@ -938,11 +987,109 @@ void metadata_<LoggerPolicy>::dump(
 
 template <typename LoggerPolicy>
 folly::dynamic
-metadata_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
+metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
+                                         filesystem_info const& fsinfo) const {
   folly::dynamic info = folly::dynamic::object;
-  if (detail_level > 2) {
-    info["metadata"] = as_dynamic();
+  vfs_stat stbuf;
+  statvfs(&stbuf);
+
+  if (auto version = meta_.dwarfs_version()) {
+    info["created_by"] = version.value();
   }
+
+  if (auto ts = meta_.create_timestamp()) {
+    info["created_on"] =
+        fmt::format("{:%Y-%m-%dT%H:%M:%S}", fmt::localtime(ts.value()));
+  }
+
+  if (detail_level > 0) {
+    info["block_size"] = stbuf.bsize;
+    info["block_count"] = fsinfo.block_count;
+    info["inode_count"] = stbuf.files;
+    if (auto ps = meta_.preferred_path_separator()) {
+      info["preferred_path_separator"] = std::string(1, static_cast<char>(*ps));
+    }
+    info["original_filesystem_size"] = stbuf.blocks;
+    info["compressed_block_size"] = fsinfo.compressed_block_size;
+    if (!fsinfo.uncompressed_block_size_is_estimate) {
+      info["uncompressed_block_size"] = fsinfo.uncompressed_block_size;
+    }
+    info["compressed_metadata_size"] = fsinfo.compressed_metadata_size;
+    if (!fsinfo.uncompressed_metadata_size_is_estimate) {
+      info["uncompressed_metadata_size"] = fsinfo.uncompressed_metadata_size;
+    }
+
+    if (auto opt = meta_.options()) {
+      folly::dynamic options = folly::dynamic::array;
+      parse_metadata_options(meta_, [&](auto const& name, bool value) {
+        if (value) {
+          options.push_back(name);
+        }
+      });
+      info["options"] = std::move(options);
+      if (auto res = opt->time_resolution_sec()) {
+        info["time_resolution"] = *res;
+      }
+    }
+
+    if (meta_.block_categories()) {
+      auto const& catnames = *meta_.category_names();
+      auto catinfo = get_category_info(meta_, fsinfo);
+      folly::dynamic categories = folly::dynamic::object;
+      for (auto const& [category, ci] : catinfo) {
+        categories[catnames[category]] = folly::dynamic::object(
+            "block_count", ci.count)("compressed_size", ci.compressed_size);
+        if (!ci.uncompressed_size_is_estimate) {
+          categories[catnames[category]]["uncompressed_size"] =
+              ci.uncompressed_size;
+        }
+      }
+      info["categories"] = std::move(categories);
+    }
+  }
+
+  if (detail_level > 2) {
+    folly::dynamic meta = folly::dynamic::object;
+    meta["symlink_inode_offset"] = symlink_inode_offset_;
+    meta["file_inode_offset"] = file_inode_offset_;
+    meta["dev_inode_offset"] = dev_inode_offset_;
+    meta["chunks"] = meta_.chunks().size();
+    meta["directories"] = meta_.directories().size();
+    meta["inodes"] = meta_.inodes().size();
+    meta["chunk_table"] = meta_.chunk_table().size();
+    meta["entry_table_v2_2"] = meta_.entry_table_v2_2().size();
+    meta["symlink_table"] = meta_.symlink_table().size();
+    meta["uids"] = meta_.uids().size();
+    meta["gids"] = meta_.gids().size();
+    meta["modes"] = meta_.modes().size();
+    meta["names"] = meta_.names().size();
+    meta["symlinks"] = meta_.symlinks().size();
+
+    if (auto dev = meta_.devices()) {
+      meta["devices"] = dev->size();
+    }
+
+    if (auto de = meta_.dir_entries()) {
+      meta["dir_entries"] = de->size();
+    }
+
+    if (auto sfp = meta_.shared_files_table()) {
+      if (meta_.options()->packed_shared_files_table()) {
+        meta["packed_shared_files_table"] = sfp->size();
+        meta["unpacked_shared_files_table"] = shared_files_.size();
+      } else {
+        meta["shared_files_table"] = sfp->size();
+      }
+      meta["unique_files"] = unique_files_;
+    }
+
+    info["meta"] = std::move(meta);
+  }
+
+  if (detail_level > 3) {
+    info["root"] = as_dynamic(root_);
+  }
+
   return info;
 }
 
@@ -1017,23 +1164,11 @@ void metadata_<LoggerPolicy>::dump(
     os << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
-      auto boolopt = [&](auto const& name, bool value) {
+      parse_metadata_options(meta_, [&](auto const& name, bool value) {
         if (value) {
           options.push_back(name);
         }
-      };
-      boolopt("mtime_only", opt->mtime_only());
-      boolopt("packed_chunk_table", opt->packed_chunk_table());
-      boolopt("packed_directories", opt->packed_directories());
-      boolopt("packed_shared_files_table", opt->packed_shared_files_table());
-      if (auto names = meta_.compact_names()) {
-        boolopt("packed_names", static_cast<bool>(names->symtab()));
-        boolopt("packed_names_index", names->packed_index());
-      }
-      if (auto symlinks = meta_.compact_symlinks()) {
-        boolopt("packed_symlinks", static_cast<bool>(symlinks->symtab()));
-        boolopt("packed_symlinks_index", symlinks->packed_index());
-      }
+      });
       os << "options: " << boost::join(options, "\n         ") << "\n";
       if (auto res = opt->time_resolution_sec()) {
         os << "time resolution: " << *res << " seconds\n";
@@ -1043,23 +1178,7 @@ void metadata_<LoggerPolicy>::dump(
 
   if (meta_.block_categories()) {
     auto const& catnames = *meta_.category_names();
-    struct category_info {
-      size_t count{0};
-      size_t compressed_size{0};
-      size_t uncompressed_size{0};
-      bool uncompressed_size_is_estimate{false};
-    };
-    std::map<size_t, category_info> catinfo;
-    for (auto [block, category] : folly::enumerate(*meta_.block_categories())) {
-      auto& ci = catinfo[category];
-      ++ci.count;
-      ci.compressed_size += fsinfo.compressed_block_sizes.at(block);
-      if (auto size = fsinfo.uncompressed_block_sizes.at(block)) {
-        ci.uncompressed_size += *size;
-      } else {
-        ci.uncompressed_size_is_estimate = true;
-      }
-    }
+    auto catinfo = get_category_info(meta_, fsinfo);
     os << "categories:\n";
     for (auto const& [category, ci] : catinfo) {
       os << "  " << catnames[category] << ": " << ci.count << " blocks";
