@@ -38,16 +38,16 @@ namespace dwarfs {
 namespace {
 
 std::vector<thrift::metadata::directory>
-unpack_directories(logger& lgr, global_metadata::Meta const* meta) {
+unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   std::vector<thrift::metadata::directory> directories;
 
-  if (auto opts = meta->options(); opts and opts->packed_directories()) {
+  if (auto opts = meta.options(); opts and opts->packed_directories()) {
     LOG_PROXY(debug_logger_policy, lgr);
 
     auto ti = LOG_TIMED_DEBUG;
 
-    auto dirent = *meta->dir_entries();
-    auto metadir = meta->directories();
+    auto dirent = *meta.dir_entries();
+    auto metadir = meta.directories();
 
     directories.resize(metadir.size());
 
@@ -104,41 +104,41 @@ int mode_rank(uint16_t mode) {
   }
 }
 
-void check_empty_tables(global_metadata::Meta const* meta) {
-  if (meta->inodes().empty()) {
+void check_empty_tables(global_metadata::Meta const& meta) {
+  if (meta.inodes().empty()) {
     DWARFS_THROW(runtime_error, "empty inodes table");
   }
 
-  if (meta->directories().empty()) {
+  if (meta.directories().empty()) {
     DWARFS_THROW(runtime_error, "empty directories table");
   }
 
-  if (meta->chunk_table().empty()) {
+  if (meta.chunk_table().empty()) {
     DWARFS_THROW(runtime_error, "empty chunk_table table");
   }
 
-  if (auto de = meta->dir_entries()) {
+  if (auto de = meta.dir_entries()) {
     if (de->empty()) {
       DWARFS_THROW(runtime_error, "empty dir_entries table");
     }
   } else {
-    if (meta->entry_table_v2_2().empty()) {
+    if (meta.entry_table_v2_2().empty()) {
       DWARFS_THROW(runtime_error, "empty entry_table_v2_2 table");
     }
   }
 
-  if (meta->modes().empty()) {
+  if (meta.modes().empty()) {
     DWARFS_THROW(runtime_error, "empty modes table");
   }
 }
 
-void check_index_range(global_metadata::Meta const* meta) {
-  auto num_modes = meta->modes().size();
-  auto num_uids = meta->uids().size();
-  auto num_gids = meta->gids().size();
-  auto num_names = meta->names().size();
-  auto num_inodes = meta->inodes().size();
-  bool v2_2 = !static_cast<bool>(meta->dir_entries());
+void check_index_range(global_metadata::Meta const& meta) {
+  auto num_modes = meta.modes().size();
+  auto num_uids = meta.uids().size();
+  auto num_gids = meta.gids().size();
+  auto num_names = meta.names().size();
+  auto num_inodes = meta.inodes().size();
+  bool v2_2 = !static_cast<bool>(meta.dir_entries());
 
   if (num_modes >= std::numeric_limits<uint16_t>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of modes");
@@ -160,7 +160,7 @@ void check_index_range(global_metadata::Meta const* meta) {
     DWARFS_THROW(runtime_error, "invalid number of inodes");
   }
 
-  for (auto ino : meta->inodes()) {
+  for (auto ino : meta.inodes()) {
     if (ino.mode_index() >= num_modes) {
       DWARFS_THROW(runtime_error, "mode_index out of range");
     }
@@ -177,12 +177,12 @@ void check_index_range(global_metadata::Meta const* meta) {
     }
   }
 
-  if (auto dep = meta->dir_entries()) {
+  if (auto dep = meta.dir_entries()) {
     if (dep->size() >= std::numeric_limits<uint32_t>::max()) {
       DWARFS_THROW(runtime_error, "invalid number of dir_entries");
     }
 
-    if (auto cn = meta->compact_names()) {
+    if (auto cn = meta.compact_names()) {
       num_names = cn->index().size();
       if (!cn->packed_index()) {
         if (num_names == 0) {
@@ -201,12 +201,12 @@ void check_index_range(global_metadata::Meta const* meta) {
       }
     }
   } else {
-    if (meta->entry_table_v2_2().size() >=
+    if (meta.entry_table_v2_2().size() >=
         std::numeric_limits<uint32_t>::max()) {
       DWARFS_THROW(runtime_error, "invalid number of entries");
     }
 
-    for (auto ent : meta->entry_table_v2_2()) {
+    for (auto ent : meta.entry_table_v2_2()) {
       if (ent >= num_inodes) {
         DWARFS_THROW(runtime_error, "entry_table_v2_2 value out of range");
       }
@@ -214,38 +214,38 @@ void check_index_range(global_metadata::Meta const* meta) {
   }
 }
 
-void check_packed_tables(global_metadata::Meta const* meta) {
-  if (meta->directories().size() >= std::numeric_limits<uint32_t>::max()) {
+void check_packed_tables(global_metadata::Meta const& meta) {
+  if (meta.directories().size() >= std::numeric_limits<uint32_t>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of directories");
   }
 
-  if (meta->chunk_table().size() >= std::numeric_limits<uint32_t>::max()) {
+  if (meta.chunk_table().size() >= std::numeric_limits<uint32_t>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of chunk_table entries");
   }
 
-  if (auto opt = meta->options(); opt and opt->packed_directories()) {
-    if (std::any_of(meta->directories().begin(), meta->directories().end(),
+  if (auto opt = meta.options(); opt and opt->packed_directories()) {
+    if (std::any_of(meta.directories().begin(), meta.directories().end(),
                     [](auto i) { return i.parent_entry() != 0; })) {
       DWARFS_THROW(runtime_error, "parent_entry set in packed directory");
     }
-    if (std::accumulate(meta->directories().begin(), meta->directories().end(),
+    if (std::accumulate(meta.directories().begin(), meta.directories().end(),
                         static_cast<size_t>(0), [](auto n, auto d) {
                           return n + d.first_entry();
-                        }) != meta->dir_entries()->size()) {
+                        }) != meta.dir_entries()->size()) {
       DWARFS_THROW(runtime_error,
                    "first_entry inconsistency in packed directories");
     }
   } else {
-    size_t num_entries = meta->dir_entries() ? meta->dir_entries()->size()
-                                             : meta->inodes().size();
+    size_t num_entries =
+        meta.dir_entries() ? meta.dir_entries()->size() : meta.inodes().size();
 
     if (!std::is_sorted(
-            meta->directories().begin(), meta->directories().end(),
+            meta.directories().begin(), meta.directories().end(),
             [](auto a, auto b) { return a.first_entry() < b.first_entry(); })) {
       DWARFS_THROW(runtime_error, "first_entry inconsistency");
     }
 
-    for (auto d : meta->directories()) {
+    for (auto d : meta.directories()) {
       if (auto i = d.first_entry(); i > num_entries) {
         DWARFS_THROW(runtime_error, "first_entry out of range");
       }
@@ -255,15 +255,14 @@ void check_packed_tables(global_metadata::Meta const* meta) {
     }
   }
 
-  if (auto opt = meta->options(); opt and opt->packed_chunk_table()) {
-    if (std::accumulate(meta->chunk_table().begin(), meta->chunk_table().end(),
-                        static_cast<size_t>(0)) != meta->chunks().size()) {
+  if (auto opt = meta.options(); opt and opt->packed_chunk_table()) {
+    if (std::accumulate(meta.chunk_table().begin(), meta.chunk_table().end(),
+                        static_cast<size_t>(0)) != meta.chunks().size()) {
       DWARFS_THROW(runtime_error, "packed chunk_table inconsistency");
     }
   } else {
-    if (!std::is_sorted(meta->chunk_table().begin(),
-                        meta->chunk_table().end()) or
-        meta->chunk_table().back() != meta->chunks().size()) {
+    if (!std::is_sorted(meta.chunk_table().begin(), meta.chunk_table().end()) or
+        meta.chunk_table().back() != meta.chunks().size()) {
       DWARFS_THROW(runtime_error, "chunk_table inconsistency");
     }
   }
@@ -331,9 +330,9 @@ void check_plain_strings(
   }
 }
 
-void check_string_tables(global_metadata::Meta const* meta) {
+void check_string_tables(global_metadata::Meta const& meta) {
   size_t num_names = 0;
-  if (auto dep = meta->dir_entries()) {
+  if (auto dep = meta.dir_entries()) {
     if (dep->size() > 1) {
       num_names = std::max_element(dep->begin(), dep->end(),
                                    [](auto const& a, auto const& b) {
@@ -343,9 +342,9 @@ void check_string_tables(global_metadata::Meta const* meta) {
                   1;
     }
   } else {
-    if (meta->inodes().size() > 1) {
+    if (meta.inodes().size() > 1) {
       num_names =
-          std::max_element(meta->inodes().begin(), meta->inodes().end(),
+          std::max_element(meta.inodes().begin(), meta.inodes().end(),
                            [](auto const& a, auto const& b) {
                              return a.name_index_v2_2() < b.name_index_v2_2();
                            })
@@ -359,40 +358,40 @@ void check_string_tables(global_metadata::Meta const* meta) {
   constexpr size_t max_name_len = 512;
   constexpr size_t max_symlink_len = 4096;
 
-  if (auto cn = meta->compact_names()) {
+  if (auto cn = meta.compact_names()) {
     check_compact_strings(*cn, num_names, max_name_len, "names");
   } else {
-    check_plain_strings(meta->names(), num_names, max_name_len, "names");
+    check_plain_strings(meta.names(), num_names, max_name_len, "names");
   }
 
   size_t num_symlink_strings = 0;
-  if (!meta->symlink_table().empty()) {
-    num_symlink_strings = *std::max_element(meta->symlink_table().begin(),
-                                            meta->symlink_table().end()) +
+  if (!meta.symlink_table().empty()) {
+    num_symlink_strings = *std::max_element(meta.symlink_table().begin(),
+                                            meta.symlink_table().end()) +
                           1;
   }
 
-  if (auto cs = meta->compact_symlinks()) {
+  if (auto cs = meta.compact_symlinks()) {
     check_compact_strings(*cs, num_symlink_strings, max_symlink_len,
                           "symlink strings");
   } else {
-    check_plain_strings(meta->symlinks(), num_symlink_strings, max_symlink_len,
+    check_plain_strings(meta.symlinks(), num_symlink_strings, max_symlink_len,
                         "symlink strings");
   }
 }
 
-void check_chunks(global_metadata::Meta const* meta) {
-  auto block_size = meta->block_size();
+void check_chunks(global_metadata::Meta const& meta) {
+  auto block_size = meta.block_size();
 
   if (block_size == 0 || (block_size & (block_size - 1))) {
     DWARFS_THROW(runtime_error, "invalid block size");
   }
 
-  if (meta->chunks().size() >= std::numeric_limits<uint32_t>::max()) {
+  if (meta.chunks().size() >= std::numeric_limits<uint32_t>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of chunks");
   }
 
-  for (auto c : meta->chunks()) {
+  for (auto c : meta.chunks()) {
     if (c.offset() >= block_size || c.size() > block_size) {
       DWARFS_THROW(runtime_error, "chunk offset/size out of range");
     }
@@ -402,15 +401,15 @@ void check_chunks(global_metadata::Meta const* meta) {
   }
 }
 
-std::array<size_t, 6> check_partitioning(global_metadata::Meta const* meta) {
+std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
   std::array<size_t, 6> offsets;
 
   for (int r = 0; r < static_cast<int>(offsets.size()); ++r) {
-    if (auto dep = meta->dir_entries()) {
-      auto pred = [r, modes = meta->modes()](auto ino) {
+    if (auto dep = meta.dir_entries()) {
+      auto pred = [r, modes = meta.modes()](auto ino) {
         return mode_rank(modes[ino.mode_index()]) < r;
       };
-      auto inodes = meta->inodes();
+      auto inodes = meta.inodes();
 
       if (!std::is_partitioned(inodes.begin(), inodes.end(), pred)) {
         DWARFS_THROW(runtime_error, "inode table inconsistency");
@@ -420,11 +419,10 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const* meta) {
           inodes.begin(),
           std::partition_point(inodes.begin(), inodes.end(), pred));
     } else {
-      auto pred = [r, modes = meta->modes(),
-                   inodes = meta->inodes()](auto ent) {
+      auto pred = [r, modes = meta.modes(), inodes = meta.inodes()](auto ent) {
         return mode_rank(modes[inodes[ent].mode_index()]) < r;
       };
-      auto entries = meta->entry_table_v2_2();
+      auto entries = meta.entry_table_v2_2();
 
       if (!std::is_partitioned(entries.begin(), entries.end(), pred)) {
         DWARFS_THROW(runtime_error, "entry_table_v2_2 inconsistency");
@@ -439,8 +437,8 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const* meta) {
   return offsets;
 }
 
-global_metadata::Meta const*
-check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
+global_metadata::Meta const&
+check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
   if (check) {
     LOG_PROXY(debug_logger_policy, lgr);
 
@@ -455,13 +453,13 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
     check_chunks(meta);
     auto offsets = check_partitioning(meta);
 
-    auto num_dir = meta->directories().size() - 1;
-    auto num_lnk = meta->symlink_table().size();
-    auto num_reg_unique = meta->chunk_table().size() - 1;
+    auto num_dir = meta.directories().size() - 1;
+    auto num_lnk = meta.symlink_table().size();
+    auto num_reg_unique = meta.chunk_table().size() - 1;
     size_t num_reg_shared = 0;
 
-    if (auto sfp = meta->shared_files_table()) {
-      if (meta->options()->packed_shared_files_table()) {
+    if (auto sfp = meta.shared_files_table()) {
+      if (meta.options()->packed_shared_files_table()) {
         num_reg_shared =
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
         num_reg_unique -= sfp->size();
@@ -477,7 +475,7 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
       }
     }
 
-    size_t num_dev = meta->devices() ? meta->devices()->size() : 0;
+    size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
 
     if (num_dir != offsets[1]) {
       DWARFS_THROW(runtime_error, "wrong number of directories");
@@ -495,9 +493,9 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
       DWARFS_THROW(runtime_error, "wrong number of devices");
     }
 
-    if (!meta->dir_entries()) {
-      for (auto ino : meta->inodes()) {
-        auto mode = meta->modes()[ino.mode_index()];
+    if (!meta.dir_entries()) {
+      for (auto ino : meta.inodes()) {
+        auto mode = meta.modes()[ino.mode_index()];
         auto i = ino.inode_v2_2();
         int base = mode_rank(mode);
 
@@ -514,24 +512,31 @@ check_metadata(logger& lgr, global_metadata::Meta const* meta, bool check) {
 
 } // namespace
 
-global_metadata::global_metadata(logger& lgr, Meta const* meta,
-                                 bool check_consistency)
-    : meta_{check_metadata(lgr, meta, check_consistency)}
+global_metadata::global_metadata(logger& lgr, Meta const& meta)
+    : meta_{meta}
     , directories_storage_{unpack_directories(lgr, meta_)}
     , directories_{directories_storage_.empty() ? nullptr
                                                 : directories_storage_.data()}
-    , names_{meta_->compact_names()
-                 ? string_table(lgr, "names", *meta_->compact_names())
-                 : string_table(meta_->names())} {}
+    , names_{meta_.compact_names()
+                 ? string_table(lgr, "names", *meta_.compact_names())
+                 : string_table(meta_.names())} {}
+
+void global_metadata::check_consistency(logger& lgr, Meta const& meta) {
+  check_metadata(lgr, meta, true);
+}
+
+void global_metadata::check_consistency(logger& lgr) const {
+  check_consistency(lgr, meta_);
+}
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
   return directories_ ? directories_[ino].first_entry().value()
-                      : meta_->directories()[ino].first_entry();
+                      : meta_.directories()[ino].first_entry();
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
   return directories_ ? directories_[ino].parent_entry().value()
-                      : meta_->directories()[ino].parent_entry();
+                      : meta_.directories()[ino].parent_entry();
 }
 
 auto inode_view::mode() const -> mode_type {
@@ -555,7 +560,7 @@ std::string dir_entry_view::name() const {
                         },
                         [this](InodeView const& iv) {
                           return std::string(
-                              g_->meta()->names()[iv.name_index_v2_2()]);
+                              g_->meta().names()[iv.name_index_v2_2()]);
                         },
                     },
                     v_);
@@ -565,7 +570,7 @@ inode_view dir_entry_view::inode() const {
   return std::visit(overloaded{
                         [this](DirEntryView const& dev) {
                           return inode_view(
-                              g_->meta()->inodes()[dev.inode_num()],
+                              g_->meta().inodes()[dev.inode_num()],
                               dev.inode_num(), g_->meta());
                         },
                         [this](InodeView const& iv) {
@@ -592,10 +597,10 @@ bool dir_entry_view::is_root() const {
 
 dir_entry_view
 dir_entry_view::from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
-                                     global_metadata const* g) {
-  auto meta = g->meta();
+                                     global_metadata const& g) {
+  auto& meta = g.meta();
 
-  if (auto de = meta->dir_entries()) {
+  if (auto de = meta.dir_entries()) {
     DWARFS_CHECK(self_index < de->size(), "self_index out of range");
     DWARFS_CHECK(parent_index < de->size(), "parent_index out of range");
 
@@ -604,36 +609,36 @@ dir_entry_view::from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
     return dir_entry_view(dev, self_index, parent_index, g);
   }
 
-  DWARFS_CHECK(self_index < meta->inodes().size(), "self_index out of range");
-  DWARFS_CHECK(parent_index < meta->inodes().size(), "self_index out of range");
+  DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
+  DWARFS_CHECK(parent_index < meta.inodes().size(), "self_index out of range");
 
-  auto iv = meta->inodes()[self_index];
+  auto iv = meta.inodes()[self_index];
 
   return dir_entry_view(iv, self_index, parent_index, g);
 }
 
 dir_entry_view dir_entry_view::from_dir_entry_index(uint32_t self_index,
-                                                    global_metadata const* g) {
-  auto meta = g->meta();
+                                                    global_metadata const& g) {
+  auto& meta = g.meta();
 
-  if (auto de = meta->dir_entries()) {
+  if (auto de = meta.dir_entries()) {
     DWARFS_CHECK(self_index < de->size(), "self_index out of range");
     auto dev = (*de)[self_index];
-    DWARFS_CHECK(dev.inode_num() < meta->directories().size(),
+    DWARFS_CHECK(dev.inode_num() < meta.directories().size(),
                  "self_index inode out of range");
-    return dir_entry_view(dev, self_index, g->parent_dir_entry(dev.inode_num()),
+    return dir_entry_view(dev, self_index, g.parent_dir_entry(dev.inode_num()),
                           g);
   }
 
-  DWARFS_CHECK(self_index < meta->inodes().size(), "self_index out of range");
-  auto iv = meta->inodes()[self_index];
+  DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
+  auto iv = meta.inodes()[self_index];
 
-  DWARFS_CHECK(iv.inode_v2_2() < meta->directories().size(),
+  DWARFS_CHECK(iv.inode_v2_2() < meta.directories().size(),
                "parent_index out of range");
   return dir_entry_view(
       iv, self_index,
-      meta->entry_table_v2_2()[meta->directories()[iv.inode_v2_2()]
-                                   .parent_entry()],
+      meta.entry_table_v2_2()[meta.directories()[iv.inode_v2_2()]
+                                  .parent_entry()],
       g);
 }
 
@@ -642,32 +647,32 @@ std::optional<dir_entry_view> dir_entry_view::parent() const {
     return std::nullopt;
   }
 
-  return from_dir_entry_index(parent_index_, g_);
+  return from_dir_entry_index(parent_index_, *g_);
 }
 
-std::string dir_entry_view::name(uint32_t index, global_metadata const* g) {
-  if (auto de = g->meta()->dir_entries()) {
+std::string dir_entry_view::name(uint32_t index, global_metadata const& g) {
+  if (auto de = g.meta().dir_entries()) {
     DWARFS_CHECK(index < de->size(), "index out of range");
     auto dev = (*de)[index];
-    return g->names()[dev.name_index()];
+    return g.names()[dev.name_index()];
   }
 
-  DWARFS_CHECK(index < g->meta()->inodes().size(), "index out of range");
-  auto iv = g->meta()->inodes()[index];
-  return std::string(g->meta()->names()[iv.name_index_v2_2()]);
+  DWARFS_CHECK(index < g.meta().inodes().size(), "index out of range");
+  auto iv = g.meta().inodes()[index];
+  return std::string(g.meta().names()[iv.name_index_v2_2()]);
 }
 
-inode_view dir_entry_view::inode(uint32_t index, global_metadata const* g) {
-  if (auto de = g->meta()->dir_entries()) {
+inode_view dir_entry_view::inode(uint32_t index, global_metadata const& g) {
+  if (auto de = g.meta().dir_entries()) {
     DWARFS_CHECK(index < de->size(), "index out of range");
     auto dev = (*de)[index];
-    return inode_view(g->meta()->inodes()[dev.inode_num()], dev.inode_num(),
-                      g->meta());
+    return inode_view(g.meta().inodes()[dev.inode_num()], dev.inode_num(),
+                      g.meta());
   }
 
-  DWARFS_CHECK(index < g->meta()->inodes().size(), "index out of range");
-  auto iv = g->meta()->inodes()[index];
-  return inode_view(iv, iv.inode_v2_2(), g->meta());
+  DWARFS_CHECK(index < g.meta().inodes().size(), "index out of range");
+  auto iv = g.meta().inodes()[index];
+  return inode_view(iv, iv.inode_v2_2(), g.meta());
 }
 
 std::string dir_entry_view::path() const {
@@ -728,7 +733,7 @@ uint32_t directory_view::parent_inode() const {
 
   auto ent = parent_entry(inode_);
 
-  if (auto e = g_->meta()->dir_entries()) {
+  if (auto e = g_->meta().dir_entries()) {
     ent = (*e)[ent].inode_num();
   }
 

@@ -58,9 +58,12 @@ class global_metadata {
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
-  global_metadata(logger& lgr, Meta const* meta, bool check_consistency);
+  global_metadata(logger& lgr, Meta const& meta);
 
-  Meta const* meta() const { return meta_; }
+  static void check_consistency(logger& lgr, Meta const& meta);
+  void check_consistency(logger& lgr) const;
+
+  Meta const& meta() const { return meta_; }
 
   uint32_t first_dir_entry(uint32_t ino) const;
   uint32_t parent_dir_entry(uint32_t ino) const;
@@ -72,7 +75,7 @@ class global_metadata {
   }
 
  private:
-  Meta const* const meta_;
+  Meta const& meta_;
   std::vector<thrift::metadata::directory> const directories_storage_;
   thrift::metadata::directory const* const directories_;
   string_table const names_;
@@ -107,10 +110,10 @@ class inode_view
   uint32_t inode_num() const { return inode_num_; }
 
  private:
-  inode_view(InodeView iv, uint32_t inode_num_, Meta const* meta)
+  inode_view(InodeView iv, uint32_t inode_num_, Meta const& meta)
       : InodeView{iv}
       , inode_num_{inode_num_}
-      , meta_{meta} {}
+      , meta_{&meta} {}
 
   uint32_t inode_num_;
   Meta const* meta_;
@@ -136,9 +139,9 @@ class directory_view {
   boost::integer_range<uint32_t> entry_range() const;
 
  private:
-  directory_view(uint32_t inode, global_metadata const* g)
+  directory_view(uint32_t inode, global_metadata const& g)
       : inode_{inode}
-      , g_{g} {}
+      , g_{&g} {}
 
   uint32_t first_entry(uint32_t ino) const;
   uint32_t parent_entry(uint32_t ino) const;
@@ -175,29 +178,29 @@ class dir_entry_view {
 
  private:
   dir_entry_view(DirEntryView v, uint32_t self_index, uint32_t parent_index,
-                 global_metadata const* g)
+                 global_metadata const& g)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , g_{g} {}
+      , g_{&g} {}
 
   dir_entry_view(InodeView v, uint32_t self_index, uint32_t parent_index,
-                 global_metadata const* g)
+                 global_metadata const& g)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , g_{g} {}
+      , g_{&g} {}
 
   static dir_entry_view
   from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
-                       global_metadata const* g);
+                       global_metadata const& g);
   static dir_entry_view
-  from_dir_entry_index(uint32_t self_index, global_metadata const* g);
+  from_dir_entry_index(uint32_t self_index, global_metadata const& g);
 
   // TODO: this works, but it's strange; a limited version of dir_entry_view
   //       should work without a parent for these use cases
-  static std::string name(uint32_t index, global_metadata const* g);
-  static inode_view inode(uint32_t index, global_metadata const* g);
+  static std::string name(uint32_t index, global_metadata const& g);
+  static inode_view inode(uint32_t index, global_metadata const& g);
 
   std::variant<DirEntryView, InodeView> v_;
   uint32_t self_index_, parent_index_;
@@ -229,8 +232,8 @@ class chunk_range {
     friend class chunk_range;
 
     iterator(Meta const* meta, uint32_t it)
-        : meta_(meta)
-        , it_(it) {}
+        : meta_{meta}
+        , it_{it} {}
 
     bool equal(iterator const& other) const {
       return meta_ == other.meta_ && it_ == other.it_;
@@ -268,8 +271,8 @@ class chunk_range {
   chunk_view operator[](uint32_t index) const { return meta_->chunks()[index]; }
 
  private:
-  chunk_range(Meta const* meta, uint32_t begin, uint32_t end)
-      : meta_(meta)
+  chunk_range(Meta const& meta, uint32_t begin, uint32_t end)
+      : meta_(&meta)
       , begin_(begin)
       , end_(end) {}
 

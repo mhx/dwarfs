@@ -153,6 +153,15 @@ check_frozen(MappedFrozen<thrift::metadata::metadata> meta) {
   return meta;
 }
 
+global_metadata::Meta const&
+check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
+                           bool force_consistency_check) {
+  if (force_consistency_check) {
+    global_metadata::check_consistency(lgr, meta);
+  }
+  return meta;
+}
+
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
@@ -337,9 +346,10 @@ class metadata_ final : public metadata_v2::impl {
       : data_(data)
       , meta_(
             check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_)))
-      , global_(lgr, &meta_,
-                options.check_consistency || force_consistency_check)
-      , root_(dir_entry_view::from_dir_entry_index(0, &global_))
+      , global_(lgr, check_metadata_consistency(lgr, meta_,
+                                                options.check_consistency ||
+                                                    force_consistency_check))
+      , root_(dir_entry_view::from_dir_entry_index(0, global_))
       , LOG_PROXY_INIT(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
@@ -483,13 +493,13 @@ class metadata_ final : public metadata_v2::impl {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
         meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
-    return inode_view(meta_.inodes()[index], inode, &meta_);
+    return inode_view(meta_.inodes()[index], inode, meta_);
   }
 
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
     return dir_entry_view::from_dir_entry_index(self_index, parent_index,
-                                                &global_);
+                                                global_);
   }
 
   // This represents the order in which inodes are stored in inodes
@@ -571,7 +581,7 @@ class metadata_ final : public metadata_v2::impl {
 
   directory_view make_directory_view(inode_view iv) const {
     // TODO: revisit: is this the way to do it?
-    return directory_view(iv.inode_num(), &global_);
+    return directory_view(iv.inode_num(), global_);
   }
 
   void analyze_chunks(std::ostream& os) const;
@@ -626,7 +636,7 @@ class metadata_ final : public metadata_v2::impl {
         inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
       uint32_t begin = chunk_table_lookup(inode);
       uint32_t end = chunk_table_lookup(inode + 1);
-      rv = chunk_range(&meta_, begin, end);
+      rv = chunk_range(meta_, begin, end);
     }
 
     return rv;
@@ -1369,14 +1379,14 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
                              [&](auto ix, std::string_view name) {
-                               return dir_entry_view::name(ix, &global_) < name;
+                               return dir_entry_view::name(ix, global_) < name;
                              });
 
   std::optional<inode_view> rv;
 
   if (it != range.end()) {
-    if (dir_entry_view::name(*it, &global_) == name) {
-      rv = dir_entry_view::inode(*it, &global_);
+    if (dir_entry_view::name(*it, global_) == name) {
+      rv = dir_entry_view::inode(*it, global_);
     }
   }
 
@@ -1502,8 +1512,8 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
     }
 
     auto index = dir.first_entry() + offset;
-    auto inode = dir_entry_view::inode(index, &global_);
-    return std::pair(inode, dir_entry_view::name(index, &global_));
+    auto inode = dir_entry_view::inode(index, global_);
+    return std::pair(inode, dir_entry_view::name(index, global_));
   }
 
   return std::nullopt;
