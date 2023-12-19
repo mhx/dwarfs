@@ -129,7 +129,7 @@ struct scanner_options {
   bool pack_symlinks{false};
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
-  bool no_create_timestamp{true};
+  bool no_create_timestamp{false};
   std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
   size_t num_segmenter_workers{1};
   bool enable_history{true};

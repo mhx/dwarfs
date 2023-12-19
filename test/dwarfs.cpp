@@ -781,6 +781,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   opts.file_hash_algorithm = file_hash_algo;
   opts.inode.fragment_order.set_default(order_opts);
+  opts.no_create_timestamp = true;
 
   auto input = std::make_shared<test::os_access_mock>();
   constexpr int dim{14};
