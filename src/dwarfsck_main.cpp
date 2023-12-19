@@ -52,9 +52,10 @@ int dwarfsck_main(int argc, sys_char** argv) {
   std::string log_level, input, export_metadata, image_offset;
   size_t num_workers;
   int detail;
-  bool json = false;
-  bool check_integrity = false;
-  bool print_header = false;
+  bool json{false};
+  bool check_integrity{false};
+  bool no_check{false};
+  bool print_header{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -77,8 +78,8 @@ int dwarfsck_main(int argc, sys_char** argv) {
     ("check-integrity",
         po::value<bool>(&check_integrity)->zero_tokens(),
         "check integrity of each block")
-    ("fast",
-        po::value<bool>(&check_integrity)->zero_tokens(),
+    ("no-check",
+        po::value<bool>(&no_check)->zero_tokens(),
         "don't even verify block checksums")
     ("json,j",
         po::value<bool>(&json)->zero_tokens(),
@@ -117,9 +118,21 @@ int dwarfsck_main(int argc, sys_char** argv) {
     stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
     LOG_PROXY(debug_logger_policy, lgr);
 
+    if (no_check && check_integrity) {
+      LOG_WARN << "--no-check and --check-integrity are mutually exclusive";
+      return 1;
+    }
+
+    if (print_header && (json || !export_metadata.empty() || check_integrity)) {
+      LOG_WARN << "--print-header is mutually exclusive with --json, "
+                  "--export-metadata and --check-integrity";
+      return 1;
+    }
+
     filesystem_options fsopts;
 
-    fsopts.metadata.check_consistency = true;
+    fsopts.metadata.enable_nlink = true;
+    fsopts.metadata.check_consistency = check_integrity;
 
     try {
       fsopts.image_offset = image_offset == "auto"
@@ -131,18 +144,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
 
     auto mm = std::make_shared<mmap>(input);
 
-    if (!export_metadata.empty()) {
-      auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
-      filesystem_v2 fs(lgr, mm, fsopts);
-      auto json = fs.serialize_metadata_as_json(false);
-      if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
-        LOG_ERROR << "failed to export metadata";
-      }
-      of.close();
-    } else if (json) {
-      filesystem_v2 fs(lgr, mm, fsopts);
-      std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
-    } else if (print_header) {
+    if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
 #ifdef _WIN32
         ::_setmode(STDOUT_FILENO, _O_BINARY);
@@ -156,9 +158,29 @@ int dwarfsck_main(int argc, sys_char** argv) {
         return 1;
       }
     } else {
-      if (filesystem_v2::identify(lgr, mm, std::cout, detail, num_workers,
-                                  check_integrity, fsopts.image_offset) != 0) {
-        return 1;
+      filesystem_v2 fs(lgr, mm, fsopts);
+
+      if (!export_metadata.empty()) {
+        auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
+        auto json = fs.serialize_metadata_as_json(false);
+        if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
+          LOG_ERROR << "failed to export metadata";
+        }
+        of.close();
+      } else {
+        auto level = check_integrity ? filesystem_check_level::FULL
+                                     : filesystem_check_level::CHECKSUM;
+        auto errors = no_check ? 0 : fs.check(level, num_workers);
+
+        if (json) {
+          std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
+        } else {
+          fs.dump(std::cout, detail);
+        }
+
+        if (errors > 0) {
+          return 1;
+        }
       }
     }
   } catch (system_error const& e) {
