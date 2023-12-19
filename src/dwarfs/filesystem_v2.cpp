@@ -787,6 +787,29 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
+  filesystem_parser parser(mm_, image_offset_);
+
+  if (detail_level > 0) {
+    os << "DwarFS version " << parser.version();
+    if (auto off = parser.image_offset(); off > 0) {
+      os << " at offset " << off;
+    }
+    os << "\n";
+  }
+
+  if (detail_level > 2) {
+    while (auto sp = parser.next_section()) {
+      auto const& s = *sp;
+
+      auto uncompressed_size = get_uncompressed_section_size(mm_, s);
+      float compression_ratio = float(s.length()) / uncompressed_size;
+
+      os << "SECTION " << s.description() << ", blocksize=" << uncompressed_size
+         << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
+         << "\n";
+    }
+  }
+
   if (detail_level > 1) {
     history_.dump(os);
   }
@@ -978,76 +1001,16 @@ int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,
                             size_t num_readers, bool check_integrity,
                             file_off_t image_offset) {
-  // TODO:
-  LOG_PROXY(debug_logger_policy, lgr);
-  filesystem_parser parser(mm, image_offset);
+  filesystem_options fsopts;
+  fsopts.metadata.enable_nlink = true;
+  fsopts.image_offset = image_offset;
+  filesystem_v2 fs(lgr, mm, fsopts);
 
-  if (detail_level > 0) {
-    os << "DwarFS version " << parser.version();
-    if (auto off = parser.image_offset(); off > 0) {
-      os << " at offset " << off;
-    }
-    os << "\n";
-  }
+  auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
+                                         : filesystem_check_level::CHECKSUM,
+                         num_readers);
 
-  worker_group wg("reader", num_readers);
-  std::vector<std::future<fs_section>> sections;
-
-  while (auto sp = parser.next_section()) {
-    check_section_logger(lgr, *sp);
-
-    std::packaged_task<fs_section()> task{[&, s = *sp] {
-      if (!s.check_fast(*mm)) {
-        DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
-      }
-
-      if (check_integrity and !s.verify(*mm)) {
-        DWARFS_THROW(runtime_error,
-                     "integrity check error in section: " + s.name());
-      }
-
-      return s;
-    }};
-
-    sections.emplace_back(task.get_future());
-    wg.add_job(std::move(task));
-  }
-
-  std::unordered_set<section_type> seen;
-  int errors = 0;
-
-  for (auto& sf : sections) {
-    try {
-      auto s = sf.get();
-
-      auto uncompressed_size = get_uncompressed_section_size(mm, s);
-      float compression_ratio = float(s.length()) / uncompressed_size;
-
-      if (detail_level > 2) {
-        os << "SECTION " << s.description()
-           << ", blocksize=" << uncompressed_size
-           << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-           << "\n";
-      }
-
-      if (s.type() != section_type::BLOCK) {
-        if (!seen.emplace(s.type()).second) {
-          DWARFS_THROW(runtime_error, "duplicate section: " + s.name());
-        }
-      }
-    } catch (runtime_error const& e) {
-      LOG_ERROR << e.what();
-      ++errors;
-    }
-  }
-
-  if (detail_level > 0) {
-    filesystem_options fsopts;
-    fsopts.metadata.check_consistency = true;
-    fsopts.metadata.enable_nlink = true;
-    fsopts.image_offset = image_offset;
-    filesystem_v2(lgr, mm, fsopts).dump(os, detail_level);
-  }
+  fs.dump(os, detail_level);
 
   return errors;
 }
