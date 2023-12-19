@@ -52,6 +52,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
   std::string log_level, input, export_metadata, image_offset;
   size_t num_workers;
   int detail;
+  bool quiet{false};
   bool json{false};
   bool check_integrity{false};
   bool no_check{false};
@@ -66,6 +67,9 @@ int dwarfsck_main(int argc, sys_char** argv) {
     ("detail,d",
         po::value<int>(&detail)->default_value(2),
         "detail level")
+    ("quiet,q",
+        po::value<bool>(&quiet)->zero_tokens(),
+        "don't print anything unless an error occurs")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
@@ -172,10 +176,13 @@ int dwarfsck_main(int argc, sys_char** argv) {
                                      : filesystem_check_level::CHECKSUM;
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
-        if (json) {
-          std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
-        } else {
-          fs.dump(std::cout, detail);
+        if (!quiet) {
+          if (json) {
+            std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail))
+                      << "\n";
+          } else {
+            fs.dump(std::cout, detail);
+          }
         }
 
         if (errors > 0) {
