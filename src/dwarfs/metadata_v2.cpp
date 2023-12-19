@@ -419,6 +419,8 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
+  void check_consistency() const override;
+
   void dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
@@ -874,6 +876,11 @@ void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
   // TODO: we can remove this once we have no more mergeable chunks :-)
   os << "mergeable chunks: " << mergeable_chunks << "/" << meta_.chunks().size()
      << "\n";
+}
+
+template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::check_consistency() const {
+  global_metadata::check_consistency(LOG_GET_LOGGER, meta_);
 }
 
 template <typename LoggerPolicy>

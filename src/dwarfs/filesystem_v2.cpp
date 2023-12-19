@@ -358,6 +358,7 @@ class filesystem_ final : public filesystem_v2::impl {
               const filesystem_options& options,
               std::shared_ptr<performance_monitor const> perfmon);
 
+  int check(filesystem_check_level level, size_t num_threads) const override;
   void dump(std::ostream& os, int detail_level) const override;
   folly::dynamic info_as_dynamic(int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
@@ -720,6 +721,68 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
   }
 
   writer.flush();
+}
+
+template <typename LoggerPolicy>
+int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
+                                     size_t num_threads) const {
+  filesystem_parser parser(mm_, image_offset_);
+
+  worker_group wg("fscheck", num_threads);
+  std::vector<std::future<fs_section>> sections;
+
+  while (auto sp = parser.next_section()) {
+    check_section(*sp);
+
+    std::packaged_task<fs_section()> task{[this, level, s = *sp] {
+      if (level == filesystem_check_level::INTEGRITY ||
+          level == filesystem_check_level::FULL) {
+        if (!s.verify(*mm_)) {
+          DWARFS_THROW(runtime_error,
+                       "integrity check error in section: " + s.name());
+        }
+      } else {
+        if (!s.check_fast(*mm_)) {
+          DWARFS_THROW(runtime_error, "checksum error in section: " + s.name());
+        }
+      }
+
+      return s;
+    }};
+
+    sections.emplace_back(task.get_future());
+    wg.add_job(std::move(task));
+  }
+
+  std::unordered_set<section_type> seen;
+  int errors = 0;
+
+  for (auto& sf : sections) {
+    try {
+      auto s = sf.get();
+
+      if (s.type() != section_type::BLOCK &&
+          s.type() != section_type::HISTORY) {
+        if (!seen.emplace(s.type()).second) {
+          DWARFS_THROW(runtime_error, "duplicate section: " + s.name());
+        }
+      }
+    } catch (std::exception const& e) {
+      LOG_ERROR << e.what();
+      ++errors;
+    }
+  }
+
+  if (level == filesystem_check_level::FULL) {
+    try {
+      meta_.check_consistency();
+    } catch (std::exception const& e) {
+      LOG_ERROR << e.what();
+      ++errors;
+    }
+  }
+
+  return errors;
 }
 
 template <typename LoggerPolicy>

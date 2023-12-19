@@ -60,6 +60,8 @@ class metadata_v2 {
               std::span<uint8_t const> data, metadata_options const& options,
               int inode_offset = 0, bool force_consistency_check = false);
 
+  void check_consistency() const { impl_->check_consistency(); }
+
   void
   dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
        std::function<void(const std::string&, uint32_t)> const& icb) const {
@@ -156,6 +158,8 @@ class metadata_v2 {
   class impl {
    public:
     virtual ~impl() = default;
+
+    virtual void check_consistency() const = 0;
 
     virtual void dump(
         std::ostream& os, int detail_level, filesystem_info const& fsinfo,

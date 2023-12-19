@@ -43,6 +43,8 @@ enum class mlock_mode { NONE, TRY, MUST };
 
 enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
 
+enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
+
 struct block_cache_options {
   size_t max_bytes{0};
   size_t num_workers{0};

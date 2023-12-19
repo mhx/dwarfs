@@ -38,13 +38,11 @@
 #include "dwarfs/block_range.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
+#include "dwarfs/options.h"
 #include "dwarfs/types.h"
 
 namespace dwarfs {
 
-struct cache_tidy_config;
-struct filesystem_options;
-struct rewrite_options;
 struct iovec_read_buf;
 struct file_stat;
 struct vfs_stat;
@@ -77,6 +75,10 @@ class filesystem_v2 {
 
   static std::optional<std::span<uint8_t const>>
   header(std::shared_ptr<mmif> mm, file_off_t image_offset);
+
+  int check(filesystem_check_level level, size_t num_threads = 0) const {
+    return impl_->check(level, num_threads);
+  }
 
   void dump(std::ostream& os, int detail_level) const {
     impl_->dump(os, detail_level);
@@ -194,6 +196,8 @@ class filesystem_v2 {
    public:
     virtual ~impl() = default;
 
+    virtual int
+    check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, int detail_level) const = 0;
     virtual folly::dynamic info_as_dynamic(int detail_level) const = 0;
     virtual folly::dynamic metadata_as_dynamic() const = 0;
