@@ -1162,6 +1162,15 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 template <typename LoggerPolicy>
 void load_filesystem(dwarfs_userdata& userdata) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
+
+  constexpr int const inode_offset =
+#ifdef FUSE_ROOT_ID
+      FUSE_ROOT_ID
+#else
+      0
+#endif
+      ;
+
   auto ti = LOG_TIMED_INFO;
   auto& opts = userdata.opts;
 
@@ -1174,6 +1183,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.init_workers = false;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
+  fsopts.inode_offset = inode_offset;
 
   if (opts.image_offset_str) {
     std::string image_offset{opts.image_offset_str};
@@ -1186,14 +1196,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
       DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
     }
   }
-
-  constexpr int inode_offset =
-#ifdef FUSE_ROOT_ID
-      FUSE_ROOT_ID
-#else
-      0
-#endif
-      ;
 
   std::unordered_set<std::string> perfmon_enabled;
 #if DWARFS_PERFMON_ENABLED
@@ -1221,7 +1223,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   userdata.fs =
       filesystem_v2(userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts,
-                    inode_offset, userdata.perfmon);
+                    userdata.perfmon);
 
   ti << "file system initialized";
 }

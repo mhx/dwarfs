@@ -64,7 +64,7 @@ class filesystem_v2 {
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
-                filesystem_options const& options, int inode_offset = 0,
+                filesystem_options const& options,
                 std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
   static int

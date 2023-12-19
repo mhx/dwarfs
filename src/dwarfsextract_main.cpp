@@ -142,8 +142,7 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     std::shared_ptr<performance_monitor> perfmon =
         performance_monitor::create(perfmon_enabled);
 
-    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts, 0,
-                     perfmon);
+    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts, perfmon);
     filesystem_extractor fsx(lgr);
 
     if (format.empty()) {

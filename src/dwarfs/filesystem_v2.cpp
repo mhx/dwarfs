@@ -351,7 +351,7 @@ template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
-              const filesystem_options& options, int inode_offset,
+              const filesystem_options& options,
               std::shared_ptr<performance_monitor const> perfmon);
 
   void dump(std::ostream& os, int detail_level) const override;
@@ -482,7 +482,6 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(
     logger& lgr, std::shared_ptr<mmif> mm, const filesystem_options& options,
-    int inode_offset,
     std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
     : LOG_PROXY_INIT(lgr)
     , mm_(std::move(mm))
@@ -532,7 +531,7 @@ filesystem_<LoggerPolicy>::filesystem_(
   std::vector<uint8_t> schema_buffer;
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
-                        options.metadata, inode_offset, false,
+                        options.metadata, options.inode_offset, false,
                         options.lock_mode, !parser_.has_checksums());
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
@@ -880,11 +879,10 @@ filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
 
 filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
-                             int inode_offset,
                              std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), options, inode_offset, std::move(perfmon))) {}
+          lgr, std::move(mm), options, std::move(perfmon))) {}
 
 int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
                             std::ostream& os, int detail_level,

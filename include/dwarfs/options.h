@@ -75,6 +75,7 @@ struct filesystem_options {
   file_off_t image_offset{0};
   block_cache_options block_cache;
   metadata_options metadata;
+  int inode_offset{0};
 };
 
 struct filesystem_writer_options {
