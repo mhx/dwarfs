@@ -1174,26 +1174,26 @@ void metadata_<LoggerPolicy>::dump(
         os << "time resolution: " << *res << " seconds\n";
       }
     }
-  }
 
-  if (meta_.block_categories()) {
-    auto const& catnames = *meta_.category_names();
-    auto catinfo = get_category_info(meta_, fsinfo);
-    os << "categories:\n";
-    for (auto const& [category, ci] : catinfo) {
-      os << "  " << catnames[category] << ": " << ci.count << " blocks";
-      if (ci.uncompressed_size_is_estimate ||
-          ci.uncompressed_size != ci.compressed_size) {
-        os << ", " << size_with_unit(ci.compressed_size) << " compressed";
-      }
-      if (!ci.uncompressed_size_is_estimate) {
-        os << ", " << size_with_unit(ci.uncompressed_size) << " uncompressed";
-        if (ci.uncompressed_size != ci.compressed_size) {
-          os << fmt::format(" ({0:.2f}%)", (100.0 * ci.compressed_size) /
-                                               ci.uncompressed_size);
+    if (meta_.block_categories()) {
+      auto const& catnames = *meta_.category_names();
+      auto catinfo = get_category_info(meta_, fsinfo);
+      os << "categories:\n";
+      for (auto const& [category, ci] : catinfo) {
+        os << "  " << catnames[category] << ": " << ci.count << " blocks";
+        if (ci.uncompressed_size_is_estimate ||
+            ci.uncompressed_size != ci.compressed_size) {
+          os << ", " << size_with_unit(ci.compressed_size) << " compressed";
         }
+        if (!ci.uncompressed_size_is_estimate) {
+          os << ", " << size_with_unit(ci.uncompressed_size) << " uncompressed";
+          if (ci.uncompressed_size != ci.compressed_size) {
+            os << fmt::format(" ({0:.2f}%)", (100.0 * ci.compressed_size) /
+                                                 ci.uncompressed_size);
+          }
+        }
+        os << "\n";
       }
-      os << "\n";
     }
   }
 
