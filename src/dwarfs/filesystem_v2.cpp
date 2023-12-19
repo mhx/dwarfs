@@ -149,7 +149,7 @@ class filesystem_parser {
 
   explicit filesystem_parser(std::shared_ptr<mmif> mm,
                              file_off_t image_offset = 0)
-      : mm_{mm}
+      : mm_{std::move(mm)}
       , image_offset_{find_image_offset(*mm_, image_offset)} {
     if (mm_->size() < image_offset_ + sizeof(file_header)) {
       DWARFS_THROW(runtime_error, "file too small");
@@ -413,11 +413,11 @@ class filesystem_ final : public filesystem_v2::impl {
   metadata_v2 meta_;
   inode_reader_v2 ir_;
   mutable std::mutex mx_;
-  mutable filesystem_parser parser_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
   history history_;
+  file_off_t const image_offset_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -446,11 +446,12 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
   std::lock_guard lock(mx_);
 
   if (!fsinfo_) {
+    filesystem_parser parser(mm_, image_offset_);
     filesystem_info info;
 
-    parser_.rewind();
+    parser.rewind();
 
-    while (auto s = parser_.next_section()) {
+    while (auto s = parser.next_section()) {
       check_section(*s);
 
       if (s->type() == section_type::BLOCK) {
@@ -489,10 +490,10 @@ filesystem_<LoggerPolicy>::filesystem_(
     logger& lgr, std::shared_ptr<mmif> mm, const filesystem_options& options,
     std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
     : LOG_PROXY_INIT(lgr)
-    , mm_(std::move(mm))
-    , parser_(mm_, options.image_offset)
+    , mm_{std::move(mm)}
     , history_({.with_timestamps = true})
-    // clang-format off
+    , image_offset_{filesystem_parser::find_image_offset(
+          *mm_, options.image_offset)} // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
     PERFMON_CLS_TIMER_INIT(find_path)
     PERFMON_CLS_TIMER_INIT(find_inode)
@@ -511,16 +512,17 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
 {
   block_cache cache(lgr, mm_, options.block_cache);
+  filesystem_parser parser(mm_, image_offset_);
 
-  if (parser_.has_index()) {
+  if (parser.has_index()) {
     LOG_DEBUG << "found valid section index";
   }
 
-  header_ = parser_.header();
+  header_ = parser.header();
 
   section_map sections;
 
-  while (auto s = parser_.next_section()) {
+  while (auto s = parser.next_section()) {
     check_section(*s);
 
     if (s->type() == section_type::BLOCK) {
@@ -538,7 +540,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
                         options.metadata, options.inode_offset, false,
-                        options.lock_mode, !parser_.has_checksums());
+                        options.lock_mode, !parser.has_checksums());
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -560,11 +562,13 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
                                         filesystem_writer& writer,
                                         category_resolver const& cat_resolver,
                                         rewrite_options const& opts) const {
+  filesystem_parser parser(mm_, image_offset_);
+
   if (opts.recompress_block) {
     size_t block_no{0};
-    parser_.rewind();
+    parser.rewind();
 
-    while (auto s = parser_.next_section()) {
+    while (auto s = parser.next_section()) {
       if (s->type() == section_type::BLOCK) {
         if (auto catstr = meta_.get_block_category(block_no)) {
           if (auto cat = cat_resolver.category_value(catstr.value())) {
@@ -632,9 +636,9 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
         return false;
       };
 
-  parser_.rewind();
+  parser.rewind();
 
-  while (auto s = parser_.next_section()) {
+  while (auto s = parser.next_section()) {
     switch (s->type()) {
     case section_type::BLOCK: {
       std::optional<fragment_category::value_type> cat;
@@ -739,11 +743,13 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
 template <typename LoggerPolicy>
 folly::dynamic
 filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
+  filesystem_parser parser(mm_, image_offset_);
+
   folly::dynamic info = folly::dynamic::object;
 
-  info["version"] = folly::dynamic::object("major", parser_.major_version())(
-      "minor", parser_.minor_version())("header", parser_.header_version());
-  info["image_offset"] = parser_.image_offset();
+  info["version"] = folly::dynamic::object("major", parser.major_version())(
+      "minor", parser.minor_version())("header", parser.header_version());
+  info["image_offset"] = parser.image_offset();
   info["history"] = history_.as_dynamic();
 
   info.update(meta_.info_as_dynamic(detail_level));
