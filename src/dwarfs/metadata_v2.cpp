@@ -413,6 +413,8 @@ class metadata_ final : public metadata_v2::impl {
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
+  folly::dynamic info_as_dynamic(int detail_level) const override;
+
   folly::dynamic as_dynamic() const override;
   std::string serialize_as_json(bool simple) const override;
 
@@ -915,6 +917,16 @@ void metadata_<LoggerPolicy>::dump(
     os << " (socket)\n";
     break;
   }
+}
+
+template <typename LoggerPolicy>
+folly::dynamic
+metadata_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
+  folly::dynamic info = folly::dynamic::object;
+  if (detail_level > 2) {
+    info["metadata"] = as_dynamic();
+  }
+  return info;
 }
 
 // TODO: can we move this to dir_entry_view?

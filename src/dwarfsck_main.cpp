@@ -77,9 +77,12 @@ int dwarfsck_main(int argc, sys_char** argv) {
     ("check-integrity",
         po::value<bool>(&check_integrity)->zero_tokens(),
         "check integrity of each block")
-    ("json",
+    ("fast",
+        po::value<bool>(&check_integrity)->zero_tokens(),
+        "don't even verify block checksums")
+    ("json,j",
         po::value<bool>(&json)->zero_tokens(),
-        "print metadata in JSON format")
+        "print information in JSON format")
     ("export-metadata",
         po::value<std::string>(&export_metadata),
         "export raw metadata as JSON to file")
@@ -138,7 +141,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
       of.close();
     } else if (json) {
       filesystem_v2 fs(lgr, mm, fsopts);
-      std::cout << folly::toPrettyJson(fs.metadata_as_dynamic()) << "\n";
+      std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
     } else if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
 #ifdef _WIN32

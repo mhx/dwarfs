@@ -225,6 +225,10 @@ class filesystem_parser {
     return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
   }
 
+  int major_version() const { return major_; }
+  int minor_version() const { return minor_; }
+  int header_version() const { return version_; }
+
   file_off_t image_offset() const { return image_offset_; }
 
   bool has_checksums() const { return version_ >= 2; }
@@ -355,6 +359,7 @@ class filesystem_ final : public filesystem_v2::impl {
               std::shared_ptr<performance_monitor const> perfmon);
 
   void dump(std::ostream& os, int detail_level) const override;
+  folly::dynamic info_as_dynamic(int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
   void walk(std::function<void(dir_entry_view)> const& func) const override;
@@ -503,7 +508,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(open)
     PERFMON_CLS_TIMER_INIT(read)
     PERFMON_CLS_TIMER_INIT(readv_iovec)
-    PERFMON_CLS_TIMER_INIT(readv_future) { // clang-format on
+    PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
+{
   block_cache cache(lgr, mm_, options.block_cache);
 
   if (parser_.has_index()) {
@@ -728,6 +734,21 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
                  LOG_ERROR << "error reading chunks for inode " << inode;
                }
              });
+}
+
+template <typename LoggerPolicy>
+folly::dynamic
+filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
+  folly::dynamic info = folly::dynamic::object;
+
+  info["version"] = folly::dynamic::object("major", parser_.major_version())(
+      "minor", parser_.minor_version())("header", parser_.header_version());
+  info["image_offset"] = parser_.image_offset();
+  info["history"] = history_.as_dynamic();
+
+  info.update(meta_.info_as_dynamic(detail_level));
+
+  return info;
 }
 
 template <typename LoggerPolicy>
