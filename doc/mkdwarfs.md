@@ -433,14 +433,8 @@ is category-dependent. The options that can be configured per category are
 
 The resulting configuration matrix can be quite overwhelming, which is why
 `mkdwarfs` will run with a reasonable set of defaults if you specify the
-`--categorize` option with no arguments. These defaults are currently:
-
-    --categorize=pcmaudio,incompressible
-    --compression incompressible::null
-    --compression pcmaudio/waveform::flac
-    --order pcmaudio/waveform::revpath
-    --max-lookback-blocks pcmaudio/waveform::0
-    --window-size pcmaudio/waveform::0
+`--categorize` option with no arguments. These defaults are also dependent
+on the chosen compression level.
 
 Note that in case of the `pcmaudio` categorizer, you can override each
 option per category (in this case `pcmaudio/waveform`).

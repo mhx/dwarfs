@@ -231,6 +231,56 @@ constexpr std::array<level_defaults, 10> levels{{
     // clang-format on
 }};
 
+const std::unordered_map<std::string, std::vector<std::string>>
+    categorize_defaults_common{
+        // clang-format off
+        {"--compression", {"incompressible::null"}},
+        // clang-format on
+    };
+
+const std::unordered_map<std::string, std::vector<std::string>>
+    categorize_defaults_fast{
+        // clang-format off
+        {"--order",       {"pcmaudio/waveform::revpath"}},
+        {"--window-size", {"pcmaudio/waveform::0"}},
+        {"--compression", {"pcmaudio/waveform::flac:level=3"}},
+        // clang-format on
+    };
+
+const std::unordered_map<std::string, std::vector<std::string>>
+    categorize_defaults_medium{
+        // clang-format off
+        {"--order",       {"pcmaudio/waveform::revpath"}},
+        {"--window-size", {"pcmaudio/waveform::20"}},
+        {"--compression", {"pcmaudio/waveform::flac:level=5"}},
+        // clang-format on
+    };
+
+const std::unordered_map<std::string, std::vector<std::string>>
+    categorize_defaults_slow{
+        // clang-format off
+        {"--window-size", {"pcmaudio/waveform::16"}},
+        {"--compression", {"pcmaudio/waveform::flac:level=8"}},
+        // clang-format on
+    };
+
+constexpr std::array<
+    std::unordered_map<std::string, std::vector<std::string>> const*, 10>
+    categorize_defaults_level{{
+        // clang-format off
+        /* 0 */ &categorize_defaults_fast,
+        /* 1 */ &categorize_defaults_fast,
+        /* 2 */ &categorize_defaults_fast,
+        /* 3 */ &categorize_defaults_fast,
+        /* 4 */ &categorize_defaults_fast,
+        /* 5 */ &categorize_defaults_medium,
+        /* 6 */ &categorize_defaults_medium,
+        /* 7 */ &categorize_defaults_medium,
+        /* 8 */ &categorize_defaults_slow,
+        /* 9 */ &categorize_defaults_slow,
+        // clang-format on
+    }};
+
 constexpr unsigned default_level = 7;
 
 class categorize_optval {
@@ -243,7 +293,30 @@ class categorize_optval {
       : value{val}
       , is_explicit{expl} {}
 
-  bool add_implicit_defaults() const { return !value.empty() && !is_explicit; }
+  bool is_implicit_default() const { return !value.empty() && !is_explicit; }
+
+  template <typename T>
+  void add_implicit_defaults(T& cop) const {
+    if (is_implicit_default()) {
+      if (auto it = defaults_.find(cop.name()); it != defaults_.end()) {
+        for (auto const& value : it->second) {
+          cop.parse_fallback(value);
+        }
+      }
+    }
+  }
+
+  void
+  add_defaults(std::unordered_map<std::string, std::vector<std::string>> const&
+                   defaults) {
+    for (auto const& [key, values] : defaults) {
+      auto& vs = defaults_[key];
+      vs.insert(vs.end(), values.begin(), values.end());
+    }
+  }
+
+ private:
+  std::unordered_map<std::string, std::vector<std::string>> defaults_;
 };
 
 std::ostream& operator<<(std::ostream& os, categorize_optval const& optval) {
@@ -621,6 +694,9 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   auto const& defaults = levels[level];
+
+  categorizer_list.add_defaults(categorize_defaults_common);
+  categorizer_list.add_defaults(*categorize_defaults_level[level]);
 
   if (!vm.count("block-size-bits")) {
     sf_config.block_size_bits = defaults.block_size_bits;
@@ -1036,9 +1112,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    order_parser);
       cop.parse(defaults.order);
       cop.parse(order);
-      if (categorizer_list.add_implicit_defaults()) {
-        cop.parse_fallback("pcmaudio/waveform::revpath");
-      }
+      categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1048,9 +1122,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    max_lookback_parser);
       sf_config.max_active_blocks.set_default(1);
       cop.parse(max_lookback_blocks);
-      if (categorizer_list.add_implicit_defaults()) {
-        cop.parse_fallback("pcmaudio/waveform::0");
-      }
+      categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1060,9 +1132,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    window_size_parser);
       sf_config.blockhash_window_size.set_default(defaults.window_size);
       cop.parse(window_size);
-      if (categorizer_list.add_implicit_defaults()) {
-        cop.parse_fallback("pcmaudio/waveform::0");
-      }
+      categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1072,6 +1142,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    window_step_parser);
       sf_config.window_increment_shift.set_default(defaults.window_step);
       cop.parse(window_step);
+      categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
 
@@ -1081,6 +1152,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                    bloom_filter_size_parser);
       sf_config.bloom_filter_size.set_default(4);
       cop.parse(bloom_filter_size);
+      categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
     }
   } catch (std::exception const& e) {
@@ -1105,10 +1177,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     compression_opt.set_default(
         block_compressor(std::string(defaults.data_compression)));
     cop.parse(compression);
-    if (categorizer_list.add_implicit_defaults()) {
-      cop.parse_fallback("incompressible::null");
-      cop.parse_fallback("pcmaudio/waveform::flac");
-    }
+    categorizer_list.add_implicit_defaults(cop);
     LOG_VERBOSE << cop.as_string();
 
     fsw->add_default_compressor(compression_opt.get());
