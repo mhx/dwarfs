@@ -797,16 +797,26 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
     os << "\n";
   }
 
+  size_t block_no{0};
+
   if (detail_level > 2) {
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
       auto uncompressed_size = get_uncompressed_section_size(mm_, s);
       float compression_ratio = float(s.length()) / uncompressed_size;
+      std::string category;
+
+      if (s.type() == section_type::BLOCK) {
+        if (auto catstr = meta_.get_block_category(block_no)) {
+          category = fmt::format(", category={}", catstr.value());
+        }
+        ++block_no;
+      }
 
       os << "SECTION " << s.description() << ", blocksize=" << uncompressed_size
          << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-         << "\n";
+         << category << "\n";
     }
   }
 
@@ -844,21 +854,31 @@ filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
   if (detail_level > 2) {
     info["sections"] = folly::dynamic::array;
 
+    size_t block_no{0};
+
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
       auto uncompressed_size = get_uncompressed_section_size(mm_, s);
       float compression_ratio = float(s.length()) / uncompressed_size;
 
-      info["sections"].push_back(
-          folly::dynamic::object
+      folly::dynamic section_info = folly::dynamic::object
           // clang-format off
           ("type", s.name())
           ("size", uncompressed_size)
           ("compressed_size", s.length())
           ("ratio", compression_ratio)
           // clang-format on
-      );
+          ;
+
+      if (s.type() == section_type::BLOCK) {
+        if (auto catstr = meta_.get_block_category(block_no)) {
+          section_info["category"] = catstr.value();
+        }
+        ++block_no;
+      }
+
+      info["sections"].push_back(std::move(section_info));
     }
   }
 
