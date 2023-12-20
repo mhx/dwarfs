@@ -331,9 +331,10 @@ class flac_block_compressor final : public block_compressor::impl {
       DWARFS_THROW(runtime_error, "[FLAC] failed to finish encoder");
     }
 
-    if (compressed.size() >= data.size()) {
-      throw bad_compression_ratio_error();
-    }
+    // XXX: don't throw this as we're losing metadata
+    // if (compressed.size() >= data.size()) {
+    //   throw bad_compression_ratio_error();
+    // }
 
     compressed.shrink_to_fit();
 
