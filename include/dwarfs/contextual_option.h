@@ -198,6 +198,8 @@ class contextual_option_parser {
     return oss.str();
   }
 
+  std::string const& name() const { return name_; }
+
  private:
   void add_contextual(typename option_type::context_type const& ctx,
                       typename option_type::value_type const& val,
