@@ -950,6 +950,8 @@ target_link_libraries(features_thrift thrift_light)
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+  set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
+
   target_include_directories(
     ${tgt} SYSTEM
     PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
