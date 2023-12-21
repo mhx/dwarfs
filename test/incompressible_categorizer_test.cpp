@@ -61,7 +61,7 @@ std::string random_string(size_t size) {
   return data;
 }
 
-std::vector<uint8_t> make_data(std::string s) {
+std::vector<uint8_t> make_data(std::string const& s) {
   std::vector<uint8_t> rv(s.size());
   std::memcpy(rv.data(), s.data(), s.size());
   return rv;

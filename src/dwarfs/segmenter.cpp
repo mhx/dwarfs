@@ -477,15 +477,16 @@ class granular_vector_adapter : private GranularityPolicy {
 
   size_t size() const { return this->bytes_to_frames(v_.size()); }
 
-  void append(granular_span_adapter<T const, GranularityPolicy> span) {
+  void append(granular_span_adapter<T const, GranularityPolicy> const& span) {
     auto raw = span.raw();
     auto off = v_.size();
     v_.resize(off + raw.size());
     ::memcpy(v_.data() + off, raw.data(), raw.size());
   }
 
-  int compare(size_t offset,
-              granular_span_adapter<T const, GranularityPolicy> span) const {
+  int compare(
+      size_t offset,
+      granular_span_adapter<T const, GranularityPolicy> const& span) const {
     auto raw = span.raw();
     return std::memcmp(v_.data() + this->frames_to_bytes(offset), raw.data(),
                        raw.size());
@@ -594,7 +595,7 @@ class segmenter_progress : public progress::context {
   using status = progress::context::status;
 
   segmenter_progress(std::string context, size_t total_size)
-      : context_{context}
+      : context_{std::move(context)}
       , bytes_total_{total_size} {}
 
   status get_status() const override {
@@ -757,8 +758,8 @@ class segment_match : private GranularityPolicy {
       , offset_{off} {}
 
   void verify_and_extend(
-      granular_span_adapter<uint8_t const, GranularityPolicy> data, size_t pos,
-      size_t len, size_t begin, size_t end);
+      granular_span_adapter<uint8_t const, GranularityPolicy> const& data,
+      size_t pos, size_t len, size_t begin, size_t end);
 
   bool operator<(segment_match const& rhs) const {
     return size_ < rhs.size_ ||
@@ -851,8 +852,8 @@ void active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
 
 template <typename LoggerPolicy, typename GranularityPolicy>
 void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
-    granular_span_adapter<uint8_t const, GranularityPolicy> data, size_t pos,
-    size_t len, size_t begin, size_t end) {
+    granular_span_adapter<uint8_t const, GranularityPolicy> const& data,
+    size_t pos, size_t len, size_t begin, size_t end) {
   auto v = this->template create<
       granular_vector_adapter<uint8_t, GranularityPolicy>>(
       block_->data()->vec());

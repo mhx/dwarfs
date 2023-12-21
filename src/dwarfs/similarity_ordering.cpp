@@ -285,7 +285,8 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       basic_cluster_tree_node<
           basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev,
-      duplicates_map& dup, index_type& ordered, std::string indent) const;
+      duplicates_map& dup, index_type& ordered,
+      std::string const& indent) const;
 
   template <size_t Bits, typename BitsType>
   void order_impl(
@@ -563,7 +564,7 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
     basic_cluster_tree_node<
         basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    duplicates_map& dup, index_type& ordered, std::string indent) const {
+    duplicates_map& dup, index_type& ordered, std::string const& indent) const {
   if (node.is_leaf()) {
     for (auto e : node.cluster().index) {
       LOG_TRACE << opts_.context << indent << "  " << ev.description(e)
