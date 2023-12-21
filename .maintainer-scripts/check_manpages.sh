@@ -1,6 +1,6 @@
 #!/bin/bash
 
-script_dir=$(cd $(dirname $0); pwd)
+script_dir="$(cd $(dirname $0); pwd)"
 manpage_dir="$script_dir/../doc"
 check_manpage_script="$script_dir/check_manpage.py"
 

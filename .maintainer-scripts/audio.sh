@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -e
+
 for bits in 8 16 20 24 32; do
   sox -D -r10000 -b$bits -n audio/test$bits.wav synth 5 sine ${bits}00
   for ch in 1 2 3 4 5 6; do
