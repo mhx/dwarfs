@@ -84,9 +84,9 @@ struct sized_block {
     return os << source_id << "." << index << " (" << size << ")";
   }
 
-  size_t source_id;
-  size_t index;
-  size_t size;
+  size_t source_id{0};
+  size_t index{0};
+  size_t size{0};
 };
 
 class sized_block_merger_policy {

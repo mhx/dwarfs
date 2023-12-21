@@ -458,7 +458,7 @@ class inode_ : public inode {
   static constexpr uint32_t const kNumIsValid{UINT32_C(1) << 0};
 
   uint32_t flags_{0};
-  uint32_t num_;
+  uint32_t num_{0};
   inode_fragments fragments_;
   files_vector files_;
 

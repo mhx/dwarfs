@@ -59,7 +59,7 @@ constexpr inline uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
 
 class nilsimsa::impl {
  public:
-  impl() { acc_.fill(0); }
+  impl() = default;
 
   void update(uint8_t const* data, size_t size) {
     if (size_ < 4) [[unlikely]] {
@@ -172,8 +172,8 @@ class nilsimsa::impl {
     size_ += size;
   }
 
-  std::array<size_t, 256> acc_;
-  std::array<uint8_t, 4> w_;
+  std::array<size_t, 256> acc_{};
+  std::array<uint8_t, 4> w_{};
   size_t size_{0};
 };
 
