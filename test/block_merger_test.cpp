@@ -91,7 +91,8 @@ struct sized_block {
 
 class sized_block_merger_policy {
  public:
-  sized_block_merger_policy(std::vector<size_t>&& worst_case_block_size)
+  explicit sized_block_merger_policy(
+      std::vector<size_t>&& worst_case_block_size)
       : worst_case_block_size_{std::move(worst_case_block_size)} {}
 
   static size_t block_size(sized_block const& blk) { return blk.size; }

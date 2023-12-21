@@ -196,7 +196,7 @@ class pcm_sample_transformer_generic final
  public:
   using basic_transformer = basic_pcm_sample_transformer<UnpackedType>;
 
-  pcm_sample_transformer_generic(int bits)
+  explicit pcm_sample_transformer_generic(int bits)
       : bits_{bits} {}
 
   void unpack(std::span<UnpackedType> dst,

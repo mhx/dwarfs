@@ -136,7 +136,7 @@ class fsblock {
 
 class fsblock_merger_policy {
  public:
-  fsblock_merger_policy(size_t worst_case_block_size)
+  explicit fsblock_merger_policy(size_t worst_case_block_size)
       : worst_case_block_size_{worst_case_block_size} {}
 
   size_t block_size(std::unique_ptr<fsblock> const& fsb) const {

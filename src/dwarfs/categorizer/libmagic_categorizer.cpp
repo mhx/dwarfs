@@ -94,7 +94,7 @@ class magic_wrapper {
 
   class scoped_cookie {
    public:
-    scoped_cookie(magic_wrapper const& w)
+    explicit scoped_cookie(magic_wrapper const& w)
         : cookie_{get_scoped_cookie(w)}
         , w_{w} {}
 

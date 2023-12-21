@@ -341,7 +341,7 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
  public:
-  VariableGranularityPolicy(uint32_t granularity) noexcept
+  explicit VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
 
   template <typename T>

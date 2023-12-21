@@ -289,7 +289,7 @@ class categorize_optval {
   bool is_explicit{false};
 
   categorize_optval() = default;
-  categorize_optval(std::string const& val, bool expl = false)
+  explicit categorize_optval(std::string const& val, bool expl = false)
       : value{val}
       , is_explicit{expl} {}
 

@@ -219,7 +219,7 @@ categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
 template <typename LoggerPolicy>
 class categorizer_manager_ final : public categorizer_manager_private {
  public:
-  categorizer_manager_(logger& lgr)
+  explicit categorizer_manager_(logger& lgr)
       : lgr_{lgr}
       , LOG_PROXY_INIT(lgr) {
     add_category(categorizer::DEFAULT_CATEGORY,

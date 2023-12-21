@@ -449,7 +449,7 @@ class pcmaudio_categorizer_base : public random_access_categorizer {
 template <typename LoggerPolicy>
 class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
  public:
-  pcmaudio_categorizer_(logger& lgr)
+  explicit pcmaudio_categorizer_(logger& lgr)
       : LOG_PROXY_INIT(lgr) {
     waveform_req_.add_set("endianness", &pcmaudio_metadata::sample_endianness,
                           parse_endianness_dyn);

@@ -177,7 +177,7 @@ struct basic_cluster_tree_node {
 
   basic_cluster_tree_node()
       : v{std::make_unique<cluster_type>()} {}
-  basic_cluster_tree_node(index_type&& index)
+  explicit basic_cluster_tree_node(index_type&& index)
       : v{std::make_unique<cluster_type>(std::move(index))} {}
 
   children_vector const& children() const {

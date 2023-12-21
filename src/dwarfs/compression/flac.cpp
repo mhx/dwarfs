@@ -53,7 +53,7 @@ constexpr size_t const kBlockSize{65536};
 
 class dwarfs_flac_stream_encoder : public FLAC::Encoder::Stream {
  public:
-  dwarfs_flac_stream_encoder(std::vector<uint8_t>& data)
+  explicit dwarfs_flac_stream_encoder(std::vector<uint8_t>& data)
       : data_{data}
       , pos_{data_.size()} {}
 

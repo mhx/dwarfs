@@ -55,7 +55,7 @@ class binary_categorizer_base : public random_access_categorizer {
 template <typename LoggerPolicy>
 class binary_categorizer_ final : public binary_categorizer_base {
  public:
-  binary_categorizer_(logger& lgr)
+  explicit binary_categorizer_(logger& lgr)
       : LOG_PROXY_INIT(lgr) {}
 
   inode_fragments
