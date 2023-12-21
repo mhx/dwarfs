@@ -193,7 +193,6 @@ void console_writer::update(progress& p, bool last) {
   auto newline = get_newline();
 
   std::ostringstream oss;
-  std::vector<std::shared_ptr<progress::context>> ctxs;
 
   lazy_value width(get_term_width_);
 
@@ -326,6 +325,8 @@ void console_writer::update(progress& p, bool last) {
         << '\n';
 
     ++counter_;
+
+    std::vector<std::shared_ptr<progress::context>> ctxs;
 
     if (w >= 60) {
       ctxs = p.get_active_contexts();
