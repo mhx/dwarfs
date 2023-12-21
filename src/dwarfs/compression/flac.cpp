@@ -51,7 +51,7 @@ constexpr uint8_t const kFlagLsbPadding{0x20};
 constexpr uint8_t const kBytesPerSampleMask{0x03};
 constexpr size_t const kBlockSize{65536};
 
-class dwarfs_flac_stream_encoder : public FLAC::Encoder::Stream {
+class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
  public:
   explicit dwarfs_flac_stream_encoder(std::vector<uint8_t>& data)
       : data_{data}
@@ -92,7 +92,7 @@ class dwarfs_flac_stream_encoder : public FLAC::Encoder::Stream {
   size_t pos_;
 };
 
-class dwarfs_flac_stream_decoder : public FLAC::Decoder::Stream {
+class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
  public:
   dwarfs_flac_stream_decoder(
       std::vector<uint8_t>& target, std::span<uint8_t const> data,
@@ -283,7 +283,6 @@ class flac_block_compressor final : public block_compressor::impl {
 
       compressed.resize(pos + hdrbuf.size());
       ::memcpy(&compressed[pos], hdrbuf.data(), hdrbuf.size());
-      pos += hdrbuf.size();
     }
 
     dwarfs_flac_stream_encoder encoder(compressed);
