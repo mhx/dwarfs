@@ -2,17 +2,20 @@
 
 set -e
 
+output_dir="$1"
+duration=60
+
 for bits in 8 16 20 24 32; do
-  sox -D -r10000 -b$bits -n audio/test$bits.wav synth 5 sine ${bits}00
+  sox -D -r10240 -b$bits -n $output_dir/test$bits.wav synth $duration sine ${bits}
   for ch in 1 2 3 4 5 6; do
-    sox -D -r10000 -b$bits -n audio/test$bits.$ch.wav synth 5 sine ${bits}${ch}0
-    sox -D -M audio/test$bits.?.wav audio/test$bits-$ch.wav
+    sox -D -r10240 -b$bits -n $output_dir/test$bits.$ch.wav synth $duration sine ${bits} ${ch}
+    sox -D -M $output_dir/test$bits.?.wav $output_dir/test$bits-$ch.wav
   done
-  rm audio/test$bits.?.wav
+  rm $output_dir/test$bits.?.wav
   for fmt in aiff caf w64; do
-    sox -D audio/test$bits.wav audio/test$bits.$fmt
-    for ch in 1 2 3 4 5 6; do
-      sox -D audio/test$bits-$ch.wav audio/test$bits-$ch.$fmt
+    sox -D $output_dir/test$bits.wav $output_dir/test$bits.$fmt
+    for ch in 2 3 4 5 6; do
+      sox -D $output_dir/test$bits-$ch.wav $output_dir/test$bits-$ch.$fmt
     done
   done
 done
