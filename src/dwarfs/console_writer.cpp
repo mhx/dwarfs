@@ -307,14 +307,13 @@ void console_writer::update(progress& p, bool last) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
                     p.blocks_written.load(), size_with_unit(p.compressed_size));
+    std::lock_guard lock(log_mutex());
     if (tmp != statebuf_) {
       auto t = get_current_time_string();
       statebuf_ = tmp;
-      std::lock_guard lock(log_mutex());
       log_stream() << "- " << t << statebuf_ << "\n";
     }
     if (last) {
-      std::lock_guard lock(log_mutex());
       log_stream() << oss.str();
     }
   } else {
