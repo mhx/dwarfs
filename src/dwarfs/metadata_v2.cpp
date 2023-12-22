@@ -1033,7 +1033,7 @@ metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
     }
 
     if (meta_.block_categories()) {
-      auto const& catnames = *meta_.category_names();
+      auto catnames = *meta_.category_names();
       auto catinfo = get_category_info(meta_, fsinfo);
       folly::dynamic categories = folly::dynamic::object;
       for (auto const& [category, ci] : catinfo) {
@@ -1176,7 +1176,7 @@ void metadata_<LoggerPolicy>::dump(
     }
 
     if (meta_.block_categories()) {
-      auto const& catnames = *meta_.category_names();
+      auto catnames = *meta_.category_names();
       auto catinfo = get_category_info(meta_, fsinfo);
       os << "categories:\n";
       for (auto const& [category, ci] : catinfo) {
@@ -1769,8 +1769,8 @@ folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
 template <typename LoggerPolicy>
 std::optional<std::string>
 metadata_<LoggerPolicy>::get_block_category(size_t block_number) const {
-  if (auto const& catnames = meta_.category_names()) {
-    if (auto const& categories = meta_.block_categories()) {
+  if (auto catnames = meta_.category_names()) {
+    if (auto categories = meta_.block_categories()) {
       return std::string(catnames.value()[categories.value()[block_number]]);
     }
   }
@@ -1782,7 +1782,7 @@ std::vector<std::string>
 metadata_<LoggerPolicy>::get_all_block_categories() const {
   std::vector<std::string> rv;
 
-  if (auto const& catnames = meta_.category_names()) {
+  if (auto catnames = meta_.category_names()) {
     rv.reserve(catnames.value().size());
     for (auto const& name : catnames.value()) {
       rv.emplace_back(name);
