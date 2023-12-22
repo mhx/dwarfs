@@ -63,6 +63,9 @@ case "-$BUILD_TYPE-" in
   *-ubsan-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_UBSAN=1"
     ;;
+  *-coverage-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_COVERAGE=1"
+    ;;
   *)
     echo "missing build type: $BUILD_TYPE"
     exit 1
@@ -91,7 +94,21 @@ cmake ../dwarfs/ $CMAKE_ARGS
 
 $BUILD_TOOL
 
+if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
+  export LLVM_PROFILE_FILE="$PWD/profile/%32m.profraw"
+fi
+
 ctest --output-on-failure -j$(nproc)
+
+if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
+  unset LLVM_PROFILE_FILE
+  rm -rf /tmp-runner/coverage
+  mkdir -p /tmp-runner/coverage
+  llvm-profdata-17 merge -sparse profile/* -o dwarfs.profdata
+  for binary in mkdwarfs dwarfs dwarfsck dwarfsextract; do
+    llvm-cov-17 show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$binary.txt
+  done
+fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   $BUILD_TOOL package_source
