@@ -62,6 +62,8 @@ namespace {
 namespace bp = boost::process;
 namespace fs = std::filesystem;
 
+using namespace std::literals::string_view_literals;
+
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
 auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
@@ -775,6 +777,46 @@ TEST_P(tools_test, end_to_end) {
         struct statfs stfs;
         ASSERT_EQ(0, ::statfs(mountpoint.c_str(), &stfs)) << runner.cmdline();
         EXPECT_EQ(stfs.f_files, 44) << runner.cmdline();
+      }
+
+      {
+        static constexpr auto kInodeInfoXattr{"user.dwarfs.inodeinfo"};
+        std::vector<std::pair<fs::path, std::string_view>> xattr_tests{
+            {mountpoint,
+             "user.dwarfs.driver.pid\0user.dwarfs.driver.perfmon\0user.dwarfs.inodeinfo\0"sv},
+            {mountpoint / "format.sh", "user.dwarfs.inodeinfo\0"sv},
+            {mountpoint / "empty", "user.dwarfs.inodeinfo\0"sv},
+        };
+
+        for (auto const& [path, ref] : xattr_tests) {
+          std::string buf;
+          buf.resize(1);
+
+          auto r = ::listxattr(path.c_str(), buf.data(), buf.size());
+          EXPECT_LT(r, 0) << runner.cmdline();
+          EXPECT_EQ(ERANGE, errno) << runner.cmdline();
+          r = ::listxattr(path.c_str(), buf.data(), 0);
+          EXPECT_GT(r, 0) << runner.cmdline();
+          buf.resize(r);
+          r = ::listxattr(path.c_str(), buf.data(), buf.size());
+          EXPECT_GT(r, 0) << runner.cmdline();
+          EXPECT_EQ(ref, buf) << runner.cmdline();
+
+          buf.resize(1);
+          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), buf.size());
+          EXPECT_LT(r, 0) << runner.cmdline();
+          EXPECT_EQ(ERANGE, errno) << runner.cmdline();
+          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), 0);
+          EXPECT_GT(r, 0) << runner.cmdline();
+          buf.resize(r);
+          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), buf.size());
+          EXPECT_GT(r, 0) << runner.cmdline();
+
+          auto info = folly::parseJson(buf);
+          EXPECT_TRUE(info.count("uid"));
+          EXPECT_TRUE(info.count("gid"));
+          EXPECT_TRUE(info.count("mode"));
+        }
       }
 #endif
 
