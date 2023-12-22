@@ -1,6 +1,24 @@
 @startuml
 
-activate scanner #lightgreen
+activate mkdwarfs #lightgreen
+
+== Startup Phase ==
+
+mkdwarfs -> script ** : create
+return
+mkdwarfs -> categorizer_manager ** : create
+return
+mkdwarfs -> filesystem_writer ** : create
+return
+mkdwarfs -> segmenter_factory ** : create
+return
+mkdwarfs -> entry_factory ** : create
+return
+mkdwarfs -> os_access ** : create
+return
+mkdwarfs -> scanner ** : create
+return
+mkdwarfs -> scanner ++ #lightgreen : ""scan()""
 
 scanner -> inode_manager ** : create
 scanner -> file_scanner ** : create
@@ -8,6 +26,9 @@ scanner -> file_scanner ** : create
 == Scanning Phase ==
 
 loop until all files found
+
+    scanner -> os_access ++ #lightgreen : ""opendir()""
+    return return dir_reader
 
     scanner -> entry_factory ++ #lightgreen : ""create()""
     entry_factory -> os_access ++ #lightgreen : ""symlink_info()""
@@ -63,7 +84,20 @@ end note
 file_scanner -> inode_manager ++ #lightgreen : ""create_inode()""
 return
 
-file_scanner -> categorizer_manager ++ #lightgreen : ""job()""
+file_scanner -> inode_manager ++ #lightgreen : ""scan_background()""
+inode_manager --> file_scanner
+
+par
+    opt
+        inode_manager -> inode_manager : Similarity Hashing
+    end
+
+    opt
+        inode_manager -> categorizer_manager ++ #lightgreen : ""job()""
+        return
+    end
+end
+
 return
 
 scanner -> file_scanner : ""wait()""
@@ -72,8 +106,117 @@ return
 scanner -> file_scanner ++ #lightgreen : ""finalize()""
 return
 
+scanner -> scanner ++ #lightgreen : Build inode tables
+return
+
+scanner -> scanner ++ #lightgreen : Build symlink tables
+return
+
 == Segmentation/Blockifying Phase ==
 
-' TODO to be continued
+scanner -> block_manager ** : create
+
+scanner -> filesystem_writer ++ #lightgreen : ""configure()""
+return
+
+loop over all categories
+
+    opt
+        scanner -> categorizer_manager ++ #lightgreen : ""category_metadata()""
+        return
+    end
+
+    scanner -> filesystem_writer ++ #lightgreen : ""get_compression_constraints()""
+    return
+
+    par
+
+        scanner -> inode_manager ++ #lightgreen : ""ordered_span()""
+        return list of ordered inodes
+
+        scanner -> segmenter_factory ++ #lightgreen : ""create()""
+
+            segmenter_factory -> segmenter ** : create
+
+        return segmenter for this category
+
+        loop over all inodes
+
+            scanner -> os_access ++ #lightgreen : ""map_file()""
+            return
+
+            loop over all inode fragments
+
+                scanner -> segmenter ++ #lightgreen : ""add_chunkable()""
+
+                    loop until fragment is segmented
+
+                        segmenter -> filesystem_writer ++ #lightgreen : ""write_block()""
+                        return
+                        par
+                            filesystem_writer -> block_manager ++ #lightgreen : ""set_written_block()""
+                            return
+                            filesystem_writer -> filesystem_writer ++ #lightgreen : Compress block
+                            return
+                            filesystem_writer -> filesystem_writer ++ #lightgreen : Write block to output image
+                            return
+                        end
+
+                    end
+
+                return
+
+            end
+
+        end
+
+        scanner -> segmenter ++ #lightgreen : ""finish()""
+        return
+
+        scanner -> filesystem_writer ++ #lightgreen : ""finish_category()""
+        return
+
+        destroy segmenter
+
+    end
+
+end
+
+scanner -> scanner ++ #lightgreen : Build chunk table
+return
+
+scanner -> block_manager ++ #lightgreen : ""map_logical_blocks()""
+return
+
+scanner -> scanner ++ #lightgreen : Build directory table
+return
+
+scanner -> scanner ++ #lightgreen : Build shared files table
+return
+
+scanner -> filesystem_writer ++ #lightgreen : ""write_metadata_v2_schema()""
+return
+
+scanner -> filesystem_writer ++ #lightgreen : ""write_metadata_v2()""
+return
+
+scanner -> filesystem_writer ++ #lightgreen : ""flush()""
+return
+
+== Shutdown Phase ==
+
+destroy file_scanner
+destroy inode_manager
+destroy block_manager
+
+return
+
+destroy scanner
+destroy os_access
+destroy entry_factory
+destroy segmenter_factory
+destroy filesystem_writer
+destroy categorizer_manager
+destroy script
 
 @enduml
