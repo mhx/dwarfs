@@ -830,16 +830,16 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
         oss << "no performance monitor support\n";
 #endif
       }
-    } else {
-      if (name == inodeinfo_xattr) {
-        auto entry = userdata->fs.find(ino);
+    }
 
-        if (entry) {
-          auto ii = userdata->fs.get_inode_info(*entry);
-          oss << folly::toPrettyJson(ii) << "\n";
-        } else {
-          err = ENOENT;
-        }
+    if (name == inodeinfo_xattr) {
+      auto entry = userdata->fs.find(ino);
+
+      if (entry) {
+        auto ii = userdata->fs.get_inode_info(*entry);
+        oss << folly::toPrettyJson(ii) << "\n";
+      } else {
+        err = ENOENT;
       }
     }
 
@@ -899,9 +899,9 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
     if (ino == FUSE_ROOT_ID) {
       oss << pid_xattr << '\0';
       oss << perfmon_xattr << '\0';
-    } else {
-      oss << inodeinfo_xattr << '\0';
     }
+
+    oss << inodeinfo_xattr << '\0';
 
     auto xattrs = oss.view();
 
