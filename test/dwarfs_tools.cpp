@@ -47,6 +47,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 #include <folly/experimental/TestUtil.h>
+#include <folly/json.h>
 
 #include <fmt/format.h>
 
@@ -61,6 +62,7 @@ namespace fs = std::filesystem;
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
+auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -124,6 +126,7 @@ struct compare_directories_result {
   std::set<fs::path> directories;
   std::set<fs::path> symlinks;
   std::set<fs::path> regular_files;
+  size_t total_regular_file_size{0};
 };
 
 std::ostream&
@@ -182,6 +185,7 @@ bool compare_directories(fs::path const& p1, fs::path const& p2,
     res->directories.clear();
     res->symlinks.clear();
     res->regular_files.clear();
+    res->total_regular_file_size = 0;
   }
 
   bool rv = true;
@@ -225,6 +229,7 @@ bool compare_directories(fs::path const& p1, fs::path const& p2,
     }
       if (res) {
         res->regular_files.insert(p);
+        res->total_regular_file_size += e1.file_size();
       }
       break;
 
@@ -1059,6 +1064,185 @@ TEST_P(tools_test, mutating_ops) {
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
+}
+
+TEST_P(tools_test, categorize) {
+  auto mode = GetParam();
+
+  std::chrono::seconds const timeout{5};
+  folly::test::TemporaryDirectory tempdir("dwarfs");
+  auto td = fs::path(tempdir.path().string());
+  auto image = td / "test.dwarfs";
+  auto image_recompressed = td / "test2.dwarfs";
+  auto fsdata_dir = td / "fsdata";
+  auto universal_symlink_dwarfs_bin = td / "dwarfs" EXE_EXT;
+  auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs" EXE_EXT;
+  auto universal_symlink_dwarfsck_bin = td / "dwarfsck" EXE_EXT;
+  auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract" EXE_EXT;
+  std::vector<std::string> mkdwarfs_tool_arg;
+  std::vector<std::string> dwarfsck_tool_arg;
+  std::vector<std::string> dwarfsextract_tool_arg;
+  fs::path const* mkdwarfs_test_bin = &mkdwarfs_bin;
+  fs::path const* dwarfsck_test_bin = &dwarfsck_bin;
+  fs::path const* dwarfsextract_test_bin = &dwarfsextract_bin;
+
+  if (mode == binary_mode::universal_symlink) {
+    fs::create_symlink(universal_bin, universal_symlink_dwarfs_bin);
+    fs::create_symlink(universal_bin, universal_symlink_mkdwarfs_bin);
+    fs::create_symlink(universal_bin, universal_symlink_dwarfsck_bin);
+    fs::create_symlink(universal_bin, universal_symlink_dwarfsextract_bin);
+  }
+
+  if (mode == binary_mode::universal_tool) {
+    mkdwarfs_test_bin = &universal_bin;
+    dwarfsck_test_bin = &universal_bin;
+    dwarfsextract_test_bin = &universal_bin;
+    mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
+    dwarfsck_tool_arg.push_back("--tool=dwarfsck");
+    dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
+  }
+
+  ASSERT_TRUE(fs::create_directory(fsdata_dir));
+  ASSERT_TRUE(subprocess::check_run(*dwarfsextract_test_bin,
+                                    dwarfsextract_tool_arg, "-i",
+                                    test_catdata_dwarfs, "-o", fsdata_dir));
+
+  ASSERT_TRUE(fs::exists(fsdata_dir / "random"));
+  EXPECT_EQ(4096, fs::file_size(fsdata_dir / "random"));
+
+  std::vector<std::string> mkdwarfs_args{"-i",
+                                         fsdata_dir.string(),
+                                         "-o",
+                                         image.string(),
+                                         "--no-progress",
+                                         "--categorize",
+                                         "-S",
+                                         "16",
+                                         "-W",
+                                         "pcmaudio/waveform::8"};
+
+  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg,
+                                    mkdwarfs_args));
+
+  ASSERT_TRUE(fs::exists(image));
+  auto const image_size = fs::file_size(image);
+  EXPECT_GT(image_size, 150000);
+  EXPECT_LT(image_size, 300000);
+
+  std::vector<std::string> mkdwarfs_args_recompress{
+      "-i",
+      image.string(),
+      "-o",
+      image_recompressed.string(),
+      "--no-progress",
+      "--recompress=block",
+      "--recompress-categories=pcmaudio/waveform",
+      "-C",
+      "pcmaudio/waveform::flac:level=8"};
+
+  ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg,
+                                    mkdwarfs_args_recompress));
+
+  ASSERT_TRUE(fs::exists(image_recompressed));
+  {
+    auto const image_size_recompressed = fs::file_size(image_recompressed);
+    EXPECT_GT(image_size_recompressed, 100000);
+    EXPECT_LT(image_size_recompressed, image_size);
+  }
+
+  {
+    auto mountpoint = td / "mnt";
+    fs::path driver;
+
+    switch (mode) {
+    case binary_mode::standalone:
+      driver = fuse3_bin;
+      break;
+
+    case binary_mode::universal_tool:
+      driver = universal_bin;
+      break;
+
+    case binary_mode::universal_symlink:
+      driver = universal_symlink_dwarfs_bin;
+      break;
+    }
+
+    driver_runner runner(driver_runner::foreground, driver,
+                         mode == binary_mode::universal_tool, image,
+                         mountpoint);
+
+    ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+        << runner.cmdline();
+    compare_directories_result cdr;
+    ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
+        << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.regular_files.size(), 151) << runner.cmdline() << ": " << cdr;
+    EXPECT_EQ(cdr.total_regular_file_size, 679'077'701)
+        << runner.cmdline() << ": " << cdr;
+
+    EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+
+  auto json_info = subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
+                                         image_recompressed, "--json");
+  ASSERT_TRUE(json_info);
+
+  auto info = folly::parseJson(*json_info);
+
+  EXPECT_EQ(info["block_size"], 65'536);
+  EXPECT_EQ(info["image_offset"], 0);
+  EXPECT_EQ(info["inode_count"], 154);
+  EXPECT_EQ(info["original_filesystem_size"], 679'077'701);
+  EXPECT_EQ(info["categories"].size(), 4);
+
+  EXPECT_TRUE(info.count("created_by"));
+  EXPECT_TRUE(info.count("created_on"));
+
+  {
+    auto it = info["categories"].find("<default>");
+    ASSERT_NE(it, info["categories"].items().end());
+    EXPECT_EQ(it->second["block_count"].asInt(), 1);
+  }
+
+  {
+    auto it = info["categories"].find("incompressible");
+    ASSERT_NE(it, info["categories"].items().end());
+    EXPECT_EQ(it->second["block_count"].asInt(), 1);
+    EXPECT_EQ(it->second["compressed_size"].asInt(), 4'096);
+    EXPECT_EQ(it->second["uncompressed_size"].asInt(), 4'096);
+  }
+
+  {
+    auto it = info["categories"].find("pcmaudio/metadata");
+    ASSERT_NE(it, info["categories"].items().end());
+    EXPECT_EQ(it->second["block_count"].asInt(), 3);
+  }
+
+  {
+    auto it = info["categories"].find("pcmaudio/waveform");
+    ASSERT_NE(it, info["categories"].items().end());
+    EXPECT_EQ(it->second["block_count"].asInt(), 48);
+  }
+
+  ASSERT_EQ(info["history"].size(), 2);
+  for (auto const& entry : info["history"]) {
+    ASSERT_TRUE(entry.count("arguments"));
+    EXPECT_TRUE(entry.count("compiler_id"));
+    EXPECT_TRUE(entry.count("libdwarfs_version"));
+    EXPECT_TRUE(entry.count("system_id"));
+    EXPECT_TRUE(entry.count("timestamp"));
+  }
+
+  folly::dynamic ref_args = folly::dynamic::array();
+  ref_args.push_back(mkdwarfs_test_bin->string());
+  ref_args.insert(ref_args.end(), mkdwarfs_args.begin(), mkdwarfs_args.end());
+  EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
+
+  ref_args.resize(1);
+  ref_args.insert(ref_args.end(), mkdwarfs_args_recompress.begin(),
+                  mkdwarfs_args_recompress.end());
+  EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
