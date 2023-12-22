@@ -36,9 +36,11 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/xattr.h>
 #endif
 
+#include <folly/FileUtil.h>
 #include <folly/portability/Unistd.h>
 
 #include <boost/asio/io_service.hpp>
@@ -119,6 +121,18 @@ bool read_file(fs::path const& path, std::string& out) {
   tmp << ifs.rdbuf();
   out = tmp.str();
   return true;
+}
+
+bool read_file(fs::path const& path, std::string& out, std::error_code& ec) {
+  auto res = folly::readFile(path.string().c_str(), out);
+  if (!res) {
+#ifdef _WIN32
+    ec = std::error_code(::GetLastError(), std::system_category());
+#else
+    ec = std::error_code(errno, std::generic_category());
+#endif
+  }
+  return res;
 }
 
 struct compare_directories_result {
@@ -756,6 +770,14 @@ TEST_P(tools_test, end_to_end) {
           << runner.cmdline();
       EXPECT_EQ(unicode_file_contents, "unicode\n") << runner.cmdline();
 
+#ifndef _WIN32
+      {
+        struct statfs stfs;
+        ASSERT_EQ(0, ::statfs(mountpoint.c_str(), &stfs)) << runner.cmdline();
+        EXPECT_EQ(stfs.f_files, 44) << runner.cmdline();
+      }
+#endif
+
       EXPECT_TRUE(runner.unmount()) << runner.cmdline();
     }
 
@@ -904,7 +926,7 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(unix, (ec).value()) << runner.cmdline() << ": " << (ec).message()
 #endif
 
-TEST_P(tools_test, mutating_ops) {
+TEST_P(tools_test, mutating_and_error_ops) {
   auto mode = GetParam();
 
   std::chrono::seconds const timeout{5};
@@ -1060,6 +1082,23 @@ TEST_P(tools_test, mutating_ops) {
       std::error_code ec;
       fs::create_directory(name_inside_fs, ec);
       EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+    }
+
+    // read directory as file (non-mutating)
+
+    {
+      std::error_code ec;
+      std::string tmp;
+      EXPECT_FALSE(read_file(mountpoint / "empty", tmp, ec));
+      EXPECT_EC_UNIX_WIN(ec, EISDIR, ERROR_ACCESS_DENIED);
+    }
+
+    // open file as directory (non-mutating)
+
+    {
+      std::error_code ec;
+      fs::directory_iterator it{mountpoint / "format.sh", ec};
+      EXPECT_EC_UNIX_WIN(ec, ENOTDIR, ERROR_DIRECTORY);
     }
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
