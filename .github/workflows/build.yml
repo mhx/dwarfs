@@ -91,6 +91,8 @@ jobs:
             build_type: clang-ubsan-ninja
           - arch: amd64
             build_type: gcc-debug-noperfmon-ninja
+          - arch: amd64
+            build_type: clang-coverage-ninja
 
     runs-on:
       - self-hosted
@@ -118,6 +120,7 @@ jobs:
           docker run --rm \
             --cap-add SYS_ADMIN --device /dev/fuse --privileged \
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=${{ matrix.build_type }} \
@@ -128,3 +131,11 @@ jobs:
             --env GITHUB_RUN_NUMBER \
             --env GITHUB_RUN_ATTEMPT \
             dwarfs-linux-build
+
+      - name: Upload Coverage Data
+        if: matrix.build_type == 'clang-coverage-ninja'
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ runner.temp }}/coverage/mkdwarfs.txt,${{ runner.temp }}/coverage/dwarfs.txt,${{ runner.temp }}/coverage/dwarfsck.txt,${{ runner.temp }}/coverage/dwarfsextract.txt
+          fail_ci_if_error: true
