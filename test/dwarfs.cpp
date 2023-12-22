@@ -464,6 +464,41 @@ void basic_end_to_end_test(std::string const& compressor,
   json = fs.serialize_metadata_as_json(false);
 
   EXPECT_GT(json.size(), 1000) << json;
+
+  for (int detail = 0; detail <= 5; ++detail) {
+    auto info = fs.info_as_dynamic(detail);
+
+    ASSERT_TRUE(info.count("version"));
+    ASSERT_TRUE(info.count("image_offset"));
+    ASSERT_TRUE(info.count("created_on"));
+    ASSERT_TRUE(info.count("created_by"));
+
+    if (detail >= 1) {
+      ASSERT_TRUE(info.count("block_count"));
+      ASSERT_TRUE(info.count("block_size"));
+      ASSERT_TRUE(info.count("compressed_block_size"));
+      ASSERT_TRUE(info.count("compressed_metadata_size"));
+      ASSERT_TRUE(info.count("inode_count"));
+      ASSERT_TRUE(info.count("options"));
+      ASSERT_TRUE(info.count("original_filesystem_size"));
+      ASSERT_TRUE(info.count("preferred_path_separator"));
+      ASSERT_TRUE(info.count("uncompressed_block_size"));
+      ASSERT_TRUE(info.count("uncompressed_metadata_size"));
+    }
+
+    if (detail >= 2) {
+      ASSERT_TRUE(info.count("history"));
+    }
+
+    if (detail >= 3) {
+      ASSERT_TRUE(info.count("meta"));
+      ASSERT_TRUE(info.count("sections"));
+    }
+
+    if (detail >= 4) {
+      ASSERT_TRUE(info.count("root"));
+    }
+  }
 }
 
 std::vector<std::string> const compressions{
