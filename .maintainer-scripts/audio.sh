@@ -3,7 +3,7 @@
 set -e
 
 output_dir="$1"
-duration=60
+duration=5
 
 for bits in 8 16 20 24 32; do
   sox -D -r10240 -b$bits -n $output_dir/test$bits.wav synth $duration sine ${bits}

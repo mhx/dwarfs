@@ -1259,7 +1259,7 @@ TEST_P(tools_test, categorize) {
     ASSERT_TRUE(compare_directories(fsdata_dir, mountpoint, &cdr))
         << runner.cmdline() << ": " << cdr;
     EXPECT_EQ(cdr.regular_files.size(), 151) << runner.cmdline() << ": " << cdr;
-    EXPECT_EQ(cdr.total_regular_file_size, 679'077'701)
+    EXPECT_EQ(cdr.total_regular_file_size, 56'741'701)
         << runner.cmdline() << ": " << cdr;
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -1274,7 +1274,7 @@ TEST_P(tools_test, categorize) {
   EXPECT_EQ(info["block_size"], 65'536);
   EXPECT_EQ(info["image_offset"], 0);
   EXPECT_EQ(info["inode_count"], 154);
-  EXPECT_EQ(info["original_filesystem_size"], 679'077'701);
+  EXPECT_EQ(info["original_filesystem_size"], 56'741'701);
   EXPECT_EQ(info["categories"].size(), 4);
 
   EXPECT_TRUE(info.count("created_by"));
