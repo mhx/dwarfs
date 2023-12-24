@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -668,6 +669,19 @@ TEST_P(tools_test, end_to_end) {
     mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
     dwarfsck_tool_arg.push_back("--tool=dwarfsck");
     dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
+  }
+
+  {
+    auto out = subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg);
+    ASSERT_TRUE(out);
+    EXPECT_THAT(*out, ::testing::HasSubstr("Usage:"));
+    EXPECT_THAT(*out, ::testing::HasSubstr("--long-help"));
+  }
+
+  if (mode == binary_mode::universal_tool) {
+    auto out = subprocess::check_run(universal_bin);
+    ASSERT_TRUE(out);
+    EXPECT_THAT(*out, ::testing::HasSubstr("--tool="));
   }
 
   ASSERT_TRUE(fs::create_directory(fsdata_dir));
