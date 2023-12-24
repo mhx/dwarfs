@@ -19,18 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cassert>
-#include <cstdint>
+#include <charconv>
 #include <filesystem>
-#include <optional>
-#include <tuple>
-
-// #include <sys/stat.h>
+#include <vector>
 
 #include <fmt/format.h>
 
 #include "dwarfs/chmod_transformer.h"
-#include "dwarfs/entry_interface.h"
 
 namespace dwarfs {
 
@@ -38,327 +33,312 @@ namespace fs = std::filesystem;
 
 namespace {
 
-uint16_t constexpr all_perm_bits = 07777;
-uint16_t constexpr all_exec_bits = uint16_t(
-    fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec);
+using mode_type = chmod_transformer::mode_type;
 
-enum class oper { NONE, ADD_BITS, SUB_BITS, SET_BITS, OCT_BITS };
+constexpr mode_type const kSetUidBit{
+    static_cast<mode_type>(fs::perms::set_uid)};
+constexpr mode_type const kSetGidBit{
+    static_cast<mode_type>(fs::perms::set_gid)};
+constexpr mode_type const kStickyBit{
+    static_cast<mode_type>(fs::perms::sticky_bit)};
+constexpr mode_type const kUserReadBit{
+    static_cast<mode_type>(fs::perms::owner_read)};
+constexpr mode_type const kUserWriteBit{
+    static_cast<mode_type>(fs::perms::owner_write)};
+constexpr mode_type const kUserExecBit{
+    static_cast<mode_type>(fs::perms::owner_exec)};
+constexpr mode_type const kGroupReadBit{
+    static_cast<mode_type>(fs::perms::group_read)};
+constexpr mode_type const kGroupWriteBit{
+    static_cast<mode_type>(fs::perms::group_write)};
+constexpr mode_type const kGroupExecBit{
+    static_cast<mode_type>(fs::perms::group_exec)};
+constexpr mode_type const kOtherReadBit{
+    static_cast<mode_type>(fs::perms::others_read)};
+constexpr mode_type const kOtherWriteBit{
+    static_cast<mode_type>(fs::perms::others_write)};
+constexpr mode_type const kOtherExecBit{
+    static_cast<mode_type>(fs::perms::others_exec)};
 
-std::tuple<uint16_t, uint16_t>
-compute_perm_and_or(oper op, uint16_t hi_bits, uint16_t setid_bits,
-                    uint16_t affected, uint16_t perms, uint16_t umask) {
-  uint16_t op_bits = hi_bits;
-  uint16_t perm_and;
-  uint16_t perm_or;
+constexpr mode_type const kAllUidBits{kSetUidBit | kSetGidBit};
+constexpr mode_type const kAllUserBits{kUserReadBit | kUserWriteBit |
+                                       kUserExecBit};
+constexpr mode_type const kAllGroupBits{kGroupReadBit | kGroupWriteBit |
+                                        kGroupExecBit};
+constexpr mode_type const kAllOtherBits{kOtherReadBit | kOtherWriteBit |
+                                        kOtherExecBit};
+constexpr mode_type const kAllReadBits{kUserReadBit | kGroupReadBit |
+                                       kOtherReadBit};
+constexpr mode_type const kAllWriteBits{kUserWriteBit | kGroupWriteBit |
+                                        kOtherWriteBit};
+constexpr mode_type const kAllExecBits{kUserExecBit | kGroupExecBit |
+                                       kOtherExecBit};
+constexpr mode_type const kAllRWXBits{kAllReadBits | kAllWriteBits |
+                                      kAllExecBits};
+constexpr mode_type const kAllModeBits{kAllUidBits | kStickyBit | kAllUserBits |
+                                       kAllGroupBits | kAllOtherBits};
 
-  if (affected) {
-    op_bits |= affected * perms;
-  } else {
-    affected = all_exec_bits;
-    op_bits |= (affected * perms) & ~umask;
-  }
+enum class opmode { normal, promote_exec, copy_from };
 
-  switch (op) {
-  case oper::ADD_BITS:
-    perm_and = all_perm_bits;
-    perm_or = op_bits;
-    break;
-
-  case oper::SUB_BITS:
-    perm_and = all_perm_bits & ~op_bits;
-    perm_or = 0;
-    break;
-
-  case oper::SET_BITS:
-    perm_and = all_perm_bits &
-               ~((affected * uint16_t(fs::perms::others_all)) | setid_bits);
-    perm_or = op_bits;
-    break;
-
-  case oper::OCT_BITS:
-    perm_and = 0;
-    perm_or = op_bits;
-    break;
-
-  default:
-    throw std::runtime_error("missing operation in chmod expression");
-  }
-
-  return {perm_and, perm_or};
-}
-
-uint16_t modify_perms(uint16_t perm, bool isdir, uint16_t perm_and,
-                      uint16_t perm_or, bool flag_X) {
-  auto new_perm = perm;
-
-  new_perm &= perm_and;
-
-  if (!flag_X or (perm & all_exec_bits) != 0 or isdir) {
-    new_perm |= perm_or;
-  } else {
-    new_perm |= perm_or & ~all_exec_bits;
-  }
-
-  return new_perm;
-}
-
-class permission_modifier {
- public:
-  virtual ~permission_modifier() = default;
-
-  virtual uint16_t modify(uint16_t perms, bool isdir) const = 0;
+struct modifier {
+  char oper;
+  opmode mode;
+  mode_type whom;
+  mode_type bits;
+  mode_type mask;
 };
 
-class static_permission_modifier : public permission_modifier {
+class chmod_transformer_ : public chmod_transformer::impl {
  public:
-  static_permission_modifier(uint16_t perm_and, uint16_t perm_or, bool flag_X)
-      : perm_and_{perm_and}
-      , perm_or_{perm_or}
-      , flag_X_{flag_X} {}
+  chmod_transformer_(std::string_view spec, mode_type umask);
 
-  uint16_t modify(uint16_t perms, bool isdir) const override {
-    return modify_perms(perms, isdir, perm_and_, perm_or_, flag_X_);
+  std::optional<mode_type> transform(mode_type mode, bool isdir) const override;
+
+ private:
+  std::optional<mode_type> parse_oct(std::string_view& spec);
+  std::optional<mode_type> parse_whom(std::string_view& spec);
+  static constexpr bool is_op(char c) {
+    return c == '=' or c == '+' or c == '-';
+  }
+  static constexpr bool is_ugo(char c) {
+    return c == 'u' or c == 'g' or c == 'o';
   }
 
- private:
-  uint16_t const perm_and_;
-  uint16_t const perm_or_;
-  bool flag_X_;
-};
-
-class dynamic_permission_modifier : public permission_modifier {
- public:
-  dynamic_permission_modifier(oper op, uint16_t setid_bits, uint16_t affected,
-                              uint16_t perms_shift, uint16_t umask)
-      : op_{op}
-      , setid_bits_{setid_bits}
-      , affected_{affected}
-      , perms_shift_{perms_shift}
-      , umask_{umask} {}
-
-  uint16_t modify(uint16_t perms, bool isdir) const override {
-    uint16_t dyn_perms = (perms >> perms_shift_) & 07;
-    auto [perm_and, perm_or] =
-        compute_perm_and_or(op_, 0, setid_bits_, affected_, dyn_perms, umask_);
-    return modify_perms(perms, isdir, perm_and, perm_or, false);
-  }
-
- private:
-  oper const op_;
-  uint16_t const setid_bits_;
-  uint16_t const affected_;
-  uint16_t const perms_shift_;
-  uint16_t const umask_;
-};
-
-class chmod_transformer : public entry_transformer {
- public:
-  chmod_transformer(std::string_view spec, uint16_t umask);
-
-  void transform(entry_interface& ei) override;
-
- private:
-  std::unique_ptr<permission_modifier const> modifier_;
+  std::vector<modifier> modifiers_;
   bool flag_D_{false};
   bool flag_F_{false};
+  mode_type const umask_;
 };
 
-chmod_transformer::chmod_transformer(std::string_view spec, uint16_t umask) {
-  enum class state { PARSE_WHERE, PARSE_PERMS, PARSE_OCTAL };
-  state st{state::PARSE_WHERE};
-  oper op{oper::NONE};
-  bool flag_X{false};
-  uint16_t setid_bits{0};
-  uint16_t hi_bits{0};
-  uint16_t affected{0};
-  uint16_t perms{0};
-  std::optional<uint16_t> perms_shift;
+chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
+    : umask_{umask} {
+  // This is roughly following the implementation of chmod(1) from GNU coreutils
 
-  for (auto c : spec) {
-    switch (st) {
-    case state::PARSE_WHERE:
-      switch (c) {
-      case 'D':
-        if (flag_F_) {
-          throw std::runtime_error(
-              "cannot combine D and F in chmod expression");
-        }
-        flag_D_ = true;
-        break;
+  if (spec.empty()) {
+    throw std::invalid_argument("empty mode");
+  }
 
-      case 'F':
-        if (flag_D_) {
-          throw std::runtime_error(
-              "cannot combine D and F in chmod expression");
-        }
-        flag_F_ = true;
-        break;
+  auto orig_spec{spec};
 
-      case 'u':
-        affected |= uint16_t(fs::perms::owner_exec);
-        setid_bits |= uint16_t(fs::perms::set_uid);
-        break;
+  if ('0' <= spec[0] and spec[0] <= '7') {
+    // octal mode
+    auto mode = parse_oct(spec);
+    if (!mode or !spec.empty()) {
+      throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+    }
+    mode_type mask{spec.size() > 4 ? kAllModeBits
+                                   : (mode.value() & kAllUidBits) | kStickyBit |
+                                         kAllRWXBits};
+    modifiers_.push_back(
+        {'=', opmode::normal, kAllModeBits, mode.value(), mask});
+    return;
+  }
 
-      case 'g':
-        affected |= uint16_t(fs::perms::group_exec);
-        setid_bits |= uint16_t(fs::perms::set_gid);
-        break;
+  // symbolic mode
 
-      case 'o':
-        affected |= uint16_t(fs::perms::others_exec);
-        break;
+  auto whom = parse_whom(spec);
+  if (!whom) {
+    throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+  }
 
-      case 'a':
-        affected |= all_exec_bits;
-        break;
+  mode_type const mask{whom.value() ? whom.value() : kAllModeBits};
 
-      case '+':
-        op = oper::ADD_BITS;
-        st = state::PARSE_PERMS;
-        break;
+  while (!spec.empty() and is_op(spec.front())) {
+    auto op = spec.front();
+    spec.remove_prefix(1);
 
-      case '-':
-        op = oper::SUB_BITS;
-        st = state::PARSE_PERMS;
-        break;
+    if (spec.empty()) {
+      throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+    }
 
-      case '=':
-        op = oper::SET_BITS;
-        st = state::PARSE_PERMS;
-        break;
-
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-        if (affected) {
-          throw std::runtime_error(
-              "unexpected octal digit in chmod expression");
-        }
-        affected = 1;
-        perms = c - '0';
-        op = oper::OCT_BITS;
-        st = state::PARSE_OCTAL;
-        break;
-
-      default:
-        throw std::runtime_error(
-            fmt::format("unexpected character in chmod expression: {}", c));
+    if (auto mode = parse_oct(spec); mode) {
+      if (whom.value() or !spec.empty()) {
+        throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
       }
+      modifiers_.push_back(
+          {op, opmode::normal, kAllModeBits, mode.value(), kAllModeBits});
       break;
+    }
 
-    case state::PARSE_PERMS:
-      switch (c) {
-      case 'r':
-        perms |= uint16_t(fs::perms::others_read);
-        break;
+    if (is_ugo(spec.front())) {
+      mode_type bits{};
 
-      case 'w':
-        perms |= uint16_t(fs::perms::others_write);
-        break;
-
-      case 'X':
-        flag_X = true;
-        [[fallthrough]];
-
-      case 'x':
-        perms |= uint16_t(fs::perms::others_exec);
-        break;
-
-      case 's':
-        // default to fs::perms::set_uid unless explicitly specified
-        hi_bits |= setid_bits ? setid_bits : uint16_t(fs::perms::set_uid);
-        break;
-
-      case 't':
-        hi_bits |= uint16_t(fs::perms::sticky_bit);
-        break;
-
+      switch (spec.front()) {
       case 'u':
+        bits = kAllUserBits;
+        break;
       case 'g':
+        bits = kAllGroupBits;
+        break;
       case 'o':
-        if (perms_shift) {
-          throw std::runtime_error(
-              "only one of [ugo] allowed in permission specification");
-        }
+        bits = kAllOtherBits;
+        break;
+      }
 
-        switch (c) {
-        case 'u':
-          perms_shift = 6;
+      modifiers_.push_back(
+          {op, opmode::copy_from, whom.value(), bits, bits & mask});
+      spec.remove_prefix(1);
+    } else {
+      auto mode{opmode::normal};
+      mode_type bits{};
+      bool more{true};
+
+      while (!spec.empty() and more) {
+        switch (spec.front()) {
+        case 'r':
+          bits |= kAllReadBits;
           break;
-
-        case 'g':
-          perms_shift = 3;
+        case 'w':
+          bits |= kAllWriteBits;
           break;
-
-        case 'o':
-          perms_shift = 0;
+        case 'x':
+          bits |= kAllExecBits;
           break;
-
+        case 's':
+          bits |= kAllUidBits;
+          break;
+        case 't':
+          bits |= kStickyBit;
+          break;
+        case 'X':
+          mode = opmode::promote_exec;
+          break;
         default:
-          assert(false);
+          more = false;
+          break;
         }
-        break;
 
-      default:
-        throw std::runtime_error(
-            fmt::format("unexpected character in chmod expression: {}", c));
+        if (more) {
+          spec.remove_prefix(1);
+        }
+      }
+
+      modifiers_.push_back({op, mode, whom.value(), bits, bits & mask});
+    }
+  }
+
+  if (!spec.empty()) {
+    throw std::invalid_argument(fmt::format("invalid mode: {}", orig_spec));
+  }
+}
+
+auto chmod_transformer_::parse_oct(std::string_view& spec)
+    -> std::optional<mode_type> {
+  mode_type mode;
+  if (auto [p, ec] =
+          std::from_chars(spec.data(), spec.data() + spec.size(), mode, 8);
+      ec == std::errc{} and mode <= kAllModeBits) {
+    spec.remove_prefix(p - spec.data());
+    return mode;
+  }
+  return std::nullopt;
+}
+
+auto chmod_transformer_::parse_whom(std::string_view& spec)
+    -> std::optional<mode_type> {
+  mode_type whom{};
+
+  while (!spec.empty()) {
+    switch (spec.front()) {
+    case 'u':
+      whom |= kSetUidBit | kAllUserBits;
+      break;
+
+    case 'g':
+      whom |= kSetGidBit | kAllGroupBits;
+      break;
+
+    case 'o':
+      whom |= kStickyBit | kAllOtherBits;
+      break;
+
+    case 'a':
+      whom = kAllModeBits;
+      break;
+
+    case 'D':
+      flag_D_ = true;
+      break;
+
+    case 'F':
+      flag_F_ = true;
+      break;
+
+    case '=':
+    case '+':
+    case '-':
+      return whom;
+
+    default:
+      return std::nullopt;
+    }
+
+    spec.remove_prefix(1);
+  }
+
+  return std::nullopt;
+}
+
+std::optional<mode_type>
+chmod_transformer_::transform(mode_type mode, bool isdir) const {
+  // skip entries for which this isn't intended
+  if ((flag_D_ and !isdir) or (flag_F_ and isdir)) {
+    return std::nullopt;
+  }
+
+  // This is roughly following the implementation of chmod(1) from GNU coreutils
+
+  for (auto const& m : modifiers_) {
+    mode_type omit{isdir ? kAllUidBits & ~m.mask : 0};
+    auto bits = m.bits;
+
+    switch (m.mode) {
+    case opmode::normal:
+      break;
+
+    case opmode::promote_exec:
+      if (isdir or (mode & kAllExecBits)) {
+        bits |= kAllExecBits;
       }
       break;
 
-    case state::PARSE_OCTAL:
-      if (c < '0' || c > '7') {
-        throw std::runtime_error(
-            fmt::format("unexpected character in chmod expression: {}", c));
+    case opmode::copy_from:
+      bits &= mode;
+      if (bits & kAllReadBits) {
+        bits |= kAllReadBits;
       }
-
-      perms <<= 3;
-      perms |= c - '0';
-
-      if (perms > all_perm_bits) {
-        throw std::runtime_error("octal chmod expression out of range");
+      if (bits & kAllWriteBits) {
+        bits |= kAllWriteBits;
       }
+      if (bits & kAllExecBits) {
+        bits |= kAllExecBits;
+      }
+      break;
+    }
 
+    bits &= (m.whom ? m.whom : ~umask_) & ~omit;
+
+    switch (m.oper) {
+    case '=':
+      mode = (mode & ((m.whom ? ~m.whom : 0) | omit)) | bits;
+      break;
+
+    case '+':
+      mode |= bits;
+      break;
+
+    case '-':
+      mode &= ~bits;
       break;
     }
   }
 
-  if (perms_shift && (perms || hi_bits || flag_X)) {
-    throw std::runtime_error(
-        "[ugo] cannot be combined with other permission specifiers");
-  }
-
-  if (perms_shift) {
-    modifier_ = std::make_unique<dynamic_permission_modifier>(
-        op, setid_bits, affected, *perms_shift, umask);
-  } else {
-    auto [perm_and, perm_or] =
-        compute_perm_and_or(op, hi_bits, setid_bits, affected, perms, umask);
-
-    modifier_ =
-        std::make_unique<static_permission_modifier>(perm_and, perm_or, flag_X);
-  }
-}
-
-void chmod_transformer::transform(entry_interface& ei) {
-  // skip entries for which this isn't intended
-  if ((flag_D_ and !ei.is_directory()) or (flag_F_ and ei.is_directory())) {
-    return;
-  }
-
-  ei.set_permissions(
-      modifier_->modify(ei.get_permissions(), ei.is_directory()));
+  return mode;
 }
 
 } // namespace
 
-std::unique_ptr<entry_transformer>
-create_chmod_transformer(std::string_view spec, uint16_t umask) {
-  return std::make_unique<chmod_transformer>(spec, umask);
-}
+chmod_transformer::chmod_transformer(std::string_view spec, mode_type umask)
+    : impl_{std::make_unique<chmod_transformer_>(spec, umask)} {}
 
 } // namespace dwarfs

@@ -373,6 +373,7 @@ list(
   src/dwarfs/category_parser.cpp
   src/dwarfs/checksum.cpp
   src/dwarfs/chmod_transformer.cpp
+  src/dwarfs/chmod_entry_transformer.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp

@@ -19,36 +19,36 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include <memory>
-#include <optional>
-#include <string_view>
-
-#include "dwarfs/file_stat.h"
+#include "dwarfs/chmod_entry_transformer.h"
+#include "dwarfs/chmod_transformer.h"
+#include "dwarfs/entry_interface.h"
 
 namespace dwarfs {
 
-class chmod_transformer {
+namespace {
+
+class chmod_entry_transformer : public entry_transformer {
  public:
-  using mode_type = file_stat::mode_type;
+  chmod_entry_transformer(std::string_view spec, file_stat::mode_type umask)
+      : transformer_{spec, umask} {}
 
-  chmod_transformer(std::string_view spec, mode_type umask);
-
-  std::optional<mode_type> transform(mode_type mode, bool isdir) const {
-    return impl_->transform(mode, isdir);
+  void transform(entry_interface& ei) override {
+    if (auto perm =
+            transformer_.transform(ei.get_permissions(), ei.is_directory())) {
+      ei.set_permissions(perm.value());
+    }
   }
 
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual std::optional<mode_type>
-    transform(mode_type mode, bool isdir) const = 0;
-  };
-
  private:
-  std::unique_ptr<impl> impl_;
+  chmod_transformer transformer_;
 };
+
+} // namespace
+
+std::unique_ptr<entry_transformer>
+create_chmod_entry_transformer(std::string_view spec,
+                               file_stat::mode_type umask) {
+  return std::make_unique<chmod_entry_transformer>(spec, umask);
+}
 
 } // namespace dwarfs

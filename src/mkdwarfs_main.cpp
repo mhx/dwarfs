@@ -55,7 +55,7 @@
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/categorizer.h"
 #include "dwarfs/category_parser.h"
-#include "dwarfs/chmod_transformer.h"
+#include "dwarfs/chmod_entry_transformer.h"
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
@@ -894,7 +894,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       ::umask(mask);             /* Flawfinder: ignore */
 
       for (auto expr : chmod_exprs) {
-        bs->add_transformer(create_chmod_transformer(expr, mask));
+        bs->add_transformer(create_chmod_entry_transformer(expr, mask));
       }
     }
 
