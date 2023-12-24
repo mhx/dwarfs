@@ -590,47 +590,35 @@ if(WITH_TESTS OR WITH_BENCHMARKS)
 endif()
 
 if(WITH_TESTS)
-  list(
-    APPEND
-    DWARFS_TEST_SRC
-    test/dwarfs.cpp
-    test/dwarfs_compat.cpp
-    test/dwarfs_badfs.cpp
-    test/entry.cpp
-    test/utils_test.cpp
-    test/block_merger_test.cpp
-    test/metadata_requirements_test.cpp
-    test/pcm_sample_transformer_test.cpp
-    test/pcmaudio_categorizer_test.cpp
-    test/incompressible_categorizer_test.cpp
+  list(APPEND DWARFS_TESTS
+    badfs_test
+    block_merger_test
+    compat_test
+    dwarfs_test
+    entry_test
+    incompressible_categorizer_test
+    metadata_requirements_test
+    pcm_sample_transformer_test
+    pcmaudio_categorizer_test
+    tools_test
+    utils_test
   )
 
   if(FLAC_FOUND)
-    list(APPEND DWARFS_TEST_SRC test/flac_compressor_test.cpp)
+    list(APPEND DWARFS_TESTS flac_compressor_test)
   endif()
 
-  add_executable(dwarfs_test ${DWARFS_TEST_SRC})
-
-  target_link_libraries(
-    dwarfs_test
-    test_helpers
-    gmock
-    gtest
-    gtest_main
-    "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>"
-  )
-
-  target_compile_definitions(dwarfs_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\")
-
-  list(APPEND TEST_TARGETS dwarfs_test)
-
-  add_executable(dwarfs_tools_test test/dwarfs_tools.cpp)
-  target_link_libraries(dwarfs_tools_test test_helpers gtest gtest_main)
-  target_compile_definitions(dwarfs_tools_test
-    PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
-            TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
-  list(APPEND TEST_TARGETS dwarfs_tools_test)
+  foreach (test ${DWARFS_TESTS})
+    add_executable(${test} test/${test}.cpp)
+    target_link_libraries(
+      ${test} test_helpers gmock gtest gtest_main
+      "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>"
+    )
+    target_compile_definitions(${test}
+      PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+              TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+    list(APPEND TEST_TARGETS ${test})
+  endforeach()
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
