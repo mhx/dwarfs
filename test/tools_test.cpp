@@ -709,10 +709,22 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(unicode_file_contents, "unicode\n");
 
   ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i",
-                                    fsdata_dir, "-o", image, "--no-progress"));
+                                    fsdata_dir, "-o", image, "--no-progress",
+                                    "--no-history", "--no-create-timestamp"));
 
   ASSERT_TRUE(fs::exists(image));
   ASSERT_GT(fs::file_size(image), 1000);
+
+  {
+    auto out = subprocess::check_run(
+        *mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", fsdata_dir, "-o", "-",
+        "--no-progress", "--no-history", "--no-create-timestamp");
+    ASSERT_TRUE(out);
+    std::string ref;
+    ASSERT_TRUE(read_file(image, ref));
+    EXPECT_EQ(ref.size(), out->size());
+    EXPECT_EQ(ref, *out);
+  }
 
   ASSERT_TRUE(subprocess::check_run(
       *mkdwarfs_test_bin, mkdwarfs_tool_arg, "-i", image, "-o", image_hdr,

@@ -39,6 +39,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
+#include <io.h>
+#endif
+
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 
@@ -1034,22 +1038,28 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
   std::unique_ptr<std::ostream> os;
 
   if (!options.debug_filter_function) {
-    if (std::filesystem::exists(output) && !force_overwrite) {
-      iol.err
-          << "error: output file already exists, use --force to overwrite\n";
-      return 1;
+    if (output != "-") {
+      if (std::filesystem::exists(output) && !force_overwrite) {
+        iol.err
+            << "error: output file already exists, use --force to overwrite\n";
+        return 1;
+      }
+
+      auto ofs = std::make_unique<std::ofstream>(output, std::ios::binary |
+                                                             std::ios::trunc);
+
+      if (ofs->bad() || !ofs->is_open()) {
+        iol.err << "error: cannot open output file '" << output
+                << "': " << ::strerror(errno) << "\n";
+        return 1;
+      }
+
+      os = std::move(ofs);
+    } else {
+#ifdef _WIN32
+      ::_setmode(::_fileno(stdout), _O_BINARY);
+#endif
     }
-
-    auto ofs = std::make_unique<std::ofstream>(output, std::ios::binary |
-                                                           std::ios::trunc);
-
-    if (ofs->bad() || !ofs->is_open()) {
-      iol.err << "error: cannot open output file '" << output
-              << "': " << ::strerror(errno) << "\n";
-      return 1;
-    }
-
-    os = std::move(ofs);
   } else {
     os = std::make_unique<std::ostringstream>();
   }
@@ -1164,8 +1174,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
 
   try {
     fsw = std::make_unique<filesystem_writer>(
-        *os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
-        fswopts, header_ifs.get());
+        os ? *os : iol.out, lgr, wg_compress, prog, schema_bc, metadata_bc,
+        history_bc, fswopts, header_ifs.get());
 
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
@@ -1237,22 +1247,24 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
              << time_with_unit(wg_compress.get_cpu_time());
   }
 
-  if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
-    ofs->close();
+  if (os) {
+    if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
+      ofs->close();
 
-    if (ofs->bad()) {
-      LOG_ERROR << "failed to close output file '" << output
-                << "': " << strerror(errno);
-      return 1;
+      if (ofs->bad()) {
+        LOG_ERROR << "failed to close output file '" << output
+                  << "': " << strerror(errno);
+        return 1;
+      }
+    } else if (auto oss [[maybe_unused]] =
+                   dynamic_cast<std::ostringstream*>(os.get())) {
+      assert(oss->str().empty());
+    } else {
+      assert(false);
     }
-  } else if (auto oss [[maybe_unused]] =
-                 dynamic_cast<std::ostringstream*>(os.get())) {
-    assert(oss->str().empty());
-  } else {
-    assert(false);
-  }
 
-  os.reset();
+    os.reset();
+  }
 
   if (!options.debug_filter_function) {
     std::ostringstream err;
