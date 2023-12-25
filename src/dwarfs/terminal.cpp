@@ -48,7 +48,7 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
   done = true;
 
   // Enable VT processing on stdout and stdin
-  auto hdl = ::GetStdHandle(STD_OUTPUT_HANDLE);
+  auto hdl = ::GetStdHandle(std_handle);
 
   DWORD out_mode = 0;
   ::GetConsoleMode(hdl, &out_mode);
@@ -64,7 +64,7 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
 
 void setup_terminal() {
 #ifdef _WIN32
-  WindowsEmulateVT100Terminal(STD_OUTPUT_HANDLE);
+  WindowsEmulateVT100Terminal(STD_ERROR_HANDLE);
   ::SetConsoleOutputCP(CP_UTF8);
   ::SetConsoleCP(CP_UTF8);
 #endif
