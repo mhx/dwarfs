@@ -28,6 +28,7 @@
 
 #include <fmt/format.h>
 
+#include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/portability/Unistd.h>
 
@@ -303,6 +304,30 @@ void os_access_mock::add_file(fs::path const& path,
   st.gid = 100;
   st.size = contents.size();
   add(path, st, contents);
+}
+
+void os_access_mock::add_local_files(fs::path const& audio_data_dir) {
+  for (auto const& p : fs::recursive_directory_iterator(audio_data_dir)) {
+    if (p.is_directory()) {
+      add_dir(fs::relative(p.path(), audio_data_dir));
+    } else if (p.is_regular_file()) {
+      auto relpath = fs::relative(p.path(), audio_data_dir);
+      simplestat st;
+      std::memset(&st, 0, sizeof(st));
+      st.ino = ino_++;
+      st.mode = posix_file_type::regular | 0644;
+      st.uid = 1000;
+      st.gid = 100;
+      st.size = p.file_size();
+      add(relpath, st, [path = p.path().string()] {
+        std::string rv;
+        if (!folly::readFile(path.c_str(), rv)) {
+          throw std::runtime_error(fmt::format("failed to read file {}", path));
+        }
+        return rv;
+      });
+    }
+  }
 }
 
 void os_access_mock::set_access_fail(fs::path const& path) {

@@ -84,6 +84,8 @@ class os_access_mock : public os_access {
   add_file(std::filesystem::path const& path, size_t size, bool random = false);
   void add_file(std::filesystem::path const& path, std::string const& contents);
 
+  void add_local_files(std::filesystem::path const& path);
+
   void set_access_fail(std::filesystem::path const& path);
 
   std::unique_ptr<dir_reader>
