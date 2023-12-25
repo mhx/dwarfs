@@ -49,6 +49,20 @@ namespace dwarfs {
 
 namespace {
 
+size_t copy_stream(std::istream& is, std::ostream& os) {
+  std::streambuf* rdbuf = is.rdbuf();
+  std::streamsize count{0};
+  std::streamsize transferred;
+  char buffer[1024];
+
+  while ((transferred = rdbuf->sgetn(buffer, sizeof(buffer))) > 0) {
+    os.write(buffer, transferred);
+    count += transferred;
+  }
+
+  return count;
+}
+
 class compression_progress : public progress::context {
  public:
   using status = progress::context::status;
@@ -534,7 +548,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void write_compressed_section(fs_section sec,
                                 std::span<uint8_t const> data) override;
   void flush() override;
-  size_t size() const override { return os_.tellp(); }
+  size_t size() const override { return image_size_; }
 
  private:
   using block_merger_type =
@@ -563,6 +577,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   size_t mem_used() const;
 
   std::ostream& os_;
+  size_t image_size_{0};
   std::istream* header_;
   worker_group& wg_;
   progress& prog_;
@@ -607,8 +622,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     if (options_.remove_header) {
       LOG_WARN << "header will not be written because remove_header is set";
     } else {
-      os_ << header_->rdbuf();
-      header_size_ = os_.tellp();
+      image_size_ = header_size_ = copy_stream(*header_, os_);
     }
   }
 
@@ -703,6 +717,7 @@ template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(const char* data, size_t size) {
   // TODO: error handling :-)
   os_.write(data, size);
+  image_size_ += size;
   prog_.compressed_size += size;
 }
 
@@ -987,7 +1002,7 @@ void filesystem_writer_<LoggerPolicy>::copy_header(
       LOG_WARN << "replacing old header";
     } else {
       write(header);
-      header_size_ = os_.tellp();
+      header_size_ = size();
     }
   }
 }
@@ -1051,7 +1066,7 @@ void filesystem_writer_<LoggerPolicy>::flush() {
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::push_section_index(section_type type) {
   section_index_.push_back((static_cast<uint64_t>(type) << 48) |
-                           static_cast<uint64_t>(os_.tellp() - header_size_));
+                           static_cast<uint64_t>(size() - header_size_));
 }
 
 template <typename LoggerPolicy>
