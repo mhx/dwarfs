@@ -331,7 +331,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 
 } // namespace
 
-int mkdwarfs_main(int argc, sys_char** argv) {
+int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
@@ -609,7 +609,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       return 1;
     }
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
@@ -630,66 +630,65 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    std::cout << tool_header("mkdwarfs") << usage << opts << "\n"
-              << "Compression level defaults:\n"
-              << "  " << sep << "\n"
-              << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
-                             "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
-                             "Window")
-              << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
-                             block_data_hdr, l_dc, schema_history_hdr, l_sc,
-                             metadata_hdr, l_mc, "Size/Step  Order")
-              << "  " << sep << "\n";
+    iol.out << tool_header("mkdwarfs") << usage << opts << "\n"
+            << "Compression level defaults:\n"
+            << "  " << sep << "\n"
+            << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
+                           "Compression Algorithm", 4 + l_dc + l_sc + l_mc,
+                           "Window")
+            << fmt::format("         Size   {:{}s}  {:{}s}  {:{}s} {:6s}\n",
+                           block_data_hdr, l_dc, schema_history_hdr, l_sc,
+                           metadata_hdr, l_mc, "Size/Step  Order")
+            << "  " << sep << "\n";
 
     int level = 0;
     for (auto const& l : levels) {
-      std::cout << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
-                               "  {:2d} / {:1d}    {:{}s}",
-                               level, l.block_size_bits, l.data_compression,
-                               l_dc, l.schema_history_compression, l_sc,
-                               l.metadata_compression, l_mc, l.window_size,
-                               l.window_step, l.order, l_or)
-                << "\n";
+      iol.out << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
+                             "  {:2d} / {:1d}    {:{}s}",
+                             level, l.block_size_bits, l.data_compression, l_dc,
+                             l.schema_history_compression, l_sc,
+                             l.metadata_compression, l_mc, l.window_size,
+                             l.window_step, l.order, l_or)
+              << "\n";
       ++level;
     }
 
-    std::cout << "  " << sep << "\n";
+    iol.out << "  " << sep << "\n";
 
-    std::cout << "\nCompression algorithms:\n";
+    iol.out << "\nCompression algorithms:\n";
 
     compression_registry::instance().for_each_algorithm(
-        [](compression_type, compression_info const& info) {
-          std::cout << fmt::format("  {:9}{}\n", info.name(),
-                                   info.description());
+        [&iol](compression_type, compression_info const& info) {
+          iol.out << fmt::format("  {:9}{}\n", info.name(), info.description());
           for (auto const& opt : info.options()) {
-            std::cout << fmt::format("               {}\n", opt);
+            iol.out << fmt::format("               {}\n", opt);
           }
         });
 
-    std::cout << "\nCategories:\n";
+    iol.out << "\nCategories:\n";
 
     for (auto const& name : catreg.categorizer_names()) {
       stream_logger lgr;
       auto categorizer = catreg.create(lgr, name, vm);
-      std::cout << "  [" << name << "]\n";
+      iol.out << "  [" << name << "]\n";
       for (auto cat : categorizer->categories()) {
-        std::cout << "    " << cat << "\n";
+        iol.out << "    " << cat << "\n";
       }
     }
 
-    std::cout << "\n";
+    iol.out << "\n";
 
     return 0;
   }
 
   if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
       (!vm.count("output") and !vm.count("debug-filter"))) {
-    std::cout << tool_header("mkdwarfs") << usage << "\n" << basic_opts << "\n";
+    iol.out << tool_header("mkdwarfs") << usage << "\n" << basic_opts << "\n";
     return 0;
   }
 
   if (level >= levels.size()) {
-    std::cerr << "error: invalid compression level\n";
+    iol.err << "error: invalid compression level\n";
     return 1;
   }
 
@@ -716,8 +715,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   if (sf_config.block_size_bits < min_block_size_bits ||
       sf_config.block_size_bits > max_block_size_bits) {
-    std::cerr << "error: block size must be between " << min_block_size_bits
-              << " and " << max_block_size_bits << "\n";
+    iol.err << "error: block size must be between " << min_block_size_bits
+            << " and " << max_block_size_bits << "\n";
     return 1;
   }
 
@@ -726,7 +725,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   if (vm.count("input-list")) {
     if (vm.count("filter")) {
-      std::cerr << "error: cannot use --input-list and --filter\n";
+      iol.err << "error: cannot use --input-list and --filter\n";
       return 1;
     }
 
@@ -742,7 +741,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     std::istream* is;
 
     if (input_list_str == "-") {
-      is = &std::cin;
+      is = &iol.in;
     } else {
       ifs = std::make_unique<std::ifstream>(input_list_str);
 
@@ -777,7 +776,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       rw_opts.recompress_block = it->second & 1;
       rw_opts.recompress_metadata = it->second & 2;
     } else {
-      std::cerr << "invalid recompress mode: " << recompress_opts << "\n";
+      iol.err << "invalid recompress mode: " << recompress_opts << "\n";
       return 1;
     }
 
@@ -796,8 +795,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   } else if (checksum::is_available(file_hash_algo)) {
     options.file_hash_algorithm = file_hash_algo;
   } else {
-    std::cerr << "error: unknown file hash function '" << file_hash_algo
-              << "'\n";
+    iol.err << "error: unknown file hash function '" << file_hash_algo << "'\n";
     return 1;
   }
 
@@ -828,14 +826,13 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   if (vm.count("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
-      options.debug_filter_function = [mode = it->second](bool exclude,
-                                                          entry const* pe) {
-        debug_filter_output(std::cout, exclude, pe, mode);
-      };
+      options.debug_filter_function =
+          [&iol, mode = it->second](bool exclude, entry const* pe) {
+            debug_filter_output(iol.out, exclude, pe, mode);
+          };
       no_progress = true;
     } else {
-      std::cerr << "error: invalid filter debug mode '" << debug_filter
-                << "'\n";
+      iol.err << "error: invalid filter debug mode '" << debug_filter << "'\n";
       return 1;
     }
   }
@@ -843,18 +840,18 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   if (no_progress) {
     progress_mode = "none";
   }
-  if (progress_mode != "none" && !stream_is_fancy_terminal(std::cerr)) {
+  if (progress_mode != "none" && !stream_is_fancy_terminal(iol.err)) {
     progress_mode = "simple";
   }
   if (!progress_modes.count(progress_mode)) {
-    std::cerr << "error: invalid progress mode '" << progress_mode << "'\n";
+    iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
     return 1;
   }
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
   auto log_level = logger::parse_level(log_level_str);
 
-  console_writer lgr(std::cerr, pg_mode, get_term_width, log_level,
+  console_writer lgr(iol.err, pg_mode, get_term_width, log_level,
                      recompress ? console_writer::REWRITE
                                 : console_writer::NORMAL,
                      log_level >= logger::VERBOSE);
@@ -872,8 +869,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
         try {
           bs->add_filter_rule(srule);
         } catch (std::exception const& e) {
-          std::cerr << "error: could not parse filter rule '" << srule
-                    << "': " << e.what() << "\n";
+          iol.err << "error: could not parse filter rule '" << srule
+                  << "': " << e.what() << "\n";
           return 1;
         }
       }
@@ -915,8 +912,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     } else if (auto val = folly::tryTo<uint64_t>(timestamp)) {
       options.timestamp = *val;
     } else {
-      std::cerr << "error: argument for option '--set-time' must be numeric or "
-                   "`now`\n";
+      iol.err << "error: argument for option '--set-time' must be numeric or "
+                 "`now`\n";
       return 1;
     }
   }
@@ -927,13 +924,12 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   } else if (auto val = folly::tryTo<uint32_t>(time_resolution)) {
     options.time_resolution_sec = *val;
     if (options.time_resolution_sec == 0) {
-      std::cerr
-          << "error: the argument to '--time-resolution' must be nonzero\n";
+      iol.err << "error: the argument to '--time-resolution' must be nonzero\n";
       return 1;
     }
   } else {
-    std::cerr << "error: the argument ('" << time_resolution
-              << "') to '--time-resolution' is invalid\n";
+    iol.err << "error: the argument ('" << time_resolution
+            << "') to '--time-resolution' is invalid\n";
     return 1;
   }
 
@@ -979,8 +975,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
           options.pack_symlinks = true;
           options.pack_symlinks_index = true;
         } else {
-          std::cerr << "error: the argument ('" << opt
-                    << "') to '--pack-metadata' is invalid\n";
+          iol.err << "error: the argument ('" << opt
+                  << "') to '--pack-metadata' is invalid\n";
           return 1;
         }
       }
@@ -1004,8 +1000,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
     header_ifs =
         std::make_unique<std::ifstream>(header.c_str(), std::ios::binary);
     if (header_ifs->bad() || !header_ifs->is_open()) {
-      std::cerr << "error: cannot open header file '" << header
-                << "': " << strerror(errno) << "\n";
+      iol.err << "error: cannot open header file '" << header
+              << "': " << strerror(errno) << "\n";
       return 1;
     }
   }
@@ -1039,7 +1035,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
   if (!options.debug_filter_function) {
     if (std::filesystem::exists(output) && !force_overwrite) {
-      std::cerr
+      iol.err
           << "error: output file already exists, use --force to overwrite\n";
       return 1;
     }
@@ -1048,8 +1044,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
                                                            std::ios::trunc);
 
     if (ofs->bad() || !ofs->is_open()) {
-      std::cerr << "error: cannot open output file '" << output
-                << "': " << ::strerror(errno) << "\n";
+      iol.err << "error: cannot open output file '" << output
+              << "': " << ::strerror(errno) << "\n";
       return 1;
     }
 
@@ -1096,7 +1092,7 @@ int mkdwarfs_main(int argc, sys_char** argv) {
 
     for (auto const& cat : rw_opts.recompress_categories) {
       if (!cat_resolver->category_value(cat)) {
-        std::cerr << "error: no category '" << cat << "' in input filesystem\n";
+        iol.err << "error: no category '" << cat << "' in input filesystem\n";
         return 1;
       }
     }
@@ -1217,9 +1213,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
 
-      scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(),
-                std::make_shared<os_access_generic>(), std::move(script),
-                options);
+      scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
+                std::move(script), options);
 
       if (input_list) {
         s.scan(*fsw, path, prog, *input_list);
@@ -1276,6 +1271,16 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   }
 
   return prog.errors > 0;
+}
+
+int mkdwarfs_main(int argc, sys_char** argv) {
+  iolayer iol{
+      .os = std::make_shared<os_access_generic>(),
+      .in = std::cin,
+      .out = std::cout,
+      .err = std::cerr,
+  };
+  return mkdwarfs_main(argc, argv, iol);
 }
 
 } // namespace dwarfs

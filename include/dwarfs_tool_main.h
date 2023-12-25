@@ -21,6 +21,9 @@
 
 #pragma once
 
+#include <iosfwd>
+#include <memory>
+
 #include "dwarfs/types.h"
 
 #ifdef _WIN32
@@ -31,6 +34,16 @@
 
 namespace dwarfs {
 
+class os_access;
+
+struct iolayer {
+  std::shared_ptr<os_access> os;
+  std::istream& in;
+  std::ostream& out;
+  std::ostream& err;
+};
+
+int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol);
 int mkdwarfs_main(int argc, sys_char** argv);
 int dwarfsck_main(int argc, sys_char** argv);
 int dwarfsextract_main(int argc, sys_char** argv);
