@@ -129,6 +129,9 @@ struct dwarfs_userdata {
       : lgr{iol.term, iol.err}
       , iol{iol} {}
 
+  dwarfs_userdata(dwarfs_userdata const&) = delete;
+  dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
+
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
@@ -192,31 +195,31 @@ constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
 
 #if DWARFS_FUSE_LOWLEVEL
 #define dUSERDATA                                                              \
-  auto userdata = reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
+  auto& userdata = *reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
 #else
 #define dUSERDATA                                                              \
-  auto userdata =                                                              \
-      reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
+  auto& userdata =                                                             \
+      *reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
 #endif
 
 template <typename LoggerPolicy>
 void op_init_common(void* data) {
-  auto userdata = reinterpret_cast<dwarfs_userdata*>(data);
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_init)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  auto& userdata = *reinterpret_cast<dwarfs_userdata*>(data);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_init)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   // we must do this *after* the fuse driver has forked into background
-  userdata->fs.set_num_workers(userdata->opts.workers);
+  userdata.fs.set_num_workers(userdata.opts.workers);
 
   cache_tidy_config tidy;
-  tidy.strategy = userdata->opts.block_cache_tidy_strategy;
-  tidy.interval = userdata->opts.block_cache_tidy_interval;
-  tidy.expiry_time = userdata->opts.block_cache_tidy_max_age;
+  tidy.strategy = userdata.opts.block_cache_tidy_strategy;
+  tidy.interval = userdata.opts.block_cache_tidy_interval;
+  tidy.expiry_time = userdata.opts.block_cache_tidy_max_age;
 
   // we must do this *after* the fuse driver has forked into background
-  userdata->fs.set_cache_tidy_config(tidy);
+  userdata.fs.set_cache_tidy_config(tidy);
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -238,20 +241,20 @@ void* op_init(struct fuse_conn_info* /*conn*/, struct fuse_config* /*cfg*/) {
 template <typename LoggerPolicy>
 void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_lookup)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_lookup)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << parent << ", " << name << ")";
 
   int err = ENOENT;
 
   try {
-    auto entry = userdata->fs.find(parent, name);
+    auto entry = userdata.fs.find(parent, name);
 
     if (entry) {
       file_stat stbuf;
 
-      err = userdata->fs.getattr(*entry, &stbuf);
+      err = userdata.fs.getattr(*entry, &stbuf);
 
       if (err == 0) {
         struct ::fuse_entry_param e;
@@ -281,7 +284,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
 #endif
 
 template <typename LogProxy, typename Find>
-int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
+int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
                       native_stat* st, Find const& find) {
   int err = ENOENT;
 
@@ -291,7 +294,7 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
     if (entry) {
       file_stat stbuf;
 
-      err = userdata->fs.getattr(*entry, &stbuf);
+      err = userdata.fs.getattr(*entry, &stbuf);
 
       if (err == 0) {
         ::memset(st, 0, sizeof(*st));
@@ -313,15 +316,15 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_getattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
 
   native_stat st;
 
   int err = op_getattr_common(
-      log_, userdata, &st, [userdata, ino] { return userdata->fs.find(ino); });
+      log_, userdata, &st, [&userdata, ino] { return userdata.fs.find(ino); });
 
   if (err == 0) {
     fuse_reply_attr(req, &st, std::numeric_limits<double>::max());
@@ -333,24 +336,24 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
 template <typename LoggerPolicy>
 int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_getattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
 
   return -op_getattr_common(
-      log_, userdata, st, [userdata, path] { return userdata->fs.find(path); });
+      log_, userdata, st, [&userdata, path] { return userdata.fs.find(path); });
 }
 #endif
 
 template <typename LogProxy, typename Find>
-int op_access_common(LogProxy& log_, dwarfs_userdata* userdata, int mode,
+int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
                      uid_t uid, gid_t gid, Find const& find) {
   int err = ENOENT;
 
   try {
     if (auto entry = find()) {
-      err = userdata->fs.access(*entry, mode, uid, gid);
+      err = userdata.fs.access(*entry, mode, uid, gid);
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -367,8 +370,8 @@ int op_access_common(LogProxy& log_, dwarfs_userdata* userdata, int mode,
 template <typename LoggerPolicy>
 void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_access)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
 
@@ -376,7 +379,7 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
 
   int err =
       op_access_common(log_, userdata, mode, ctx->uid, ctx->gid,
-                       [userdata, ino] { return userdata->fs.find(ino); });
+                       [&userdata, ino] { return userdata.fs.find(ino); });
 
   fuse_reply_err(req, err);
 }
@@ -384,8 +387,8 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
 template <typename LoggerPolicy>
 int op_access(char const* path, int mode) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_access)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
 
@@ -393,18 +396,18 @@ int op_access(char const* path, int mode) {
 
   return -op_access_common(
       log_, userdata, mode, ctx->uid, ctx->gid,
-      [userdata, path] { return userdata->fs.find(path); });
+      [&userdata, path] { return userdata.fs.find(path); });
 }
 #endif
 
 template <typename LogProxy, typename Find>
-int op_readlink_common(LogProxy& log_, dwarfs_userdata* userdata,
+int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
                        std::string* str, Find const& find) {
   int err = ENOENT;
 
   try {
     if (auto entry = find()) {
-      err = userdata->fs.readlink(*entry, str, readlink_mode::unix);
+      err = userdata.fs.readlink(*entry, str, readlink_mode::unix);
     }
   } catch (dwarfs::system_error const& e) {
     LOG_ERROR << e.what();
@@ -421,15 +424,15 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readlink)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_readlink)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   std::string symlink;
 
-  auto err = op_readlink_common(log_, userdata, &symlink, [userdata, ino] {
-    return userdata->fs.find(ino);
+  auto err = op_readlink_common(log_, userdata, &symlink, [&userdata, ino] {
+    return userdata.fs.find(ino);
   });
 
   if (err == 0) {
@@ -442,15 +445,15 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
 template <typename LoggerPolicy>
 int op_readlink(char const* path, char* buf, size_t buflen) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readlink)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_readlink)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   std::string symlink;
 
-  auto err = op_readlink_common(log_, userdata, &symlink, [userdata, path] {
-    return userdata->fs.find(path);
+  auto err = op_readlink_common(log_, userdata, &symlink, [&userdata, path] {
+    return userdata.fs.find(path);
   });
 
   if (err == 0) {
@@ -466,7 +469,7 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
 #endif
 
 template <typename LogProxy, typename Find>
-int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
+int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
                    struct fuse_file_info* fi, Find const& find) {
   int err = ENOENT;
 
@@ -481,8 +484,8 @@ int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
         err = EACCES;
       } else {
         fi->fh = entry->inode_num();
-        fi->direct_io = !userdata->opts.cache_files;
-        fi->keep_cache = userdata->opts.cache_files;
+        fi->direct_io = !userdata.opts.cache_files;
+        fi->keep_cache = userdata.opts.cache_files;
         return 0;
       }
     }
@@ -501,13 +504,13 @@ int op_open_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_open)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_open)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   auto err = op_open_common(log_, userdata, fi,
-                            [userdata, ino] { return userdata->fs.find(ino); });
+                            [&userdata, ino] { return userdata.fs.find(ino); });
 
   if (err == 0) {
     fuse_reply_open(req, fi);
@@ -519,13 +522,13 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 template <typename LoggerPolicy>
 int op_open(char const* path, struct fuse_file_info* fi) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_open)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_open)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   return -op_open_common(log_, userdata, fi,
-                         [userdata, path] { return userdata->fs.find(path); });
+                         [&userdata, path] { return userdata.fs.find(path); });
 }
 #endif
 
@@ -534,8 +537,8 @@ template <typename LoggerPolicy>
 void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
              struct fuse_file_info* fi) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_read)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_read)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
@@ -544,7 +547,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   try {
     if (FUSE_ROOT_ID + fi->fh == ino) {
       iovec_read_buf buf;
-      ssize_t rv = userdata->fs.readv(ino, buf, size, off);
+      ssize_t rv = userdata.fs.readv(ino, buf, size, off);
 
       LOG_DEBUG << "readv(" << ino << ", " << size << ", " << off << ") -> "
                 << rv << " [size = " << buf.buf.size() << "]";
@@ -579,15 +582,15 @@ template <typename LoggerPolicy>
 int op_read(char const* path, char* buf, size_t size, native_off_t off,
             struct fuse_file_info* fi) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_read)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_read)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
   int err = -ENOENT;
 
   try {
-    ssize_t rv = userdata->fs.read(fi->fh, buf, size, off);
+    ssize_t rv = userdata.fs.read(fi->fh, buf, size, off);
 
     LOG_DEBUG << "read(" << path << " [" << fi->fh << "], " << size << ", "
               << off << ") -> " << rv;
@@ -614,21 +617,21 @@ template <typename LoggerPolicy>
 void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
                 struct fuse_file_info* /*fi*/) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readdir)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_readdir)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")";
 
   int err = ENOENT;
 
   try {
-    auto dirent = userdata->fs.find(ino);
+    auto dirent = userdata.fs.find(ino);
 
     if (dirent) {
-      auto dir = userdata->fs.opendir(*dirent);
+      auto dir = userdata.fs.opendir(*dirent);
 
       if (dir) {
-        file_off_t lastoff = userdata->fs.dirsize(*dir);
+        file_off_t lastoff = userdata.fs.dirsize(*dir);
         file_stat stbuf;
         native_stat st;
         std::vector<char> buf(size);
@@ -637,13 +640,13 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
         ::memset(&st, 0, sizeof(st));
 
         while (off < lastoff && written < size) {
-          auto res = userdata->fs.readdir(*dir, off);
+          auto res = userdata.fs.readdir(*dir, off);
           assert(res);
 
           auto [entry, name_view] = *res;
           std::string name(name_view);
 
-          userdata->fs.getattr(entry, &stbuf);
+          userdata.fs.getattr(entry, &stbuf);
           copy_file_stat(&st, stbuf);
 
           assert(written < buf.size());
@@ -683,34 +686,34 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
                native_off_t off, struct fuse_file_info* /*fi*/,
                enum fuse_readdir_flags /*flags*/) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_readdir)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_readdir)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
 
   int err = -ENOENT;
 
   try {
-    auto dirent = userdata->fs.find(path);
+    auto dirent = userdata.fs.find(path);
 
     if (dirent) {
-      auto dir = userdata->fs.opendir(*dirent);
+      auto dir = userdata.fs.opendir(*dirent);
 
       if (dir) {
-        file_off_t lastoff = userdata->fs.dirsize(*dir);
+        file_off_t lastoff = userdata.fs.dirsize(*dir);
         file_stat stbuf;
         native_stat st;
 
         ::memset(&st, 0, sizeof(st));
 
         while (off < lastoff) {
-          auto res = userdata->fs.readdir(*dir, off);
+          auto res = userdata.fs.readdir(*dir, off);
           assert(res);
 
           auto [entry, name_view] = *res;
           std::string name(name_view);
 
-          userdata->fs.getattr(entry, &stbuf);
+          userdata.fs.getattr(entry, &stbuf);
           copy_file_stat(&st, stbuf);
 
           if (filler(buf, name.c_str(), &st, off + 1, FUSE_FILL_DIR_PLUS) !=
@@ -739,14 +742,14 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
 #endif
 
 template <typename LogProxy>
-int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
+int op_statfs_common(LogProxy& log_, dwarfs_userdata& userdata,
                      native_statvfs* st) {
   int err = EIO;
 
   try {
     vfs_stat stbuf;
 
-    err = userdata->fs.statvfs(&stbuf);
+    err = userdata.fs.statvfs(&stbuf);
 
     if (err == 0) {
       ::memset(st, 0, sizeof(*st));
@@ -773,8 +776,8 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata* userdata,
 template <typename LoggerPolicy>
 void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_statfs)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_statfs)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
 
@@ -792,8 +795,8 @@ void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
 template <typename LoggerPolicy>
 int op_statfs(char const* path, native_statvfs* st) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_statfs)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_statfs)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")";
 
@@ -806,8 +809,8 @@ template <typename LoggerPolicy>
 void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
                  size_t size) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getxattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size << ")";
 
@@ -823,8 +826,8 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
         oss << std::to_string(::getpid());
       } else if (name == perfmon_xattr) {
 #if DWARFS_PERFMON_ENABLED
-        if (userdata->perfmon) {
-          userdata->perfmon->summarize(oss);
+        if (userdata.perfmon) {
+          userdata.perfmon->summarize(oss);
           extra_size = 4096;
         } else {
           oss << "performance monitor is disabled\n";
@@ -836,10 +839,10 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
     }
 
     if (name == inodeinfo_xattr) {
-      auto entry = userdata->fs.find(ino);
+      auto entry = userdata.fs.find(ino);
 
       if (entry) {
-        auto ii = userdata->fs.get_inode_info(*entry);
+        auto ii = userdata.fs.get_inode_info(*entry);
         oss << folly::toPrettyJson(ii) << "\n";
       } else {
         err = ENOENT;
@@ -876,8 +879,8 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
 template <typename LoggerPolicy>
 int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_getxattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
 
@@ -889,8 +892,8 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
 template <typename LoggerPolicy>
 void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_listxattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")";
 
@@ -931,8 +934,8 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
 template <typename LoggerPolicy>
 int op_listxattr(char const* path, char* list, size_t size) {
   dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(*userdata, op_listxattr)
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
 
@@ -945,7 +948,7 @@ int op_listxattr(char const* path, char* list, size_t size) {
 template <typename LoggerPolicy>
 int op_rename(char const* from, char const* to, unsigned int flags) {
   dUSERDATA;
-  LOG_PROXY(LoggerPolicy, userdata->lgr);
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << from << ", " << to << ", " << flags << ")";
 
