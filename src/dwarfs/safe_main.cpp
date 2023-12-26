@@ -61,7 +61,7 @@ int safe_main(std::function<int(void)> fn) {
       }
     }
 
-    setup_terminal();
+    terminal::setup();
 
     return fn();
   } catch (system_error const& e) {

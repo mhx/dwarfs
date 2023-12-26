@@ -69,11 +69,11 @@
 #include "dwarfs/filter_debug.h"
 #include "dwarfs/fragment_order_parser.h"
 #include "dwarfs/integral_value_parser.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
-#include "dwarfs/os_access_generic.h"
 #include "dwarfs/program_options_helpers.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
@@ -335,7 +335,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 
 } // namespace
 
-int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
+int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
@@ -672,7 +672,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
     iol.out << "\nCategories:\n";
 
     for (auto const& name : catreg.categorizer_names()) {
-      stream_logger lgr;
+      stream_logger lgr(iol.term, iol.err);
       auto categorizer = catreg.create(lgr, name, vm);
       iol.out << "  [" << name << "]\n";
       for (auto cat : categorizer->categories()) {
@@ -844,7 +844,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
   if (no_progress) {
     progress_mode = "none";
   }
-  if (progress_mode != "none" && !stream_is_fancy_terminal(iol.err)) {
+  if (progress_mode != "none" && !iol.term->is_fancy(iol.err)) {
     progress_mode = "simple";
   }
   if (!progress_modes.count(progress_mode)) {
@@ -855,7 +855,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
   auto log_level = logger::parse_level(log_level_str);
 
-  console_writer lgr(iol.err, pg_mode, get_term_width, log_level,
+  console_writer lgr(iol.term, iol.err, pg_mode, log_level,
                      recompress ? console_writer::REWRITE
                                 : console_writer::NORMAL,
                      log_level >= logger::VERBOSE);
@@ -1286,13 +1286,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer& iol) {
 }
 
 int mkdwarfs_main(int argc, sys_char** argv) {
-  iolayer iol{
-      .os = std::make_shared<os_access_generic>(),
-      .in = std::cin,
-      .out = std::cout,
-      .err = std::cerr,
-  };
-  return mkdwarfs_main(argc, argv, iol);
+  return mkdwarfs_main(argc, argv, iolayer::system_default());
 }
 
 } // namespace dwarfs

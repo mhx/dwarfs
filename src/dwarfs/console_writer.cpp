@@ -64,8 +64,9 @@ std::string progress_bar(size_t width, double frac, bool unicode) {
   return rv;
 }
 
-void output_context_line(std::ostream& os, progress::context& ctx, size_t width,
-                         bool unicode_bar, bool colored) {
+void output_context_line(terminal const& term, std::ostream& os,
+                         progress::context& ctx, size_t width, bool unicode_bar,
+                         bool colored) {
   auto st = ctx.get_status();
   size_t progress_w = 0;
   size_t speed_w = 0;
@@ -133,24 +134,22 @@ void output_context_line(std::ostream& os, progress::context& ctx, size_t width,
     }
   }
 
-  os << terminal_colored(st.context, st.color, colored, termstyle::BOLD);
+  os << term.colored(st.context, st.color, colored, termstyle::BOLD);
 
-  os << terminal_colored(fmt::format("{:<{}} {}{}", st.status_string,
-                                     status_w - st.context.size(), progress,
-                                     speed),
-                         st.color, colored);
+  os << term.colored(fmt::format("{:<{}} {}{}", st.status_string,
+                                 status_w - st.context.size(), progress, speed),
+                     st.color, colored);
 }
 
 } // namespace
 
-console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
-                               get_term_width_type get_term_width,
+console_writer::console_writer(std::shared_ptr<terminal const> term,
+                               std::ostream& os, progress_mode pg_mode,
                                level_type threshold, display_mode mode,
                                bool with_context)
-    : stream_logger(os, threshold, with_context)
+    : stream_logger(term, os, threshold, with_context)
     , frac_(0.0)
     , pg_mode_(pg_mode)
-    , get_term_width_(get_term_width)
     , mode_(mode) {}
 
 void console_writer::rewind(int next_rewind_lines) {
@@ -194,7 +193,7 @@ void console_writer::update(progress& p, bool last) {
 
   std::ostringstream oss;
 
-  lazy_value width(get_term_width_);
+  lazy_value<size_t> width([this] { return term().width(); });
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
@@ -224,8 +223,8 @@ void console_writer::update(progress& p, bool last) {
     switch (mode_) {
     case NORMAL:
       if (fancy) {
-        oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
-                                log_is_colored())
+        oss << term().colored(p.status(width.get()), termcolor::BOLD_CYAN,
+                              log_is_colored())
             << newline;
       }
 
@@ -332,7 +331,8 @@ void console_writer::update(progress& p, bool last) {
     }
 
     for (auto const& c : ctxs) {
-      output_context_line(oss, *c, w, pg_mode_ == UNICODE, log_is_colored());
+      output_context_line(term(), oss, *c, w, pg_mode_ == UNICODE,
+                          log_is_colored());
       oss << newline;
     }
 

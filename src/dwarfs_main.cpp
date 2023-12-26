@@ -67,6 +67,7 @@
 #include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
@@ -124,12 +125,14 @@ struct options {
 };
 
 struct dwarfs_userdata {
-  explicit dwarfs_userdata(std::ostream& os)
-      : lgr{os} {}
+  explicit dwarfs_userdata(iolayer const& iol)
+      : lgr{iol.term, iol.err}
+      , iol{iol} {}
 
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
+  iolayer const& iol;
   std::shared_ptr<performance_monitor> perfmon;
   PERFMON_EXT_PROXY_DECL
   PERFMON_EXT_TIMER_DECL(op_init)
@@ -148,7 +151,7 @@ struct dwarfs_userdata {
 // TODO: better error handling
 
 #define DWARFS_OPT(t, p, v)                                                    \
-  { t, offsetof(struct options, p), v }
+  { t, offsetof(struct dwarfs_userdata, opts.p), v }
 
 constexpr struct ::fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
@@ -950,36 +953,35 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 }
 #endif
 
-void usage(std::filesystem::path const& progname) {
-  std::cerr
-      << tool_header("dwarfs",
-                     fmt::format(", fuse version {}", FUSE_USE_VERSION))
+void usage(std::ostream& os, std::filesystem::path const& progname) {
+  os << tool_header("dwarfs",
+                    fmt::format(", fuse version {}", FUSE_USE_VERSION))
 #if !DWARFS_FUSE_LOWLEVEL
-      << "USING HIGH-LEVEL FUSE API\n\n"
+     << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
-      << "usage: " << progname.filename().string()
-      << " <image> <mountpoint> [options]\n\n"
-      << "DWARFS options:\n"
-      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
-      << "    -o workers=NUM         number of worker threads (2)\n"
-      << "    -o mlock=NAME          mlock mode: (none), try, must\n"
-      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
-      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
-      << "    -o enable_nlink        show correct hardlink numbers\n"
-      << "    -o readonly            show read-only file system\n"
-      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
-      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
-      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
-      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
-      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
-      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
+     << "usage: " << progname.filename().string()
+     << " <image> <mountpoint> [options]\n\n"
+     << "DWARFS options:\n"
+     << "    -o cachesize=SIZE      set size of block cache (512M)\n"
+     << "    -o workers=NUM         number of worker threads (2)\n"
+     << "    -o mlock=NAME          mlock mode: (none), try, must\n"
+     << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
+     << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
+     << "    -o enable_nlink        show correct hardlink numbers\n"
+     << "    -o readonly            show read-only file system\n"
+     << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
+     << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
+     << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
+     << "    -o tidy_strategy=NAME  (none)|time|swap\n"
+     << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
+     << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
 #if DWARFS_PERFMON_ENABLED
-      << "    -o perfmon=name[,...]  enable performance monitor\n"
+     << "    -o perfmon=name[,...]  enable performance monitor\n"
 #endif
-      << "\n";
+     << "\n";
 
 #if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
-  std::cerr << "FUSE options:\n";
+  os << "FUSE options:\n";
   fuse_cmdline_help();
 #else
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
@@ -996,27 +998,28 @@ void usage(std::filesystem::path const& progname) {
 
 int option_hdl(void* data, char const* arg, int key,
                struct fuse_args* /*outargs*/) {
-  auto* opts = reinterpret_cast<options*>(data);
+  auto& userdata = *reinterpret_cast<dwarfs_userdata*>(data);
+  auto& opts = userdata.opts;
 
   switch (key) {
   case FUSE_OPT_KEY_NONOPT:
-    if (opts->seen_mountpoint) {
+    if (opts.seen_mountpoint) {
       return -1;
     }
 
-    if (!opts->fsimage.empty()) {
-      opts->seen_mountpoint = 1;
+    if (!opts.fsimage.empty()) {
+      opts.seen_mountpoint = 1;
       return 1;
     }
 
-    opts->fsimage = canonical_path(
+    opts.fsimage = canonical_path(
         std::filesystem::path(reinterpret_cast<char8_t const*>(arg)));
 
     return 0;
 
   case FUSE_OPT_KEY_OPT:
     if (::strncmp(arg, "-h", 2) == 0 || ::strncmp(arg, "--help", 6) == 0) {
-      usage(opts->progname);
+      usage(userdata.iol.err, opts.progname);
     }
     break;
 
@@ -1228,7 +1231,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   ti << "file system initialized";
 }
 
-int dwarfs_main(int argc, sys_char** argv) {
+int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #ifdef _WIN32
   std::vector<std::string> argv_strings;
   std::vector<char*> argv_copy;
@@ -1245,21 +1248,21 @@ int dwarfs_main(int argc, sys_char** argv) {
   struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 #endif
 
-  dwarfs_userdata userdata(std::cerr);
+  dwarfs_userdata userdata(iol);
   auto& opts = userdata.opts;
 
   opts.progname = std::filesystem::path(argv[0]);
   opts.cache_image = 0;
   opts.cache_files = 1;
 
-  fuse_opt_parse(&args, &opts, dwarfs_opts, option_hdl);
+  fuse_opt_parse(&args, &userdata, dwarfs_opts, option_hdl);
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
-    usage(opts.progname);
+    usage(iol.err, opts.progname);
   }
 
   if (fuse_opts.foreground) {
@@ -1272,7 +1275,7 @@ int dwarfs_main(int argc, sys_char** argv) {
   int mt, fg;
 
   if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
-    usage(opts.progname);
+    usage(iol.err, opts.progname);
   }
 
   if (fg) {
@@ -1314,8 +1317,8 @@ int dwarfs_main(int argc, sys_char** argv) {
           it != cache_tidy_strategy_map.end()) {
         opts.block_cache_tidy_strategy = it->second;
       } else {
-        std::cerr << "error: no such cache tidy strategy: "
-                  << opts.cache_tidy_strategy_str << "\n";
+        iol.err << "error: no such cache tidy strategy: "
+                << opts.cache_tidy_strategy_str << "\n";
         return 1;
       }
 
@@ -1330,20 +1333,20 @@ int dwarfs_main(int argc, sys_char** argv) {
       }
     }
   } catch (runtime_error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   } catch (std::filesystem::filesystem_error const& e) {
-    std::cerr << e.what() << "\n";
+    iol.err << e.what() << "\n";
     return 1;
   }
 
   if (opts.decompress_ratio < 0.0 || opts.decompress_ratio > 1.0) {
-    std::cerr << "error: decratio must be between 0.0 and 1.0\n";
+    iol.err << "error: decratio must be between 0.0 and 1.0\n";
     return 1;
   }
 
   if (!opts.seen_mountpoint) {
-    usage(opts.progname);
+    usage(iol.err, opts.progname);
   }
 
   LOG_PROXY(debug_logger_policy, userdata.lgr);
@@ -1364,7 +1367,7 @@ int dwarfs_main(int argc, sys_char** argv) {
 
   SCOPE_EXIT {
     if (userdata.perfmon) {
-      userdata.perfmon->summarize(std::cerr);
+      userdata.perfmon->summarize(iol.err);
     }
   };
 
@@ -1377,6 +1380,10 @@ int dwarfs_main(int argc, sys_char** argv) {
 #else
   return run_fuse(args, mountpoint, mt, fg, userdata);
 #endif
+}
+
+int dwarfs_main(int argc, sys_char** argv) {
+  return dwarfs_main(argc, argv, iolayer::system_default());
 }
 
 } // namespace dwarfs

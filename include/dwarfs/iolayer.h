@@ -22,32 +22,21 @@
 #pragma once
 
 #include <iosfwd>
-
-#include "dwarfs/types.h"
-
-#ifdef _WIN32
-#define SYS_MAIN wmain
-#else
-#define SYS_MAIN main
-#endif
+#include <memory>
 
 namespace dwarfs {
 
-struct iolayer;
+class os_access;
+class terminal;
 
-int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol);
-int mkdwarfs_main(int argc, sys_char** argv);
+struct iolayer {
+  static iolayer const& system_default();
 
-int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsck_main(int argc, sys_char** argv);
-
-int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsextract_main(int argc, sys_char** argv);
-
-int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsbench_main(int argc, sys_char** argv);
-
-int dwarfs_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfs_main(int argc, sys_char** argv);
+  std::shared_ptr<os_access> os;
+  std::shared_ptr<terminal const> term;
+  std::istream& in;
+  std::ostream& out;
+  std::ostream& err;
+};
 
 } // namespace dwarfs

@@ -33,16 +33,15 @@
 namespace dwarfs {
 
 class progress;
+class terminal;
 
 class console_writer : public stream_logger {
  public:
-  using get_term_width_type = std::function<size_t()>;
-
   enum display_mode { NORMAL, REWRITE };
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
 
-  console_writer(std::ostream& os, progress_mode pg_mode,
-                 get_term_width_type get_term_width, level_type threshold,
+  console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
+                 progress_mode pg_mode, level_type threshold,
                  display_mode mode = NORMAL, bool verbose = false);
 
   void update(progress& p, bool last);
@@ -58,7 +57,6 @@ class console_writer : public stream_logger {
   double frac_;
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
-  get_term_width_type get_term_width_;
   display_mode const mode_;
 };
 } // namespace dwarfs

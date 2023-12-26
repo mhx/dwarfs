@@ -29,6 +29,7 @@
 #include "dwarfs/file_stat.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -41,7 +42,7 @@ namespace po = boost::program_options;
 
 namespace dwarfs {
 
-int dwarfsbench_main(int argc, sys_char** argv) {
+int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str,
       log_level;
   size_t num_workers;
@@ -81,17 +82,17 @@ int dwarfsbench_main(int argc, sys_char** argv) {
     po::store(po::parse_command_line(argc, argv, opts), vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
   if (vm.count("help") or !vm.count("filesystem")) {
-    std::cout << tool_header("dwarfsbench") << opts << "\n";
+    iol.out << tool_header("dwarfsbench") << opts << "\n";
     return 0;
   }
 
   try {
-    stream_logger lgr(std::cerr, logger::parse_level(log_level));
+    stream_logger lgr(iol.term, iol.err, logger::parse_level(log_level));
     filesystem_options fsopts;
 
     fsopts.lock_mode = parse_mlock_mode(lock_mode_str);
@@ -108,7 +109,7 @@ int dwarfsbench_main(int argc, sys_char** argv) {
     fs.walk([&](auto entry) {
       auto inode_data = entry.inode();
       if (inode_data.is_regular_file()) {
-        wg.add_job([&fs, inode_data] {
+        wg.add_job([&fs, &iol, inode_data] {
           try {
             file_stat stbuf;
             if (fs.getattr(inode_data, &stbuf) == 0) {
@@ -117,10 +118,10 @@ int dwarfsbench_main(int argc, sys_char** argv) {
               fs.read(fh, buf.data(), buf.size());
             }
           } catch (runtime_error const& e) {
-            std::cerr << "error: " << e.what() << "\n";
+            iol.err << "error: " << e.what() << "\n";
           } catch (...) {
-            std::cerr << "error: "
-                      << folly::exceptionStr(std::current_exception()) << "\n";
+            iol.err << "error: "
+                    << folly::exceptionStr(std::current_exception()) << "\n";
             dump_exceptions();
           }
         });
@@ -129,11 +130,15 @@ int dwarfsbench_main(int argc, sys_char** argv) {
 
     wg.wait();
   } catch (runtime_error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
   return 0;
+}
+
+int dwarfsbench_main(int argc, sys_char** argv) {
+  return dwarfsbench_main(argc, argv, iolayer::system_default());
 }
 
 } // namespace dwarfs

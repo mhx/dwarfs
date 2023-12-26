@@ -31,6 +31,7 @@
 
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -43,7 +44,7 @@ namespace po = boost::program_options;
 
 namespace dwarfs {
 
-int dwarfsextract_main(int argc, sys_char** argv) {
+int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string filesystem, output, format, cache_size_str, log_level,
       image_offset;
 #if DWARFS_PERFMON_ENABLED
@@ -98,14 +99,14 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     po::store(po::parse_command_line(argc, argv, opts), vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
   if (vm.count("help") or !vm.count("input")) {
-    std::cerr << tool_header("dwarfsextract") << "using "
-              << ::archive_version_string() << "\n\n"
-              << opts << "\n";
+    iol.err << tool_header("dwarfsextract") << "using "
+            << ::archive_version_string() << "\n\n"
+            << opts << "\n";
     return 0;
   }
 
@@ -113,7 +114,7 @@ int dwarfsextract_main(int argc, sys_char** argv) {
 
   try {
     auto level = logger::parse_level(log_level);
-    stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
+    stream_logger lgr(iol.term, iol.err, level, level >= logger::DEBUG);
     filesystem_options fsopts;
     try {
       fsopts.image_offset = image_offset == "auto"
@@ -161,16 +162,16 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     fsx_opts.continue_on_error = continue_on_error;
     int prog{-1};
     if (stdout_progress) {
-      fsx_opts.progress = [&prog](std::string_view, uint64_t extracted,
-                                  uint64_t total) {
+      fsx_opts.progress = [&prog, &iol](std::string_view, uint64_t extracted,
+                                        uint64_t total) {
         int p = 100 * extracted / total;
         if (p > prog) {
           prog = p;
-          std::cout << "\r" << prog << "%";
-          std::cout.flush();
+          iol.out << "\r" << prog << "%";
+          iol.out.flush();
         }
         if (extracted == total) {
-          std::cout << "\n";
+          iol.out << "\n";
         }
       };
     }
@@ -180,20 +181,24 @@ int dwarfsextract_main(int argc, sys_char** argv) {
     fsx.close();
 
     if (perfmon) {
-      perfmon->summarize(std::cerr);
+      perfmon->summarize(iol.err);
     }
   } catch (runtime_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (std::system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   }
 
   return rv;
+}
+
+int dwarfsextract_main(int argc, sys_char** argv) {
+  return dwarfsextract_main(argc, argv, iolayer::system_default());
 }
 
 } // namespace dwarfs

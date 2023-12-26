@@ -162,7 +162,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
   }
 
   void dump_state(std::string what, termcolor color) const {
-    std::cout << terminal_colored(fmt::format("**** {} ****", what), color)
+    std::cout << terminal_ansi_colored(fmt::format("**** {} ****", what), color)
               << std::endl;
 
     std::cout << "index: " << active_slot_index_
@@ -174,11 +174,11 @@ class multi_queue_block_merger_impl : public block_merger_base,
     for (size_t i = 0; i < active_slots_.size(); ++i) {
       auto const& src = active_slots_[i];
       if (src) {
-        std::cout << terminal_colored(
+        std::cout << terminal_ansi_colored(
             fmt::format("{} ", src.value()),
             i == active_slot_index_ ? termcolor::BOLD_GREEN : termcolor::GRAY);
       } else {
-        std::cout << terminal_colored("- ", termcolor::GRAY);
+        std::cout << terminal_ansi_colored("- ", termcolor::GRAY);
       }
     }
     std::cout << std::endl;
@@ -205,7 +205,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
           fmt::format("blocks({}): {} -> {}", src, q.size(), queued_sizes);
 
       if (src == active_slots_[active_slot_index_]) {
-        std::cout << terminal_colored(text, termcolor::BOLD_GREEN);
+        std::cout << terminal_ansi_colored(text, termcolor::BOLD_GREEN);
       } else {
         std::cout << text;
       }

@@ -69,14 +69,20 @@ std::string logger::all_level_names() {
   return "error, warn, info, verbose, debug, trace";
 }
 
-stream_logger::stream_logger(std::ostream& os, level_type threshold,
+stream_logger::stream_logger(std::shared_ptr<terminal const> term,
+                             std::ostream& os, level_type threshold,
                              bool with_context)
     : os_(os)
-    , color_(stream_is_fancy_terminal(os))
+    , color_(term->is_fancy(os))
     , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
-    , with_context_(with_context) {
+    , with_context_(with_context)
+    , term_{std::move(term)} {
   set_threshold(threshold);
 }
+
+stream_logger::stream_logger(std::ostream& os, level_type threshold,
+                             bool with_context)
+    : stream_logger{terminal::create(), os, threshold, with_context} {}
 
 void stream_logger::preamble() {}
 void stream_logger::postamble() {}
@@ -86,35 +92,35 @@ void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
   if (level <= threshold_) {
     auto t = get_current_time_string();
-    const char* prefix = "";
-    const char* suffix = "";
+    std::string_view prefix;
+    std::string_view suffix;
     auto newline = get_newline();
 
     if (color_) {
       switch (level) {
       case ERROR:
-        prefix = terminal_color(termcolor::BOLD_RED);
-        suffix = terminal_color(termcolor::NORMAL);
+        prefix = term_->color(termcolor::BOLD_RED);
+        suffix = term_->color(termcolor::NORMAL);
         break;
 
       case WARN:
-        prefix = terminal_color(termcolor::BOLD_YELLOW);
-        suffix = terminal_color(termcolor::NORMAL);
+        prefix = term_->color(termcolor::BOLD_YELLOW);
+        suffix = term_->color(termcolor::NORMAL);
         break;
 
       case VERBOSE:
-        prefix = terminal_color(termcolor::DIM_CYAN);
-        suffix = terminal_color(termcolor::NORMAL);
+        prefix = term_->color(termcolor::DIM_CYAN);
+        suffix = term_->color(termcolor::NORMAL);
         break;
 
       case DEBUG:
-        prefix = terminal_color(termcolor::DIM_YELLOW);
-        suffix = terminal_color(termcolor::NORMAL);
+        prefix = term_->color(termcolor::DIM_YELLOW);
+        suffix = term_->color(termcolor::NORMAL);
         break;
 
       case TRACE:
-        prefix = terminal_color(termcolor::GRAY);
-        suffix = terminal_color(termcolor::NORMAL);
+        prefix = term_->color(termcolor::GRAY);
+        suffix = term_->color(termcolor::NORMAL);
         break;
 
       default:
@@ -152,8 +158,8 @@ void stream_logger::write(level_type level, const std::string& output,
       context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
-            suffix, terminal_color(termcolor::DIM_MAGENTA), context,
-            terminal_color(termcolor::NORMAL), prefix);
+            suffix, term_->color(termcolor::DIM_MAGENTA), context,
+            term_->color(termcolor::NORMAL), prefix);
       }
     }
 

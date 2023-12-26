@@ -464,7 +464,7 @@ list(
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
-add_library(dwarfs_tool src/dwarfs/tool.cpp)
+add_library(dwarfs_tool src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
 
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
 

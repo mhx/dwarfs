@@ -19,35 +19,23 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <iostream>
 
-#include <iosfwd>
-
-#include "dwarfs/types.h"
-
-#ifdef _WIN32
-#define SYS_MAIN wmain
-#else
-#define SYS_MAIN main
-#endif
+#include "dwarfs/iolayer.h"
+#include "dwarfs/os_access_generic.h"
+#include "dwarfs/terminal.h"
 
 namespace dwarfs {
 
-struct iolayer;
-
-int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol);
-int mkdwarfs_main(int argc, sys_char** argv);
-
-int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsck_main(int argc, sys_char** argv);
-
-int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsextract_main(int argc, sys_char** argv);
-
-int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsbench_main(int argc, sys_char** argv);
-
-int dwarfs_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfs_main(int argc, sys_char** argv);
+iolayer const& iolayer::system_default() {
+  static iolayer const iol{
+      .os = std::make_shared<os_access_generic>(),
+      .term = terminal::create(),
+      .in = std::cin,
+      .out = std::cout,
+      .err = std::cerr,
+  };
+  return iol;
+}
 
 } // namespace dwarfs

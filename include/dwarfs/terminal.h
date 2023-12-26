@@ -22,6 +22,9 @@
 #pragma once
 
 #include <iosfwd>
+#include <memory>
+#include <string>
+#include <string_view>
 
 namespace dwarfs {
 
@@ -56,17 +59,27 @@ enum class termcolor {
 
 enum class termstyle { NORMAL, BOLD, DIM };
 
-void setup_terminal();
+class terminal {
+ public:
+  virtual ~terminal() = default;
 
-size_t get_term_width();
+  static std::unique_ptr<terminal const> create();
+  static void setup();
 
-bool stream_is_fancy_terminal(std::ostream& os);
+  virtual size_t width() const = 0;
+  virtual bool is_fancy(std::ostream& os) const = 0;
+  virtual std::string_view
+  color(termcolor color, termstyle style = termstyle::NORMAL) const = 0;
+  virtual std::string
+  colored(std::string text, termcolor color, bool enable = true,
+          termstyle style = termstyle::NORMAL) const = 0;
+};
 
-char const*
-terminal_color(termcolor color, termstyle style = termstyle::NORMAL);
+std::string_view
+terminal_ansi_color(termcolor color, termstyle style = termstyle::NORMAL);
 
 std::string
-terminal_colored(std::string text, termcolor color, bool enable = true,
-                 termstyle style = termstyle::NORMAL);
+terminal_ansi_colored(std::string_view text, termcolor color,
+                      bool enable = true, termstyle style = termstyle::NORMAL);
 
 } // namespace dwarfs

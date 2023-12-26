@@ -36,6 +36,7 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -46,7 +47,7 @@ namespace dwarfs {
 
 namespace po = boost::program_options;
 
-int dwarfsck_main(int argc, sys_char** argv) {
+int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   std::string log_level, input, export_metadata, image_offset;
@@ -108,18 +109,18 @@ int dwarfsck_main(int argc, sys_char** argv) {
               vm);
     po::notify(vm);
   } catch (po::error const& e) {
-    std::cerr << "error: " << e.what() << "\n";
+    iol.err << "error: " << e.what() << "\n";
     return 1;
   }
 
   if (vm.count("help") or !vm.count("input")) {
-    std::cout << tool_header("dwarfsck") << opts << "\n";
+    iol.out << tool_header("dwarfsck") << opts << "\n";
     return 0;
   }
 
   try {
     auto level = logger::parse_level(log_level);
-    stream_logger lgr(std::cerr, level, level >= logger::DEBUG);
+    stream_logger lgr(iol.term, iol.err, level, level >= logger::DEBUG);
     LOG_PROXY(debug_logger_policy, lgr);
 
     if (no_check && check_integrity) {
@@ -178,10 +179,9 @@ int dwarfsck_main(int argc, sys_char** argv) {
 
         if (!quiet) {
           if (json) {
-            std::cout << folly::toPrettyJson(fs.info_as_dynamic(detail))
-                      << "\n";
+            iol.out << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
           } else {
-            fs.dump(std::cout, detail);
+            fs.dump(iol.out, detail);
           }
         }
 
@@ -191,17 +191,21 @@ int dwarfsck_main(int argc, sys_char** argv) {
       }
     }
   } catch (system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (runtime_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   } catch (std::system_error const& e) {
-    std::cerr << folly::exceptionStr(e) << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   }
 
   return 0;
+}
+
+int dwarfsck_main(int argc, sys_char** argv) {
+  return dwarfsck_main(argc, argv, iolayer::system_default());
 }
 
 } // namespace dwarfs

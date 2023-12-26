@@ -167,8 +167,7 @@ void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
                     size_t total_size, int detail) {
   using namespace ::apache::thrift::frozen;
-  std::ostringstream oss;
-  stream_logger lgr(oss);
+  null_logger lgr;
 
   auto layout = meta.findFirstOfType<
       std::unique_ptr<Layout<thrift::metadata::metadata>>>();

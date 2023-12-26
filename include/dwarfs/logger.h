@@ -44,6 +44,8 @@
 
 namespace dwarfs {
 
+class terminal;
+
 class logger {
  public:
   enum level_type : unsigned { ERROR, WARN, INFO, VERBOSE, DEBUG, TRACE };
@@ -81,8 +83,12 @@ class logger {
 
 class stream_logger : public logger {
  public:
-  stream_logger(std::ostream& os = std::cerr, level_type threshold = WARN,
-                bool with_context = false);
+  stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
+                level_type threshold = WARN, bool with_context = false);
+
+  [[deprecated]] stream_logger(std::ostream& os = std::cerr,
+                               level_type threshold = WARN,
+                               bool with_context = false);
 
   void write(level_type level, const std::string& output, char const* file,
              int line) override;
@@ -99,6 +105,7 @@ class stream_logger : public logger {
   std::mutex& log_mutex() const { return mx_; }
   bool log_is_colored() const { return color_; }
   level_type log_threshold() const { return threshold_.load(); }
+  terminal const& term() const { return *term_; }
 
  private:
   std::ostream& os_;
@@ -107,6 +114,14 @@ class stream_logger : public logger {
   bool const color_;
   bool const enable_stack_trace_;
   bool with_context_;
+  std::shared_ptr<terminal const> term_;
+};
+
+class null_logger : public logger {
+ public:
+  null_logger() = default;
+
+  void write(level_type, const std::string&, char const*, int) override {}
 };
 
 class level_logger {
