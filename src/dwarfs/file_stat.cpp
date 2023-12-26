@@ -39,8 +39,8 @@
 #include <fmt/format.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/file_stat.h"
 #include "dwarfs/mmap.h"
-#include "dwarfs/os_access_generic.h"
 #include "dwarfs/util.h"
 
 namespace dwarfs {
