@@ -524,11 +524,17 @@ filesystem_<LoggerPolicy>::filesystem_(
   section_map sections;
 
   while (auto s = parser.next_section()) {
-    check_section(*s);
-
     if (s->type() == section_type::BLOCK) {
+      // Don't use check_section() here because it'll trigger the lazy
+      // section to load, defeating the purpose of the section index.
+      // See github issue #183.
+      LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
+                << s->length() << " bytes]";
+
       cache.insert(*s);
     } else {
+      check_section(*s);
+
       if (!s->check_fast(*mm_)) {
         DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
       }
