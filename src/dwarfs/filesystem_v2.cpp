@@ -487,7 +487,11 @@ filesystem_<LoggerPolicy>::filesystem_(
   section_map sections;
 
   while (auto s = parser_.next_section()) {
-    check_section(*s);
+    // Don't use check_section() here because it'll trigger the lazy
+    // section to load, defeating the purpose of the section index.
+    // See github issue #183.
+    LOG_DEBUG << "section " << s->name() << " @ " << s->start() << " ["
+              << s->length() << " bytes]";
 
     if (s->type() == section_type::BLOCK) {
       cache.insert(*s);
