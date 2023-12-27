@@ -39,6 +39,7 @@
 #include "dwarfs/file_type.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
+#include "dwarfs/fs_section.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
@@ -901,4 +902,83 @@ TEST(file_scanner, input_list) {
   };
 
   EXPECT_EQ(expected, got);
+}
+
+TEST(section_index_regression, github183) {
+  std::ostringstream logss;
+  stream_logger lgr(logss); // TODO: mock
+  lgr.set_policy<prod_logger_policy>();
+
+  auto bmcfg = block_manager::config();
+  auto opts = scanner_options();
+  auto input = test::os_access_mock::create_test_instance();
+
+  bmcfg.block_size_bits = 10;
+
+  auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts);
+  std::vector<uint64_t> index;
+
+  static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
+
+  {
+    uint64_t index_pos;
+
+    ::memcpy(&index_pos, fsimage.data() + (fsimage.size() - sizeof(uint64_t)),
+             sizeof(uint64_t));
+
+    ASSERT_EQ((index_pos >> 48),
+              static_cast<uint16_t>(section_type::SECTION_INDEX));
+    index_pos &= section_offset_mask;
+
+    ASSERT_LT(index_pos, fsimage.size());
+
+    test::mmap_mock mm(fsimage);
+    auto section = fs_section(mm, index_pos, 2);
+
+    EXPECT_TRUE(section.check_fast(mm));
+
+    index.resize(section.length() / sizeof(uint64_t));
+    ::memcpy(index.data(), section.data(mm).data(), section.length());
+  }
+
+  auto const schema_ix{index.size() - 3};
+  auto const metadata_ix{index.size() - 2};
+
+  ASSERT_EQ(index[schema_ix] >> 48,
+            static_cast<uint16_t>(section_type::METADATA_V2_SCHEMA));
+  ASSERT_EQ(index[metadata_ix] >> 48,
+            static_cast<uint16_t>(section_type::METADATA_V2));
+
+  auto const schema_offset{index[schema_ix] & section_offset_mask};
+
+  auto fsimage2 = fsimage;
+
+  ::memset(fsimage2.data() + 8, 0xff, schema_offset - 8);
+
+  auto mm = std::make_shared<test::mmap_mock>(fsimage2);
+
+  filesystem_v2 fs;
+
+  EXPECT_NO_THROW(fs = filesystem_v2(lgr, mm));
+  EXPECT_NO_THROW(fs.walk([](auto) {}));
+
+  auto entry = fs.find("/foo.pl");
+
+  ASSERT_TRUE(entry);
+
+  file_stat st;
+  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+
+  int inode{-1};
+
+  EXPECT_NO_THROW(inode = fs.open(*entry));
+
+  std::vector<char> buf(st.size);
+  auto rv = fs.read(inode, &buf[0], st.size, 0);
+
+  EXPECT_EQ(rv, -EIO);
+
+  std::stringstream idss;
+  EXPECT_THROW(filesystem_v2::identify(lgr, mm, idss, 3),
+               dwarfs::runtime_error);
 }
