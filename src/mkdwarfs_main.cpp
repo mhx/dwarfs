@@ -1245,28 +1245,21 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (!options.debug_filter_function) {
     LOG_INFO << "compression CPU time: "
              << time_with_unit(wg_compress.get_cpu_time());
-  }
 
-  if (os) {
-    if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
-      ofs->close();
+    if (os) {
+      if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
+        ofs->close();
+      }
 
-      if (ofs->bad()) {
+      if (os->bad()) {
         LOG_ERROR << "failed to close output file '" << output
                   << "': " << strerror(errno);
         return 1;
       }
-    } else if (auto oss [[maybe_unused]] =
-                   dynamic_cast<std::ostringstream*>(os.get())) {
-      assert(oss->str().empty());
-    } else {
-      assert(false);
+
+      os.reset();
     }
 
-    os.reset();
-  }
-
-  if (!options.debug_filter_function) {
     std::ostringstream err;
 
     if (prog.errors) {
@@ -1280,6 +1273,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     ti << "filesystem " << (recompress ? "rewritten " : "created ")
        << err.str();
+  } else {
+    assert(os);
+    auto oss [[maybe_unused]] = dynamic_cast<std::ostringstream*>(os.get());
+    assert(oss);
+    assert(oss->str().empty());
   }
 
   return prog.errors > 0;
