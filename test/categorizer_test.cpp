@@ -55,16 +55,20 @@ TEST_P(categorizer_test, end_to_end) {
   input->add_local_files(audio_data_dir);
   input->add_file("random", 4096, true);
 
-  test::test_iolayer iolayer(input);
+  auto fa = std::make_shared<test::test_file_access>();
+  test::test_iolayer iolayer(input, fa);
 
-  auto args = test::parse_args("mkdwarfs -i / -o - --categorize");
+  auto args = test::parse_args(fmt::format(
+      "mkdwarfs -i / -o test.dwarfs --categorize --log-level={}", level));
   auto exit_code = mkdwarfs_main(args, iolayer.get());
 
   EXPECT_EQ(exit_code, 0);
 
-  auto fsimage = iolayer.out();
+  auto fsimage = fa->get_file("test.dwarfs");
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+  EXPECT_TRUE(fsimage);
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
 
   test::test_logger lgr;
   filesystem_v2 fs(lgr, mm);
@@ -76,4 +80,6 @@ TEST_P(categorizer_test, end_to_end) {
   EXPECT_TRUE(iv32);
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test, ::testing::Values("debug"));
+INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
+                         ::testing::Values("error", "warn", "info", "verbose",
+                                           "debug", "trace"));

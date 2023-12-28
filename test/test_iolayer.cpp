@@ -23,9 +23,67 @@
 
 #include <fmt/format.h>
 
+#include "dwarfs/file_access_generic.h"
+
 #include "test_helpers.h"
 
 namespace dwarfs::test {
+
+namespace {
+
+class test_output_stream : public output_stream {
+ public:
+  test_output_stream(std::filesystem::path const& path, std::error_code& ec,
+                     test_file_access const* tfa)
+      : path_{path}
+      , tfa_{tfa} {
+    if (path_.empty()) {
+      ec = std::make_error_code(std::errc::invalid_argument);
+    }
+    if (tfa_->exists(path_)) {
+      ec = std::make_error_code(std::errc::file_exists);
+    }
+  }
+
+  std::ostream& os() override { return os_; }
+
+  void close(std::error_code& ec) override { tfa_->set_file(path_, os_.str()); }
+
+ private:
+  std::ostringstream os_;
+  std::filesystem::path path_;
+  test_file_access const* tfa_;
+};
+
+} // namespace
+
+bool test_file_access::exists(std::filesystem::path const& path) const {
+  return files_.find(path) != files_.end();
+}
+
+std::unique_ptr<output_stream>
+test_file_access::open_output_binary(std::filesystem::path const& path,
+                                     std::error_code& ec) const {
+  auto rv = std::make_unique<test_output_stream>(path, ec, this);
+  if (ec) {
+    rv.reset();
+  }
+  return rv;
+}
+
+void test_file_access::set_file(std::filesystem::path const& path,
+                                std::string content) const {
+  files_[path] = std::move(content);
+}
+
+std::optional<std::string>
+test_file_access::get_file(std::filesystem::path const& path) const {
+  auto it = files_.find(path);
+  if (it != files_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
 
 test_terminal::test_terminal(std::ostream& out, std::ostream& err)
     : out_{&out}
@@ -113,11 +171,17 @@ std::string test_terminal::colored(std::string text, termcolor color,
 }
 
 test_iolayer::test_iolayer(std::shared_ptr<os_access_mock> os)
+    : test_iolayer{std::move(os), create_file_access_generic()} {}
+
+test_iolayer::test_iolayer(std::shared_ptr<os_access_mock> os,
+                           std::shared_ptr<file_access const> fa)
     : os_{std::move(os)}
     , term_{std::make_shared<test_terminal>(out_, err_)}
+    , fa_{std::move(fa)}
     , iol_{std::make_unique<iolayer>(iolayer{
           .os = os_,
           .term = term_,
+          .file = fa_,
           .in = in_,
           .out = out_,
           .err = err_,

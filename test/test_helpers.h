@@ -33,6 +33,7 @@
 #include <variant>
 #include <vector>
 
+#include "dwarfs/file_access.h"
 #include "dwarfs/file_stat.h"
 #include "dwarfs/iolayer.h"
 #include "dwarfs/os_access.h"
@@ -154,9 +155,25 @@ class test_terminal : public terminal {
   size_t width_{80};
 };
 
+class test_file_access : public file_access {
+ public:
+  bool exists(std::filesystem::path const& path) const override;
+  std::unique_ptr<output_stream>
+  open_output_binary(std::filesystem::path const& path,
+                     std::error_code& ec) const override;
+
+  void set_file(std::filesystem::path const& path, std::string contents) const;
+  std::optional<std::string> get_file(std::filesystem::path const& path) const;
+
+ private:
+  std::map<std::filesystem::path, std::string> mutable files_;
+};
+
 class test_iolayer {
  public:
   test_iolayer(std::shared_ptr<os_access_mock> os);
+  test_iolayer(std::shared_ptr<os_access_mock> os,
+               std::shared_ptr<file_access const> fa);
   ~test_iolayer();
 
   iolayer const& get() const;
@@ -171,6 +188,7 @@ class test_iolayer {
  private:
   std::shared_ptr<os_access_mock> os_;
   std::shared_ptr<test_terminal> term_;
+  std::shared_ptr<file_access const> fa_;
   std::istringstream in_;
   std::ostringstream out_;
   std::ostringstream err_;
