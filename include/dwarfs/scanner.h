@@ -43,8 +43,9 @@ class worker_group;
 class scanner {
  public:
   scanner(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
-          std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
-          std::shared_ptr<script> scr, const scanner_options& options);
+          std::shared_ptr<entry_factory> ef,
+          std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
+          const scanner_options& options);
 
   void scan(filesystem_writer& fsw, const std::filesystem::path& path,
             progress& prog,

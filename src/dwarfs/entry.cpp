@@ -232,7 +232,7 @@ std::shared_ptr<inode> file::get_inode() const { return inode_; }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void file::scan(os_access& os, progress& prog) {
+void file::scan(os_access const& os, progress& prog) {
   std::shared_ptr<mmif> mm;
 
   if (size_t s = size(); s > 0) {
@@ -357,7 +357,7 @@ void dir::sort() {
             });
 }
 
-void dir::scan(os_access&, progress&) {}
+void dir::scan(os_access const&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      global_entry_data const& data) const {
@@ -450,7 +450,7 @@ const std::string& link::linkname() const { return link_; }
 
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void link::scan(os_access& os, progress& prog) {
+void link::scan(os_access const& os, progress& prog) {
   link_ = u8string_to_string(os.read_symlink(fs_path()).u8string());
   prog.original_size += size();
   prog.symlink_size += size();
@@ -468,14 +468,14 @@ entry::type_t device::type() const {
 
 void device::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void device::scan(os_access&, progress&) {}
+void device::scan(os_access const&, progress&) {}
 
 uint64_t device::device_id() const { return status().rdev; }
 
 class entry_factory_ : public entry_factory {
  public:
   std::shared_ptr<entry>
-  create(os_access& os, std::filesystem::path const& path,
+  create(os_access const& os, std::filesystem::path const& path,
          std::shared_ptr<entry> parent) override {
     // TODO: just use `path` directly (need to fix test helpers, tho)?
     std::filesystem::path p =

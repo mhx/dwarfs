@@ -32,7 +32,7 @@ class terminal;
 struct iolayer {
   static iolayer const& system_default();
 
-  std::shared_ptr<os_access> os;
+  std::shared_ptr<os_access const> os;
   std::shared_ptr<terminal const> term;
   std::istream& in;
   std::ostream& out;

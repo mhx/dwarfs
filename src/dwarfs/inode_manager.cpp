@@ -555,8 +555,8 @@ class inode_manager_ final : public inode_manager::impl {
   }
 
   void
-  scan_background(worker_group& wg, os_access& os, std::shared_ptr<inode> ino,
-                  file const* p) const override;
+  scan_background(worker_group& wg, os_access const& os,
+                  std::shared_ptr<inode> ino, file const* p) const override;
 
   void dump(std::ostream& os) const override;
 
@@ -596,7 +596,7 @@ class inode_manager_ final : public inode_manager::impl {
 
 template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
-                                                   os_access& os,
+                                                   os_access const& os,
                                                    std::shared_ptr<inode> ino,
                                                    file const* p) const {
   // TODO: I think the size check makes everything more complex.

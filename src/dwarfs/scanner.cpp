@@ -275,8 +275,9 @@ template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
   scanner_(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
-           std::shared_ptr<entry_factory> ef, std::shared_ptr<os_access> os,
-           std::shared_ptr<script> scr, const scanner_options& options);
+           std::shared_ptr<entry_factory> ef,
+           std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
+           const scanner_options& options);
 
   void
   scan(filesystem_writer& fsw, std::filesystem::path const& path,
@@ -301,7 +302,7 @@ class scanner_ final : public scanner::impl {
   scanner_options const& options_;
   std::shared_ptr<segmenter_factory> segmenter_factory_;
   std::shared_ptr<entry_factory> entry_factory_;
-  std::shared_ptr<os_access> os_;
+  std::shared_ptr<os_access const> os_;
   std::shared_ptr<script> script_;
 };
 
@@ -309,7 +310,7 @@ template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
                                  std::shared_ptr<segmenter_factory> sf,
                                  std::shared_ptr<entry_factory> ef,
-                                 std::shared_ptr<os_access> os,
+                                 std::shared_ptr<os_access const> os,
                                  std::shared_ptr<script> scr,
                                  const scanner_options& options)
     : LOG_PROXY_INIT(lgr)
@@ -927,8 +928,8 @@ void scanner_<LoggerPolicy>::scan(
 scanner::scanner(logger& lgr, worker_group& wg,
                  std::shared_ptr<segmenter_factory> sf,
                  std::shared_ptr<entry_factory> ef,
-                 std::shared_ptr<os_access> os, std::shared_ptr<script> scr,
-                 const scanner_options& options)
+                 std::shared_ptr<os_access const> os,
+                 std::shared_ptr<script> scr, const scanner_options& options)
     : impl_(make_unique_logging_object<impl, scanner_, logger_policies>(
           lgr, wg, std::move(sf), std::move(ef), std::move(os), std::move(scr),
           options)) {}

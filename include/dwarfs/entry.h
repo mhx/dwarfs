@@ -90,7 +90,7 @@ class entry : public entry_interface {
             global_entry_data const& data) const;
   void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
-  virtual void scan(os_access& os, progress& prog) = 0;
+  virtual void scan(os_access const& os, progress& prog) = 0;
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
@@ -133,7 +133,7 @@ class file : public entry {
   void set_inode(std::shared_ptr<inode> ino);
   std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access& os, progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
   void
   scan(mmif* mm, progress& prog, std::optional<std::string> const& hash_alg);
   void create_data();
@@ -171,7 +171,7 @@ class dir : public entry {
   pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
   void pack_entry(thrift::metadata::metadata& mv2,
                   global_entry_data const& data) const;
-  void scan(os_access& os, progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);
 
@@ -200,7 +200,7 @@ class link : public entry {
   type_t type() const override;
   const std::string& linkname() const;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access& os, progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
   std::optional<uint32_t> const& inode_num() const override {
@@ -222,7 +222,7 @@ class device : public entry {
 
   type_t type() const override;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access& os, progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
   uint64_t device_id() const;
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
@@ -241,7 +241,7 @@ class entry_factory {
   virtual ~entry_factory() = default;
 
   virtual std::shared_ptr<entry>
-  create(os_access& os, std::filesystem::path const& path,
+  create(os_access const& os, std::filesystem::path const& path,
          std::shared_ptr<entry> parent = nullptr) = 0;
 };
 } // namespace dwarfs

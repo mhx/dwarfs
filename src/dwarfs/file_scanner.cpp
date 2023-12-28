@@ -43,8 +43,9 @@ namespace {
 template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
  public:
-  file_scanner_(logger& lgr, worker_group& wg, os_access& os, inode_manager& im,
-                std::optional<std::string> const& hash_algo, progress& prog);
+  file_scanner_(logger& lgr, worker_group& wg, os_access const& os,
+                inode_manager& im, std::optional<std::string> const& hash_algo,
+                progress& prog);
 
   void scan(file* p) override;
   void finalize(uint32_t& inode_num) override;
@@ -85,7 +86,7 @@ class file_scanner_ final : public file_scanner::impl {
 
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
-  os_access& os_;
+  os_access const& os_;
   inode_manager& im_;
   std::optional<std::string> const hash_algo_;
   progress& prog_;
@@ -130,7 +131,7 @@ class file_scanner_ final : public file_scanner::impl {
 
 template <typename LoggerPolicy>
 file_scanner_<LoggerPolicy>::file_scanner_(
-    logger& lgr, worker_group& wg, os_access& os, inode_manager& im,
+    logger& lgr, worker_group& wg, os_access const& os, inode_manager& im,
     std::optional<std::string> const& hash_algo, progress& prog)
     : LOG_PROXY_INIT(lgr)
     , wg_(wg)
@@ -419,7 +420,7 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
 }
 } // namespace
 
-file_scanner::file_scanner(logger& lgr, worker_group& wg, os_access& os,
+file_scanner::file_scanner(logger& lgr, worker_group& wg, os_access const& os,
                            inode_manager& im,
                            std::optional<std::string> const& hash_algo,
                            progress& prog)
