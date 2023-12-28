@@ -149,14 +149,26 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     if (format.empty()) {
       fsx.open_disk(output);
     } else {
-      if (output == "-") {
+      std::ostream* stream{nullptr};
+
+      if (output.empty() or output == "-") {
         if (stdout_progress) {
           DWARFS_THROW(runtime_error,
                        "cannot use --stdout-progress with --output=-");
         }
-        output.clear();
+
+        if (&iol.out == &std::cout) {
+          output.clear();
+        } else {
+          stream = &iol.out;
+        }
       }
-      fsx.open_archive(output, format);
+
+      if (stream) {
+        fsx.open_stream(*stream, format);
+      } else {
+        fsx.open_archive(output, format);
+      }
     }
 
     filesystem_extractor_options fsx_opts;

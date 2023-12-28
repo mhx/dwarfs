@@ -27,6 +27,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
 #include "mmap_mock.h"
@@ -36,16 +37,25 @@
 using namespace dwarfs;
 
 namespace fs = std::filesystem;
-// namespace po = boost::program_options;
 
 namespace {
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
+auto test_data_image = test_dir / "data.dwarfs";
+
+struct locale_setup_helper {
+  locale_setup_helper() { setup_default_locale(); }
+};
+
+void setup_locale() { static locale_setup_helper helper; }
 
 class tool_main_test : public testing::Test {
  public:
-  void SetUp() override { iol = std::make_unique<test::test_iolayer>(); }
+  void SetUp() override {
+    setup_locale();
+    iol = std::make_unique<test::test_iolayer>();
+  }
 
   void TearDown() override { iol.reset(); }
 
@@ -177,6 +187,37 @@ TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
   EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
 }
 
+#ifdef DWARFS_PERFMON_ENABLED
+TEST_F(dwarfsextract_main_test, perfmon) {
+  // TODO: passing in test_data_image this way only only works because
+  //       dwarfsextract_main does not currently use the os_access abstraction
+  auto exit_code = run({"-i", test_data_image.string(), "-f", "mtree",
+                        "--perfmon", "filesystem_v2,inode_reader_v2"});
+  EXPECT_EQ(exit_code, 0);
+  auto outs = out();
+  auto errs = err();
+  EXPECT_GT(outs.size(), 100);
+  EXPECT_FALSE(errs.empty());
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.getattr]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.open]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readlink]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.statvfs]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[inode_reader_v2.readv_future]"));
+#ifndef _WIN32
+  // googletest on Windows does not support fancy regexes
+  EXPECT_THAT(errs, ::testing::ContainsRegex(
+                        R"(\[filesystem_v2\.getattr\])"
+                        R"(\s+samples:\s+[0-9]+)"
+                        R"(\s+overall:\s+[0-9]+(\.[0-9]+)?[num]?s)"
+                        R"(\s+avg latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
+                        R"(\s+p50 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
+                        R"(\s+p90 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
+                        R"(\s+p99 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"));
+#endif
+}
+#endif
+
 class categorizer_test : public testing::TestWithParam<std::string> {};
 
 TEST_P(categorizer_test, end_to_end) {
@@ -190,6 +231,8 @@ TEST_P(categorizer_test, end_to_end) {
 
   auto fa = std::make_shared<test::test_file_access>();
   test::test_iolayer iolayer(input, fa);
+
+  setup_locale();
 
   auto args = test::parse_args(fmt::format(
       "mkdwarfs -i / -o test.dwarfs --chmod=norm --categorize --log-level={}",
