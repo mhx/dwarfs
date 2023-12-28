@@ -96,20 +96,6 @@ class inode_ : public inode {
         fragments_, [cat](auto const& f) { return f.category() == cat; });
   }
 
-  uint32_t similarity_hash() const override {
-    if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file (similarity)");
-    }
-    return std::get<uint32_t>(similarity_);
-  }
-
-  nilsimsa::hash_type const& nilsimsa_similarity_hash() const override {
-    if (files_.empty()) {
-      DWARFS_THROW(runtime_error, "inode has no file (nilsimsa)");
-    }
-    return std::get<nilsimsa::hash_type>(similarity_);
-  }
-
   uint32_t similarity_hash(fragment_category cat) const override {
     return find_similarity<uint32_t>(cat);
   }

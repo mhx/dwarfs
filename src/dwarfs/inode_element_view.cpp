@@ -30,15 +30,6 @@
 namespace dwarfs {
 
 inode_element_view::inode_element_view(
-    std::span<std::shared_ptr<inode> const> inodes)
-    : inodes_{inodes} {
-  hash_cache_.reserve(inodes_.size());
-  for (auto& i : inodes_) {
-    hash_cache_.push_back(&i->nilsimsa_similarity_hash());
-  }
-}
-
-inode_element_view::inode_element_view(
     std::span<std::shared_ptr<inode> const> inodes,
     std::span<uint32_t const> index, fragment_category cat)
     : inodes_{inodes}

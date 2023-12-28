@@ -22,7 +22,6 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 
 #include "dwarfs/inode.h"
 
@@ -48,15 +47,12 @@ class inode_ordering {
     impl_->by_reverse_path(sp);
   }
 
-  void
-  by_similarity(sortable_inode_span& sp,
-                std::optional<fragment_category> cat = std::nullopt) const {
+  void by_similarity(sortable_inode_span& sp, fragment_category cat) const {
     impl_->by_similarity(sp, cat);
   }
 
   void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
-                   sortable_inode_span& sp,
-                   std::optional<fragment_category> cat = std::nullopt) const {
+                   sortable_inode_span& sp, fragment_category cat) const {
     impl_->by_nilsimsa(wg, opts, sp, cat);
   }
 
@@ -67,12 +63,11 @@ class inode_ordering {
     virtual void by_inode_number(sortable_inode_span& sp) const = 0;
     virtual void by_path(sortable_inode_span& sp) const = 0;
     virtual void by_reverse_path(sortable_inode_span& sp) const = 0;
-    virtual void by_similarity(sortable_inode_span& sp,
-                               std::optional<fragment_category> cat) const = 0;
+    virtual void
+    by_similarity(sortable_inode_span& sp, fragment_category cat) const = 0;
     virtual void
     by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
-                sortable_inode_span& sp,
-                std::optional<fragment_category> cat) const = 0;
+                sortable_inode_span& sp, fragment_category cat) const = 0;
   };
 
  private:

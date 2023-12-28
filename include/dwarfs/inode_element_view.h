@@ -37,7 +37,6 @@ class inode_element_view
  public:
   inode_element_view() = default;
 
-  explicit inode_element_view(std::span<std::shared_ptr<inode> const> inodes);
   inode_element_view(std::span<std::shared_ptr<inode> const> inodes,
                      std::span<uint32_t const> index, fragment_category cat);
 

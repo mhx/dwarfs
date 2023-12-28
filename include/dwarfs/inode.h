@@ -54,9 +54,7 @@ class inode : public object {
   virtual void set_num(uint32_t num) = 0;
   virtual uint32_t num() const = 0;
   virtual bool has_category(fragment_category cat) const = 0;
-  virtual uint32_t similarity_hash() const = 0;
   virtual uint32_t similarity_hash(fragment_category cat) const = 0;
-  virtual nilsimsa::hash_type const& nilsimsa_similarity_hash() const = 0;
   virtual nilsimsa::hash_type const&
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
   virtual size_t size() const = 0;

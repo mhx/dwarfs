@@ -43,11 +43,11 @@ class inode_ordering_ final : public inode_ordering::impl {
   void by_inode_number(sortable_inode_span& sp) const override;
   void by_path(sortable_inode_span& sp) const override;
   void by_reverse_path(sortable_inode_span& sp) const override;
-  void by_similarity(sortable_inode_span& sp,
-                     std::optional<fragment_category> cat) const override;
-  void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
-                   sortable_inode_span& sp,
-                   std::optional<fragment_category> cat) const override;
+  void
+  by_similarity(sortable_inode_span& sp, fragment_category cat) const override;
+  void
+  by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+              sortable_inode_span& sp, fragment_category cat) const override;
 
  private:
   LOG_PROXY_DECL(LoggerPolicy);
@@ -91,8 +91,8 @@ void inode_ordering_<LoggerPolicy>::by_reverse_path(
 }
 
 template <typename LoggerPolicy>
-void inode_ordering_<LoggerPolicy>::by_similarity(
-    sortable_inode_span& sp, std::optional<fragment_category> cat) const {
+void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
+                                                  fragment_category cat) const {
   std::vector<uint32_t> hash_cache;
 
   auto raw = sp.raw();
@@ -101,11 +101,7 @@ void inode_ordering_<LoggerPolicy>::by_similarity(
   hash_cache.resize(raw.size());
 
   for (auto i : index) {
-    if (cat) {
-      hash_cache[i] = raw[i]->similarity_hash(*cat);
-    } else {
-      hash_cache[i] = raw[i]->similarity_hash();
-    }
+    hash_cache[i] = raw[i]->similarity_hash(cat);
   }
 
   std::sort(index.begin(), index.end(), [&](auto a, auto b) {
@@ -131,13 +127,8 @@ void inode_ordering_<LoggerPolicy>::by_similarity(
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa(
     worker_group& wg, similarity_ordering_options const& opts,
-    sortable_inode_span& sp, std::optional<fragment_category> cat) const {
-  inode_element_view ev;
-  if (cat) {
-    ev = inode_element_view(sp.raw(), sp.index(), *cat);
-  } else {
-    ev = inode_element_view(sp.raw());
-  }
+    sortable_inode_span& sp, fragment_category cat) const {
+  auto ev = inode_element_view(sp.raw(), sp.index(), cat);
   std::promise<std::vector<uint32_t>> promise;
   auto future = promise.get_future();
   auto sim_order = similarity_ordering(LOG_GET_LOGGER, prog_, wg, opts);
