@@ -1249,7 +1249,12 @@ TEST_P(tools_test, categorize) {
       "--recompress=block",
       "--recompress-categories=pcmaudio/waveform",
       "-C",
-      "pcmaudio/waveform::flac:level=8"};
+#ifdef DWARFS_HAVE_FLAC
+      "pcmaudio/waveform::flac:level=8"
+#else
+      "pcmaudio/waveform::zstd:level=19"
+#endif
+  };
 
   ASSERT_TRUE(subprocess::check_run(*mkdwarfs_test_bin, mkdwarfs_tool_arg,
                                     mkdwarfs_args_recompress));

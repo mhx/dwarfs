@@ -251,7 +251,11 @@ const std::unordered_map<std::string, std::vector<std::string>>
         // clang-format off
         {"--order",       {"pcmaudio/waveform::revpath"}},
         {"--window-size", {"pcmaudio/waveform::0"}},
+#ifdef DWARFS_HAVE_FLAC
         {"--compression", {"pcmaudio/waveform::flac:level=3"}},
+#else
+        {"--compression", {"pcmaudio/waveform::zstd:level=3"}},
+#endif
         // clang-format on
     };
 
@@ -260,7 +264,11 @@ const std::unordered_map<std::string, std::vector<std::string>>
         // clang-format off
         {"--order",       {"pcmaudio/waveform::revpath"}},
         {"--window-size", {"pcmaudio/waveform::20"}},
+#ifdef DWARFS_HAVE_FLAC
         {"--compression", {"pcmaudio/waveform::flac:level=5"}},
+#else
+        {"--compression", {"pcmaudio/waveform::zstd:level=5"}},
+#endif
         // clang-format on
     };
 
@@ -268,7 +276,11 @@ const std::unordered_map<std::string, std::vector<std::string>>
     categorize_defaults_slow{
         // clang-format off
         {"--window-size", {"pcmaudio/waveform::16"}},
+#ifdef DWARFS_HAVE_FLAC
         {"--compression", {"pcmaudio/waveform::flac:level=8"}},
+#else
+        {"--compression", {"pcmaudio/waveform::zstd:level=8"}},
+#endif
         // clang-format on
     };
 
