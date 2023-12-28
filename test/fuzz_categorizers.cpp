@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  stream_logger lgr(std::cerr);
+  null_logger lgr;
 
   auto& catreg = categorizer_registry::instance();
   auto catmgr = std::make_shared<categorizer_manager>(lgr);

@@ -41,6 +41,7 @@
 #include "dwarfs/worker_group.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
+#include "test_logger.h"
 #include "test_strings.h"
 
 #include "dwarfs/gen-cpp2/metadata_layouts.h"
@@ -117,9 +118,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   worker_group wg("writer", 4);
   progress prog([](const progress&, bool) {}, 1000);
 
-  std::ostringstream logss;
-  stream_logger lgr(logss); // TODO: mock
-  lgr.set_policy<prod_logger_policy>();
+  test::test_logger lgr;
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 
@@ -170,7 +169,7 @@ void frozen_string_table_lookup(::benchmark::State& state) {
   auto data = make_frozen_string_table(
       test::test_strings,
       string_table::pack_options(state.range(0), state.range(1), true));
-  stream_logger lgr;
+  test::test_logger lgr;
   string_table table(lgr, "bench", data);
   int i = 0;
   std::string str;
@@ -182,7 +181,7 @@ void frozen_string_table_lookup(::benchmark::State& state) {
 
 void dwarfs_initialize(::benchmark::State& state) {
   auto image = make_filesystem(state);
-  stream_logger lgr;
+  test::test_logger lgr;
   auto mm = std::make_shared<test::mmap_mock>(image);
   filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
@@ -283,7 +282,7 @@ class filesystem : public ::benchmark::Fixture {
   std::vector<inode_view> entries;
 
  private:
-  stream_logger lgr;
+  test::test_logger lgr;
   std::string image;
   std::shared_ptr<mmif> mm;
 };

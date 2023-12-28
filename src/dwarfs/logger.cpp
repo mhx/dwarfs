@@ -80,10 +80,6 @@ stream_logger::stream_logger(std::shared_ptr<terminal const> term,
   set_threshold(threshold);
 }
 
-stream_logger::stream_logger(std::ostream& os, level_type threshold,
-                             bool with_context)
-    : stream_logger{terminal::create(), os, threshold, with_context} {}
-
 void stream_logger::preamble() {}
 void stream_logger::postamble() {}
 std::string_view stream_logger::get_newline() const { return "\n"; }

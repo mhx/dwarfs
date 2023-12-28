@@ -86,10 +86,6 @@ class stream_logger : public logger {
   stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
                 level_type threshold = WARN, bool with_context = false);
 
-  [[deprecated]] stream_logger(std::ostream& os = std::cerr,
-                               level_type threshold = WARN,
-                               bool with_context = false);
-
   void write(level_type level, const std::string& output, char const* file,
              int line) override;
 
