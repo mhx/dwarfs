@@ -1,0 +1,91 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
+ * This file is part of dwarfs.
+ *
+ * dwarfs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dwarfs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include <cerrno>
+#include <filesystem>
+#include <fstream>
+
+#ifdef _WIN32
+#include <folly/portability/Windows.h>
+#endif
+
+#include "dwarfs/file_access.h"
+#include "dwarfs/file_access_generic.h"
+#include "dwarfs/util.h"
+
+namespace dwarfs {
+
+namespace {
+
+void assign_error_code(std::error_code& ec) {
+#ifdef _WIN32
+  ec.assign(::GetLastError(), std::system_category());
+#else
+  ec.assign(errno, std::generic_category());
+#endif
+}
+
+class file_output_stream : public output_stream {
+ public:
+  file_output_stream(std::filesystem::path const& path, std::error_code& ec)
+      : os_{path.string().c_str(), std::ios::binary | std::ios::trunc} {
+    if (os_.bad() || os_.fail() || !os_.is_open()) {
+      assign_error_code(ec);
+    }
+  }
+
+  std::ostream& os() override { return os_; }
+
+  void close(std::error_code& ec) override {
+    os_.close();
+    if (os_.bad()) {
+      assign_error_code(ec);
+    }
+  }
+
+ private:
+  std::ofstream os_;
+};
+
+class file_access_generic : public file_access {
+ public:
+  bool exists(std::filesystem::path const& path) const override {
+    return std::filesystem::exists(path);
+  }
+
+  std::unique_ptr<output_stream>
+  open_output_binary(std::filesystem::path const& path,
+                     std::error_code& ec) const override {
+    auto rv = std::make_unique<file_output_stream>(path, ec);
+    if (ec) {
+      rv.reset();
+    }
+    return rv;
+  }
+};
+
+} // namespace
+
+std::unique_ptr<file_access const> create_file_access_generic() {
+  return std::make_unique<file_access_generic>();
+}
+
+} // namespace dwarfs

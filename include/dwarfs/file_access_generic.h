@@ -21,24 +21,12 @@
 
 #pragma once
 
-#include <iosfwd>
 #include <memory>
 
 namespace dwarfs {
 
 class file_access;
-class os_access;
-class terminal;
 
-struct iolayer {
-  static iolayer const& system_default();
-
-  std::shared_ptr<os_access const> os;
-  std::shared_ptr<terminal const> term;
-  std::shared_ptr<file_access const> file;
-  std::istream& in;
-  std::ostream& out;
-  std::ostream& err;
-};
+std::unique_ptr<file_access const> create_file_access_generic();
 
 } // namespace dwarfs

@@ -37,6 +37,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #ifdef _WIN32
@@ -63,6 +64,7 @@
 #include "dwarfs/console_writer.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
+#include "dwarfs/file_access.h"
 #include "dwarfs/filesystem_block_category_resolver.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/filesystem_writer.h"
@@ -74,6 +76,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
+#include "dwarfs/overloaded.h"
 #include "dwarfs/program_options_helpers.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
@@ -1035,33 +1038,37 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::filesystem::path output(output_str);
 
-  std::unique_ptr<std::ostream> os;
+  std::variant<std::monostate, std::unique_ptr<output_stream>,
+               std::ostringstream>
+      os;
 
   if (!options.debug_filter_function) {
     if (output != "-") {
-      if (std::filesystem::exists(output) && !force_overwrite) {
+      if (iol.file->exists(output) && !force_overwrite) {
         iol.err
             << "error: output file already exists, use --force to overwrite\n";
         return 1;
       }
 
-      auto ofs = std::make_unique<std::ofstream>(output, std::ios::binary |
-                                                             std::ios::trunc);
+      std::error_code ec;
+      auto stream = iol.file->open_output_binary(output, ec);
 
-      if (ofs->bad() || !ofs->is_open()) {
+      if (ec) {
         iol.err << "error: cannot open output file '" << output
-                << "': " << ::strerror(errno) << "\n";
+                << "': " << ec.message() << "\n";
         return 1;
       }
 
-      os = std::move(ofs);
+      assert(stream);
+
+      os.emplace<std::unique_ptr<output_stream>>(std::move(stream));
     } else {
 #ifdef _WIN32
       ::_setmode(::_fileno(stdout), _O_BINARY);
 #endif
     }
   } else {
-    os = std::make_unique<std::ostringstream>();
+    os.emplace<std::ostringstream>();
   }
 
   options.enable_history = !no_history;
@@ -1173,9 +1180,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::unique_ptr<filesystem_writer> fsw;
 
   try {
+    std::ostream& fsw_os = std::visit(
+        overloaded(
+            [&](std::monostate) -> std::ostream& { return iol.out; },
+            [&](std::unique_ptr<output_stream>& os) -> std::ostream& {
+              return os->os();
+            },
+            [&](std::ostringstream& oss) -> std::ostream& { return oss; }),
+        os);
+
     fsw = std::make_unique<filesystem_writer>(
-        os ? *os : iol.out, lgr, wg_compress, prog, schema_bc, metadata_bc,
-        history_bc, fswopts, header_ifs.get());
+        fsw_os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
+        fswopts, header_ifs.get());
 
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
@@ -1245,21 +1261,34 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (!options.debug_filter_function) {
     LOG_INFO << "compression CPU time: "
              << time_with_unit(wg_compress.get_cpu_time());
+  }
 
-    if (os) {
-      if (auto ofs = dynamic_cast<std::ofstream*>(os.get())) {
-        ofs->close();
-      }
+  {
+    auto ec = std::visit(
+        overloaded([](std::monostate) -> int { return 0; },
+                   [&](std::unique_ptr<output_stream>& os) -> int {
+                     std::error_code ec;
+                     os->close(ec);
+                     if (ec) {
+                       LOG_ERROR << "failed to close output file '" << output
+                                 << "': " << ec.message();
+                       return 1;
+                     }
+                     os.reset();
+                     return 0;
+                   },
+                   [](std::ostringstream& oss [[maybe_unused]]) -> int {
+                     assert(oss.str().empty());
+                     return 0;
+                   }),
+        os);
 
-      if (os->bad()) {
-        LOG_ERROR << "failed to close output file '" << output
-                  << "': " << strerror(errno);
-        return 1;
-      }
-
-      os.reset();
+    if (ec != 0) {
+      return ec;
     }
+  }
 
+  if (!options.debug_filter_function) {
     std::ostringstream err;
 
     if (prog.errors) {
@@ -1273,11 +1302,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     ti << "filesystem " << (recompress ? "rewritten " : "created ")
        << err.str();
-  } else {
-    assert(os);
-    auto oss [[maybe_unused]] = dynamic_cast<std::ostringstream*>(os.get());
-    assert(oss);
-    assert(oss->str().empty());
   }
 
   return prog.errors > 0;

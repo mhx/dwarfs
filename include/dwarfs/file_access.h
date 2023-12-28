@@ -21,24 +21,29 @@
 
 #pragma once
 
+#include <filesystem>
 #include <iosfwd>
 #include <memory>
+#include <system_error>
 
 namespace dwarfs {
 
-class file_access;
-class os_access;
-class terminal;
+class output_stream {
+ public:
+  virtual ~output_stream() = default;
 
-struct iolayer {
-  static iolayer const& system_default();
+  virtual std::ostream& os() = 0;
+  virtual void close(std::error_code& ec) = 0;
+};
 
-  std::shared_ptr<os_access const> os;
-  std::shared_ptr<terminal const> term;
-  std::shared_ptr<file_access const> file;
-  std::istream& in;
-  std::ostream& out;
-  std::ostream& err;
+class file_access {
+ public:
+  virtual ~file_access() = default;
+
+  virtual bool exists(std::filesystem::path const& path) const = 0;
+  virtual std::unique_ptr<output_stream>
+  open_output_binary(std::filesystem::path const& path,
+                     std::error_code& ec) const = 0;
 };
 
 } // namespace dwarfs

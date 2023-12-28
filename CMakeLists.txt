@@ -378,6 +378,7 @@ list(
   src/dwarfs/entry.cpp
   src/dwarfs/error.cpp
   src/dwarfs/features.cpp
+  src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_scanner.cpp
   src/dwarfs/file_stat.cpp
   src/dwarfs/file_type.cpp

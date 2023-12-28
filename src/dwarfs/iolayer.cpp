@@ -21,6 +21,8 @@
 
 #include <iostream>
 
+#include "dwarfs/file_access.h"
+#include "dwarfs/file_access_generic.h"
 #include "dwarfs/iolayer.h"
 #include "dwarfs/os_access_generic.h"
 #include "dwarfs/terminal.h"
@@ -31,6 +33,7 @@ iolayer const& iolayer::system_default() {
   static iolayer const iol{
       .os = std::make_shared<os_access_generic>(),
       .term = terminal::create(),
+      .file = create_file_access_generic(),
       .in = std::cin,
       .out = std::cout,
       .err = std::cerr,
