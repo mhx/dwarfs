@@ -192,7 +192,8 @@ TEST_P(categorizer_test, end_to_end) {
   test::test_iolayer iolayer(input, fa);
 
   auto args = test::parse_args(fmt::format(
-      "mkdwarfs -i / -o test.dwarfs --categorize --log-level={}", level));
+      "mkdwarfs -i / -o test.dwarfs --chmod=norm --categorize --log-level={}",
+      level));
   auto exit_code = mkdwarfs_main(args, iolayer.get());
 
   EXPECT_EQ(exit_code, 0);
