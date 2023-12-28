@@ -595,7 +595,6 @@ if(WITH_TESTS)
   list(APPEND DWARFS_TESTS
     badfs_test
     block_merger_test
-    categorizer_test
     chmod_transformer_test
     compat_test
     dwarfs_test
@@ -604,6 +603,7 @@ if(WITH_TESTS)
     metadata_requirements_test
     pcm_sample_transformer_test
     pcmaudio_categorizer_test
+    tool_main_test
     tools_test
     utils_test
   )
