@@ -766,6 +766,7 @@ TEST_P(tools_test, end_to_end) {
       "-omlock=try",
       "-ono_cache_image",
       "-ocache_files",
+      "-otidy_strategy=time",
   };
 
   unicode_symlink = mountpoint / unicode_symlink_name;
@@ -882,6 +883,9 @@ TEST_P(tools_test, end_to_end) {
         }
       }
 #endif
+
+      args.push_back("-otidy_interval=1s");
+      args.push_back("-otidy_max_age=2s");
 
       {
         driver_runner runner(driver, mode == binary_mode::universal_tool, image,
