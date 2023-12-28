@@ -583,9 +583,9 @@ endif()
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS)
-  add_library(test_helpers test/test_helpers.cpp test/test_strings.cpp
-                           test/loremipsum.cpp test/test_dirtree.cpp
-                           test/filter_test_data.cpp)
+  add_library(test_helpers test/test_helpers.cpp test/test_iolayer.cpp
+                           test/test_strings.cpp test/loremipsum.cpp
+                           test/test_dirtree.cpp test/filter_test_data.cpp)
   target_link_libraries(test_helpers dwarfs folly)
   set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
 endif()
@@ -614,7 +614,7 @@ if(WITH_TESTS)
     add_executable(${test} test/${test}.cpp)
     target_link_libraries(
       ${test} test_helpers gmock gtest gtest_main
-      "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>"
+      ${MAIN_TARGETS}
     )
     target_compile_definitions(${test}
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"

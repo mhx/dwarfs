@@ -34,8 +34,10 @@
 #include <vector>
 
 #include "dwarfs/file_stat.h"
+#include "dwarfs/iolayer.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/script.h"
+#include "dwarfs/terminal.h"
 
 namespace dwarfs::test {
 
@@ -130,6 +132,49 @@ class script_mock : public script {
   void order(inode_vector& /*iv*/) override {
     // do nothing
   }
+};
+
+class test_terminal : public terminal {
+ public:
+  test_terminal(std::ostream& out, std::ostream& err);
+
+  void set_fancy(bool fancy) { fancy_ = fancy; }
+  void set_width(size_t width) { width_ = width; }
+
+  size_t width() const override;
+  bool is_fancy(std::ostream& os) const override;
+  std::string_view color(termcolor color, termstyle style) const override;
+  std::string colored(std::string text, termcolor color, bool enable,
+                      termstyle style) const override;
+
+ private:
+  std::ostream* out_;
+  std::ostream* err_;
+  bool fancy_{false};
+  size_t width_{80};
+};
+
+class test_iolayer {
+ public:
+  test_iolayer(std::shared_ptr<os_access_mock> os);
+  ~test_iolayer();
+
+  iolayer const& get() const;
+
+  std::string out() const;
+  std::string err() const;
+
+  void set_in(std::string in);
+  void set_terminal_fancy(bool fancy);
+  void set_terminal_width(size_t width);
+
+ private:
+  std::shared_ptr<os_access_mock> os_;
+  std::shared_ptr<test_terminal> term_;
+  std::istringstream in_;
+  std::ostringstream out_;
+  std::ostringstream err_;
+  std::unique_ptr<iolayer> iol_;
 };
 
 extern std::map<std::string, simplestat> statmap;
