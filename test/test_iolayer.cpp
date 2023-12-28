@@ -170,6 +170,9 @@ std::string test_terminal::colored(std::string text, termcolor color,
   return result;
 }
 
+test_iolayer::test_iolayer()
+    : test_iolayer{os_access_mock::create_test_instance()} {}
+
 test_iolayer::test_iolayer(std::shared_ptr<os_access_mock> os)
     : test_iolayer{std::move(os), create_file_access_generic()} {}
 

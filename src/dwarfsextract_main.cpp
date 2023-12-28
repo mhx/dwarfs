@@ -103,9 +103,12 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+  auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
+
   if (vm.count("help") or !vm.count("input")) {
-    iol.err << tool_header("dwarfsextract") << "using "
+    iol.out << tool_header("dwarfsextract") << "using "
             << ::archive_version_string() << "\n\n"
+            << usage << "\n"
             << opts << "\n";
     return 0;
   }

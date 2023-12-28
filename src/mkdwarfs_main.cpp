@@ -621,7 +621,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  auto const usage = "Usage: mkdwarfs [OPTIONS...]\n";
+  auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
 
   if (vm.count("long-help")) {
     std::string_view constexpr block_data_hdr{"Block Data"};

@@ -21,6 +21,7 @@
 
 #include <filesystem>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <fmt/format.h>
@@ -42,7 +43,139 @@ namespace {
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
 
+class tool_main_test : public testing::Test {
+ public:
+  void SetUp() override { iol = std::make_unique<test::test_iolayer>(); }
+
+  void TearDown() override { iol.reset(); }
+
+  std::string out() const { return iol->out(); }
+  std::string err() const { return iol->err(); }
+
+  std::unique_ptr<test::test_iolayer> iol;
+};
+
 } // namespace
+
+class mkdwarfs_main_test : public tool_main_test {
+ public:
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), "mkdwarfs");
+    return mkdwarfs_main(args, iol->get());
+  }
+};
+
+class dwarfsck_main_test : public tool_main_test {
+ public:
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), "dwarfsck");
+    return dwarfsck_main(args, iol->get());
+  }
+};
+
+class dwarfsextract_main_test : public tool_main_test {
+ public:
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), "dwarfsextract");
+    return dwarfsextract_main(args, iol->get());
+  }
+};
+
+TEST_F(mkdwarfs_main_test, no_cmdline_args) {
+  auto exit_code = run({});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+}
+
+TEST_F(dwarfsck_main_test, no_cmdline_args) {
+  auto exit_code = run({});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsck"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+}
+
+TEST_F(dwarfsextract_main_test, no_cmdline_args) {
+  auto exit_code = run({});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+}
+
+TEST_F(mkdwarfs_main_test, invalid_cmdline_args) {
+  auto exit_code = run({"--some-invalid-option"});
+  EXPECT_EQ(exit_code, 1);
+  EXPECT_FALSE(err().empty());
+  EXPECT_TRUE(out().empty());
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "unrecognised option '--some-invalid-option'"));
+}
+
+TEST_F(dwarfsck_main_test, invalid_cmdline_args) {
+  auto exit_code = run({"--some-invalid-option"});
+  EXPECT_EQ(exit_code, 1);
+  EXPECT_FALSE(err().empty());
+  EXPECT_TRUE(out().empty());
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "unrecognised option '--some-invalid-option'"));
+}
+
+TEST_F(dwarfsextract_main_test, invalid_cmdline_args) {
+  auto exit_code = run({"--some-invalid-option"});
+  EXPECT_EQ(exit_code, 1);
+  EXPECT_FALSE(err().empty());
+  EXPECT_TRUE(out().empty());
+  EXPECT_THAT(err(), ::testing::HasSubstr(
+                         "unrecognised option '--some-invalid-option'"));
+}
+
+TEST_F(mkdwarfs_main_test, cmdline_help_arg) {
+  auto exit_code = run({"--help"});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("--help"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("--long-help"));
+  // check that the detailed help is not shown
+  EXPECT_THAT(out(), ::testing::Not(::testing::HasSubstr("Advanced options:")));
+  EXPECT_THAT(out(),
+              ::testing::Not(::testing::HasSubstr("Compression algorithms:")));
+}
+
+TEST_F(mkdwarfs_main_test, cmdline_long_help_arg) {
+  auto exit_code = run({"--long-help"});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: mkdwarfs"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("Advanced options:"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("Compression level defaults:"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("Compression algorithms:"));
+  EXPECT_THAT(out(), ::testing::HasSubstr("Categories:"));
+}
+
+TEST_F(dwarfsck_main_test, cmdline_help_arg) {
+  auto exit_code = run({"--help"});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsck"));
+}
+
+TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
+  auto exit_code = run({"--help"});
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(err().empty());
+  EXPECT_FALSE(out().empty());
+  EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
+}
 
 class categorizer_test : public testing::TestWithParam<std::string> {};
 

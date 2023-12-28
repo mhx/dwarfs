@@ -174,6 +174,7 @@ class test_file_access : public file_access {
 
 class test_iolayer {
  public:
+  test_iolayer();
   test_iolayer(std::shared_ptr<os_access_mock> os);
   test_iolayer(std::shared_ptr<os_access_mock> os,
                std::shared_ptr<file_access const> fa);

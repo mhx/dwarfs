@@ -132,6 +132,7 @@ struct dwarfs_userdata {
   dwarfs_userdata(dwarfs_userdata const&) = delete;
   dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
 
+  bool is_help{false};
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
@@ -962,7 +963,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
-     << "usage: " << progname.filename().string()
+     << "Usage: " << progname.filename().string()
      << " <image> <mountpoint> [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
@@ -995,8 +996,6 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
   fuse_main(args.argc, args.argv, &fsops, nullptr);
   fuse_opt_free_args(&args);
 #endif
-
-  ::exit(1);
 }
 
 int option_hdl(void* data, char const* arg, int key,
@@ -1022,7 +1021,8 @@ int option_hdl(void* data, char const* arg, int key,
 
   case FUSE_OPT_KEY_OPT:
     if (::strncmp(arg, "-h", 2) == 0 || ::strncmp(arg, "--help", 6) == 0) {
-      usage(userdata.iol.err, opts.progname);
+      userdata.is_help = true;
+      return -1;
     }
     break;
 
@@ -1265,7 +1265,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
-    usage(iol.err, opts.progname);
+    usage(iol.out, opts.progname);
+    return userdata.is_help ? 0 : 1;
   }
 
   if (fuse_opts.foreground) {
@@ -1278,7 +1279,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   int mt, fg;
 
   if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
-    usage(iol.err, opts.progname);
+    usage(iol.out, opts.progname);
+    return userdata.is_help ? 0 : 1;
   }
 
   if (fg) {
@@ -1349,7 +1351,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (!opts.seen_mountpoint) {
-    usage(iol.err, opts.progname);
+    usage(iol.out, opts.progname);
+    return 1;
   }
 
   LOG_PROXY(debug_logger_policy, userdata.lgr);
