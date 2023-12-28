@@ -469,5 +469,11 @@ std::optional<fs::path> find_binary(std::string_view name) {
   return std::nullopt;
 }
 
+std::vector<std::string> parse_args(std::string_view args) {
+  std::vector<std::string> rv;
+  folly::split(' ', args, rv);
+  return rv;
+}
+
 } // namespace test
 } // namespace dwarfs

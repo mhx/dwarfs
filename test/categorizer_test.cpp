@@ -57,9 +57,7 @@ TEST_P(categorizer_test, end_to_end) {
 
   test::test_iolayer iolayer(input);
 
-  std::vector<char const*> args{"mkdwarfs", "-i", "/",
-                                "-o",       "-",  "--categorize"};
-
+  auto args = test::parse_args("mkdwarfs -i / -o - --categorize");
   auto exit_code = mkdwarfs_main(args, iolayer.get());
 
   EXPECT_EQ(exit_code, 0);

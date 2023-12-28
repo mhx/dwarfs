@@ -1389,7 +1389,11 @@ int dwarfs_main(int argc, sys_char** argv) {
   return dwarfs_main(argc, argv, iolayer::system_default());
 }
 
-int dwarfs_main(std::span<char const*> args, iolayer const& iol) {
+int dwarfs_main(std::span<std::string> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, dwarfs_main);
+}
+
+int dwarfs_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfs_main);
 }
 

@@ -183,4 +183,6 @@ std::optional<std::filesystem::path> find_binary(std::string_view name);
 
 std::span<std::pair<simplestat, std::string_view> const> test_dirtree();
 
+std::vector<std::string> parse_args(std::string_view args);
+
 } // namespace dwarfs::test

@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "dwarfs/types.h"
 
@@ -49,7 +50,10 @@ inline std::string u8string_to_string(std::u8string const& in) {
 std::string sys_string_to_string(sys_string const& in);
 sys_string string_to_sys_string(std::string const& in);
 
-int call_sys_main_iolayer(std::span<char const*> args, iolayer const& iol,
+int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
+                          int (*main)(int, sys_char**, iolayer const&));
+
+int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
                           int (*main)(int, sys_char**, iolayer const&));
 
 size_t utf8_display_width(char const* p, size_t len);

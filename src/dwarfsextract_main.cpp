@@ -201,7 +201,11 @@ int dwarfsextract_main(int argc, sys_char** argv) {
   return dwarfsextract_main(argc, argv, iolayer::system_default());
 }
 
-int dwarfsextract_main(std::span<char const*> args, iolayer const& iol) {
+int dwarfsextract_main(std::span<std::string> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, dwarfsextract_main);
+}
+
+int dwarfsextract_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfsextract_main);
 }
 

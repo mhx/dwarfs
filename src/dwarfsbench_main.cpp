@@ -141,7 +141,11 @@ int dwarfsbench_main(int argc, sys_char** argv) {
   return dwarfsbench_main(argc, argv, iolayer::system_default());
 }
 
-int dwarfsbench_main(std::span<char const*> args, iolayer const& iol) {
+int dwarfsbench_main(std::span<std::string> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, dwarfsbench_main);
+}
+
+int dwarfsbench_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfsbench_main);
 }
 

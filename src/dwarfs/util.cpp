@@ -47,6 +47,21 @@ inline std::string trimmed(std::string in) {
   }
   return in;
 }
+
+template <typename T>
+int call_sys_main_iolayer_impl(std::span<T> args, iolayer const& iol,
+                               int (*main)(int, sys_char**, iolayer const&)) {
+  std::vector<sys_string> argv;
+  std::vector<sys_char*> argv_ptrs;
+  argv.reserve(args.size());
+  argv_ptrs.reserve(args.size());
+  for (auto const& arg : args) {
+    argv.emplace_back(string_to_sys_string(std::string(arg)));
+    argv_ptrs.emplace_back(argv.back().data());
+  }
+  return main(argv_ptrs.size(), argv_ptrs.data(), iol);
+}
+
 } // namespace
 
 std::string size_with_unit(size_t size) {
@@ -148,17 +163,14 @@ sys_string string_to_sys_string(std::string const& in) {
 #endif
 }
 
-int call_sys_main_iolayer(std::span<char const*> args, iolayer const& iol,
+int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
                           int (*main)(int, sys_char**, iolayer const&)) {
-  std::vector<sys_string> argv;
-  std::vector<sys_char*> argv_ptrs;
-  argv.reserve(args.size());
-  argv_ptrs.reserve(args.size());
-  for (auto const& arg : args) {
-    argv.emplace_back(string_to_sys_string(arg));
-    argv_ptrs.emplace_back(argv.back().data());
-  }
-  return main(argv_ptrs.size(), argv_ptrs.data(), iol);
+  return call_sys_main_iolayer_impl(args, iol, main);
+}
+
+int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
+                          int (*main)(int, sys_char**, iolayer const&)) {
+  return call_sys_main_iolayer_impl(args, iol, main);
 }
 
 size_t utf8_display_width(char const* p, size_t len) {
