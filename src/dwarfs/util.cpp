@@ -263,4 +263,30 @@ bool getenv_is_enabled(char const* var) {
   return false;
 }
 
+void setup_default_locale() {
+  try {
+#ifdef _WIN32
+    char const* locale = "en_US.utf8";
+#else
+    char const* locale = "";
+#endif
+    std::locale::global(std::locale(locale));
+    if (!std::setlocale(LC_ALL, locale)) {
+      std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
+    }
+  } catch (std::exception const& e) {
+    std::cerr << "warning: failed to set user default locale: " << e.what()
+              << "\n";
+    try {
+      std::locale::global(std::locale::classic());
+      if (!std::setlocale(LC_ALL, "C")) {
+        std::cerr << "warning: setlocale(LC_ALL, \"C\") failed\n";
+      }
+    } catch (std::exception const& e) {
+      std::cerr << "warning: also failed to set classic locale: " << e.what()
+                << "\n";
+    }
+  }
+}
+
 } // namespace dwarfs

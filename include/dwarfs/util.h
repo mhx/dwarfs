@@ -66,4 +66,6 @@ std::filesystem::path canonical_path(std::filesystem::path p);
 
 bool getenv_is_enabled(char const* var);
 
+void setup_default_locale();
+
 } // namespace dwarfs
