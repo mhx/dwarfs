@@ -136,6 +136,31 @@ std::string sys_string_to_string(sys_string const& in) {
 #endif
 }
 
+sys_string string_to_sys_string(std::string const& in) {
+#ifdef _WIN32
+  auto tmp = utf8::utf8to16(in);
+  sys_string rv(tmp.size(), 0);
+  std::transform(tmp.begin(), tmp.end(), rv.begin(),
+                 [](char16_t c) { return static_cast<sys_char>(c); });
+  return rv;
+#else
+  return in;
+#endif
+}
+
+int call_sys_main_iolayer(std::span<char const*> args, iolayer const& iol,
+                          int (*main)(int, sys_char**, iolayer const&)) {
+  std::vector<sys_string> argv;
+  std::vector<sys_char*> argv_ptrs;
+  argv.reserve(args.size());
+  argv_ptrs.reserve(args.size());
+  for (auto const& arg : args) {
+    argv.emplace_back(string_to_sys_string(arg));
+    argv_ptrs.emplace_back(argv.back().data());
+  }
+  return main(argv_ptrs.size(), argv_ptrs.data(), iol);
+}
+
 size_t utf8_display_width(char const* p, size_t len) {
   char const* const e = p + len;
   size_t rv = 0;

@@ -208,4 +208,8 @@ int dwarfsck_main(int argc, sys_char** argv) {
   return dwarfsck_main(argc, argv, iolayer::system_default());
 }
 
+int dwarfsck_main(std::span<char const*> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, dwarfsck_main);
+}
+
 } // namespace dwarfs

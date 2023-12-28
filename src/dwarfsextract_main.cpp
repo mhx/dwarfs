@@ -201,4 +201,8 @@ int dwarfsextract_main(int argc, sys_char** argv) {
   return dwarfsextract_main(argc, argv, iolayer::system_default());
 }
 
+int dwarfsextract_main(std::span<char const*> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, dwarfsextract_main);
+}
+
 } // namespace dwarfs

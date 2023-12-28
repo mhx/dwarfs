@@ -1289,4 +1289,8 @@ int mkdwarfs_main(int argc, sys_char** argv) {
   return mkdwarfs_main(argc, argv, iolayer::system_default());
 }
 
+int mkdwarfs_main(std::span<char const*> args, iolayer const& iol) {
+  return call_sys_main_iolayer(args, iol, mkdwarfs_main);
+}
+
 } // namespace dwarfs
