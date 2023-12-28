@@ -103,6 +103,9 @@ class os_access_mock : public os_access {
 
   int access(std::filesystem::path const&, int) const override;
 
+  std::filesystem::path
+  canonical(std::filesystem::path const& path) const override;
+
  private:
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;

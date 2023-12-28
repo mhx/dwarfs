@@ -450,6 +450,11 @@ int os_access_mock::access(fs::path const& path, int) const {
   return access_fail_set_.count(path) ? -1 : 0;
 }
 
+std::filesystem::path
+os_access_mock::canonical(std::filesystem::path const& path) const {
+  return path;
+}
+
 std::optional<fs::path> find_binary(std::string_view name) {
   auto path_str = std::getenv("PATH");
   if (!path_str) {

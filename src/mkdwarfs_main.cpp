@@ -76,6 +76,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/overloaded.h"
 #include "dwarfs/program_options_helpers.h"
 #include "dwarfs/progress.h"
@@ -768,7 +769,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  path = canonical_path(path);
+  path = iol.os->canonical(path);
 
   bool recompress = vm.count("recompress");
   rewrite_options rw_opts;

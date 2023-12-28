@@ -23,6 +23,7 @@
 
 #include "dwarfs/mmap.h"
 #include "dwarfs/os_access_generic.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -75,6 +76,11 @@ int os_access_generic::access(fs::path const& path, int mode) const {
 #else
   return ::access(path.string().c_str(), mode);
 #endif
+}
+
+std::filesystem::path
+os_access_generic::canonical(std::filesystem::path const& path) const {
+  return canonical_path(path);
 }
 
 } // namespace dwarfs
