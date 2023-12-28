@@ -1,5 +1,12 @@
 # Change Log
 
+## Version 0.7.4 - 2023-12-28
+
+- (fix) Fix regression that broke section index optimization introduced
+  in v0.7.3. Fixes github #183.
+
+- (fix) Add workaround for broken utf8cpp release. Fixes github #182.
+
 ## Version 0.7.3 - 2023-12-05
 
 - (feature) Support forward-compatibility. Fixes github #158.
