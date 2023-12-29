@@ -455,6 +455,10 @@ os_access_mock::canonical(std::filesystem::path const& path) const {
   return path;
 }
 
+std::filesystem::path os_access_mock::current_path() const {
+  return root_->name;
+}
+
 std::optional<fs::path> find_binary(std::string_view name) {
   auto path_str = std::getenv("PATH");
   if (!path_str) {

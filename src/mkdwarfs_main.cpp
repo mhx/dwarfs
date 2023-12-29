@@ -753,7 +753,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.with_specials = true;
 
     if (!vm.count("input")) {
-      path = std::filesystem::current_path();
+      path = iol.os->current_path();
     }
 
     std::filesystem::path input_list_path(input_list_str);

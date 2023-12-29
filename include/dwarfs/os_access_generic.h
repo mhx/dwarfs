@@ -44,5 +44,6 @@ class os_access_generic : public os_access {
   int access(std::filesystem::path const& path, int mode) const override;
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;
+  std::filesystem::path current_path() const override;
 };
 } // namespace dwarfs

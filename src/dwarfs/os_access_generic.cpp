@@ -78,9 +78,10 @@ int os_access_generic::access(fs::path const& path, int mode) const {
 #endif
 }
 
-std::filesystem::path
-os_access_generic::canonical(std::filesystem::path const& path) const {
+fs::path os_access_generic::canonical(fs::path const& path) const {
   return canonical_path(path);
 }
+
+fs::path os_access_generic::current_path() const { return fs::current_path(); }
 
 } // namespace dwarfs
