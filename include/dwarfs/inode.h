@@ -59,7 +59,6 @@ class inode : public object {
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
   virtual size_t size() const = 0;
   virtual file const* any() const = 0;
-  virtual files_vector const& files() const = 0;
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
   virtual inode_fragments& fragments() = 0;

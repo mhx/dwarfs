@@ -194,8 +194,6 @@ class inode_ : public inode {
 
   size_t size() const override { return any()->size(); }
 
-  files_vector const& files() const override { return files_; }
-
   file const* any() const override {
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (any)");
