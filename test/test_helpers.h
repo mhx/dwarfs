@@ -180,12 +180,12 @@ class test_file_access : public file_access {
 class test_iolayer {
  public:
   test_iolayer();
-  test_iolayer(std::shared_ptr<os_access_mock> os);
-  test_iolayer(std::shared_ptr<os_access_mock> os,
+  test_iolayer(std::shared_ptr<os_access const> os);
+  test_iolayer(std::shared_ptr<os_access const> os,
                std::shared_ptr<file_access const> fa);
   ~test_iolayer();
 
-  iolayer const& get() const;
+  iolayer const& get();
 
   std::string out() const;
   std::string err() const;
@@ -194,8 +194,11 @@ class test_iolayer {
   void set_terminal_fancy(bool fancy);
   void set_terminal_width(size_t width);
 
+  void set_os_access(std::shared_ptr<os_access_mock> os);
+  void set_file_access(std::shared_ptr<file_access const> fa);
+
  private:
-  std::shared_ptr<os_access_mock> os_;
+  std::shared_ptr<os_access const> os_;
   std::shared_ptr<test_terminal> term_;
   std::shared_ptr<file_access const> fa_;
   std::istringstream in_;

@@ -202,26 +202,30 @@ std::string test_terminal::colored(std::string text, termcolor color,
 test_iolayer::test_iolayer()
     : test_iolayer{os_access_mock::create_test_instance()} {}
 
-test_iolayer::test_iolayer(std::shared_ptr<os_access_mock> os)
+test_iolayer::test_iolayer(std::shared_ptr<os_access const> os)
     : test_iolayer{std::move(os), create_file_access_generic()} {}
 
-test_iolayer::test_iolayer(std::shared_ptr<os_access_mock> os,
+test_iolayer::test_iolayer(std::shared_ptr<os_access const> os,
                            std::shared_ptr<file_access const> fa)
     : os_{std::move(os)}
     , term_{std::make_shared<test_terminal>(out_, err_)}
-    , fa_{std::move(fa)}
-    , iol_{std::make_unique<iolayer>(iolayer{
-          .os = os_,
-          .term = term_,
-          .file = fa_,
-          .in = in_,
-          .out = out_,
-          .err = err_,
-      })} {}
+    , fa_{std::move(fa)} {}
 
 test_iolayer::~test_iolayer() = default;
 
-iolayer const& test_iolayer::get() const { return *iol_; }
+iolayer const& test_iolayer::get() {
+  if (!iol_) {
+    iol_ = std::make_unique<iolayer>(iolayer{
+        .os = os_,
+        .term = term_,
+        .file = fa_,
+        .in = in_,
+        .out = out_,
+        .err = err_,
+    });
+  }
+  return *iol_;
+}
 
 void test_iolayer::set_terminal_fancy(bool fancy) { term_->set_fancy(fancy); }
 void test_iolayer::set_terminal_width(size_t width) { term_->set_width(width); }
@@ -229,5 +233,19 @@ void test_iolayer::set_in(std::string in) { in_.str(std::move(in)); }
 
 std::string test_iolayer::out() const { return out_.str(); }
 std::string test_iolayer::err() const { return err_.str(); }
+
+void test_iolayer::set_os_access(std::shared_ptr<os_access_mock> os) {
+  if (iol_) {
+    throw std::runtime_error("iolayer already created");
+  }
+  os_ = std::move(os);
+}
+
+void test_iolayer::set_file_access(std::shared_ptr<file_access const> fa) {
+  if (iol_) {
+    throw std::runtime_error("iolayer already created");
+  }
+  fa_ = std::move(fa);
+}
 
 } // namespace dwarfs::test
