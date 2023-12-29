@@ -26,6 +26,7 @@
 #include <tuple>
 #include <vector>
 
+#include "dwarfs/error.h"
 #include "dwarfs/offset_cache.h"
 #include "dwarfs/util.h"
 
@@ -285,4 +286,37 @@ TEST(utils, offset_cache_prefill) {
   EXPECT_EQ(test_chunks.size(), prefill_lookups);
   EXPECT_EQ(test_chunks.size() - 1, prefill_ix);
   EXPECT_EQ(test_chunks.back() - 1, prefill_off);
+}
+
+TEST(utils, parse_time_with_unit) {
+  using namespace std::chrono_literals;
+  EXPECT_EQ(3ms, parse_time_with_unit("3ms"));
+  EXPECT_EQ(4s, parse_time_with_unit("4s"));
+  EXPECT_EQ(5s, parse_time_with_unit("5"));
+  EXPECT_EQ(6min, parse_time_with_unit("6m"));
+  EXPECT_EQ(7h, parse_time_with_unit("7h"));
+  EXPECT_THROW(parse_time_with_unit("8y"), dwarfs::runtime_error);
+  EXPECT_THROW(parse_time_with_unit("8su"), dwarfs::runtime_error);
+  EXPECT_THROW(parse_time_with_unit("8mss"), dwarfs::runtime_error);
+  EXPECT_THROW(parse_time_with_unit("ms"), dwarfs::runtime_error);
+}
+
+TEST(utils, parse_size_with_unit) {
+  EXPECT_EQ(static_cast<size_t>(2), parse_size_with_unit("2"));
+  EXPECT_EQ(static_cast<size_t>(3) * 1024, parse_size_with_unit("3k"));
+  EXPECT_EQ(static_cast<size_t>(4) * 1024 * 1024, parse_size_with_unit("4m"));
+  EXPECT_EQ(static_cast<size_t>(5) * 1024 * 1024 * 1024,
+            parse_size_with_unit("5g"));
+  EXPECT_EQ(static_cast<size_t>(6) * 1024 * 1024 * 1024 * 1024,
+            parse_size_with_unit("6t"));
+  EXPECT_EQ(static_cast<size_t>(1001) * 1024, parse_size_with_unit("1001K"));
+  EXPECT_EQ(static_cast<size_t>(1002) * 1024 * 1024,
+            parse_size_with_unit("1002M"));
+  EXPECT_EQ(static_cast<size_t>(1003) * 1024 * 1024 * 1024,
+            parse_size_with_unit("1003G"));
+  EXPECT_EQ(static_cast<size_t>(1004) * 1024 * 1024 * 1024 * 1024,
+            parse_size_with_unit("1004T"));
+  EXPECT_THROW(parse_size_with_unit("7y"), dwarfs::runtime_error);
+  EXPECT_THROW(parse_size_with_unit("7tb"), dwarfs::runtime_error);
+  EXPECT_THROW(parse_size_with_unit("asd"), dwarfs::runtime_error);
 }
