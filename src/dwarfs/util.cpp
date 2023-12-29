@@ -73,37 +73,41 @@ std::string time_with_unit(double sec) {
 }
 
 size_t parse_size_with_unit(std::string const& str) {
-  size_t end = 0;
-  size_t size = std::stoul(str, &end);
+  size_t value;
+  auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};
 
-  if (str[end] == '\0') {
-    return size;
+  if (ec != std::errc()) {
+    DWARFS_THROW(runtime_error, "cannot parse size value");
   }
 
-  if (str[end + 1] == '\0') {
-    switch (str[end]) {
+  if (ptr[0] == '\0') {
+    return value;
+  }
+
+  if (ptr[1] == '\0') {
+    switch (ptr[0]) {
     case 't':
     case 'T':
-      size <<= 10;
+      value <<= 10;
       [[fallthrough]];
     case 'g':
     case 'G':
-      size <<= 10;
+      value <<= 10;
       [[fallthrough]];
     case 'm':
     case 'M':
-      size <<= 10;
+      value <<= 10;
       [[fallthrough]];
     case 'k':
     case 'K':
-      size <<= 10;
-      return size;
+      value <<= 10;
+      return value;
     default:
       break;
     }
   }
 
-  DWARFS_THROW(runtime_error, "invalid size suffix");
+  DWARFS_THROW(runtime_error, "unsupported size suffix");
 }
 
 std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
@@ -129,8 +133,12 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
     }
     break;
 
-  case '\0':
   case 's':
+    if (ptr[1] != '\0') {
+      break;
+    }
+    [[fallthrough]];
+  case '\0':
     return std::chrono::seconds(value);
 
   default:
