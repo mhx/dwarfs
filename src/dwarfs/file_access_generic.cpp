@@ -43,6 +43,29 @@ void assign_error_code(std::error_code& ec) {
 #endif
 }
 
+class file_input_stream : public input_stream {
+ public:
+  file_input_stream(std::filesystem::path const& path, std::error_code& ec,
+                    std::ios_base::openmode mode)
+      : is_{path.string().c_str(), mode} {
+    if (is_.bad() || is_.fail() || !is_.is_open()) {
+      assign_error_code(ec);
+    }
+  }
+
+  std::istream& is() override { return is_; }
+
+  void close(std::error_code& ec) override {
+    is_.close();
+    if (is_.bad()) {
+      assign_error_code(ec);
+    }
+  }
+
+ private:
+  std::ifstream is_;
+};
+
 class file_output_stream : public output_stream {
  public:
   file_output_stream(std::filesystem::path const& path, std::error_code& ec)
@@ -69,6 +92,25 @@ class file_access_generic : public file_access {
  public:
   bool exists(std::filesystem::path const& path) const override {
     return std::filesystem::exists(path);
+  }
+
+  std::unique_ptr<input_stream> open_input(std::filesystem::path const& path,
+                                           std::error_code& ec) const override {
+    auto rv = std::make_unique<file_input_stream>(path, ec, std::ios::in);
+    if (ec) {
+      rv.reset();
+    }
+    return rv;
+  }
+
+  std::unique_ptr<input_stream>
+  open_input_binary(std::filesystem::path const& path,
+                    std::error_code& ec) const override {
+    auto rv = std::make_unique<file_input_stream>(path, ec, std::ios::binary);
+    if (ec) {
+      rv.reset();
+    }
+    return rv;
   }
 
   std::unique_ptr<output_stream>

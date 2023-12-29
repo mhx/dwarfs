@@ -31,6 +31,18 @@ namespace dwarfs::test {
 
 namespace {
 
+class test_input_stream : public input_stream {
+ public:
+  test_input_stream(std::string content) { is_.str(std::move(content)); }
+
+  std::istream& is() override { return is_; }
+
+  void close(std::error_code& /*ec*/) override {}
+
+ private:
+  std::istringstream is_;
+};
+
 class test_output_stream : public output_stream {
  public:
   test_output_stream(std::filesystem::path const& path, std::error_code& ec,
@@ -59,6 +71,23 @@ class test_output_stream : public output_stream {
 
 bool test_file_access::exists(std::filesystem::path const& path) const {
   return files_.find(path) != files_.end();
+}
+
+std::unique_ptr<input_stream>
+test_file_access::open_input(std::filesystem::path const& path,
+                             std::error_code& ec) const {
+  auto it = files_.find(path);
+  if (it != files_.end()) {
+    return std::make_unique<test_input_stream>(it->second);
+  }
+  ec = std::make_error_code(std::errc::no_such_file_or_directory);
+  return nullptr;
+}
+
+std::unique_ptr<input_stream>
+test_file_access::open_input_binary(std::filesystem::path const& path,
+                                    std::error_code& ec) const {
+  return open_input(path, ec);
 }
 
 std::unique_ptr<output_stream>

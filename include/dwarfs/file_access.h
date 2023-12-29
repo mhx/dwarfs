@@ -28,6 +28,14 @@
 
 namespace dwarfs {
 
+class input_stream {
+ public:
+  virtual ~input_stream() = default;
+
+  virtual std::istream& is() = 0;
+  virtual void close(std::error_code& ec) = 0;
+};
+
 class output_stream {
  public:
   virtual ~output_stream() = default;
@@ -41,6 +49,11 @@ class file_access {
   virtual ~file_access() = default;
 
   virtual bool exists(std::filesystem::path const& path) const = 0;
+  virtual std::unique_ptr<input_stream>
+  open_input(std::filesystem::path const& path, std::error_code& ec) const = 0;
+  virtual std::unique_ptr<input_stream>
+  open_input_binary(std::filesystem::path const& path,
+                    std::error_code& ec) const = 0;
   virtual std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path,
                      std::error_code& ec) const = 0;

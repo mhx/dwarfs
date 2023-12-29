@@ -161,6 +161,11 @@ class test_terminal : public terminal {
 class test_file_access : public file_access {
  public:
   bool exists(std::filesystem::path const& path) const override;
+  std::unique_ptr<input_stream> open_input(std::filesystem::path const& path,
+                                           std::error_code& ec) const override;
+  std::unique_ptr<input_stream>
+  open_input_binary(std::filesystem::path const& path,
+                    std::error_code& ec) const override;
   std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path,
                      std::error_code& ec) const override;

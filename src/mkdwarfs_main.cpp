@@ -25,7 +25,6 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <map>
@@ -357,12 +356,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   segmenter_factory::config sf_config;
-  sys_string path_str, output_str;
-  std::string memory_limit, script_arg, header, schema_compression,
+  sys_string path_str, input_list_str, output_str, header_str;
+  std::string memory_limit, script_arg, schema_compression,
       metadata_compression, log_level_str, timestamp, time_resolution,
       progress_mode, recompress_opts, pack_metadata, file_hash_algo,
-      debug_filter, max_similarity_size, input_list_str, chmod_str,
-      history_compression, recompress_categories;
+      debug_filter, max_similarity_size, chmod_str, history_compression,
+      recompress_categories;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
@@ -415,7 +414,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&path_str),
         "path to root directory or source filesystem")
     ("input-list",
-        po::value<std::string>(&input_list_str),
+        po_sys_value<sys_string>(&input_list_str),
         "file containing list of paths relative to root directory")
     ("output,o",
         po_sys_value<sys_string>(&output_str),
@@ -490,7 +489,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&options.with_specials)->zero_tokens(),
         "include named fifo and sockets")
     ("header",
-        po::value<std::string>(&header),
+        po_sys_value<sys_string>(&header_str),
         "prepend output filesystem with contents of this file")
     ("remove-header",
         po::value<bool>(&remove_header)->zero_tokens(),
@@ -757,20 +756,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       path = std::filesystem::current_path();
     }
 
-    std::unique_ptr<std::ifstream> ifs;
+    std::filesystem::path input_list_path(input_list_str);
+    std::unique_ptr<input_stream> ifs;
     std::istream* is;
 
-    if (input_list_str == "-") {
+    if (input_list_path == "-") {
       is = &iol.in;
     } else {
-      ifs = std::make_unique<std::ifstream>(input_list_str);
+      std::error_code ec;
+      ifs = iol.file->open_input(input_list_path, ec);
 
-      if (!ifs->is_open()) {
-        throw std::runtime_error(
-            fmt::format("error opening file: {}", input_list_str));
+      if (ec) {
+        throw std::runtime_error(fmt::format("error opening file '{}': {}",
+                                             input_list_path.string(),
+                                             ec.message()));
       }
 
-      is = ifs.get();
+      is = &ifs->is();
     }
 
     std::string line;
@@ -1014,14 +1016,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   fswopts.remove_header = remove_header;
   fswopts.no_section_index = no_section_index;
 
-  std::unique_ptr<std::ifstream> header_ifs;
+  std::unique_ptr<input_stream> header_ifs;
 
-  if (!header.empty()) {
-    header_ifs =
-        std::make_unique<std::ifstream>(header.c_str(), std::ios::binary);
-    if (header_ifs->bad() || !header_ifs->is_open()) {
+  if (!header_str.empty()) {
+    std::filesystem::path header(header_str);
+    std::error_code ec;
+    header_ifs = iol.file->open_input_binary(header, ec);
+    if (ec) {
       iol.err << "error: cannot open header file '" << header
-              << "': " << strerror(errno) << "\n";
+              << "': " << ec.message() << "\n";
       return 1;
     }
   }
@@ -1204,7 +1207,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     fsw = std::make_unique<filesystem_writer>(
         fsw_os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
-        fswopts, header_ifs.get());
+        fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
