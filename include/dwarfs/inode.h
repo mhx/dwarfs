@@ -60,7 +60,6 @@ class inode : public object {
   virtual size_t size() const = 0;
   virtual file const* any() const = 0;
   virtual files_vector const& files() const = 0;
-  virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
   virtual inode_fragments& fragments() = 0;

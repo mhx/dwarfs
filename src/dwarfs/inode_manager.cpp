@@ -192,12 +192,6 @@ class inode_ : public inode {
     }
   }
 
-  void add_chunk(size_t block, size_t offset, size_t size) override {
-    DWARFS_CHECK(fragments_.size() == 1,
-                 "exactly one fragment must be used in legacy add_chunk()");
-    fragments_.back().add_chunk(block, offset, size);
-  }
-
   size_t size() const override { return any()->size(); }
 
   files_vector const& files() const override { return files_; }
