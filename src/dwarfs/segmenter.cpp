@@ -226,8 +226,6 @@ class alignas(64) bloom_filter {
  private:
   bits_type const* cbegin() const { return bits_; }
   bits_type const* cend() const { return bits_ + (size_ >> index_shift); }
-  bits_type const* begin() const { return bits_; }
-  bits_type const* end() const { return bits_ + (size_ >> index_shift); }
   bits_type* begin() { return bits_; }
   bits_type* end() { return bits_ + (size_ >> index_shift); }
 
