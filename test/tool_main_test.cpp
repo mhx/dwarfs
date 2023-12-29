@@ -218,6 +218,67 @@ TEST_F(dwarfsextract_main_test, perfmon) {
 }
 #endif
 
+TEST_F(mkdwarfs_main_test, input_list_file_test) {
+  auto fa = std::make_shared<test::test_file_access>();
+  iol->set_file_access(fa);
+
+  fa->set_file("input_list.txt", "somelink\nfoo.pl\nsomedir/ipsum.py\n");
+
+  auto exit_code = run({"--input-list", "input_list.txt", "-o", "test.dwarfs"});
+  EXPECT_EQ(exit_code, 0);
+
+  auto fsimage = fa->get_file("test.dwarfs");
+  EXPECT_TRUE(fsimage);
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
+  test::test_logger lgr;
+  filesystem_v2 fs(lgr, mm);
+
+  auto link = fs.find("/somelink");
+  auto foo = fs.find("/foo.pl");
+  auto ipsum = fs.find("/somedir/ipsum.py");
+
+  EXPECT_TRUE(link);
+  EXPECT_TRUE(foo);
+  EXPECT_TRUE(ipsum);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(link->is_symlink());
+  EXPECT_TRUE(foo->is_regular_file());
+  EXPECT_TRUE(ipsum->is_regular_file());
+}
+
+TEST_F(mkdwarfs_main_test, input_list_stdin_test) {
+  auto fa = std::make_shared<test::test_file_access>();
+  iol->set_file_access(fa);
+  iol->set_in("somelink\nfoo.pl\nsomedir/ipsum.py\n");
+
+  auto exit_code = run({"--input-list", "-", "-o", "test.dwarfs"});
+  EXPECT_EQ(exit_code, 0);
+
+  auto fsimage = fa->get_file("test.dwarfs");
+  EXPECT_TRUE(fsimage);
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
+  test::test_logger lgr;
+  filesystem_v2 fs(lgr, mm);
+
+  auto link = fs.find("/somelink");
+  auto foo = fs.find("/foo.pl");
+  auto ipsum = fs.find("/somedir/ipsum.py");
+
+  EXPECT_TRUE(link);
+  EXPECT_TRUE(foo);
+  EXPECT_TRUE(ipsum);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(link->is_symlink());
+  EXPECT_TRUE(foo->is_regular_file());
+  EXPECT_TRUE(ipsum->is_regular_file());
+}
+
 class categorizer_test : public testing::TestWithParam<std::string> {};
 
 TEST_P(categorizer_test, end_to_end) {
