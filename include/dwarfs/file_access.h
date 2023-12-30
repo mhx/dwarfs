@@ -62,6 +62,11 @@ class file_access {
                     std::error_code& ec) const = 0;
 
   virtual std::unique_ptr<output_stream>
+  open_output(std::filesystem::path const& path) const = 0;
+  virtual std::unique_ptr<output_stream>
+  open_output(std::filesystem::path const& path, std::error_code& ec) const = 0;
+
+  virtual std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path) const = 0;
   virtual std::unique_ptr<output_stream>
   open_output_binary(std::filesystem::path const& path,

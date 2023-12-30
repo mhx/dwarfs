@@ -112,6 +112,27 @@ test_file_access::open_input_binary(std::filesystem::path const& path) const {
 }
 
 std::unique_ptr<output_stream>
+test_file_access::open_output(std::filesystem::path const& path,
+                              std::error_code& ec) const {
+  auto rv = std::make_unique<test_output_stream>(path, ec, this);
+  if (ec) {
+    rv.reset();
+  }
+  return rv;
+}
+
+std::unique_ptr<output_stream>
+test_file_access::open_output(std::filesystem::path const& path) const {
+  std::error_code ec;
+  auto rv = open_output(path, ec);
+  if (ec) {
+    throw std::system_error(ec,
+                            fmt::format("open_output('{}')", path.string()));
+  }
+  return rv;
+}
+
+std::unique_ptr<output_stream>
 test_file_access::open_output_binary(std::filesystem::path const& path,
                                      std::error_code& ec) const {
   auto rv = std::make_unique<test_output_stream>(path, ec, this);
