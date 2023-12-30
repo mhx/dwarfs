@@ -38,8 +38,7 @@
 #include "mmap_mock.h"
 #include "test_helpers.h"
 
-namespace dwarfs {
-namespace test {
+namespace dwarfs::test {
 
 namespace fs = std::filesystem;
 
@@ -279,14 +278,8 @@ void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
       break;
 
     case 0:
-      add(path, st, [size, seed = rng()] {
-        std::mt19937_64 tmprng{seed};
-        std::string rv;
-        rv.resize(size);
-        std::uniform_int_distribution<> byte_dist{0, 255};
-        std::generate(rv.begin(), rv.end(), [&] { return byte_dist(tmprng); });
-        return rv;
-      });
+      add(path, st,
+          [size, seed = rng()] { return create_random_string(size, seed); });
       return;
     }
   }
@@ -495,5 +488,17 @@ std::vector<std::string> parse_args(std::string_view args) {
   return rv;
 }
 
-} // namespace test
-} // namespace dwarfs
+std::string create_random_string(size_t size, std::mt19937_64& gen) {
+  std::string rv;
+  rv.resize(size);
+  std::uniform_int_distribution<> byte_dist{0, 255};
+  std::generate(rv.begin(), rv.end(), [&] { return byte_dist(gen); });
+  return rv;
+}
+
+std::string create_random_string(size_t size, size_t seed) {
+  std::mt19937_64 tmprng{seed};
+  return create_random_string(size, tmprng);
+}
+
+} // namespace dwarfs::test

@@ -26,6 +26,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <random>
 #include <set>
 #include <span>
 #include <string>
@@ -236,5 +237,8 @@ std::optional<std::filesystem::path> find_binary(std::string_view name);
 std::span<std::pair<simplestat, std::string_view> const> test_dirtree();
 
 std::vector<std::string> parse_args(std::string_view args);
+
+std::string create_random_string(size_t size, std::mt19937_64& gen);
+std::string create_random_string(size_t size, size_t seed = 0);
 
 } // namespace dwarfs::test
