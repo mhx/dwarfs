@@ -19,7 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <filesystem>
+#include <iostream>
+#include <set>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -44,6 +47,26 @@ auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
 auto test_data_image = test_dir / "data.dwarfs";
 
+enum class input_mode {
+  from_file,
+  from_stdin,
+};
+
+constexpr std::array<input_mode, 2> const input_modes = {
+    input_mode::from_file, input_mode::from_stdin};
+
+std::ostream& operator<<(std::ostream& os, input_mode m) {
+  switch (m) {
+  case input_mode::from_file:
+    os << "from_file";
+    break;
+  case input_mode::from_stdin:
+    os << "from_stdin";
+    break;
+  }
+  return os;
+}
+
 struct locale_setup_helper {
   locale_setup_helper() { setup_default_locale(); }
 };
@@ -63,6 +86,48 @@ class tool_main_test : public testing::Test {
   std::string err() const { return iol->err(); }
 
   std::unique_ptr<test::test_iolayer> iol;
+};
+
+class mkdwarfs_tester {
+ public:
+  mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
+      : fa{std::make_shared<test::test_file_access>()}
+      , os{std::move(pos)}
+      , iol{os, fa} {
+    setup_locale();
+  }
+
+  mkdwarfs_tester()
+      : mkdwarfs_tester(test::os_access_mock::create_test_instance()) {}
+
+  static mkdwarfs_tester create_empty() {
+    return mkdwarfs_tester(std::make_shared<test::os_access_mock>());
+  }
+
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), "mkdwarfs");
+    return mkdwarfs_main(args, iol.get());
+  }
+
+  int run(std::string args) { return run(test::parse_args(args)); }
+
+  filesystem_v2 fs_from_data(std::string data) {
+    auto mm = std::make_shared<test::mmap_mock>(std::move(data));
+    return filesystem_v2(lgr, mm);
+  }
+
+  filesystem_v2 fs_from_file(std::string path) {
+    auto fsimage = fa->get_file(path);
+    if (!fsimage) {
+      throw std::runtime_error("file not found: " + path);
+    }
+    return fs_from_data(std::move(fsimage.value()));
+  }
+
+  std::shared_ptr<test::test_file_access> fa;
+  std::shared_ptr<test::os_access_mock> os;
+  test::test_iolayer iol;
+  test::test_logger lgr;
 };
 
 } // namespace
@@ -218,51 +283,27 @@ TEST_F(dwarfsextract_main_test, perfmon) {
 }
 #endif
 
-TEST_F(mkdwarfs_main_test, input_list_file_test) {
-  auto fa = std::make_shared<test::test_file_access>();
-  iol->set_file_access(fa);
+class mkdwarfs_input_list_test : public testing::TestWithParam<input_mode> {};
 
-  fa->set_file("input_list.txt", "somelink\nfoo.pl\nsomedir/ipsum.py\n");
+TEST_P(mkdwarfs_input_list_test, basic) {
+  auto mode = GetParam();
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list = "somelink\nfoo.pl\nsomedir/ipsum.py\n";
 
-  auto exit_code = run({"--input-list", "input_list.txt", "-o", "test.dwarfs"});
-  EXPECT_EQ(exit_code, 0);
+  mkdwarfs_tester t;
+  std::string input_file;
 
-  auto fsimage = fa->get_file("test.dwarfs");
-  EXPECT_TRUE(fsimage);
+  if (mode == input_mode::from_file) {
+    input_file = "input_list.txt";
+    t.fa->set_file(input_file, input_list);
+  } else {
+    input_file = "-";
+    t.iol.set_in(input_list);
+  }
 
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
-  test::test_logger lgr;
-  filesystem_v2 fs(lgr, mm);
+  EXPECT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
 
-  auto link = fs.find("/somelink");
-  auto foo = fs.find("/foo.pl");
-  auto ipsum = fs.find("/somedir/ipsum.py");
-
-  EXPECT_TRUE(link);
-  EXPECT_TRUE(foo);
-  EXPECT_TRUE(ipsum);
-
-  EXPECT_FALSE(fs.find("/test.pl"));
-
-  EXPECT_TRUE(link->is_symlink());
-  EXPECT_TRUE(foo->is_regular_file());
-  EXPECT_TRUE(ipsum->is_regular_file());
-}
-
-TEST_F(mkdwarfs_main_test, input_list_stdin_test) {
-  auto fa = std::make_shared<test::test_file_access>();
-  iol->set_file_access(fa);
-  iol->set_in("somelink\nfoo.pl\nsomedir/ipsum.py\n");
-
-  auto exit_code = run({"--input-list", "-", "-o", "test.dwarfs"});
-  EXPECT_EQ(exit_code, 0);
-
-  auto fsimage = fa->get_file("test.dwarfs");
-  EXPECT_TRUE(fsimage);
-
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
-  test::test_logger lgr;
-  filesystem_v2 fs(lgr, mm);
+  auto fs = t.fs_from_file(image_file);
 
   auto link = fs.find("/somelink");
   auto foo = fs.find("/foo.pl");
@@ -277,39 +318,34 @@ TEST_F(mkdwarfs_main_test, input_list_stdin_test) {
   EXPECT_TRUE(link->is_symlink());
   EXPECT_TRUE(foo->is_regular_file());
   EXPECT_TRUE(ipsum->is_regular_file());
+
+  std::set<fs::path> const expected = {"", "somelink", "foo.pl", "somedir",
+                                       fs::path("somedir") / "ipsum.py"};
+  std::set<fs::path> actual;
+  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+  EXPECT_EQ(expected, actual);
 }
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
+                         ::testing::ValuesIn(input_modes));
 
 class categorizer_test : public testing::TestWithParam<std::string> {};
 
 TEST_P(categorizer_test, end_to_end) {
   auto level = GetParam();
+  std::string const image_file = "test.dwarfs";
 
-  auto input = std::make_shared<test::os_access_mock>();
+  auto t = mkdwarfs_tester::create_empty();
 
-  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
-  input->add_local_files(audio_data_dir);
-  input->add_file("random", 4096, true);
+  t.os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  t.os->add_local_files(audio_data_dir);
+  t.os->add_file("random", 4096, true);
 
-  auto fa = std::make_shared<test::test_file_access>();
-  test::test_iolayer iolayer(input, fa);
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize",
+                      "--log-level=" + level}));
 
-  setup_locale();
-
-  auto args = test::parse_args(fmt::format(
-      "mkdwarfs -i / -o test.dwarfs --chmod=norm --categorize --log-level={}",
-      level));
-  auto exit_code = mkdwarfs_main(args, iolayer.get());
-
-  EXPECT_EQ(exit_code, 0);
-
-  auto fsimage = fa->get_file("test.dwarfs");
-
-  EXPECT_TRUE(fsimage);
-
-  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage.value()));
-
-  test::test_logger lgr;
-  filesystem_v2 fs(lgr, mm);
+  auto fs = t.fs_from_file(image_file);
 
   auto iv16 = fs.find("/test8.aiff");
   auto iv32 = fs.find("/test8.caf");
