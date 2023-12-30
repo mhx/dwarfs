@@ -357,3 +357,29 @@ TEST_P(categorizer_test, end_to_end) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
                          ::testing::Values("error", "warn", "info", "verbose",
                                            "debug", "trace"));
+
+TEST(mkdwarfs_test, chmod_norm) {
+  std::string const image_file = "test.dwarfs";
+
+  std::set<std::string> real, norm;
+
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file}));
+    auto fs = t.fs_from_file(image_file);
+    fs.walk([&](auto const& e) { real.insert(e.inode().perm_string()); });
+  }
+
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--chmod=norm"}));
+    auto fs = t.fs_from_file(image_file);
+    fs.walk([&](auto const& e) { norm.insert(e.inode().perm_string()); });
+  }
+
+  EXPECT_NE(real, norm);
+
+  std::set<std::string> expected_norm = {"r--r--r--", "r-xr-xr-x"};
+
+  EXPECT_EQ(expected_norm, norm);
+}
