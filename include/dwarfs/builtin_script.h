@@ -32,11 +32,12 @@
 namespace dwarfs {
 
 class entry_transformer;
+class file_access;
 class logger;
 
 class builtin_script : public script {
  public:
-  builtin_script(logger& lgr);
+  builtin_script(logger& lgr, std::shared_ptr<file_access const> fa);
   ~builtin_script();
 
   void set_root_path(std::filesystem::path const& path) {

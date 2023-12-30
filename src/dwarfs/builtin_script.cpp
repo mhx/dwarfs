@@ -20,7 +20,6 @@
  */
 
 #include <cassert>
-#include <fstream>
 #include <regex>
 #include <unordered_set>
 
@@ -29,6 +28,7 @@
 #include "dwarfs/builtin_script.h"
 #include "dwarfs/entry_interface.h"
 #include "dwarfs/entry_transformer.h"
+#include "dwarfs/file_access.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/util.h"
 
@@ -56,7 +56,7 @@ struct filter_rule {
 template <typename LoggerPolicy>
 class builtin_script_ : public builtin_script::impl {
  public:
-  explicit builtin_script_(logger& lgr);
+  builtin_script_(logger& lgr, std::shared_ptr<file_access const> fa);
 
   void set_root_path(std::filesystem::path const& path) override;
   void add_filter_rule(std::string const& rule) override;
@@ -85,6 +85,7 @@ class builtin_script_ : public builtin_script::impl {
   std::string root_path_;
   std::vector<filter_rule> filter_;
   std::vector<std::unique_ptr<entry_transformer>> transformer_;
+  std::shared_ptr<file_access const> fa_;
 };
 
 template <typename LoggerPolicy>
@@ -179,8 +180,10 @@ auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
 }
 
 template <typename LoggerPolicy>
-builtin_script_<LoggerPolicy>::builtin_script_(logger& lgr)
-    : log_(lgr) {}
+builtin_script_<LoggerPolicy>::builtin_script_(
+    logger& lgr, std::shared_ptr<file_access const> fa)
+    : log_{lgr}
+    , fa_{std::move(fa)} {}
 
 template <typename LoggerPolicy>
 void builtin_script_<LoggerPolicy>::set_root_path(
@@ -212,13 +215,8 @@ void builtin_script_<LoggerPolicy>::add_filter_rule(
           fmt::format("recursion detected while opening file: {}", file));
     }
 
-    std::ifstream ifs(file);
-
-    if (!ifs.is_open()) {
-      throw std::runtime_error(fmt::format("error opening file: {}", file));
-    }
-
-    add_filter_rules(seen_files, ifs);
+    auto ifs = fa_->open_input(file);
+    add_filter_rules(seen_files, ifs->is());
 
     seen_files.erase(file);
   } else {
@@ -277,9 +275,10 @@ void builtin_script_<LoggerPolicy>::transform(entry_interface& ei) {
   }
 }
 
-builtin_script::builtin_script(logger& lgr)
+builtin_script::builtin_script(logger& lgr,
+                               std::shared_ptr<file_access const> fa)
     : impl_(make_unique_logging_object<impl, builtin_script_, logger_policies>(
-          lgr)) {}
+          lgr, std::move(fa))) {}
 
 builtin_script::~builtin_script() = default;
 

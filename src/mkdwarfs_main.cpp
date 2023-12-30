@@ -881,7 +881,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::shared_ptr<script> script;
 
   if (!filter.empty() or vm.count("chmod")) {
-    auto bs = std::make_shared<builtin_script>(lgr);
+    auto bs = std::make_shared<builtin_script>(lgr, iol.file);
 
     if (!filter.empty()) {
       bs->set_root_path(path);

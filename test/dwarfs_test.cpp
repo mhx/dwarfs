@@ -860,10 +860,13 @@ class filter_test
  public:
   test::test_logger lgr;
   std::shared_ptr<builtin_script> scr;
+  std::shared_ptr<test::test_file_access> tfa;
   std::shared_ptr<test::os_access_mock> input;
 
   void SetUp() override {
-    scr = std::make_shared<builtin_script>(lgr);
+    tfa = std::make_shared<test::test_file_access>();
+
+    scr = std::make_shared<builtin_script>(lgr, tfa);
     scr->set_root_path("");
 
     input = std::make_shared<test::os_access_mock>();
@@ -1000,6 +1003,7 @@ class filter_test
   void TearDown() override {
     scr.reset();
     input.reset();
+    tfa.reset();
   }
 };
 
