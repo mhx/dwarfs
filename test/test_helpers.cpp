@@ -459,6 +459,17 @@ std::filesystem::path os_access_mock::current_path() const {
   return root_->name;
 }
 
+void os_access_mock::setenv(std::string name, std::string value) {
+  env_[std::move(name)] = std::move(value);
+}
+
+std::optional<std::string> os_access_mock::getenv(std::string_view name) const {
+  if (auto it = env_.find(std::string(name)); it != env_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
+
 std::optional<fs::path> find_binary(std::string_view name) {
   auto path_str = std::getenv("PATH");
   if (!path_str) {

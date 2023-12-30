@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "dwarfs/os_access.h"
@@ -45,5 +46,6 @@ class os_access_generic : public os_access {
   std::filesystem::path
   canonical(std::filesystem::path const& path) const override;
   std::filesystem::path current_path() const override;
+  std::optional<std::string> getenv(std::string_view name) const override;
 };
 } // namespace dwarfs

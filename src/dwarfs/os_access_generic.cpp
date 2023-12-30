@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cstdlib>
+
 #include <folly/portability/Unistd.h>
 
 #include "dwarfs/mmap.h"
@@ -83,5 +85,14 @@ fs::path os_access_generic::canonical(fs::path const& path) const {
 }
 
 fs::path os_access_generic::current_path() const { return fs::current_path(); }
+
+std::optional<std::string>
+os_access_generic::getenv(std::string_view name) const {
+  std::string name_str(name);
+  if (auto value = std::getenv(name_str.c_str())) {
+    return value;
+  }
+  return std::nullopt;
+}
 
 } // namespace dwarfs

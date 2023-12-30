@@ -53,5 +53,6 @@ class os_access {
   virtual std::filesystem::path
   canonical(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path current_path() const = 0;
+  virtual std::optional<std::string> getenv(std::string_view name) const = 0;
 };
 } // namespace dwarfs

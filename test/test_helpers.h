@@ -91,6 +91,8 @@ class os_access_mock : public os_access {
 
   void set_access_fail(std::filesystem::path const& path);
 
+  void setenv(std::string name, std::string value);
+
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
 
@@ -108,6 +110,8 @@ class os_access_mock : public os_access {
 
   std::filesystem::path current_path() const override;
 
+  std::optional<std::string> getenv(std::string_view name) const override;
+
  private:
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
@@ -118,6 +122,7 @@ class os_access_mock : public os_access {
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
+  std::map<std::string, std::string> env_;
 };
 
 class script_mock : public script {
