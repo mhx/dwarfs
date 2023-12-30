@@ -23,6 +23,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include <fmt/format.h>
+
 #ifdef _WIN32
 #include <folly/portability/Windows.h>
 #endif
@@ -104,11 +106,33 @@ class file_access_generic : public file_access {
   }
 
   std::unique_ptr<input_stream>
+  open_input(std::filesystem::path const& path) const override {
+    std::error_code ec;
+    auto rv = open_input(path, ec);
+    if (ec) {
+      throw std::system_error(ec,
+                              fmt::format("open_input('{}')", path.string()));
+    }
+    return rv;
+  }
+
+  std::unique_ptr<input_stream>
   open_input_binary(std::filesystem::path const& path,
                     std::error_code& ec) const override {
     auto rv = std::make_unique<file_input_stream>(path, ec, std::ios::binary);
     if (ec) {
       rv.reset();
+    }
+    return rv;
+  }
+
+  std::unique_ptr<input_stream>
+  open_input_binary(std::filesystem::path const& path) const override {
+    std::error_code ec;
+    auto rv = open_input_binary(path, ec);
+    if (ec) {
+      throw std::system_error(
+          ec, fmt::format("open_input_binary('{}')", path.string()));
     }
     return rv;
   }
@@ -119,6 +143,17 @@ class file_access_generic : public file_access {
     auto rv = std::make_unique<file_output_stream>(path, ec);
     if (ec) {
       rv.reset();
+    }
+    return rv;
+  }
+
+  std::unique_ptr<output_stream>
+  open_output_binary(std::filesystem::path const& path) const override {
+    std::error_code ec;
+    auto rv = open_output_binary(path, ec);
+    if (ec) {
+      throw std::system_error(
+          ec, fmt::format("open_output_binary('{}')", path.string()));
     }
     return rv;
   }

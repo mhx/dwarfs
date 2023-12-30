@@ -85,9 +85,30 @@ test_file_access::open_input(std::filesystem::path const& path,
 }
 
 std::unique_ptr<input_stream>
+test_file_access::open_input(std::filesystem::path const& path) const {
+  std::error_code ec;
+  auto rv = open_input(path, ec);
+  if (ec) {
+    throw std::system_error(ec, fmt::format("open_input('{}')", path.string()));
+  }
+  return rv;
+}
+
+std::unique_ptr<input_stream>
 test_file_access::open_input_binary(std::filesystem::path const& path,
                                     std::error_code& ec) const {
   return open_input(path, ec);
+}
+
+std::unique_ptr<input_stream>
+test_file_access::open_input_binary(std::filesystem::path const& path) const {
+  std::error_code ec;
+  auto rv = open_input_binary(path, ec);
+  if (ec) {
+    throw std::system_error(
+        ec, fmt::format("open_input_binary('{}')", path.string()));
+  }
+  return rv;
 }
 
 std::unique_ptr<output_stream>
@@ -96,6 +117,17 @@ test_file_access::open_output_binary(std::filesystem::path const& path,
   auto rv = std::make_unique<test_output_stream>(path, ec, this);
   if (ec) {
     rv.reset();
+  }
+  return rv;
+}
+
+std::unique_ptr<output_stream>
+test_file_access::open_output_binary(std::filesystem::path const& path) const {
+  std::error_code ec;
+  auto rv = open_output_binary(path, ec);
+  if (ec) {
+    throw std::system_error(
+        ec, fmt::format("open_output_binary('{}')", path.string()));
   }
   return rv;
 }
