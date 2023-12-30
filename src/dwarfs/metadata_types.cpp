@@ -543,6 +543,14 @@ auto inode_view::mode() const -> mode_type {
   return meta_->modes()[mode_index()];
 }
 
+auto inode_view::mode_string() const -> std::string {
+  return file_stat::mode_string(mode());
+}
+
+auto inode_view::perm_string() const -> std::string {
+  return file_stat::perm_string(mode());
+}
+
 auto inode_view::getuid() const -> uid_type {
   return meta_->uids()[owner_index()];
 }

@@ -99,6 +99,8 @@ class inode_view
   using mode_type = file_stat::mode_type;
 
   mode_type mode() const;
+  std::string mode_string() const;
+  std::string perm_string() const;
   posix_file_type::value type() const {
     return posix_file_type::from_mode(mode());
   }
