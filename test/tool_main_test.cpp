@@ -383,3 +383,18 @@ TEST(mkdwarfs_test, chmod_norm) {
 
   EXPECT_EQ(expected_norm, norm);
 }
+
+TEST(mkdwarfs_test, dump_inodes) {
+  std::string const image_file = "test.dwarfs";
+  std::string const inode_file = "inode.dump";
+
+  mkdwarfs_tester t;
+  t.os->setenv("DWARFS_DUMP_INODES", inode_file);
+
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file}));
+
+  auto dump = t.fa->get_file(inode_file);
+
+  ASSERT_TRUE(dump);
+  EXPECT_GT(dump->size(), 100) << dump.value();
+}
