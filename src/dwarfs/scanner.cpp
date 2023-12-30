@@ -43,6 +43,7 @@
 #include "dwarfs/entry.h"
 #include "dwarfs/error.h"
 #include "dwarfs/features.h"
+#include "dwarfs/file_access.h"
 #include "dwarfs/file_scanner.h"
 #include "dwarfs/filesystem_writer.h"
 #include "dwarfs/fragment_chunkable.h"
@@ -279,10 +280,10 @@ class scanner_ final : public scanner::impl {
            std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
            const scanner_options& options);
 
-  void
-  scan(filesystem_writer& fsw, std::filesystem::path const& path,
-       progress& prog,
-       std::optional<std::span<std::filesystem::path const>> list) override;
+  void scan(filesystem_writer& fsw, std::filesystem::path const& path,
+            progress& prog,
+            std::optional<std::span<std::filesystem::path const>> list,
+            std::shared_ptr<file_access const> fa) override;
 
  private:
   std::shared_ptr<entry> scan_tree(std::filesystem::path const& path,
@@ -564,7 +565,8 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(
     filesystem_writer& fsw, const std::filesystem::path& path, progress& prog,
-    std::optional<std::span<std::filesystem::path const>> list) {
+    std::optional<std::span<std::filesystem::path const>> list,
+    std::shared_ptr<file_access const> fa) {
   if (!options_.debug_filter_function) {
     LOG_INFO << "scanning " << path;
   }
@@ -659,8 +661,23 @@ void scanner_<LoggerPolicy>::scan(
     });
   });
 
-  if (getenv_is_enabled("DWARFS_DUMP_INODES")) {
-    im.dump(std::cout);
+  if (auto dumpfile = os_->getenv("DWARFS_DUMP_INODES")) {
+    if (fa) {
+      LOG_VERBOSE << "dumping inodes to " << *dumpfile;
+      std::error_code ec;
+      auto ofs = fa->open_output(*dumpfile, ec);
+      if (ec) {
+        LOG_ERROR << "cannot open '" << *dumpfile << "': " << ec.message();
+      } else {
+        im.dump(ofs->os());
+        ofs->close(ec);
+        if (ec) {
+          LOG_ERROR << "cannot close '" << *dumpfile << "': " << ec.message();
+        }
+      }
+    } else {
+      LOG_ERROR << "cannot dump inodes: no file access";
+    }
   }
 
   LOG_INFO << "building blocks...";

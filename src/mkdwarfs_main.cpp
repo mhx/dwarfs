@@ -1258,11 +1258,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
                 std::move(script), options);
 
-      if (input_list) {
-        s.scan(*fsw, path, prog, *input_list);
-      } else {
-        s.scan(*fsw, path, prog);
-      }
+      s.scan(*fsw, path, prog, input_list, iol.file);
 
       options.inode.categorizer_mgr.reset();
     }

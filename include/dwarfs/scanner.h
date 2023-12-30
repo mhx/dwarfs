@@ -32,6 +32,7 @@ namespace dwarfs {
 struct scanner_options;
 
 class entry_factory;
+class file_access;
 class filesystem_writer;
 class logger;
 class os_access;
@@ -47,11 +48,11 @@ class scanner {
           std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
           const scanner_options& options);
 
-  void scan(filesystem_writer& fsw, const std::filesystem::path& path,
-            progress& prog,
-            std::optional<std::span<std::filesystem::path const>> list =
-                std::nullopt) {
-    impl_->scan(fsw, path, prog, list);
+  void scan(
+      filesystem_writer& fsw, const std::filesystem::path& path, progress& prog,
+      std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
+      std::shared_ptr<file_access const> fa = nullptr) {
+    impl_->scan(fsw, path, prog, list, fa);
   }
 
   class impl {
@@ -61,7 +62,8 @@ class scanner {
     virtual void
     scan(filesystem_writer& fsw, const std::filesystem::path& path,
          progress& prog,
-         std::optional<std::span<std::filesystem::path const>> list) = 0;
+         std::optional<std::span<std::filesystem::path const>> list,
+         std::shared_ptr<file_access const> fa) = 0;
   };
 
  private:
