@@ -767,9 +767,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       ifs = iol.file->open_input(input_list_path, ec);
 
       if (ec) {
-        throw std::runtime_error(fmt::format("error opening file '{}': {}",
-                                             input_list_path.string(),
-                                             ec.message()));
+        iol.err << "error opening file '" << input_list_path
+                << "': " << ec.message() << "\n";
+        return 1;
       }
 
       is = &ifs->is();
