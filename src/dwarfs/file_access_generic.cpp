@@ -64,6 +64,14 @@ class file_input_stream : public input_stream {
     }
   }
 
+  void close() override {
+    std::error_code ec;
+    close(ec);
+    if (ec) {
+      throw std::system_error(ec, "close()");
+    }
+  }
+
  private:
   std::ifstream is_;
 };
@@ -84,6 +92,14 @@ class file_output_stream : public output_stream {
     os_.close();
     if (os_.bad()) {
       assign_error_code(ec);
+    }
+  }
+
+  void close() override {
+    std::error_code ec;
+    close(ec);
+    if (ec) {
+      throw std::system_error(ec, "close()");
     }
   }
 

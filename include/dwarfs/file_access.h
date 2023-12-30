@@ -33,6 +33,7 @@ class input_stream {
   virtual ~input_stream() = default;
 
   virtual std::istream& is() = 0;
+  virtual void close() = 0;
   virtual void close(std::error_code& ec) = 0;
 };
 
@@ -41,6 +42,7 @@ class output_stream {
   virtual ~output_stream() = default;
 
   virtual std::ostream& os() = 0;
+  virtual void close() = 0;
   virtual void close(std::error_code& ec) = 0;
 };
 

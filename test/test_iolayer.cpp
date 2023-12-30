@@ -39,6 +39,8 @@ class test_input_stream : public input_stream {
 
   void close(std::error_code& /*ec*/) override {}
 
+  void close() override {}
+
  private:
   std::istringstream is_;
 };
@@ -59,7 +61,9 @@ class test_output_stream : public output_stream {
 
   std::ostream& os() override { return os_; }
 
-  void close(std::error_code& ec) override { tfa_->set_file(path_, os_.str()); }
+  void close(std::error_code& /*ec*/) override { close(); }
+
+  void close() override { tfa_->set_file(path_, os_.str()); }
 
  private:
   std::ostringstream os_;
