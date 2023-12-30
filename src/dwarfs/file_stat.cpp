@@ -61,6 +61,40 @@ uint64_t time_from_filetime(FILETIME const& ft) {
 
 #endif
 
+char get_filetype_label(file_stat::mode_type mode) {
+  switch (posix_file_type::from_mode(mode)) {
+  case posix_file_type::regular:
+    return '-';
+  case posix_file_type::directory:
+    return 'd';
+  case posix_file_type::symlink:
+    return 'l';
+  case posix_file_type::block:
+    return 'b';
+  case posix_file_type::character:
+    return 'c';
+  case posix_file_type::fifo:
+    return 'p';
+  case posix_file_type::socket:
+    return 's';
+  default:
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unknown file type: {:#06x}", mode));
+  }
+}
+
+void perms_to_stream(std::ostream& os, file_stat::mode_type mode) {
+  os << (mode & file_stat::mode_type(fs::perms::owner_read) ? 'r' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::owner_write) ? 'w' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::owner_exec) ? 'x' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::group_read) ? 'r' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::group_write) ? 'w' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::group_exec) ? 'x' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::others_read) ? 'r' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::others_write) ? 'w' : '-');
+  os << (mode & file_stat::mode_type(fs::perms::others_exec) ? 'x' : '-');
+}
+
 } // namespace
 
 #ifdef _WIN32
@@ -173,5 +207,23 @@ file_stat make_file_stat(fs::path const& path) {
 }
 
 #endif
+
+std::string file_stat::mode_string(mode_type mode) {
+  std::ostringstream oss;
+
+  oss << (mode & mode_type(fs::perms::set_uid) ? 'U' : '-');
+  oss << (mode & mode_type(fs::perms::set_gid) ? 'G' : '-');
+  oss << (mode & mode_type(fs::perms::sticky_bit) ? 'S' : '-');
+  oss << get_filetype_label(mode);
+  perms_to_stream(oss, mode);
+
+  return oss.str();
+}
+
+std::string file_stat::perm_string(mode_type mode) {
+  std::ostringstream oss;
+  perms_to_stream(oss, mode);
+  return oss.str();
+}
 
 } // namespace dwarfs

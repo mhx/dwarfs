@@ -583,28 +583,6 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  static char get_filetype_label(uint16_t mode) {
-    switch (posix_file_type::from_mode(mode)) {
-    case posix_file_type::regular:
-      return '-';
-    case posix_file_type::directory:
-      return 'd';
-    case posix_file_type::symlink:
-      return 'l';
-    case posix_file_type::block:
-      return 'b';
-    case posix_file_type::character:
-      return 'c';
-    case posix_file_type::fifo:
-      return 'p';
-    case posix_file_type::socket:
-      return 's';
-    default:
-      DWARFS_THROW(runtime_error,
-                   fmt::format("unknown file type: {:#06x}", mode));
-    }
-  }
-
   size_t find_inode_offset(inode_rank rank) const {
     if (meta_.dir_entries()) {
       auto range = boost::irange(size_t(0), meta_.inodes().size());
@@ -650,8 +628,6 @@ class metadata_ final : public metadata_v2::impl {
 
   std::optional<inode_view>
   find(directory_view dir, std::string_view name) const;
-
-  std::string modestring(uint16_t mode) const;
 
   uint32_t chunk_table_lookup(uint32_t ino) const {
     return chunk_table_.empty() ? meta_.chunk_table()[ino] : chunk_table_[ino];
@@ -940,7 +916,7 @@ void metadata_<LoggerPolicy>::dump(
   auto mode = iv.mode();
   auto inode = iv.inode_num();
 
-  os << indent << "<inode:" << inode << "> " << modestring(mode);
+  os << indent << "<inode:" << inode << "> " << file_stat::mode_string(mode);
 
   if (inode > 0) {
     os << " " << entry.name();
@@ -1267,7 +1243,7 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
   auto inode = iv.inode_num();
 
   obj["mode"] = mode;
-  obj["modestring"] = modestring(mode);
+  obj["modestring"] = file_stat::mode_string(mode);
   obj["inode"] = inode;
 
   if (inode > 0) {
@@ -1368,27 +1344,6 @@ std::string metadata_<LoggerPolicy>::serialize_as_json(bool simple) const {
     serializer.serialize(unpack_metadata(), &json);
   }
   return json;
-}
-
-template <typename LoggerPolicy>
-std::string metadata_<LoggerPolicy>::modestring(uint16_t mode) const {
-  std::ostringstream oss;
-
-  oss << (mode & uint16_t(fs::perms::set_uid) ? 'U' : '-');
-  oss << (mode & uint16_t(fs::perms::set_gid) ? 'G' : '-');
-  oss << (mode & uint16_t(fs::perms::sticky_bit) ? 'S' : '-');
-  oss << get_filetype_label(mode);
-  oss << (mode & uint16_t(fs::perms::owner_read) ? 'r' : '-');
-  oss << (mode & uint16_t(fs::perms::owner_write) ? 'w' : '-');
-  oss << (mode & uint16_t(fs::perms::owner_exec) ? 'x' : '-');
-  oss << (mode & uint16_t(fs::perms::group_read) ? 'r' : '-');
-  oss << (mode & uint16_t(fs::perms::group_write) ? 'w' : '-');
-  oss << (mode & uint16_t(fs::perms::group_exec) ? 'x' : '-');
-  oss << (mode & uint16_t(fs::perms::others_read) ? 'r' : '-');
-  oss << (mode & uint16_t(fs::perms::others_write) ? 'w' : '-');
-  oss << (mode & uint16_t(fs::perms::others_exec) ? 'x' : '-');
-
-  return oss.str();
 }
 
 template <typename LoggerPolicy>
@@ -1758,7 +1713,7 @@ folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
   }
 
   obj["mode"] = iv.mode();
-  obj["modestring"] = modestring(iv.mode());
+  obj["modestring"] = file_stat::mode_string(iv.mode());
   obj["uid"] = iv.getuid();
   obj["gid"] = iv.getgid();
 

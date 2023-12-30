@@ -66,6 +66,9 @@ struct file_stat {
     return t == posix_file_type::block || t == posix_file_type::character;
   }
 
+  static std::string perm_string(mode_type mode);
+  static std::string mode_string(mode_type mode);
+
   dev_type dev;
   ino_type ino;
   nlink_type nlink;
