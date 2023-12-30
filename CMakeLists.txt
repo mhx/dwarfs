@@ -318,7 +318,7 @@ if(WITH_TESTS)
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
-      GIT_TAG v1.13.0
+      GIT_TAG v1.14.0
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
