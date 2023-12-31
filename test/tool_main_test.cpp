@@ -132,6 +132,30 @@ class mkdwarfs_tester {
   test::test_logger lgr;
 };
 
+std::optional<filesystem_v2>
+build_with_args(std::vector<std::string> opt_args = {}) {
+  std::string const image_file = "test.dwarfs";
+  mkdwarfs_tester t;
+  std::vector<std::string> args = {"-i", "/", "-o", image_file};
+  args.insert(args.end(), opt_args.begin(), opt_args.end());
+  if (t.run(args) != 0) {
+    return std::nullopt;
+  }
+  return t.fs_from_file(image_file);
+}
+
+std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
+  std::set<uint64_t> times;
+  fs.walk([&](auto const& e) {
+    file_stat st;
+    fs.getattr(e.inode(), &st);
+    times.insert(st.atime);
+    times.insert(st.ctime);
+    times.insert(st.mtime);
+  });
+  return times;
+}
+
 } // namespace
 
 class mkdwarfs_main_test : public tool_main_test {
@@ -430,4 +454,41 @@ TEST(mkdwarfs_test, dump_inodes) {
 
   ASSERT_TRUE(dump);
   EXPECT_GT(dump->size(), 100) << dump.value();
+}
+
+TEST(mkdwarfs_test, set_time_now) {
+  auto t0 =
+      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+  auto regfs = build_with_args();
+  ASSERT_TRUE(regfs);
+  auto reg = get_all_fs_times(*regfs);
+
+  auto optfs = build_with_args({"--set-time=now"});
+  ASSERT_TRUE(optfs);
+  auto opt = get_all_fs_times(*optfs);
+
+  auto t1 =
+      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+  EXPECT_EQ(reg.size(), 11);
+  EXPECT_EQ(opt.size(), 1);
+
+  EXPECT_GE(*opt.begin(), t0);
+  EXPECT_LE(*opt.begin(), t1);
+}
+
+TEST(mkdwarfs_test, set_time_epoch) {
+  auto regfs = build_with_args();
+  ASSERT_TRUE(regfs);
+  auto reg = get_all_fs_times(*regfs);
+
+  auto optfs = build_with_args({"--set-time=100000001"});
+  ASSERT_TRUE(optfs);
+  auto opt = get_all_fs_times(*optfs);
+
+  EXPECT_EQ(reg.size(), 11);
+  EXPECT_EQ(opt.size(), 1);
+
+  EXPECT_EQ(*opt.begin(), 100000001);
 }
