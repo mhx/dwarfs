@@ -29,6 +29,8 @@
 
 #include <fmt/format.h>
 
+#include <folly/json.h>
+
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
@@ -352,6 +354,37 @@ TEST_P(categorizer_test, end_to_end) {
 
   EXPECT_TRUE(iv16);
   EXPECT_TRUE(iv32);
+
+  {
+    std::vector<std::string> dumps;
+
+    for (int detail = 0; detail <= 6; ++detail) {
+      std::ostringstream os;
+      fs.dump(os, detail);
+      auto d = os.str();
+      if (!dumps.empty()) {
+        EXPECT_GT(d.size(), dumps.back().size()) << detail;
+      }
+      dumps.emplace_back(std::move(d));
+    }
+
+    EXPECT_GT(dumps.back().size(), 10'000);
+  }
+
+  {
+    std::vector<std::string> infos;
+
+    for (int detail = 0; detail <= 4; ++detail) {
+      auto info = fs.info_as_dynamic(detail);
+      auto i = folly::toJson(info);
+      if (!infos.empty()) {
+        EXPECT_GT(i.size(), infos.back().size()) << detail;
+      }
+      infos.emplace_back(std::move(i));
+    }
+
+    EXPECT_GT(infos.back().size(), 1'000);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
