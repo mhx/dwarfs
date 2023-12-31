@@ -82,7 +82,6 @@ class entry : public entry_interface {
   bool less_revpath(entry const& rhs) const;
   size_t size() const override { return stat_.size; }
   virtual type_t type() const = 0;
-  std::string type_string() const override;
   bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;

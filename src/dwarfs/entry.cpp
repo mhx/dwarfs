@@ -140,30 +140,6 @@ bool entry::less_revpath(entry const& rhs) const {
   return static_cast<bool>(rhs_p);
 }
 
-std::string entry::type_string() const {
-  switch (stat_.type()) {
-  case posix_file_type::regular:
-    return "file";
-  case posix_file_type::directory:
-    return "directory";
-  case posix_file_type::symlink:
-    return "link";
-  case posix_file_type::character:
-    return "chardev";
-  case posix_file_type::block:
-    return "blockdev";
-  case posix_file_type::fifo:
-    return "fifo";
-  case posix_file_type::socket:
-    return "socket";
-  default:
-    break;
-  }
-
-  DWARFS_THROW(runtime_error, fmt::format("unknown file type: {:#06x}",
-                                          fmt::underlying(stat_.type())));
-}
-
 bool entry::is_directory() const { return stat_.is_directory(); }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
