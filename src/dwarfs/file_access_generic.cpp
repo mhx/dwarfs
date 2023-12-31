@@ -25,10 +25,6 @@
 
 #include <fmt/format.h>
 
-#ifdef _WIN32
-#include <folly/portability/Windows.h>
-#endif
-
 #include "dwarfs/file_access.h"
 #include "dwarfs/file_access_generic.h"
 #include "dwarfs/util.h"
@@ -38,11 +34,7 @@ namespace dwarfs {
 namespace {
 
 void assign_error_code(std::error_code& ec) {
-#ifdef _WIN32
-  ec.assign(::GetLastError(), std::system_category());
-#else
   ec.assign(errno, std::generic_category());
-#endif
 }
 
 class file_input_stream : public input_stream {
