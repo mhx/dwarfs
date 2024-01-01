@@ -67,6 +67,10 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
   return fs::read_symlink(path);
 }
 
+std::unique_ptr<mmif> os_access_generic::map_file(fs::path const& path) const {
+  return std::make_unique<mmap>(path);
+}
+
 std::unique_ptr<mmif>
 os_access_generic::map_file(fs::path const& path, size_t size) const {
   return std::make_unique<mmap>(path, size);

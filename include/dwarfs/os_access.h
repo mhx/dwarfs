@@ -48,6 +48,8 @@ class os_access {
   virtual std::filesystem::path
   read_symlink(std::filesystem::path const& path) const = 0;
   virtual std::unique_ptr<mmif>
+  map_file(std::filesystem::path const& path) const = 0;
+  virtual std::unique_ptr<mmif>
   map_file(std::filesystem::path const& path, size_t size) const = 0;
   virtual int access(std::filesystem::path const& path, int mode) const = 0;
   virtual std::filesystem::path

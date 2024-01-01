@@ -425,18 +425,25 @@ std::unique_ptr<mmif>
 os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
-    return std::make_unique<mmap_mock>(std::visit(
-        overloaded{
-            [this](std::string const& str) { return str; },
-            [this](std::function<std::string()> const& fun) { return fun(); },
-            [this](auto const&) -> std::string {
-              throw std::runtime_error("oops in overloaded");
-            },
-        },
-        de->v));
+    return std::make_unique<mmap_mock>(
+        std::visit(overloaded{
+                       [this](std::string const& str) { return str; },
+                       [this](std::function<std::string()> const& fun) {
+                         return fun();
+                       },
+                       [this](auto const&) -> std::string {
+                         throw std::runtime_error("oops in overloaded");
+                       },
+                   },
+                   de->v),
+        size);
   }
 
   throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
+}
+
+std::unique_ptr<mmif> os_access_mock::map_file(fs::path const& path) const {
+  return map_file(path, std::numeric_limits<size_t>::max());
 }
 
 int os_access_mock::access(fs::path const& path, int) const {
