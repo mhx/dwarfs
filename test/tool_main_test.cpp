@@ -533,3 +533,15 @@ TEST(mkdwarfs_test, invalid_compression_level) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-l", "10"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid compression level"));
 }
+
+TEST(mkdwarfs_test, block_size_too_small) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-S", "1"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("block size must be between"));
+}
+
+TEST(mkdwarfs_test, block_size_too_large) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-S", "100"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("block size must be between"));
+}
