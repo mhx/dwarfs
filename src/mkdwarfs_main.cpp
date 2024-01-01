@@ -1121,8 +1121,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (recompress) {
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    input_filesystem = std::make_unique<filesystem_v2>(
-        lgr, std::make_shared<dwarfs::mmap>(path), fsopts);
+    input_filesystem =
+        std::make_unique<filesystem_v2>(lgr, iol.os->map_file(path), fsopts);
 
     cat_resolver = std::make_shared<filesystem_block_category_resolver>(
         input_filesystem->get_all_block_categories());
