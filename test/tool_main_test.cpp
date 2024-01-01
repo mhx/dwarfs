@@ -527,3 +527,9 @@ TEST(mkdwarfs_test, unrecognized_arguments) {
   EXPECT_NE(0, t.run({"grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("unrecognized argument"));
 }
+
+TEST(mkdwarfs_test, invalid_compression_level) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-l", "10"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid compression level"));
+}
