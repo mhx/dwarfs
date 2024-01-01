@@ -132,10 +132,17 @@ jobs:
             --env GITHUB_RUN_ATTEMPT \
             dwarfs-linux-build
 
+      - name: List Coverage Files
+        id: coverage-files
+        if: matrix.build_type == 'clang-coverage-ninja'
+        run: |
+          files=$(find ${{ runner.temp }}/coverage -type f | paste -d, -s)
+          echo "list=$files" >> "$GITHUB_OUTPUT"
+
       - name: Upload Coverage Data
         if: matrix.build_type == 'clang-coverage-ninja'
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ${{ runner.temp }}/coverage
+          files: ${{ steps.coverage-files.outputs.list }}
           fail_ci_if_error: true

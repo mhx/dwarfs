@@ -105,7 +105,7 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   rm -rf /tmp-runner/coverage
   mkdir -p /tmp-runner/coverage
   llvm-profdata-17 merge -sparse profile/* -o dwarfs.profdata
-  for binary in mkdwarfs dwarfs dwarfsck dwarfsextract; do
+  for binary in mkdwarfs dwarfs dwarfsck dwarfsextract *_test; do
     llvm-cov-17 show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$binary.txt
   done
 fi
