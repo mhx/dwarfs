@@ -224,7 +224,7 @@ void utf8_truncate(std::string& str, size_t len) {
   char const* const e = p + str.size();
   size_t l = 0;
 
-  while (p < e && l < len) {
+  while (p < e && l <= len) {
     auto np = p;
     auto cp = utf8::next(np, e);
     l += dwarfs_wcwidth(cp);

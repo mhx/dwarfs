@@ -47,6 +47,34 @@ TEST(utils, utf8_display_width) {
                     u8"unicode/我爱你/☀️ Sun/Γειά σας/مرحبًا/⚽️/Карибського")));
 }
 
+TEST(utils, uft8_truncate) {
+  auto u8trunc = [](std::u8string str, size_t len) {
+    auto tmp = u8string_to_string(str);
+    utf8_truncate(tmp, len);
+    return string_to_u8string(tmp);
+  };
+
+  // -----------------123456789012345--
+  auto const str = u8"我爱你/مرحبًا/⚽️";
+
+  EXPECT_EQ(str, u8trunc(str, 15));
+  // ----------123456789012345--
+  EXPECT_EQ(u8"我爱你/مرحبًا/", u8trunc(str, 14));
+  EXPECT_EQ(u8"我爱你/مرحبًا/", u8trunc(str, 13));
+  EXPECT_EQ(u8"我爱你/مرحبًا", u8trunc(str, 12));
+  EXPECT_EQ(u8"我爱你/مرحبً", u8trunc(str, 11));
+  EXPECT_EQ(u8"我爱你/مرح", u8trunc(str, 10));
+  EXPECT_EQ(u8"我爱你/مر", u8trunc(str, 9));
+  EXPECT_EQ(u8"我爱你/م", u8trunc(str, 8));
+  EXPECT_EQ(u8"我爱你/", u8trunc(str, 7));
+  EXPECT_EQ(u8"我爱你", u8trunc(str, 6));
+  EXPECT_EQ(u8"我爱", u8trunc(str, 5));
+  EXPECT_EQ(u8"我爱", u8trunc(str, 4));
+  EXPECT_EQ(u8"我", u8trunc(str, 3));
+  EXPECT_EQ(u8"我", u8trunc(str, 2));
+  EXPECT_EQ(u8"", u8trunc(str, 1));
+}
+
 TEST(utils, shorten_path_ascii) {
   std::string const orig =
       "/foo/bar/home/bla/mnt/doc/html/boost_asio/reference/"
