@@ -545,3 +545,10 @@ TEST(mkdwarfs_test, block_size_too_large) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-S", "100"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("block size must be between"));
 }
+
+TEST(mkdwarfs_test, cannot_combine_input_list_and_filter) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"--input-list", "-", "-o", "-", "-F", "+ *"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("cannot combine --input-list and --filter"));
+}

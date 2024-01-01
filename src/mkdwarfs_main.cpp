@@ -742,7 +742,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.count("input-list")) {
     if (vm.count("filter")) {
-      iol.err << "error: cannot use --input-list and --filter\n";
+      iol.err << "error: cannot combine --input-list and --filter\n";
       return 1;
     }
 
