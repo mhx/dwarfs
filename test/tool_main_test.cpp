@@ -552,3 +552,9 @@ TEST(mkdwarfs_test, cannot_combine_input_list_and_filter) {
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("cannot combine --input-list and --filter"));
 }
+
+TEST(mkdwarfs_test, cannot_open_input_list_file) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
+}

@@ -765,7 +765,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       ifs = iol.file->open_input(input_list_path, ec);
 
       if (ec) {
-        iol.err << "error opening file '" << input_list_path
+        iol.err << "cannot open input list file '" << input_list_path
                 << "': " << ec.message() << "\n";
         return 1;
       }
