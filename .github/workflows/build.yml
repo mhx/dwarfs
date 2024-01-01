@@ -137,5 +137,5 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ runner.temp }}/coverage/mkdwarfs.txt,${{ runner.temp }}/coverage/dwarfs.txt,${{ runner.temp }}/coverage/dwarfsck.txt,${{ runner.temp }}/coverage/dwarfsextract.txt
+          directory: ${{ runner.temp }}/coverage
           fail_ci_if_error: true
