@@ -42,6 +42,7 @@
 #endif
 
 #include <folly/FileUtil.h>
+#include <folly/ScopeGuard.h>
 #include <folly/portability/Unistd.h>
 
 #include <boost/asio/io_service.hpp>
@@ -648,6 +649,7 @@ TEST_P(tools_test, end_to_end) {
   auto universal_symlink_mkdwarfs_bin = td / "mkdwarfs" EXE_EXT;
   auto universal_symlink_dwarfsck_bin = td / "dwarfsck" EXE_EXT;
   auto universal_symlink_dwarfsextract_bin = td / "dwarfsextract" EXE_EXT;
+  std::vector<std::string> dwarfs_tool_arg;
   std::vector<std::string> mkdwarfs_tool_arg;
   std::vector<std::string> dwarfsck_tool_arg;
   std::vector<std::string> dwarfsextract_tool_arg;
@@ -666,6 +668,7 @@ TEST_P(tools_test, end_to_end) {
     mkdwarfs_test_bin = &universal_bin;
     dwarfsck_test_bin = &universal_bin;
     dwarfsextract_test_bin = &universal_bin;
+    dwarfs_tool_arg.push_back("--tool=dwarfs");
     mkdwarfs_tool_arg.push_back("--tool=mkdwarfs");
     dwarfsck_tool_arg.push_back("--tool=dwarfsck");
     dwarfsextract_tool_arg.push_back("--tool=dwarfsextract");
@@ -772,6 +775,18 @@ TEST_P(tools_test, end_to_end) {
   unicode_symlink = mountpoint / unicode_symlink_name;
 
   for (auto const& driver : drivers) {
+    {
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+      ::setenv("ASAN_OPTIONS", "detect_leaks=0", 1);
+      SCOPE_EXIT { ::unsetenv("ASAN_OPTIONS"); };
+#endif
+#endif
+      auto const [out, err, ec] =
+          subprocess::run(driver, dwarfs_tool_arg, "--help");
+      EXPECT_THAT(out, ::testing::HasSubstr("Usage:"));
+    }
+
     {
       driver_runner runner(driver_runner::foreground, driver,
                            mode == binary_mode::universal_tool, image,
@@ -1171,6 +1186,14 @@ TEST_P(tools_test, mutating_and_error_ops) {
       std::error_code ec;
       fs::directory_iterator it{mountpoint / "format.sh", ec};
       EXPECT_EC_UNIX_WIN(ec, ENOTDIR, ERROR_DIRECTORY);
+    }
+
+    // try open non-existing symlink
+
+    {
+      std::error_code ec;
+      auto tmp = fs::read_symlink(mountpoint / "doesnotexist", ec);
+      EXPECT_EC_UNIX_WIN(ec, ENOENT, ERROR_FILE_NOT_FOUND);
     }
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
