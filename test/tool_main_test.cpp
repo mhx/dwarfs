@@ -111,6 +111,10 @@ class mkdwarfs_tester {
     return mkdwarfs_main(args, iol.get());
   }
 
+  int run(std::initializer_list<std::string> args) {
+    return run(std::vector<std::string>(args));
+  }
+
   int run(std::string args) { return run(test::parse_args(args)); }
 
   filesystem_v2 fs_from_data(std::string data) {
@@ -125,6 +129,9 @@ class mkdwarfs_tester {
     }
     return fs_from_data(std::move(fsimage.value()));
   }
+
+  std::string out() const { return iol.out(); }
+  std::string err() const { return iol.err(); }
 
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
@@ -471,8 +478,8 @@ TEST(mkdwarfs_test, set_time_now) {
   auto t1 =
       std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
-  EXPECT_EQ(reg.size(), 11);
-  EXPECT_EQ(opt.size(), 1);
+  ASSERT_EQ(reg.size(), 11);
+  ASSERT_EQ(opt.size(), 1);
 
   EXPECT_GE(*opt.begin(), t0);
   EXPECT_LE(*opt.begin(), t1);
@@ -488,7 +495,29 @@ TEST(mkdwarfs_test, set_time_epoch) {
   auto opt = get_all_fs_times(*optfs);
 
   EXPECT_EQ(reg.size(), 11);
-  EXPECT_EQ(opt.size(), 1);
+  ASSERT_EQ(opt.size(), 1);
 
   EXPECT_EQ(*opt.begin(), 100000001);
+}
+
+TEST(mkdwarfs_test, set_time_epoch_string) {
+  using namespace std::chrono_literals;
+  using std::chrono::sys_days;
+
+  auto optfs = build_with_args({"--set-time", "2020-01-01 01:02"});
+  ASSERT_TRUE(optfs);
+  auto opt = get_all_fs_times(*optfs);
+
+  ASSERT_EQ(opt.size(), 1);
+
+  EXPECT_EQ(*opt.begin(),
+            std::chrono::duration_cast<std::chrono::seconds>(
+                (sys_days{2020y / 1 / 1} + 1h + 2min).time_since_epoch())
+                .count());
+}
+
+TEST(mkdwarfs_test, set_time_error) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--set-time=InVaLiD"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse time point"));
 }

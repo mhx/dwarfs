@@ -934,9 +934,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     } else if (auto val = folly::tryTo<uint64_t>(timestamp)) {
       options.timestamp = *val;
     } else {
-      iol.err << "error: argument for option '--set-time' must be numeric or "
-                 "`now`\n";
-      return 1;
+      try {
+        auto tp = parse_time_point(timestamp);
+        options.timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                                tp.time_since_epoch())
+                                .count();
+      } catch (std::exception const& e) {
+        iol.err << "error: " << e.what() << "\n";
+        return 1;
+      }
     }
   }
 

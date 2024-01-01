@@ -255,10 +255,14 @@ Most other options are concerned with compression tuning:
   size of the file system. If the input only has a single group already,
   setting this won't make any difference.
 
-- `--set-time=`*time*|`now`:
+- `--set-time=now`|*iso-8601-string*|*unix-timestamp*:
   Set the time stamps for all entities to this value. This can significantly
-  reduce the size of the file system. You can pass either a unix time stamp
-  or `now`.
+  reduce the size of the file system. You can pass the string `now` for the
+  current time, an ISO 8601 string, or a unix timestamp (seconds since epoch).
+  The ISO 8601 string supports a space character instead of the `T` between
+  date and time and supports dashes as separators. Seconds or the full time
+  part may be omitted as long as this doesn't turn the whole string into a
+  single number (i.e. `2008-03-17` is supported, but `20080317` is not).
 
 - `--keep-all-times`:
   As of release 0.3.0, by default, `mkdwarfs` will only save the contents of
