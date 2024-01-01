@@ -95,7 +95,8 @@ class mkdwarfs_tester {
   mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
       : fa{std::make_shared<test::test_file_access>()}
       , os{std::move(pos)}
-      , iol{os, fa} {
+      , iol{std::make_unique<test::test_iolayer>(os, fa)}
+      , lgr{std::make_unique<test::test_logger>()} {
     setup_locale();
   }
 
@@ -106,9 +107,11 @@ class mkdwarfs_tester {
     return mkdwarfs_tester(std::make_shared<test::os_access_mock>());
   }
 
+  void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }
+
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), "mkdwarfs");
-    return mkdwarfs_main(args, iol.get());
+    return mkdwarfs_main(args, iol->get());
   }
 
   int run(std::initializer_list<std::string> args) {
@@ -119,7 +122,7 @@ class mkdwarfs_tester {
 
   filesystem_v2 fs_from_data(std::string data) {
     auto mm = std::make_shared<test::mmap_mock>(std::move(data));
-    return filesystem_v2(lgr, mm);
+    return filesystem_v2(*lgr, mm);
   }
 
   filesystem_v2 fs_from_file(std::string path) {
@@ -130,13 +133,15 @@ class mkdwarfs_tester {
     return fs_from_data(std::move(fsimage.value()));
   }
 
-  std::string out() const { return iol.out(); }
-  std::string err() const { return iol.err(); }
+  filesystem_v2 fs_from_stdout() { return fs_from_data(out()); }
+
+  std::string out() const { return iol->out(); }
+  std::string err() const { return iol->err(); }
 
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
-  test::test_iolayer iol;
-  test::test_logger lgr;
+  std::unique_ptr<test::test_iolayer> iol;
+  std::unique_ptr<test::test_logger> lgr;
 };
 
 std::optional<filesystem_v2>
@@ -331,7 +336,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
     t.fa->set_file(input_file, input_list);
   } else {
     input_file = "-";
-    t.iol.set_in(input_list);
+    t.iol->set_in(input_list);
   }
 
   EXPECT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
@@ -371,7 +376,7 @@ TEST_P(categorizer_test, end_to_end) {
 
   auto t = mkdwarfs_tester::create_empty();
 
-  t.os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  t.add_root_dir();
   t.os->add_local_files(audio_data_dir);
   t.os->add_file("random", 4096, true);
 
@@ -557,4 +562,59 @@ TEST(mkdwarfs_test, cannot_open_input_list_file) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
+}
+
+TEST(mkdwarfs_test, recompress) {
+  std::string const image_file = "test.dwarfs";
+  std::string image;
+
+  {
+    mkdwarfs_tester t;
+    t.os->add_local_files(audio_data_dir);
+    t.os->add_file("random", 4096, true);
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize"}))
+        << t.err();
+    auto img = t.fa->get_file(image_file);
+    EXPECT_TRUE(img);
+    image = std::move(img.value());
+  }
+
+  auto tester = [&] {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image);
+    return t;
+  };
+
+  {
+    auto t = tester();
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress", "-l0"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    EXPECT_TRUE(fs.find("/random"));
+  }
+
+  {
+    auto t = tester();
+    EXPECT_NE(0, t.run({"-i", image_file, "-o", "-", "--recompress=foo"}));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid recompress mode"));
+  }
+
+  {
+    auto t = tester();
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=metadata"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    EXPECT_TRUE(fs.find("/random"));
+  }
+
+  {
+    auto t = tester();
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=block",
+                        "--recompress-categories=!pcmaudio/waveform", "-C",
+                        "pcmaudio/metadata::null"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    EXPECT_TRUE(fs.find("/random"));
+  }
 }
