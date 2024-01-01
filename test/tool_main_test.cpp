@@ -521,3 +521,9 @@ TEST(mkdwarfs_test, set_time_error) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--set-time=InVaLiD"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse time point"));
 }
+
+TEST(mkdwarfs_test, unrecognized_arguments) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("unrecognized argument"));
+}

@@ -604,8 +604,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   po::variables_map vm;
 
-  auto& sys_err_out = SYS_CERR;
-
   std::vector<std::string> command_line;
   command_line.reserve(argc);
 
@@ -623,8 +621,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::collect_unrecognized(parsed.options, po::include_positional);
 
     if (!unrecognized.empty()) {
-      sys_err_out << "error: unrecognized argument(s) '"
-                  << boost::join(unrecognized, " ") << "'\n";
+      iol.err << "error: unrecognized argument(s) '"
+              << sys_string_to_string(boost::join(unrecognized, " ")) << "'\n";
       return 1;
     }
   } catch (po::error const& e) {
