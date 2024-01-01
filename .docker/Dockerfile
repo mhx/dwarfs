@@ -37,6 +37,7 @@ RUN apt install -y \
         libboost-thread-dev \
         libbrotli-dev \
         libevent-dev \
+        libhowardhinnant-date-dev \
         libjemalloc-dev \
         libdouble-conversion-dev \
         libiberty-dev \

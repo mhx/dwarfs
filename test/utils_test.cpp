@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -319,4 +320,34 @@ TEST(utils, parse_size_with_unit) {
   EXPECT_THROW(parse_size_with_unit("7y"), dwarfs::runtime_error);
   EXPECT_THROW(parse_size_with_unit("7tb"), dwarfs::runtime_error);
   EXPECT_THROW(parse_size_with_unit("asd"), dwarfs::runtime_error);
+}
+
+TEST(utils, parse_time_point) {
+  using namespace std::chrono_literals;
+  using std::chrono::sys_days;
+
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01 00:00:00"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T00:00:00"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01 00:00"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("2020-01-01T00:00"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T000000"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T0000"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1}, parse_time_point("20200101T"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s,
+            parse_time_point("2020-01-01 01:02:03"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min,
+            parse_time_point("2020-01-01 01:02"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s + 123ms,
+            parse_time_point("2020-01-01 01:02:03.123"));
+  EXPECT_EQ(sys_days{2020y / 1 / 1} + 1h + 2min + 3s + 123ms,
+            parse_time_point("20200101T010203.123"));
+
+  EXPECT_THAT([] { parse_time_point("InVaLiD"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("cannot parse time point")));
+  EXPECT_THAT([] { parse_time_point("2020-01-01 01:02x"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("cannot parse time point")));
 }

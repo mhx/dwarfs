@@ -12,6 +12,7 @@
     "boost-thread",
     "boost-variant",
     "brotli",
+    "date",
     "double-conversion",
     "fmt",
     "glog",

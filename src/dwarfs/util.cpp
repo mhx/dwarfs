@@ -30,6 +30,8 @@
 #include <utf8.h>
 #endif
 
+#include <date/date.h>
+
 #include <folly/String.h>
 
 #include "dwarfs/error.h"
@@ -146,6 +148,26 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "unsupported time suffix");
+}
+
+std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
+  static constexpr std::array<char const*, 9> formats{
+      "%Y%m%dT%H%M%S", "%Y%m%dT%H%M", "%Y%m%dT", "%F %T", "%FT%T",
+      "%F %R",         "%FT%R",       "%FT",     "%F"};
+
+  for (auto const& fmt : formats) {
+    std::istringstream iss(str);
+    std::chrono::system_clock::time_point tp;
+    date::from_stream(iss, fmt, tp);
+    if (!iss.fail()) {
+      iss.peek();
+      if (iss.eof()) {
+        return tp;
+      }
+    }
+  }
+
+  DWARFS_THROW(runtime_error, "cannot parse time point");
 }
 
 std::string sys_string_to_string(sys_string const& in) {
