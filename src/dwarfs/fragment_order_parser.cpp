@@ -98,7 +98,7 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
 
       switch (rv.mode) {
       case file_order_mode::NILSIMSA:
-        if (order_opts.size() > 4) {
+        if (order_opts.size() > 3) {
           throw std::runtime_error(fmt::format(
               "too many options for inode order mode '{}'", ordname));
         }
