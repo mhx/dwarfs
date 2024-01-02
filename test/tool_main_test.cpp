@@ -36,6 +36,8 @@
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
+#include "filter_test_data.h"
+#include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"
 #include "test_logger.h"
@@ -115,7 +117,7 @@ class mkdwarfs_tester {
 
   void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }
 
-  void add_file_tree(double avg_size = 4096.0, int dimension = 20) {
+  void add_random_file_tree(double avg_size = 4096.0, int dimension = 20) {
     size_t max_size{128 * static_cast<size_t>(avg_size)};
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1 / avg_size};
@@ -128,6 +130,25 @@ class mkdwarfs_tester {
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
           os->add_file(fmt::format("{}/{}/{}", x, y, z), size, true);
         }
+      }
+    }
+  }
+
+  void add_test_file_tree() {
+    for (auto const& [stat, name] : test::test_dirtree()) {
+      auto path = name.substr(name.size() == 5 ? 5 : 6);
+
+      switch (stat.type()) {
+      case posix_file_type::regular:
+        os->add(path, stat,
+                [size = stat.size] { return test::loremipsum(size); });
+        break;
+      case posix_file_type::symlink:
+        os->add(path, stat, test::loremipsum(stat.size));
+        break;
+      default:
+        os->add(path, stat);
+        break;
       }
     }
   }
@@ -491,7 +512,7 @@ TEST(mkdwarfs_test, dump_inodes) {
   t.os->add_local_files(audio_data_dir);
   t.os->add_file("random", 4096, true);
   t.os->add_file("large", 32 * 1024 * 1024);
-  t.add_file_tree(1024, 8);
+  t.add_random_file_tree(1024, 8);
   t.os->setenv("DWARFS_DUMP_INODES", inode_file);
 
   EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-W8"}));
@@ -667,7 +688,7 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   auto t = mkdwarfs_tester::create_empty();
 
   t.add_root_dir();
-  t.add_file_tree();
+  t.add_random_file_tree();
   t.os->add_local_files(audio_data_dir);
 
   EXPECT_EQ(0, t.run(args));
@@ -716,3 +737,41 @@ TEST(mkdwarfs_test, order_nilsimsa_cannot_be_less) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:-1:-1"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot be less than 0 for order"));
 }
+
+namespace {
+
+constexpr std::array<std::string_view, 6> const debug_filter_mode_names = {
+    "included", "excluded", "included-files", "excluded-files", "files", "all",
+};
+
+const std::map<std::string_view, debug_filter_mode> debug_filter_modes{
+    {"included", debug_filter_mode::INCLUDED},
+    {"included-files", debug_filter_mode::INCLUDED_FILES},
+    {"excluded", debug_filter_mode::EXCLUDED},
+    {"excluded-files", debug_filter_mode::EXCLUDED_FILES},
+    {"files", debug_filter_mode::FILES},
+    {"all", debug_filter_mode::ALL},
+};
+
+} // namespace
+
+class filter_test : public testing::TestWithParam<
+                        std::tuple<test::filter_test_data, std::string_view>> {
+};
+
+TEST_P(filter_test, debug_filter) {
+  auto [data, mode] = GetParam();
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
+  t.fa->set_file("filter.txt", data.filter());
+  ASSERT_EQ(0, t.run({"-i", "/", "-F", ". filter.txt",
+                      "--debug-filter=" + std::string(mode)}))
+      << t.err();
+  auto expected = data.get_expected_filter_output(debug_filter_modes.at(mode));
+  EXPECT_EQ(expected, t.out());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    mkdwarfs_test, filter_test,
+    ::testing::Combine(::testing::ValuesIn(dwarfs::test::get_filter_tests()),
+                       ::testing::ValuesIn(debug_filter_mode_names)));

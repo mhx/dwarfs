@@ -19,7 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ostream>
+
+#include <fmt/format.h>
+
 #include "filter_test_data.h"
+#include "test_helpers.h"
 
 namespace dwarfs::test {
 
@@ -82,8 +87,87 @@ R"(
 
 std::vector<filter_test_data> const& get_filter_tests() { return filter_tests; }
 
-std::string PrintToString(filter_test_data const& data) {
-  return data.test_name();
+std::ostream& operator<<(std::ostream& os, filter_test_data const& data) {
+  os << data.test_name();
+  return os;
 }
 
+std::string
+filter_test_data::get_expected_filter_output(debug_filter_mode mode) const {
+  std::string expected;
+
+  auto check_included = [&](auto const& stat, std::string const& path,
+                            std::string_view prefix = "") {
+    if (stat.type() == posix_file_type::directory) {
+      expected += fmt::format("{}/{}/\n", prefix, path);
+    } else if (expected_files().count(path)) {
+      expected += fmt::format("{}/{}\n", prefix, path);
+    }
+  };
+
+  auto check_included_files = [&](auto const& stat, std::string const& path,
+                                  std::string_view prefix = "") {
+    if (stat.type() != posix_file_type::directory &&
+        expected_files().count(path)) {
+      expected += fmt::format("{}/{}\n", prefix, path);
+    }
+  };
+
+  auto check_excluded = [&](auto const& stat, std::string const& path,
+                            std::string_view prefix = "") {
+    if (stat.type() != posix_file_type::directory &&
+        expected_files().count(path) == 0) {
+      expected += fmt::format("{}/{}\n", prefix, path);
+    }
+  };
+
+  auto check_excluded_files = [&](auto const& stat, std::string const& path,
+                                  std::string_view prefix = "") {
+    if (stat.type() != posix_file_type::directory &&
+        expected_files().count(path) == 0) {
+      expected += fmt::format("{}/{}\n", prefix, path);
+    }
+  };
+
+  for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
+    std::string path(name.substr(name.size() == 5 ? 5 : 6));
+
+    if (path.empty()) {
+      continue;
+    }
+
+    switch (mode) {
+    case debug_filter_mode::INCLUDED_FILES:
+      check_included_files(stat, path);
+      break;
+
+    case debug_filter_mode::INCLUDED:
+      check_included(stat, path);
+      break;
+
+    case debug_filter_mode::EXCLUDED_FILES:
+      check_excluded_files(stat, path);
+      break;
+
+    case debug_filter_mode::EXCLUDED:
+      check_excluded(stat, path);
+      break;
+
+    case debug_filter_mode::FILES:
+      check_included_files(stat, path, "+ ");
+      check_excluded_files(stat, path, "- ");
+      break;
+
+    case debug_filter_mode::ALL:
+      check_included(stat, path, "+ ");
+      check_excluded(stat, path, "- ");
+      break;
+
+    case debug_filter_mode::OFF:
+      throw std::logic_error("invalid debug filter mode");
+    }
+  }
+
+  return expected;
+}
 } // namespace dwarfs::test

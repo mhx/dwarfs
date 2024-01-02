@@ -21,10 +21,13 @@
 
 #pragma once
 
+#include <iosfwd>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+
+#include "dwarfs/filter_debug.h"
 
 namespace dwarfs::test {
 
@@ -42,6 +45,8 @@ class filter_test_data {
     return expected_files_;
   }
 
+  std::string get_expected_filter_output(debug_filter_mode mode) const;
+
  private:
   std::string test_name_;
   std::string filter_;
@@ -50,6 +55,6 @@ class filter_test_data {
 
 std::vector<filter_test_data> const& get_filter_tests();
 
-std::string PrintToString(filter_test_data const& data);
+std::ostream& operator<<(std::ostream& os, filter_test_data const& data);
 
 } // namespace dwarfs::test

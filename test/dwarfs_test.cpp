@@ -921,86 +921,6 @@ class filter_test
     return oss.str();
   }
 
-  std::string get_expected_filter_output(test::filter_test_data const& spec,
-                                         debug_filter_mode mode) {
-    std::string expected;
-    auto expected_files = spec.expected_files();
-
-    auto check_included = [&](auto const& stat, std::string const& path,
-                              std::string_view prefix = "") {
-      if (stat.type() == posix_file_type::directory) {
-        expected += fmt::format("{}/{}/\n", prefix, path);
-      } else if (expected_files.count(path)) {
-        expected += fmt::format("{}/{}\n", prefix, path);
-      }
-    };
-
-    auto check_included_files = [&](auto const& stat, std::string const& path,
-                                    std::string_view prefix = "") {
-      if (stat.type() != posix_file_type::directory &&
-          expected_files.count(path)) {
-        expected += fmt::format("{}/{}\n", prefix, path);
-      }
-    };
-
-    auto check_excluded = [&](auto const& stat, std::string const& path,
-                              std::string_view prefix = "") {
-      if (stat.type() != posix_file_type::directory &&
-          expected_files.count(path) == 0) {
-        expected += fmt::format("{}/{}\n", prefix, path);
-      }
-    };
-
-    auto check_excluded_files = [&](auto const& stat, std::string const& path,
-                                    std::string_view prefix = "") {
-      if (stat.type() != posix_file_type::directory &&
-          expected_files.count(path) == 0) {
-        expected += fmt::format("{}/{}\n", prefix, path);
-      }
-    };
-
-    for (auto const& [stat, name] : dwarfs::test::test_dirtree()) {
-      std::string path(name.substr(name.size() == 5 ? 5 : 6));
-
-      if (path.empty()) {
-        continue;
-      }
-
-      switch (mode) {
-      case debug_filter_mode::INCLUDED_FILES:
-        check_included_files(stat, path);
-        break;
-
-      case debug_filter_mode::INCLUDED:
-        check_included(stat, path);
-        break;
-
-      case debug_filter_mode::EXCLUDED_FILES:
-        check_excluded_files(stat, path);
-        break;
-
-      case debug_filter_mode::EXCLUDED:
-        check_excluded(stat, path);
-        break;
-
-      case debug_filter_mode::FILES:
-        check_included_files(stat, path, "+ ");
-        check_excluded_files(stat, path, "- ");
-        break;
-
-      case debug_filter_mode::ALL:
-        check_included(stat, path, "+ ");
-        check_excluded(stat, path, "- ");
-        break;
-
-      case debug_filter_mode::OFF:
-        throw std::logic_error("invalid debug filter mode");
-      }
-    }
-
-    return expected;
-  }
-
   void TearDown() override {
     scr.reset();
     input.reset();
@@ -1039,7 +959,7 @@ TEST_P(filter_test, filesystem) {
 TEST_P(filter_test, debug_filter_function_included) {
   auto spec = GetParam();
   auto output = get_filter_debug_output(spec, debug_filter_mode::INCLUDED);
-  auto expected = get_expected_filter_output(spec, debug_filter_mode::INCLUDED);
+  auto expected = spec.get_expected_filter_output(debug_filter_mode::INCLUDED);
   EXPECT_EQ(expected, output);
 }
 
@@ -1048,14 +968,14 @@ TEST_P(filter_test, debug_filter_function_included_files) {
   auto output =
       get_filter_debug_output(spec, debug_filter_mode::INCLUDED_FILES);
   auto expected =
-      get_expected_filter_output(spec, debug_filter_mode::INCLUDED_FILES);
+      spec.get_expected_filter_output(debug_filter_mode::INCLUDED_FILES);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_excluded) {
   auto spec = GetParam();
   auto output = get_filter_debug_output(spec, debug_filter_mode::EXCLUDED);
-  auto expected = get_expected_filter_output(spec, debug_filter_mode::EXCLUDED);
+  auto expected = spec.get_expected_filter_output(debug_filter_mode::EXCLUDED);
   EXPECT_EQ(expected, output);
 }
 
@@ -1064,21 +984,21 @@ TEST_P(filter_test, debug_filter_function_excluded_files) {
   auto output =
       get_filter_debug_output(spec, debug_filter_mode::EXCLUDED_FILES);
   auto expected =
-      get_expected_filter_output(spec, debug_filter_mode::EXCLUDED_FILES);
+      spec.get_expected_filter_output(debug_filter_mode::EXCLUDED_FILES);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_all) {
   auto spec = GetParam();
   auto output = get_filter_debug_output(spec, debug_filter_mode::ALL);
-  auto expected = get_expected_filter_output(spec, debug_filter_mode::ALL);
+  auto expected = spec.get_expected_filter_output(debug_filter_mode::ALL);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_files) {
   auto spec = GetParam();
   auto output = get_filter_debug_output(spec, debug_filter_mode::FILES);
-  auto expected = get_expected_filter_output(spec, debug_filter_mode::FILES);
+  auto expected = spec.get_expected_filter_output(debug_filter_mode::FILES);
   EXPECT_EQ(expected, output);
 }
 
