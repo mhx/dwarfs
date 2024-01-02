@@ -486,15 +486,20 @@ TEST(mkdwarfs_test, dump_inodes) {
   std::string const image_file = "test.dwarfs";
   std::string const inode_file = "inode.dump";
 
-  mkdwarfs_tester t;
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_local_files(audio_data_dir);
+  t.os->add_file("random", 4096, true);
+  t.os->add_file("large", 32 * 1024 * 1024);
+  t.add_file_tree(1024, 8);
   t.os->setenv("DWARFS_DUMP_INODES", inode_file);
 
-  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file}));
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-W8"}));
 
   auto dump = t.fa->get_file(inode_file);
 
   ASSERT_TRUE(dump);
-  EXPECT_GT(dump->size(), 100) << dump.value();
+  EXPECT_GT(dump->size(), 1000) << dump.value();
 }
 
 TEST(mkdwarfs_test, set_time_now) {
