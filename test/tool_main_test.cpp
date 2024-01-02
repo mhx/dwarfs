@@ -32,6 +32,7 @@
 #include <folly/json.h>
 
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
@@ -95,8 +96,7 @@ class mkdwarfs_tester {
   mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
       : fa{std::make_shared<test::test_file_access>()}
       , os{std::move(pos)}
-      , iol{std::make_unique<test::test_iolayer>(os, fa)}
-      , lgr{std::make_unique<test::test_logger>()} {
+      , iol{std::make_unique<test::test_iolayer>(os, fa)} {
     setup_locale();
   }
 
@@ -107,7 +107,30 @@ class mkdwarfs_tester {
     return mkdwarfs_tester(std::make_shared<test::os_access_mock>());
   }
 
+  void add_stream_logger(std::ostream& os,
+                         logger::level_type level = logger::VERBOSE) {
+    lgr = std::make_unique<stream_logger>(
+        std::make_shared<test::test_terminal>(os, os), os, level);
+  }
+
   void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }
+
+  void add_file_tree(double avg_size = 4096.0, int dimension = 20) {
+    size_t max_size{128 * static_cast<size_t>(avg_size)};
+    std::mt19937_64 rng{42};
+    std::exponential_distribution<> size_dist{1 / avg_size};
+
+    for (int x = 0; x < dimension; ++x) {
+      os->add_dir(fmt::format("{}", x));
+      for (int y = 0; y < dimension; ++y) {
+        os->add_dir(fmt::format("{}/{}", x, y));
+        for (int z = 0; z < dimension; ++z) {
+          auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
+          os->add_file(fmt::format("{}/{}/{}", x, y, z), size, true);
+        }
+      }
+    }
+  }
 
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), "mkdwarfs");
@@ -121,6 +144,9 @@ class mkdwarfs_tester {
   int run(std::string args) { return run(test::parse_args(args)); }
 
   filesystem_v2 fs_from_data(std::string data) {
+    if (!lgr) {
+      lgr = std::make_unique<test::test_logger>();
+    }
     auto mm = std::make_shared<test::mmap_mock>(std::move(data));
     return filesystem_v2(*lgr, mm);
   }
@@ -141,7 +167,7 @@ class mkdwarfs_tester {
   std::shared_ptr<test::test_file_access> fa;
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<test::test_iolayer> iol;
-  std::unique_ptr<test::test_logger> lgr;
+  std::unique_ptr<logger> lgr;
 };
 
 std::optional<filesystem_v2>
@@ -340,6 +366,9 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   }
 
   EXPECT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
+
+  std::ostringstream oss;
+  t.add_stream_logger(oss, logger::DEBUG);
 
   auto fs = t.fs_from_file(image_file);
 
@@ -617,4 +646,68 @@ TEST(mkdwarfs_test, recompress) {
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
   }
+}
+
+class mkdwarfs_build_options_test
+    : public testing::TestWithParam<std::string_view> {};
+
+TEST_P(mkdwarfs_build_options_test, basic) {
+  auto opts = GetParam();
+  auto options = test::parse_args(opts);
+  std::string const image_file = "test.dwarfs";
+
+  std::vector<std::string> args = {"-i", "/", "-o", image_file};
+  args.insert(args.end(), options.begin(), options.end());
+
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.add_root_dir();
+  t.add_file_tree();
+  t.os->add_local_files(audio_data_dir);
+
+  EXPECT_EQ(0, t.run(args));
+
+  auto fs = t.fs_from_file(image_file);
+}
+
+namespace {
+
+constexpr std::array<std::string_view, 7> const build_options = {
+    "--categorize --order=none",
+    "--categorize=pcmaudio --order=path",
+    "--categorize --order=revpath --file-hash=sha512",
+    "--categorize=pcmaudio,incompressible --order=similarity",
+    "--categorize --order=nilsimsa",
+    "--categorize --order=nilsimsa:16",
+    "--categorize --order=nilsimsa:16:16 --max-similarity-size=1M",
+};
+
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_build_options_test,
+                         ::testing::ValuesIn(build_options));
+
+TEST(mkdwarfs_test, order_invalid) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid inode order mode"));
+}
+
+TEST(mkdwarfs_test, order_nilsimsa_not_numeric) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("is not numeric for order"));
+}
+
+TEST(mkdwarfs_test, order_nilsimsa_too_many_options) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:1:2:3"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("too many options for inode order mode"));
+}
+
+TEST(mkdwarfs_test, order_nilsimsa_cannot_be_less) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:-1:-1"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot be less than 0 for order"));
 }
