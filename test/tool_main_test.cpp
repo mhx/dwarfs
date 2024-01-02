@@ -191,16 +191,16 @@ class mkdwarfs_tester {
   std::unique_ptr<logger> lgr;
 };
 
-std::optional<filesystem_v2>
+std::tuple<std::optional<filesystem_v2>, mkdwarfs_tester>
 build_with_args(std::vector<std::string> opt_args = {}) {
   std::string const image_file = "test.dwarfs";
   mkdwarfs_tester t;
   std::vector<std::string> args = {"-i", "/", "-o", image_file};
   args.insert(args.end(), opt_args.begin(), opt_args.end());
   if (t.run(args) != 0) {
-    return std::nullopt;
+    return {std::nullopt, std::move(t)};
   }
-  return t.fs_from_file(image_file);
+  return {t.fs_from_file(image_file), std::move(t)};
 }
 
 std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
@@ -213,6 +213,26 @@ std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
     times.insert(st.mtime);
   });
   return times;
+}
+
+std::set<uint64_t> get_all_fs_uids(filesystem_v2 const& fs) {
+  std::set<uint64_t> uids;
+  fs.walk([&](auto const& e) {
+    file_stat st;
+    fs.getattr(e.inode(), &st);
+    uids.insert(st.uid);
+  });
+  return uids;
+}
+
+std::set<uint64_t> get_all_fs_gids(filesystem_v2 const& fs) {
+  std::set<uint64_t> gids;
+  fs.walk([&](auto const& e) {
+    file_stat st;
+    fs.getattr(e.inode(), &st);
+    gids.insert(st.gid);
+  });
+  return gids;
 }
 
 } // namespace
@@ -527,12 +547,12 @@ TEST(mkdwarfs_test, set_time_now) {
   auto t0 =
       std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
-  auto regfs = build_with_args();
-  ASSERT_TRUE(regfs);
+  auto [regfs, regt] = build_with_args();
+  ASSERT_TRUE(regfs) << regt.err();
   auto reg = get_all_fs_times(*regfs);
 
-  auto optfs = build_with_args({"--set-time=now"});
-  ASSERT_TRUE(optfs);
+  auto [optfs, optt] = build_with_args({"--set-time=now"});
+  ASSERT_TRUE(optfs) << optt.err();
   auto opt = get_all_fs_times(*optfs);
 
   auto t1 =
@@ -546,12 +566,12 @@ TEST(mkdwarfs_test, set_time_now) {
 }
 
 TEST(mkdwarfs_test, set_time_epoch) {
-  auto regfs = build_with_args();
-  ASSERT_TRUE(regfs);
+  auto [regfs, regt] = build_with_args();
+  ASSERT_TRUE(regfs) << regt.err();
   auto reg = get_all_fs_times(*regfs);
 
-  auto optfs = build_with_args({"--set-time=100000001"});
-  ASSERT_TRUE(optfs);
+  auto [optfs, optt] = build_with_args({"--set-time=100000001"});
+  ASSERT_TRUE(optfs) << optt.err();
   auto opt = get_all_fs_times(*optfs);
 
   EXPECT_EQ(reg.size(), 11);
@@ -564,8 +584,8 @@ TEST(mkdwarfs_test, set_time_epoch_string) {
   using namespace std::chrono_literals;
   using std::chrono::sys_days;
 
-  auto optfs = build_with_args({"--set-time", "2020-01-01 01:02"});
-  ASSERT_TRUE(optfs);
+  auto [optfs, optt] = build_with_args({"--set-time", "2020-01-01 01:02"});
+  ASSERT_TRUE(optfs) << optt.err();
   auto opt = get_all_fs_times(*optfs);
 
   ASSERT_EQ(opt.size(), 1);
@@ -580,6 +600,36 @@ TEST(mkdwarfs_test, set_time_error) {
   auto t = mkdwarfs_tester::create_empty();
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--set-time=InVaLiD"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse time point"));
+}
+
+TEST(mkdwarfs_test, set_owner) {
+  auto [regfs, regt] = build_with_args();
+  ASSERT_TRUE(regfs) << regt.err();
+  auto reg = get_all_fs_uids(*regfs);
+
+  auto [optfs, optt] = build_with_args({"--set-owner=333"});
+  ASSERT_TRUE(optfs) << optt.err();
+  auto opt = get_all_fs_uids(*optfs);
+
+  ASSERT_EQ(reg.size(), 2);
+  ASSERT_EQ(opt.size(), 1);
+
+  EXPECT_EQ(*opt.begin(), 333);
+}
+
+TEST(mkdwarfs_test, set_group) {
+  auto [regfs, regt] = build_with_args();
+  ASSERT_TRUE(regfs) << regt.err();
+  auto reg = get_all_fs_gids(*regfs);
+
+  auto [optfs, optt] = build_with_args({"--set-group=444"});
+  ASSERT_TRUE(optfs) << optt.err();
+  auto opt = get_all_fs_gids(*optfs);
+
+  ASSERT_EQ(reg.size(), 2);
+  ASSERT_EQ(opt.size(), 1);
+
+  EXPECT_EQ(*opt.begin(), 444);
 }
 
 TEST(mkdwarfs_test, unrecognized_arguments) {

@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <numeric>
 #include <queue>
 
@@ -540,6 +541,7 @@ uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
 }
 
 auto inode_view::mode() const -> mode_type {
+  assert(mode_index() < meta_->modes().size());
   return meta_->modes()[mode_index()];
 }
 
@@ -552,10 +554,18 @@ auto inode_view::perm_string() const -> std::string {
 }
 
 auto inode_view::getuid() const -> uid_type {
+  if (meta_->uids().empty()) {
+    return 0;
+  }
+  assert(owner_index() < meta_->uids().size());
   return meta_->uids()[owner_index()];
 }
 
 auto inode_view::getgid() const -> gid_type {
+  if (meta_->gids().empty()) {
+    return 0;
+  }
+  assert(group_index() < meta_->gids().size());
   return meta_->gids()[group_index()];
 }
 
