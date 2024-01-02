@@ -749,12 +749,12 @@ TEST_P(mkdwarfs_build_options_test, basic) {
 namespace {
 
 constexpr std::array<std::string_view, 7> const build_options = {
-    "--categorize --order=none",
+    "--categorize --order=none --file-hash=none",
     "--categorize=pcmaudio --order=path",
     "--categorize --order=revpath --file-hash=sha512",
     "--categorize=pcmaudio,incompressible --order=similarity",
-    "--categorize --order=nilsimsa",
-    "--categorize --order=nilsimsa:16",
+    "--categorize --order=nilsimsa --time-resolution=30",
+    "--categorize --order=nilsimsa:16 --time-resolution=hour",
     "--categorize --order=nilsimsa:16:16 --max-similarity-size=1M",
 };
 
@@ -786,6 +786,44 @@ TEST(mkdwarfs_test, order_nilsimsa_cannot_be_less) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:-1:-1"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot be less than 0 for order"));
+}
+
+TEST(mkdwarfs_test, unknown_file_hash) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--file-hash=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown file hash function"));
+}
+
+TEST(mkdwarfs_test, invalid_filter_debug_mode) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--debug-filter=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid filter debug mode"));
+}
+
+TEST(mkdwarfs_test, invalid_progress_mode) {
+  mkdwarfs_tester t;
+  t.iol->set_terminal_fancy(true);
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--progress=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid progress mode"));
+}
+
+TEST(mkdwarfs_test, invalid_filter_rule) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("could not parse filter rule"));
+}
+
+TEST(mkdwarfs_test, time_resolution_zero) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=0"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("'--time-resolution' must be nonzero"));
+}
+
+TEST(mkdwarfs_test, time_resolution_invalid) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--time-resolution=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("'--time-resolution' is invalid"));
 }
 
 namespace {

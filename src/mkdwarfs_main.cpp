@@ -857,15 +857,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
+  if (!progress_modes.count(progress_mode)) {
+    iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
+    return 1;
+  }
   if (no_progress) {
     progress_mode = "none";
   }
   if (progress_mode != "none" && !iol.term->is_fancy(iol.err)) {
     progress_mode = "simple";
-  }
-  if (!progress_modes.count(progress_mode)) {
-    iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
-    return 1;
   }
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
