@@ -168,12 +168,13 @@ class mkdwarfs_tester {
 
   int run(std::string args) { return run(test::parse_args(args)); }
 
-  filesystem_v2 fs_from_data(std::string data) {
+  filesystem_v2
+  fs_from_data(std::string data, filesystem_options const& opt = {}) {
     if (!lgr) {
       lgr = std::make_unique<test::test_logger>();
     }
     auto mm = std::make_shared<test::mmap_mock>(std::move(data));
-    return filesystem_v2(*lgr, mm);
+    return filesystem_v2(*lgr, mm, opt);
   }
 
   filesystem_v2 fs_from_file(std::string path) {
@@ -184,7 +185,9 @@ class mkdwarfs_tester {
     return fs_from_data(std::move(fsimage.value()));
   }
 
-  filesystem_v2 fs_from_stdout() { return fs_from_data(out()); }
+  filesystem_v2 fs_from_stdout(filesystem_options const& opt = {}) {
+    return fs_from_data(out(), opt);
+  }
 
   std::string out() const { return iol->out(); }
   std::string err() const { return iol->err(); }
@@ -193,6 +196,37 @@ class mkdwarfs_tester {
   std::shared_ptr<test::os_access_mock> os;
   std::unique_ptr<test::test_iolayer> iol;
   std::unique_ptr<logger> lgr;
+};
+
+class dwarfsck_tester {
+ public:
+  dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos)
+      : fa{std::make_shared<test::test_file_access>()}
+      , os{std::move(pos)}
+      , iol{std::make_unique<test::test_iolayer>(os, fa)} {
+    setup_locale();
+  }
+
+  dwarfsck_tester()
+      : dwarfsck_tester(std::make_shared<test::os_access_mock>()) {}
+
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), "dwarfsck");
+    return dwarfsck_main(args, iol->get());
+  }
+
+  int run(std::initializer_list<std::string> args) {
+    return run(std::vector<std::string>(args));
+  }
+
+  int run(std::string args) { return run(test::parse_args(args)); }
+
+  std::string out() const { return iol->out(); }
+  std::string err() const { return iol->err(); }
+
+  std::shared_ptr<test::test_file_access> fa;
+  std::shared_ptr<test::os_access_mock> os;
+  std::unique_ptr<test::test_iolayer> iol;
 };
 
 std::tuple<std::optional<filesystem_v2>, mkdwarfs_tester>
@@ -959,4 +993,47 @@ TEST(mkdwarfs_test, pack_mode_invalid) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--pack-metadata=grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("'--pack-metadata' is invalid"));
+}
+
+TEST(mkdwarfs_test, filesystem_header) {
+  auto const header = test::loremipsum(333);
+
+  mkdwarfs_tester t;
+  t.fa->set_file("header.txt", header);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "--header=header.txt"})) << t.err();
+
+  auto image = t.out();
+
+  auto fs = t.fs_from_data(
+      image, {.image_offset = filesystem_options::IMAGE_OFFSET_AUTO});
+  auto hdr = fs.header();
+  ASSERT_TRUE(hdr);
+  std::string actual(reinterpret_cast<char const*>(hdr->data()), hdr->size());
+  EXPECT_EQ(header, actual);
+
+  auto os = std::make_shared<test::os_access_mock>();
+  os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  os->add_file("image.dwarfs", image);
+
+  {
+    dwarfsck_tester t2(os);
+    EXPECT_EQ(0, t2.run({"image.dwarfs", "--print-header"})) << t2.err();
+    EXPECT_EQ(header, t2.out());
+  }
+
+  {
+    mkdwarfs_tester t2(os);
+    ASSERT_EQ(0, t2.run({"-i", "image.dwarfs", "-o", "-", "--recompress=none",
+                         "--remove-header"}))
+        << t2.err();
+
+    auto fs2 = t2.fs_from_stdout();
+    EXPECT_FALSE(fs2.header());
+  }
+}
+
+TEST(mkdwarfs_test, filesystem_header_error) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--header=header.txt"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open header file"));
 }
