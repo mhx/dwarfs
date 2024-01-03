@@ -1037,3 +1037,37 @@ TEST(mkdwarfs_test, filesystem_header_error) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--header=header.txt"})) << t.err();
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open header file"));
 }
+
+TEST(mkdwarfs_test, output_file_exists) {
+  mkdwarfs_tester t;
+  t.fa->set_file("exists.dwarfs", "bla");
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "exists.dwarfs"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("output file already exists"));
+}
+
+TEST(mkdwarfs_test, output_file_force) {
+  mkdwarfs_tester t;
+  t.fa->set_file("exists.dwarfs", "bla");
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "exists.dwarfs", "-l1", "--force"}))
+      << t.err();
+  auto fs = t.fs_from_file("exists.dwarfs");
+  EXPECT_TRUE(fs.find("/foo.pl"));
+}
+
+TEST(mkdwarfs_test, output_file_fail_open) {
+  mkdwarfs_tester t;
+  t.fa->set_file("exists.dwarfs", "bla");
+  t.fa->set_open_error(
+      "exists.dwarfs",
+      std::make_error_code(std::errc::device_or_resource_busy));
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "exists.dwarfs", "--force"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open output file"));
+}
+
+TEST(mkdwarfs_test, output_file_fail_close) {
+  mkdwarfs_tester t;
+  t.fa->set_close_error("test.dwarfs",
+                        std::make_error_code(std::errc::no_space_on_device));
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
+}

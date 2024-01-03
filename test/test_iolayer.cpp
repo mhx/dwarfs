@@ -54,16 +54,28 @@ class test_output_stream : public output_stream {
     if (path_.empty()) {
       ec = std::make_error_code(std::errc::invalid_argument);
     }
-    if (tfa_->exists(path_)) {
-      ec = std::make_error_code(std::errc::file_exists);
+    if (auto error = tfa_->get_open_error(path_)) {
+      ec = error.value();
     }
   }
 
   std::ostream& os() override { return os_; }
 
-  void close(std::error_code& /*ec*/) override { close(); }
+  void close(std::error_code& ec) override {
+    if (auto error = tfa_->get_close_error(path_)) {
+      ec = error.value();
+    } else {
+      tfa_->set_file(path_, os_.str());
+    }
+  }
 
-  void close() override { tfa_->set_file(path_, os_.str()); }
+  void close() override {
+    std::error_code ec;
+    close(ec);
+    if (ec) {
+      throw std::system_error(ec, fmt::format("close('{}')", path_.string()));
+    }
+  }
 
  private:
   std::ostringstream os_;
@@ -160,6 +172,32 @@ test_file_access::open_output_binary(std::filesystem::path const& path) const {
 void test_file_access::set_file(std::filesystem::path const& path,
                                 std::string content) const {
   files_[path] = std::move(content);
+}
+
+void test_file_access::set_open_error(std::filesystem::path const& path,
+                                      std::error_code ec) const {
+  open_errors_[path] = ec;
+}
+
+void test_file_access::set_close_error(std::filesystem::path const& path,
+                                       std::error_code ec) const {
+  close_errors_[path] = ec;
+}
+
+std::optional<std::error_code>
+test_file_access::get_open_error(std::filesystem::path const& path) const {
+  if (auto it = open_errors_.find(path); it != open_errors_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
+
+std::optional<std::error_code>
+test_file_access::get_close_error(std::filesystem::path const& path) const {
+  if (auto it = close_errors_.find(path); it != close_errors_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
 }
 
 std::optional<std::string>
