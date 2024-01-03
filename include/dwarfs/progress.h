@@ -148,7 +148,8 @@ class progress {
  private:
   void add_context(std::shared_ptr<context> const& ctx) const;
 
-  std::atomic<bool> running_;
+  mutable std::mutex running_mx_;
+  bool running_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
   std::shared_ptr<status_function_type> status_fun_;

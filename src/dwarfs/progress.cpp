@@ -38,8 +38,7 @@ progress::progress(folly::Function<void(progress&, bool)>&& func,
 #ifdef _WIN32
       ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 #endif
-      std::mutex mx_thread;
-      std::unique_lock lock(mx_thread);
+      std::unique_lock lock(running_mx_);
       while (running_) {
         func(*this, false);
         cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
@@ -50,7 +49,10 @@ progress::progress(folly::Function<void(progress&, bool)>&& func,
 
 progress::~progress() noexcept {
   try {
-    running_ = false;
+    {
+      std::lock_guard lock(running_mx_);
+      running_ = false;
+    }
     cond_.notify_all();
     thread_.join();
   } catch (...) {
