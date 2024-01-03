@@ -84,6 +84,8 @@ class filesystem_v2 {
     impl_->dump(os, detail_level);
   }
 
+  std::string dump(int detail_level) const { return impl_->dump(detail_level); }
+
   folly::dynamic info_as_dynamic(int detail_level) const {
     return impl_->info_as_dynamic(detail_level);
   }
@@ -199,6 +201,7 @@ class filesystem_v2 {
     virtual int
     check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, int detail_level) const = 0;
+    virtual std::string dump(int detail_level) const = 0;
     virtual folly::dynamic info_as_dynamic(int detail_level) const = 0;
     virtual folly::dynamic metadata_as_dynamic() const = 0;
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;

@@ -25,6 +25,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 
@@ -360,6 +361,7 @@ class filesystem_ final : public filesystem_v2::impl {
 
   int check(filesystem_check_level level, size_t num_threads) const override;
   void dump(std::ostream& os, int detail_level) const override;
+  std::string dump(int detail_level) const override;
   folly::dynamic info_as_dynamic(int detail_level) const override;
   folly::dynamic metadata_as_dynamic() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
@@ -840,6 +842,13 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
                  LOG_ERROR << "error reading chunks for inode " << inode;
                }
              });
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::dump(int detail_level) const {
+  std::ostringstream oss;
+  dump(oss, detail_level);
+  return oss.str();
 }
 
 template <typename LoggerPolicy>
