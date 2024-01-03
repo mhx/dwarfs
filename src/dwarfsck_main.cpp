@@ -40,6 +40,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/tool.h"
 #include "dwarfs_tool_main.h"
 
@@ -149,14 +150,17 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
     }
 
-    auto mm = std::make_shared<mmap>(input);
+    std::shared_ptr<mmif> mm = iol.os->map_file(input);
 
     if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
 #ifdef _WIN32
-        ::_setmode(STDOUT_FILENO, _O_BINARY);
+        if (&iol.out == &std::cout) {
+          ::_setmode(::_fileno(stdout), _O_BINARY);
+        }
 #endif
-        if (::write(STDOUT_FILENO, hdr->data(), hdr->size()) < 0) {
+        iol.out.write(reinterpret_cast<char const*>(hdr->data()), hdr->size());
+        if (iol.out.bad() || iol.out.fail()) {
           LOG_ERROR << "error writing header: " << ::strerror(errno);
           return 1;
         }
