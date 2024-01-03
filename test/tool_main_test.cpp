@@ -19,16 +19,20 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <iostream>
+#include <random>
 #include <set>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <fmt/format.h>
 
+#include <folly/String.h>
 #include <folly/json.h>
 
 #include "dwarfs/filesystem_v2.h"
@@ -863,3 +867,96 @@ INSTANTIATE_TEST_SUITE_P(
     mkdwarfs_test, filter_test,
     ::testing::Combine(::testing::ValuesIn(dwarfs::test::get_filter_tests()),
                        ::testing::ValuesIn(debug_filter_mode_names)));
+
+namespace {
+
+constexpr std::array<std::string_view, 9> const pack_mode_names = {
+    "chunk_table", "directories",    "shared_files", "names", "names_index",
+    "symlinks",    "symlinks_index", "force",        "plain",
+};
+
+}
+
+TEST(mkdwarfs_test, pack_modes_random) {
+  std::mt19937_64 rng{42};
+  std::uniform_int_distribution<> dist{1, pack_mode_names.size()};
+
+  for (int i = 0; i < 50; ++i) {
+    std::vector<std::string_view> modes(pack_mode_names.begin(),
+                                        pack_mode_names.end());
+    std::shuffle(modes.begin(), modes.end(), rng);
+    modes.resize(dist(rng));
+    auto mode_arg = folly::join(',', modes);
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_test_file_tree();
+    t.add_random_file_tree(128.0, 16);
+    ASSERT_EQ(
+        0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    auto info = fs.info_as_dynamic(2);
+    std::set<std::string> ms(modes.begin(), modes.end());
+    std::set<std::string> fsopt;
+    for (auto const& opt : info["options"]) {
+      fsopt.insert(opt.asString());
+    }
+    auto ctx = mode_arg + "\n" + fs.dump(2);
+    EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"))
+        << ctx;
+    EXPECT_EQ(ms.count("directories"), fsopt.count("packed_directories"))
+        << ctx;
+    EXPECT_EQ(ms.count("shared_files"),
+              fsopt.count("packed_shared_files_table"))
+        << ctx;
+    if (ms.count("plain")) {
+      EXPECT_EQ(0, fsopt.count("packed_names")) << ctx;
+      EXPECT_EQ(0, fsopt.count("packed_names_index")) << ctx;
+      EXPECT_EQ(0, fsopt.count("packed_symlinks")) << ctx;
+      EXPECT_EQ(0, fsopt.count("packed_symlinks_index")) << ctx;
+    }
+  }
+}
+
+TEST(mkdwarfs_test, pack_mode_none) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
+  t.add_random_file_tree(128.0, 16);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=none"}))
+      << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info = fs.info_as_dynamic(2);
+  std::set<std::string> fsopt;
+  for (auto const& opt : info["options"]) {
+    fsopt.insert(opt.asString());
+  }
+  fsopt.erase("mtime_only");
+  EXPECT_TRUE(fsopt.empty()) << folly::toJson(info["options"]);
+}
+
+TEST(mkdwarfs_test, pack_mode_all) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
+  t.add_random_file_tree(128.0, 16);
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=all"}))
+      << t.err();
+  auto fs = t.fs_from_stdout();
+  auto info = fs.info_as_dynamic(2);
+  std::set<std::string> expected = {"packed_chunk_table",
+                                    "packed_directories",
+                                    "packed_names",
+                                    "packed_names_index",
+                                    "packed_shared_files_table",
+                                    "packed_symlinks_index"};
+  std::set<std::string> fsopt;
+  for (auto const& opt : info["options"]) {
+    fsopt.insert(opt.asString());
+  }
+  fsopt.erase("mtime_only");
+  EXPECT_EQ(expected, fsopt) << folly::toJson(info["options"]);
+}
+
+TEST(mkdwarfs_test, pack_mode_invalid) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--pack-metadata=grmpf"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("'--pack-metadata' is invalid"));
+}
