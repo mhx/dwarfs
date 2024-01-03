@@ -1045,6 +1045,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   progress prog(std::move(updater), interval_ms);
 
+  // No more streaming to iol.err after this point as this would
+  // cause a race with the progress thread.
+
   auto min_memory_req =
       num_workers * (UINT64_C(1) << sf_config.block_size_bits);
 
@@ -1065,8 +1068,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (!options.debug_filter_function) {
     if (output != "-") {
       if (iol.file->exists(output) && !force_overwrite) {
-        iol.err
-            << "error: output file already exists, use --force to overwrite\n";
+        LOG_ERROR << "output file already exists, use --force to overwrite";
         return 1;
       }
 
@@ -1074,8 +1076,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       auto stream = iol.file->open_output_binary(output, ec);
 
       if (ec) {
-        iol.err << "error: cannot open output file '" << output
-                << "': " << ec.message() << "\n";
+        LOG_ERROR << "cannot open output file '" << output
+                  << "': " << ec.message();
         return 1;
       }
 
@@ -1129,7 +1131,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     for (auto const& cat : rw_opts.recompress_categories) {
       if (!cat_resolver->category_value(cat)) {
-        iol.err << "error: no category '" << cat << "' in input filesystem\n";
+        LOG_ERROR << "no category '" << cat << "' in input filesystem";
         return 1;
       }
     }
