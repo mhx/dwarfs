@@ -839,7 +839,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   worker_group wg_compress("compress", num_workers,
                            std::numeric_limits<size_t>::max(),
                            compress_niceness);
-  worker_group wg_scanner("scanner", num_scanner_workers);
 
   options.num_segmenter_workers = num_segmenter_workers;
 
@@ -1271,6 +1270,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     } else {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
+
+      worker_group wg_scanner("scanner", num_scanner_workers);
 
       scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
                 std::move(script), options);
