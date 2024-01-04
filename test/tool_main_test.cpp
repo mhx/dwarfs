@@ -1096,3 +1096,40 @@ TEST(mkdwarfs_test, compression_cannot_be_used_for_category) {
                            "cannot be used for category 'incompressible': "
                            "metadata requirements not met"));
 }
+
+class mkdwarfs_progress_test : public testing::TestWithParam<char const*> {};
+
+TEST_P(mkdwarfs_progress_test, basic) {
+  std::string mode{GetParam()};
+  std::string const image_file = "test.dwarfs";
+
+  std::vector<std::string> args{
+      "-i", "/", "-o", image_file, "--file-hash=sha512", "--progress", mode};
+
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.iol->set_terminal_fancy(true);
+
+  t.add_root_dir();
+  t.add_random_file_tree();
+  t.os->add_local_files(audio_data_dir);
+
+  EXPECT_EQ(0, t.run(args));
+  EXPECT_TRUE(t.out().empty()) << t.out();
+}
+
+namespace {
+
+constexpr std::array const progress_modes{
+    "none",
+    "simple",
+    "ascii",
+#ifndef _WIN32
+    "unicode",
+#endif
+};
+
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_progress_test,
+                         ::testing::ValuesIn(progress_modes));
