@@ -31,6 +31,7 @@
 #include <fmt/format.h>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
 
 #include "dwarfs/overloaded.h"
 
