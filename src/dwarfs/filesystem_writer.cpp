@@ -346,41 +346,46 @@ class rewritten_fsblock : public fsblock::impl {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job([this, prom = std::move(prom),
-                meta = std::move(meta)]() mutable {
-      // TODO: we don't have to do this for uncompressed blocks
-      std::vector<uint8_t> block;
-      block_decompressor bd(data_comp_type_, data_.data(), data_.size(), block);
-      bd.decompress_frame(bd.uncompressed_size());
+    wg.add_job(
+        [this, prom = std::move(prom), meta = std::move(meta)]() mutable {
+          try {
+            // TODO: we don't have to do this for uncompressed blocks
+            std::vector<uint8_t> block;
+            block_decompressor bd(data_comp_type_, data_.data(), data_.size(),
+                                  block);
+            bd.decompress_frame(bd.uncompressed_size());
 
-      if (!meta) {
-        meta = bd.metadata();
-      }
+            if (!meta) {
+              meta = bd.metadata();
+            }
 
-      pctx_->bytes_in += block.size(); // TODO: data_.size()?
+            pctx_->bytes_in += block.size(); // TODO: data_.size()?
 
-      try {
-        if (meta) {
-          block = bc_.compress(block, *meta);
-        } else {
-          block = bc_.compress(block);
-        }
-      } catch (bad_compression_ratio_error const&) {
-        comp_type_ = compression_type::NONE;
-      }
+            try {
+              if (meta) {
+                block = bc_.compress(block, *meta);
+              } else {
+                block = bc_.compress(block);
+              }
+            } catch (bad_compression_ratio_error const&) {
+              comp_type_ = compression_type::NONE;
+            }
 
-      pctx_->bytes_out += block.size();
+            pctx_->bytes_out += block.size();
 
-      {
-        std::lock_guard lock(mx_);
-        block_data_.swap(block);
-      }
+            {
+              std::lock_guard lock(mx_);
+              block_data_.swap(block);
+            }
 
-      prom.set_value();
-    });
+            prom.set_value();
+          } catch (...) {
+            prom.set_exception(std::current_exception());
+          }
+        });
   }
 
-  void wait_until_compressed() override { future_.wait(); }
+  void wait_until_compressed() override { future_.get(); }
 
   section_type type() const override { return type_; }
 
@@ -690,6 +695,7 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
 
     auto const& fsb = holder.value();
 
+    // TODO: this may throw
     fsb->wait_until_compressed();
 
     LOG_DEBUG << get_section_name(fsb->type()) << " [" << fsb->block_no()
