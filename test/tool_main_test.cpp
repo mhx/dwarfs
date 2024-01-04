@@ -1071,3 +1071,10 @@ TEST(mkdwarfs_test, output_file_fail_close) {
   EXPECT_NE(0, t.run({"-i", "/", "-o", "test.dwarfs"})) << t.err();
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
 }
+
+TEST(mkdwarfs_test, compression_cannot_be_used) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "flac"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("cannot be used without a category"));
+}

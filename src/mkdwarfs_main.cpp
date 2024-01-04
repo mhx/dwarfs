@@ -1224,7 +1224,18 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     categorizer_list.add_implicit_defaults(cop);
     LOG_VERBOSE << cop.as_string();
 
-    fsw->add_default_compressor(compression_opt.get());
+    {
+      auto bc = compression_opt.get();
+
+      if (!bc.metadata_requirements().empty()) {
+        throw std::runtime_error(
+            fmt::format("compression '{}' cannot be used without a category: "
+                        "metadata requirements not met",
+                        bc.describe()));
+      }
+
+      fsw->add_default_compressor(std::move(bc));
+    }
 
     if (recompress) {
       compression_opt.visit_contextual(
