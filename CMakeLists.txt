@@ -608,6 +608,7 @@ if(WITH_TESTS)
     metadata_requirements_test
     pcm_sample_transformer_test
     pcmaudio_categorizer_test
+    speedometer_test
     terminal_test
     tool_main_test
     tools_test

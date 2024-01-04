@@ -26,14 +26,17 @@
 
 namespace dwarfs {
 
-template <typename T>
-class speedometer {
+template <typename ClockT, typename ValueT>
+class basic_speedometer {
  public:
-  speedometer(std::chrono::milliseconds window_length)
+  using clock_type = ClockT;
+  using value_type = ValueT;
+
+  basic_speedometer(std::chrono::milliseconds window_length)
       : window_length_{window_length} {}
 
-  void put(T s) {
-    auto now = std::chrono::steady_clock::now();
+  void put(value_type s) {
+    auto now = clock_type::now();
     auto old = now - window_length_;
 
     while (!samples_.empty() && samples_.front().first < old) {
@@ -43,9 +46,9 @@ class speedometer {
     samples_.emplace_back(now, s);
   }
 
-  T num_per_second() const {
+  value_type num_per_second() const {
     if (samples_.size() < 2) {
-      return T();
+      return value_type();
     }
     auto const& first = samples_.front();
     auto const& last = samples_.back();
@@ -53,14 +56,17 @@ class speedometer {
     auto const dv = last.second - first.second;
     auto const elapsed_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
-    return elapsed_ms > 0 ? (1000 * dv) / elapsed_ms : T();
+    return elapsed_ms > 0 ? (1000 * dv) / elapsed_ms : value_type();
   }
 
   void clear() { samples_.clear(); }
 
  private:
-  std::deque<std::pair<std::chrono::steady_clock::time_point, T>> samples_;
+  std::deque<std::pair<typename clock_type::time_point, value_type>> samples_;
   std::chrono::milliseconds window_length_;
 };
+
+template <typename T>
+using speedometer = basic_speedometer<std::chrono::steady_clock, T>;
 
 } // namespace dwarfs
