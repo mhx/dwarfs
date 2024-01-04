@@ -608,6 +608,7 @@ if(WITH_TESTS)
     fragment_category_test
     incompressible_categorizer_test
     integral_value_parser_test
+    lazy_value_test
     metadata_requirements_test
     pcm_sample_transformer_test
     pcmaudio_categorizer_test
