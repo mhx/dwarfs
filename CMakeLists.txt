@@ -604,6 +604,7 @@ if(WITH_TESTS)
     dwarfs_test
     entry_test
     file_access_test
+    fragment_category_test
     incompressible_categorizer_test
     metadata_requirements_test
     pcm_sample_transformer_test
