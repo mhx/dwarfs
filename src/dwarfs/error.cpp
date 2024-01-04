@@ -35,6 +35,18 @@
 
 namespace dwarfs {
 
+namespace {
+
+[[noreturn]] void do_terminate() {
+#ifdef DWARFS_COVERAGE_ENABLED
+  std::exit(99);
+#else
+  std::terminate();
+#endif
+}
+
+} // namespace
+
 system_error::system_error(char const* file, int line) noexcept
     : system_error(errno, file, line) {}
 
@@ -68,14 +80,14 @@ void handle_nothrow(char const* expr, char const* file, int line) {
   std::cerr << "Expression `" << expr << "` threw `"
             << folly::exceptionStr(std::current_exception()) << "` in " << file
             << "(" << line << ")\n";
-  ::abort();
+  do_terminate();
 }
 
 void assertion_failed(char const* expr, std::string const& msg,
                       char const* file, int line) {
   std::cerr << "Assertion `" << expr << "` failed in " << file << "(" << line
             << "): " << msg << "\n";
-  ::abort();
+  do_terminate();
 }
 
 } // namespace dwarfs

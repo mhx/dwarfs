@@ -603,6 +603,7 @@ if(WITH_TESTS)
     compat_test
     dwarfs_test
     entry_test
+    error_test
     file_access_test
     fragment_category_test
     incompressible_categorizer_test
@@ -1020,6 +1021,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
       target_link_options(${tgt} PRIVATE -fprofile-instr-generate
                           -fcoverage-mapping)
     endif()
+    target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
 endforeach()
 
