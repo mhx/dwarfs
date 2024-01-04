@@ -73,6 +73,9 @@ class terminal {
   virtual std::string
   colored(std::string text, termcolor color, bool enable = true,
           termstyle style = termstyle::NORMAL) const = 0;
+  virtual std::string_view carriage_return() const = 0;
+  virtual std::string_view rewind_line() const = 0;
+  virtual std::string_view clear_line() const = 0;
 };
 
 std::string_view

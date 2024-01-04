@@ -115,6 +115,25 @@ std::string terminal_ansi_colored(std::string_view text, termcolor color,
 
 namespace {
 
+class terminal_ansi : public terminal {
+ public:
+  std::string_view
+  color(termcolor color, termstyle style = termstyle::NORMAL) const override {
+    return terminal_ansi_color(color, style);
+  }
+
+  std::string colored(std::string text, termcolor color, bool enable = true,
+                      termstyle style = termstyle::NORMAL) const override {
+    return terminal_ansi_colored(std::move(text), color, enable, style);
+  }
+
+  std::string_view carriage_return() const override { return "\r"; }
+
+  std::string_view rewind_line() const override { return "\x1b[A"; }
+
+  std::string_view clear_line() const override { return "\x1b[2K"; }
+};
+
 #if defined(_WIN32)
 
 void WindowsEmulateVT100Terminal(DWORD std_handle) {
@@ -140,7 +159,7 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
   ::SetConsoleMode(hdl, out_mode);
 }
 
-class terminal_windows : public terminal {
+class terminal_windows : public terminal_ansi {
  public:
   size_t width() const override {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -157,21 +176,11 @@ class terminal_windows : public terminal {
     }
     return false;
   }
-
-  std::string_view
-  color(termcolor color, termstyle style = termstyle::NORMAL) const override {
-    return terminal_ansi_color(color, style);
-  }
-
-  std::string colored(std::string text, termcolor color, bool enable = true,
-                      termstyle style = termstyle::NORMAL) const override {
-    return terminal_ansi_colored(std::move(text), color, enable, style);
-  }
 };
 
 #else
 
-class terminal_posix : public terminal {
+class terminal_posix : public terminal_ansi {
  public:
   size_t width() const override {
     struct ::winsize w;
@@ -188,16 +197,6 @@ class terminal_posix : public terminal {
     }
     auto term = ::getenv("TERM");
     return term && term[0] != '\0' && ::strcmp(term, "dumb") != 0;
-  }
-
-  std::string_view
-  color(termcolor color, termstyle style = termstyle::NORMAL) const override {
-    return terminal_ansi_color(color, style);
-  }
-
-  std::string colored(std::string text, termcolor color, bool enable = true,
-                      termstyle style = termstyle::NORMAL) const override {
-    return terminal_ansi_colored(std::move(text), color, enable, style);
   }
 };
 

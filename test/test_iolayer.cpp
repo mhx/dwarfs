@@ -219,6 +219,12 @@ bool test_terminal::is_fancy(std::ostream& os) const {
   return fancy_ && (&os == out_ || &os == err_);
 }
 
+std::string_view test_terminal::carriage_return() const { return "<cr>"; }
+
+std::string_view test_terminal::rewind_line() const { return "<rewind>"; }
+
+std::string_view test_terminal::clear_line() const { return "<clear>"; }
+
 std::string_view test_terminal::color(termcolor color, termstyle style) const {
   static constexpr std::array<std::string_view,
                               static_cast<size_t>(termcolor::NUM_COLORS)>

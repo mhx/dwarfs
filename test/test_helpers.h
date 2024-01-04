@@ -160,6 +160,9 @@ class test_terminal : public terminal {
   std::string_view color(termcolor color, termstyle style) const override;
   std::string colored(std::string text, termcolor color, bool enable,
                       termstyle style) const override;
+  std::string_view carriage_return() const override;
+  std::string_view rewind_line() const override;
+  std::string_view clear_line() const override;
 
  private:
   std::ostream* out_;

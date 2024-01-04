@@ -155,15 +155,18 @@ console_writer::console_writer(std::shared_ptr<terminal const> term,
 void console_writer::rewind(int next_rewind_lines) {
   if (!statebuf_.empty()) {
     auto& os = log_stream();
+    auto& term = this->term();
+    auto clear_line = term.clear_line();
+    auto rewind_line = term.rewind_line();
 
-    os << '\r';
+    os << term.carriage_return();
 
     int num_erase = rewind_lines_ - next_rewind_lines;
 
     for (int i = 0; i < rewind_lines_; ++i) {
-      os << "\x1b[A";
+      os << rewind_line;
       if (num_erase > 0) {
-        os << "\x1b[2K";
+        os << clear_line;
         --num_erase;
       }
     }
