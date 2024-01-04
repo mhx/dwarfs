@@ -606,6 +606,7 @@ if(WITH_TESTS)
     file_access_test
     fragment_category_test
     incompressible_categorizer_test
+    integral_value_parser_test
     metadata_requirements_test
     pcm_sample_transformer_test
     pcmaudio_categorizer_test
