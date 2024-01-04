@@ -1125,6 +1125,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     input_filesystem =
         std::make_unique<filesystem_v2>(lgr, iol.os->map_file(path), fsopts);
 
+    LOG_INFO << "checking input filesystem...";
+
+    {
+      auto tv = LOG_TIMED_VERBOSE;
+
+      if (auto num_errors =
+              input_filesystem->check(filesystem_check_level::CHECKSUM);
+          num_errors != 0) {
+        LOG_ERROR << "input filesystem is corrupt: detected " << num_errors
+                  << " error(s)";
+        return 1;
+      }
+
+      tv << "checked input filesystem";
+    }
+
     cat_resolver = std::make_shared<filesystem_block_category_resolver>(
         input_filesystem->get_all_block_categories());
 
