@@ -1081,9 +1081,18 @@ TEST(mkdwarfs_test, output_file_fail_close) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
 }
 
-TEST(mkdwarfs_test, compression_cannot_be_used) {
+TEST(mkdwarfs_test, compression_cannot_be_used_without_category) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "flac"}));
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("cannot be used without a category"));
+}
+
+TEST(mkdwarfs_test, compression_cannot_be_used_for_category) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize", "-C",
+                      "incompressible::flac"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "cannot be used for category 'incompressible': "
+                           "metadata requirements not met"));
 }
