@@ -722,15 +722,15 @@ TEST(mkdwarfs_test, recompress) {
     image = std::move(img.value());
   }
 
-  auto tester = [&] {
+  auto tester = [&image_file](std::string const& image_data) {
     auto t = mkdwarfs_tester::create_empty();
     t.add_root_dir();
-    t.os->add_file(image_file, image);
+    t.os->add_file(image_file, image_data);
     return t;
   };
 
   {
-    auto t = tester();
+    auto t = tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress", "-l0"}))
         << t.err();
     auto fs = t.fs_from_stdout();
@@ -738,13 +738,13 @@ TEST(mkdwarfs_test, recompress) {
   }
 
   {
-    auto t = tester();
+    auto t = tester(image);
     EXPECT_NE(0, t.run({"-i", image_file, "-o", "-", "--recompress=foo"}));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid recompress mode"));
   }
 
   {
-    auto t = tester();
+    auto t = tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=metadata"}))
         << t.err();
     auto fs = t.fs_from_stdout();
@@ -752,13 +752,22 @@ TEST(mkdwarfs_test, recompress) {
   }
 
   {
-    auto t = tester();
+    auto t = tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=block",
                         "--recompress-categories=!pcmaudio/waveform", "-C",
                         "pcmaudio/metadata::null"}))
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
+  }
+
+  {
+    auto corrupt_image = image;
+    corrupt_image[64] ^= 0x01; // flip a bit right after the header
+    auto t = tester(corrupt_image);
+    EXPECT_NE(0, t.run({"-i", image_file, "-o", "-", "--recompress"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("input filesystem is corrupt"));
   }
 }
 
