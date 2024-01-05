@@ -214,6 +214,14 @@ class mkdwarfs_tester : public tester_common {
   std::unique_ptr<logger> lgr;
 };
 
+std::string build_test_image() {
+  mkdwarfs_tester t;
+  if (t.run({"-i", "/", "-o", "-"}) != 0) {
+    throw std::runtime_error("failed to build test image:\n" + t.err());
+  }
+  return t.out();
+}
+
 class dwarfsck_tester : public tester_common {
  public:
   dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos)
@@ -221,6 +229,37 @@ class dwarfsck_tester : public tester_common {
 
   dwarfsck_tester()
       : dwarfsck_tester(std::make_shared<test::os_access_mock>()) {}
+
+  static dwarfsck_tester create_with_image(std::string image) {
+    auto os = std::make_shared<test::os_access_mock>();
+    os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+    os->add_file("image.dwarfs", std::move(image));
+    return dwarfsck_tester(std::move(os));
+  }
+
+  static dwarfsck_tester create_with_image() {
+    return create_with_image(build_test_image());
+  }
+};
+
+class dwarfsextract_tester : public tester_common {
+ public:
+  dwarfsextract_tester(std::shared_ptr<test::os_access_mock> pos)
+      : tester_common(dwarfsextract_main, "dwarfsextract", std::move(pos)) {}
+
+  dwarfsextract_tester()
+      : dwarfsextract_tester(std::make_shared<test::os_access_mock>()) {}
+
+  static dwarfsextract_tester create_with_image(std::string image) {
+    auto os = std::make_shared<test::os_access_mock>();
+    os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+    os->add_file("image.dwarfs", std::move(image));
+    return dwarfsextract_tester(std::move(os));
+  }
+
+  static dwarfsextract_tester create_with_image() {
+    return create_with_image(build_test_image());
+  }
 };
 
 std::tuple<std::optional<filesystem_v2>, mkdwarfs_tester>
@@ -1127,3 +1166,94 @@ constexpr std::array const progress_modes{
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_progress_test,
                          ::testing::ValuesIn(progress_modes));
+
+TEST(dwarfsextract_test, mtree) {
+  auto t = dwarfsextract_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree"})) << t.err();
+  auto out = t.out();
+  EXPECT_TRUE(out.starts_with("#mtree")) << out;
+  EXPECT_THAT(out, ::testing::HasSubstr("type=dir"));
+  EXPECT_THAT(out, ::testing::HasSubstr("type=file"));
+}
+
+TEST(dwarfsextract_test, stdout_progress_error) {
+  auto t = dwarfsextract_tester::create_with_image();
+  EXPECT_NE(0,
+            t.run({"-i", "image.dwarfs", "-f", "mtree", "--stdout-progress"}))
+      << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "cannot use --stdout-progress with --output=-"));
+}
+
+TEST(dwarfsck_test, check_exclusive) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_NE(0, t.run({"image.dwarfs", "--no-check", "--check-integrity"}))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "--no-check and --check-integrity are mutually exclusive"));
+}
+
+TEST(dwarfsck_test, print_header_and_json) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_NE(0, t.run({"image.dwarfs", "--print-header", "--json"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "--print-header is mutually exclusive with --json, "
+                           "--export-metadata and --check-integrity"));
+}
+
+TEST(dwarfsck_test, print_header_and_export_metadata) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_NE(0, t.run({"image.dwarfs", "--print-header",
+                      "--export-metadata=image.meta"}))
+      << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "--print-header is mutually exclusive with --json, "
+                           "--export-metadata and --check-integrity"));
+}
+
+TEST(dwarfsck_test, print_header_and_check_integrity) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_NE(0, t.run({"image.dwarfs", "--print-header", "--check-integrity"}))
+      << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "--print-header is mutually exclusive with --json, "
+                           "--export-metadata and --check-integrity"));
+}
+
+TEST(dwarfsck_test, print_header_no_header) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(2, t.run({"image.dwarfs", "--print-header"})) << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("filesystem does not contain a header"));
+}
+
+TEST(dwarfsck_test, export_metadata) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--export-metadata=image.meta"}))
+      << t.err();
+  auto meta = t.fa->get_file("image.meta");
+  ASSERT_TRUE(meta);
+  EXPECT_GT(meta->size(), 1000);
+  EXPECT_NO_THROW(folly::parseJson(meta.value()));
+}
+
+TEST(dwarfsck_test, export_metadata_open_error) {
+  auto t = dwarfsck_tester::create_with_image();
+  t.fa->set_open_error(
+      "image.meta", std::make_error_code(std::errc::device_or_resource_busy));
+  EXPECT_NE(0, t.run({"image.dwarfs", "--export-metadata=image.meta"}))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("failed to open metadata output file"));
+}
+
+TEST(dwarfsck_test, export_metadata_close_error) {
+  auto t = dwarfsck_tester::create_with_image();
+  t.fa->set_close_error("image.meta",
+                        std::make_error_code(std::errc::no_space_on_device));
+  EXPECT_NE(0, t.run({"image.dwarfs", "--export-metadata=image.meta"}))
+      << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("failed to close metadata output file"));
+}
