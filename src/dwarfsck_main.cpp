@@ -141,14 +141,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     fsopts.metadata.enable_nlink = true;
     fsopts.metadata.check_consistency = check_integrity;
-
-    try {
-      fsopts.image_offset = image_offset == "auto"
-                                ? filesystem_options::IMAGE_OFFSET_AUTO
-                                : folly::to<file_off_t>(image_offset);
-    } catch (...) {
-      DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
-    }
+    fsopts.image_offset = parse_image_offset(image_offset);
 
     std::shared_ptr<mmif> mm = iol.os->map_file(input);
 

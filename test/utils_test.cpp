@@ -29,6 +29,7 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/offset_cache.h"
+#include "dwarfs/options.h"
 #include "dwarfs/util.h"
 
 using namespace dwarfs;
@@ -378,4 +379,17 @@ TEST(utils, parse_time_point) {
   EXPECT_THAT([] { parse_time_point("2020-01-01 01:02x"); },
               ::testing::ThrowsMessage<dwarfs::runtime_error>(
                   ::testing::HasSubstr("cannot parse time point")));
+}
+
+TEST(utils, parse_image_offset) {
+  EXPECT_EQ(0, parse_image_offset("0"));
+  EXPECT_EQ(1, parse_image_offset("1"));
+  EXPECT_EQ(1024, parse_image_offset("1024"));
+  EXPECT_EQ(filesystem_options::IMAGE_OFFSET_AUTO, parse_image_offset("auto"));
+  EXPECT_THAT([] { parse_image_offset("-1"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("image offset must be positive")));
+  EXPECT_THAT([] { parse_image_offset("asd"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("failed to parse image offset")));
 }

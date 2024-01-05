@@ -32,9 +32,11 @@
 
 #include <date/date.h>
 
+#include <folly/Conv.h>
 #include <folly/String.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/options.h"
 #include "dwarfs/util.h"
 
 extern "C" int dwarfs_wcwidth(int ucs);
@@ -168,6 +170,27 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   }
 
   DWARFS_THROW(runtime_error, "cannot parse time point");
+}
+
+file_off_t parse_image_offset(std::string const& str) {
+  if (str == "auto") {
+    return filesystem_options::IMAGE_OFFSET_AUTO;
+  }
+
+  auto off = folly::tryTo<file_off_t>(str);
+
+  if (!off) {
+    auto ce = folly::makeConversionError(off.error(), str);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("failed to parse image offset: {} ({})", str,
+                             folly::exceptionStr(ce)));
+  }
+
+  if (off.value() < 0) {
+    DWARFS_THROW(runtime_error, "image offset must be positive");
+  }
+
+  return off.value();
 }
 
 std::string sys_string_to_string(sys_string const& in) {

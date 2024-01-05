@@ -119,14 +119,8 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     auto level = logger::parse_level(log_level);
     stream_logger lgr(iol.term, iol.err, level, level >= logger::DEBUG);
     filesystem_options fsopts;
-    try {
-      fsopts.image_offset = image_offset == "auto"
-                                ? filesystem_options::IMAGE_OFFSET_AUTO
-                                : folly::to<file_off_t>(image_offset);
-    } catch (...) {
-      DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
-    }
 
+    fsopts.image_offset = parse_image_offset(image_offset);
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
     fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;

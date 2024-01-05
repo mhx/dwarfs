@@ -1192,15 +1192,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.inode_offset = inode_offset;
 
   if (opts.image_offset_str) {
-    std::string image_offset{opts.image_offset_str};
-
-    try {
-      fsopts.image_offset = image_offset == "auto"
-                                ? filesystem_options::IMAGE_OFFSET_AUTO
-                                : folly::to<file_off_t>(image_offset);
-    } catch (...) {
-      DWARFS_THROW(runtime_error, "failed to parse offset: " + image_offset);
-    }
+    fsopts.image_offset = parse_image_offset(opts.image_offset_str);
   }
 
   std::unordered_set<std::string> perfmon_enabled;
