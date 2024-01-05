@@ -165,11 +165,21 @@ void check_index_range(global_metadata::Meta const& meta) {
     if (ino.mode_index() >= num_modes) {
       DWARFS_THROW(runtime_error, "mode_index out of range");
     }
-    if (auto i = ino.owner_index(); i >= num_uids && i > 0) {
-      DWARFS_THROW(runtime_error, "owner_index out of range");
+    // Special handling for legacy filesystems built with --set-owner
+    // where num_uids == 0 is valid and owner_index is used to store
+    // the uid.
+    if (num_uids > 0) {
+      if (auto i = ino.owner_index(); i >= num_uids) {
+        DWARFS_THROW(runtime_error, "owner_index out of range");
+      }
     }
-    if (auto i = ino.group_index(); i >= num_gids && i > 0) {
-      DWARFS_THROW(runtime_error, "group_index out of range");
+    // Special handling for legacy filesystems built with --set-group
+    // where num_gids == 0 is valid and group_index is used to store
+    // the gid.
+    if (num_gids > 0) {
+      if (auto i = ino.group_index(); i >= num_gids) {
+        DWARFS_THROW(runtime_error, "group_index out of range");
+      }
     }
     if (v2_2) {
       if (auto i = ino.name_index_v2_2(); i >= num_names && i > 0) {
@@ -554,19 +564,27 @@ auto inode_view::perm_string() const -> std::string {
 }
 
 auto inode_view::getuid() const -> uid_type {
-  if (meta_->uids().empty()) {
-    return 0;
+  auto uids = meta_->uids();
+  auto ix = owner_index();
+  if (!uids.empty()) {
+    assert(ix < uids.size());
+    return uids[ix];
   }
-  assert(owner_index() < meta_->uids().size());
-  return meta_->uids()[owner_index()];
+  // Releases up to and including 0.7.x, when using --set-owner, would store
+  // the uid in the owner_index field and leave the uids table empty.
+  return ix;
 }
 
 auto inode_view::getgid() const -> gid_type {
-  if (meta_->gids().empty()) {
-    return 0;
+  auto gids = meta_->gids();
+  auto ix = group_index();
+  if (!gids.empty()) {
+    assert(ix < gids.size());
+    return gids[ix];
   }
-  assert(group_index() < meta_->gids().size());
-  return meta_->gids()[group_index()];
+  // Releases up to and including 0.7.x, when using --set-group, would store
+  // the gid in the group_index field and leave the gids table empty.
+  return ix;
 }
 
 // TODO: pretty certain some of this stuff can be simplified
