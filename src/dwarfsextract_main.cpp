@@ -35,6 +35,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/performance_monitor.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
@@ -137,7 +138,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<performance_monitor> perfmon =
         performance_monitor::create(perfmon_enabled);
 
-    filesystem_v2 fs(lgr, std::make_shared<mmap>(filesystem), fsopts, perfmon);
+    filesystem_v2 fs(lgr, iol.os->map_file(filesystem), fsopts, perfmon);
     filesystem_extractor fsx(lgr);
 
     if (format.empty()) {

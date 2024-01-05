@@ -54,7 +54,6 @@ namespace {
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
-auto test_data_image = test_dir / "data.dwarfs";
 
 enum class input_mode {
   from_file,
@@ -429,14 +428,13 @@ TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
 }
 
 #ifdef DWARFS_PERFMON_ENABLED
-TEST_F(dwarfsextract_main_test, perfmon) {
-  // TODO: passing in test_data_image this way only only works because
-  //       dwarfsextract_main does not currently use the os_access abstraction
-  auto exit_code = run({"-i", test_data_image.string(), "-f", "mtree",
-                        "--perfmon", "filesystem_v2,inode_reader_v2"});
-  EXPECT_EQ(exit_code, 0);
-  auto outs = out();
-  auto errs = err();
+TEST(dwarfsextract_test, perfmon) {
+  auto t = dwarfsextract_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--perfmon",
+                      "filesystem_v2,inode_reader_v2"}))
+      << t.err();
+  auto outs = t.out();
+  auto errs = t.err();
   EXPECT_GT(outs.size(), 100);
   EXPECT_FALSE(errs.empty());
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future]"));
