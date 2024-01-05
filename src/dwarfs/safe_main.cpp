@@ -42,18 +42,9 @@ int safe_main(std::function<int(void)> fn) {
     terminal::setup();
 
     return fn();
-  } catch (system_error const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]\n";
-    dump_exceptions();
-  } catch (error const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << " [" << e.file() << ":"
-              << e.line() << "]\n";
-    dump_exceptions();
-  } catch (std::exception const& e) {
-    std::cerr << "ERROR: " << folly::exceptionStr(e) << "\n";
-    dump_exceptions();
   } catch (...) {
+    std::cerr << "ERROR: " << folly::exceptionStr(std::current_exception())
+              << "\n";
     dump_exceptions();
   }
   return 1;

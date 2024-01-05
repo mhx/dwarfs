@@ -192,13 +192,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     if (perfmon) {
       perfmon->summarize(iol.err);
     }
-  } catch (runtime_error const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
-    return 1;
-  } catch (system_error const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
-    return 1;
-  } catch (std::system_error const& e) {
+  } catch (std::exception const& e) {
     iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   }

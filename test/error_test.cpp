@@ -22,6 +22,8 @@
 #include <cerrno>
 #include <filesystem>
 
+#include <fmt/format.h>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -57,7 +59,8 @@ TEST(error_test, runtime_error) {
     test_throw_runtime_error(true);
     FAIL() << "expected runtime_error to be thrown";
   } catch (const runtime_error& e) {
-    EXPECT_EQ("my test error", std::string(e.what()));
+    EXPECT_EQ(fmt::format("my test error [{}:{}]", e.file(), e.line()),
+              std::string(e.what()));
     EXPECT_EQ("error_test.cpp",
               std::filesystem::path(e.file()).filename().string());
     EXPECT_EQ(expected_line, e.line());

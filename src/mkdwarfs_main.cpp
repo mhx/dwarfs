@@ -1296,11 +1296,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       options.inode.categorizer_mgr.reset();
     }
-  } catch (runtime_error const& e) {
-    LOG_ERROR << e.what() << " [" << e.file() << ":" << e.line() << "]";
-    return 1;
-  } catch (system_error const& e) {
-    LOG_ERROR << e.what() << " [" << e.file() << ":" << e.line() << "]";
+  } catch (std::exception const& e) {
+    LOG_ERROR << folly::exceptionStr(e);
     return 1;
   }
 

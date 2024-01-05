@@ -279,8 +279,6 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t size,
       num_read += br.size();
     }
     return num_read;
-  } catch (runtime_error const& e) {
-    LOG_ERROR << e.what();
   } catch (...) {
     LOG_ERROR << folly::exceptionStr(std::current_exception());
   }

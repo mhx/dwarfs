@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <iostream>
 
+#include <fmt/format.h>
+
 #include <folly/String.h>
 
 #ifdef DWARFS_USE_EXCEPTION_TRACER
@@ -46,6 +48,11 @@ namespace {
 }
 
 } // namespace
+
+error::error(std::string const& s, char const* file, int line) noexcept
+    : what_{fmt::format("{} [{}:{}]", s, file, line)}
+    , file_{file}
+    , line_{line} {}
 
 system_error::system_error(char const* file, int line) noexcept
     : system_error(errno, file, line) {}

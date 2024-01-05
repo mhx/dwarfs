@@ -117,8 +117,8 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
               int fh = fs.open(inode_data);
               fs.read(fh, buf.data(), buf.size());
             }
-          } catch (runtime_error const& e) {
-            iol.err << "error: " << e.what() << "\n";
+          } catch (std::exception const& e) {
+            iol.err << "error: " << folly::exceptionStr(e) << "\n";
           } catch (...) {
             iol.err << "error: "
                     << folly::exceptionStr(std::current_exception()) << "\n";
@@ -129,8 +129,8 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     });
 
     wg.wait();
-  } catch (runtime_error const& e) {
-    iol.err << "error: " << e.what() << "\n";
+  } catch (std::exception const& e) {
+    iol.err << "error: " << folly::exceptionStr(e) << "\n";
     return 1;
   }
 

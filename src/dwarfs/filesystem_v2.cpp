@@ -775,11 +775,8 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
           DWARFS_THROW(runtime_error, "duplicate section: " + s.name());
         }
       }
-    } catch (error const& e) {
-      LOG_ERROR << e.what() << " [" << e.file() << ":" << e.line() << "]";
-      ++errors;
-    } catch (...) {
-      LOG_ERROR << folly::exceptionStr(std::current_exception());
+    } catch (std::exception const& e) {
+      LOG_ERROR << folly::exceptionStr(e);
       ++errors;
     }
   }
@@ -787,11 +784,8 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
   if (level == filesystem_check_level::FULL) {
     try {
       meta_.check_consistency();
-    } catch (error const& e) {
-      LOG_ERROR << e.what() << " [" << e.file() << ":" << e.line() << "]";
-      ++errors;
-    } catch (...) {
-      LOG_ERROR << folly::exceptionStr(std::current_exception());
+    } catch (std::exception const& e) {
+      LOG_ERROR << folly::exceptionStr(e);
       ++errors;
     }
   }

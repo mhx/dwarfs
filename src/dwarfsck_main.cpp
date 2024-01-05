@@ -42,6 +42,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/tool.h"
+#include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
 
 namespace dwarfs {
@@ -189,13 +190,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         }
       }
     }
-  } catch (system_error const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
-    return 1;
-  } catch (runtime_error const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
-    return 1;
-  } catch (std::system_error const& e) {
+  } catch (std::exception const& e) {
     iol.err << folly::exceptionStr(e) << "\n";
     return 1;
   }

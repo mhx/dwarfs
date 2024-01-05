@@ -36,10 +36,7 @@ class error : public std::exception {
   int line() const { return line_; }
 
  protected:
-  error(std::string const& s, char const* file, int line) noexcept
-      : what_(s)
-      , file_(file)
-      , line_(line) {}
+  error(std::string const& s, char const* file, int line) noexcept;
 
  private:
   std::string what_;

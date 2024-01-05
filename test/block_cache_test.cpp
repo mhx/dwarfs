@@ -81,7 +81,7 @@ TEST(block_range, uncompressed) {
 
   EXPECT_THAT([] { block_range range(nullptr, 0, 0); },
               ::testing::ThrowsMessage<dwarfs::runtime_error>(
-                  "block_range: block data is null"));
+                  ::testing::HasSubstr("block_range: block data is null")));
 }
 
 TEST(block_range, compressed) {
@@ -109,7 +109,7 @@ TEST(block_range, compressed) {
         block_range range(block, 0, 0);
       },
       ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          "block_range: block data is null"));
+          ::testing::HasSubstr("block_range: block data is null")));
 
   EXPECT_THAT(
       [&] {
@@ -117,5 +117,5 @@ TEST(block_range, compressed) {
         block_range range(block, 100, 1);
       },
       ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          "block_range: size out of range (101 > 100)"));
+          ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
 }

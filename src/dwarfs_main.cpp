@@ -273,10 +273,10 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       }
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -303,10 +303,10 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
       }
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -357,10 +357,10 @@ int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
       err = userdata.fs.access(*entry, mode, uid, gid);
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -411,10 +411,10 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
       err = userdata.fs.readlink(*entry, str, readlink_mode::unix);
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -491,10 +491,10 @@ int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
       }
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -569,10 +569,10 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       err = EIO;
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -602,10 +602,10 @@ int op_read(char const* path, char* buf, size_t size, native_off_t off,
 
     err = rv;
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = -e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = -EIO;
   }
 
@@ -672,10 +672,10 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       err = ENOTDIR;
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -731,10 +731,10 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
       err = -ENOTDIR;
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = -e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = -EIO;
   }
 
@@ -763,10 +763,10 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata& userdata,
 #endif
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -867,10 +867,10 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
       }
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -922,10 +922,10 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
       return;
     }
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << e.what();
+    LOG_ERROR << folly::exceptionStr(e);
     err = EIO;
   }
 
@@ -1329,11 +1329,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
             parse_time_with_unit(opts.cache_tidy_max_age_str);
       }
     }
-  } catch (runtime_error const& e) {
-    iol.err << "error: " << e.what() << "\n";
-    return 1;
   } catch (std::filesystem::filesystem_error const& e) {
-    iol.err << e.what() << "\n";
+    iol.err << folly::exceptionStr(e) << "\n";
+    return 1;
+  } catch (std::exception const& e) {
+    iol.err << "error: " << folly::exceptionStr(e) << "\n";
     return 1;
   }
 
@@ -1359,7 +1359,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       load_filesystem<prod_logger_policy>(userdata);
     }
   } catch (std::exception const& e) {
-    LOG_ERROR << "error initializing file system: " << e.what();
+    LOG_ERROR << "error initializing file system: " << folly::exceptionStr(e);
     return 1;
   }
 

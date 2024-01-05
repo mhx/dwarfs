@@ -421,7 +421,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     return pe;
   } catch (const std::system_error& e) {
-    LOG_ERROR << "error reading entry: " << e.what();
+    LOG_ERROR << "error reading entry: " << folly::exceptionStr(e);
     prog.errors++;
   }
 
