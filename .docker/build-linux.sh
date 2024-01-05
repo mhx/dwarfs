@@ -59,6 +59,7 @@ case "-$BUILD_TYPE-" in
     ;;
   *-tsan-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_TSAN=1"
+    export TSAN_OPTIONS="suppressions=/workspace/tsan.supp"
     ;;
   *-ubsan-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_UBSAN=1"
