@@ -97,14 +97,47 @@ class tool_main_test : public testing::Test {
   std::unique_ptr<test::test_iolayer> iol;
 };
 
-class mkdwarfs_tester {
+class tester_common {
  public:
-  mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
+  using main_ptr_t = int (*)(std::span<std::string>, iolayer const&);
+
+  tester_common(main_ptr_t mp, std::string toolname,
+                std::shared_ptr<test::os_access_mock> pos)
       : fa{std::make_shared<test::test_file_access>()}
       , os{std::move(pos)}
-      , iol{std::make_unique<test::test_iolayer>(os, fa)} {
+      , iol{std::make_unique<test::test_iolayer>(os, fa)}
+      , main_{mp}
+      , toolname_{std::move(toolname)} {
     setup_locale();
   }
+
+  int run(std::vector<std::string> args) {
+    args.insert(args.begin(), toolname_);
+    return main_(args, iol->get());
+  }
+
+  int run(std::initializer_list<std::string> args) {
+    return run(std::vector<std::string>(args));
+  }
+
+  int run(std::string args) { return run(test::parse_args(args)); }
+
+  std::string out() const { return iol->out(); }
+  std::string err() const { return iol->err(); }
+
+  std::shared_ptr<test::test_file_access> fa;
+  std::shared_ptr<test::os_access_mock> os;
+  std::unique_ptr<test::test_iolayer> iol;
+
+ private:
+  main_ptr_t main_;
+  std::string toolname_;
+};
+
+class mkdwarfs_tester : public tester_common {
+ public:
+  mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
+      : tester_common(mkdwarfs_main, "mkdwarfs", std::move(pos)) {}
 
   mkdwarfs_tester()
       : mkdwarfs_tester(test::os_access_mock::create_test_instance()) {}
@@ -157,17 +190,6 @@ class mkdwarfs_tester {
     }
   }
 
-  int run(std::vector<std::string> args) {
-    args.insert(args.begin(), "mkdwarfs");
-    return mkdwarfs_main(args, iol->get());
-  }
-
-  int run(std::initializer_list<std::string> args) {
-    return run(std::vector<std::string>(args));
-  }
-
-  int run(std::string args) { return run(test::parse_args(args)); }
-
   filesystem_v2
   fs_from_data(std::string data, filesystem_options const& opt = {}) {
     if (!lgr) {
@@ -189,44 +211,16 @@ class mkdwarfs_tester {
     return fs_from_data(out(), opt);
   }
 
-  std::string out() const { return iol->out(); }
-  std::string err() const { return iol->err(); }
-
-  std::shared_ptr<test::test_file_access> fa;
-  std::shared_ptr<test::os_access_mock> os;
-  std::unique_ptr<test::test_iolayer> iol;
   std::unique_ptr<logger> lgr;
 };
 
-class dwarfsck_tester {
+class dwarfsck_tester : public tester_common {
  public:
   dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos)
-      : fa{std::make_shared<test::test_file_access>()}
-      , os{std::move(pos)}
-      , iol{std::make_unique<test::test_iolayer>(os, fa)} {
-    setup_locale();
-  }
+      : tester_common(dwarfsck_main, "dwarfsck", std::move(pos)) {}
 
   dwarfsck_tester()
       : dwarfsck_tester(std::make_shared<test::os_access_mock>()) {}
-
-  int run(std::vector<std::string> args) {
-    args.insert(args.begin(), "dwarfsck");
-    return dwarfsck_main(args, iol->get());
-  }
-
-  int run(std::initializer_list<std::string> args) {
-    return run(std::vector<std::string>(args));
-  }
-
-  int run(std::string args) { return run(test::parse_args(args)); }
-
-  std::string out() const { return iol->out(); }
-  std::string err() const { return iol->err(); }
-
-  std::shared_ptr<test::test_file_access> fa;
-  std::shared_ptr<test::os_access_mock> os;
-  std::unique_ptr<test::test_iolayer> iol;
 };
 
 std::tuple<std::optional<filesystem_v2>, mkdwarfs_tester>
