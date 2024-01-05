@@ -283,6 +283,10 @@ void analyze_frozen(std::ostream& os,
   META_LIST_SIZE(directories);
   META_LIST_SIZE(inodes);
   META_LIST_SIZE(chunk_table);
+  if (!meta.entry_table_v2_2().empty()) {
+    // deprecated, so only list if non-empty
+    META_LIST_SIZE(entry_table_v2_2);
+  }
   META_LIST_SIZE(symlink_table);
   META_LIST_SIZE(uids);
   META_LIST_SIZE(gids);
