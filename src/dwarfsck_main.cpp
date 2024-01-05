@@ -27,14 +27,13 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/File.h>
-#include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/json.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/file_access.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
@@ -166,12 +165,19 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       filesystem_v2 fs(lgr, mm, fsopts);
 
       if (!export_metadata.empty()) {
-        auto of = folly::File(export_metadata, O_RDWR | O_CREAT | O_TRUNC);
-        auto json = fs.serialize_metadata_as_json(false);
-        if (folly::writeFull(of.fd(), json.data(), json.size()) < 0) {
-          LOG_ERROR << "failed to export metadata";
+        std::error_code ec;
+        auto of = iol.file->open_output(export_metadata, ec);
+        if (ec) {
+          LOG_ERROR << "failed to open metadata output file: " << ec.message();
+          return 1;
         }
-        of.close();
+        auto json = fs.serialize_metadata_as_json(false);
+        of->os().write(json.data(), json.size());
+        of->close(ec);
+        if (ec) {
+          LOG_ERROR << "failed to close metadata output file: " << ec.message();
+          return 1;
+        }
       } else {
         auto level = check_integrity ? filesystem_check_level::FULL
                                      : filesystem_check_level::CHECKSUM;
