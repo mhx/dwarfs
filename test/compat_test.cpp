@@ -1046,7 +1046,7 @@ TEST_P(compat_metadata, backwards_compat) {
   check_dynamic(version, fs);
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, compat_metadata,
+INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_metadata,
                          ::testing::ValuesIn(versions));
 
 class compat_filesystem
@@ -1087,7 +1087,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, compat_filesystem,
+INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_filesystem,
                          ::testing::Combine(::testing::ValuesIn(versions),
                                             ::testing::Bool()));
 
@@ -1237,7 +1237,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, rewrite,
+INSTANTIATE_TEST_SUITE_P(dwarfs_compat, rewrite,
                          ::testing::Combine(::testing::ValuesIn(versions),
                                             ::testing::Bool(),
                                             ::testing::Bool()));
