@@ -33,7 +33,8 @@ with a non-zero exit code.
 
 - `-H`, `--print-header`:
   Print the header located before the filesystem image to stdout. If no
-  header is present, the program will exit with a non-zero exit code.
+  header is present, the program will exit with exit code 2 and emit a
+  warning.
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.

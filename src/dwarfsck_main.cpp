@@ -159,8 +159,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
           return 1;
         }
       } else {
-        LOG_ERROR << "filesystem does not contain a header";
-        return 1;
+        LOG_WARN << "filesystem does not contain a header";
+        return 2;
       }
     } else {
       filesystem_v2 fs(lgr, mm, fsopts);
