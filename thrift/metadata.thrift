@@ -129,7 +129,7 @@ struct dir_entry {
    // index into metadata.names
    1: UInt32 name_index
 
-   // index into metadata.entries
+   // index into metadata.inodes
    2: UInt32 inode_num
 }
 
