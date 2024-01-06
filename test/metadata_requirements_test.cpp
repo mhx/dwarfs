@@ -37,7 +37,8 @@ using namespace dwarfs;
 TEST(metadata_requirements, dynamic_test) {
   std::string requirements = R"({
     "compression": ["set", ["lz4", "zstd"]],
-    "block_size": ["range", 16, 1024]
+    "block_size": ["range", 16, 1024],
+    "channels": ["set", [1, 2, 4]]
   })";
 
   std::unique_ptr<compression_metadata_requirements<folly::dynamic>> req;
@@ -48,7 +49,8 @@ TEST(metadata_requirements, dynamic_test) {
   {
     std::string metadata = R"({
       "compression": "lz4",
-      "block_size": 256
+      "block_size": 256,
+      "channels": 2
     })";
 
     EXPECT_NO_THROW(req->check(metadata));
@@ -58,7 +60,8 @@ TEST(metadata_requirements, dynamic_test) {
     std::string metadata = R"({
       "compression": "lz4",
       "foo": "bar",
-      "block_size": 256
+      "block_size": 256,
+      "channels": 2
     })";
 
     EXPECT_NO_THROW(req->check(metadata));
@@ -67,21 +70,23 @@ TEST(metadata_requirements, dynamic_test) {
   {
     std::string metadata = R"({
       "compression": "lzma",
-      "block_size": 256
+      "block_size": 256,
+      "channels": 2
     })";
 
     EXPECT_THAT(
-        [&]() { req->check(metadata); },
+        [&] { req->check(metadata); },
         ThrowsMessage<std::runtime_error>(testing::HasSubstr(
             "compression 'lzma' does not meet requirements [lz4, zstd]")));
   }
 
   {
     std::string metadata = R"({
-      "block_size": 256
+      "block_size": 256,
+      "channels": 2
     })";
 
-    EXPECT_THAT([&]() { req->check(metadata); },
+    EXPECT_THAT([&] { req->check(metadata); },
                 ThrowsMessage<std::runtime_error>(
                     testing::HasSubstr("missing requirement 'compression'")));
   }
@@ -89,13 +94,171 @@ TEST(metadata_requirements, dynamic_test) {
   {
     std::string metadata = R"({
       "compression": "zstd",
-      "block_size": 8
+      "block_size": 8,
+      "channels": 2
     })";
 
-    EXPECT_THAT([&]() { req->check(metadata); },
+    EXPECT_THAT([&] { req->check(metadata); },
                 ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                     "block_size '8' does not meet requirements [16, 1024]")));
   }
+
+  {
+    std::string metadata = R"({
+      "compression": "zstd",
+      "block_size": "foo",
+      "channels": 2
+    })";
+
+    EXPECT_THAT([&] { req->check(metadata); },
+                ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                    "non-integral type for requirement 'block_size', "
+                    "got type 'string'")));
+  }
+
+  {
+    std::string metadata = R"({
+      "compression": 13,
+      "block_size": 256,
+      "channels": 2
+    })";
+
+    EXPECT_THAT([&] { req->check(metadata); },
+                ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                    "non-string type for requirement 'compression', "
+                    "got type 'int64'")));
+  }
+
+  {
+    std::string metadata = R"({
+      "compression": 13,
+      "block_size": 256,
+      "channels": "foo"
+    })";
+
+    EXPECT_THAT([&] { req->check(metadata); },
+                ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                    "non-integral type for requirement 'channels', "
+                    "got type 'string'")));
+  }
+
+  {
+    std::string metadata = R"({
+      "compression": 13,
+      "block_size": 256,
+      "channels": 3
+    })";
+
+    EXPECT_THAT([&] { req->check(metadata); },
+                ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                    "channels '3' does not meet requirements [1, 2, 4]")));
+  }
+}
+
+TEST(metadata_requirements, dynamic_test_error) {
+  using namespace std::literals::string_literals;
+  using req_type = compression_metadata_requirements<folly::dynamic>;
+
+  EXPECT_THAT(
+      [&] { req_type tmp(R"([])"s); },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "metadata requirements must be an object, got type 'array'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": 42
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "requirement 'compression' must be an array, got type 'int64'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": [1]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "requirement 'compression' must be an array of at least 2 elements, "
+          "got only 1")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": [1, 2]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "type for requirement 'compression' must be a string, got type "
+          "'int64'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["foo", 2]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(
+          testing::HasSubstr("unsupported requirement type 'foo'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["range", 2]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(
+          testing::HasSubstr("unexpected array size 2 for requirement "
+                             "'compression', expected 3")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["range", "foo", 42]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "could not parse minimum value 'foo' for requirement 'compression': "
+          "Invalid leading character: \"foo\"")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["range", 43, 42]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "expected minimum '43' to be less than or equal to maximum '42' for "
+          "requirement 'compression'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["set", 2]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(
+          testing::HasSubstr("set for requirement 'compression' must be an "
+                             "array, got type 'int64'")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["set", []]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "set for requirement 'compression' must not be empty")));
+
+  EXPECT_THAT(
+      [&] {
+        req_type tmp(R"({
+          "compression": ["set", ["foo", "bar", "foo"]]
+        })"s);
+      },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "duplicate value 'foo' for requirement 'compression'")));
 }
 
 namespace {
@@ -364,6 +527,16 @@ TEST_F(metadata_requirements_test, static_test_req_set_with_invalid_value) {
   })");
 
   EXPECT_NO_THROW(req->parse(dyn));
+}
+
+TEST_F(metadata_requirements_test, static_test_req_error_invalid_set5) {
+  auto dyn = folly::parseJson(R"({
+    "enum": ["set", ["grmpf", "foo", "foo"]]
+  })");
+
+  EXPECT_THAT([&]() { req->parse(dyn); },
+              ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+                  "duplicate value 'foo' for requirement 'enum'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_range_invalid1) {
