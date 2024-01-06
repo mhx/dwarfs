@@ -268,6 +268,7 @@ $ apt install \
     libboost-thread-dev \
     libbrotli-dev \
     libevent-dev \
+    libhowardhinnant-date-dev \
     libjemalloc-dev \
     libdouble-conversion-dev \
     libiberty-dev \
@@ -281,7 +282,8 @@ $ apt install \
     libfmt-dev \
     libfuse3-dev \
     libutfcpp-dev \
-    libgoogle-glog-dev
+    libgoogle-glog-dev \
+    libflac++-dev
 ```
 
 Note that when building with `gcc`, the optimization level will be
