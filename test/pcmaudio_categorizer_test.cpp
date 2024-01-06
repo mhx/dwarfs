@@ -65,7 +65,7 @@ TEST(pcmaudio_categorizer, requirements) {
 
   catmgr.set_metadata_requirements(
       catmgr.category_value("pcmaudio/waveform").value(),
-      R"({"endianness": ["set", ["mixed"]], "bytes_per_sample": ["range", 2, 3]})");
+      R"({"endianness": ["set", ["mixed", "big"]], "bytes_per_sample": ["range", 2, 3]})");
 
   auto wav = test_dir / "pcmaudio" / "test16.wav";
   auto mm = mmap(wav);
@@ -85,7 +85,7 @@ TEST(pcmaudio_categorizer, requirements) {
     EXPECT_THAT(
         ent.output,
         MatchesRegex(
-            R"(^\[WAV\] ".*": endianness 'little' does not meet requirements \[\]$)"));
+            R"(^\[WAV\] ".*": endianness 'little' does not meet requirements \[big\]$)"));
 
     EXPECT_TRUE(frag.empty());
 

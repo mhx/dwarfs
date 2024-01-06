@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -36,6 +37,15 @@
 namespace dwarfs {
 
 namespace detail {
+
+template <typename T>
+std::vector<T> ordered_set(std::unordered_set<T> const& set) {
+  std::vector<T> vec;
+  vec.reserve(set.size());
+  std::copy(set.begin(), set.end(), std::back_inserter(vec));
+  std::sort(vec.begin(), vec.end());
+  return vec;
+}
 
 template <typename T>
 std::optional<T> value_parser(folly::dynamic const& v) {
@@ -66,13 +76,33 @@ bool parse_metadata_requirements_set(T& container, folly::dynamic& req,
                       name, it->second[1].typeName()));
     }
 
+    if (it->second[1].empty()) {
+      throw std::runtime_error(
+          fmt::format("unexpected empty set for requirement '{}'", name));
+    }
+
     for (auto v : it->second[1]) {
+      std::optional<typename T::value_type> maybe_value;
+
+      try {
+        maybe_value = value_parser(v);
+      } catch (std::exception const& e) {
+        throw std::runtime_error(fmt::format(
+            "could not parse set value '{}' for requirement '{}': {}",
+            v.asString(), name, e.what()));
+      }
+
       if (auto maybe_value = value_parser(v)) {
         if (!container.emplace(*maybe_value).second) {
           throw std::runtime_error(fmt::format(
               "duplicate value '{}' for requirement '{}'", v.asString(), name));
         }
       }
+    }
+
+    if (container.empty()) {
+      throw std::runtime_error(
+          fmt::format("no supported values for requirement '{}'", name));
     }
 
     req.erase(it);
@@ -91,8 +121,14 @@ bool parse_metadata_requirements_range(T& min, T& max, folly::dynamic& req,
     detail::check_dynamic_common(it->second, "range", 3, name);
 
     auto get_value = [&](std::string_view what, int index) {
-      if (auto maybe_value = value_parser(it->second[index])) {
-        return *maybe_value;
+      try {
+        if (auto maybe_value = value_parser(it->second[index])) {
+          return *maybe_value;
+        }
+      } catch (std::exception const& e) {
+        throw std::runtime_error(fmt::format(
+            "could not parse {} value '{}' for requirement '{}': {}", what,
+            it->second[index].asString(), name, e.what()));
       }
       throw std::runtime_error(
           fmt::format("could not parse {} value '{}' for requirement '{}'",
@@ -207,7 +243,7 @@ class metadata_requirement_set
     if (set_ && set_->count(value) == 0) {
       throw std::range_error(
           fmt::format("{} '{}' does not meet requirements [{}]", this->name(),
-                      value, fmt::join(*set_, ", ")));
+                      value, fmt::join(ordered_set(*set_), ", ")));
     }
   }
 

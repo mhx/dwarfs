@@ -19,8 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
-
 #include <folly/json.h>
 
 #include "dwarfs/compression_metadata_requirements.h"
@@ -47,9 +45,9 @@ void check_dynamic_common(folly::dynamic const& dyn,
                     type, name, expected_type));
   }
   if (dyn.size() != expected_size) {
-    throw std::runtime_error(
-        fmt::format("unexpected size '{}' for requirement '{}', expected {}",
-                    dyn.size(), name, expected_size));
+    throw std::runtime_error(fmt::format(
+        "unexpected array size {} for requirement '{}', expected {}",
+        dyn.size(), name, expected_size));
   }
 }
 
@@ -93,7 +91,7 @@ class dynamic_metadata_requirement_set
       if (set_.find(dyn.asString()) == set_.end()) {
         throw std::runtime_error(
             fmt::format("{} '{}' does not meet requirements [{}]", name(),
-                        dyn.asString(), fmt::join(ordered_set(), ", ")));
+                        dyn.asString(), fmt::join(ordered_set(set_), ", ")));
       }
     } else {
       if (!dyn.isInt()) {
@@ -105,20 +103,12 @@ class dynamic_metadata_requirement_set
       if (set_.find(dyn.asInt()) == set_.end()) {
         throw std::runtime_error(
             fmt::format("{} '{}' does not meet requirements [{}]", name(),
-                        dyn.asInt(), fmt::join(ordered_set(), ", ")));
+                        dyn.asInt(), fmt::join(ordered_set(set_), ", ")));
       }
     }
   }
 
  private:
-  std::vector<T> ordered_set() const {
-    std::vector<T> result;
-    result.reserve(set_.size());
-    std::copy(set_.begin(), set_.end(), std::back_inserter(result));
-    std::sort(result.begin(), result.end());
-    return result;
-  }
-
   std::unordered_set<T> set_;
 };
 
