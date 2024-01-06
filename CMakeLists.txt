@@ -125,6 +125,7 @@ else()
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
@@ -672,200 +673,6 @@ endif()
 
 list(
   APPEND
-  FROZEN_THRIFT_SRC
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.tcc
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_constants.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_constants.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_metadata.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_visitation.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_for_each_field.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_visit_union.h)
-
-list(
-  APPEND
-  METADATA_THRIFT_SRC
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_clients.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_constants.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_constants.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_for_each_field.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_handlers.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_metadata.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.tcc
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types_custom_protocol.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types_fwd.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visit_by_thrift_field_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visit_union.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_visitation.h)
-
-list(
-  APPEND
-  COMPRESSION_THRIFT_SRC
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_clients.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_constants.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_constants.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_for_each_field.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_handlers.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_metadata.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.tcc
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types_custom_protocol.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types_fwd.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visit_by_thrift_field_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visit_union.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_visitation.h)
-
-list(
-  APPEND
-  HISTORY_THRIFT_SRC
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_clients.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_constants.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_constants.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_data.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_for_each_field.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_handlers.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_metadata.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types.tcc
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types_custom_protocol.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types_fwd.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_visit_by_thrift_field_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_visit_union.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_visitation.h)
-
-list(
-  APPEND
-  FEATURES_THRIFT_SRC
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_clients.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_constants.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_constants.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_for_each_field.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_handlers.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_metadata.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.tcc
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types_custom_protocol.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types_fwd.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visit_by_thrift_field_metadata.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visit_union.h
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_visitation.h)
-
-add_custom_command(
-  OUTPUT thrift/lib/thrift/_keep
-  COMMAND ${CMAKE_COMMAND} -E make_directory thrift/lib/thrift
-  COMMAND ${CMAKE_COMMAND} -E touch thrift/lib/thrift/_keep
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-add_custom_command(
-  OUTPUT ${FROZEN_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
-              ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
-              --gen mstch_cpp2
-              frozen.thrift
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/_keep
-          ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/thrift/frozen.thrift
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift
-)
-
-add_custom_command(
-  OUTPUT thrift/dwarfs/_keep
-  COMMAND ${CMAKE_COMMAND} -E make_directory thrift/dwarfs
-  COMMAND ${CMAKE_COMMAND} -E touch thrift/dwarfs/_keep
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-add_custom_command(
-  OUTPUT ${METADATA_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
-              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/metadata.thrift
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-              --gen mstch_cpp2:frozen2
-              metadata.thrift
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
-          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/metadata.thrift
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-)
-
-add_custom_command(
-  OUTPUT ${COMPRESSION_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_CURRENT_SOURCE_DIR}/thrift/compression.thrift
-              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/compression.thrift
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-              --gen mstch_cpp2
-              compression.thrift
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
-          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/compression.thrift
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-)
-
-add_custom_command(
-  OUTPUT ${HISTORY_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_CURRENT_SOURCE_DIR}/thrift/history.thrift
-              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/history.thrift
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-              -I ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-              --gen mstch_cpp2
-              history.thrift
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
-          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/history.thrift
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-)
-
-add_custom_command(
-  OUTPUT ${FEATURES_THRIFT_SRC}
-  COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_CURRENT_SOURCE_DIR}/thrift/features.thrift
-              ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/features.thrift
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-              -o ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-              --gen mstch_cpp2
-              features.thrift
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bin/thrift1
-          ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/_keep
-          ${CMAKE_CURRENT_SOURCE_DIR}/thrift/features.thrift
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs
-)
-
-list(
-  APPEND
   INCLUDE_DIRS
   ${CMAKE_CURRENT_BINARY_DIR}/folly
   ${CMAKE_CURRENT_BINARY_DIR}/thrift
@@ -914,36 +721,16 @@ target_link_libraries(thrift_light folly)
 
 target_include_directories(thrift_light PRIVATE ${INCLUDE_DIRS})
 
-add_library(
-  metadata_thrift
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_layouts.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/metadata_data.cpp)
-
-add_library(
-  compression_thrift
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/compression_data.cpp)
-
-add_library(
-  history_thrift
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/history_data.cpp)
-
-add_library(
-  features_thrift
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_types.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/dwarfs/gen-cpp2/features_data.cpp)
-
-set_property(TARGET metadata_thrift PROPERTY CXX_STANDARD 20)
-set_property(TARGET compression_thrift PROPERTY CXX_STANDARD 20)
-set_property(TARGET history_thrift PROPERTY CXX_STANDARD 20)
-set_property(TARGET features_thrift PROPERTY CXX_STANDARD 20)
-
-target_include_directories(metadata_thrift PRIVATE ${INCLUDE_DIRS})
-target_include_directories(compression_thrift PRIVATE ${INCLUDE_DIRS})
-target_include_directories(history_thrift PRIVATE ${INCLUDE_DIRS})
-target_include_directories(features_thrift PRIVATE ${INCLUDE_DIRS})
+add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
+                        OUTPUT_PATH lib/thrift NO_LIBRARY)
+add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
+                        TARGET metadata_thrift OUTPUT_PATH dwarfs)
+add_cpp2_thrift_library(thrift/compression.thrift
+                        TARGET compression_thrift OUTPUT_PATH dwarfs)
+add_cpp2_thrift_library(thrift/history.thrift
+                        TARGET history_thrift OUTPUT_PATH dwarfs)
+add_cpp2_thrift_library(thrift/features.thrift
+                        TARGET features_thrift OUTPUT_PATH dwarfs)
 
 target_link_libraries(metadata_thrift thrift_light)
 target_link_libraries(compression_thrift thrift_light)
@@ -1202,7 +989,7 @@ add_custom_target(
         include src thrift universal bin lib man1 man5
         vcpkg-manifest-install.log
         build.ninja .ninja_deps
-        Makefile
+        Makefile compile_commands.json
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
 )
