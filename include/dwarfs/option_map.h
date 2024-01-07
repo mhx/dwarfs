@@ -35,6 +35,8 @@ class option_map {
 
   const std::string& choice() const { return choice_; }
 
+  bool has_options() const { return !opt_.empty(); }
+
   template <typename T>
   T get(const std::string& key, const T& default_value = T()) {
     auto i = opt_.find(key);
@@ -47,6 +49,8 @@ class option_map {
 
     return default_value;
   }
+
+  size_t get_size(const std::string& key, size_t default_value = 0);
 
   void report();
 

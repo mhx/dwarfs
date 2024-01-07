@@ -284,7 +284,7 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
-- `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*max-children*[`:`*max-cluster-size*]]:
+- `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
   `path`, they will be sorted asciibetically by path name of the first file
@@ -298,14 +298,14 @@ Most other options are concerned with compression tuning:
   determine a good ordering.
   However, the new implementation of this algorithm can be parallelized and
   will perform much better on huge numbers of files. `nilsimsa` ordering can
-  be tweaked by specifying a *max-children* and *max-cluster-size*. Both options
+  be tweaked by specifying `max-children` and `max-cluster-size`. Both options
   determine how the set of files will be split into clusters, each of which will
-  be further split recursively. *max-children* is the maximum number of child
-  nodes resulting from a clustering step. If *max-children* distinct clusters
-  have been found, new files will be added to the closest cluster. *max-cluster-size*
+  be further split recursively. `max-children` is the maximum number of child
+  nodes resulting from a clustering step. If `max-children` distinct clusters
+  have been found, new files will be added to the closest cluster. `max-cluster-size`
   determines at which point a cluster will no longer be split further. Typically,
   larger values will result in better ordering, but will also make the algorithm
-  slower. Unlike the old implementation, `nilsimsa` ordering is completely
+  slower. Unlike the old implementation, `nilsimsa` ordering is now completely
   deterministic.
 
 - `--max-similarity-size=`*value*:

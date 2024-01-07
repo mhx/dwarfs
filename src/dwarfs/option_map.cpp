@@ -28,6 +28,7 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/option_map.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -48,6 +49,18 @@ option_map::option_map(const std::string_view spec) {
 
     opt_[kv[0]] = kv.size() > 1 ? kv[1] : std::string("1");
   }
+}
+
+size_t option_map::get_size(const std::string& key, size_t default_value) {
+  auto i = opt_.find(key);
+
+  if (i != opt_.end()) {
+    std::string val = i->second;
+    opt_.erase(i);
+    return parse_size_with_unit(val);
+  }
+
+  return default_value;
 }
 
 void option_map::report() {

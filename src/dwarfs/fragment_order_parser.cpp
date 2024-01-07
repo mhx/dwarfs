@@ -28,6 +28,7 @@
 #include <folly/gen/String.h>
 
 #include "dwarfs/fragment_order_parser.h"
+#include "dwarfs/option_map.h"
 
 namespace dwarfs {
 
@@ -40,36 +41,6 @@ const std::map<std::string_view, file_order_mode> order_choices{
     {"similarity", file_order_mode::SIMILARITY},
     {"nilsimsa", file_order_mode::NILSIMSA},
 };
-
-void parse_order_option(std::string_view ordname, std::string_view opt,
-                        int& value, std::string_view name,
-                        std::optional<int> min = std::nullopt,
-                        std::optional<int> max = std::nullopt) {
-  if (!opt.empty()) {
-    if (auto val = folly::tryTo<int>(opt)) {
-      auto tmp = *val;
-      if (min && max && (tmp < *min || tmp > *max)) {
-        throw std::range_error(
-            fmt::format("{} ({}) out of range for order '{}' ({}..{})", name,
-                        opt, ordname, *min, *max));
-      }
-      if (min && tmp < *min) {
-        throw std::range_error(
-            fmt::format("{} ({}) cannot be less than {} for order '{}'", name,
-                        opt, *min, ordname));
-      }
-      if (max && tmp > *max) {
-        throw std::range_error(
-            fmt::format("{} ({}) cannot be greater than {} for order '{}'",
-                        name, opt, *max, ordname));
-      }
-      value = tmp;
-    } else {
-      throw std::range_error(fmt::format(
-          "{} ({}) is not numeric for order '{}'", name, opt, ordname));
-    }
-  }
-}
 
 } // namespace
 
@@ -85,41 +56,42 @@ std::string fragment_order_parser::choices() {
 file_order_options fragment_order_parser::parse(std::string_view arg) const {
   file_order_options rv;
 
-  std::vector<std::string_view> order_opts;
+  option_map om(arg);
+  auto algo = om.choice();
 
-  folly::split(':', arg, order_opts);
-
-  if (auto it = order_choices.find(order_opts.front());
-      it != order_choices.end()) {
+  if (auto it = order_choices.find(algo); it != order_choices.end()) {
     rv.mode = it->second;
-
-    if (order_opts.size() > 1) {
-      auto ordname = order_opts[0];
-
-      switch (rv.mode) {
-      case file_order_mode::NILSIMSA:
-        if (order_opts.size() > 3) {
-          throw std::runtime_error(fmt::format(
-              "too many options for inode order mode '{}'", ordname));
-        }
-
-        parse_order_option(ordname, order_opts[1], rv.nilsimsa_max_children,
-                           "max_children", 0);
-
-        if (order_opts.size() > 2) {
-          parse_order_option(ordname, order_opts[2],
-                             rv.nilsimsa_max_cluster_size, "max_cluster_size",
-                             0);
-        }
-        break;
-
-      default:
-        throw std::runtime_error(fmt::format(
-            "inode order mode '{}' does not support options", ordname));
-      }
-    }
   } else {
-    throw std::runtime_error(fmt::format("invalid inode order mode: {}", arg));
+    throw std::runtime_error(fmt::format("invalid inode order mode: {}", algo));
+  }
+
+  if (om.has_options()) {
+    switch (rv.mode) {
+    case file_order_mode::NILSIMSA:
+      rv.nilsimsa_max_children = om.get_size(
+          "max-children", file_order_options::kDefaultNilsimsaMaxChildren);
+      rv.nilsimsa_max_cluster_size =
+          om.get_size("max-cluster-size",
+                      file_order_options::kDefaultNilsimsaMaxClusterSize);
+
+      if (rv.nilsimsa_max_children < 1) {
+        throw std::runtime_error(fmt::format("invalid max-children value: {}",
+                                             rv.nilsimsa_max_children));
+      }
+
+      if (rv.nilsimsa_max_cluster_size < 1) {
+        throw std::runtime_error(
+            fmt::format("invalid max-cluster-size value: {}",
+                        rv.nilsimsa_max_cluster_size));
+      }
+      break;
+
+    default:
+      throw std::runtime_error(
+          fmt::format("inode order mode '{}' does not support options", algo));
+    }
+
+    om.report();
   }
 
   return rv;
@@ -141,7 +113,7 @@ fragment_order_parser::to_string(file_order_options const& opts) const {
     return "similarity";
 
   case file_order_mode::NILSIMSA:
-    return fmt::format("nilsimsa (max_children={}, max_cluster_size={})",
+    return fmt::format("nilsimsa:max_children={}:max_cluster_size={}",
                        opts.nilsimsa_max_children,
                        opts.nilsimsa_max_cluster_size);
   }

@@ -832,8 +832,9 @@ constexpr std::array<std::string_view, 7> const build_options = {
     "--categorize --order=revpath --file-hash=sha512",
     "--categorize=pcmaudio,incompressible --order=similarity",
     "--categorize --order=nilsimsa --time-resolution=30",
-    "--categorize --order=nilsimsa:16 --time-resolution=hour",
-    "--categorize --order=nilsimsa:16:16 --max-similarity-size=1M",
+    "--categorize --order=nilsimsa:max-children=1k --time-resolution=hour",
+    "--categorize --order=nilsimsa:max-cluster-size=16:max-children=16 "
+    "--max-similarity-size=1M",
 };
 
 } // namespace
@@ -850,20 +851,22 @@ TEST(mkdwarfs_test, order_invalid) {
 TEST(mkdwarfs_test, order_nilsimsa_not_numeric) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("is not numeric for order"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "invalid option(s) for choice nilsimsa: grmpf"));
 }
 
 TEST(mkdwarfs_test, order_nilsimsa_too_many_options) {
   mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:1:2:3"}));
-  EXPECT_THAT(t.err(),
-              ::testing::HasSubstr("too many options for inode order mode"));
+  EXPECT_NE(0,
+            t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid max-children value: 0"));
 }
 
 TEST(mkdwarfs_test, order_nilsimsa_cannot_be_less) {
   mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:-1:-1"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot be less than 0 for order"));
+  EXPECT_NE(
+      0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse size value"));
 }
 
 TEST(mkdwarfs_test, unknown_file_hash) {
