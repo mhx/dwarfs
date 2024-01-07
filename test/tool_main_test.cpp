@@ -848,25 +848,35 @@ TEST(mkdwarfs_test, order_invalid) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid inode order mode"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_not_numeric) {
+TEST(mkdwarfs_test, order_nilsimsa_invalid_option) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr(
                            "invalid option(s) for choice nilsimsa: grmpf"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_too_many_options) {
+TEST(mkdwarfs_test, order_nilsimsa_invalid_value) {
   mkdwarfs_tester t;
   EXPECT_NE(0,
             t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-children=0"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid max-children value: 0"));
 }
 
-TEST(mkdwarfs_test, order_nilsimsa_cannot_be_less) {
+TEST(mkdwarfs_test, order_nilsimsa_cannot_parse_value) {
   mkdwarfs_tester t;
   EXPECT_NE(
       0, t.run({"-i", "/", "-o", "-", "--order=nilsimsa:max-cluster-size=-1"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot parse size value"));
+}
+
+TEST(mkdwarfs_test, order_nilsimsa_duplicate_option) {
+  mkdwarfs_tester t;
+  EXPECT_NE(0,
+            t.run({"-i", "/", "-o", "-",
+                   "--order=nilsimsa:max-cluster-size=1:max-cluster-size=10"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr(
+                  "duplicate option max-cluster-size for choice nilsimsa"));
 }
 
 TEST(mkdwarfs_test, unknown_file_hash) {
