@@ -27,7 +27,7 @@ if("${NIXPKGS_DWARFS_VERSION_OVERRIDE}" STREQUAL "")
     OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
   execute_process(
-    COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" log --pretty=format:%h -n 1
+    COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" log -1 --format=%h --abbrev=10
     OUTPUT_VARIABLE PRJ_GIT_REV
     OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 endif()
@@ -69,7 +69,7 @@ else()
       OUTPUT_STRIP_TRAILING_WHITESPACE
       OUTPUT_VARIABLE PRJ_GIT_RELEASE_TAG)
     execute_process(
-      COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" describe --tags --match "v*" --dirty
+      COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" describe --tags --match "v*" --dirty --abbrev=10
       OUTPUT_STRIP_TRAILING_WHITESPACE
       OUTPUT_VARIABLE PRJ_GIT_DESC)
     execute_process(

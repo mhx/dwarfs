@@ -123,7 +123,7 @@ $BUILD_TOOL realclean
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   cd "$HOME"
 
-  VERSION=$(git -C /workspace describe --tags --match "v*" --dirty)
+  VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
   VERSION=${VERSION:1}
 
   rm -rf dwarfs-*
