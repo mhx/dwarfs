@@ -1,5 +1,196 @@
 # Change Log
 
+## Version 0.8.0 - 2024-01-xx
+
+- (fix) Allow version override for nixpkgs. Fixes github #155.
+
+- (fix) Resize progress bar when terminal size changes. Fixes github #159.
+
+- (fix) Add Extended Attributes section to README. Fixes github #160.
+
+- (fix) Support 32-bit uid/gid/mode. Also support more than 65536
+  uids/gids/modes in a filesystem image. Fixes gh #173.
+
+- (fix) Add workaround for broken `utf8cpp` release. Fixes github #182.
+
+- (fix) Don't call `check_section()` in filesystem ctor, as it renders
+  the section index useless. Also add regression test to ensure this
+  won't be accidentally reintroduced. Fixes github #183.
+
+- (fix) Ensure timely exit in progress dtor. This could occasionally
+  block command line tools for a few seconds before exiting.
+
+- (fix) `--set-owner` and `--set-group` did not work properly with
+  non-zero ids. There were two distinct issues: (1) when building a
+  DwarFS image with `--set-owner` and/or `--set-group`, the single
+  uid/gid was stored in place of the index and the respective lookup
+  vectors were left empty and (2) when reading such a DwarFS image,
+  the uid/gid was always set to zero. The issue with (1) is not only
+  that it's a special case, but it also wastes metadata space by
+  repeatedly storing a potentially wide integer value.
+  This fix addresses both issues. The uid/gid information is now
+  stored more efficiently and, when reading an image using the old
+  representation, the correct uid/gid will be reported.
+  Unit tests were added to ensure both old and new formats are
+  read correctly.
+
+- (fix) `utf8_truncate()` didn't handle zero-width characters properly.
+  This could cause issues when truncating certain UTF8 strings.
+
+- (fix) A race condition in `simple` progress mode was fixed.
+
+- (fix) A race condition in `filesystem_writer` was fixed.
+
+- (fix) The `--no-create-timestamp` option in `mkdwarfs` was always
+  enabled and thus useless.
+
+- (fix) Common options (like `--log-level`) were inconsistent between
+  tools.
+
+- (fix) Progress was incorrect when `mkdwarfs` was copying sections
+  with `--recompress`.
+
+- (fix) Treat NTFS junctions like directories.
+
+- (fix) Fix canonical path on Windows when accessing mounted DwarFS image.
+
+- (fix) Fix slow sorting in `file_scanner` due to path comparison.
+
+- (remove) Python scripting support has been completely removed.
+
+- (feature) Categorizer framework. Initially supported categorizers are
+  `pcmaudio` (detect audio data & metadata and provide context for FLAC
+  compressor) and `incompressible` (detects "incompressible" data).
+  Enabled using the `--categorize` option.
+
+- (feature) Multiple segmenters can now run in parallel and write to
+  the same filesystem image in a fully deterministic way. Currently,
+  a segmenter instance will be used per category/subcategory. This can
+  makes segmenting multi-threaded in cases where there are multiple
+  categories. The number of segmenter worker threads can be configured
+  using `--num-segmenter-workers`.
+
+- (feature) The segmenter now supports different "granularities". The
+  granularity is determined by the categorizer. For example, when
+  segmenting the audio data in a 16-bit stereo PCM file, the granularity
+  is 4 (bytes). This ensures that the segmenter will only produce chunks
+  that start/end on a sample boundary.
+
+- (feature) FLAC compression. This can only be used along with the
+  `pcmaudio` categorizer. Due to the way data is spread across different
+  blocks, both FLAC compression and decompression can likely make use
+  of multiple CPU cores for large audio files, meaning that loading a
+  `.wav` file from a DwarFS image using FLAC compression will likely
+  be much faster than loading the same data from a single FLAC file.
+
+- (feature) Completely new similarity ordering implementation that
+  supports multi-threaded and fully deterministic nilsimsa ordering.
+  Also, nilsimsa options are now ever so slightly more user friendly.
+
+- (feature) The `--recompress` feature of `mkdwarfs` has been largely
+  rewritten. It now ensures the input filesystem is checked before an
+  attempt is made to recompress it. Decompression is now using multiple
+  threads. Also, recompression can be applied only to a subset of
+  categories and compression options can be selected per category.
+
+- (feature) `mkdwarfs` now stores a history block in the output image
+  by default. The history block contains information about the version
+  of `mkdwarfs`, all command line arguments, and a time stamp. A new
+  history entry will be added whenever the image is altered (i.e. by
+  using `--recompress`). The history can be displayed using `dwarfsck`.
+  History timestamps can be disabled using `--no-history-timestamps`
+  for bit-identical images. History creation can also be completely
+  disabled using `--no-history`.
+
+- (feature) New `verbose` logging level (between `info` and `debug`).
+
+- (feature) Logging now properly supports multi-line strings.
+
+- (feature) Show compression library versions as part of the `--help`
+  output. For `dwarfsextract`, also show `libarchive` version.
+
+- (feature) `--set-time` now supports time strings in different formats
+  (e.g. `20240101T0530`).
+
+- (feature) `mkdwarfs` can now write the filesystem image to `stdout`,
+  making it possible to directly stream the output image to e.g. `netcat`.
+
+- (feature) Progress display for `mkdwarfs` has been completely
+  overhauled. Different components (e.g. hashing, categorization,
+  segmenting, ...) can now display their own progress in addition
+  to a "global" progress.
+
+- (feature) `mkdwarfs` now supports ordering by "reverse path" with
+  `--order=revpath`. This is like `path` ordering, but with the path
+  components reversed (i.e. `foo/bar/baz.xyz` will be ordered as if
+  it were `baz.xyz/bar/foo`).
+
+- (feature) It is now possible to configure larger bloom filters in
+  `mkdwarfs`.
+
+- (feature) The `mkdwarfs` segmenter can now be fully disabled using
+  `-W 0`.
+
+- (feature) `mkdwarfs` now adds "feature sets" to the filesystem
+  metadata. These can be used to introduce now features without
+  necessarily breaking compatibility with older tools. As long as
+  a filesystem image doesn't actively use the new features, it can
+  still be read by old tools. Addresses github #158.
+
+- (feature) `dwarfsck` has a new `--quiet` option that will only
+  report errors.
+
+- (feature) `dwarfsck` with `--print-header` will exit with a special
+  exit code (2) if the image has no header. In all other cases, the
+  exit code will be 0 (no error) or 1 (error).
+
+- (feature) The `--json` option of `dwarfsck` now outputs filesystem
+  information in JSON format.
+
+- (feature) `dwarfsck` has a new `--no-check` option that skips
+  checking all block hashes. This is useful for quickly accessing
+  filesystem information.
+
+- (feature) The FUSE driver exposes a new `dwarfs.inodeinfo` xattr
+  on Linux that contains a JSON object with information about the
+  inode, e.g. a list of chunks and associated categories.
+
+- (feature) Don't enable `readlink` in the FUSE driver if filesystem
+  has no symlinks. This is mainly useful for Windows where symlink
+  support increases the number of `getattr` calls issued by `WinFsp`.
+
+- (feature) As an experimental feature, CPU affinity for each worker
+  group can be configured via the `DWARFS_WORKER_GROUP_AFFINITY`
+  environment variable. This works for all tools, but is really only
+  useful if you have different types of cores (e.g. performance and
+  efficiency cores) and would like to e.g. always run the segmenter
+  on a performance core.
+
+- (doc) Add mkdwarfs sequence diagram.
+
+- (doc) Document known issues with WinFsp.
+
+- (doc) Update README with extended attributes information.
+
+- (doc) Add script to check if all options are documented in manpage.
+
+- (build) Factor out repetitive thrift library code in CMakeLists.txt.
+
+- (build) Use FetchContent for both `fmt` and `googletest`.
+
+- (build) Use `mold` for linking when available.
+
+- (build) The CI workflow now uploads coverage information to codecov.io
+  with every commit.
+
+- (test) A *ton* of tests were added (from 4 kLOC to more than 10 kLOC)
+  and, unsurprisingly, a number of bugs were found in the process.
+
+- (test) Introduced I/O abstraction layer for all `*_main()` functions.
+  This allows testing of almost all tool functionality without the need
+  to start the tool as a subprocess. It also allows to inject errors more
+  easily, and change properties such as the terminal size.
+
 ## Version 0.7.4 - 2023-12-28
 
 - (fix) Fix regression that broke section index optimization introduced
