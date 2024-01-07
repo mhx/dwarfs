@@ -29,6 +29,10 @@ namespace dwarfs {
 
 std::string
 tool_header(std::string_view tool_name, std::string_view extra_info) {
+  std::string date;
+  if (PRJ_GIT_DATE) {
+    date = fmt::format(" [{}]", PRJ_GIT_DATE);
+  }
   return fmt::format(
       // clang-format off
     R"(     ___                  ___ ___)""\n"
@@ -36,8 +40,8 @@ tool_header(std::string_view tool_name, std::string_view extra_info) {
     R"(    | |) \ V  V / _` | '_| _|\__ \      Advanced Read-only File System)""\n"
     R"(    |___/ \_/\_/\__,_|_| |_| |___/         by Marcus Holland-Moritz)""\n\n"
       // clang-format on
-      "{} ({}{})\nbuilt on {}\n\n",
-      tool_name, PRJ_GIT_ID, extra_info, PRJ_BUILD_ID);
+      "{} ({}{}{})\nbuilt for {}\n\n",
+      tool_name, PRJ_GIT_ID, date, extra_info, PRJ_BUILD_ID);
 }
 
 void add_common_options(boost::program_options::options_description& opts,
