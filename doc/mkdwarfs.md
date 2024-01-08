@@ -440,8 +440,8 @@ The resulting configuration matrix can be quite overwhelming, which is why
 `--categorize` option with no arguments. These defaults are also dependent
 on the chosen compression level.
 
-Note that in case of the `pcmaudio` categorizer, you can override each
-option per category (in this case `pcmaudio/waveform`).
+Note that in case of the `pcmaudio` categorizer, you can override each option
+per category (in this case `pcmaudio/waveform` and `pcmaudio/metadata`).
 
 It's also worth noting that the order in which the categorizers are given
 is important. The first categorizer that will successfully categorize a
