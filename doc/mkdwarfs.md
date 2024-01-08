@@ -309,11 +309,12 @@ Most other options are concerned with compression tuning:
   deterministic.
 
 - `--max-similarity-size=`*value*:
-  Don't perform similarity ordering for files larger than this size. This
-  helps speed up scanning, especially on slow file systems. For large files,
-  the gains from similarity ordering are relatively small. When this option
-  is set to a non-zero value, files larger than the limit will be stored first,
-  ordered by size in descending order.
+  Don't perform similarity ordering for fragments (or files if they are not split
+  into fragments by a categorizer) larger than this size. This helps speed up
+  scanning, especially on slow file systems. For large fragments, the gains from
+  similarity ordering are relatively small. When this option is set to a non-zero
+  value, fragments larger than the limit will be stored first, ordered by size in
+  descending order.
 
 - `-F`, `--filter=`*rule*:
   Add a filter rule. This option can be specified multiple times.
