@@ -40,8 +40,8 @@ There are two mandatory options for specifying the input and output:
   by similarity or access frequency), you must also pass `--order=none`.
   This option implicitly enables both `--with-devices` and `--with-specials`.
 
-- `-o`, `--output=`*file*:
-  File name of the output filesystem.
+- `-o`, `--output=`*file*|`-`:
+  File name of the output filesystem or `-` to write the filesystem to stdout.
 
 - `-f`, `--force`:
   Force the output file to be overwritten if it already exists.
