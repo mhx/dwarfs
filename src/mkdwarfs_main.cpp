@@ -354,6 +354,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
+  constexpr size_t const kDefaultMaxActiveBlocks{1};
+  constexpr size_t const kDefaultBloomFilterSize{4};
 
   segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
@@ -407,6 +409,20 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                          (from(catreg.categorizer_names()) | unsplit(", ")) +
                          ")";
 
+  auto lvl_def_val = [](auto opt) {
+    return fmt::format("arg (={})", levels[default_level].*opt);
+  };
+
+  auto dep_def_val = [](auto dep) { return fmt::format("arg (={})", dep); };
+
+  auto cat_def_val = [](auto def) {
+    return fmt::format("[cat::]arg (={})", def);
+  };
+
+  auto lvl_cat_def_val = [](auto opt) {
+    return fmt::format("[cat::]arg (={})", levels[default_level].*opt);
+  };
+
   // clang-format off
   po::options_description basic_opts("Options");
   basic_opts.add_options()
@@ -435,7 +451,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   po::options_description advanced_opts("Advanced options");
   advanced_opts.add_options()
     ("block-size-bits,S",
-        po::value<unsigned>(&sf_config.block_size_bits),
+        po::value<unsigned>(&sf_config.block_size_bits)
+          ->value_name(lvl_def_val(&level_defaults::block_size_bits)),
         "block size bits (size = 2^arg bits)")
     ("num-workers,N",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
@@ -444,10 +461,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<int>(&compress_niceness)->default_value(5),
         "compression worker threads niceness")
     ("num-scanner-workers",
-        po::value<size_t>(&num_scanner_workers),
-        "number of scanner (hashing/categorizing) worker threads")
+        po::value<size_t>(&num_scanner_workers)
+          ->value_name(dep_def_val("num-workers")),
+        "number of scanner (hasher/categorizer) worker threads")
     ("num-segmenter-workers",
-        po::value<size_t>(&num_segmenter_workers),
+        po::value<size_t>(&num_segmenter_workers)
+          ->value_name(dep_def_val("num-workers")),
         "number of segmenter worker threads")
     ("memory-limit,L",
         po::value<std::string>(&memory_limit)->default_value("1g"),
@@ -464,7 +483,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(lvl_cat_def_val(&level_defaults::order))
+          ->multitoken()->composing(),
         order_desc.c_str())
     ("max-similarity-size",
         po::value<std::string>(&max_similarity_size),
@@ -513,19 +533,23 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   segmenter_opts.add_options()
     ("max-lookback-blocks,B",
         po::value<std::vector<std::string>>(&max_lookback_blocks)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(cat_def_val(kDefaultMaxActiveBlocks))
+          ->multitoken()->composing(),
         "how many blocks to scan for segments")
     ("window-size,W",
         po::value<std::vector<std::string>>(&window_size)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(lvl_cat_def_val(&level_defaults::window_size))
+          ->multitoken()->composing(),
         "window sizes for block hashing")
     ("window-step,w",
         po::value<std::vector<std::string>>(&window_step)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(lvl_cat_def_val(&level_defaults::window_step))
+          ->multitoken()->composing(),
         "window step (as right shift of size)")
     ("bloom-filter-size",
         po::value<std::vector<std::string>>(&bloom_filter_size)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(cat_def_val(kDefaultBloomFilterSize))
+          ->multitoken()->composing(),
         "bloom filter size (2^N*values bits)")
     ;
 
@@ -533,16 +557,20 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   compressor_opts.add_options()
     ("compression,C",
         po::value<std::vector<std::string>>(&compression)
-          ->value_name("[cat::]arg")->multitoken()->composing(),
+          ->value_name(lvl_cat_def_val(&level_defaults::data_compression))
+          ->multitoken()->composing(),
         "block compression algorithm")
     ("schema-compression",
-        po::value<std::string>(&schema_compression),
+        po::value<std::string>(&schema_compression)
+          ->value_name(lvl_def_val(&level_defaults::schema_history_compression)),
         "metadata schema compression algorithm")
     ("metadata-compression",
-        po::value<std::string>(&metadata_compression),
+        po::value<std::string>(&metadata_compression)
+          ->value_name(lvl_def_val(&level_defaults::metadata_compression)),
         "metadata compression algorithm")
     ("history-compression",
-        po::value<std::string>(&history_compression),
+        po::value<std::string>(&history_compression)
+          ->value_name(lvl_def_val(&level_defaults::schema_history_compression)),
         "history compression algorithm")
     ;
 
@@ -1170,7 +1198,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       contextual_option_parser cop("--max-lookback-blocks",
                                    sf_config.max_active_blocks, cp,
                                    max_lookback_parser);
-      sf_config.max_active_blocks.set_default(1);
+      sf_config.max_active_blocks.set_default(kDefaultMaxActiveBlocks);
       cop.parse(max_lookback_blocks);
       categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
@@ -1200,7 +1228,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       contextual_option_parser cop("--bloom-filter-size",
                                    sf_config.bloom_filter_size, cp,
                                    bloom_filter_size_parser);
-      sf_config.bloom_filter_size.set_default(4);
+      sf_config.bloom_filter_size.set_default(kDefaultBloomFilterSize);
       cop.parse(bloom_filter_size);
       categorizer_list.add_implicit_defaults(cop);
       LOG_VERBOSE << cop.as_string();
