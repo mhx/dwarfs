@@ -36,7 +36,7 @@ inode_element_view::inode_element_view(
     , cat_{cat} {
   hash_cache_.resize(inodes_.size());
   for (auto i : index) {
-    hash_cache_[i] = &inodes_[i]->nilsimsa_similarity_hash(cat);
+    hash_cache_[i] = inodes_[i]->nilsimsa_similarity_hash(cat);
   }
 }
 
@@ -84,6 +84,7 @@ std::string inode_element_view::description(size_t i) const {
 }
 
 nilsimsa::hash_type const& inode_element_view::get_bits(size_t i) const {
+  assert(hash_cache_[i] != nullptr);
   return *hash_cache_[i];
 }
 

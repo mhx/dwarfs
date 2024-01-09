@@ -90,4 +90,15 @@ inode_fragments::to_string(mapper_function_type const& mapper) const {
   return oss.str();
 }
 
+std::unordered_map<fragment_category, file_off_t>
+inode_fragments::get_category_sizes() const {
+  std::unordered_map<fragment_category, file_off_t> result;
+
+  for (auto const& f : span()) {
+    result[f.category()] += f.size();
+  }
+
+  return result;
+}
+
 } // namespace dwarfs

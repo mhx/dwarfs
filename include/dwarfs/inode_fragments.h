@@ -25,6 +25,7 @@
 #include <iosfwd>
 #include <span>
 #include <string>
+#include <unordered_map>
 
 #include <folly/small_vector.h>
 
@@ -98,6 +99,8 @@ class inode_fragments {
             mapper_function_type const& mapper = mapper_function_type()) const;
   std::string
   to_string(mapper_function_type const& mapper = mapper_function_type()) const;
+
+  std::unordered_map<fragment_category, file_off_t> get_category_sizes() const;
 
  private:
   folly::small_vector<single_inode_fragment, 1> fragments_;

@@ -1268,3 +1268,131 @@ TEST(dwarfsck_test, export_metadata_close_error) {
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("failed to close metadata output file"));
 }
+
+class mkdwarfs_sim_order_test : public testing::TestWithParam<char const*> {};
+
+TEST(mkdwarfs_test, max_similarity_size) {
+  static constexpr std::array sizes{50, 100, 200, 500, 1000, 2000, 5000, 10000};
+
+  auto make_tester = [] {
+    std::mt19937_64 rng{42};
+    auto t = mkdwarfs_tester::create_empty();
+
+    t.add_root_dir();
+
+    for (auto size : sizes) {
+      auto data = test::create_random_string(size, rng);
+      t.os->add_file("/file" + std::to_string(size), data);
+    }
+
+    return t;
+  };
+
+  auto get_sizes_in_offset_order = [](filesystem_v2 const& fs) {
+    std::vector<std::pair<size_t, size_t>> tmp;
+
+    for (auto size : sizes) {
+      auto path = "/file" + std::to_string(size);
+      auto iv = fs.find(path.c_str());
+      assert(iv);
+      auto info = fs.get_inode_info(*iv);
+      assert(1 == info["chunks"].size());
+      auto const& chunk = info["chunks"][0];
+      tmp.emplace_back(chunk["offset"].asInt(), chunk["size"].asInt());
+    }
+
+    std::sort(tmp.begin(), tmp.end(),
+              [](auto const& a, auto const& b) { return a.first < b.first; });
+
+    std::vector<size_t> sizes;
+
+    std::transform(tmp.begin(), tmp.end(), std::back_inserter(sizes),
+                   [](auto const& p) { return p.second; });
+
+    return sizes;
+  };
+
+  auto partitioned_sizes = [&](std::vector<size_t> in, size_t max_size) {
+    auto mid = std::stable_partition(
+        in.begin(), in.end(), [=](auto size) { return size > max_size; });
+
+    std::sort(in.begin(), mid, std::greater<size_t>());
+
+    return in;
+  };
+
+  std::vector<size_t> sim_ordered_sizes;
+  std::vector<size_t> nilsimsa_ordered_sizes;
+
+  {
+    auto t = make_tester();
+    EXPECT_EQ(0, t.run("-i / -o - -l0 --order=similarity")) << t.err();
+    auto fs = t.fs_from_stdout();
+    sim_ordered_sizes = get_sizes_in_offset_order(fs);
+  }
+
+  {
+    auto t = make_tester();
+    EXPECT_EQ(0, t.run("-i / -o - -l0 --order=nilsimsa")) << t.err();
+    auto fs = t.fs_from_stdout();
+    nilsimsa_ordered_sizes = get_sizes_in_offset_order(fs);
+  }
+
+  EXPECT_FALSE(
+      std::is_sorted(sim_ordered_sizes.begin(), sim_ordered_sizes.end()));
+
+  static constexpr std::array max_sim_sizes{0,    1,    200,  999,
+                                            1000, 1001, 5000, 10000};
+
+  std::set<std::string> nilsimsa_results;
+
+  for (auto max_sim_size : max_sim_sizes) {
+    {
+      auto t = make_tester();
+      EXPECT_EQ(0,
+                t.run(fmt::format(
+                    "-i / -o - -l0 --order=similarity --max-similarity-size={}",
+                    max_sim_size)))
+          << t.err();
+
+      auto fs = t.fs_from_stdout();
+
+      auto ordered_sizes = get_sizes_in_offset_order(fs);
+
+      if (max_sim_size == 0) {
+        EXPECT_EQ(sim_ordered_sizes, ordered_sizes) << max_sim_size;
+      } else {
+        auto partitioned = partitioned_sizes(sim_ordered_sizes, max_sim_size);
+        EXPECT_EQ(partitioned, ordered_sizes) << max_sim_size;
+      }
+    }
+
+    {
+      auto t = make_tester();
+      EXPECT_EQ(0,
+                t.run(fmt::format(
+                    "-i / -o - -l0 --order=nilsimsa --max-similarity-size={}",
+                    max_sim_size)))
+          << t.err();
+
+      auto fs = t.fs_from_stdout();
+
+      auto ordered_sizes = get_sizes_in_offset_order(fs);
+
+      nilsimsa_results.insert(folly::join(",", ordered_sizes));
+
+      if (max_sim_size == 0) {
+        EXPECT_EQ(nilsimsa_ordered_sizes, ordered_sizes) << max_sim_size;
+      } else {
+        std::vector<size_t> expected;
+        std::copy_if(sizes.begin(), sizes.end(), std::back_inserter(expected),
+                     [=](auto size) { return size > max_sim_size; });
+        std::sort(expected.begin(), expected.end(), std::greater<size_t>());
+        ordered_sizes.resize(expected.size());
+        EXPECT_EQ(expected, ordered_sizes) << max_sim_size;
+      }
+    }
+  }
+
+  EXPECT_GE(nilsimsa_results.size(), 3);
+}

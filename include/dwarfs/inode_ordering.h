@@ -31,11 +31,12 @@ class logger;
 class progress;
 class worker_group;
 
+struct inode_options;
 struct similarity_ordering_options;
 
 class inode_ordering {
  public:
-  inode_ordering(logger& lgr, progress& prog);
+  inode_ordering(logger& lgr, progress& prog, inode_options const& opts);
 
   void by_inode_number(sortable_inode_span& sp) const {
     impl_->by_inode_number(sp);

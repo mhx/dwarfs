@@ -95,11 +95,15 @@ class inode_ : public inode {
         fragments_, [cat](auto const& f) { return f.category() == cat; });
   }
 
-  uint32_t similarity_hash(fragment_category cat) const override {
-    return find_similarity<uint32_t>(cat);
+  std::optional<uint32_t>
+  similarity_hash(fragment_category cat) const override {
+    if (auto sim = find_similarity<uint32_t>(cat)) {
+      return *sim;
+    }
+    return std::nullopt;
   }
 
-  nilsimsa::hash_type const&
+  nilsimsa::hash_type const*
   nilsimsa_similarity_hash(fragment_category cat) const override {
     return find_similarity<nilsimsa::hash_type>(cat);
   }
@@ -290,24 +294,26 @@ class inode_ : public inode {
   }
 
   template <typename T>
-  T const& find_similarity(fragment_category cat) const {
+  T const* find_similarity(fragment_category cat) const {
     if (fragments_.empty()) [[unlikely]] {
       DWARFS_THROW(runtime_error, fmt::format("inode has no fragments ({})",
                                               folly::demangle(typeid(T))));
+    }
+    if (std::holds_alternative<std::monostate>(similarity_)) {
+      return nullptr;
     }
     if (fragments_.size() == 1) {
       if (fragments_.get_single_category() != cat) [[unlikely]] {
         DWARFS_THROW(runtime_error, fmt::format("category mismatch ({})",
                                                 folly::demangle(typeid(T))));
       }
-      return std::get<T>(similarity_);
+      return &std::get<T>(similarity_);
     }
     auto& m = std::get<similarity_map_type>(similarity_);
     if (auto it = m.find(cat); it != m.end()) {
-      return std::get<T>(it->second);
+      return &std::get<T>(it->second);
     }
-    DWARFS_THROW(runtime_error, fmt::format("category not found ({})",
-                                            folly::demangle(typeid(T))));
+    return nullptr;
   }
 
   template <typename T>
@@ -343,17 +349,22 @@ class inode_ : public inode {
     std::unordered_map<fragment_category, similarity> sc;
     std::unordered_map<fragment_category, nilsimsa> nc;
 
-    for (auto const& f : fragments_.span()) {
-      switch (opts.fragment_order.get(f.category()).mode) {
+    for (auto [cat, size] : fragments_.get_category_sizes()) {
+      if (auto max = opts.max_similarity_scan_size;
+          max && static_cast<size_t>(size) > *max) {
+        continue;
+      }
+
+      switch (opts.fragment_order.get(cat).mode) {
       case file_order_mode::NONE:
       case file_order_mode::PATH:
       case file_order_mode::REVPATH:
         break;
       case file_order_mode::SIMILARITY:
-        sc.try_emplace(f.category());
+        sc.try_emplace(cat);
         break;
       case file_order_mode::NILSIMSA:
-        nc.try_emplace(f.category());
+        nc.try_emplace(cat);
         break;
       }
     }
@@ -395,6 +406,12 @@ class inode_ : public inode {
   void scan_full(mmif* mm, scanner_progress* sprog, inode_options const& opts,
                  size_t chunk_size) {
     assert(fragments_.size() <= 1);
+
+    if (mm) {
+      if (auto max = opts.max_similarity_scan_size; max && mm->size() > *max) {
+        return;
+      }
+    }
 
     auto order_mode =
         fragments_.empty()
@@ -477,7 +494,7 @@ class inode_manager_ final : public inode_manager::impl {
       const override {
     auto span = sortable_span();
     span.all();
-    inode_ordering(LOG_GET_LOGGER, prog_).by_inode_number(span);
+    inode_ordering(LOG_GET_LOGGER, prog_, opts_).by_inode_number(span);
     for (auto const& i : span) {
       fn(i);
     }
@@ -613,7 +630,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
   auto span = sortable_span();
   span.select([cat](auto const& v) { return v->has_category(cat); });
 
-  inode_ordering order(LOG_GET_LOGGER, prog_);
+  inode_ordering order(LOG_GET_LOGGER, prog_, opts_);
 
   switch (opts.mode) {
   case file_order_mode::NONE:

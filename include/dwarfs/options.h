@@ -101,12 +101,7 @@ struct file_order_options {
 };
 
 struct inode_options {
-  // TODO: - clean this all up and name properly
-  //       - the file_order thing should really be "fragment_order"
-  //       - it should all belong into inode_options, where scanner
-  //         can still access it
-  //       - python scripts need to die
-  std::optional<size_t> max_similarity_scan_size; // TODO: not sure about this?
+  std::optional<size_t> max_similarity_scan_size;
   std::shared_ptr<categorizer_manager> categorizer_mgr;
   categorized_option<file_order_options> fragment_order{file_order_options()};
 };
