@@ -1042,9 +1042,12 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   set(UNIVERSAL_PACKED
           "dwarfs-universal-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # upx -9 is a good compromise between compression ratio and speed
+  # also, anything above --best increases the startup time of the compressed
+  # executable significantly
   add_custom_command(
     OUTPUT ${UNIVERSAL_PACKED}
-    COMMAND ${UPX_EXE} -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
+    COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
 
