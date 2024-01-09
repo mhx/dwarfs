@@ -1,3 +1,6 @@
+- Use thrift definitions for all options to make them
+  easily printable/storable?
+
 - Use Elias-Fano for delta-encoded lists in metadata?
 
 - Implement rewriting properly; keep order of blocks etc;
