@@ -32,7 +32,7 @@ There are two mandatory options for specifying the input and output:
   is the source filesystem.
 
 - `--input-list=`*file*|`-`:
-  Read list of paths to add to the file system from this file or from stdin.
+  Read list of file paths to add to the file system from this file or from stdin.
   The path names will be interpreted relative to the path given with `--input`.
   If `--input` is omitted, the path names will be interpreted relative to the
   current directory. If you want files to be stored in the exact same order

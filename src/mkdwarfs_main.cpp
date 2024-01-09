@@ -431,7 +431,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "path to root directory or source filesystem")
     ("input-list",
         po_sys_value<sys_string>(&input_list_str),
-        "file containing list of paths relative to root directory")
+        "file containing list of file paths relative to root directory")
     ("output,o",
         po_sys_value<sys_string>(&output_str),
         "filesystem output name")
