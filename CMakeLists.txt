@@ -199,7 +199,12 @@ else()
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
     GIT_TAG 10.1.1
   )
-  FetchContent_MakeAvailable(fmt)
+  # FetchContent_MakeAvailable(fmt)
+  FetchContent_GetProperties(fmt)
+  if(NOT fmt_POPULATED)
+    FetchContent_Populate(fmt)
+    add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
@@ -323,7 +328,12 @@ if(WITH_TESTS)
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    # FetchContent_MakeAvailable(googletest)
+    FetchContent_GetProperties(googletest)
+    if(NOT googletest_POPULATED)
+      FetchContent_Populate(googletest)
+      add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
   endif()
 
   enable_testing()
