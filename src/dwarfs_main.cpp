@@ -31,6 +31,16 @@
 #include <cstdlib>
 #include <cstring>
 
+#ifndef WIN32
+#if __has_include(<boost/process/v2/environment.hpp>)
+#define BOOST_PROCESS_VERSION 2
+#include <boost/process/v2/environment.hpp>
+#else
+#define BOOST_PROCESS_VERSION 1
+#include <boost/process/search_path.hpp>
+#endif
+#endif
+
 #include <fmt/format.h>
 
 #include <folly/Conv.h>
@@ -225,6 +235,33 @@ void checked_reply_err(LogProxy& log_, fuse_req_t req, T&& f) {
   auto& userdata =                                                             \
       *reinterpret_cast<dwarfs_userdata*>(fuse_get_context()->private_data)
 #endif
+
+void check_fusermount(dwarfs_userdata& userdata) {
+#ifndef WIN32
+
+#if FUSE_USE_VERSION >= 30
+  static constexpr std::string_view const fusermount_name = "fusermount3";
+  static constexpr std::string_view const fuse_pkg = "fuse3";
+#else
+  static constexpr std::string_view const fusermount_name = "fusermount";
+  static constexpr std::string_view const fuse_pkg = "fuse/fuse2";
+#endif
+
+#if BOOST_PROCESS_VERSION == 2
+  auto fusermount =
+      boost::process::v2::environment::find_executable(fusermount_name);
+#else
+  auto fusermount = boost::process::search_path(std::string(fusermount_name));
+#endif
+
+  if (fusermount.empty() || !boost::filesystem::exists(fusermount)) {
+    LOG_PROXY(prod_logger_policy, userdata.lgr);
+    LOG_ERROR << "Could not find `" << fusermount_name << "' in PATH";
+    LOG_WARN << "Do you need to install the `" << fuse_pkg << "' package?";
+  }
+
+#endif
+}
 
 template <typename LoggerPolicy>
 void op_init_common(void* data) {
@@ -1058,6 +1095,8 @@ int run_fuse(struct fuse_args& args,
           }
         }
         fuse_session_unmount(session);
+      } else {
+        check_fusermount(userdata);
       }
       fuse_remove_signal_handlers(session);
     }
@@ -1067,6 +1106,10 @@ int run_fuse(struct fuse_args& args,
   ::free(fuse_opts.mountpoint);
 #else
   err = fuse_main(args.argc, args.argv, &fsops, &userdata);
+
+  if (err != 0) {
+    check_fusermount(userdata);
+  }
 #endif
 
   fuse_opt_free_args(&args);
@@ -1103,6 +1146,8 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
       fuse_session_destroy(se);
     }
     fuse_unmount(mountpoint, ch);
+  } else {
+    check_fusermount(userdata);
   }
 
   ::free(mountpoint);
