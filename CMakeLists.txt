@@ -597,7 +597,7 @@ endif()
 
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
-if(WITH_TESTS OR WITH_BENCHMARKS)
+if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(test_helpers test/test_helpers.cpp test/test_iolayer.cpp
                            test/test_strings.cpp test/loremipsum.cpp
                            test/test_dirtree.cpp test/filter_test_data.cpp)
@@ -674,6 +674,10 @@ if(WITH_FUZZ)
   add_executable(fuzz_categorizers test/fuzz_categorizers.cpp)
   target_link_libraries(fuzz_categorizers "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
   list(APPEND BINARY_TARGETS fuzz_categorizers)
+
+  add_executable(fuzz_mkdwarfs test/fuzz_mkdwarfs.cpp)
+  target_link_libraries(fuzz_mkdwarfs mkdwarfs_main test_helpers)
+  list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
 endif()
 
 if(WITH_MAN_PAGES)
