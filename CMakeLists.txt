@@ -1000,6 +1000,7 @@ add_custom_target(
         vcpkg-manifest-install.log
         build.ninja .ninja_deps
         Makefile compile_commands.json
+        artifacts.env
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
 )
@@ -1092,6 +1093,10 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     else()
       set(PACKAGE_EXT ".tar.zst")
     endif()
+
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/artifacts.env"
+               "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
+               "universal_binary=${UNIVERSAL_PACKED}\n")
 
     add_custom_target(copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}

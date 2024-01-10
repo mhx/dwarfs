@@ -157,5 +157,11 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
   $BUILD_TOOL copy_artifacts
 
+  rm -rf /tmp-runner/artifacts
+  mkdir -p /tmp-runner/artifacts
+  cp artifacts.env /tmp-runner
+  cp dwarfs-universal-* /tmp-runner/artifacts
+  cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
+
   $BUILD_TOOL realclean
 fi
