@@ -54,6 +54,9 @@ case "-$BUILD_TYPE-" in
   *-release-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
     ;;
+  *-reldbg-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+    ;;
   *-asan-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=1"
     ;;
@@ -145,7 +148,10 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
   ctest --output-on-failure -j$(nproc)
 
-  $BUILD_TOOL strip
+  if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
+    $BUILD_TOOL strip
+  fi
+
   $BUILD_TOOL package
   $BUILD_TOOL universal_upx
 

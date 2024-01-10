@@ -1046,11 +1046,20 @@ if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
   add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
 endif()
 
+if(PRJ_VERSION_FULL)
+  set(DWARFS_ARTIFACT_ID "${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+  if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-reldbg")
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-debug")
+  endif()
+endif()
+
 if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
   set(UNIVERSAL_PACKED
-          "dwarfs-universal-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${CMAKE_EXECUTABLE_SUFFIX}")
+          "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
 
   # upx -9 is a good compromise between compression ratio and speed
   # also, anything above --best increases the startup time of the compressed
@@ -1086,7 +1095,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
 
     add_custom_target(copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_PACKED} ${ARTIFACTS_FULL_PATH}
     )
 
@@ -1117,7 +1126,7 @@ if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
   set(CPACK_SOURCE_PACKAGE_FILE_NAME
       "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}")
   set(CPACK_PACKAGE_FILE_NAME
-      "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+      "${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}")
   set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
       "dwarfs - A high compression read-only file system")
   set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")

@@ -81,6 +81,8 @@ jobs:
           - oldgcc-debug-make
           - clang-release-ninja
           - clang-release-ninja-static
+          - clang-reldbg-ninja-static
+          - clang-debug-ninja-static
           - oldclang-debug-make
         include:
           - arch: amd64
