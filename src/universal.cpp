@@ -84,6 +84,18 @@ extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
 #endif
 
 int SYS_MAIN(int argc, sys_char** argv) {
+  auto path = std::filesystem::path(argv[0]);
+
+  // first, see if we are called as a copy/hardlink/symlink
+
+  if (path.extension().string() == EXE_EXT) {
+    if (auto it = functions.find(path.stem().string()); it != functions.end()) {
+      return safe_main([&] { return it->second(argc, argv); });
+    }
+  }
+
+  // if not, see if we can find a --tool=... argument
+
   if (argc > 1) {
     auto tool_arg = sys_string_to_string(argv[1]);
     if (tool_arg.starts_with("--tool=")) {
@@ -98,13 +110,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
     }
   }
 
-  auto path = std::filesystem::path(argv[0]);
-
-  if (path.extension().string() == EXE_EXT) {
-    if (auto it = functions.find(path.stem().string()); it != functions.end()) {
-      return safe_main([&] { return it->second(argc, argv); });
-    }
-  }
+  // nope, just print the help
 
   using namespace folly::gen;
 
