@@ -812,13 +812,17 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t) + sizeof(data_chk_t);
       size_t pcm_length = chunk->size() - sizeof(data_chk_t);
 
-      if (pcm_length % (meta.number_of_channels * meta.bytes_per_sample)) {
+      if (auto pcm_padding =
+              pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
+          pcm_padding > 0) {
         LOG_WARN << "[CAF] " << path
                  << ": `data` chunk size mismatch (pcm_len=" << pcm_length
                  << ", #chan=" << meta.number_of_channels
                  << ", bytes_per_sample="
                  << static_cast<int>(meta.bytes_per_sample) << ")";
-        return false;
+
+        // work around broken Logic Pro files...
+        pcm_length -= pcm_padding;
       }
 
       fragment_category::value_type subcategory = meta_.wlock()->add(meta);
@@ -993,13 +997,17 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t);
       size_t pcm_length = chunk->size();
 
-      if (pcm_length % (meta.number_of_channels * meta.bytes_per_sample)) {
+      if (auto pcm_padding =
+              pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
+          pcm_padding > 0) {
         LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
                  << ": `data` chunk size mismatch (pcm_len=" << pcm_length
                  << ", #chan=" << meta.number_of_channels
                  << ", bytes_per_sample="
                  << static_cast<int>(meta.bytes_per_sample) << ")";
-        return false;
+
+        // work around broken Logic Pro files...
+        pcm_length -= pcm_padding;
       }
 
       fragment_category::value_type subcategory = meta_.wlock()->add(meta);
