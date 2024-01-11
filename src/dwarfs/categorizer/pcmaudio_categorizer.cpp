@@ -576,6 +576,19 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
   iff_parser<LoggerPolicy, chunk_hdr_t, endianness::BIG> parser(
       LOG_GET_LOGGER, "AIFF", path, data, sizeof(file_hdr_t));
 
+  file_hdr_t file_header;
+  if (!parser.read_file_header(file_header)) {
+    return false;
+  }
+
+  file_header.size = folly::Endian::big(file_header.size);
+
+  if (file_header.size != data.size() - offsetof(file_hdr_t, form)) {
+    LOG_WARN << "[AIFF] " << path
+             << ": unexpected file size: " << file_header.size << " (expected "
+             << data.size() - offsetof(file_hdr_t, form) << ")";
+  }
+
   bool meta_valid{false};
   uint32_t num_sample_frames;
   pcmaudio_metadata meta;
@@ -876,6 +889,16 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   if (std::memcmp(file_header.form, FormatPolicy::wave_id.data(),
                   FormatPolicy::id_size) != 0) {
     return false;
+  }
+
+  size_t const expected_size =
+      data.size() -
+      (FormatPolicy::size_includes_header ? 0 : offsetof(file_hdr_t, form));
+
+  if (file_header.size != expected_size) {
+    LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+             << ": unexpected file size: " << file_header.size << " (expected "
+             << expected_size << ")";
   }
 
   bool meta_valid{false};
