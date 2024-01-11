@@ -504,9 +504,20 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                       std::span<uint8_t const> data,
                       category_mapper const& mapper) const;
 
-  bool check_metadata_requirements(pcmaudio_metadata const& meta,
-                                   std::string_view context,
-                                   fs::path const& path) const;
+  bool check_metadata(pcmaudio_metadata const& meta, std::string_view context,
+                      fs::path const& path) const;
+
+  template <typename ChunkHdrT, typename ChunkT>
+  bool
+  handle_pcm_data(std::string_view context, ChunkT const& chunk,
+                  fs::path const& path, inode_fragments& frag,
+                  category_mapper const& mapper, pcmaudio_metadata const& meta,
+                  std::span<uint8_t const> data, size_t pcm_offset) const;
+
+  void
+  add_fragments(inode_fragments& frag, category_mapper const& mapper,
+                pcmaudio_metadata const& meta, std::span<uint8_t const> data,
+                size_t pcm_start, size_t pcm_length) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   folly::Synchronized<pcmaudio_metadata_store, std::shared_mutex> mutable meta_;
@@ -593,18 +604,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
       meta.number_of_channels = folly::Endian::big(comm.num_chan);
       num_sample_frames = folly::Endian::big(comm.num_sample_frames);
 
-      if (!meta.check()) {
-        LOG_WARN << "[AIFF] " << path << ": metadata check failed: " << meta;
+      meta_valid = check_metadata(meta, "AIFF", path);
+
+      if (!meta_valid) {
         return false;
       }
-
-      if (!check_metadata_requirements(meta, "AIFF", path)) {
-        return false;
-      }
-
-      meta_valid = true;
-
-      LOG_TRACE << "[AIFF] " << path << ": meta=" << meta;
     } else if (chunk->is("SSND")) {
       if (!meta_valid) {
         LOG_WARN << "[AIFF] " << path
@@ -633,18 +637,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
         return false;
       }
 
-      fragment_category::value_type subcategory = meta_.wlock()->add(meta);
-
-      frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                        pcm_start);
-      frag.emplace_back(
-          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
-          pcm_length);
-
-      if (pcm_start + pcm_length < data.size()) {
-        frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                          data.size() - (pcm_start + pcm_length));
-      }
+      add_fragments(frag, mapper, meta, data, pcm_start, pcm_length);
 
       return true;
     }
@@ -790,18 +783,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
       assert(meta.bytes_per_sample > 0);
 
-      if (!meta.check()) {
-        LOG_WARN << "[CAF] " << path << ": metadata check failed: " << meta;
+      meta_valid = check_metadata(meta, "CAF", path);
+
+      if (!meta_valid) {
         return false;
       }
-
-      if (!check_metadata_requirements(meta, "CAF", path)) {
-        return false;
-      }
-
-      meta_valid = true;
-
-      LOG_TRACE << "[CAF] " << path << ": meta=" << meta;
     } else if (chunk->is("data")) {
       if (!meta_valid) {
         LOG_WARN << "[CAF] " << path
@@ -809,36 +795,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t) + sizeof(data_chk_t);
-      size_t pcm_length = chunk->size() - sizeof(data_chk_t);
-
-      if (auto pcm_padding =
-              pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
-          pcm_padding > 0) {
-        LOG_WARN << "[CAF] " << path
-                 << ": `data` chunk size mismatch (pcm_len=" << pcm_length
-                 << ", #chan=" << meta.number_of_channels
-                 << ", bytes_per_sample="
-                 << static_cast<int>(meta.bytes_per_sample) << ")";
-
-        // work around broken Logic Pro files...
-        pcm_length -= pcm_padding;
-      }
-
-      fragment_category::value_type subcategory = meta_.wlock()->add(meta);
-
-      frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                        pcm_start);
-      frag.emplace_back(
-          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
-          pcm_length);
-
-      if (pcm_start + pcm_length < data.size()) {
-        frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                          data.size() - (pcm_start + pcm_length));
-      }
-
-      return true;
+      return handle_pcm_data<chunk_hdr_t>("CAF", chunk.value(), path, frag,
+                                          mapper, meta, data,
+                                          sizeof(data_chk_t));
     }
   }
 
@@ -973,20 +932,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       meta.bytes_per_sample = (meta.bits_per_sample + 7) / 8;
       meta.number_of_channels = fmt.num_channels;
 
-      if (!meta.check()) {
-        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
-                 << ": metadata check failed: " << meta;
+      meta_valid = check_metadata(meta, FormatPolicy::format_name, path);
+
+      if (!meta_valid) {
         return false;
       }
-
-      if (!check_metadata_requirements(meta, FormatPolicy::format_name, path)) {
-        return false;
-      }
-
-      meta_valid = true;
-
-      LOG_TRACE << "[" << FormatPolicy::format_name << "] " << path
-                << ": meta=" << meta;
     } else if (chunk->is(FormatPolicy::data_id)) {
       if (!meta_valid) {
         LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
@@ -994,36 +944,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         return false;
       }
 
-      size_t pcm_start = chunk->pos + sizeof(chunk_hdr_t);
-      size_t pcm_length = chunk->size();
-
-      if (auto pcm_padding =
-              pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
-          pcm_padding > 0) {
-        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
-                 << ": `data` chunk size mismatch (pcm_len=" << pcm_length
-                 << ", #chan=" << meta.number_of_channels
-                 << ", bytes_per_sample="
-                 << static_cast<int>(meta.bytes_per_sample) << ")";
-
-        // work around broken Logic Pro files...
-        pcm_length -= pcm_padding;
-      }
-
-      fragment_category::value_type subcategory = meta_.wlock()->add(meta);
-
-      frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                        pcm_start);
-      frag.emplace_back(
-          fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
-          pcm_length);
-
-      if (pcm_start + pcm_length < data.size()) {
-        frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
-                          data.size() - (pcm_start + pcm_length));
-      }
-
-      return true;
+      return handle_pcm_data<chunk_hdr_t>(FormatPolicy::format_name,
+                                          chunk.value(), path, frag, mapper,
+                                          meta, data, 0);
     }
   }
 
@@ -1031,9 +954,15 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
 }
 
 template <typename LoggerPolicy>
-bool pcmaudio_categorizer_<LoggerPolicy>::check_metadata_requirements(
+bool pcmaudio_categorizer_<LoggerPolicy>::check_metadata(
     pcmaudio_metadata const& meta, std::string_view context,
     fs::path const& path) const {
+  if (!meta.check()) {
+    LOG_WARN << "[" << context << "] " << path
+             << ": metadata check failed: " << meta;
+    return false;
+  }
+
   try {
     waveform_req_.check(meta);
   } catch (std::exception const& e) {
@@ -1041,7 +970,54 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_metadata_requirements(
     return false;
   }
 
+  LOG_TRACE << "[" << context << "] " << path << ": meta=" << meta;
+
   return true;
+}
+
+template <typename LoggerPolicy>
+template <typename ChunkHdrT, typename ChunkT>
+bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
+    std::string_view context, ChunkT const& chunk, fs::path const& path,
+    inode_fragments& frag, category_mapper const& mapper,
+    pcmaudio_metadata const& meta, std::span<uint8_t const> data,
+    size_t pcm_offset) const {
+  size_t pcm_start = chunk.pos + sizeof(ChunkHdrT) + pcm_offset;
+  size_t pcm_length = chunk.size() - pcm_offset;
+
+  if (auto pcm_padding =
+          pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
+      pcm_padding > 0) {
+    LOG_WARN << "[" << context << "] " << path
+             << ": `data` chunk size mismatch (pcm_len=" << pcm_length
+             << ", #chan=" << meta.number_of_channels
+             << ", bytes_per_sample=" << static_cast<int>(meta.bytes_per_sample)
+             << ")";
+
+    // work around broken Logic Pro files...
+    pcm_length -= pcm_padding;
+  }
+
+  add_fragments(frag, mapper, meta, data, pcm_start, pcm_length);
+
+  return true;
+}
+
+template <typename LoggerPolicy>
+void pcmaudio_categorizer_<LoggerPolicy>::add_fragments(
+    inode_fragments& frag, category_mapper const& mapper,
+    pcmaudio_metadata const& meta, std::span<uint8_t const> data,
+    size_t pcm_start, size_t pcm_length) const {
+  fragment_category::value_type subcategory = meta_.wlock()->add(meta);
+
+  frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)), pcm_start);
+  frag.emplace_back(fragment_category(mapper(WAVEFORM_CATEGORY), subcategory),
+                    pcm_length);
+
+  if (pcm_start + pcm_length < data.size()) {
+    frag.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
+                      data.size() - (pcm_start + pcm_length));
+  }
 }
 
 template <typename LoggerPolicy>
