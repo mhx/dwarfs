@@ -584,9 +584,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
   file_header.size = folly::Endian::big(file_header.size);
 
   if (file_header.size != data.size() - offsetof(file_hdr_t, form)) {
-    LOG_WARN << "[AIFF] " << path
-             << ": unexpected file size: " << file_header.size << " (expected "
-             << data.size() - offsetof(file_hdr_t, form) << ")";
+    LOG_VERBOSE << "[AIFF] " << path
+                << ": unexpected file size: " << file_header.size
+                << " (expected " << data.size() - offsetof(file_hdr_t, form)
+                << ")";
   }
 
   bool meta_valid{false};
@@ -896,9 +897,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       (FormatPolicy::size_includes_header ? 0 : offsetof(file_hdr_t, form));
 
   if (file_header.size != expected_size) {
-    LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
-             << ": unexpected file size: " << file_header.size << " (expected "
-             << expected_size << ")";
+    LOG_VERBOSE << "[" << FormatPolicy::format_name << "] " << path
+                << ": unexpected file size: " << file_header.size
+                << " (expected " << expected_size << ")";
   }
 
   bool meta_valid{false};
@@ -1011,11 +1012,11 @@ bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
   if (auto pcm_padding =
           pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
       pcm_padding > 0) {
-    LOG_WARN << "[" << context << "] " << path
-             << ": `data` chunk size mismatch (pcm_len=" << pcm_length
-             << ", #chan=" << meta.number_of_channels
-             << ", bytes_per_sample=" << static_cast<int>(meta.bytes_per_sample)
-             << ")";
+    LOG_VERBOSE << "[" << context << "] " << path
+                << ": `data` chunk size mismatch (pcm_len=" << pcm_length
+                << ", #chan=" << meta.number_of_channels
+                << ", bytes_per_sample="
+                << static_cast<int>(meta.bytes_per_sample) << ")";
 
     // work around broken Logic Pro files...
     pcm_length -= pcm_padding;
