@@ -431,10 +431,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "path to root directory or source filesystem")
     ("input-list",
         po_sys_value<sys_string>(&input_list_str),
-        "file containing list of file paths relative to root directory")
+        "file containing list of file paths relative to root directory "
+        "or - for stdin")
     ("output,o",
         po_sys_value<sys_string>(&output_str),
-        "filesystem output name")
+        "filesystem output name or - for stdout")
     ("force,f",
         po::value<bool>(&force_overwrite)->zero_tokens(),
         "force overwrite of existing output image")
