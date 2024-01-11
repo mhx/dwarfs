@@ -942,9 +942,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
       if (!(fmt.format_code == WAVE_FORMAT_PCM ||
             (fmt.format_code == WAVE_FORMAT_EXTENSIBLE && chunk->size() == 40 &&
              fmt.sub_format_code == WAVE_FORMAT_PCM))) {
-        LOG_TRACE << "[" << FormatPolicy::format_name << "] " << path
-                  << ": unsupported format: " << fmt.format_code << "/"
-                  << fmt.sub_format_code;
+        LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
+                 << ": unsupported format: " << fmt.format_code << "/"
+                 << fmt.sub_format_code;
         return false;
       }
 
