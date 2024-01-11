@@ -645,8 +645,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
       if (sizeof(ssnd) + ssnd.offset + pcm_length > chunk->size()) {
         LOG_WARN << "[AIFF] " << path
-                 << ": SSND invalid chunk size (offset=" << ssnd.offset
-                 << ", pcm_len=" << pcm_length << ", chk_size" << chunk->size()
+                 << ": `SSND` invalid chunk size: " << chunk->size()
+                 << ", expected >= " << sizeof(ssnd) + ssnd.offset + pcm_length
+                 << " (offset=" << ssnd.offset << ", pcm_len=" << pcm_length
                  << ")";
         return false;
       }
@@ -745,22 +746,25 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
 
       if (std::memcmp(fmt.format_id, "lpcm", 4) != 0) {
         // TODO: alaw, ulaw?
-        LOG_DEBUG << "[CAF] " << path << ": found compressed format";
+        LOG_VERBOSE << "[CAF] " << path << ": unsupported `"
+                    << std::string_view(fmt.format_id, sizeof(fmt.format_id))
+                    << "` format";
         return false;
       }
 
       fmt.format_flags = folly::Endian::big(fmt.format_flags);
 
       if (fmt.format_flags & kCAFLinearPCMFormatFlagIsFloat) {
-        LOG_DEBUG << "[CAF] " << path << ": floating point is unsupported";
+        LOG_VERBOSE << "[CAF] " << path
+                    << ": floating point format not supported";
         return false;
       }
 
       fmt.frames_per_packet = folly::Endian::big(fmt.frames_per_packet);
 
       if (fmt.frames_per_packet != 1) {
-        LOG_WARN << "[CAF] " << path
-                 << ": unsupported frames/packet: " << fmt.frames_per_packet;
+        LOG_WARN << "[CAF] " << path << ": unsupported frames per packet: "
+                 << fmt.frames_per_packet;
         return false;
       }
 
@@ -776,13 +780,14 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
       meta.number_of_channels = folly::Endian::big(fmt.channels_per_frame);
 
       if (fmt.bytes_per_packet == 0) {
-        LOG_WARN << "[CAF] " << path << ": bytes per packet is zero";
+        LOG_WARN << "[CAF] " << path << ": bytes per packet must not be zero";
         return false;
       }
 
       if (fmt.bytes_per_packet > 4 * meta.number_of_channels) {
         LOG_WARN << "[CAF] " << path
-                 << ": bytes per packet out of range: " << fmt.bytes_per_packet;
+                 << ": bytes per packet out of range: " << fmt.bytes_per_packet
+                 << ", expected <= " << 4 * meta.number_of_channels;
         return false;
       }
 
