@@ -29,6 +29,7 @@ A fast high compression read-only file system for Linux and Windows.
   - [With SquashFS &amp; xz](#with-squashfs--xz)
   - [With lrzip](#with-lrzip)
   - [With zpaq](#with-zpaq)
+  - [With zpaqfranz](#with-zpaqfranz)
   - [With wimlib](#with-wimlib)
   - [With Cromfs](#with-cromfs)
   - [With EROFS](#with-erofs)
@@ -1291,6 +1292,110 @@ sys     3m47.876s
 ```
 
 That's 700 times slower than extracting the DwarFS image.
+
+### With zpaqfranz
+
+[zpaqfranz](https://github.com/fcorbelli/zpaqfranz) is a derivative of zpaq.
+Much to my delight, it doesn't generate millions of lines of output.
+It claims to be multi-threaded and de-duplicating, so definitely worth
+taking a look. Like zpaq, it supports incremental backups.
+
+We'll use a different input to compare zpaqfranz and DwarFS: The source code
+of 670 different releases of the "wine" emulator. That's 73 gigabytes of data
+in total, spread across slightly more than 3 million files. It's obviously
+highly redundant and should thus be a good data set to compare the tools.
+For reference, a `.tar.xz` of the directory is still 7 GiB in size and a
+SquashFS image of the data gets down to around 1.6 GiB. An "optimized"
+`.tar.xz`, where the input files were ordered by similarity, compresses down
+to 399 MiB, almost 20 times better than without ordering.
+
+Now it's time to try zpaqfranz. The input data is stored on a fast SSD and a
+large fraction of it is already in the file system cache from previous runs,
+so disk I/O is not a bottleneck.
+
+```
+$ time ./zpaqfranz a winesrc.zpaq winesrc
+zpaqfranz v58.8k-JIT-L(2023-08-05)
+Creating winesrc.zpaq at offset 0 + 0
+Add 2024-01-11 07:25:22 3.117.413     69.632.090.852 (  64.85 GB) 16T (362.904 dirs)
+3.480.317 +added, 0 -removed.
+
+0 + (69.632.090.852 -> 8.347.553.798 -> 617.600.892) = 617.600.892 @ 58.38 MB/s
+
+1137.441 seconds (000:18:57) (all OK)
+
+real    18m58.632s
+user    11m51.052s
+sys     1m3.389s
+```
+
+That is considerably faster than the original zpaq, and uses about 60 times
+less CPU resources. The output file is 589 MiB, so slightly larger than both
+the "optimized" `.tar.gz` and the zpaq output.
+
+How does `mkdwarfs` do?
+
+```
+$ time mkdwarfs -i winesrc -o winesrc.dwarfs -l9
+[...]
+I 07:55:20.546636 compressed 64.85 GiB to 93.2 MiB (ratio=0.00140344)
+I 07:55:20.826699 compression CPU time: 6.726m
+I 07:55:20.827338 filesystem created without errors [2.283m]
+[...]
+
+real    2m17.100s
+user    9m53.633s
+sys     2m29.236s
+```
+
+It uses pretty much the same amount of CPU resources, but finishes more than
+8 times faster. The DwarFS output file is more than 6 times smaller.
+
+You can actually squeeze a bit more redundancy out of the original data by
+tweaking the similarity ordering and switching from lzma to brotli compression,
+albeit at a somewhat slower compression speed:
+
+```
+mkdwarfs -i winesrc -o winesrc.dwarfs -l9 -C brotli:quality=11:lgwin=26 --order=nilsimsa:max-cluster-size=200k
+[...]
+I 08:21:01.138075 compressed 64.85 GiB to 73.52 MiB (ratio=0.00110716)
+I 08:21:01.485737 compression CPU time: 36.58m
+I 08:21:01.486313 filesystem created without errors [5.501m]
+[...]
+real    5m30.178s
+user    40m59.193s
+sys     2m36.234s
+```
+
+That's almost a 1000x reduction in size.
+
+Let's also look at decompression speed:
+
+```
+$ time zpaqfranz x winesrc.zpaq
+zpaqfranz v58.8k-JIT-L(2023-08-05)
+/home/mhx/winesrc.zpaq:
+1 versions, 3.480.317 files, 617.600.892 bytes (588.99 MB)
+Extract 69.632.090.852 bytes (64.85 GB) in 3.117.413 files (362.904 folders) / 16 T
+        99.18% 00:00:00  (  64.32 GB)=>(  64.85 GB)  548.83 MB/sec
+
+125.636 seconds (000:02:05) (all OK)
+
+real    2m6.968s
+user    1m36.177s
+sys     1m10.980s
+```
+
+```
+$ time dwarfsextract -i winesrc.dwarfs
+
+real    1m49.182s
+user    0m34.667s
+sys     1m28.733s
+```
+
+Decompression time is pretty much in the same ballpark, with just slightly
+shorter times for the DwarFS image.
 
 ### With wimlib
 
