@@ -816,7 +816,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         LOG_WARN << "[CAF] " << path
                  << ": `data` chunk size mismatch (pcm_len=" << pcm_length
                  << ", #chan=" << meta.number_of_channels
-                 << ", bytes_per_sample=" << meta.bytes_per_sample << ")";
+                 << ", bytes_per_sample="
+                 << static_cast<int>(meta.bytes_per_sample) << ")";
         return false;
       }
 
@@ -996,7 +997,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
                  << ": `data` chunk size mismatch (pcm_len=" << pcm_length
                  << ", #chan=" << meta.number_of_channels
-                 << ", bytes_per_sample=" << meta.bytes_per_sample << ")";
+                 << ", bytes_per_sample="
+                 << static_cast<int>(meta.bytes_per_sample) << ")";
         return false;
       }
 
