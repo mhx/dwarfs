@@ -34,7 +34,6 @@ namespace dwarfs {
 class checksum {
  public:
   enum class algorithm {
-    SHA1,
     SHA2_512_256,
     XXH3_64,
     XXH3_128,
@@ -55,8 +54,6 @@ class checksum {
   }
 
   bool finalize(void* digest) const { return impl_->finalize(digest); }
-
-  bool verify(void const* digest) const;
 
   size_t digest_size() const { return impl_->digest_size(); }
 

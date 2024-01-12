@@ -193,9 +193,6 @@ bool checksum::verify(algorithm alg, void const* data, size_t size,
 
 checksum::checksum(algorithm alg) {
   switch (alg) {
-  case algorithm::SHA1:
-    impl_ = std::make_unique<checksum_evp>(::EVP_sha1());
-    break;
   case algorithm::SHA2_512_256:
     impl_ = std::make_unique<checksum_evp>(::EVP_sha512_256());
     break;
@@ -221,12 +218,6 @@ checksum::checksum(std::string const& alg) {
   } else {
     DWARFS_CHECK(false, "unknown algorithm");
   }
-}
-
-bool checksum::verify(void const* digest) const {
-  std::array<char, EVP_MAX_MD_SIZE> tmp;
-  return impl_->finalize(tmp.data()) &&
-         ::memcmp(digest, tmp.data(), impl_->digest_size()) == 0;
 }
 
 } // namespace dwarfs
