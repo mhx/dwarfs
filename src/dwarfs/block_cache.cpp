@@ -256,6 +256,10 @@ class block_cache_ final : public block_cache::impl {
         stop_tidy_thread();
       }
     } else {
+      if (cfg.interval == std::chrono::milliseconds::zero()) {
+        DWARFS_THROW(runtime_error, "tidy interval is zero");
+      }
+
       std::lock_guard lock(mx_);
 
       tidy_config_ = cfg;

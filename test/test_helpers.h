@@ -255,6 +255,8 @@ std::span<std::pair<simplestat, std::string_view> const> test_dirtree();
 
 std::vector<std::string> parse_args(std::string_view args);
 
+std::string create_random_string(size_t size, uint8_t min, uint8_t max,
+                                 std::mt19937_64& gen);
 std::string create_random_string(size_t size, std::mt19937_64& gen);
 std::string create_random_string(size_t size, size_t seed = 0);
 

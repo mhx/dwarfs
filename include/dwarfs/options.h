@@ -60,7 +60,7 @@ struct history_config {
 
 struct cache_tidy_config {
   cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
-  std::chrono::milliseconds interval;
+  std::chrono::milliseconds interval{std::chrono::seconds(1)};
   std::chrono::milliseconds expiry_time;
 };
 
@@ -146,6 +146,7 @@ struct rewrite_options {
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);
+std::ostream& operator<<(std::ostream& os, block_cache_options const& opts);
 
 mlock_mode parse_mlock_mode(std::string_view mode);
 
