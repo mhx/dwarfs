@@ -908,7 +908,7 @@ void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::check_consistency() const {
-  global_metadata::check_consistency(LOG_GET_LOGGER, meta_);
+  global_.check_consistency(LOG_GET_LOGGER);
 }
 
 template <typename LoggerPolicy>
