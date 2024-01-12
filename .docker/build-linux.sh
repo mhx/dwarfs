@@ -115,40 +115,39 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  $BUILD_TOOL package_source
-  if [[ "$BUILD_ARCH" == "amd64" ]]; then
-    $BUILD_TOOL copy_source_artifacts
-  fi
-fi
-
-$BUILD_TOOL realclean
-
-if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  cd "$HOME"
-
-  VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
-  VERSION=${VERSION:1}
-
-  rm -rf dwarfs-*
-  rm -f dwarfs
-
-  mv "build/dwarfs-${VERSION}.tar.zst" .
-  rm -rf build
-
-  tar xvf "dwarfs-${VERSION}.tar.zst"
-  mv "dwarfs-${VERSION}" dwarfs
-
-  mkdir build
-  cd build
-
-  # shellcheck disable=SC2086
-  cmake ../dwarfs/ $CMAKE_ARGS
-
-  $BUILD_TOOL
-
-  ctest --output-on-failure -j$(nproc)
-
   if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
+    $BUILD_TOOL package_source
+
+    if [[ "$BUILD_ARCH" == "amd64" ]]; then
+      $BUILD_TOOL copy_source_artifacts
+    fi
+
+    $BUILD_TOOL realclean
+
+    cd "$HOME"
+
+    VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
+    VERSION=${VERSION:1}
+
+    rm -rf dwarfs-*
+    rm -f dwarfs
+
+    mv "build/dwarfs-${VERSION}.tar.zst" .
+    rm -rf build
+
+    tar xvf "dwarfs-${VERSION}.tar.zst"
+    mv "dwarfs-${VERSION}" dwarfs
+
+    mkdir build
+    cd build
+
+    # shellcheck disable=SC2086
+    cmake ../dwarfs/ $CMAKE_ARGS
+
+    $BUILD_TOOL
+
+    ctest --output-on-failure -j$(nproc)
+
     $BUILD_TOOL strip
   fi
 
@@ -162,6 +161,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   cp artifacts.env /tmp-runner
   cp dwarfs-universal-* /tmp-runner/artifacts
   cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
-
-  $BUILD_TOOL realclean
 fi
+
+$BUILD_TOOL realclean
