@@ -153,6 +153,16 @@ class mkdwarfs_tester : public tester_common {
 
   void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }
 
+  void add_special_files() {
+    static constexpr file_stat::off_type const size = 10;
+    std::string data(size, 'x');
+    os->add("suid", {1001, 0104755, 1, 0, 0, size, 42, 0, 0, 0}, data);
+    os->add("sgid", {1002, 0102755, 1, 0, 0, size, 42, 0, 0, 0}, data);
+    os->add("sticky", {1003, 0101755, 1, 0, 0, size, 42, 0, 0, 0}, data);
+    os->add("block", {1004, 060666, 1, 0, 0, 0, 42, 0, 0, 0}, std::string{});
+    os->add("sock", {1005, 0140666, 1, 0, 0, 0, 42, 0, 0, 0}, std::string{});
+  }
+
   void add_random_file_tree(double avg_size = 4096.0, int dimension = 20) {
     size_t max_size{128 * static_cast<size_t>(avg_size)};
     std::mt19937_64 rng{42};
@@ -565,6 +575,127 @@ TEST_P(categorizer_test, end_to_end) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
                          ::testing::Values("error", "warn", "info", "verbose",
                                            "debug", "trace"));
+
+TEST(mkdwarfs_test, metadata_path) {
+  fs::path const f1{"test.txt"};
+  fs::path const f2{U"猫.txt"};
+  fs::path const f3{u8"⚽️.bin"};
+  fs::path const f4{L"Карибського"};
+  fs::path const d1{u8"我爱你"};
+  fs::path const f5{d1 / u8"☀️ Sun"};
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_file(f1, 2, true);
+  t.os->add_file(f2, 4, true);
+  t.os->add_file(f3, 8, true);
+  t.os->add_file(f4, 16, true);
+  t.os->add_dir(d1);
+  t.os->add_file(f5, 32, true);
+  t.run("-i / -o -");
+  auto fs = t.fs_from_stdout();
+
+  std::map<size_t, dir_entry_view> entries;
+  fs.walk([&](auto e) {
+    file_stat stat;
+    if (fs.getattr(e.inode(), &stat) != 0) {
+      throw std::runtime_error(
+          fmt::format("getattr() failed for {}", e.path()));
+    }
+    if (stat.is_regular_file()) {
+      entries.emplace(stat.size, e);
+    }
+  });
+
+  ASSERT_EQ(entries.size(), 5);
+
+  auto e1 = entries.at(2);
+  auto e2 = entries.at(4);
+  auto e3 = entries.at(8);
+  auto e4 = entries.at(16);
+  auto e5 = entries.at(32);
+
+  auto de = fs.find(d1.string().c_str());
+
+  ASSERT_TRUE(de);
+  EXPECT_EQ(de->mode_string(), "---drwxr-xr-x");
+  EXPECT_EQ(e1.inode().mode_string(), "----rw-r--r--");
+
+  EXPECT_EQ(e1.fs_path(), f1);
+  EXPECT_EQ(e2.fs_path(), f2);
+  EXPECT_EQ(e3.fs_path(), f3);
+  EXPECT_EQ(e4.fs_path(), f4);
+  EXPECT_EQ(e5.fs_path(), f5);
+
+  EXPECT_EQ(e1.wpath(), L"test.txt");
+  EXPECT_EQ(e2.wpath(), L"猫.txt");
+  EXPECT_EQ(e3.wpath(), L"⚽️.bin");
+  EXPECT_EQ(e4.wpath(), L"Карибського");
+#ifdef _WIN32
+  EXPECT_EQ(e5.wpath(), L"我爱你\\☀️ Sun");
+#else
+  EXPECT_EQ(e5.wpath(), L"我爱你/☀️ Sun");
+#endif
+
+  EXPECT_EQ(e1.path(), "test.txt");
+  EXPECT_EQ(e2.path(), "猫.txt");
+  EXPECT_EQ(e3.path(), "⚽️.bin");
+  EXPECT_EQ(e4.path(), "Карибського");
+#ifdef _WIN32
+  EXPECT_EQ(e5.path(), "我爱你\\☀️ Sun");
+#else
+  EXPECT_EQ(e5.path(), "我爱你/☀️ Sun");
+#endif
+
+  EXPECT_EQ(e1.unix_path(), "test.txt");
+  EXPECT_EQ(e2.unix_path(), "猫.txt");
+  EXPECT_EQ(e3.unix_path(), "⚽️.bin");
+  EXPECT_EQ(e4.unix_path(), "Карибського");
+  EXPECT_EQ(e5.unix_path(), "我爱你/☀️ Sun");
+}
+
+TEST(mkdwarfs_test, metadata_modes) {
+  mkdwarfs_tester t;
+  t.add_special_files();
+  t.run("-i / -o - --with-specials --with-devices");
+  auto fs = t.fs_from_stdout();
+
+  auto d1 = fs.find("/");
+  auto d2 = fs.find("/foo.pl");
+  auto d3 = fs.find("/somelink");
+  auto d4 = fs.find("/somedir");
+  auto d5 = fs.find("/somedir/pipe");
+  auto d6 = fs.find("/somedir/null");
+  auto d7 = fs.find("/suid");
+  auto d8 = fs.find("/sgid");
+  auto d9 = fs.find("/sticky");
+  auto d10 = fs.find("/block");
+  auto d11 = fs.find("/sock");
+
+  ASSERT_TRUE(d1);
+  ASSERT_TRUE(d2);
+  ASSERT_TRUE(d3);
+  ASSERT_TRUE(d4);
+  ASSERT_TRUE(d5);
+  ASSERT_TRUE(d6);
+  ASSERT_TRUE(d7);
+  ASSERT_TRUE(d8);
+  ASSERT_TRUE(d9);
+  ASSERT_TRUE(d10);
+  ASSERT_TRUE(d11);
+
+  EXPECT_EQ(d1->mode_string(), "---drwxrwxrwx");
+  EXPECT_EQ(d2->mode_string(), "----rw-------");
+  EXPECT_EQ(d3->mode_string(), "---lrwxrwxrwx");
+  EXPECT_EQ(d4->mode_string(), "---drwxrwxrwx");
+  EXPECT_EQ(d5->mode_string(), "---prw-r--r--");
+  EXPECT_EQ(d6->mode_string(), "---crw-rw-rw-");
+  EXPECT_EQ(d7->mode_string(), "U---rwxr-xr-x");
+  EXPECT_EQ(d8->mode_string(), "-G--rwxr-xr-x");
+  EXPECT_EQ(d9->mode_string(), "--S-rwxr-xr-x");
+  EXPECT_EQ(d10->mode_string(), "---brw-rw-rw-");
+  EXPECT_EQ(d11->mode_string(), "---srw-rw-rw-");
+}
 
 TEST(mkdwarfs_test, chmod_norm) {
   std::string const image_file = "test.dwarfs";
