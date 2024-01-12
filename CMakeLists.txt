@@ -617,6 +617,7 @@ if(WITH_TESTS)
     entry_test
     error_test
     file_access_test
+    filesystem_test
     fragment_category_test
     incompressible_categorizer_test
     integral_value_parser_test
