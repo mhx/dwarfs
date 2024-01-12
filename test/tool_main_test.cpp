@@ -156,11 +156,11 @@ class mkdwarfs_tester : public tester_common {
   void add_special_files() {
     static constexpr file_stat::off_type const size = 10;
     std::string data(size, 'x');
-    os->add("suid", {1001, 0104755, 1, 0, 0, size, 42, 0, 0, 0}, data);
-    os->add("sgid", {1002, 0102755, 1, 0, 0, size, 42, 0, 0, 0}, data);
-    os->add("sticky", {1003, 0101755, 1, 0, 0, size, 42, 0, 0, 0}, data);
-    os->add("block", {1004, 060666, 1, 0, 0, 0, 42, 0, 0, 0}, std::string{});
-    os->add("sock", {1005, 0140666, 1, 0, 0, 0, 42, 0, 0, 0}, std::string{});
+    os->add("suid", {1001, 0104755, 1, 0, 0, size, 0, 3333, 2222, 1111}, data);
+    os->add("sgid", {1002, 0102755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+    os->add("sticky", {1003, 0101755, 1, 0, 0, size, 0, 0, 0, 0}, data);
+    os->add("block", {1004, 060666, 1, 0, 0, 0, 77, 0, 0, 0}, std::string{});
+    os->add("sock", {1005, 0140666, 1, 0, 0, 0, 0, 0, 0, 0}, std::string{});
   }
 
   std::vector<fs::path>
@@ -731,6 +731,70 @@ TEST(mkdwarfs_test, metadata_modes) {
   EXPECT_EQ(d9->mode_string(), "--S-rwxr-xr-x");
   EXPECT_EQ(d10->mode_string(), "---brw-rw-rw-");
   EXPECT_EQ(d11->mode_string(), "---srw-rw-rw-");
+}
+
+TEST(mkdwarfs_test, metadata_specials) {
+  mkdwarfs_tester t;
+  t.add_special_files();
+  t.run("-i / -o - --with-specials --with-devices");
+  auto fs = t.fs_from_stdout();
+
+  std::ostringstream oss;
+  fs.dump(oss, 9);
+  auto dump = oss.str();
+
+  auto meta = fs.metadata_as_dynamic();
+  std::set<std::string> types;
+  for (auto const& ino : meta["root"]["inodes"]) {
+    types.insert(ino["type"].asString());
+    if (auto di = ino.find("inodes"); di != ino.items().end()) {
+      for (auto const& ino2 : di->second) {
+        types.insert(ino2["type"].asString());
+      }
+    }
+  }
+  std::set<std::string> expected_types = {
+      "file", "link", "directory", "chardev", "blockdev", "socket", "fifo"};
+  EXPECT_EQ(expected_types, types);
+
+  EXPECT_THAT(dump, ::testing::HasSubstr("char device"));
+  EXPECT_THAT(dump, ::testing::HasSubstr("block device"));
+  EXPECT_THAT(dump, ::testing::HasSubstr("socket"));
+  EXPECT_THAT(dump, ::testing::HasSubstr("named pipe"));
+
+  auto iv = fs.find("/block");
+  ASSERT_TRUE(iv);
+
+  file_stat stat;
+  EXPECT_EQ(0, fs.getattr(*iv, &stat));
+
+  EXPECT_TRUE(stat.is_device());
+  EXPECT_EQ(77, stat.rdev);
+}
+
+TEST(mkdwarfs_test, metadata_time_resolution) {
+  mkdwarfs_tester t;
+  t.add_special_files();
+  t.run("-i / -o - --time-resolution=min --keep-all-times");
+  auto fs = t.fs_from_stdout();
+
+  std::ostringstream oss;
+  fs.dump(oss, 9);
+  auto dump = oss.str();
+
+  EXPECT_THAT(dump, ::testing::HasSubstr("time resolution: 60 seconds"));
+
+  auto dyn = fs.info_as_dynamic(9);
+  EXPECT_EQ(60, dyn["time_resolution"].asInt());
+
+  auto iv = fs.find("/suid");
+  ASSERT_TRUE(iv);
+
+  file_stat stat;
+  EXPECT_EQ(0, fs.getattr(*iv, &stat));
+  EXPECT_EQ(3300, stat.atime);
+  EXPECT_EQ(2220, stat.mtime);
+  EXPECT_EQ(1080, stat.ctime);
 }
 
 TEST(mkdwarfs_test, chmod_norm) {
