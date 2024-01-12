@@ -1086,6 +1086,17 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::ValuesIn(dwarfs::test::get_filter_tests()),
                        ::testing::ValuesIn(debug_filter_mode_names)));
 
+TEST(mkdwarfs_test, filter_recursion) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
+  t.fa->set_file("filt1.txt", ". filt2.txt\n");
+  t.fa->set_file("filt2.txt", ". filt3.txt\n");
+  t.fa->set_file("filt3.txt", "# here we recurse\n. filt1.txt\n");
+  EXPECT_EQ(1, t.run({"-i", "/", "-o", "-", "-F", ". filt1.txt"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "recursion detected while opening file: filt1.txt"));
+}
+
 namespace {
 
 constexpr std::array<std::string_view, 9> const pack_mode_names = {
