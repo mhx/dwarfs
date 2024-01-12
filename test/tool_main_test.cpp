@@ -163,21 +163,29 @@ class mkdwarfs_tester : public tester_common {
     os->add("sock", {1005, 0140666, 1, 0, 0, 0, 42, 0, 0, 0}, std::string{});
   }
 
-  void add_random_file_tree(double avg_size = 4096.0, int dimension = 20) {
+  std::vector<fs::path>
+  add_random_file_tree(double avg_size = 4096.0, int dimension = 20) {
     size_t max_size{128 * static_cast<size_t>(avg_size)};
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1 / avg_size};
+    std::vector<fs::path> paths;
 
     for (int x = 0; x < dimension; ++x) {
-      os->add_dir(fmt::format("{}", x));
+      fs::path d1{std::to_string(x)};
+      os->add_dir(d1);
       for (int y = 0; y < dimension; ++y) {
-        os->add_dir(fmt::format("{}/{}", x, y));
+        fs::path d2{d1 / std::to_string(y)};
+        os->add_dir(d2);
         for (int z = 0; z < dimension; ++z) {
+          fs::path f{d2 / std::to_string(z)};
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
-          os->add_file(fmt::format("{}/{}/{}", x, y, z), size, true);
+          os->add_file(f, size, true);
+          paths.push_back(f);
         }
       }
     }
+
+    return paths;
   }
 
   void add_test_file_tree() {
@@ -516,6 +524,34 @@ TEST_P(mkdwarfs_input_list_test, basic) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
                          ::testing::ValuesIn(input_modes));
+
+TEST(mkdwarfs_test, input_list_large) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  auto paths = t.add_random_file_tree();
+  {
+    std::ostringstream os;
+    for (auto const& p : paths) {
+      os << p.string() << '\n';
+    }
+    t.iol->set_in(os.str());
+  }
+
+  EXPECT_EQ(0, t.run({"--input-list", "-", "-o", "-"})) << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  std::set<fs::path> expected{paths.begin(), paths.end()};
+  std::set<fs::path> actual;
+
+  fs.walk([&](auto const& e) {
+    if (e.inode().is_regular_file()) {
+      actual.insert(e.fs_path());
+    }
+  });
+
+  EXPECT_EQ(expected, actual);
+}
 
 class categorizer_test : public testing::TestWithParam<std::string> {};
 
