@@ -257,9 +257,36 @@ struct Wav64Policy {
       "data\xf3\xac\xd3\x11\x8c\xd1\x00\xc0\x4f\x8e\xdb\x8a", id_size};
 };
 
-template <typename LoggerPolicy, typename ChunkHeaderType,
-          endianness Endianness, bool IsCaf = false,
-          bool SizeIncludesHeader = false>
+struct AiffChunkPolicy {
+  static constexpr std::string_view const format_name{"AIFF"};
+  static constexpr endianness const endian{endianness::BIG};
+  static constexpr bool const size_includes_header{false};
+  static void preprocess(auto&, std::span<uint8_t const>) {}
+};
+
+struct CafChunkPolicy {
+  static constexpr std::string_view const format_name{"CAF"};
+  static constexpr endianness const endian{endianness::BIG};
+  static constexpr bool const size_includes_header{false};
+  static void preprocess(auto& c, std::span<uint8_t const> data) {
+    if (c.header.size == std::numeric_limits<decltype(c.header.size)>::max() &&
+        c.is("data")) {
+      c.header.size = data.size() - (c.pos + sizeof(c.header));
+    }
+  }
+};
+
+template <typename FormatPolicy>
+struct WavChunkPolicy {
+  static constexpr std::string_view const format_name{
+      FormatPolicy::format_name};
+  static constexpr endianness const endian{endianness::LITTLE};
+  static constexpr bool const size_includes_header{
+      FormatPolicy::size_includes_header};
+  static void preprocess(auto&, std::span<uint8_t const>) {}
+};
+
+template <typename LoggerPolicy, typename ChunkPolicy, typename ChunkHeaderType>
 class iff_parser final {
  public:
   struct chunk {
@@ -283,11 +310,10 @@ class iff_parser final {
     size_t size() const { return header.size; }
   };
 
-  iff_parser(logger& lgr, std::string_view name, fs::path const& path,
-             std::span<uint8_t const> data, size_t pos)
+  iff_parser(logger& lgr, fs::path const& path, std::span<uint8_t const> data,
+             size_t pos)
       : LOG_PROXY_INIT(lgr)
       , data_{data}
-      , name_{name}
       , path_{path}
       , pos_{pos} {}
 
@@ -298,20 +324,14 @@ class iff_parser final {
       c.emplace();
 
       DWARFS_CHECK(read(c->header, pos_), "iff_parser::read failed");
-      c->header.size = endian<Endianness>::convert(c->header.size);
+      c->header.size = endian<ChunkPolicy::endian>::convert(c->header.size);
       c->pos = pos_;
 
-      if constexpr (IsCaf) {
-        if (c->header.size ==
-                std::numeric_limits<decltype(c->header.size)>::max() &&
-            c->is("data")) {
-          c->header.size = data_.size() - (pos_ + sizeof(ChunkHeaderType));
-        }
-      }
+      ChunkPolicy::preprocess(*c, data_);
 
-      if constexpr (SizeIncludesHeader) {
+      if constexpr (ChunkPolicy::size_includes_header) {
         if (c->header.size < sizeof(ChunkHeaderType)) {
-          LOG_WARN << "[" << name_ << "] " << path_
+          LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
                    << ": invalid chunk size: " << c->header.size;
           c.reset();
           return c;
@@ -324,7 +344,7 @@ class iff_parser final {
       }
 
       if (pos_ > data_.size()) {
-        LOG_WARN << "[" << name_ << "] " << path_
+        LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
                  << ": unexpected end of file (pos=" << pos_
                  << ", hdr.size=" << c->header.size << ", end=" << data_.size()
                  << ")";
@@ -332,8 +352,8 @@ class iff_parser final {
         return c;
       }
 
-      LOG_TRACE << "[" << name_ << "] " << path_ << ": `" << c->fourcc()
-                << "` (len=" << c->size() << ")";
+      LOG_TRACE << "[" << ChunkPolicy::format_name << "] " << path_ << ": `"
+                << c->fourcc() << "` (len=" << c->size() << ")";
     }
 
     return c;
@@ -360,9 +380,10 @@ class iff_parser final {
       return true;
     }
 
-    LOG_WARN << "[" << name_ << "] " << path_ << ": unexpected size for `"
-             << c.fourcc() << "` chunk: " << c.size() << " (expected "
-             << expected_size << ")";
+    LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
+             << ": unexpected size for `" << c.fourcc()
+             << "` chunk: " << c.size() << " (expected " << expected_size
+             << ")";
 
     return false;
   }
@@ -382,14 +403,14 @@ class iff_parser final {
       return true;
     }
 
-    LOG_WARN << "[" << name_ << "] " << path_ << ": unexpected end of file";
+    LOG_WARN << "[" << ChunkPolicy::format_name << "] " << path_
+             << ": unexpected end of file";
 
     return false;
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
   std::span<uint8_t const> data_;
-  std::string_view name_;
   fs::path const& path_;
   size_t pos_;
 };
@@ -573,8 +594,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
   static_assert(sizeof(comm_chk_t) == 8);
   static_assert(sizeof(ssnd_chk_t) == 8);
 
-  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::BIG> parser(
-      LOG_GET_LOGGER, "AIFF", path, data, sizeof(file_hdr_t));
+  iff_parser<LoggerPolicy, AiffChunkPolicy, chunk_hdr_t> parser(
+      LOG_GET_LOGGER, path, data, sizeof(file_hdr_t));
 
   file_hdr_t file_header;
   if (!parser.read_file_header(file_header)) {
@@ -707,8 +728,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
   static constexpr uint32_t const kCAFLinearPCMFormatFlagIsLittleEndian{1L
                                                                         << 1};
 
-  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::BIG, true> parser(
-      LOG_GET_LOGGER, "CAF", path, data, sizeof(caff_hdr_t));
+  iff_parser<LoggerPolicy, CafChunkPolicy, chunk_hdr_t> parser(
+      LOG_GET_LOGGER, path, data, sizeof(caff_hdr_t));
 
   caff_hdr_t caff_hdr;
   if (!parser.read_file_header(caff_hdr)) {
@@ -882,10 +903,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   static constexpr uint16_t const WAVE_FORMAT_PCM{0x0001};
   static constexpr uint16_t const WAVE_FORMAT_EXTENSIBLE{0xFFFE};
 
-  iff_parser<LoggerPolicy, chunk_hdr_t, endianness::LITTLE, false,
-             FormatPolicy::size_includes_header>
-      parser(LOG_GET_LOGGER, FormatPolicy::format_name, path, data,
-             sizeof(file_hdr_t));
+  iff_parser<LoggerPolicy, WavChunkPolicy<FormatPolicy>, chunk_hdr_t> parser(
+      LOG_GET_LOGGER, path, data, sizeof(file_hdr_t));
 
   file_hdr_t file_header;
   if (!parser.read_file_header(file_header)) {
