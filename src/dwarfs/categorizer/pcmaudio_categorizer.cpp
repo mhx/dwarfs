@@ -233,6 +233,7 @@ struct WavPolicy {
   static constexpr size_t const id_size{4};
   static constexpr size_t const file_header_size{12};
   static constexpr size_t const chunk_header_size{8};
+  static constexpr size_t const chunk_align{2};
   static constexpr std::string_view const format_name{"WAV"};
   static constexpr std::string_view const file_header_id{"RIFF"};
   static constexpr std::string_view const wave_id{"WAVE"};
@@ -246,6 +247,7 @@ struct Wav64Policy {
   static constexpr size_t const id_size{16};
   static constexpr size_t const file_header_size{40};
   static constexpr size_t const chunk_header_size{24};
+  static constexpr size_t const chunk_align{8};
   static constexpr std::string_view const format_name{"WAV64"};
   static constexpr std::string_view const file_header_id{
       "riff\x2e\x91\xcf\x11\xa5\xd6\x28\xdb\x04\xc1\x00\x00", id_size};
@@ -259,6 +261,7 @@ struct Wav64Policy {
 
 struct AiffChunkPolicy {
   static constexpr std::string_view const format_name{"AIFF"};
+  static constexpr size_t const alignment{2};
   static constexpr endianness const endian{endianness::BIG};
   static constexpr bool const size_includes_header{false};
   static void preprocess(auto&, std::span<uint8_t const>) {}
@@ -266,6 +269,7 @@ struct AiffChunkPolicy {
 
 struct CafChunkPolicy {
   static constexpr std::string_view const format_name{"CAF"};
+  static constexpr size_t const alignment{1};
   static constexpr endianness const endian{endianness::BIG};
   static constexpr bool const size_includes_header{false};
   static void preprocess(auto& c, std::span<uint8_t const> data) {
@@ -280,6 +284,7 @@ template <typename FormatPolicy>
 struct WavChunkPolicy {
   static constexpr std::string_view const format_name{
       FormatPolicy::format_name};
+  static constexpr size_t const alignment{FormatPolicy::chunk_align};
   static constexpr endianness const endian{endianness::LITTLE};
   static constexpr bool const size_includes_header{
       FormatPolicy::size_includes_header};
@@ -317,8 +322,34 @@ class iff_parser final {
       , path_{path}
       , pos_{pos} {}
 
+  template <typename T>
+  static T align(T x)
+    requires(std::is_integral_v<T> && std::is_unsigned_v<T>)
+  {
+    if constexpr (ChunkPolicy::alignment > 1) {
+      return (x + ChunkPolicy::alignment - 1) & ~(ChunkPolicy::alignment - 1);
+    } else {
+      return x;
+    }
+  }
+
+  bool check_size(std::string_view which, size_t actual_size,
+                  size_t expected_size) const {
+    if (actual_size != expected_size) {
+      if (ChunkPolicy::alignment == 1 || align(actual_size) != expected_size) {
+        LOG_VERBOSE << "[" << ChunkPolicy::format_name << "] " << path_
+                    << ": unexpected " << which << " size: " << actual_size
+                    << " (expected " << expected_size << ")";
+        return false;
+      }
+    }
+    return true;
+  }
+
   std::optional<chunk> next_chunk() {
     std::optional<chunk> c;
+
+    pos_ = align(pos_);
 
     if (pos_ + sizeof(ChunkHeaderType) <= data_.size()) {
       c.emplace();
@@ -604,12 +635,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
 
   file_header.size = folly::Endian::big(file_header.size);
 
-  if (file_header.size != data.size() - offsetof(file_hdr_t, form)) {
-    LOG_VERBOSE << "[AIFF] " << path
-                << ": unexpected file size: " << file_header.size
-                << " (expected " << data.size() - offsetof(file_hdr_t, form)
-                << ")";
-  }
+  parser.check_size("file", file_header.size,
+                    data.size() - offsetof(file_hdr_t, form));
 
   bool meta_valid{false};
   uint32_t num_sample_frames;
@@ -916,14 +943,12 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     return false;
   }
 
-  size_t const expected_size =
-      data.size() -
-      (FormatPolicy::size_includes_header ? 0 : offsetof(file_hdr_t, form));
+  {
+    size_t const expected_size =
+        data.size() -
+        (FormatPolicy::size_includes_header ? 0 : offsetof(file_hdr_t, form));
 
-  if (file_header.size != expected_size) {
-    LOG_VERBOSE << "[" << FormatPolicy::format_name << "] " << path
-                << ": unexpected file size: " << file_header.size
-                << " (expected " << expected_size << ")";
+    parser.check_size("file", file_header.size, expected_size);
   }
 
   bool meta_valid{false};
@@ -1036,9 +1061,12 @@ bool pcmaudio_categorizer_<LoggerPolicy>::handle_pcm_data(
   if (auto pcm_padding =
           pcm_length % (meta.number_of_channels * meta.bytes_per_sample);
       pcm_padding > 0) {
+    auto expected_pcm_length = pcm_length - pcm_padding;
+
     LOG_VERBOSE << "[" << context << "] " << path
-                << ": `data` chunk size mismatch (pcm_len=" << pcm_length
-                << ", #chan=" << meta.number_of_channels
+                << ": `data` chunk size includes " << pcm_padding
+                << " padding byte(s); got " << pcm_length << ", expected "
+                << expected_pcm_length << " (#chan=" << meta.number_of_channels
                 << ", bytes_per_sample="
                 << static_cast<int>(meta.bytes_per_sample) << ")";
 

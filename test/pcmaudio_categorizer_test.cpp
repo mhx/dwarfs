@@ -562,7 +562,8 @@ TEST_F(pcmaudio_error_test_wav, chunk_size_mismatch) {
 
   EXPECT_THAT(
       log.front().output,
-      testing::HasSubstr("[WAV] \"test.wav\": `data` chunk size mismatch"));
+      testing::HasSubstr("[WAV] \"test.wav\": `data` chunk size includes 1 "
+                         "padding byte(s); got 16, expected 15"));
 
   ASSERT_EQ(3, frag.size());
 
@@ -615,6 +616,35 @@ TEST_F(pcmaudio_error_test_wav64, no_error) {
   EXPECT_EQ("pcmaudio/metadata",
             catmgr.category_name(first.category().value()));
   EXPECT_EQ(104, first.size());
+  EXPECT_EQ("pcmaudio/waveform",
+            catmgr.category_name(second.category().value()));
+  EXPECT_EQ(16, second.size());
+  EXPECT_EQ(builder.size(), first.size() + second.size());
+}
+
+TEST_F(pcmaudio_error_test_wav64, no_error_alignment) {
+  wav_file_hdr.size = 128;
+  wav_fmt_chunk_hdr.size = 42;
+
+  pcmfile_builder builder;
+  builder.add(wav_file_hdr);
+  builder.add(wav_fmt_chunk_hdr);
+  builder.add(wav_fmt_chunk, 18);
+  builder.add_bytes(6, 0); // pad for alignment
+  builder.add(wav_data_chunk_hdr);
+  builder.add_bytes(16, 42);
+
+  auto frag = categorize(builder);
+
+  EXPECT_TRUE(logger.empty());
+
+  ASSERT_EQ(2, frag.size());
+
+  auto const& first = frag.span()[0];
+  auto const& second = frag.span()[1];
+  EXPECT_EQ("pcmaudio/metadata",
+            catmgr.category_name(first.category().value()));
+  EXPECT_EQ(112, first.size());
   EXPECT_EQ("pcmaudio/waveform",
             catmgr.category_name(second.category().value()));
   EXPECT_EQ(16, second.size());
