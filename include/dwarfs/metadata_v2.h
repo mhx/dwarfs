@@ -81,8 +81,6 @@ class metadata_v2 {
 
   size_t size() const { return impl_->size(); }
 
-  bool empty() const { return !impl_ || impl_->empty(); }
-
   void walk(std::function<void(dir_entry_view)> const& func) const {
     impl_->walk(func);
   }
@@ -173,7 +171,6 @@ class metadata_v2 {
     virtual std::string serialize_as_json(bool simple) const = 0;
 
     virtual size_t size() const = 0;
-    virtual bool empty() const = 0;
 
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;

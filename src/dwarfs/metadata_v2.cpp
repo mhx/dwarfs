@@ -484,8 +484,6 @@ class metadata_ final : public metadata_v2::impl {
 
   size_t size() const override { return data_.size(); }
 
-  bool empty() const override { return data_.empty(); }
-
   void walk(std::function<void(dir_entry_view)> const& func) const override {
     walk_tree([&](uint32_t self_index, uint32_t parent_index) {
       walk_call(func, self_index, parent_index);
