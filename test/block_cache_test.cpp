@@ -184,6 +184,19 @@ TEST_P(options_test, cache_stress) {
   };
   filesystem_v2 fs(lgr, mm, opts);
 
+  EXPECT_NO_THROW(
+      fs.set_cache_tidy_config({.strategy = cache_tidy_strategy::NONE}));
+
+  EXPECT_THAT(
+      [&] {
+        fs.set_cache_tidy_config({
+            .strategy = cache_tidy_strategy::BLOCK_SWAPPED_OUT,
+            .interval = std::chrono::seconds::zero(),
+        });
+      },
+      ::testing::ThrowsMessage<dwarfs::runtime_error>(
+          ::testing::HasSubstr("tidy interval is zero")));
+
   fs.set_cache_tidy_config({
       .strategy = cache_tidy_strategy::BLOCK_SWAPPED_OUT,
   });
