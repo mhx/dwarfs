@@ -188,25 +188,25 @@ class block_cache_ final : public block_cache::impl {
     // on to a block that has been evicted from the cache and re-insert the
     // block after the request is complete. So it's not a bug to see the
     // number of evicted blocks outgrow the number of created blocks.
-    LOG_INFO << "blocks created: " << blocks_created_.load();
-    LOG_INFO << "blocks evicted: " << blocks_evicted_.load();
-    LOG_INFO << "blocks tidied: " << blocks_tidied_.load();
-    LOG_INFO << "request sets merged: " << sets_merged_.load();
-    LOG_INFO << "total requests: " << range_requests_.load();
-    LOG_INFO << "active hits (fast): " << active_hits_fast_.load();
-    LOG_INFO << "active hits (slow): " << active_hits_slow_.load();
-    LOG_INFO << "cache hits (fast): " << cache_hits_fast_.load();
-    LOG_INFO << "cache hits (slow): " << cache_hits_slow_.load();
+    LOG_VERBOSE << "blocks created: " << blocks_created_.load();
+    LOG_VERBOSE << "blocks evicted: " << blocks_evicted_.load();
+    LOG_VERBOSE << "blocks tidied: " << blocks_tidied_.load();
+    LOG_VERBOSE << "request sets merged: " << sets_merged_.load();
+    LOG_VERBOSE << "total requests: " << range_requests_.load();
+    LOG_VERBOSE << "active hits (fast): " << active_hits_fast_.load();
+    LOG_VERBOSE << "active hits (slow): " << active_hits_slow_.load();
+    LOG_VERBOSE << "cache hits (fast): " << cache_hits_fast_.load();
+    LOG_VERBOSE << "cache hits (slow): " << cache_hits_slow_.load();
 
-    LOG_INFO << "total bytes decompressed: " << total_decompressed_bytes_;
-    LOG_INFO << "average block decompression: "
-             << fmt::format("{:.1f}", avg_decompression) << "%";
+    LOG_VERBOSE << "total bytes decompressed: " << total_decompressed_bytes_;
+    LOG_VERBOSE << "average block decompression: "
+                << fmt::format("{:.1f}", avg_decompression) << "%";
 
-    LOG_INFO << "fast hit rate: " << fmt::format("{:.3f}", fast_hit_rate)
-             << "%";
-    LOG_INFO << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
-             << "%";
-    LOG_INFO << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
+    LOG_VERBOSE << "fast hit rate: " << fmt::format("{:.3f}", fast_hit_rate)
+                << "%";
+    LOG_VERBOSE << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
+                << "%";
+    LOG_VERBOSE << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
   }
 
   size_t block_count() const override { return block_.size(); }
