@@ -610,6 +610,7 @@ if(WITH_TESTS)
     badfs_test
     block_cache_test
     block_merger_test
+    checksum_test
     chmod_transformer_test
     compat_test
     dwarfs_test

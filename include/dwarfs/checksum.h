@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iosfwd>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -43,6 +44,8 @@ class checksum {
   static std::vector<std::string> available_algorithms();
 
   static bool verify(algorithm alg, void const* data, size_t size,
+                     void const* digest, size_t digest_size);
+  static bool verify(std::string const& alg, void const* data, size_t size,
                      void const* digest, size_t digest_size);
 
   checksum(algorithm alg);
@@ -69,5 +72,7 @@ class checksum {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+std::ostream& operator<<(std::ostream& os, checksum::algorithm alg);
 
 } // namespace dwarfs
