@@ -797,6 +797,44 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
   EXPECT_EQ(1080, stat.ctime);
 }
 
+TEST(mkdwarfs_test, metadata_readdir) {
+  mkdwarfs_tester t;
+  t.run("-l3 -i / -o -");
+  auto fs = t.fs_from_stdout();
+
+  auto iv = fs.find("/somedir");
+  ASSERT_TRUE(iv);
+
+  auto dir = fs.opendir(*iv);
+  ASSERT_TRUE(dir);
+
+  {
+    auto r = fs.readdir(dir.value(), 0);
+    ASSERT_TRUE(r);
+
+    auto [ino, name] = r.value();
+    EXPECT_EQ(".", name);
+    EXPECT_EQ(ino.inode_num(), iv->inode_num());
+  }
+
+  {
+    auto r = fs.readdir(dir.value(), 1);
+    ASSERT_TRUE(r);
+
+    auto [ino, name] = r.value();
+    EXPECT_EQ("..", name);
+
+    auto parent = fs.find("/");
+    ASSERT_TRUE(parent);
+    EXPECT_EQ(ino.inode_num(), parent->inode_num());
+  }
+
+  {
+    auto r = fs.readdir(dir.value(), 100);
+    EXPECT_FALSE(r);
+  }
+}
+
 TEST(mkdwarfs_test, metadata_access) {
 #ifdef _WIN32
   static constexpr int const x_ok = 1;
