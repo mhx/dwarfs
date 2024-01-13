@@ -1883,3 +1883,20 @@ TEST(mkdwarfs_test, max_similarity_size) {
 
   EXPECT_GE(nilsimsa_results.size(), 3);
 }
+
+TEST(mkdwarfs_test, low_memory_limit) {
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(
+        0, t.run("-i / -o - -l5 --log-level=warn -S 27 --num-workers=8 -L 1g"));
+    EXPECT_THAT(t.err(),
+                ::testing::Not(::testing::HasSubstr("low memory limit")));
+  }
+
+  {
+    mkdwarfs_tester t;
+    EXPECT_EQ(
+        0, t.run("-i / -o - -l5 --log-level=warn -S 28 --num-workers=8 -L 1g"));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("low memory limit"));
+  }
+}
