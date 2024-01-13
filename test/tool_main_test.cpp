@@ -612,6 +612,37 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
                          ::testing::Values("error", "warn", "info", "verbose",
                                            "debug", "trace"));
 
+TEST(mkdwarfs_test, metadata_inode_info) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_local_files(audio_data_dir);
+  t.os->add_file("random", 4096, true);
+
+  ASSERT_EQ(0, t.run("-l3 -i / -o - --categorize"));
+
+  auto fs = t.fs_from_stdout();
+
+  auto iv = fs.find("/test8.aiff");
+  ASSERT_TRUE(iv);
+
+  auto info = fs.get_inode_info(*iv);
+  ASSERT_TRUE(info.count("chunks") > 0);
+
+  std::set<std::string> categories;
+
+  for (auto chunk : info["chunks"]) {
+    ASSERT_TRUE(chunk.count("category") > 0);
+    categories.insert(chunk["category"].asString());
+  }
+
+  std::set<std::string> expected{
+      "pcmaudio/metadata",
+      "pcmaudio/waveform",
+  };
+
+  EXPECT_EQ(expected, categories);
+}
+
 TEST(mkdwarfs_test, metadata_path) {
   fs::path const f1{"test.txt"};
   fs::path const f2{U"猫.txt"};
