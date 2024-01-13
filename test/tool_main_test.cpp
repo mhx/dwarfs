@@ -231,9 +231,16 @@ class mkdwarfs_tester : public tester_common {
   std::unique_ptr<logger> lgr;
 };
 
-std::string build_test_image() {
+std::string
+build_test_image(std::vector<std::string> extra_args = {},
+                 std::map<std::string, std::string> extra_files = {}) {
   mkdwarfs_tester t;
-  if (t.run({"-i", "/", "-o", "-"}) != 0) {
+  for (auto const& [name, contents] : extra_files) {
+    t.fa->set_file(name, contents);
+  }
+  std::vector<std::string> args = {"-i", "/", "-o", "-"};
+  args.insert(args.end(), extra_args.begin(), extra_args.end());
+  if (t.run(args) != 0) {
     throw std::runtime_error("failed to build test image:\n" + t.err());
   }
   return t.out();
@@ -1577,6 +1584,120 @@ TEST(dwarfsck_test, print_header_and_json) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr(
                            "--print-header is mutually exclusive with --json, "
                            "--export-metadata and --check-integrity"));
+}
+
+TEST(dwarfsck_test, print_header) {
+  std::string const header = "interesting stuff in the header\n";
+  auto image =
+      build_test_image({"--header", "header.txt"}, {{"header.txt", header}});
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs", "--print-header"})) << t.err();
+    EXPECT_EQ(header, t.out());
+  }
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    t.iol->out_stream().setstate(std::ios_base::failbit);
+    EXPECT_EQ(1, t.run({"image.dwarfs", "--print-header"})) << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("error writing header"));
+  }
+}
+
+TEST(dwarfsck_test, check_fail) {
+  static constexpr size_t section_header_size{64};
+  auto image = build_test_image();
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs"})) << t.err();
+  }
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
+  }
+
+  std::map<std::string, size_t> section_offsets;
+
+  {
+    auto t = dwarfsck_tester::create_with_image(image);
+    EXPECT_EQ(0, t.run({"image.dwarfs", "--no-check", "-j", "-d3"})) << t.err();
+
+    auto info = folly::parseJson(t.out());
+    ASSERT_TRUE(info.count("sections") > 0) << folly::toPrettyJson(info);
+
+    size_t offset = 0;
+
+    for (auto const& section : info["sections"]) {
+      auto type = section["type"].asString();
+      auto size = section["compressed_size"].asInt();
+      section_offsets[type] = offset;
+      offset += section_header_size + size;
+    }
+
+    EXPECT_EQ(image.size(), offset);
+  }
+
+  for (auto const& [type, offset] : section_offsets) {
+    auto corrupt_image = image;
+    // flip a bit right after the header
+    corrupt_image[offset + section_header_size] ^= 0x01;
+
+    {
+      auto t = dwarfsck_tester::create_with_image(corrupt_image);
+
+      // for blocks, we skip checks with --no-check
+      if (type == "BLOCK") {
+        EXPECT_EQ(0, t.run({"image.dwarfs", "--no-check", "-j"})) << t.err();
+        EXPECT_GT(t.out().size(), 100) << t.out();
+      } else {
+        EXPECT_EQ(1, t.run({"image.dwarfs", "--no-check", "-j"})) << t.err();
+        EXPECT_EQ(0, t.out().size()) << t.out();
+        EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
+                                 "checksum error in section: {}", type)));
+      }
+
+      // std::cout << "[" << type << ", nocheck]\n" << t.out() << std::endl;
+    }
+
+    {
+      auto t = dwarfsck_tester::create_with_image(corrupt_image);
+
+      EXPECT_EQ(1, t.run({"image.dwarfs", "-j"})) << t.err();
+
+      if (type == "BLOCK") {
+        EXPECT_GT(t.out().size(), 100) << t.out();
+      } else {
+        EXPECT_EQ(0, t.out().size()) << t.out();
+      }
+
+      EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
+                               "checksum error in section: {}", type)));
+
+      // std::cout << "[" << type << "]\n" << t.out() << std::endl;
+    }
+
+    {
+      auto t = dwarfsck_tester::create_with_image(corrupt_image);
+
+      EXPECT_EQ(1, t.run({"image.dwarfs", "--check-integrity", "-j"}))
+          << t.err();
+
+      if (type == "BLOCK") {
+        EXPECT_GT(t.out().size(), 100) << t.out();
+        EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
+                                 "integrity check error in section: BLOCK")));
+      } else {
+        EXPECT_EQ(0, t.out().size()) << t.out();
+        EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
+                                 "checksum error in section: {}", type)));
+      }
+
+      // std::cout << "[" << type << ", integrity]\n"  << t.out() << std::endl;
+    }
+  }
 }
 
 TEST(dwarfsck_test, print_header_and_export_metadata) {

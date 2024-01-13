@@ -237,6 +237,10 @@ class test_iolayer {
   void set_os_access(std::shared_ptr<os_access_mock> os);
   void set_file_access(std::shared_ptr<file_access const> fa);
 
+  std::istream& in_stream() { return in_; }
+  std::ostream& out_stream() { return out_; }
+  std::ostream& err_stream() { return err_; }
+
  private:
   std::shared_ptr<os_access const> os_;
   std::shared_ptr<test_terminal> term_;
