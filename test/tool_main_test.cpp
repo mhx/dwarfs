@@ -55,6 +55,9 @@ namespace {
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
 
+constexpr std::array<std::string_view, 6> const log_level_strings{
+    "error", "warn", "info", "verbose", "debug", "trace"};
+
 enum class input_mode {
   from_file,
   from_stdin,
@@ -560,7 +563,7 @@ TEST(mkdwarfs_test, input_list_large) {
   EXPECT_EQ(expected, actual);
 }
 
-class logging_test : public testing::TestWithParam<std::string> {};
+class logging_test : public testing::TestWithParam<std::string_view> {};
 
 TEST_P(logging_test, end_to_end) {
   auto level = GetParam();
@@ -573,7 +576,7 @@ TEST_P(logging_test, end_to_end) {
   t.os->add_file("random", 4096, true);
 
   ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize",
-                      "--log-level=" + level}));
+                      fmt::format("--log-level={}", level)}));
 
   auto fs = t.fs_from_file(image_file);
 
@@ -615,37 +618,45 @@ TEST_P(logging_test, end_to_end) {
   }
 }
 
-TEST_P(logging_test, fancy_output) {
-  auto const level = GetParam();
-  std::vector<std::string> const priorities{"error",   "warn",  "info",
-                                            "verbose", "debug", "trace"};
-  std::map<std::string, std::string> const match{
-      {"error", "<bold-red>E"},
-      {"warn", "<bold-yellow>W"},
-      {"info", "I"},
-      {"verbose", "<dim-cyan>V"},
-      {"debug", "<dim-yellow>D"},
-      {"trace", "<gray>T"},
+INSTANTIATE_TEST_SUITE_P(mkdwarfs, logging_test,
+                         ::testing::ValuesIn(log_level_strings));
+
+class term_logging_test
+    : public testing::TestWithParam<std::tuple<std::string_view, bool>> {};
+
+TEST_P(term_logging_test, end_to_end) {
+  auto const [level, fancy] = GetParam();
+  std::map<std::string_view, std::pair<std::string_view, char>> const match{
+      {"error", {"<bold-red>", 'E'}},
+      {"warn", {"<bold-yellow>", 'W'}},
+      {"info", {"", 'I'}},
+      {"verbose", {"<dim-cyan>", 'V'}},
+      {"debug", {"<dim-yellow>", 'D'}},
+      {"trace", {"<gray>", 'T'}},
   };
-  auto const cutoff = std::find(priorities.begin(), priorities.end(), level);
-  ASSERT_FALSE(cutoff == priorities.end());
+  auto const cutoff =
+      std::find(log_level_strings.begin(), log_level_strings.end(), level);
+  ASSERT_FALSE(cutoff == log_level_strings.end());
 
   {
     mkdwarfs_tester t;
-    t.iol->set_terminal_fancy(true);
+    t.iol->set_terminal_fancy(fancy);
     t.os->set_access_fail("/somedir/ipsum.py"); // trigger an error
     EXPECT_EQ(2, t.run("-l1 -i / -o - --categorize --num-workers=8 -S 22 "
                        "-L 16M --progress=none --log-level=" +
-                       level))
+                       std::string(level)))
         << t.err();
 
     auto err = t.err();
-    auto it = priorities.begin();
+    auto it = log_level_strings.begin();
 
-    auto make_contains_regex = [](auto m) {
-      std::string end = m->second.size() > 1 ? "<normal>" : "";
+    auto make_contains_regex = [fancy](auto m) {
+      auto const& [color, prefix] = m->second;
+      auto beg = fancy ? color : "";
+      auto end = fancy && !color.empty() ? "<normal>" : "";
       return ::testing::ContainsRegex(
-          m->second + "\\s[0-9][0-9]:[0-9][0-9]:[0-9][0-9].*" + end + "\n");
+          fmt::format("{}{}\\s[0-9][0-9]:[0-9][0-9]:[0-9][0-9].*{}\r?\n", beg,
+                      prefix, end));
     };
 
     while (it != cutoff + 1) {
@@ -655,7 +666,7 @@ TEST_P(logging_test, fancy_output) {
       ++it;
     }
 
-    while (it != priorities.end()) {
+    while (it != log_level_strings.end()) {
       auto m = match.find(*it);
       EXPECT_FALSE(m == match.end());
       EXPECT_THAT(err, ::testing::Not(make_contains_regex(m)));
@@ -664,9 +675,10 @@ TEST_P(logging_test, fancy_output) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(mkdwarfs, logging_test,
-                         ::testing::Values("error", "warn", "info", "verbose",
-                                           "debug", "trace"));
+INSTANTIATE_TEST_SUITE_P(
+    mkdwarfs, term_logging_test,
+    ::testing::Combine(::testing::ValuesIn(log_level_strings),
+                       ::testing::Bool()));
 
 TEST(mkdwarfs_test, metadata_inode_info) {
   auto t = mkdwarfs_tester::create_empty();
