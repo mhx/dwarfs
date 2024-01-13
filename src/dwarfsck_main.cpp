@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cerrno>
 #include <cstring>
 #include <iostream>
 #include <string_view>
@@ -154,7 +153,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
         iol.out.write(reinterpret_cast<char const*>(hdr->data()), hdr->size());
         if (iol.out.bad() || iol.out.fail()) {
-          LOG_ERROR << "error writing header: " << ::strerror(errno);
+          LOG_ERROR << "error writing header";
           return 1;
         }
       } else {
