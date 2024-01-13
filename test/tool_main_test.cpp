@@ -1155,6 +1155,23 @@ TEST(mkdwarfs_test, recompress) {
   }
 
   {
+    auto t = tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--recompress",
+                        "--recompress-categories=pcmaudio/metadata,SoMeThInG"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                             "no category 'SoMeThInG' in input filesystem"));
+  }
+
+  {
+    auto t = tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--recompress", "-C",
+                        "SoMeThInG::null"}))
+        << t.err();
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown category: 'SoMeThInG'"));
+  }
+
+  {
     auto corrupt_image = image;
     corrupt_image[64] ^= 0x01; // flip a bit right after the header
     auto t = tester(corrupt_image);
@@ -1898,5 +1915,24 @@ TEST(mkdwarfs_test, low_memory_limit) {
     EXPECT_EQ(
         0, t.run("-i / -o - -l5 --log-level=warn -S 28 --num-workers=8 -L 1g"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("low memory limit"));
+  }
+}
+
+TEST(mkdwarfs_test, recoverable_errors) {
+  {
+    mkdwarfs_tester t;
+    t.os->set_access_fail("/somedir/ipsum.py");
+    EXPECT_EQ(1, t.run("-i / -o - -l4")) << t.err();
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr("filesystem created with 1 error"));
+  }
+
+  {
+    mkdwarfs_tester t;
+    t.os->set_access_fail("/somedir/ipsum.py");
+    t.os->set_access_fail("/baz.pl");
+    EXPECT_EQ(1, t.run("-i / -o - -l4")) << t.err();
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr("filesystem created with 2 errors"));
   }
 }
