@@ -528,7 +528,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
 TEST(mkdwarfs_test, input_list_large) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
-  auto paths = t.add_random_file_tree();
+  auto paths = t.add_random_file_tree(32.0, 32);
   {
     std::ostringstream os;
     for (auto const& p : paths) {
@@ -537,7 +537,7 @@ TEST(mkdwarfs_test, input_list_large) {
     t.iol->set_in(os.str());
   }
 
-  EXPECT_EQ(0, t.run({"--input-list", "-", "-o", "-"})) << t.err();
+  EXPECT_EQ(0, t.run({"-l3", "--input-list", "-", "-o", "-"})) << t.err();
 
   auto fs = t.fs_from_stdout();
 
@@ -628,7 +628,7 @@ TEST(mkdwarfs_test, metadata_path) {
   t.os->add_file(f4, 16, true);
   t.os->add_dir(d1);
   t.os->add_file(f5, 32, true);
-  t.run("-i / -o -");
+  t.run("-l3 -i / -o -");
   auto fs = t.fs_from_stdout();
 
   std::map<size_t, dir_entry_view> entries;
@@ -693,7 +693,7 @@ TEST(mkdwarfs_test, metadata_path) {
 TEST(mkdwarfs_test, metadata_modes) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-i / -o - --with-specials --with-devices");
+  t.run("-l3 -i / -o - --with-specials --with-devices");
   auto fs = t.fs_from_stdout();
 
   auto d1 = fs.find("/");
@@ -736,7 +736,7 @@ TEST(mkdwarfs_test, metadata_modes) {
 TEST(mkdwarfs_test, metadata_specials) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-i / -o - --with-specials --with-devices");
+  t.run("-l3 -i / -o - --with-specials --with-devices");
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
@@ -775,7 +775,7 @@ TEST(mkdwarfs_test, metadata_specials) {
 TEST(mkdwarfs_test, metadata_time_resolution) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-i / -o - --time-resolution=min --keep-all-times");
+  t.run("-l3 -i / -o - --time-resolution=min --keep-all-times");
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
