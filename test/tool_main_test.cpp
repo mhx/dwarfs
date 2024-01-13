@@ -171,16 +171,22 @@ class mkdwarfs_tester : public tester_common {
     size_t max_size{128 * static_cast<size_t>(avg_size)};
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1 / avg_size};
+    std::uniform_int_distribution<> path_comp_size_dist{0, 50};
     std::vector<fs::path> paths;
 
+    auto random_path_component = [&] {
+      auto size = path_comp_size_dist(rng);
+      return test::create_random_string(size, 'A', 'Z', rng);
+    };
+
     for (int x = 0; x < dimension; ++x) {
-      fs::path d1{std::to_string(x)};
+      fs::path d1{random_path_component() + std::to_string(x)};
       os->add_dir(d1);
       for (int y = 0; y < dimension; ++y) {
-        fs::path d2{d1 / std::to_string(y)};
+        fs::path d2{d1 / (random_path_component() + std::to_string(y))};
         os->add_dir(d2);
         for (int z = 0; z < dimension; ++z) {
-          fs::path f{d2 / std::to_string(z)};
+          fs::path f{d2 / (random_path_component() + std::to_string(z))};
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
           os->add_file(f, size, true);
           paths.push_back(f);
