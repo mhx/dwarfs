@@ -797,6 +797,61 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
   EXPECT_EQ(1080, stat.ctime);
 }
 
+TEST(mkdwarfs_test, metadata_access) {
+#ifdef _WIN32
+  static constexpr int const x_ok = 1;
+#else
+  static constexpr int const x_ok = X_OK;
+#endif
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add("access", {1001, 040742, 1, 222, 3333});
+  t.run("-l3 -i / -o -");
+
+  {
+    auto fs = t.fs_from_stdout();
+
+    auto iv = fs.find("/access");
+    ASSERT_TRUE(iv);
+
+    EXPECT_EQ(0, fs.access(*iv, F_OK, 1, 1));
+
+    EXPECT_EQ(EACCES, fs.access(*iv, R_OK, 1, 1));
+    EXPECT_EQ(0, fs.access(*iv, W_OK, 1, 1));
+    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 1));
+
+    EXPECT_EQ(0, fs.access(*iv, R_OK, 1, 3333));
+    EXPECT_EQ(0, fs.access(*iv, W_OK, 1, 3333));
+    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 3333));
+
+    EXPECT_EQ(0, fs.access(*iv, R_OK, 222, 7));
+    EXPECT_EQ(0, fs.access(*iv, W_OK, 222, 7));
+    EXPECT_EQ(0, fs.access(*iv, x_ok, 222, 7));
+  }
+
+  {
+    auto fs = t.fs_from_stdout({.metadata = {.readonly = true}});
+
+    auto iv = fs.find("/access");
+    ASSERT_TRUE(iv);
+
+    EXPECT_EQ(0, fs.access(*iv, F_OK, 1, 1));
+
+    EXPECT_EQ(EACCES, fs.access(*iv, R_OK, 1, 1));
+    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 1, 1));
+    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 1));
+
+    EXPECT_EQ(0, fs.access(*iv, R_OK, 1, 3333));
+    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 1, 3333));
+    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 3333));
+
+    EXPECT_EQ(0, fs.access(*iv, R_OK, 222, 7));
+    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 222, 7));
+    EXPECT_EQ(0, fs.access(*iv, x_ok, 222, 7));
+  }
+}
+
 TEST(mkdwarfs_test, chmod_norm) {
   std::string const image_file = "test.dwarfs";
 

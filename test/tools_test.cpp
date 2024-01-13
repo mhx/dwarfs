@@ -573,7 +573,7 @@ class driver_runner {
 #endif
 };
 
-bool check_readonly(fs::path const& p, bool readonly = false) {
+bool check_readonly(fs::path const& p, bool readonly) {
   auto st = fs::status(p);
   bool is_writable =
       (st.permissions() & fs::perms::owner_write) != fs::perms::none;
@@ -585,10 +585,21 @@ bool check_readonly(fs::path const& p, bool readonly = false) {
   }
 
 #ifndef _WIN32
-  if (::access(p.string().c_str(), W_OK) == 0) {
-    // access(W_OK) should never succeed
-    ::perror("access");
-    return false;
+  {
+    auto r = ::access(p.string().c_str(), W_OK);
+
+    if (readonly) {
+      if (r != -1 || errno != EACCES) {
+        std::cerr << "access(" << p << ", W_OK) = " << r << " (errno=" << errno
+                  << ") [readonly]\n";
+        return false;
+      }
+    } else {
+      if (r != 0) {
+        std::cerr << "access(" << p << ", W_OK) = " << r << "\n";
+        return false;
+      }
+    }
   }
 #endif
 

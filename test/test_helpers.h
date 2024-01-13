@@ -46,14 +46,14 @@ namespace dwarfs::test {
 struct simplestat {
   file_stat::ino_type ino;
   file_stat::mode_type mode;
-  file_stat::nlink_type nlink;
-  file_stat::uid_type uid;
-  file_stat::gid_type gid;
-  file_stat::off_type size;
-  file_stat::dev_type rdev;
-  file_stat::time_type atime;
-  file_stat::time_type mtime;
-  file_stat::time_type ctime;
+  file_stat::nlink_type nlink{1};
+  file_stat::uid_type uid{0};
+  file_stat::gid_type gid{0};
+  file_stat::off_type size{0};
+  file_stat::dev_type rdev{0};
+  file_stat::time_type atime{0};
+  file_stat::time_type mtime{0};
+  file_stat::time_type ctime{0};
 
   posix_file_type::value type() const {
     return static_cast<posix_file_type::value>(mode & posix_file_type::mask);

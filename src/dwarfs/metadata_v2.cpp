@@ -1611,25 +1611,34 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
 
   int access_mode = 0;
 
-  auto test = [e_mode = iv.mode(), &access_mode](fs::perms r_bit,
-                                                 fs::perms x_bit) {
+  auto test = [e_mode = iv.mode(), &access_mode, readonly = options_.readonly](
+                  fs::perms r_bit, fs::perms w_bit, fs::perms x_bit) {
     if (e_mode & uint16_t(r_bit)) {
       access_mode |= R_OK;
     }
+    if (e_mode & uint16_t(w_bit)) {
+      if (!readonly) {
+        access_mode |= W_OK;
+      }
+    }
     if (e_mode & uint16_t(x_bit)) {
+#ifdef _WIN32
+      access_mode |= 1; // Windows has no notion of X_OK
+#else
       access_mode |= X_OK;
+#endif
     }
   };
 
   // Let's build the inode's access mask
-  test(fs::perms::others_read, fs::perms::others_exec);
+  test(fs::perms::others_read, fs::perms::others_write, fs::perms::others_exec);
 
   if (iv.getgid() == gid) {
-    test(fs::perms::group_read, fs::perms::group_exec);
+    test(fs::perms::group_read, fs::perms::group_write, fs::perms::group_exec);
   }
 
   if (iv.getuid() == uid) {
-    test(fs::perms::owner_read, fs::perms::owner_exec);
+    test(fs::perms::owner_read, fs::perms::owner_write, fs::perms::owner_exec);
   }
 
   return (access_mode & mode) == mode ? 0 : EACCES;
