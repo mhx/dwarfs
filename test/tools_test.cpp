@@ -1397,3 +1397,56 @@ TEST_P(tools_test, categorize) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
                          ::testing::ValuesIn(tools_test_modes));
+
+TEST(tools_test, dwarfsextract_progress) {
+  folly::test::TemporaryDirectory tempdir("dwarfs");
+  auto td = fs::path(tempdir.path().string());
+  auto tarfile = td / "output.tar";
+
+  auto out =
+      subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs, "-o",
+                            tarfile, "-f", "gnutar", "--stdout-progress");
+  ASSERT_TRUE(out);
+  EXPECT_TRUE(fs::exists(tarfile));
+
+  EXPECT_GT(out->size(), 100) << *out;
+#ifdef _WIN32
+  EXPECT_THAT(*out, ::testing::EndsWith("100%\r\n"));
+#else
+  EXPECT_THAT(*out, ::testing::EndsWith("100%\n"));
+  EXPECT_THAT(*out, ::testing::MatchesRegex("^\r([0-9][0-9]*%\r)*100%\n"));
+#endif
+}
+
+TEST(tools_test, dwarfsextract_stdout) {
+  folly::test::TemporaryDirectory tempdir("dwarfs");
+  auto td = fs::path(tempdir.path().string());
+
+  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
+                                   "-f", "mtree");
+  ASSERT_TRUE(out);
+
+  EXPECT_GT(out->size(), 1000) << *out;
+  EXPECT_THAT(*out, ::testing::StartsWith("#mtree\n"));
+  EXPECT_THAT(*out, ::testing::HasSubstr("type=file"));
+}
+
+TEST(tools_test, dwarfsextract_file_out) {
+  folly::test::TemporaryDirectory tempdir("dwarfs");
+  auto td = fs::path(tempdir.path().string());
+  auto outfile = td / "output.mtree";
+
+  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
+                                   "-f", "mtree", "-o", outfile);
+  ASSERT_TRUE(out);
+  EXPECT_TRUE(out->empty());
+
+  ASSERT_TRUE(fs::exists(outfile));
+
+  std::string mtree;
+  ASSERT_TRUE(read_file(outfile, mtree));
+
+  EXPECT_GT(mtree.size(), 1000) << *out;
+  EXPECT_THAT(mtree, ::testing::StartsWith("#mtree\n"));
+  EXPECT_THAT(mtree, ::testing::HasSubstr("type=file"));
+}
