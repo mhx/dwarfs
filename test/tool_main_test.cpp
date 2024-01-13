@@ -634,7 +634,7 @@ TEST_P(logging_test, fancy_output) {
     mkdwarfs_tester t;
     t.iol->set_terminal_fancy(true);
     t.os->set_access_fail("/somedir/ipsum.py"); // trigger an error
-    EXPECT_EQ(1, t.run("-l1 -i / -o - --categorize --num-workers=8 -S 22 "
+    EXPECT_EQ(2, t.run("-l1 -i / -o - --categorize --num-workers=8 -S 22 "
                        "-L 16M --progress=none --log-level=" +
                        level))
         << t.err();
@@ -1971,7 +1971,7 @@ TEST(mkdwarfs_test, recoverable_errors) {
   {
     mkdwarfs_tester t;
     t.os->set_access_fail("/somedir/ipsum.py");
-    EXPECT_EQ(1, t.run("-i / -o - -l4")) << t.err();
+    EXPECT_EQ(2, t.run("-i / -o - -l4")) << t.err();
     EXPECT_THAT(t.err(),
                 ::testing::HasSubstr("filesystem created with 1 error"));
   }
@@ -1980,7 +1980,7 @@ TEST(mkdwarfs_test, recoverable_errors) {
     mkdwarfs_tester t;
     t.os->set_access_fail("/somedir/ipsum.py");
     t.os->set_access_fail("/baz.pl");
-    EXPECT_EQ(1, t.run("-i / -o - -l4")) << t.err();
+    EXPECT_EQ(2, t.run("-i / -o - -l4")) << t.err();
     EXPECT_THAT(t.err(),
                 ::testing::HasSubstr("filesystem created with 2 errors"));
   }

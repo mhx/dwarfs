@@ -1376,7 +1376,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        << err.str();
   }
 
-  return prog.errors > 0;
+  return prog.errors > 0 ? 2 : 0;
 }
 
 int mkdwarfs_main(int argc, sys_char** argv) {

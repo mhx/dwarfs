@@ -419,6 +419,13 @@ Most other options are concerned with compression tuning:
   Show full usage with all options, including defaults, compression level
   detail and supported compression algorithms.
 
+## EXIT CODES
+
+Upon successful completion, `mkdwarfs` will exit with exit code 0. If an
+unrecoverable error occurs (i.e. no valid file system image has been produced),
+it will exit with exit code 1. If any errors have occurred (e.g. not all input
+files could be read), the exit code will be 2.
+
 ## CATEGORIZERS
 
 Categorizers will inspect the input files in the scanning phase and try to
