@@ -560,9 +560,9 @@ TEST(mkdwarfs_test, input_list_large) {
   EXPECT_EQ(expected, actual);
 }
 
-class categorizer_test : public testing::TestWithParam<std::string> {};
+class logging_test : public testing::TestWithParam<std::string> {};
 
-TEST_P(categorizer_test, end_to_end) {
+TEST_P(logging_test, end_to_end) {
   auto level = GetParam();
   std::string const image_file = "test.dwarfs";
 
@@ -615,7 +615,56 @@ TEST_P(categorizer_test, end_to_end) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, categorizer_test,
+TEST_P(logging_test, fancy_output) {
+  auto const level = GetParam();
+  std::vector<std::string> const priorities{"error",   "warn",  "info",
+                                            "verbose", "debug", "trace"};
+  std::map<std::string, std::string> const match{
+      {"error", "<bold-red>E"},
+      {"warn", "<bold-yellow>W"},
+      {"info", "I"},
+      {"verbose", "<dim-cyan>V"},
+      {"debug", "<dim-yellow>D"},
+      {"trace", "<gray>T"},
+  };
+  auto const cutoff = std::find(priorities.begin(), priorities.end(), level);
+  ASSERT_FALSE(cutoff == priorities.end());
+
+  {
+    mkdwarfs_tester t;
+    t.iol->set_terminal_fancy(true);
+    t.os->set_access_fail("/somedir/ipsum.py"); // trigger an error
+    EXPECT_EQ(1, t.run("-l1 -i / -o - --categorize --num-workers=8 -S 22 "
+                       "-L 16M --progress=none --log-level=" +
+                       level))
+        << t.err();
+
+    auto err = t.err();
+    auto it = priorities.begin();
+
+    auto make_contains_regex = [](auto m) {
+      std::string end = m->second.size() > 1 ? "<normal>" : "";
+      return ::testing::ContainsRegex(
+          m->second + "\\s[0-9][0-9]:[0-9][0-9]:[0-9][0-9].*" + end + "\n");
+    };
+
+    while (it != cutoff + 1) {
+      auto m = match.find(*it);
+      EXPECT_FALSE(m == match.end());
+      EXPECT_THAT(err, make_contains_regex(m));
+      ++it;
+    }
+
+    while (it != priorities.end()) {
+      auto m = match.find(*it);
+      EXPECT_FALSE(m == match.end());
+      EXPECT_THAT(err, ::testing::Not(make_contains_regex(m)));
+      ++it;
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(mkdwarfs, logging_test,
                          ::testing::Values("error", "warn", "info", "verbose",
                                            "debug", "trace"));
 
