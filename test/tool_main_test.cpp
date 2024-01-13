@@ -448,7 +448,7 @@ TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
 #ifdef DWARFS_PERFMON_ENABLED
 TEST(dwarfsextract_test, perfmon) {
   auto t = dwarfsextract_tester::create_with_image();
-  EXPECT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--perfmon",
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--perfmon",
                       "filesystem_v2,inode_reader_v2"}))
       << t.err();
   auto outs = t.out();
@@ -493,7 +493,7 @@ TEST_P(mkdwarfs_input_list_test, basic) {
     t.iol->set_in(input_list);
   }
 
-  EXPECT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
+  ASSERT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
 
   std::ostringstream oss;
   t.add_stream_logger(oss, logger::DEBUG);
@@ -537,7 +537,7 @@ TEST(mkdwarfs_test, input_list_large) {
     t.iol->set_in(os.str());
   }
 
-  EXPECT_EQ(0, t.run({"-l3", "--input-list", "-", "-o", "-"})) << t.err();
+  ASSERT_EQ(0, t.run({"-l3", "--input-list", "-", "-o", "-"})) << t.err();
 
   auto fs = t.fs_from_stdout();
 
@@ -565,7 +565,7 @@ TEST_P(categorizer_test, end_to_end) {
   t.os->add_local_files(audio_data_dir);
   t.os->add_file("random", 4096, true);
 
-  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize",
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize",
                       "--log-level=" + level}));
 
   auto fs = t.fs_from_file(image_file);
@@ -628,7 +628,7 @@ TEST(mkdwarfs_test, metadata_path) {
   t.os->add_file(f4, 16, true);
   t.os->add_dir(d1);
   t.os->add_file(f5, 32, true);
-  t.run("-l3 -i / -o -");
+  ASSERT_EQ(0, t.run("-l3 -i / -o -"));
   auto fs = t.fs_from_stdout();
 
   std::map<size_t, dir_entry_view> entries;
@@ -693,7 +693,7 @@ TEST(mkdwarfs_test, metadata_path) {
 TEST(mkdwarfs_test, metadata_modes) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-l3 -i / -o - --with-specials --with-devices");
+  ASSERT_EQ(0, t.run("-l3 -i / -o - --with-specials --with-devices"));
   auto fs = t.fs_from_stdout();
 
   auto d1 = fs.find("/");
@@ -736,7 +736,7 @@ TEST(mkdwarfs_test, metadata_modes) {
 TEST(mkdwarfs_test, metadata_specials) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-l3 -i / -o - --with-specials --with-devices");
+  ASSERT_EQ(0, t.run("-l3 -i / -o - --with-specials --with-devices"));
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
@@ -775,7 +775,7 @@ TEST(mkdwarfs_test, metadata_specials) {
 TEST(mkdwarfs_test, metadata_time_resolution) {
   mkdwarfs_tester t;
   t.add_special_files();
-  t.run("-l3 -i / -o - --time-resolution=min --keep-all-times");
+  ASSERT_EQ(0, t.run("-l3 -i / -o - --time-resolution=min --keep-all-times"));
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
@@ -799,7 +799,7 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
 
 TEST(mkdwarfs_test, metadata_readdir) {
   mkdwarfs_tester t;
-  t.run("-l3 -i / -o -");
+  ASSERT_EQ(0, t.run("-l3 -i / -o -"));
   auto fs = t.fs_from_stdout();
 
   auto iv = fs.find("/somedir");
@@ -845,7 +845,7 @@ TEST(mkdwarfs_test, metadata_access) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   t.os->add("access", {1001, 040742, 1, 222, 3333});
-  t.run("-l3 -i / -o -");
+  ASSERT_EQ(0, t.run("-l3 -i / -o -"));
 
   {
     auto fs = t.fs_from_stdout();
@@ -897,14 +897,14 @@ TEST(mkdwarfs_test, chmod_norm) {
 
   {
     mkdwarfs_tester t;
-    EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file}));
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file}));
     auto fs = t.fs_from_file(image_file);
     fs.walk([&](auto const& e) { real.insert(e.inode().perm_string()); });
   }
 
   {
     mkdwarfs_tester t;
-    EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--chmod=norm"}));
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--chmod=norm"}));
     auto fs = t.fs_from_file(image_file);
     fs.walk([&](auto const& e) { norm.insert(e.inode().perm_string()); });
   }
@@ -928,7 +928,7 @@ TEST(mkdwarfs_test, dump_inodes) {
   t.add_random_file_tree(1024, 8);
   t.os->setenv("DWARFS_DUMP_INODES", inode_file);
 
-  EXPECT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-W8"}));
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-W8"}));
 
   auto dump = t.fa->get_file(inode_file);
 
@@ -1143,7 +1143,7 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   t.add_random_file_tree();
   t.os->add_local_files(audio_data_dir);
 
-  EXPECT_EQ(0, t.run(args));
+  ASSERT_EQ(0, t.run(args));
 
   auto fs = t.fs_from_file(image_file);
 }
@@ -1436,7 +1436,7 @@ TEST(mkdwarfs_test, output_file_exists) {
 TEST(mkdwarfs_test, output_file_force) {
   mkdwarfs_tester t;
   t.fa->set_file("exists.dwarfs", "bla");
-  EXPECT_EQ(0, t.run({"-i", "/", "-o", "exists.dwarfs", "-l1", "--force"}))
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "exists.dwarfs", "-l1", "--force"}))
       << t.err();
   auto fs = t.fs_from_file("exists.dwarfs");
   EXPECT_TRUE(fs.find("/foo.pl"));
@@ -1493,7 +1493,7 @@ TEST_P(mkdwarfs_progress_test, basic) {
   t.add_random_file_tree();
   t.os->add_local_files(audio_data_dir);
 
-  EXPECT_EQ(0, t.run(args));
+  ASSERT_EQ(0, t.run(args));
   EXPECT_TRUE(t.out().empty()) << t.out();
 }
 
@@ -1515,7 +1515,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_progress_test,
 
 TEST(dwarfsextract_test, mtree) {
   auto t = dwarfsextract_tester::create_with_image();
-  EXPECT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree"})) << t.err();
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree"})) << t.err();
   auto out = t.out();
   EXPECT_TRUE(out.starts_with("#mtree")) << out;
   EXPECT_THAT(out, ::testing::HasSubstr("type=dir"));
@@ -1576,7 +1576,7 @@ TEST(dwarfsck_test, print_header_no_header) {
 
 TEST(dwarfsck_test, export_metadata) {
   auto t = dwarfsck_tester::create_with_image();
-  EXPECT_EQ(0, t.run({"image.dwarfs", "--export-metadata=image.meta"}))
+  ASSERT_EQ(0, t.run({"image.dwarfs", "--export-metadata=image.meta"}))
       << t.err();
   auto meta = t.fa->get_file("image.meta");
   ASSERT_TRUE(meta);
@@ -1661,14 +1661,14 @@ TEST(mkdwarfs_test, max_similarity_size) {
 
   {
     auto t = make_tester();
-    EXPECT_EQ(0, t.run("-i / -o - -l0 --order=similarity")) << t.err();
+    ASSERT_EQ(0, t.run("-i / -o - -l0 --order=similarity")) << t.err();
     auto fs = t.fs_from_stdout();
     sim_ordered_sizes = get_sizes_in_offset_order(fs);
   }
 
   {
     auto t = make_tester();
-    EXPECT_EQ(0, t.run("-i / -o - -l0 --order=nilsimsa")) << t.err();
+    ASSERT_EQ(0, t.run("-i / -o - -l0 --order=nilsimsa")) << t.err();
     auto fs = t.fs_from_stdout();
     nilsimsa_ordered_sizes = get_sizes_in_offset_order(fs);
   }
