@@ -479,14 +479,14 @@ TEST(dwarfsextract_test, perfmon) {
   EXPECT_THAT(errs, ::testing::HasSubstr("[inode_reader_v2.readv_future]"));
 #ifndef _WIN32
   // googletest on Windows does not support fancy regexes
-  EXPECT_THAT(errs, ::testing::ContainsRegex(
+  EXPECT_THAT(errs, ::testing::ContainsRegex(test::fix_regex(
                         R"(\[filesystem_v2\.getattr\])"
-                        R"(\s+samples:\s+[0-9]+)"
-                        R"(\s+overall:\s+[0-9]+(\.[0-9]+)?[num]?s)"
-                        R"(\s+avg latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
-                        R"(\s+p50 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
-                        R"(\s+p90 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"
-                        R"(\s+p99 latency:\s+[0-9]+(\.[0-9]+)?[num]?s)"));
+                        R"(\s+samples:\s+\d+)"
+                        R"(\s+overall:\s+\d+(\.\d+)?[num]?s)"
+                        R"(\s+avg latency:\s+\d+(\.\d+)?[num]?s)"
+                        R"(\s+p50 latency:\s+\d+(\.\d+)?[num]?s)"
+                        R"(\s+p90 latency:\s+\d+(\.\d+)?[num]?s)"
+                        R"(\s+p99 latency:\s+\d+(\.\d+)?[num]?s)")));
 #endif
 }
 #endif
@@ -660,9 +660,8 @@ TEST_P(term_logging_test, end_to_end) {
       auto const& [color, prefix] = m->second;
       auto beg = fancy ? color : "";
       auto end = fancy && !color.empty() ? "<normal>" : "";
-      return ::testing::ContainsRegex(
-          fmt::format("{}{}\\s[0-9][0-9]:[0-9][0-9]:[0-9][0-9].*{}\r?\n", beg,
-                      prefix, end));
+      return ::testing::ContainsRegex(test::fix_regex(fmt::format(
+          "{}{}\\s\\d\\d:\\d\\d:\\d\\d.*{}\r?\n", beg, prefix, end)));
     };
 
     while (it != cutoff + 1) {

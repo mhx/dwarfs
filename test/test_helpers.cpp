@@ -25,6 +25,7 @@
 #include <functional>
 #include <iostream>
 #include <random>
+#include <regex>
 
 #include <fmt/format.h>
 
@@ -511,6 +512,13 @@ std::string create_random_string(size_t size, std::mt19937_64& gen) {
 std::string create_random_string(size_t size, size_t seed) {
   std::mt19937_64 tmprng{seed};
   return create_random_string(size, tmprng);
+}
+
+std::string fix_regex(std::string regex) {
+#ifndef _WIN32
+  regex = std::regex_replace(regex, std::regex("\\\\d"), "[0-9]");
+#endif
+  return regex;
 }
 
 } // namespace dwarfs::test
