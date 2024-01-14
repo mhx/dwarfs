@@ -104,7 +104,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     dwarfs::filesystem_v2 fs(lgr, std::make_shared<dwarfs::mmap>(filesystem),
                              fsopts);
 
-    worker_group wg("reader", num_readers);
+    worker_group wg(lgr, "reader", num_readers);
 
     fs.walk([&](auto entry) {
       auto inode_data = entry.inode();

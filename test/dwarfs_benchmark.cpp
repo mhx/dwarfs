@@ -115,10 +115,10 @@ std::string make_filesystem(::benchmark::State const& state) {
   options.plain_names_table = state.range(1);
   options.plain_symlinks_table = state.range(1);
 
-  worker_group wg("writer", 4);
-  progress prog([](const progress&, bool) {}, 1000);
-
   test::test_logger lgr;
+
+  worker_group wg(lgr, "writer", 4);
+  progress prog([](const progress&, bool) {}, 1000);
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 

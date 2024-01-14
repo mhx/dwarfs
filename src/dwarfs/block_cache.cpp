@@ -144,11 +144,11 @@ class block_cache_ final : public block_cache::impl {
       , LOG_PROXY_INIT(lgr)
       , options_(options) {
     if (options.init_workers) {
-      wg_ =
-          worker_group("blkcache", std::max(options.num_workers > 0
-                                                ? options.num_workers
-                                                : folly::hardware_concurrency(),
-                                            static_cast<size_t>(1)));
+      wg_ = worker_group(lgr, "blkcache",
+                         std::max(options.num_workers > 0
+                                      ? options.num_workers
+                                      : folly::hardware_concurrency(),
+                                  static_cast<size_t>(1)));
     }
   }
 
@@ -247,7 +247,7 @@ class block_cache_ final : public block_cache::impl {
       wg_.stop();
     }
 
-    wg_ = worker_group("blkcache", num);
+    wg_ = worker_group(LOG_GET_LOGGER, "blkcache", num);
   }
 
   void set_tidy_config(cache_tidy_config const& cfg) override {

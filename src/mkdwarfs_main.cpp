@@ -865,10 +865,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     num_segmenter_workers = num_workers;
   }
 
-  worker_group wg_compress("compress", num_workers,
-                           std::numeric_limits<size_t>::max(),
-                           compress_niceness);
-
   options.num_segmenter_workers = num_segmenter_workers;
 
   if (vm.count("debug-filter")) {
@@ -1243,6 +1239,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   block_compressor metadata_bc(metadata_compression);
   block_compressor history_bc(history_compression);
 
+  worker_group wg_compress(lgr, "compress", num_workers,
+                           std::numeric_limits<size_t>::max(),
+                           compress_niceness);
+
   std::unique_ptr<filesystem_writer> fsw;
 
   try {
@@ -1316,7 +1316,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
 
-      worker_group wg_scanner("scanner", num_scanner_workers);
+      worker_group wg_scanner(lgr, "scanner", num_scanner_workers);
 
       scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
                 std::move(script), options);

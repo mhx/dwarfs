@@ -41,6 +41,7 @@
 #include <folly/system/ThreadName.h>
 
 #include "dwarfs/error.h"
+#include "dwarfs/logger.h"
 #include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
 
@@ -91,16 +92,15 @@ double get_thread_cpu_time(std::thread const& t) {
 
 #endif
 
-} // namespace
-
-template <typename Policy>
+template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
-  basic_worker_group(const char* group_name, size_t num_workers,
+  basic_worker_group(logger& lgr, const char* group_name, size_t num_workers,
                      size_t max_queue_len, int niceness [[maybe_unused]],
                      Args&&... args)
       : Policy(std::forward<Args>(args)...)
+      , LOG_PROXY_INIT(lgr)
       , running_(true)
       , pending_(0)
       , max_queue_len_(max_queue_len) {
@@ -331,9 +331,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
         try {
           job();
         } catch (...) {
-          std::cerr << "FATAL ERROR: exception thrown in worker thread: "
-                    << folly::exceptionStr(std::current_exception()) << '\n';
-          std::abort();
+          LOG_FATAL << "exception thrown in worker thread: "
+                    << folly::exceptionStr(std::current_exception());
         }
 #ifdef _WIN32
         if (is_background) {
@@ -352,6 +351,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     }
   }
 
+  LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::thread> workers_;
   jobs_t jobs_;
   std::condition_variable cond_;
@@ -371,9 +371,16 @@ class no_policy {
   };
 };
 
-worker_group::worker_group(const char* group_name, size_t num_workers,
-                           size_t max_queue_len, int niceness)
-    : impl_{std::make_unique<basic_worker_group<no_policy>>(
-          group_name, num_workers, max_queue_len, niceness)} {}
+template <typename LoggerPolicy>
+using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
+
+} // namespace
+
+worker_group::worker_group(logger& lgr, const char* group_name,
+                           size_t num_workers, size_t max_queue_len,
+                           int niceness)
+    : impl_{make_unique_logging_object<impl, default_worker_group,
+                                       logger_policies>(
+          lgr, group_name, num_workers, max_queue_len, niceness)} {}
 
 } // namespace dwarfs

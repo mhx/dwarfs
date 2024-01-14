@@ -235,7 +235,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   ::archive_entry* spare = nullptr;
 
-  worker_group archiver("archiver", 1);
+  worker_group archiver(LOG_GET_LOGGER, "archiver", 1);
   cache_semaphore sem;
 
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes

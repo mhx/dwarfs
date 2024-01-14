@@ -74,7 +74,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt) {
   // force multithreading
-  worker_group wg("worker", 4);
+  worker_group wg(lgr, "worker", 4);
 
   std::unique_ptr<progress> local_prog;
   if (!prog) {
@@ -908,7 +908,7 @@ class filter_test
     };
 
     progress prog([](const progress&, bool) {}, 1000);
-    worker_group wg("worker", 1);
+    worker_group wg(lgr, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});
     scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);

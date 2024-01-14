@@ -1109,7 +1109,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   opts.recompress_block = recompress_block;
   opts.recompress_metadata = recompress_metadata;
 
-  worker_group wg("rewriter", 2);
+  worker_group wg(lgr, "rewriter", 2);
   block_compressor bc("null");
   progress prog([](const progress&, bool) {}, 1000);
   std::ostringstream rewritten, idss;
