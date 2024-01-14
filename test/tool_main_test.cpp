@@ -36,6 +36,7 @@
 #include <folly/json.h>
 
 #include "dwarfs/filesystem_v2.h"
+#include "dwarfs/history.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
@@ -1179,6 +1180,9 @@ TEST(mkdwarfs_test, recompress) {
     auto img = t.fa->get_file(image_file);
     EXPECT_TRUE(img);
     image = std::move(img.value());
+    auto fs = t.fs_from_file(image_file);
+    auto history = fs.info_as_dynamic(2)["history"];
+    EXPECT_EQ(1, history.size());
   }
 
   auto tester = [&image_file](std::string const& image_data) {
@@ -1194,6 +1198,8 @@ TEST(mkdwarfs_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
+    auto history = fs.info_as_dynamic(2)["history"];
+    EXPECT_EQ(2, history.size());
   }
 
   {
@@ -1235,6 +1241,18 @@ TEST(mkdwarfs_test, recompress) {
                         "SoMeThInG::null"}))
         << t.err();
     EXPECT_THAT(t.err(), ::testing::HasSubstr("unknown category: 'SoMeThInG'"));
+  }
+
+  {
+    auto t = tester(image);
+    EXPECT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=none",
+                        "--log-level=verbose", "--no-history"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    EXPECT_TRUE(fs.find("/random"));
+    EXPECT_EQ(0, fs.get_history().get().entries()->size());
+    EXPECT_EQ(1, fs.info_as_dynamic(2).count("history"));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
   }
 
   {
