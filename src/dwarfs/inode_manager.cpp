@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <exception>
 #include <limits>
 #include <numeric>
 #include <ostream>
@@ -38,6 +39,7 @@
 #include <fmt/format.h>
 
 #include <folly/Demangle.h>
+#include <folly/String.h>
 #include <folly/small_vector.h>
 #include <folly/sorted_vector_types.h>
 
@@ -548,9 +550,8 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void
-  scan_background(worker_group& wg, os_access const& os,
-                  std::shared_ptr<inode> ino, file const* p) const override;
+  void scan_background(worker_group& wg, os_access const& os,
+                       std::shared_ptr<inode> ino, file* p) const override;
 
   void dump(std::ostream& os) const override;
 
@@ -592,7 +593,7 @@ template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
                                                    std::shared_ptr<inode> ino,
-                                                   file const* p) const {
+                                                   file* p) const {
   // TODO: I think the size check makes everything more complex.
   //       If we don't check the size, we get the code to run
   //       that ensures `fragments_` is updated. Also, there
@@ -603,7 +604,16 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
       auto const size = p->size();
       std::shared_ptr<mmif> mm;
       if (size > 0) {
-        mm = os.map_file(p->fs_path(), size);
+        try {
+          mm = os.map_file(p->fs_path(), size);
+        } catch (...) {
+          LOG_ERROR << "failed to map file \"" << p->path_as_string()
+                    << "\": " << folly::exceptionStr(std::current_exception())
+                    << ", creating empty inode";
+          ++prog_.errors;
+          p->override_size(0);
+          // don't return here, we still need scan() to run
+        }
       }
       ino->scan(mm.get(), opts_, prog_);
       update_prog(ino, p);

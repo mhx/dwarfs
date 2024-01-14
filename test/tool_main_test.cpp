@@ -2101,3 +2101,16 @@ TEST_P(segmenter_repeating_sequence_test, github161) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, segmenter_repeating_sequence_test,
                          ::testing::Values('\0', 'G', '\xff'));
+
+TEST(mkdwarfs_test, map_file_error) {
+  mkdwarfs_tester t;
+  t.os->set_map_file_error(
+      "/somedir/ipsum.py",
+      std::make_exception_ptr(std::runtime_error("map_file_error")));
+
+  EXPECT_EQ(2, t.run("-i / -o - --categorize")) << t.err();
+
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("map_file_error, creating empty inode"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("filesystem created with 1 error"));
+}

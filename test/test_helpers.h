@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -91,6 +92,8 @@ class os_access_mock : public os_access {
   void add_local_files(std::filesystem::path const& path);
 
   void set_access_fail(std::filesystem::path const& path);
+  void
+  set_map_file_error(std::filesystem::path const& path, std::exception_ptr ep);
 
   void setenv(std::string name, std::string value);
 
@@ -125,6 +128,7 @@ class os_access_mock : public os_access {
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
+  std::map<std::filesystem::path, std::exception_ptr> map_file_err_;
   std::map<std::string, std::string> env_;
 };
 

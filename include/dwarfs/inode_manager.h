@@ -81,7 +81,7 @@ class inode_manager {
   }
 
   void scan_background(worker_group& wg, os_access const& os,
-                       std::shared_ptr<inode> ino, file const* p) const {
+                       std::shared_ptr<inode> ino, file* p) const {
     impl_->scan_background(wg, os, std::move(ino), p);
   }
 
@@ -103,9 +103,8 @@ class inode_manager {
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual fragment_infos fragment_category_info() const = 0;
-    virtual void
-    scan_background(worker_group& wg, os_access const& os,
-                    std::shared_ptr<inode> ino, file const* p) const = 0;
+    virtual void scan_background(worker_group& wg, os_access const& os,
+                                 std::shared_ptr<inode> ino, file* p) const = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual sortable_inode_span sortable_span() const = 0;
     virtual sortable_inode_span

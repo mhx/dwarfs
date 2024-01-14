@@ -328,6 +328,11 @@ void os_access_mock::set_access_fail(fs::path const& path) {
   access_fail_set_.emplace(path);
 }
 
+void os_access_mock::set_map_file_error(std::filesystem::path const& path,
+                                        std::exception_ptr ep) {
+  map_file_err_[path] = std::move(ep);
+}
+
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
@@ -426,6 +431,10 @@ std::unique_ptr<mmif>
 os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
+    if (auto it = map_file_err_.find(path); it != map_file_err_.end()) {
+      std::rethrow_exception(it->second);
+    }
+
     return std::make_unique<mmap_mock>(
         std::visit(overloaded{
                        [this](std::string const& str) { return str; },
