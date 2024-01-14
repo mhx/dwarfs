@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <iostream>
 #include <random>
+#include <regex>
 #include <set>
 #include <vector>
 
@@ -2044,3 +2045,59 @@ TEST(mkdwarfs_test, filesystem_read_error) {
     EXPECT_EQ(-EBADF, res.error());
   }
 }
+
+class segmenter_repeating_sequence_test : public testing::TestWithParam<char> {
+};
+
+TEST_P(segmenter_repeating_sequence_test, github161) {
+  auto byte = GetParam();
+
+  static constexpr int const final_bytes{10'000'000};
+  static constexpr int const repetitions{2'000};
+  auto match = test::create_random_string(5'000);
+  auto suffix = test::create_random_string(50);
+  auto sequence = std::string(3'000, byte);
+
+  std::string content;
+  content.reserve(match.size() + suffix.size() +
+                  (sequence.size() + match.size()) * repetitions + final_bytes);
+
+  content += match + suffix;
+  for (int i = 0; i < repetitions; ++i) {
+    content += sequence + match;
+  }
+  content += std::string(final_bytes, byte);
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_file("/bug", content);
+
+  ASSERT_EQ(0, t.run("-i / -o - -C lz4 -W12 --log-level=verbose --no-progress"))
+      << t.err();
+
+  auto log = t.err();
+
+  EXPECT_THAT(log,
+              ::testing::ContainsRegex(test::fix_regex(fmt::format(
+                  "avoided \\d\\d\\d\\d+ collisions in 0x{:02x}-byte sequences",
+                  byte))));
+
+  std::regex const re{"segment matches: good=(\\d+), bad=(\\d+), "
+                      "collisions=(\\d+), total=(\\d+)"};
+  std::smatch m;
+
+  ASSERT_TRUE(std::regex_search(log, m, re)) << log;
+
+  auto good = std::stoi(m[1]);
+  auto bad = std::stoi(m[2]);
+  auto collisions = std::stoi(m[3]);
+  auto total = std::stoi(m[4]);
+
+  EXPECT_GT(good, 2000);
+  EXPECT_EQ(0, bad);
+  EXPECT_EQ(0, collisions);
+  EXPECT_GT(total, 2000);
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, segmenter_repeating_sequence_test,
+                         ::testing::Values('\0', 'G', '\xff'));

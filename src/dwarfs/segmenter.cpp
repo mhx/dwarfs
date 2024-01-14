@@ -38,6 +38,7 @@
 
 #include <folly/hash/Hash.h>
 #include <folly/small_vector.h>
+#include <folly/sorted_vector_types.h>
 #include <folly/stats/Histogram.h>
 
 #include "dwarfs/block_data.h"
@@ -152,7 +153,13 @@ class fast_multimap {
   collision_t collisions_;
 };
 
-using repeating_sequence_map_type = phmap::flat_hash_map<uint32_t, uint8_t>;
+template <typename T, size_t MaxInline = 1>
+using small_sorted_vector_set =
+    folly::sorted_vector_set<T, std::less<T>, std::allocator<T>, void,
+                             folly::small_vector<T, MaxInline>>;
+
+using repeating_sequence_map_type =
+    phmap::flat_hash_map<uint32_t, small_sorted_vector_set<uint8_t, 8>>;
 using repeating_collisions_map_type = std::unordered_map<uint8_t, uint32_t>;
 
 /**
@@ -660,11 +667,11 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
       LOG_VERBOSE << cfg_.context << "bloom filter size: "
                   << size_with_unit(global_filter_.size() / 8);
 
-      repeating_sequence_hash_values_.reserve(256);
-
       for (int i = 0; i < 256; ++i) {
-        repeating_sequence_hash_values_.emplace(
-            rsync_hash::repeating_window(i, frames_to_bytes(window_size_)), i);
+        auto val =
+            rsync_hash::repeating_window(i, frames_to_bytes(window_size_));
+        DWARFS_CHECK(repeating_sequence_hash_values_[val].emplace(i).second,
+                     "repeating sequence hash value / byte collision");
       }
     }
   }
@@ -785,18 +792,24 @@ bool active_block<LoggerPolicy, GranularityPolicy>::
     auto& raw = data_->vec();
     auto winbeg = raw.begin() + frames_to_bytes(offset);
     auto winend = winbeg + frames_to_bytes(window_size_);
+    auto byte = *winbeg;
+    static_assert(std::is_same_v<typename decltype(it->second)::value_type,
+                                 decltype(byte)>);
 
-    if (std::find_if(winbeg, winend, [byte = it->second](auto b) {
-          return b != byte;
-        }) == winend) {
+    // check if this is a known character for a repeating sequence
+    if (!it->second.contains(byte)) {
+      return false;
+    }
+
+    if (std::find_if(winbeg, winend, [byte](auto b) { return b != byte; }) ==
+        winend) {
       return offsets_.any_value_is(hashval, [&, this](auto off) {
         auto offbeg = raw.begin() + frames_to_bytes(off);
         auto offend = offbeg + frames_to_bytes(window_size_);
 
-        if (std::find_if(offbeg, offend, [byte = it->second](auto b) {
-              return b != byte;
-            }) == offend) {
-          ++repeating_collisions_[it->second];
+        if (std::find_if(offbeg, offend,
+                         [byte](auto b) { return b != byte; }) == offend) {
+          ++repeating_collisions_[byte];
           return true;
         }
 
@@ -923,12 +936,11 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
                 << ", lookups=" << stats_.bloom_lookups << ")";
   }
   if (stats_.total_matches > 0) {
-    LOG_VERBOSE << cfg_.context
-                << "segmentation matches: good=" << stats_.good_matches
-                << ", bad=" << stats_.bad_matches << ", collisions="
-                << (stats_.total_matches -
-                    (stats_.bad_matches + stats_.good_matches))
-                << ", total=" << stats_.total_matches;
+    LOG_VERBOSE << fmt::format(
+        "{}segment matches: good={}, bad={}, collisions={}, total={}",
+        cfg_.context, stats_.good_matches, stats_.bad_matches,
+        (stats_.total_matches - (stats_.bad_matches + stats_.good_matches)),
+        stats_.total_matches);
   }
   if (stats_.total_hashes > 0) {
     LOG_VERBOSE << cfg_.context << "segmentation collisions: L1="
