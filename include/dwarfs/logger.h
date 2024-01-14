@@ -48,10 +48,18 @@ class terminal;
 
 class logger {
  public:
-  enum level_type : unsigned { ERROR, WARN, INFO, VERBOSE, DEBUG, TRACE };
+  enum level_type : unsigned {
+    FATAL,
+    ERROR,
+    WARN,
+    INFO,
+    VERBOSE,
+    DEBUG,
+    TRACE
+  };
 
   static char level_char(level_type level) {
-    static std::array<char, 6> lchars = {{'E', 'W', 'I', 'V', 'D', 'T'}};
+    static std::array<char, 7> lchars = {{'F', 'E', 'W', 'I', 'V', 'D', 'T'}};
     return lchars.at(level);
   }
 
@@ -248,6 +256,10 @@ class log_proxy {
     return LogPolicy::is_enabled_for(level);
   }
 
+  auto fatal(char const* file, int line) const {
+    return level_logger(lgr_, logger::FATAL, file, line);
+  }
+
   auto error(char const* file, int line) const {
     return typename LogPolicy::template logger_type<logger::ERROR>(
         lgr_, logger::ERROR, file, line);
@@ -353,6 +365,7 @@ class log_proxy {
 #define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
 #define LOG_PROXY_INIT(lgr) log_(lgr)
 #define LOG_GET_LOGGER log_.get_logger()
+#define LOG_FATAL log_.fatal(__FILE__, __LINE__)
 #define LOG_ERROR LOG_DETAIL_LEVEL(ERROR, log_, error)
 #define LOG_WARN LOG_DETAIL_LEVEL(WARN, log_, warn)
 #define LOG_INFO LOG_DETAIL_LEVEL(INFO, log_, info)

@@ -20,6 +20,7 @@
  */
 
 #include <cstring>
+#include <exception>
 #include <iterator>
 #include <stdexcept>
 
@@ -44,6 +45,7 @@
 namespace dwarfs {
 
 logger::level_type logger::parse_level(std::string_view level) {
+  // don't parse FATAL here, it's a special case
   if (level == "error") {
     return ERROR;
   }
@@ -86,7 +88,7 @@ std::string_view stream_logger::get_newline() const { return "\n"; }
 
 void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
-  if (level <= threshold_) {
+  if (level <= threshold_ || level == FATAL) {
     auto t = get_current_time_string();
     std::string_view prefix;
     std::string_view suffix;
@@ -94,6 +96,7 @@ void stream_logger::write(level_type level, const std::string& output,
 
     if (color_) {
       switch (level) {
+      case FATAL:
       case ERROR:
         prefix = term_->color(termcolor::BOLD_RED);
         suffix = term_->color(termcolor::NORMAL);
@@ -128,7 +131,7 @@ void stream_logger::write(level_type level, const std::string& output,
     std::string stacktrace;
     std::vector<std::string_view> st_lines;
 
-    if (enable_stack_trace_) {
+    if (enable_stack_trace_ || level == FATAL) {
       using namespace folly::symbolizer;
       Symbolizer symbolizer(LocationInfoMode::FULL);
       FrameArray<8> addresses;
@@ -190,6 +193,10 @@ void stream_logger::write(level_type level, const std::string& output,
 #endif
 
     postamble();
+  }
+
+  if (level == FATAL) {
+    std::abort();
   }
 }
 
