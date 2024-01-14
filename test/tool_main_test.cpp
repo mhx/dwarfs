@@ -37,6 +37,7 @@
 
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/history.h"
+#include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
@@ -2018,5 +2019,28 @@ TEST(mkdwarfs_test, recoverable_errors) {
     EXPECT_EQ(2, t.run("-i / -o - -l4")) << t.err();
     EXPECT_THAT(t.err(),
                 ::testing::HasSubstr("filesystem created with 2 errors"));
+  }
+}
+
+TEST(mkdwarfs_test, filesystem_read_error) {
+  mkdwarfs_tester t;
+  EXPECT_EQ(0, t.run("-i / -o -")) << t.err();
+  auto fs = t.fs_from_stdout();
+  auto iv = fs.find("/somedir");
+  ASSERT_TRUE(iv);
+  EXPECT_TRUE(iv->is_directory());
+  EXPECT_EQ(-1, fs.open(*iv));
+  {
+    char buf[1];
+    EXPECT_EQ(-EBADF, fs.read(iv->inode_num(), buf, sizeof(buf), 0));
+  }
+  {
+    iovec_read_buf buf;
+    EXPECT_EQ(-EBADF, fs.readv(iv->inode_num(), buf, 42, 0));
+  }
+  {
+    auto res = fs.readv(iv->inode_num(), 42, 0);
+    EXPECT_FALSE(res);
+    EXPECT_EQ(-EBADF, res.error());
   }
 }
