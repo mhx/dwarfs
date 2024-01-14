@@ -329,8 +329,11 @@ void os_access_mock::set_access_fail(fs::path const& path) {
 }
 
 void os_access_mock::set_map_file_error(std::filesystem::path const& path,
-                                        std::exception_ptr ep) {
-  map_file_err_[path] = std::move(ep);
+                                        std::exception_ptr ep,
+                                        size_t after_n_attempts) {
+  auto& e = map_file_errors_[path];
+  e.ep = std::move(ep);
+  e.remaining_successful_attempts = after_n_attempts;
 }
 
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
@@ -431,8 +434,16 @@ std::unique_ptr<mmif>
 os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
-    if (auto it = map_file_err_.find(path); it != map_file_err_.end()) {
-      std::rethrow_exception(it->second);
+    if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
+      size_t remaining = 0;
+      do {
+        remaining = it->second.remaining_successful_attempts.load();
+      } while (remaining > 0 &&
+               !it->second.remaining_successful_attempts.compare_exchange_weak(
+                   remaining, remaining - 1));
+      if (remaining == 0) {
+        std::rethrow_exception(it->second.ep);
+      }
     }
 
     return std::make_unique<mmap_mock>(

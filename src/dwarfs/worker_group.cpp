@@ -24,6 +24,8 @@
 #include <cstdint>
 #include <cstring>
 #include <ctime>
+#include <exception>
+#include <iostream>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -326,7 +328,13 @@ class basic_worker_group final : public worker_group::impl, private Policy {
           ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_BEGIN);
         }
 #endif
-        job();
+        try {
+          job();
+        } catch (...) {
+          std::cerr << "FATAL ERROR: exception thrown in worker thread: "
+                    << folly::exceptionStr(std::current_exception()) << '\n';
+          std::abort();
+        }
 #ifdef _WIN32
         if (is_background) {
           ::SetThreadPriority(hthr, THREAD_MODE_BACKGROUND_END);

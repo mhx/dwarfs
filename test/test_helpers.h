@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <exception>
 #include <filesystem>
 #include <functional>
@@ -92,8 +93,8 @@ class os_access_mock : public os_access {
   void add_local_files(std::filesystem::path const& path);
 
   void set_access_fail(std::filesystem::path const& path);
-  void
-  set_map_file_error(std::filesystem::path const& path, std::exception_ptr ep);
+  void set_map_file_error(std::filesystem::path const& path,
+                          std::exception_ptr ep, size_t after_n_attempts = 0);
 
   void setenv(std::string name, std::string value);
 
@@ -119,6 +120,11 @@ class os_access_mock : public os_access {
   std::optional<std::string> getenv(std::string_view name) const override;
 
  private:
+  struct error_info {
+    std::exception_ptr ep{};
+    std::atomic<size_t> mutable remaining_successful_attempts{0};
+  };
+
   static std::vector<std::string> splitpath(std::filesystem::path const& path);
   struct mock_dirent* find(std::filesystem::path const& path) const;
   struct mock_dirent* find(std::vector<std::string> parts) const;
@@ -128,7 +134,7 @@ class os_access_mock : public os_access {
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
-  std::map<std::filesystem::path, std::exception_ptr> map_file_err_;
+  std::map<std::filesystem::path, error_info> map_file_errors_;
   std::map<std::string, std::string> env_;
 };
 

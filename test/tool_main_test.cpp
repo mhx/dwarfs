@@ -2114,3 +2114,16 @@ TEST(mkdwarfs_test, map_file_error) {
               ::testing::HasSubstr("map_file_error, creating empty inode"));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("filesystem created with 1 error"));
 }
+
+// TODO: enable this once we know how to make it work reliably
+#if 0
+TEST(mkdwarfs_test, map_file_error_delayed) {
+  mkdwarfs_tester t;
+  t.os->set_map_file_error(
+      "/somedir/ipsum.py",
+      std::make_exception_ptr(std::runtime_error("map_file_error")), 1);
+
+  EXPECT_DEATH(t.run("-i / -o - --categorize --no-progress --log-level=error"),
+               "");
+}
+#endif
