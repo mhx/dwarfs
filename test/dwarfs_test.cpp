@@ -1197,3 +1197,24 @@ TEST(section_index_regression, github183) {
   EXPECT_THROW(filesystem_v2::identify(lgr, mm, idss, 3),
                dwarfs::runtime_error);
 }
+
+TEST(filesystem, find_by_path) {
+  test::test_logger lgr;
+  auto input = test::os_access_mock::create_test_instance();
+  auto fsimage = build_dwarfs(lgr, input, "null");
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, mm);
+
+  std::vector<std::string> paths;
+  fs.walk([&](auto e) { paths.emplace_back(e.unix_path()); });
+
+  EXPECT_GT(paths.size(), 10);
+
+  for (auto const& p : paths) {
+    auto iv = fs.find(p.c_str());
+    ASSERT_TRUE(iv) << p;
+    EXPECT_FALSE(fs.find(iv->inode_num(), "desktop.ini")) << p;
+    EXPECT_FALSE(fs.find((p + "/desktop.ini").c_str())) << p;
+  }
+}

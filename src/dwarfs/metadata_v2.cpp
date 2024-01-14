@@ -611,6 +611,7 @@ class metadata_ final : public metadata_v2::impl {
 
   directory_view make_directory_view(inode_view iv) const {
     // TODO: revisit: is this the way to do it?
+    DWARFS_CHECK(iv.is_directory(), "not a directory");
     return directory_view(iv.inode_num(), global_);
   }
 
@@ -1488,6 +1489,10 @@ metadata_<LoggerPolicy>::find(const char* path) const {
     const char* next = ::strchr(path, '/');
     size_t clen = next ? next - path : ::strlen(path); // Flawfinder: ignore
 
+    if (!iv->is_directory()) {
+      return std::nullopt;
+    }
+
     iv = find(make_directory_view(*iv), std::string_view(path, clen));
 
     if (!iv) {
@@ -1511,6 +1516,10 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
   auto iv = get_entry(inode);
 
   if (iv) {
+    if (!iv->is_directory()) {
+      return std::nullopt;
+    }
+
     iv = find(make_directory_view(*iv), std::string_view(name));
   }
 
