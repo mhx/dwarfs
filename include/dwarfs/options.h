@@ -75,8 +75,8 @@ struct filesystem_options {
 
   mlock_mode lock_mode{mlock_mode::NONE};
   file_off_t image_offset{0};
-  block_cache_options block_cache;
-  metadata_options metadata;
+  block_cache_options block_cache{};
+  metadata_options metadata{};
   int inode_offset{0};
 };
 
