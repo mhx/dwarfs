@@ -2188,7 +2188,7 @@ TEST_P(map_file_error_test, delayed) {
                                        .max_name_len = 8,
                                        .with_errors = true});
 
-  // t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
+  t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
   // t.iol->use_real_terminal(true);
 
   std::string args = "-i / -o test.dwarfs --no-progress --log-level=verbose";
@@ -2263,6 +2263,24 @@ TEST_P(map_file_error_test, delayed) {
               << std::endl;
     std::cout << folly::hexDump(it->second.data(), it->second.size())
               << std::endl;
+  }
+
+  auto dump = t.fa->get_file("inodes.dump");
+  ASSERT_TRUE(dump);
+  if (extra_args.find("--file-hash=none") == std::string::npos) {
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("(invalid)"))
+        << dump.value();
+  }
+  if (extra_args.find("--order=revpath") != std::string::npos) {
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("similarity: none"))
+        << dump.value();
+  } else {
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("similarity: nilsimsa"))
+        << dump.value();
+  }
+  if (extra_args.find("--categorize") != std::string::npos) {
+    EXPECT_THAT(dump.value(), ::testing::HasSubstr("[incompressible]"))
+        << dump.value();
   }
 }
 
