@@ -21,6 +21,7 @@
 
 #include <cstring>
 #include <exception>
+#include <filesystem>
 #include <iterator>
 #include <stdexcept>
 
@@ -249,7 +250,7 @@ void stream_logger::set_threshold(level_type threshold) {
 }
 
 std::string get_logger_context(char const* path, int line) {
-  auto base = ::strrchr(path, '/');
+  auto base = ::strrchr(path, std::filesystem::path::preferred_separator);
   return fmt::format("[{0}:{1}] ", base ? base + 1 : path, line);
 }
 
