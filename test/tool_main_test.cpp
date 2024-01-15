@@ -139,6 +139,13 @@ class tester_common {
   std::string toolname_;
 };
 
+struct random_file_tree_options {
+  double avg_size{4096.0};
+  int dimension{20};
+  int max_name_len{50};
+  bool with_errors{false};
+};
+
 class mkdwarfs_tester : public tester_common {
  public:
   mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
@@ -169,12 +176,12 @@ class mkdwarfs_tester : public tester_common {
     os->add("sock", {1005, 0140666, 1, 0, 0, 0, 0, 0, 0, 0}, std::string{});
   }
 
-  std::vector<fs::path>
-  add_random_file_tree(double avg_size = 4096.0, int dimension = 20) {
-    size_t max_size{128 * static_cast<size_t>(avg_size)};
+  std::vector<fs::path> add_random_file_tree(
+      random_file_tree_options const& opt = random_file_tree_options{}) {
+    size_t max_size{128 * static_cast<size_t>(opt.avg_size)};
     std::mt19937_64 rng{42};
-    std::exponential_distribution<> size_dist{1 / avg_size};
-    std::uniform_int_distribution<> path_comp_size_dist{0, 50};
+    std::exponential_distribution<> size_dist{1 / opt.avg_size};
+    std::uniform_int_distribution<> path_comp_size_dist{0, opt.max_name_len};
     std::vector<fs::path> paths;
 
     auto random_path_component = [&] {
@@ -182,22 +189,33 @@ class mkdwarfs_tester : public tester_common {
       return test::create_random_string(size, 'A', 'Z', rng);
     };
 
-    for (int x = 0; x < dimension; ++x) {
+    for (int x = 0; x < opt.dimension; ++x) {
       fs::path d1{random_path_component() + std::to_string(x)};
       os->add_dir(d1);
-      for (int y = 0; y < dimension; ++y) {
+      for (int y = 0; y < opt.dimension; ++y) {
         fs::path d2{d1 / (random_path_component() + std::to_string(y))};
         os->add_dir(d2);
-        for (int z = 0; z < dimension; ++z) {
+        for (int z = 0; z < opt.dimension; ++z) {
           fs::path f{d2 / (random_path_component() + std::to_string(z))};
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
           os->add_file(f, size, true);
           paths.push_back(f);
+          if (opt.with_errors && rng() % 4 == 0) {
+            os->set_map_file_error(
+                fs::path{"/"} / f,
+                std::make_exception_ptr(std::runtime_error("map_file_error")),
+                rng() % 4);
+          }
         }
       }
     }
 
     return paths;
+  }
+
+  std::vector<fs::path>
+  add_random_file_tree(double avg_size, int dimension = 20) {
+    return add_random_file_tree({.avg_size = avg_size, .dimension = dimension});
   }
 
   void add_test_file_tree() {
@@ -547,7 +565,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
 TEST(mkdwarfs_test, input_list_large) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
-  auto paths = t.add_random_file_tree(32.0, 32);
+  auto paths = t.add_random_file_tree({.avg_size = 32.0, .dimension = 32});
   {
     std::ostringstream os;
     for (auto const& p : paths) {
@@ -1032,7 +1050,7 @@ TEST(mkdwarfs_test, dump_inodes) {
   t.os->add_local_files(audio_data_dir);
   t.os->add_file("random", 4096, true);
   t.os->add_file("large", 32 * 1024 * 1024);
-  t.add_random_file_tree(1024, 8);
+  t.add_random_file_tree({.avg_size = 1024.0, .dimension = 8});
   t.os->setenv("DWARFS_DUMP_INODES", inode_file);
 
   ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-W8"}));
@@ -1452,7 +1470,7 @@ TEST(mkdwarfs_test, pack_modes_random) {
     auto mode_arg = folly::join(',', modes);
     auto t = mkdwarfs_tester::create_empty();
     t.add_test_file_tree();
-    t.add_random_file_tree(128.0, 16);
+    t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
     ASSERT_EQ(
         0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
         << t.err();
@@ -1483,7 +1501,7 @@ TEST(mkdwarfs_test, pack_modes_random) {
 TEST(mkdwarfs_test, pack_mode_none) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_test_file_tree();
-  t.add_random_file_tree(128.0, 16);
+  t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=none"}))
       << t.err();
   auto fs = t.fs_from_stdout();
@@ -1499,7 +1517,7 @@ TEST(mkdwarfs_test, pack_mode_none) {
 TEST(mkdwarfs_test, pack_mode_all) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_test_file_tree();
-  t.add_random_file_tree(128.0, 16);
+  t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=all"}))
       << t.err();
   auto fs = t.fs_from_stdout();
