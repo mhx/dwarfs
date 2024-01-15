@@ -306,6 +306,10 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::hash_file(file* p) {
+  if (p->is_invalid()) {
+    return;
+  }
+
   auto const size = p->size();
   std::unique_ptr<mmif> mm;
 

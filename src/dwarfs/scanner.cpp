@@ -354,7 +354,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     if (pe) {
       switch (pe->type()) {
       case entry::E_FILE:
-        if (os_->access(pe->fs_path(), R_OK)) {
+        if (pe->size() > 0 && os_->access(pe->fs_path(), R_OK)) {
           LOG_ERROR << "cannot access " << pe->path_as_string()
                     << ", creating empty file";
           pe->override_size(0);
@@ -601,6 +601,10 @@ void scanner_<LoggerPolicy>::scan(
   root->accept(lsiv, true);
 
   LOG_INFO << "waiting for background scanners...";
+
+  wg_.wait();
+  im.try_scan_invalid(wg_, *os_);
+
   wg_.wait();
 
   LOG_INFO << "scanning CPU time: " << time_with_unit(wg_.get_cpu_time());
@@ -739,8 +743,9 @@ void scanner_<LoggerPolicy>::scan(
           auto f = ino->any();
 
           if (auto size = f->size(); size > 0 && !f->is_invalid()) {
-            try {
-              auto mm = os_->map_file(f->fs_path(), size);
+            auto [mm, _, errors] = ino->mmap_any(*os_);
+
+            if (mm) {
               file_off_t offset{0};
 
               for (auto& frag : ino->fragments()) {
@@ -752,11 +757,12 @@ void scanner_<LoggerPolicy>::scan(
 
                 offset += frag.size();
               }
-            } catch (...) {
-              LOG_ERROR << "failed to map file " << f->path_as_string() << ": "
-                        << folly::exceptionStr(std::current_exception())
-                        << ", creating empty inode";
-              ++prog.errors;
+            } else {
+              for (auto& [fp, e] : errors) {
+                LOG_ERROR << "failed to map file " << fp->path_as_string() << ": "
+                          << folly::exceptionStr(e) << ", creating empty inode";
+                ++prog.errors;
+              }
             }
           }
 

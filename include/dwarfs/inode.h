@@ -21,9 +21,11 @@
 
 #pragma once
 
+#include <exception>
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <vector>
 
 #include <folly/small_vector.h>
@@ -41,6 +43,7 @@ class chunk;
 
 class file;
 class mmif;
+class os_access;
 class progress;
 
 struct inode_options;
@@ -61,10 +64,15 @@ class inode : public object {
   nilsimsa_similarity_hash(fragment_category cat) const = 0;
   virtual size_t size() const = 0;
   virtual file const* any() const = 0;
+  virtual files_vector const& all() const = 0;
   virtual void
   append_chunks_to(std::vector<thrift::metadata::chunk>& vec) const = 0;
   virtual inode_fragments& fragments() = 0;
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
+  virtual void set_scan_error(file const* fp, std::exception_ptr ep) = 0;
+  virtual bool has_scan_error() const = 0;
+  virtual std::optional<std::pair<file const*, std::exception_ptr>> get_scan_error() const = 0;
+  virtual std::tuple<std::unique_ptr<mmif>, file const*, std::vector<std::pair<file const*, std::exception_ptr>>> mmap_any(os_access const& os) const = 0;
 };
 
 using sortable_inode_span =

@@ -330,7 +330,7 @@ void os_access_mock::set_access_fail(fs::path const& path) {
 
 void os_access_mock::set_map_file_error(std::filesystem::path const& path,
                                         std::exception_ptr ep,
-                                        size_t after_n_attempts) {
+                                        int after_n_attempts) {
   auto& e = map_file_errors_[path];
   e.ep = std::move(ep);
   e.remaining_successful_attempts = after_n_attempts;
@@ -435,13 +435,9 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
   if (auto de = find(path);
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
-      size_t remaining = 0;
-      do {
-        remaining = it->second.remaining_successful_attempts.load();
-      } while (remaining > 0 &&
-               !it->second.remaining_successful_attempts.compare_exchange_weak(
-                   remaining, remaining - 1));
-      if (remaining == 0) {
+      int remaining = it->second.remaining_successful_attempts.load();
+      while (!it->second.remaining_successful_attempts.compare_exchange_weak(remaining, remaining - 1)) {}
+      if (remaining <= 0) {
         std::rethrow_exception(it->second.ep);
       }
     }
@@ -461,6 +457,16 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
   }
 
   throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
+}
+
+std::set<std::filesystem::path> os_access_mock::get_failed_paths() const {
+  std::set<std::filesystem::path> rv = access_fail_set_;
+  for (auto const& [path, error] : map_file_errors_) {
+    if (error.remaining_successful_attempts.load() < 0) {
+      rv.emplace(path);
+    }
+  }
+  return rv;
 }
 
 std::unique_ptr<mmif> os_access_mock::map_file(fs::path const& path) const {
