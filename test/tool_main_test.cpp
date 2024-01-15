@@ -215,18 +215,18 @@ class mkdwarfs_tester : public tester_common {
             auto failpath = fs::path{"/"} / f;
             switch (rng() % 8) {
             case 0:
-                os->set_access_fail(failpath);
-                [[fallthrough]];
+              os->set_access_fail(failpath);
+              [[fallthrough]];
             case 1:
             case 2:
-                os->set_map_file_error(
-                    failpath,
-                    std::make_exception_ptr(std::runtime_error("map_file_error")),
-                    rng() % 4);
-                break;
+              os->set_map_file_error(
+                  failpath,
+                  std::make_exception_ptr(std::runtime_error("map_file_error")),
+                  rng() % 4);
+              break;
 
             default:
-                break;
+              break;
             }
           }
         }
@@ -2165,12 +2165,12 @@ TEST_P(map_file_error_test, delayed) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   auto files = t.add_random_file_tree({.avg_size = 64.0,
-                                       .dimension = 10,
+                                       .dimension = 20,
                                        .max_name_len = 8,
                                        .with_errors = true});
 
-  t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
-  t.iol->use_real_terminal(true);
+  // t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
+  // t.iol->use_real_terminal(true);
 
   std::string args = "-i / -o test.dwarfs --no-progress --log-level=verbose";
   if (!extra_args.empty()) {
@@ -2180,7 +2180,7 @@ TEST_P(map_file_error_test, delayed) {
   EXPECT_EQ(2, t.run(args)) << t.err();
 
   auto fs = t.fs_from_file("test.dwarfs");
-  fs.dump(std::cout, 2);
+  // fs.dump(std::cout, 2);
 
   std::unordered_map<fs::path, std::string> actual_files;
   fs.walk([&](auto const& dev) {
@@ -2200,7 +2200,6 @@ TEST_P(map_file_error_test, delayed) {
   // - they're either empty (in case of errors) or have the original content
 
   size_t num_non_empty = 0;
-  size_t num_invalid = 0;
 
   auto failed_expected = t.os->get_failed_paths();
   std::set<fs::path> failed_actual;
@@ -2212,25 +2211,25 @@ TEST_P(map_file_error_test, delayed) {
       EXPECT_EQ(data, it->second);
       ++num_non_empty;
     } else if (!data.empty()) {
-      ++num_invalid;
       failed_actual.insert(fs::path("/") / path);
     } else {
       failed_expected.erase(fs::path("/") / path);
     }
   }
 
-  std::cout << "num_invalid: " << num_invalid << std::endl;
-  std::cout << "failed_expected: " << failed_expected.size() << std::endl;
-  std::cout << "failed_actual: " << failed_actual.size() << std::endl;
+  EXPECT_LE(failed_actual.size(), failed_expected.size());
 
-  //EXPECT_EQ(8000, files.size());
-  //EXPECT_GT(num_non_empty, 4000);
+  EXPECT_EQ(8000, files.size());
+  EXPECT_GT(num_non_empty, 4000);
+
+  // Ensure that files which never had any errors are all present
+
   std::set<fs::path> surprisingly_missing;
 
-  std::set_difference(failed_actual.begin(), failed_actual.end(),
-                      failed_expected.begin(), failed_expected.end(),
-                      std::inserter(surprisingly_missing,
-                                    surprisingly_missing.begin()));
+  std::set_difference(
+      failed_actual.begin(), failed_actual.end(), failed_expected.begin(),
+      failed_expected.end(),
+      std::inserter(surprisingly_missing, surprisingly_missing.begin()));
 
   std::unordered_map<fs::path, std::string> original_files(files.begin(),
                                                            files.end());
@@ -2247,20 +2246,20 @@ TEST_P(map_file_error_test, delayed) {
               << std::endl;
   }
 
-  auto dump = t.fa->get_file("inodes.dump");
+  // auto dump = t.fa->get_file("inodes.dump");
 
-  ASSERT_TRUE(dump);
-  std::cout << *dump << std::endl;
+  // ASSERT_TRUE(dump);
+  // std::cout << *dump << std::endl;
 }
 
 namespace {
 
 std::array const map_file_error_args{
-  "",
-  "--categorize",
-  "--order=revpath",
-  "--file-hash=none",
-  "--file-hash=none --order=revpath",
+    "",
+    "--categorize",
+    "--order=revpath",
+    "--file-hash=none",
+    "--file-hash=none --order=revpath",
 };
 
 } // namespace

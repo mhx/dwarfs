@@ -436,7 +436,9 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
       de && de->status.type() == posix_file_type::regular) {
     if (auto it = map_file_errors_.find(path); it != map_file_errors_.end()) {
       int remaining = it->second.remaining_successful_attempts.load();
-      while (!it->second.remaining_successful_attempts.compare_exchange_weak(remaining, remaining - 1)) {}
+      while (!it->second.remaining_successful_attempts.compare_exchange_weak(
+          remaining, remaining - 1)) {
+      }
       if (remaining <= 0) {
         std::rethrow_exception(it->second.ep);
       }

@@ -235,7 +235,13 @@ class inode_ : public inode {
       }
     };
 
-    os << "inode " << num() << " (" << any()->size() << " bytes):\n";
+    std::string ino_num{"?"};
+
+    if (flags_ & kNumIsValid) {
+      ino_num = std::to_string(num());
+    }
+
+    os << "inode " << ino_num << " (" << any()->size() << " bytes):\n";
     os << "  files:\n";
 
     for (auto const& f : files_) {
@@ -303,14 +309,17 @@ class inode_ : public inode {
     return static_cast<bool>(scan_error_);
   }
 
-  std::optional<std::pair<file const*, std::exception_ptr>> get_scan_error() const override {
+  std::optional<std::pair<file const*, std::exception_ptr>>
+  get_scan_error() const override {
     if (scan_error_) {
       return *scan_error_;
     }
     return std::nullopt;
   }
 
-  std::tuple<std::unique_ptr<mmif>, file const*, std::vector<std::pair<file const*, std::exception_ptr>>> mmap_any(os_access const& os) const override {
+  std::tuple<std::unique_ptr<mmif>, file const*,
+             std::vector<std::pair<file const*, std::exception_ptr>>>
+  mmap_any(os_access const& os) const override {
     std::unique_ptr<mmif> mm;
     std::vector<std::pair<file const*, std::exception_ptr>> errors;
     file const* rfp{nullptr};
@@ -603,6 +612,8 @@ class inode_manager_ final : public inode_manager::impl {
   void scan_background(worker_group& wg, os_access const& os,
                        std::shared_ptr<inode> ino, file* p) const override;
 
+  bool has_invalid_inodes() const override;
+
   void try_scan_invalid(worker_group& wg, os_access const& os) override;
 
   void dump(std::ostream& os) const override;
@@ -655,7 +666,12 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
     wg.add_job([this, &os, p, ino = std::move(ino)] {
       auto const size = p->size();
       std::shared_ptr<mmif> mm;
-      if (size > 0 && !p->is_invalid()) {
+
+      if (size > 0) {
+        if (p->is_invalid()) {
+          return;
+        }
+
         try {
           mm = os.map_file(p->fs_path(), size);
         } catch (...) {
@@ -664,6 +680,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
           return;
         }
       }
+
       ino->scan(mm.get(), opts_, prog_);
       update_prog(ino, p);
     });
@@ -674,6 +691,14 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
 }
 
 template <typename LoggerPolicy>
+bool inode_manager_<LoggerPolicy>::has_invalid_inodes() const {
+  return inodes_need_scanning_ &&
+         std::ranges::any_of(inodes_, [](auto const& ino) {
+           return ino->has_scan_error() || ino->fragments().empty();
+         });
+}
+
+template <typename LoggerPolicy>
 void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
                                                     os_access const& os) {
   if (!inodes_need_scanning_) {
@@ -681,7 +706,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
   }
 
   for (auto const& ino : inodes_) {
-    if (ino->has_scan_error()) {
+    if (ino->has_scan_error() || ino->fragments().empty()) {
       std::vector<std::pair<file const*, std::exception_ptr>> errors;
       auto const& fv = ino->all();
 
@@ -689,10 +714,13 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
         auto [mm, p, err] = ino->mmap_any(os);
 
         if (mm) {
+          LOG_DEBUG << "successfully opened: " << p->path_as_string();
+
           wg.add_job([this, p, ino, mm = std::move(mm)] {
             ino->scan(mm.get(), opts_, prog_);
             update_prog(ino, p);
           });
+
           continue;
         }
 
@@ -703,7 +731,9 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
       ++prog_.inodes_scanned;
       ++prog_.files_scanned;
 
-      errors.emplace_back(ino->get_scan_error().value());
+      if (auto err = ino->get_scan_error()) {
+        errors.emplace_back(err.value());
+      }
 
       for (auto const& [fp, ep] : errors) {
         LOG_ERROR << "failed to map file \"" << fp->path_as_string()

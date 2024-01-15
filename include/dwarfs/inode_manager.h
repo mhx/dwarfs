@@ -85,6 +85,8 @@ class inode_manager {
     impl_->scan_background(wg, os, std::move(ino), p);
   }
 
+  bool has_invalid_inodes() const { return impl_->has_invalid_inodes(); }
+
   void try_scan_invalid(worker_group& wg, os_access const& os) {
     impl_->try_scan_invalid(wg, os);
   }
@@ -109,6 +111,7 @@ class inode_manager {
     virtual fragment_infos fragment_category_info() const = 0;
     virtual void scan_background(worker_group& wg, os_access const& os,
                                  std::shared_ptr<inode> ino, file* p) const = 0;
+    virtual bool has_invalid_inodes() const = 0;
     virtual void try_scan_invalid(worker_group& wg, os_access const& os) = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual sortable_inode_span sortable_span() const = 0;

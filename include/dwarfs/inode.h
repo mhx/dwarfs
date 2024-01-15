@@ -71,8 +71,11 @@ class inode : public object {
   virtual void dump(std::ostream& os, inode_options const& options) const = 0;
   virtual void set_scan_error(file const* fp, std::exception_ptr ep) = 0;
   virtual bool has_scan_error() const = 0;
-  virtual std::optional<std::pair<file const*, std::exception_ptr>> get_scan_error() const = 0;
-  virtual std::tuple<std::unique_ptr<mmif>, file const*, std::vector<std::pair<file const*, std::exception_ptr>>> mmap_any(os_access const& os) const = 0;
+  virtual std::optional<std::pair<file const*, std::exception_ptr>>
+  get_scan_error() const = 0;
+  virtual std::tuple<std::unique_ptr<mmif>, file const*,
+                     std::vector<std::pair<file const*, std::exception_ptr>>>
+  mmap_any(os_access const& os) const = 0;
 };
 
 using sortable_inode_span =
