@@ -19,11 +19,25 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
+
 #include <fmt/format.h>
 
 #include "dwarfs/logger.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/version.h"
+
+namespace po = boost::program_options;
+
+namespace boost {
+
+void validate(boost::any& v, const std::vector<std::string>&,
+              std::optional<bool>*, int) {
+  po::validators::check_first_occurrence(v);
+  v = std::make_optional(true);
+}
+
+} // namespace boost
 
 namespace dwarfs {
 
@@ -44,18 +58,22 @@ tool_header(std::string_view tool_name, std::string_view extra_info) {
       tool_name, PRJ_GIT_ID, date, extra_info, PRJ_BUILD_ID);
 }
 
-void add_common_options(boost::program_options::options_description& opts,
-                        std::string& log_level_str) {
+void add_common_options(po::options_description& opts,
+                        logger_options& logopts) {
   auto log_level_desc = "log level (" + logger::all_level_names() + ")";
 
   // clang-format off
   opts.add_options()
     ("log-level",
-        boost::program_options::value<std::string>(&log_level_str)
-            ->default_value("info"),
+        po::value<logger::level_type>(&logopts.threshold)
+            ->default_value(logger::INFO),
         log_level_desc.c_str())
+    ("log-with-context",
+        po::value<std::optional<bool>>(&logopts.with_context)->zero_tokens(),
+        "enable context logging regardless of level")
     ("help,h",
-        "output help message and exit");
+        "output help message and exit")
+    ;
   // clang-format on
 }
 

@@ -28,10 +28,12 @@
 
 namespace dwarfs {
 
+struct logger_options;
+
 std::string
 tool_header(std::string_view tool_name, std::string_view extra_info = "");
 
 void add_common_options(boost::program_options::options_description& opts,
-                        std::string& log_level_str);
+                        logger_options& logopts);
 
 } // namespace dwarfs

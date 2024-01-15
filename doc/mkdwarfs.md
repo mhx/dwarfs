@@ -381,6 +381,10 @@ Most other options are concerned with compression tuning:
 - `--log-level=`*name*:
   Specifiy a logging level.
 
+- `--log-with-context`:
+  Enable logging context regardless of level. By default, context is enabled
+  if the level is `verbose`, `debug` or `trace`.
+
 - `--no-progress`:
   Don't show progress output while building filesystem.
 

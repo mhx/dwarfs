@@ -50,7 +50,8 @@ namespace po = boost::program_options;
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
-  std::string log_level, input, export_metadata, image_offset;
+  std::string input, export_metadata, image_offset;
+  logger_options logopts;
   size_t num_workers;
   int detail;
   bool quiet{false};
@@ -92,9 +93,10 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     ("export-metadata",
         po::value<std::string>(&export_metadata),
         "export raw metadata as JSON to file")
-      ;
-  add_common_options(opts, log_level);
+    ;
   // clang-format on
+
+  add_common_options(opts, logopts);
 
   po::positional_options_description pos;
   pos.add("input", -1);
@@ -121,8 +123,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   try {
-    auto level = logger::parse_level(log_level);
-    stream_logger lgr(iol.term, iol.err, level, level >= logger::DEBUG);
+    stream_logger lgr(iol.term, iol.err, logopts);
     LOG_PROXY(debug_logger_policy, lgr);
 
     if (no_check && check_integrity) {

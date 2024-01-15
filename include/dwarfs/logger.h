@@ -29,6 +29,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -82,6 +83,7 @@ class logger {
   }
 
   static level_type parse_level(std::string_view level);
+  static std::string_view level_name(level_type level);
 
   static std::string all_level_names();
 
@@ -89,10 +91,18 @@ class logger {
   std::string policy_name_; // TODO: const?
 };
 
+std::ostream& operator<<(std::ostream& os, logger::level_type const& optval);
+std::istream& operator>>(std::istream& is, logger::level_type& optval);
+
+struct logger_options {
+  logger::level_type threshold{logger::WARN};
+  std::optional<bool> with_context;
+};
+
 class stream_logger : public logger {
  public:
   stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
-                level_type threshold = WARN, bool with_context = false);
+                logger_options const& options = {});
 
   void write(level_type level, const std::string& output, char const* file,
              int line) override;

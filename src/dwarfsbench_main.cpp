@@ -43,8 +43,8 @@ namespace po = boost::program_options;
 namespace dwarfs {
 
 int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
-  std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str,
-      log_level;
+  std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str;
+  logger_options logopts;
   size_t num_workers;
   size_t num_readers;
 
@@ -69,12 +69,10 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     ("decompress-ratio,r",
         po::value<std::string>(&decompress_ratio_str)->default_value("0.8"),
         "block cache size")
-    ("log-level,l",
-        po::value<std::string>(&log_level)->default_value("info"),
-        "log level (error, warn, info, debug, trace)")
-    ("help,h",
-        "output help message and exit");
+    ;
   // clang-format on
+
+  add_common_options(opts, logopts);
 
   po::variables_map vm;
 
@@ -92,7 +90,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   try {
-    stream_logger lgr(iol.term, iol.err, logger::parse_level(log_level));
+    stream_logger lgr(iol.term, iol.err, logopts);
     filesystem_options fsopts;
 
     fsopts.lock_mode = parse_mlock_mode(lock_mode_str);

@@ -44,42 +44,71 @@
 
 namespace dwarfs {
 
+namespace {
+
+constexpr std::array<std::pair<std::string_view, logger::level_type>, 6>
+    log_level_map = {{
+        {"error", logger::ERROR},
+        {"warn", logger::WARN},
+        {"info", logger::INFO},
+        {"verbose", logger::VERBOSE},
+        {"debug", logger::DEBUG},
+        {"trace", logger::TRACE},
+    }};
+
+}
+
+std::ostream& operator<<(std::ostream& os, logger::level_type const& optval) {
+  return os << logger::level_name(optval);
+}
+
+std::istream& operator>>(std::istream& is, logger::level_type& optval) {
+  std::string s;
+  is >> s;
+  optval = logger::parse_level(s);
+  return is;
+}
+
 logger::level_type logger::parse_level(std::string_view level) {
   // don't parse FATAL here, it's a special case
-  if (level == "error") {
-    return ERROR;
-  }
-  if (level == "warn") {
-    return WARN;
-  }
-  if (level == "info") {
-    return INFO;
-  }
-  if (level == "verbose") {
-    return VERBOSE;
-  }
-  if (level == "debug") {
-    return DEBUG;
-  }
-  if (level == "trace") {
-    return TRACE;
+  for (auto const& [name, lvl] : log_level_map) {
+    if (level == name) {
+      return lvl;
+    }
   }
   DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}", level));
 }
 
+std::string_view logger::level_name(level_type level) {
+  for (auto const& [name, lvl] : log_level_map) {
+    if (level == lvl) {
+      return name;
+    }
+  }
+  DWARFS_THROW(runtime_error, fmt::format("invalid logger level: {}",
+                                          static_cast<int>(level)));
+}
+
 std::string logger::all_level_names() {
-  return "error, warn, info, verbose, debug, trace";
+  std::string result;
+  for (auto const& m : log_level_map) {
+    if (!result.empty()) {
+      result += ", ";
+    }
+    result += m.first;
+  }
+  return result;
 }
 
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
-                             std::ostream& os, level_type threshold,
-                             bool with_context)
+                             std::ostream& os, logger_options const& logopts)
     : os_(os)
     , color_(term->is_fancy(os))
     , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
-    , with_context_(with_context)
+    , with_context_(logopts.with_context ? logopts.with_context.value()
+                                         : logopts.threshold >= logger::VERBOSE)
     , term_{std::move(term)} {
-  set_threshold(threshold);
+  set_threshold(logopts.threshold);
 }
 
 void stream_logger::preamble() {}

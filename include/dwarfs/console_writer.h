@@ -41,8 +41,8 @@ class console_writer : public stream_logger {
   enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
 
   console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
-                 progress_mode pg_mode, level_type threshold,
-                 display_mode mode = NORMAL, bool verbose = false);
+                 progress_mode pg_mode, display_mode mode = NORMAL,
+                 logger_options const& options = {});
 
   void update(progress& p, bool last);
 

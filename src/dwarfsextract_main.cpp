@@ -46,8 +46,8 @@ namespace po = boost::program_options;
 namespace dwarfs {
 
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
-  std::string filesystem, output, format, cache_size_str, log_level,
-      image_offset;
+  std::string filesystem, output, format, cache_size_str, image_offset;
+  logger_options logopts;
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
 #endif
@@ -91,8 +91,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
         "enable performance monitor")
 #endif
     ;
-  add_common_options(opts, log_level);
   // clang-format on
+
+  add_common_options(opts, logopts);
 
   po::variables_map vm;
 
@@ -117,8 +118,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   int rv = 0;
 
   try {
-    auto level = logger::parse_level(log_level);
-    stream_logger lgr(iol.term, iol.err, level, level >= logger::DEBUG);
+    stream_logger lgr(iol.term, iol.err, logopts);
     filesystem_options fsopts;
 
     fsopts.image_offset = parse_image_offset(image_offset);

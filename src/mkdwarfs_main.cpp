@@ -360,9 +360,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
   std::string memory_limit, script_arg, schema_compression,
-      metadata_compression, log_level_str, timestamp, time_resolution,
-      progress_mode, recompress_opts, pack_metadata, file_hash_algo,
-      debug_filter, max_similarity_size, chmod_str, history_compression,
+      metadata_compression, timestamp, time_resolution, progress_mode,
+      recompress_opts, pack_metadata, file_hash_algo, debug_filter,
+      max_similarity_size, chmod_str, history_compression,
       recompress_categories;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
@@ -384,6 +384,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   block_compressor_parser compressor_parser;
 
   scanner_options options;
+  logger_options logopts;
 
   auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
 
@@ -443,7 +444,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
     ;
-  add_common_options(basic_opts, log_level_str);
+  add_common_options(basic_opts, logopts);
   basic_opts.add_options()
     ("long-help,H",
         "output full help message and exit")
@@ -893,12 +894,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
-  auto log_level = logger::parse_level(log_level_str);
 
-  console_writer lgr(iol.term, iol.err, pg_mode, log_level,
-                     recompress ? console_writer::REWRITE
-                                : console_writer::NORMAL,
-                     log_level >= logger::VERBOSE);
+  console_writer lgr(
+      iol.term, iol.err, pg_mode,
+      recompress ? console_writer::REWRITE : console_writer::NORMAL, logopts);
 
   std::shared_ptr<script> script;
 

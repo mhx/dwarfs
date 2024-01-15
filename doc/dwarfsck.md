@@ -70,6 +70,10 @@ pcmaudio/waveform
 - `--log-level=`*name*:
   Specify a logging level.
 
+- `--log-with-context`:
+  Enable logging context regardless of level. By default, context is enabled
+  if the level is `verbose`, `debug` or `trace`.
+
 - `--help`:
   Show program help, including option defaults.
 

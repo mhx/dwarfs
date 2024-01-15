@@ -130,7 +130,7 @@ struct options {
   size_t workers{0};
   mlock_mode lock_mode{mlock_mode::NONE};
   double decompress_ratio{0.0};
-  logger::level_type debuglevel{logger::level_type::ERROR};
+  logger_options logopts{};
   cache_tidy_strategy block_cache_tidy_strategy{cache_tidy_strategy::NONE};
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
@@ -1071,7 +1071,7 @@ int run_fuse(struct fuse_args& args,
 
   ::memset(&fsops, 0, sizeof(fsops));
 
-  if (userdata.opts.debuglevel >= logger::DEBUG) {
+  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
     init_fuse_ops<debug_logger_policy>(fsops, userdata);
   } else {
     init_fuse_ops<prod_logger_policy>(fsops, userdata);
@@ -1125,7 +1125,7 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 
   ::memset(&fsops, 0, sizeof(fsops));
 
-  if (userdata.opts.debuglevel >= logger::DEBUG) {
+  if (userdata.opts.logopts.threshold >= logger::DEBUG) {
     init_fuse_ops<debug_logger_policy>(fsops, userdata);
   } else {
     init_fuse_ops<prod_logger_policy>(fsops, userdata);
@@ -1282,17 +1282,17 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     // TODO: foreground mode, stderr vs. syslog?
 
     if (opts.debuglevel_str) {
-      opts.debuglevel = logger::parse_level(opts.debuglevel_str);
+      opts.logopts.threshold = logger::parse_level(opts.debuglevel_str);
     } else {
 #if DWARFS_FUSE_LOWLEVEL
-      opts.debuglevel = foreground ? logger::INFO : logger::WARN;
+      opts.logopts.threshold = foreground ? logger::INFO : logger::WARN;
 #else
-      opts.debuglevel = logger::WARN;
+      opts.logopts.threshold = logger::WARN;
 #endif
     }
 
-    userdata.lgr.set_threshold(opts.debuglevel);
-    userdata.lgr.set_with_context(opts.debuglevel >= logger::DEBUG);
+    userdata.lgr.set_threshold(opts.logopts.threshold);
+    userdata.lgr.set_with_context(opts.logopts.threshold >= logger::DEBUG);
 
     opts.cachesize = opts.cachesize_str
                          ? parse_size_with_unit(opts.cachesize_str)
@@ -1348,7 +1348,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
            << ")";
 
   try {
-    if (userdata.opts.debuglevel >= logger::DEBUG) {
+    if (userdata.opts.logopts.threshold >= logger::DEBUG) {
       load_filesystem<debug_logger_policy>(userdata);
     } else {
       load_filesystem<prod_logger_policy>(userdata);
