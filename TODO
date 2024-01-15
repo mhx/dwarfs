@@ -1,3 +1,22 @@
+- Fragment counts don't necessarily match up in presence
+  of errors.
+
+- It is possible, though unlikely, that memory mapping
+  fails only of a subset of fragments, in which case the
+  representation of the file in the target image would
+  be wrong. I don't know yet what the best solution to
+  this would be - the data for the other fragments is
+  potentially already stored. Might be best to just mark
+  the fragments as invalid and later patch the metadata
+  to drop all references to these fragments (i.e. just
+  build a zero-size file after the fact).
+
+- When opening a file again, check that its timestamp,
+  size and potentially checksum did not change from
+  when we first saw it.
+
+- Option to log to a file instead of stderr?
+
 - Use thrift definitions for all options to make them
   easily printable/storable?
 
