@@ -729,6 +729,24 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::ValuesIn(log_level_strings),
                        ::testing::Bool()));
 
+TEST(mkdwarfs_test, no_log_context) {
+  mkdwarfs_tester t;
+  EXPECT_EQ(0, t.run("-l3 -i / -o -")) << t.err();
+  EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("[scanner.cpp:")));
+}
+
+TEST(mkdwarfs_test, default_log_context) {
+  mkdwarfs_tester t;
+  EXPECT_EQ(0, t.run("-l3 -i / -o - --log-level=verbose")) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("[scanner.cpp:"));
+}
+
+TEST(mkdwarfs_test, explicit_log_context) {
+  mkdwarfs_tester t;
+  EXPECT_EQ(0, t.run("-l3 -i / -o - --log-with-context")) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("[scanner.cpp:"));
+}
+
 TEST(mkdwarfs_test, metadata_inode_info) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
