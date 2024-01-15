@@ -162,8 +162,17 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
+    std::string tmp;
     folly::small_vector<std::string_view, 2> lines;
-    folly::split('\n', output, lines);
+
+    if (output.find('\r') != std::string::npos) {
+      tmp.reserve(output.size());
+      std::copy_if(output.begin(), output.end(), std::back_inserter(tmp),
+                   [](char c) { return c != '\r'; });
+      folly::split('\n', tmp, lines);
+    } else {
+      folly::split('\n', output, lines);
+    }
 
     if (lines.back().empty()) {
       lines.pop_back();
