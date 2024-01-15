@@ -240,6 +240,7 @@ class test_iolayer {
   std::string out() const;
   std::string err() const;
 
+  void use_real_terminal(bool use);
   void set_in(std::string in);
   void set_terminal_fancy(bool fancy);
   void set_terminal_width(size_t width);
@@ -259,6 +260,7 @@ class test_iolayer {
   std::ostringstream out_;
   std::ostringstream err_;
   std::unique_ptr<iolayer> iol_;
+  std::shared_ptr<terminal const> real_term_;
 };
 
 extern std::map<std::string, simplestat> statmap;

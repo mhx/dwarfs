@@ -20,6 +20,7 @@
  */
 
 #include <array>
+#include <iostream>
 
 #include <fmt/format.h>
 
@@ -316,16 +317,31 @@ test_iolayer::~test_iolayer() = default;
 
 iolayer const& test_iolayer::get() {
   if (!iol_) {
-    iol_ = std::make_unique<iolayer>(iolayer{
-        .os = os_,
-        .term = term_,
-        .file = fa_,
-        .in = in_,
-        .out = out_,
-        .err = err_,
-    });
+    if (real_term_) {
+      iol_ = std::make_unique<iolayer>(iolayer{
+          .os = os_,
+          .term = real_term_,
+          .file = fa_,
+          .in = std::cin,
+          .out = std::cout,
+          .err = std::cerr,
+      });
+    } else {
+      iol_ = std::make_unique<iolayer>(iolayer{
+          .os = os_,
+          .term = term_,
+          .file = fa_,
+          .in = in_,
+          .out = out_,
+          .err = err_,
+      });
+    }
   }
   return *iol_;
+}
+
+void test_iolayer::use_real_terminal(bool use) {
+  real_term_ = terminal::create();
 }
 
 void test_iolayer::set_terminal_fancy(bool fancy) { term_->set_fancy(fancy); }
