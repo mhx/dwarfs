@@ -208,14 +208,8 @@ std::shared_ptr<inode> file::get_inode() const { return inode_; }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void file::scan(os_access const& os, progress& prog) {
-  std::shared_ptr<mmif> mm;
-
-  if (size_t s = size(); s > 0) {
-    mm = os.map_file(fs_path(), s);
-  }
-
-  scan(mm.get(), prog, "xxh3-128");
+void file::scan(os_access const& /*os*/, progress& /*prog*/) {
+  DWARFS_THROW(runtime_error, "file::scan() without hash_alg is not used");
 }
 
 void file::scan(mmif* mm, progress& prog,
