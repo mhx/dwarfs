@@ -142,6 +142,9 @@ class file : public entry {
   void set_inode_num(uint32_t ino) override;
   std::optional<uint32_t> const& inode_num() const override;
 
+  void set_invalid() { data_->invalid.store(true); }
+  bool is_invalid() const { return data_->invalid.load(); }
+
   uint32_t refcount() const { return data_->refcount; }
 
  private:
@@ -150,6 +153,7 @@ class file : public entry {
     hash_type hash;
     uint32_t refcount{1};
     std::optional<uint32_t> inode_num;
+    std::atomic<bool> invalid{false};
   };
 
   std::shared_ptr<data> data_;

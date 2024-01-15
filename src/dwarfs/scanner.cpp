@@ -738,18 +738,25 @@ void scanner_<LoggerPolicy>::scan(
           // TODO: factor this code out
           auto f = ino->any();
 
-          if (auto size = f->size(); size > 0) {
-            auto mm = os_->map_file(f->fs_path(), size);
-            file_off_t offset{0};
+          if (auto size = f->size(); size > 0 && !f->is_invalid()) {
+            try {
+              auto mm = os_->map_file(f->fs_path(), size);
+              file_off_t offset{0};
 
-            for (auto& frag : ino->fragments()) {
-              if (frag.category() == category) {
-                fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
-                seg.add_chunkable(fc);
-                prog.fragments_written++;
+              for (auto& frag : ino->fragments()) {
+                if (frag.category() == category) {
+                  fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
+                  seg.add_chunkable(fc);
+                  prog.fragments_written++;
+                }
+
+                offset += frag.size();
               }
-
-              offset += frag.size();
+            } catch (...) {
+              LOG_ERROR << "failed to map file " << f->path_as_string() << ": "
+                        << folly::exceptionStr(std::current_exception())
+                        << ", creating empty inode";
+              ++prog.errors;
             }
           }
 

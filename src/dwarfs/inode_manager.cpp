@@ -611,7 +611,7 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                     << "\": " << folly::exceptionStr(std::current_exception())
                     << ", creating empty inode";
           ++prog_.errors;
-          p->override_size(0);
+          p->set_invalid();
           // don't return here, we still need scan() to run
         }
       }
