@@ -94,7 +94,7 @@ class os_access_mock : public os_access {
 
   void set_access_fail(std::filesystem::path const& path);
   void set_map_file_error(std::filesystem::path const& path,
-                          std::exception_ptr ep, size_t after_n_attempts = 0);
+                          std::exception_ptr ep, int after_n_attempts = 0);
 
   void setenv(std::string name, std::string value);
 
@@ -119,10 +119,12 @@ class os_access_mock : public os_access {
 
   std::optional<std::string> getenv(std::string_view name) const override;
 
+  std::set<std::filesystem::path> get_failed_paths() const;
+
  private:
   struct error_info {
     std::exception_ptr ep{};
-    std::atomic<size_t> mutable remaining_successful_attempts{0};
+    std::atomic<int> mutable remaining_successful_attempts{0};
   };
 
   static std::vector<std::string> splitpath(std::filesystem::path const& path);

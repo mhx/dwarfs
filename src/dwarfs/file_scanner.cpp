@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include <folly/String.h>
 #include <folly/container/F14Map.h>
 
 #include "dwarfs/entry.h"
@@ -184,6 +185,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
       return unique_size_.at(p->size());
     });
     finalize_files<true>(unique_size_, inode_num, obj_num);
+    finalize_files(by_raw_inode_, inode_num, obj_num);
     finalize_files(by_hash_, inode_num, obj_num);
   } else {
     finalize_hardlinks([this](file const* p) -> inode::files_vector& {
@@ -243,12 +245,15 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
         {
           std::lock_guard lock(mx_);
 
-          auto& ref = by_hash_[p->hash()];
-
-          assert(ref.empty());
           assert(p->get_inode());
 
-          ref.push_back(p);
+          if (p->is_invalid()) [[unlikely]] {
+            by_raw_inode_[p->raw_inode_num()].push_back(p);
+          } else {
+            auto& ref = by_hash_[p->hash()];
+            assert(ref.empty());
+            ref.push_back(p);
+          }
 
           cv->set();
 
@@ -274,21 +279,26 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
           cv->wait(lock);
         }
 
-        auto& ref = by_hash_[p->hash()];
-
-        if (ref.empty()) {
-          // This is *not* a duplicate. We must allocate a new inode.
+        if (p->is_invalid()) [[unlikely]] {
           add_inode(p);
+          by_raw_inode_[p->raw_inode_num()].push_back(p);
         } else {
-          auto inode = ref.front()->get_inode();
-          assert(inode);
-          p->set_inode(inode);
-          ++prog_.files_scanned;
-          ++prog_.duplicate_files;
-          prog_.saved_by_deduplication += p->size();
-        }
+          auto& ref = by_hash_[p->hash()];
 
-        ref.push_back(p);
+          if (ref.empty()) {
+            // This is *not* a duplicate. We must allocate a new inode.
+            add_inode(p);
+          } else {
+            auto inode = ref.front()->get_inode();
+            assert(inode);
+            p->set_inode(inode);
+            ++prog_.files_scanned;
+            ++prog_.duplicate_files;
+            prog_.saved_by_deduplication += p->size();
+          }
+
+          ref.push_back(p);
+        }
       }
     });
   }
@@ -296,11 +306,24 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::hash_file(file* p) {
+  if (p->is_invalid()) {
+    return;
+  }
+
   auto const size = p->size();
   std::unique_ptr<mmif> mm;
 
   if (size > 0) {
-    mm = os_.map_file(p->fs_path(), size);
+    try {
+      mm = os_.map_file(p->fs_path(), size);
+    } catch (...) {
+      LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
+                << folly::exceptionStr(std::current_exception())
+                << ", creating empty file";
+      ++prog_.errors;
+      p->set_invalid();
+      return;
+    }
   }
 
   prog_.current.store(p);

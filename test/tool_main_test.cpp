@@ -176,13 +176,13 @@ class mkdwarfs_tester : public tester_common {
     os->add("sock", {1005, 0140666, 1, 0, 0, 0, 0, 0, 0, 0}, std::string{});
   }
 
-  std::vector<fs::path> add_random_file_tree(
+  std::vector<std::pair<fs::path, std::string>> add_random_file_tree(
       random_file_tree_options const& opt = random_file_tree_options{}) {
     size_t max_size{128 * static_cast<size_t>(opt.avg_size)};
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1 / opt.avg_size};
     std::uniform_int_distribution<> path_comp_size_dist{0, opt.max_name_len};
-    std::vector<fs::path> paths;
+    std::vector<std::pair<fs::path, std::string>> paths;
 
     auto random_path_component = [&] {
       auto size = path_comp_size_dist(rng);
@@ -192,30 +192,48 @@ class mkdwarfs_tester : public tester_common {
     for (int x = 0; x < opt.dimension; ++x) {
       fs::path d1{random_path_component() + std::to_string(x)};
       os->add_dir(d1);
+
       for (int y = 0; y < opt.dimension; ++y) {
         fs::path d2{d1 / (random_path_component() + std::to_string(y))};
         os->add_dir(d2);
+
         for (int z = 0; z < opt.dimension; ++z) {
           fs::path f{d2 / (random_path_component() + std::to_string(z))};
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
-          os->add_file(f, size, true);
-          paths.push_back(f);
-          if (opt.with_errors && rng() % 4 == 0) {
-            os->set_map_file_error(
-                fs::path{"/"} / f,
-                std::make_exception_ptr(std::runtime_error("map_file_error")),
-                rng() % 4);
+          std::string data;
+
+          if (rng() % 2 == 0) {
+            data = test::create_random_string(size, rng);
+          } else {
+            data = test::loremipsum(size);
+          }
+
+          os->add_file(f, data);
+          paths.emplace_back(f, data);
+
+          if (opt.with_errors) {
+            auto failpath = fs::path{"/"} / f;
+            switch (rng() % 8) {
+            case 0:
+              os->set_access_fail(failpath);
+              [[fallthrough]];
+            case 1:
+            case 2:
+              os->set_map_file_error(
+                  failpath,
+                  std::make_exception_ptr(std::runtime_error("map_file_error")),
+                  rng() % 4);
+              break;
+
+            default:
+              break;
+            }
           }
         }
       }
     }
 
     return paths;
-  }
-
-  std::vector<fs::path>
-  add_random_file_tree(double avg_size, int dimension = 20) {
-    return add_random_file_tree({.avg_size = avg_size, .dimension = dimension});
   }
 
   void add_test_file_tree() {
@@ -566,10 +584,11 @@ TEST(mkdwarfs_test, input_list_large) {
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   auto paths = t.add_random_file_tree({.avg_size = 32.0, .dimension = 32});
+
   {
     std::ostringstream os;
     for (auto const& p : paths) {
-      os << p.string() << '\n';
+      os << p.first.string() << '\n';
     }
     t.iol->set_in(os.str());
   }
@@ -578,7 +597,10 @@ TEST(mkdwarfs_test, input_list_large) {
 
   auto fs = t.fs_from_stdout();
 
-  std::set<fs::path> expected{paths.begin(), paths.end()};
+  std::set<fs::path> expected;
+  std::transform(paths.begin(), paths.end(),
+                 std::inserter(expected, expected.end()),
+                 [](auto const& p) { return p.first; });
   std::set<fs::path> actual;
 
   fs.walk([&](auto const& e) {
@@ -2133,15 +2155,112 @@ TEST(mkdwarfs_test, map_file_error) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("filesystem created with 1 error"));
 }
 
-// TODO: enable this once we know how to make it work reliably
-#if 0
-TEST(mkdwarfs_test, map_file_error_delayed) {
-  mkdwarfs_tester t;
-  t.os->set_map_file_error(
-      "/somedir/ipsum.py",
-      std::make_exception_ptr(std::runtime_error("map_file_error")), 1);
+class map_file_error_test : public testing::TestWithParam<char const*> {};
 
-  EXPECT_DEATH(t.run("-i / -o - --categorize --no-progress --log-level=error"),
-               "");
+TEST_P(map_file_error_test, delayed) {
+  std::string extra_args{GetParam()};
+
+  // TODO: we must also simulate hardlinks here...
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  auto files = t.add_random_file_tree({.avg_size = 64.0,
+                                       .dimension = 20,
+                                       .max_name_len = 8,
+                                       .with_errors = true});
+
+  // t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
+  // t.iol->use_real_terminal(true);
+
+  std::string args = "-i / -o test.dwarfs --no-progress --log-level=verbose";
+  if (!extra_args.empty()) {
+    args += " " + extra_args;
+  }
+
+  EXPECT_EQ(2, t.run(args)) << t.err();
+
+  auto fs = t.fs_from_file("test.dwarfs");
+  // fs.dump(std::cout, 2);
+
+  std::unordered_map<fs::path, std::string> actual_files;
+  fs.walk([&](auto const& dev) {
+    auto iv = dev.inode();
+    if (iv.is_regular_file()) {
+      std::string data;
+      file_stat stat;
+      ASSERT_EQ(0, fs.getattr(iv, &stat));
+      data.resize(stat.size);
+      ASSERT_EQ(data.size(), fs.read(iv.inode_num(), data.data(), data.size()));
+      ASSERT_TRUE(actual_files.emplace(dev.fs_path(), std::move(data)).second);
+    }
+  });
+
+  // check that:
+  // - all original files are present
+  // - they're either empty (in case of errors) or have the original content
+
+  size_t num_non_empty = 0;
+
+  auto failed_expected = t.os->get_failed_paths();
+  std::set<fs::path> failed_actual;
+
+  for (auto const& [path, data] : files) {
+    auto it = actual_files.find(path);
+    ASSERT_NE(actual_files.end(), it);
+    if (!it->second.empty()) {
+      EXPECT_EQ(data, it->second);
+      ++num_non_empty;
+    } else if (!data.empty()) {
+      failed_actual.insert(fs::path("/") / path);
+    } else {
+      failed_expected.erase(fs::path("/") / path);
+    }
+  }
+
+  EXPECT_LE(failed_actual.size(), failed_expected.size());
+
+  EXPECT_EQ(8000, files.size());
+  EXPECT_GT(num_non_empty, 4000);
+
+  // Ensure that files which never had any errors are all present
+
+  std::set<fs::path> surprisingly_missing;
+
+  std::set_difference(
+      failed_actual.begin(), failed_actual.end(), failed_expected.begin(),
+      failed_expected.end(),
+      std::inserter(surprisingly_missing, surprisingly_missing.begin()));
+
+  std::unordered_map<fs::path, std::string> original_files(files.begin(),
+                                                           files.end());
+
+  EXPECT_EQ(0, surprisingly_missing.size());
+
+  for (auto const& path : surprisingly_missing) {
+    std::cout << "surprisingly missing: " << path << std::endl;
+    auto it = original_files.find(path.relative_path());
+    ASSERT_NE(original_files.end(), it);
+    std::cout << "--- original (" << it->second.size() << " bytes) ---"
+              << std::endl;
+    std::cout << folly::hexDump(it->second.data(), it->second.size())
+              << std::endl;
+  }
 }
-#endif
+
+namespace {
+
+std::array const map_file_error_args{
+    "",
+    "--categorize",
+    "--order=revpath",
+    "--order=revpath --categorize",
+    "--file-hash=none",
+    "--file-hash=none --categorize",
+    "--file-hash=none --order=revpath",
+    "--file-hash=none --order=revpath --categorize",
+};
+
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, map_file_error_test,
+                         ::testing::ValuesIn(map_file_error_args));

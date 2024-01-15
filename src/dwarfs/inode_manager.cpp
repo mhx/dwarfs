@@ -203,8 +203,15 @@ class inode_ : public inode {
     if (files_.empty()) {
       DWARFS_THROW(runtime_error, "inode has no file (any)");
     }
+    for (auto const& f : files_) {
+      if (!f->is_invalid()) {
+        return f;
+      }
+    }
     return files_.front();
   }
+
+  files_vector const& all() const override { return files_; }
 
   void append_chunks_to(std::vector<chunk_type>& vec) const override {
     for (auto const& frag : fragments_) {
@@ -228,11 +235,21 @@ class inode_ : public inode {
       }
     };
 
-    os << "inode " << num() << " (" << any()->size() << " bytes):\n";
+    std::string ino_num{"?"};
+
+    if (flags_ & kNumIsValid) {
+      ino_num = std::to_string(num());
+    }
+
+    os << "inode " << ino_num << " (" << any()->size() << " bytes):\n";
     os << "  files:\n";
 
     for (auto const& f : files_) {
-      os << "    " << f->path_as_string() << "\n";
+      os << "    " << f->path_as_string();
+      if (f->is_invalid()) {
+        os << " (invalid)";
+      }
+      os << "\n";
     }
 
     os << "  fragments:\n";
@@ -280,6 +297,43 @@ class inode_ : public inode {
             similarity_map_visitor,
         },
         similarity_);
+  }
+
+  void set_scan_error(file const* fp, std::exception_ptr ep) override {
+    assert(!scan_error_);
+    scan_error_ = std::make_unique<std::pair<file const*, std::exception_ptr>>(
+        fp, std::move(ep));
+  }
+
+  std::optional<std::pair<file const*, std::exception_ptr>>
+  get_scan_error() const override {
+    if (scan_error_) {
+      return *scan_error_;
+    }
+    return std::nullopt;
+  }
+
+  std::tuple<std::unique_ptr<mmif>, file const*,
+             std::vector<std::pair<file const*, std::exception_ptr>>>
+  mmap_any(os_access const& os) const override {
+    std::unique_ptr<mmif> mm;
+    std::vector<std::pair<file const*, std::exception_ptr>> errors;
+    file const* rfp{nullptr};
+
+    for (auto fp : files_) {
+      if (!fp->is_invalid()) {
+        try {
+          mm = os.map_file(fp->fs_path(), fp->size());
+          rfp = fp;
+          break;
+        } catch (...) {
+          fp->set_invalid();
+          errors.emplace_back(fp, std::current_exception());
+        }
+      }
+    }
+
+    return {std::move(mm), rfp, std::move(errors)};
   }
 
  private:
@@ -457,6 +511,7 @@ class inode_ : public inode {
   uint32_t num_{0};
   inode_fragments fragments_;
   files_vector files_;
+  std::unique_ptr<std::pair<file const*, std::exception_ptr>> scan_error_;
 
   std::variant<
       // in case of no hashes at all
@@ -553,6 +608,10 @@ class inode_manager_ final : public inode_manager::impl {
   void scan_background(worker_group& wg, os_access const& os,
                        std::shared_ptr<inode> ino, file* p) const override;
 
+  bool has_invalid_inodes() const override;
+
+  void try_scan_invalid(worker_group& wg, os_access const& os) override;
+
   void dump(std::ostream& os) const override;
 
   sortable_inode_span sortable_span() const override {
@@ -587,6 +646,7 @@ class inode_manager_ final : public inode_manager::impl {
   progress& prog_;
   inode_options opts_;
   bool const inodes_need_scanning_;
+  std::atomic<size_t> mutable num_invalid_inodes_{0};
 };
 
 template <typename LoggerPolicy>
@@ -603,24 +663,78 @@ void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
     wg.add_job([this, &os, p, ino = std::move(ino)] {
       auto const size = p->size();
       std::shared_ptr<mmif> mm;
-      if (size > 0) {
+
+      if (size > 0 && !p->is_invalid()) {
         try {
           mm = os.map_file(p->fs_path(), size);
         } catch (...) {
-          LOG_ERROR << "failed to map file \"" << p->path_as_string()
-                    << "\": " << folly::exceptionStr(std::current_exception())
-                    << ", creating empty inode";
-          ++prog_.errors;
-          p->override_size(0);
-          // don't return here, we still need scan() to run
+          p->set_invalid();
+          // If this file *was* successfully mapped before, there's a slight
+          // chance that there's another file with the same hash. We can only
+          // figure this out later when all files have been hashed, so we
+          // save the error and try again later (in `try_scan_invalid()`).
+          ino->set_scan_error(p, std::current_exception());
+          ++num_invalid_inodes_;
+          return;
         }
       }
+
       ino->scan(mm.get(), opts_, prog_);
       update_prog(ino, p);
     });
   } else {
     ino->populate(p->size());
     update_prog(ino, p);
+  }
+}
+
+template <typename LoggerPolicy>
+bool inode_manager_<LoggerPolicy>::has_invalid_inodes() const {
+  assert(inodes_need_scanning_ || num_invalid_inodes_.load() == 0);
+  return num_invalid_inodes_.load() > 0;
+}
+
+template <typename LoggerPolicy>
+void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
+                                                    os_access const& os) {
+  LOG_VERBOSE << "trying to scan " << num_invalid_inodes_.load()
+              << " invalid inodes...";
+
+  for (auto const& ino : inodes_) {
+    if (auto scan_err = ino->get_scan_error()) {
+      std::vector<std::pair<file const*, std::exception_ptr>> errors;
+      auto const& fv = ino->all();
+
+      if (fv.size() > 1) {
+        auto [mm, p, err] = ino->mmap_any(os);
+
+        if (mm) {
+          LOG_DEBUG << "successfully opened: " << p->path_as_string();
+
+          wg.add_job([this, p, ino, mm = std::move(mm)] {
+            ino->scan(mm.get(), opts_, prog_);
+            update_prog(ino, p);
+          });
+
+          continue;
+        }
+
+        errors = std::move(err);
+      }
+
+      ino->scan(nullptr, opts_, prog_);
+      ++prog_.inodes_scanned;
+      ++prog_.files_scanned;
+
+      errors.emplace_back(scan_err.value());
+
+      for (auto const& [fp, ep] : errors) {
+        LOG_ERROR << "failed to map file \"" << fp->path_as_string()
+                  << "\": " << folly::exceptionStr(ep)
+                  << ", creating empty inode";
+        ++prog_.errors;
+      }
+    }
   }
 }
 

@@ -354,7 +354,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     if (pe) {
       switch (pe->type()) {
       case entry::E_FILE:
-        if (os_->access(pe->fs_path(), R_OK)) {
+        if (pe->size() > 0 && os_->access(pe->fs_path(), R_OK)) {
           LOG_ERROR << "cannot access " << pe->path_as_string()
                     << ", creating empty file";
           pe->override_size(0);
@@ -601,6 +601,7 @@ void scanner_<LoggerPolicy>::scan(
   root->accept(lsiv, true);
 
   LOG_INFO << "waiting for background scanners...";
+
   wg_.wait();
 
   LOG_INFO << "scanning CPU time: " << time_with_unit(wg_.get_cpu_time());
@@ -608,6 +609,14 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
   fs.finalize(first_device_inode);
+
+  // this must be done after finalizing the inodes since this is when
+  // the file vectors are populated
+  if (im.has_invalid_inodes()) {
+    LOG_INFO << "trying to recover any invalid inodes...";
+    im.try_scan_invalid(wg_, *os_);
+    wg_.wait();
+  }
 
   LOG_INFO << "saved " << size_with_unit(prog.saved_by_deduplication) << " / "
            << size_with_unit(prog.original_size) << " in "
@@ -738,18 +747,28 @@ void scanner_<LoggerPolicy>::scan(
           // TODO: factor this code out
           auto f = ino->any();
 
-          if (auto size = f->size(); size > 0) {
-            auto mm = os_->map_file(f->fs_path(), size);
-            file_off_t offset{0};
+          if (auto size = f->size(); size > 0 && !f->is_invalid()) {
+            auto [mm, _, errors] = ino->mmap_any(*os_);
 
-            for (auto& frag : ino->fragments()) {
-              if (frag.category() == category) {
-                fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
-                seg.add_chunkable(fc);
-                prog.fragments_written++;
+            if (mm) {
+              file_off_t offset{0};
+
+              for (auto& frag : ino->fragments()) {
+                if (frag.category() == category) {
+                  fragment_chunkable fc(*ino, frag, offset, *mm, catmgr);
+                  seg.add_chunkable(fc);
+                  prog.fragments_written++;
+                }
+
+                offset += frag.size();
               }
-
-              offset += frag.size();
+            } else {
+              for (auto& [fp, e] : errors) {
+                LOG_ERROR << "failed to map file " << fp->path_as_string()
+                          << ": " << folly::exceptionStr(e)
+                          << ", creating empty inode";
+                ++prog.errors;
+              }
             }
           }
 
