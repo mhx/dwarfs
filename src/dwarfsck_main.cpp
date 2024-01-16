@@ -55,7 +55,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   size_t num_workers;
   int detail;
   bool quiet{false};
-  bool json{false};
+  bool output_json{false};
   bool check_integrity{false};
   bool no_check{false};
   bool print_header{false};
@@ -88,7 +88,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&no_check)->zero_tokens(),
         "don't even verify block checksums")
     ("json,j",
-        po::value<bool>(&json)->zero_tokens(),
+        po::value<bool>(&output_json)->zero_tokens(),
         "print information in JSON format")
     ("export-metadata",
         po::value<std::string>(&export_metadata),
@@ -131,7 +131,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
-    if (print_header && (json || !export_metadata.empty() || check_integrity)) {
+    if (print_header &&
+        (output_json || !export_metadata.empty() || check_integrity)) {
       LOG_WARN << "--print-header is mutually exclusive with --json, "
                   "--export-metadata and --check-integrity";
       return 1;
@@ -184,7 +185,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
         if (!quiet) {
-          if (json) {
+          if (output_json) {
             iol.out << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
           } else {
             fs.dump(iol.out, detail);
