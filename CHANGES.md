@@ -1,5 +1,15 @@
 # Change Log
 
+## Version 0.7.5 - 2024-01-16
+
+- (fix) Fix crash in the FUSE driver on Windows when tools like Notepad++
+  try to access a file like a directory (presumably because this works in
+  cases where the file is an archive). This is a Windows-only issue because
+  the Linux FUSE driver uses the inode-based API, whereas the Windows driver
+  uses the string-based API. While parsing a path in the string-based API,
+  there was no check whether a path component was a directory before trying
+  to descend further.
+
 ## Version 0.7.4 - 2023-12-28
 
 - (fix) Fix regression that broke section index optimization introduced
