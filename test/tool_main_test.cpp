@@ -2335,13 +2335,11 @@ TEST_P(map_file_error_test, delayed) {
   EXPECT_EQ(0, surprisingly_missing.size());
 
   for (auto const& path : surprisingly_missing) {
-    std::cout << "surprisingly missing: " << path << std::endl;
+    std::cout << "surprisingly missing: " << path << "\n";
     auto it = original_files.find(path.relative_path());
     ASSERT_NE(original_files.end(), it);
-    std::cout << "--- original (" << it->second.size() << " bytes) ---"
-              << std::endl;
-    std::cout << folly::hexDump(it->second.data(), it->second.size())
-              << std::endl;
+    std::cout << "--- original (" << it->second.size() << " bytes) ---\n";
+    std::cout << folly::hexDump(it->second.data(), it->second.size()) << "\n";
   }
 
   auto dump = t.fa->get_file("inodes.dump");
