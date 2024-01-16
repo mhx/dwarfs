@@ -34,6 +34,14 @@
   Unit tests were added to ensure both old and new formats are
   read correctly.
 
+- (fix) `mkdwarfs` is now much better at handling inaccessible or
+  vanishing files. In particular on Windows, where a successful
+  `access()` call doesn't necessarily mean it'll be possible to open
+  a file, this will make it possible to create a DwarFS file system
+  from hierarchies containing inaccessible files. On other platforms,
+  this means `mkdwarfs` can now handle files that are vanishing while
+  the file system is being built.
+
 - (fix) `utf8_truncate()` didn't handle zero-width characters properly.
   This could cause issues when truncating certain UTF8 strings.
 
@@ -56,6 +64,11 @@
 
 - (fix) Fix slow sorting in `file_scanner` due to path comparison.
 
+- (fix) The string-based `find()` method, which is used on Windows, now
+  checks whether a path component is a directory before continuing the
+  search. The lack of this check could previously lead to assertion
+  failures when attempting to access non-existent files on Windows.
+
 - (remove) Python scripting support has been completely removed.
 
 - (feature) Categorizer framework. Initially supported categorizers are
@@ -75,6 +88,10 @@
   segmenting the audio data in a 16-bit stereo PCM file, the granularity
   is 4 (bytes). This ensures that the segmenter will only produce chunks
   that start/end on a sample boundary.
+
+- (feature) The segmenter now also features simple "repeating sequence
+  detection". Under certain conditions, these sequences could cause the
+  segmenter to slow down dramatically. See github #161 for details.
 
 - (feature) FLAC compression. This can only be used along with the
   `pcmaudio` categorizer. Due to the way data is spread across different
