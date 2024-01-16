@@ -60,6 +60,8 @@ RUN bash /usr/local/bin/install-static-libs.sh
 ARG ARCH
 # upx-4.2.2 is broken for arm64 (https://github.com/upx/upx/issues/758)
 RUN wget -O - https://github.com/upx/upx/releases/download/v4.2.1/upx-4.2.1-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
+# current ronn version is horribly broken
+RUN gem install ronn-ng
 # RUN useradd -g users -u 1000 -m mhx
 ARG SCRIPT=build-linux.sh
 COPY $SCRIPT /usr/local/bin/run.sh

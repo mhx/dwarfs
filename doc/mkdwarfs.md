@@ -2,9 +2,9 @@
 
 ## SYNOPSIS
 
-`mkdwarfs` `-i` *path* `-o` *file*|`-` [*options*...]  
-`mkdwarfs` `--input-list=`*file*|`-` `-o` *file*|`-` [*options*...]  
-`mkdwarfs` `-i` *file* `-o` *file*|`-` `--recompress` [*options*...]
+`mkdwarfs` `-i` *path* `-o` *file*\|`-` [*options*...]  
+`mkdwarfs` `--input-list=`*file*\|`-` `-o` *file*\|`-` [*options*...]  
+`mkdwarfs` `-i` *file* `-o` *file*\|`-` `--recompress` [*options*...]
 
 ## DESCRIPTION
 
@@ -398,22 +398,22 @@ Most other options are concerned with compression tuning:
   you can switch to `ascii`, which is like `unicode`, but looks less
   fancy.
 
-- `--incompressible-min-input-size=`*value*
+- `--incompressible-min-input-size=`*value*:
   The minimum size of a file to be checked for incompressibility when
   the `incompressible` categorizer is active.
 
-- `--incompressible-block-size=`*value*
+- `--incompressible-block-size=`*value*:
   The block size used to test data for compressibility. This will also
   be the size of the fragments when `--incompressible-fragments` is used.
 
-- `--incompressible-fragments`
+- `--incompressible-fragments`:
   Categorize individual fragments of a file as incompressible instead of
   only the file as a whole.
 
-- `--incompressible-ratio=`*value*
+- `--incompressible-ratio=`*value*:
   The ratio above which a file or fragment is categorized as `incompressible`.
 
-- `--incompressible-zstd-level=`*value*
+- `--incompressible-zstd-level=`*value*:
   The ZSTD compression level used for incompressible categorization.
 
 - `-h`, `--help`:
