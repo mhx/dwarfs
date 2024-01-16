@@ -34,6 +34,7 @@
 #include <fmt/format.h>
 
 #include <folly/String.h>
+#include <folly/container/Enumerate.h>
 #include <folly/json.h>
 
 #include "dwarfs/filesystem_v2.h"
@@ -1781,7 +1782,7 @@ TEST(dwarfsck_test, check_fail) {
     EXPECT_EQ(0, t.run({"image.dwarfs", "--check-integrity"})) << t.err();
   }
 
-  std::map<std::string, size_t> section_offsets;
+  std::vector<std::pair<std::string, size_t>> section_offsets;
 
   {
     auto t = dwarfsck_tester::create_with_image(image);
@@ -1795,33 +1796,84 @@ TEST(dwarfsck_test, check_fail) {
     for (auto const& section : info["sections"]) {
       auto type = section["type"].asString();
       auto size = section["compressed_size"].asInt();
-      section_offsets[type] = offset;
+      section_offsets.emplace_back(type, offset);
       offset += section_header_size + size;
     }
 
     EXPECT_EQ(image.size(), offset);
   }
 
+  size_t index = 0;
+
   for (auto const& [type, offset] : section_offsets) {
+    bool const is_metadata_section =
+        type == "METADATA_V2" || type == "METADATA_V2_SCHEMA";
+    bool const is_block = type == "BLOCK";
     auto corrupt_image = image;
     // flip a bit right after the header
     corrupt_image[offset + section_header_size] ^= 0x01;
 
+    // std::cout << "corrupting section: " << type << " @ " << offset << "\n";
+
+    {
+      test::test_logger lgr;
+      auto make_fs = [&] {
+        return filesystem_v2{lgr,
+                             std::make_shared<test::mmap_mock>(corrupt_image)};
+      };
+      if (is_metadata_section) {
+        EXPECT_THAT([&] { make_fs(); },
+                    ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                        ::testing::HasSubstr(fmt::format(
+                            "checksum error in section: {}", type))));
+      } else {
+        auto fs = make_fs();
+        auto& log = lgr.get_log();
+        if (is_block) {
+          EXPECT_EQ(0, log.size());
+        } else {
+          ASSERT_EQ(1, log.size());
+          EXPECT_THAT(log[0].output,
+                      ::testing::HasSubstr(
+                          fmt::format("checksum error in section: {}", type)));
+        }
+        auto info = fs.info_as_dynamic(3);
+        ASSERT_EQ(1, info.count("sections"));
+        ASSERT_EQ(section_offsets.size(), info["sections"].size());
+        for (auto const& [i, section] : folly::enumerate(info["sections"])) {
+          EXPECT_EQ(section["checksum_ok"].asBool(), i != index)
+              << type << ", " << index;
+        }
+        auto dump = fs.dump(3);
+        EXPECT_THAT(dump, ::testing::HasSubstr("CHECKSUM ERROR"));
+      }
+    }
+
     {
       auto t = dwarfsck_tester::create_with_image(corrupt_image);
 
-      // for blocks, we skip checks with --no-check
-      if (type == "BLOCK") {
-        EXPECT_EQ(0, t.run({"image.dwarfs", "--no-check", "-j"})) << t.err();
-        EXPECT_GT(t.out().size(), 100) << t.out();
-      } else {
+      if (is_metadata_section) {
         EXPECT_EQ(1, t.run({"image.dwarfs", "--no-check", "-j"})) << t.err();
-        EXPECT_EQ(0, t.out().size()) << t.out();
+      } else {
+        EXPECT_EQ(0, t.run({"image.dwarfs", "--no-check", "-j"})) << t.err();
+      }
+
+      // for blocks, we skip checks with --no-check
+      if (!is_block) {
         EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
                                  "checksum error in section: {}", type)));
       }
 
-      // std::cout << "[" << type << ", nocheck]\n" << t.out() << std::endl;
+      auto json = t.out();
+
+      // std::cout << "[" << type << ", nocheck]\n" << json << "\n";
+
+      if (is_metadata_section) {
+        EXPECT_EQ(0, json.size()) << json;
+      } else {
+        EXPECT_GT(json.size(), 100) << json;
+        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+      }
     }
 
     {
@@ -1829,16 +1881,19 @@ TEST(dwarfsck_test, check_fail) {
 
       EXPECT_EQ(1, t.run({"image.dwarfs", "-j"})) << t.err();
 
-      if (type == "BLOCK") {
-        EXPECT_GT(t.out().size(), 100) << t.out();
-      } else {
-        EXPECT_EQ(0, t.out().size()) << t.out();
-      }
-
       EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
                                "checksum error in section: {}", type)));
 
-      // std::cout << "[" << type << "]\n" << t.out() << std::endl;
+      auto json = t.out();
+
+      // std::cout << "[" << type << "]\n" << json << "\n";
+
+      if (is_metadata_section) {
+        EXPECT_EQ(0, json.size()) << json;
+      } else {
+        EXPECT_GT(json.size(), 100) << json;
+        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+      }
     }
 
     {
@@ -1847,18 +1902,42 @@ TEST(dwarfsck_test, check_fail) {
       EXPECT_EQ(1, t.run({"image.dwarfs", "--check-integrity", "-j"}))
           << t.err();
 
-      if (type == "BLOCK") {
-        EXPECT_GT(t.out().size(), 100) << t.out();
+      if (is_block) {
         EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
                                  "integrity check error in section: BLOCK")));
       } else {
-        EXPECT_EQ(0, t.out().size()) << t.out();
         EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
                                  "checksum error in section: {}", type)));
       }
 
-      // std::cout << "[" << type << ", integrity]\n"  << t.out() << std::endl;
+      auto json = t.out();
+
+      // std::cout << "[" << type << ", integrity]\n"  << json << "\n";
+
+      if (is_metadata_section) {
+        EXPECT_EQ(0, json.size()) << json;
+      } else {
+        EXPECT_GT(json.size(), 100) << json;
+        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+      }
     }
+
+    {
+      auto t = dwarfsck_tester::create_with_image(corrupt_image);
+
+      EXPECT_EQ(1, t.run({"image.dwarfs", "-d3"})) << t.err();
+
+      EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt::format(
+                               "checksum error in section: {}", type)));
+
+      if (is_metadata_section) {
+        EXPECT_EQ(0, t.out().size()) << t.out();
+      } else {
+        EXPECT_THAT(t.out(), ::testing::HasSubstr("CHECKSUM ERROR"));
+      }
+    }
+
+    ++index;
   }
 }
 

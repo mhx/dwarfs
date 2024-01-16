@@ -272,25 +272,51 @@ using section_map = std::unordered_map<section_type, std::vector<fs_section>>;
 
 size_t
 get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
+  if (sec.compression() == compression_type::NONE) {
+    return sec.length();
+  }
+
+  if (!sec.check_fast(*mm)) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("attempt to access damaged {} section", sec.name()));
+  }
+
   std::vector<uint8_t> tmp;
-  block_decompressor bd(sec.compression(), mm->as<uint8_t>(sec.start()),
-                        sec.length(), tmp);
+  auto span = sec.data(*mm);
+  block_decompressor bd(sec.compression(), span.data(), span.size(), tmp);
   return bd.uncompressed_size();
+}
+
+std::optional<size_t>
+try_get_uncompressed_section_size(std::shared_ptr<mmif> mm,
+                                  fs_section const& sec) {
+  if (sec.check_fast(*mm)) {
+    try {
+      return get_uncompressed_section_size(mm, sec);
+    } catch (std::exception const&) {
+    }
+  }
+
+  return std::nullopt;
 }
 
 std::span<uint8_t const>
 get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
+  DWARFS_CHECK(
+      section.check_fast(*mm),
+      fmt::format("attempt to access damaged {} section", section.name()));
+
+  auto span = section.data(*mm);
   auto compression = section.compression();
-  auto start = section.start();
-  auto length = section.length();
 
   if (!force_buffer && compression == compression_type::NONE) {
-    return mm->span(start, length);
+    return span;
   }
 
-  buffer = block_decompressor::decompress(compression, mm->as<uint8_t>(start),
-                                          length);
+  buffer =
+      block_decompressor::decompress(compression, span.data(), span.size());
 
   return buffer;
 }
@@ -538,7 +564,17 @@ filesystem_<LoggerPolicy>::filesystem_(
       check_section(*s);
 
       if (!s->check_fast(*mm_)) {
-        DWARFS_THROW(runtime_error, "checksum error in section: " + s->name());
+        switch (s->type()) {
+        case section_type::METADATA_V2:
+        case section_type::METADATA_V2_SCHEMA:
+          DWARFS_THROW(runtime_error,
+                       "checksum error in section: " + s->name());
+          break;
+
+        default:
+          LOG_WARN << "checksum error in section: " << s->name();
+          break;
+        }
       }
 
       sections[s->type()].push_back(*s);
@@ -560,8 +596,10 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     for (auto& section : it->second) {
-      std::vector<uint8_t> buffer;
-      history_.parse_append(get_section_data(mm_, section, buffer, false));
+      if (section.check_fast(*mm_)) {
+        std::vector<uint8_t> buffer;
+        history_.parse_append(get_section_data(mm_, section, buffer, false));
+      }
     }
   }
 }
@@ -811,8 +849,17 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
-      auto uncompressed_size = get_uncompressed_section_size(mm_, s);
-      float compression_ratio = float(s.length()) / uncompressed_size;
+      std::string block_size;
+
+      if (auto uncompressed_size = try_get_uncompressed_section_size(mm_, s)) {
+        float compression_ratio = float(s.length()) / uncompressed_size.value();
+        block_size =
+            fmt::format("blocksize={}, ratio={:.2f}%",
+                        uncompressed_size.value(), 100.0 * compression_ratio);
+      } else {
+        block_size = fmt::format("blocksize={} (estimate)", s.length());
+      }
+
       std::string category;
 
       if (s.type() == section_type::BLOCK) {
@@ -822,9 +869,8 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
         ++block_no;
       }
 
-      os << "SECTION " << s.description() << ", blocksize=" << uncompressed_size
-         << ", ratio=" << fmt::format("{:.2f}%", 100.0 * compression_ratio)
-         << category << "\n";
+      os << "SECTION " << s.description() << ", " << block_size << category
+         << "\n";
     }
   }
 
@@ -874,17 +920,20 @@ filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
-      auto uncompressed_size = get_uncompressed_section_size(mm_, s);
-      float compression_ratio = float(s.length()) / uncompressed_size;
+      bool checksum_ok = s.check_fast(*mm_);
 
       folly::dynamic section_info = folly::dynamic::object
           // clang-format off
           ("type", s.name())
-          ("size", uncompressed_size)
           ("compressed_size", s.length())
-          ("ratio", compression_ratio)
+          ("checksum_ok", checksum_ok)
           // clang-format on
           ;
+
+      if (auto uncompressed_size = try_get_uncompressed_section_size(mm_, s)) {
+        section_info["size"] = uncompressed_size.value();
+        section_info["ratio"] = float(s.length()) / uncompressed_size.value();
+      }
 
       if (s.type() == section_type::BLOCK) {
         if (auto catstr = meta_.get_block_category(block_no)) {
