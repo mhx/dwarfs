@@ -289,6 +289,7 @@ std::ostream& operator<<(std::ostream& os, test_enum e) {
   case test_enum::baz:
     return os << "baz";
   }
+  throw std::runtime_error("invalid enum value");
 }
 
 } // namespace
