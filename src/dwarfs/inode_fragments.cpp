@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <numeric>
 #include <ostream>
 #include <sstream>
 
@@ -43,6 +44,18 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
   c.offset() = offset;
   c.size() = size;
   chunks_.push_back(std::move(c));
+}
+
+bool single_inode_fragment::chunks_are_consistent() const {
+  if (length_ > 0 && chunks_.empty()) {
+    return false;
+  }
+
+  auto total_chunks_len = std::accumulate(
+      chunks_.begin(), chunks_.end(), file_off_t{0},
+      [](auto acc, auto const& c) { return acc + c.get_size(); });
+
+  return total_chunks_len == length_;
 }
 
 std::ostream&

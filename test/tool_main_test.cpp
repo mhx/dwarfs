@@ -33,6 +33,7 @@
 
 #include <fmt/format.h>
 
+#include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
 #include <folly/json.h>
@@ -2262,10 +2263,31 @@ TEST_P(map_file_error_test, delayed) {
 
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
+  t.os->add_local_files(audio_data_dir);
   auto files = t.add_random_file_tree({.avg_size = 64.0,
                                        .dimension = 20,
                                        .max_name_len = 8,
                                        .with_errors = true});
+
+  {
+    std::mt19937_64 rng{42};
+
+    for (auto const& p : fs::recursive_directory_iterator(audio_data_dir)) {
+      if (p.is_regular_file()) {
+        auto fp = fs::relative(p.path(), audio_data_dir);
+        std::string contents;
+        ASSERT_TRUE(folly::readFile(p.path().string().c_str(), contents));
+        files.emplace_back(fp, std::move(contents));
+
+        if (rng() % 2 == 0) {
+          t.os->set_map_file_error(
+              fs::path{"/"} / fp,
+              std::make_exception_ptr(std::runtime_error("map_file_error")),
+              rng() % 4);
+        }
+      }
+    }
+  }
 
   t.os->setenv("DWARFS_DUMP_INODES", "inodes.dump");
   // t.iol->use_real_terminal(true);
@@ -2317,7 +2339,7 @@ TEST_P(map_file_error_test, delayed) {
 
   EXPECT_LE(failed_actual.size(), failed_expected.size());
 
-  EXPECT_EQ(8000, files.size());
+  EXPECT_GT(files.size(), 8000);
   EXPECT_GT(num_non_empty, 4000);
 
   // Ensure that files which never had any errors are all present

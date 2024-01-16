@@ -820,7 +820,14 @@ void scanner_<LoggerPolicy>::scan(
   mv2.chunks().value().reserve(prog.chunk_count);
   im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
     DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = mv2.chunks()->size();
-    ino->append_chunks_to(mv2.chunks().value());
+    if (!ino->append_chunks_to(mv2.chunks().value())) {
+      std::ostringstream oss;
+      for (auto fp : ino->all()) {
+        oss << "\n  " << fp->path_as_string();
+      }
+      LOG_ERROR << "inconsistent fragments in inode " << ino->num()
+                << ", the following files will be empty:" << oss.str();
+    }
   });
 
   blockmgr->map_logical_blocks(mv2.chunks().value());

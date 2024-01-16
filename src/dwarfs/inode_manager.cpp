@@ -215,13 +215,19 @@ class inode_ : public inode {
 
   files_vector const& all() const override { return files_; }
 
-  void append_chunks_to(std::vector<chunk_type>& vec) const override {
+  bool append_chunks_to(std::vector<chunk_type>& vec) const override {
+    for (auto const& frag : fragments_) {
+      if (!frag.chunks_are_consistent()) {
+        return false;
+      }
+    }
     for (auto const& frag : fragments_) {
       auto chks = frag.chunks();
       if (!chks.empty()) {
         vec.insert(vec.end(), chks.begin(), chks.end());
       }
     }
+    return true;
   }
 
   inode_fragments& fragments() override { return fragments_; }

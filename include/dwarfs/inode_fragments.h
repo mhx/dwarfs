@@ -52,6 +52,8 @@ class single_inode_fragment {
 
   void extend(file_off_t length) { length_ += length; }
 
+  bool chunks_are_consistent() const;
+
  private:
   fragment_category category_;
   file_off_t length_;
