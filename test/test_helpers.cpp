@@ -300,12 +300,12 @@ void os_access_mock::add_file(fs::path const& path,
   add(path, st, contents);
 }
 
-void os_access_mock::add_local_files(fs::path const& audio_data_dir) {
-  for (auto const& p : fs::recursive_directory_iterator(audio_data_dir)) {
+void os_access_mock::add_local_files(fs::path const& base_path) {
+  for (auto const& p : fs::recursive_directory_iterator(base_path)) {
     if (p.is_directory()) {
-      add_dir(fs::relative(p.path(), audio_data_dir));
+      add_dir(fs::relative(p.path(), base_path));
     } else if (p.is_regular_file()) {
-      auto relpath = fs::relative(p.path(), audio_data_dir);
+      auto relpath = fs::relative(p.path(), base_path);
       simplestat st;
       std::memset(&st, 0, sizeof(st));
       st.ino = ino_++;
