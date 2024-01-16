@@ -64,11 +64,6 @@
 
 - (fix) Fix slow sorting in `file_scanner` due to path comparison.
 
-- (fix) The string-based `find()` method, which is used on Windows, now
-  checks whether a path component is a directory before continuing the
-  search. The lack of this check could previously lead to assertion
-  failures when attempting to access non-existent files on Windows.
-
 - (remove) Python scripting support has been completely removed.
 
 - (feature) Categorizer framework. Initially supported categorizers are
@@ -207,6 +202,16 @@
   This allows testing of almost all tool functionality without the need
   to start the tool as a subprocess. It also allows to inject errors more
   easily, and change properties such as the terminal size.
+
+## Version 0.7.5 - 2024-01-16
+
+- (fix) Fix crash in the FUSE driver on Windows when tools like Notepad++
+  try to access a file like a directory (presumably because this works in
+  cases where the file is an archive). This is a Windows-only issue because
+  the Linux FUSE driver uses the inode-based API, whereas the Windows driver
+  uses the string-based API. While parsing a path in the string-based API,
+  there was no check whether a path component was a directory before trying
+  to descend further.
 
 ## Version 0.7.4 - 2023-12-28
 
