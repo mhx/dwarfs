@@ -19,7 +19,7 @@ for pkg in "$DIR"/dwarfs-*.tar.zst; do
 done
 
 for exe in "$DIR"/dwarfs-universal-*; do
-  upx -d -qqq -o "$RELDIR"/$(basename "$exe").tmp "$exe" && upx --best --ultra-brute -qqq -o "$RELDIR"/$(basename "$exe") "$RELDIR"/$(basename "$exe").tmp &
+  upx -d -qqq -o "$RELDIR"/$(basename "$exe").tmp "$exe" && upx -9 -qqq -o "$RELDIR"/$(basename "$exe") "$RELDIR"/$(basename "$exe").tmp &
 done
 
 jobs -l
