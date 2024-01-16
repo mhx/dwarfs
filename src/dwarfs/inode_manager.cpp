@@ -124,6 +124,8 @@ class inode_ : public inode {
   }
 
   void scan(mmif* mm, inode_options const& opts, progress& prog) override {
+    assert(fragments_.empty());
+
     categorizer_job catjob;
 
     // No job if categorizers are disabled
@@ -623,7 +625,7 @@ class inode_manager_ final : public inode_manager::impl {
 
  private:
   void update_prog(std::shared_ptr<inode> const& ino, file const* p) const {
-    if (p->size() > 0) {
+    if (p->size() > 0 && !p->is_invalid()) {
       prog_.fragments_found += ino->fragments().size();
     }
     ++prog_.inodes_scanned;
@@ -702,6 +704,8 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
 
   for (auto const& ino : inodes_) {
     if (auto scan_err = ino->get_scan_error()) {
+      assert(ino->fragments().empty());
+
       std::vector<std::pair<file const*, std::exception_ptr>> errors;
       auto const& fv = ino->all();
 
@@ -722,9 +726,10 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
         errors = std::move(err);
       }
 
+      assert(ino->any()->is_invalid());
+
       ino->scan(nullptr, opts_, prog_);
-      ++prog_.inodes_scanned;
-      ++prog_.files_scanned;
+      update_prog(ino, ino->any());
 
       errors.emplace_back(scan_err.value());
 

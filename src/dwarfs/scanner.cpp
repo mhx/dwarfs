@@ -769,6 +769,11 @@ void scanner_<LoggerPolicy>::scan(
                           << ", creating empty inode";
                 ++prog.errors;
               }
+              for (auto& frag : ino->fragments()) {
+                if (frag.category() == category) {
+                  prog.fragments_found--;
+                }
+              }
             }
           }
 
