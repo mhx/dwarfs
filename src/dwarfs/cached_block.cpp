@@ -46,7 +46,7 @@ class cached_block_ final : public cached_block {
       , LOG_PROXY_INIT(lgr)
       , release_(release)
       , uncompressed_size_{decompressor_->uncompressed_size()} {
-    if (!disable_integrity_check && !section_.check_fast(*mm_)) {
+    if (!disable_integrity_check && !section_.check(*mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
   }

@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <atomic>
 #include <cstddef>
 #include <mutex>
 
@@ -99,6 +100,7 @@ class fs_section_v1 final : public fs_section::impl {
   }
 
   bool check_fast(mmif const&) const override { return true; }
+  bool check(mmif const&) const override { return true; }
   bool verify(mmif const&) const override { return true; }
 
   std::span<uint8_t const> data(mmif const& mm) const override {
@@ -150,15 +152,50 @@ class fs_section_v2 final : public fs_section::impl {
   }
 
   std::string description() const override {
-    return fmt::format("{}, offset={}", hdr_.to_string(), start());
+    std::string_view checksum_status;
+    switch (check_state_.load()) {
+    case check_state::passed:
+      checksum_status = "OK";
+      break;
+    case check_state::failed:
+      checksum_status = "CHECKSUM ERROR";
+      break;
+    default:
+      checksum_status = "unknown";
+      break;
+    }
+    return fmt::format("{} [{}], offset={}", hdr_.to_string(), checksum_status,
+                       start());
   }
 
   bool check_fast(mmif const& mm) const override {
-    auto hdr_cs_len =
+    if (auto state = check_state_.load(); state != check_state::unknown) {
+      return state == check_state::passed;
+    }
+
+    return check(mm);
+  }
+
+  bool check(mmif const& mm) const override {
+    if (check_state_.load() == check_state::failed) {
+      return false;
+    }
+
+    static auto constexpr kHdrCsLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
-    return checksum::verify(
-        checksum::algorithm::XXH3_64, mm.as<void>(start_ - hdr_cs_len),
-        hdr_.length + hdr_cs_len, &hdr_.xxh3_64, sizeof(hdr_.xxh3_64));
+
+    auto ok = checksum::verify(
+        checksum::algorithm::XXH3_64, mm.as<void>(start_ - kHdrCsLen),
+        hdr_.length + kHdrCsLen, &hdr_.xxh3_64, sizeof(hdr_.xxh3_64));
+
+    auto state = check_state_.load();
+
+    if (state != check_state::failed) {
+      auto desired = ok ? check_state::passed : check_state::failed;
+      check_state_.compare_exchange_strong(state, desired);
+    }
+
+    return ok;
   }
 
   bool verify(mmif const& mm) const override {
@@ -188,8 +225,11 @@ class fs_section_v2 final : public fs_section::impl {
   }
 
  private:
+  enum class check_state { unknown, passed, failed };
+
   size_t start_;
   section_header_v2 hdr_;
+  std::atomic<check_state> mutable check_state_{check_state::unknown};
 };
 
 class fs_section_v2_lazy final : public fs_section::impl {
@@ -221,6 +261,8 @@ class fs_section_v2_lazy final : public fs_section::impl {
   bool check_fast(mmif const& mm) const override {
     return section().check_fast(mm);
   }
+
+  bool check(mmif const& mm) const override { return section().check(mm); }
 
   bool verify(mmif const& mm) const override { return section().verify(mm); }
 

@@ -48,6 +48,7 @@ class fs_section {
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
   bool check_fast(mmif const& mm) const { return impl_->check_fast(mm); }
+  bool check(mmif const& mm) const { return impl_->check(mm); }
   bool verify(mmif const& mm) const { return impl_->verify(mm); }
   std::span<uint8_t const> data(mmif const& mm) const {
     return impl_->data(mm);
@@ -80,6 +81,7 @@ class fs_section {
     virtual std::string name() const = 0;
     virtual std::string description() const = 0;
     virtual bool check_fast(mmif const& mm) const = 0;
+    virtual bool check(mmif const& mm) const = 0;
     virtual bool verify(mmif const& mm) const = 0;
     virtual std::span<uint8_t const> data(mmif const& mm) const = 0;
     virtual std::optional<uint32_t> section_number() const = 0;
