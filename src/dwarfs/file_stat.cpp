@@ -102,8 +102,15 @@ void perms_to_stream(std::ostream& os, file_stat::mode_type mode) {
 file_stat make_file_stat(fs::path const& path) {
   auto status = fs::symlink_status(path);
 
-  DWARFS_CHECK(status.type() != fs::file_type::not_found,
-               u8string_to_string(path.u8string()));
+  if (status.type() == fs::file_type::not_found ||
+      status.type() == fs::file_type::unknown) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("{}: {}",
+                             status.type() == fs::file_type::not_found
+                                 ? "file not found"
+                                 : "unknown file type",
+                             u8string_to_string(path.u8string())));
+  }
 
   file_stat rv;
   rv.mode = file_status_to_mode(status);
