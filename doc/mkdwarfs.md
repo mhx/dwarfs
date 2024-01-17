@@ -460,7 +460,7 @@ is important. The first categorizer that will successfully categorize a
 file wins and, if possible, no other categorizers will run on the same
 file.
 
-### `incompressible` Categorizer
+### "incompressible" Categorizer
 
 The `incompressible` categorizer will try to compress each input with a
 very fast compression algorithm (`zstd` using a negative compression level
@@ -478,7 +478,7 @@ categorizers. Not only because it'll likely have the biggest overhead, but
 also because it can wrongly classify data as incompressible that can be
 compressed properly with a specialized algorithm (e.g. audio data).
 
-### `pcmaudio` Categorizer
+### "pcmaudio" Categorizer
 
 The `pcmaudio` categorizer can identify and categorize a wide range of
 uncompressed audio data such as `.wav`, `.aiff` and more obscure formats.
