@@ -71,4 +71,6 @@ bool getenv_is_enabled(char const* var);
 
 void setup_default_locale();
 
+std::string_view basename(std::string_view path);
+
 } // namespace dwarfs

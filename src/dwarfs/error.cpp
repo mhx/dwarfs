@@ -34,6 +34,7 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/terminal.h"
+#include "dwarfs/util.h"
 
 namespace dwarfs {
 
@@ -50,7 +51,7 @@ namespace {
 } // namespace
 
 error::error(std::string const& s, char const* file, int line) noexcept
-    : what_{fmt::format("{} [{}:{}]", s, file, line)}
+    : what_{fmt::format("{} [{}:{}]", s, basename(file), line)}
     , file_{file}
     , line_{line} {}
 

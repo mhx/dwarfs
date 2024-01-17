@@ -342,4 +342,12 @@ void setup_default_locale() {
   }
 }
 
+std::string_view basename(std::string_view path) {
+  auto pos = path.find_last_of("/\\");
+  if (pos == std::string_view::npos) {
+    return path;
+  }
+  return path.substr(pos + 1);
+}
+
 } // namespace dwarfs
