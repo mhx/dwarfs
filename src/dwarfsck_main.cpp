@@ -115,6 +115,13 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (vm.count("man")) {
+    show_manpage(manpage::get_dwarfsck_manpage(), iol);
+    return 0;
+  }
+#endif
+
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
   if (vm.count("help") or !vm.count("input")) {

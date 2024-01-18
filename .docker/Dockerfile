@@ -54,6 +54,7 @@ RUN apt install -y \
         libgoogle-glog-dev \
         libutfcpp-dev \
         libflac++-dev \
+        python3-mistletoe \
         bash-completion
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 RUN bash /usr/local/bin/install-static-libs.sh

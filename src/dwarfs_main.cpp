@@ -145,6 +145,9 @@ struct dwarfs_userdata {
   dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
 
   bool is_help{false};
+#ifdef DWARFS_BUILTIN_MANPAGE
+  bool is_man{false};
+#endif
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
@@ -967,6 +970,9 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 #if DWARFS_PERFMON_ENABLED
      << "    -o perfmon=name[,...]  enable performance monitor\n"
 #endif
+#ifdef DWARFS_BUILTIN_MANPAGE
+     << "    --man                  show manual page and exit\n"
+#endif
      << "\n";
 
 #if DWARFS_FUSE_LOWLEVEL && FUSE_USE_VERSION >= 30
@@ -1009,6 +1015,13 @@ int option_hdl(void* data, char const* arg, int key,
       userdata.is_help = true;
       return -1;
     }
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+    if (::strncmp(arg, "--man", 5) == 0) {
+      userdata.is_man = true;
+      return -1;
+    }
+#endif
     break;
 
   default:
@@ -1252,6 +1265,12 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   struct fuse_cmdline_opts fuse_opts;
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
+#ifdef DWARFS_BUILTIN_MANPAGE
+    if (userdata.is_man) {
+      show_manpage(manpage::get_dwarfs_manpage(), iol);
+      return 0;
+    }
+#endif
     usage(iol.out, opts.progname);
     return userdata.is_help ? 0 : 1;
   }
@@ -1266,6 +1285,12 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   int mt, fg;
 
   if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
+#ifdef DWARFS_BUILTIN_MANPAGE
+    if (userdata.is_man) {
+      show_manpage(manpage::get_dwarfs_manpage(), iol);
+      return 0;
+    }
+#endif
     usage(iol.out, opts.progname);
     return userdata.is_help ? 0 : 1;
   }
@@ -1336,6 +1361,13 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.err << "error: decratio must be between 0.0 and 1.0\n";
     return 1;
   }
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (userdata.is_man) {
+    show_manpage(manpage::get_dwarfs_manpage(), iol);
+    return 0;
+  }
+#endif
 
   if (!opts.seen_mountpoint) {
     usage(iol.out, opts.progname);

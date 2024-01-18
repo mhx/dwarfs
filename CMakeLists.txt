@@ -30,6 +30,7 @@ include(CheckCXXSourceCompiles)
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_FUZZ "build with fuzzing binaries" OFF)
+option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(ENABLE_FLAC "build with FLAC support" ON)
 if(WIN32)
@@ -116,6 +117,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # Apply /MT or /MTd  (multithread, static version of the run-time library)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug>:Embedded>")
+  add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -381,9 +383,7 @@ if(NOT
   endif()
 endif()
 
-list(
-  APPEND
-  LIBDWARFS_SRC
+list(APPEND LIBDWARFS_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
@@ -442,7 +442,24 @@ list(
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
   src/dwarfs/wcwidth.c
-  src/dwarfs/worker_group.cpp)
+  src/dwarfs/worker_group.cpp
+)
+
+if(WITH_MAN_OPTION)
+  include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
+
+  list(APPEND LIBDWARFS_SRC
+    src/dwarfs/pager.cpp
+    src/dwarfs/render_manpage.cpp
+  )
+
+  foreach(man mkdwarfs dwarfs dwarfsck dwarfsextract)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
+    add_manpage_source(doc/${man}.md NAME ${man}
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+    list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+  endforeach()
+endif()
 
 # Just an example for setting per file compile options
 # set_source_files_properties(src/dwarfs/segmenter.cpp PROPERTIES COMPILE_FLAGS -march=tigerlake)
@@ -640,6 +657,10 @@ if(WITH_TESTS)
     utils_test
   )
 
+  if(WITH_MAN_OPTION)
+    list(APPEND DWARFS_TESTS manpage_test)
+  endif()
+
   if(FLAC_FOUND)
     list(APPEND DWARFS_TESTS flac_compressor_test)
   endif()
@@ -777,6 +798,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
     ${tgt}
     PRIVATE DWARFS_HAVE_LIBZSTD
             DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
+            $<$<BOOL:${WITH_MAN_OPTION}>:DWARFS_BUILTIN_MANPAGE>
             $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
             $<$<BOOL:${LIBMAGIC_FOUND}>:DWARFS_HAVE_LIBMAGIC>
             $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>

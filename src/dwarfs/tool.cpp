@@ -27,6 +27,13 @@
 #include "dwarfs/tool.h"
 #include "dwarfs/version.h"
 
+#ifdef DWARFS_BUILTIN_MANPAGE
+#include "dwarfs/iolayer.h"
+#include "dwarfs/pager.h"
+#include "dwarfs/render_manpage.h"
+#include "dwarfs/terminal.h"
+#endif
+
 namespace po = boost::program_options;
 
 namespace boost {
@@ -71,10 +78,24 @@ void add_common_options(po::options_description& opts,
     ("log-with-context",
         po::value<std::optional<bool>>(&logopts.with_context)->zero_tokens(),
         "enable context logging regardless of level")
+#ifdef DWARFS_BUILTIN_MANPAGE
+    ("man",
+        "show manual page and exit")
+#endif
     ("help,h",
         "output help message and exit")
     ;
   // clang-format on
 }
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+void show_manpage(manpage::document doc, iolayer const& iol) {
+  auto const fancy = iol.term->is_fancy(iol.out);
+  auto content = render_manpage(doc, iol.term->width(), fancy);
+  if (!show_in_pager(content)) {
+    iol.out << content;
+  }
+}
+#endif
 
 } // namespace dwarfs

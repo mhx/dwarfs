@@ -660,6 +660,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (vm.count("man")) {
+    show_manpage(manpage::get_mkdwarfs_manpage(), iol);
+    return 0;
+  }
+#endif
+
   auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
 
   if (vm.count("long-help")) {

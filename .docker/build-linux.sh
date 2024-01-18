@@ -80,7 +80,7 @@ if [[ "-$BUILD_TYPE-" == *-nojemalloc-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
-  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0"
+  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0"
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then

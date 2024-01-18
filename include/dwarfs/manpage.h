@@ -21,28 +21,31 @@
 
 #pragma once
 
-#include <string>
+#include <cstdint>
+#include <span>
 #include <string_view>
 
-#include <boost/program_options.hpp>
+#include <fmt/color.h>
+#include <fmt/format.h>
 
-#ifdef DWARFS_BUILTIN_MANPAGE
-#include "dwarfs/manpage.h"
-#endif
+namespace dwarfs::manpage {
 
-namespace dwarfs {
+struct element {
+  fmt::text_style style;
+  std::string_view text;
+};
 
-struct logger_options;
-struct iolayer;
+struct line {
+  uint32_t indent_first;
+  uint32_t indent_next;
+  std::span<element const> elements;
+};
 
-std::string
-tool_header(std::string_view tool_name, std::string_view extra_info = "");
+using document = std::span<line const>;
 
-void add_common_options(boost::program_options::options_description& opts,
-                        logger_options& logopts);
+document get_mkdwarfs_manpage();
+document get_dwarfs_manpage();
+document get_dwarfsck_manpage();
+document get_dwarfsextract_manpage();
 
-#ifdef DWARFS_BUILTIN_MANPAGE
-void show_manpage(manpage::document doc, iolayer const& iol);
-#endif
-
-} // namespace dwarfs
+} // namespace dwarfs::manpage

@@ -105,6 +105,13 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
+#ifdef DWARFS_BUILTIN_MANPAGE
+  if (vm.count("man")) {
+    show_manpage(manpage::get_dwarfsextract_manpage(), iol);
+    return 0;
+  }
+#endif
+
   auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
   if (vm.count("help") or !vm.count("input")) {
