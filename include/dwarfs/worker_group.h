@@ -32,6 +32,7 @@
 namespace dwarfs {
 
 class logger;
+class os_access;
 
 /**
  * A group of worker threads
@@ -50,7 +51,8 @@ class worker_group {
    * \param num_workers     Number of worker threads.
    */
   explicit worker_group(
-      logger& lgr, const char* group_name, size_t num_workers = 1,
+      logger& lgr, os_access const& os, const char* group_name,
+      size_t num_workers = 1,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
       int niceness = 0);
 

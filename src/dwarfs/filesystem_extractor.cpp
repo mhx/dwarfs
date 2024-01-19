@@ -44,6 +44,7 @@
 #include "dwarfs/fstypes.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/options.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/util.h"
 #include "dwarfs/vfs_stat.h"
 #include "dwarfs/worker_group.h"
@@ -89,8 +90,9 @@ class archive_error : public std::runtime_error {
 template <typename LoggerPolicy>
 class filesystem_extractor_ final : public filesystem_extractor::impl {
  public:
-  explicit filesystem_extractor_(logger& lgr)
-      : LOG_PROXY_INIT(lgr) {}
+  explicit filesystem_extractor_(logger& lgr, os_access const& os)
+      : LOG_PROXY_INIT(lgr)
+      , os_{os} {}
 
   ~filesystem_extractor_() override {
     try {
@@ -215,6 +217,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   }
 
   LOG_PROXY_DECL(debug_logger_policy);
+  os_access const& os_;
   struct ::archive* a_{nullptr};
   int pipefd_[2]{-1, -1};
   std::unique_ptr<std::thread> iot_;
@@ -235,7 +238,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   ::archive_entry* spare = nullptr;
 
-  worker_group archiver(LOG_GET_LOGGER, "archiver", 1);
+  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
   cache_semaphore sem;
 
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
@@ -413,9 +416,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   return true;
 }
 
-filesystem_extractor::filesystem_extractor(logger& lgr)
+filesystem_extractor::filesystem_extractor(logger& lgr, os_access const& os)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
                                        filesystem_extractor_, logger_policies>(
-          lgr)) {}
+          lgr, os)) {}
 
 } // namespace dwarfs

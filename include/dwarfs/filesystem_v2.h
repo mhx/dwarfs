@@ -52,6 +52,7 @@ class filesystem_writer;
 class history;
 class logger;
 class mmif;
+class os_access;
 class performance_monitor;
 class progress;
 
@@ -59,15 +60,15 @@ class filesystem_v2 {
  public:
   filesystem_v2() = default;
 
-  filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm);
+  filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm);
 
-  filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
+  filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
                 filesystem_options const& options,
                 std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
   static int
-  identify(logger& lgr, std::shared_ptr<mmif> mm, std::ostream& os,
-           int detail_level = 0, size_t num_readers = 1,
+  identify(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+           std::ostream& output, int detail_level = 0, size_t num_readers = 1,
            bool check_integrity = false, file_off_t image_offset = 0);
 
   static std::optional<std::span<uint8_t const>>

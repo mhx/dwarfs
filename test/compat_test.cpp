@@ -51,6 +51,7 @@
 #include "dwarfs/worker_group.h"
 
 #include "mmap_mock.h"
+#include "test_helpers.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
@@ -978,7 +979,8 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     }
   }
 
-  filesystem_extractor ext(lgr);
+  test::os_access_mock os;
+  filesystem_extractor ext(lgr, os);
   std::ostringstream oss;
 
   EXPECT_NO_THROW(ext.open_stream(oss, "mtree"));
@@ -1044,10 +1046,11 @@ void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
 }
 
 TEST_P(compat_metadata, backwards_compat) {
-  test::test_logger lgr;
   auto version = GetParam();
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
-  filesystem_v2 fs(lgr, std::make_shared<mmap>(filename));
+  test::test_logger lgr;
+  test::os_access_mock os;
+  filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename));
   check_dynamic(version, fs);
 }
 
@@ -1061,6 +1064,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   auto [version, enable_nlink] = GetParam();
 
   test::test_logger lgr;
+  test::os_access_mock os;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
   filesystem_options opts;
@@ -1068,7 +1072,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   opts.metadata.check_consistency = true;
 
   {
-    filesystem_v2 fs(lgr, std::make_shared<mmap>(filename), opts);
+    filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename), opts);
     check_compat(lgr, fs, version);
   }
 
@@ -1078,14 +1082,14 @@ TEST_P(compat_filesystem, backwards_compat) {
   ASSERT_TRUE(folly::readFile(filename.c_str(), fsdata));
 
   for (auto const& hdr : headers) {
-    filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
+    filesystem_v2 fs(lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata),
                      opts);
     check_compat(lgr, fs, version);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
-      filesystem_v2 fs(lgr, std::make_shared<test::mmap_mock>(hdr + fsdata),
+      filesystem_v2 fs(lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata),
                        opts);
       check_compat(lgr, fs, version);
     }
@@ -1103,13 +1107,14 @@ TEST_P(rewrite, filesystem_rewrite) {
   auto [version, recompress_block, recompress_metadata] = GetParam();
 
   test::test_logger lgr;
+  test::os_access_mock os;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
   rewrite_options opts;
   opts.recompress_block = recompress_block;
   opts.recompress_metadata = recompress_metadata;
 
-  worker_group wg(lgr, "rewriter", 2);
+  worker_group wg(lgr, os, "rewriter", 2);
   block_compressor bc("null");
   progress prog([](const progress&, bool) {}, 1000);
   std::ostringstream rewritten, idss;
@@ -1117,7 +1122,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   auto rewrite_fs = [&](auto& fsw, auto const& mm) {
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    filesystem_v2 fs(lgr, mm, fsopts);
+    filesystem_v2 fs(lgr, os, mm, fsopts);
     filesystem_block_category_resolver resolver(fs.get_all_block_categories());
     fs.rewrite(prog, fsw, resolver, opts);
   };
@@ -1126,16 +1131,16 @@ TEST_P(rewrite, filesystem_rewrite) {
     filesystem_writer fsw(rewritten, lgr, wg, prog, bc, bc, bc);
     fsw.add_default_compressor(bc);
     auto mm = std::make_shared<mmap>(filename);
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm));
     rewrite_fs(fsw, mm);
   }
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm));
-    filesystem_v2 fs(lgr, mm);
+    filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 
@@ -1154,7 +1159,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
     EXPECT_NO_THROW(filesystem_v2::identify(
-        lgr, mm, idss, 0, 1, false, filesystem_options::IMAGE_OFFSET_AUTO));
+        lgr, os, mm, idss, 0, 1, false, filesystem_options::IMAGE_OFFSET_AUTO));
     auto hdr = filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
                                        rewritten.str().size());
@@ -1162,7 +1167,7 @@ TEST_P(rewrite, filesystem_rewrite) {
                                      hdr->size()));
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    filesystem_v2 fs(lgr, mm, fsopts);
+    filesystem_v2 fs(lgr, os, mm, fsopts);
     check_dynamic(version, fs);
   }
 
@@ -1215,10 +1220,10 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten4.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
-    filesystem_v2 fs(lgr, mm);
+    filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 
@@ -1234,10 +1239,10 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten5.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, mm, idss));
+    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(filesystem_v2::header(mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
-    filesystem_v2 fs(lgr, mm);
+    filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 }
@@ -1253,7 +1258,8 @@ TEST_P(set_uidgid_test, read_legacy_image) {
   auto image = test_dir / GetParam();
 
   test::test_logger lgr;
-  filesystem_v2 fs(lgr, std::make_shared<mmap>(image));
+  test::os_access_mock os;
+  filesystem_v2 fs(lgr, os, std::make_shared<mmap>(image));
 
   ASSERT_EQ(0, fs.check(filesystem_check_level::FULL));
 

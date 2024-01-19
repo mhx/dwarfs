@@ -381,7 +381,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
 template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
-  filesystem_(logger& lgr, std::shared_ptr<mmif> mm,
+  filesystem_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
               const filesystem_options& options,
               std::shared_ptr<performance_monitor const> perfmon);
 
@@ -438,6 +438,7 @@ class filesystem_ final : public filesystem_v2::impl {
   void check_section(fs_section const& section) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
+  os_access const& os_;
   std::shared_ptr<mmif> mm_;
   metadata_v2 meta_;
   inode_reader_v2 ir_;
@@ -516,9 +517,11 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
 
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(
-    logger& lgr, std::shared_ptr<mmif> mm, const filesystem_options& options,
+    logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+    const filesystem_options& options,
     std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
     : LOG_PROXY_INIT(lgr)
+    , os_{os}
     , mm_{std::move(mm)}
     , history_({.with_timestamps = true})
     , image_offset_{filesystem_parser::find_image_offset(
@@ -540,7 +543,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_iovec)
     PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
 {
-  block_cache cache(lgr, mm_, options.block_cache);
+  block_cache cache(lgr, os_, mm_, options.block_cache);
   filesystem_parser parser(mm_, image_offset_);
 
   if (parser.has_index()) {
@@ -774,7 +777,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  worker_group wg(LOG_GET_LOGGER, "fscheck", num_threads);
+  worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {
@@ -1095,30 +1098,32 @@ filesystem_<LoggerPolicy>::header() const {
 
 } // namespace
 
-filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm)
-    : filesystem_v2(lgr, std::move(mm), filesystem_options()) {}
+filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
+                             std::shared_ptr<mmif> mm)
+    : filesystem_v2(lgr, os, std::move(mm), filesystem_options()) {}
 
-filesystem_v2::filesystem_v2(logger& lgr, std::shared_ptr<mmif> mm,
+filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
+                             std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
                              std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
                                        logger_policies>(
-          lgr, std::move(mm), options, std::move(perfmon))) {}
+          lgr, os, std::move(mm), options, std::move(perfmon))) {}
 
-int filesystem_v2::identify(logger& lgr, std::shared_ptr<mmif> mm,
-                            std::ostream& os, int detail_level,
-                            size_t num_readers, bool check_integrity,
-                            file_off_t image_offset) {
+int filesystem_v2::identify(logger& lgr, os_access const& os,
+                            std::shared_ptr<mmif> mm, std::ostream& output,
+                            int detail_level, size_t num_readers,
+                            bool check_integrity, file_off_t image_offset) {
   filesystem_options fsopts;
   fsopts.metadata.enable_nlink = true;
   fsopts.image_offset = image_offset;
-  filesystem_v2 fs(lgr, mm, fsopts);
+  filesystem_v2 fs(lgr, os, mm, fsopts);
 
   auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
                                          : filesystem_check_level::CHECKSUM,
                          num_readers);
 
-  fs.dump(os, detail_level);
+  fs.dump(output, detail_level);
 
   return errors;
 }

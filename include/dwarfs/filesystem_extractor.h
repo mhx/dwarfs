@@ -32,6 +32,7 @@ namespace dwarfs {
 
 class filesystem_v2;
 class logger;
+class os_access;
 
 struct filesystem_extractor_options {
   size_t max_queued_bytes{4096};
@@ -41,7 +42,7 @@ struct filesystem_extractor_options {
 
 class filesystem_extractor {
  public:
-  filesystem_extractor(logger& lgr);
+  filesystem_extractor(logger& lgr, os_access const& os);
 
   void open_archive(std::string const& output, std::string const& format) {
     return impl_->open_archive(output, format);

@@ -264,7 +264,7 @@ class mkdwarfs_tester : public tester_common {
       lgr = std::make_unique<test::test_logger>();
     }
     auto mm = std::make_shared<test::mmap_mock>(std::move(data));
-    return filesystem_v2(*lgr, mm, opt);
+    return filesystem_v2(*lgr, *os, mm, opt);
   }
 
   filesystem_v2 fs_from_file(std::string path) {
@@ -1821,8 +1821,9 @@ TEST(dwarfsck_test, check_fail) {
 
     {
       test::test_logger lgr;
+      test::os_access_mock os;
       auto make_fs = [&] {
-        return filesystem_v2{lgr,
+        return filesystem_v2{lgr, os,
                              std::make_shared<test::mmap_mock>(corrupt_image)};
       };
       if (is_metadata_section) {

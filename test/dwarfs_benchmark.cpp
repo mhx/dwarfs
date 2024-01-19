@@ -116,14 +116,14 @@ std::string make_filesystem(::benchmark::State const& state) {
   options.plain_symlinks_table = state.range(1);
 
   test::test_logger lgr;
+  auto os = test::os_access_mock::create_test_instance();
 
-  worker_group wg(lgr, "writer", 4);
+  worker_group wg(lgr, *os, "writer", 4);
   progress prog([](const progress&, bool) {}, 1000);
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 
-  scanner s(lgr, wg, sf, entry_factory::create(),
-            test::os_access_mock::create_test_instance(),
+  scanner s(lgr, wg, sf, entry_factory::create(), os,
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
@@ -182,13 +182,14 @@ void frozen_string_table_lookup(::benchmark::State& state) {
 void dwarfs_initialize(::benchmark::State& state) {
   auto image = make_filesystem(state);
   test::test_logger lgr;
+  test::os_access_mock os;
   auto mm = std::make_shared<test::mmap_mock>(image);
   filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = true;
 
   for (auto _ : state) {
-    auto fs = filesystem_v2(lgr, mm, opts);
+    auto fs = filesystem_v2(lgr, os, mm, opts);
     ::benchmark::DoNotOptimize(fs);
   }
 }
@@ -203,7 +204,7 @@ class filesystem : public ::benchmark::Fixture {
     filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
-    fs = std::make_unique<filesystem_v2>(lgr, mm, opts);
+    fs = std::make_unique<filesystem_v2>(lgr, os, mm, opts);
     entries.reserve(NUM_ENTRIES);
     for (int i = 0; entries.size() < NUM_ENTRIES; ++i) {
       if (auto e = fs->find(i)) {
@@ -283,6 +284,7 @@ class filesystem : public ::benchmark::Fixture {
 
  private:
   test::test_logger lgr;
+  test::os_access_mock os;
   std::string image;
   std::shared_ptr<mmif> mm;
 };

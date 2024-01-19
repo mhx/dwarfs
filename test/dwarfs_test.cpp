@@ -74,7 +74,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt) {
   // force multithreading
-  worker_group wg(lgr, "worker", 4);
+  worker_group wg(lgr, *input, "worker", 4);
 
   std::unique_ptr<progress> local_prog;
   if (!prog) {
@@ -215,7 +215,7 @@ void basic_end_to_end_test(std::string const& compressor,
   opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
 
-  filesystem_v2 fs(lgr, mm, opts);
+  filesystem_v2 fs(lgr, *input, mm, opts);
 
   // fs.dump(std::cerr, 9);
 
@@ -622,7 +622,7 @@ TEST_P(packing_test, regression_empty_fs) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  filesystem_v2 fs(lgr, mm, opts);
+  filesystem_v2 fs(lgr, *input, mm, opts);
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -696,7 +696,7 @@ TEST(segmenter, regression_block_boundary) {
 
     auto mm = std::make_shared<test::mmap_mock>(fsdata);
 
-    filesystem_v2 fs(lgr, mm, opts);
+    filesystem_v2 fs(lgr, *input, mm, opts);
 
     vfs_stat vfsbuf;
     fs.statvfs(&vfsbuf);
@@ -750,7 +750,7 @@ TEST_P(compression_regression, github45) {
   auto mm = std::make_shared<test::mmap_mock>(fsdata);
 
   std::stringstream idss;
-  filesystem_v2::identify(lgr, mm, idss, 3);
+  filesystem_v2::identify(lgr, *input, mm, idss, 3);
 
   std::string line;
   std::regex const re("^SECTION num=\\d+, type=BLOCK, compression=(\\w+).*");
@@ -769,7 +769,7 @@ TEST_P(compression_regression, github45) {
   }
   EXPECT_EQ(1, compressions.count("NONE"));
 
-  filesystem_v2 fs(lgr, mm, opts);
+  filesystem_v2 fs(lgr, *input, mm, opts);
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -908,7 +908,7 @@ class filter_test
     };
 
     progress prog([](const progress&, bool) {}, 1000);
-    worker_group wg(lgr, "worker", 1);
+    worker_group wg(lgr, *input, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});
     scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);
@@ -947,7 +947,7 @@ TEST_P(filter_test, filesystem) {
   opts.metadata.enable_nlink = true;
   opts.metadata.check_consistency = true;
 
-  filesystem_v2 fs(lgr, mm, opts);
+  filesystem_v2 fs(lgr, *input, mm, opts);
 
   std::unordered_set<std::string> got;
 
@@ -1026,7 +1026,7 @@ TEST(file_scanner, input_list) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, *input, mm);
 
   std::unordered_set<std::string> got;
 
@@ -1057,7 +1057,7 @@ TEST(filesystem, uid_gid_32bit) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, *input, mm);
 
   auto iv16 = fs.find("/foo16.txt");
   auto iv32 = fs.find("/foo32.txt");
@@ -1093,7 +1093,7 @@ TEST(filesystem, uid_gid_count) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, *input, mm);
 
   auto iv00000 = fs.find("/foo00000.txt");
   auto iv50000 = fs.find("/foo50000.txt");
@@ -1174,7 +1174,7 @@ TEST(section_index_regression, github183) {
 
   filesystem_v2 fs;
 
-  ASSERT_NO_THROW(fs = filesystem_v2(lgr, mm));
+  ASSERT_NO_THROW(fs = filesystem_v2(lgr, *input, mm));
   EXPECT_NO_THROW(fs.walk([](auto) {}));
 
   auto entry = fs.find("/foo.pl");
@@ -1194,7 +1194,7 @@ TEST(section_index_regression, github183) {
   EXPECT_EQ(rv, -EIO);
 
   std::stringstream idss;
-  EXPECT_THROW(filesystem_v2::identify(lgr, mm, idss, 3),
+  EXPECT_THROW(filesystem_v2::identify(lgr, *input, mm, idss, 3),
                dwarfs::runtime_error);
 }
 
@@ -1204,7 +1204,7 @@ TEST(filesystem, find_by_path) {
   auto fsimage = build_dwarfs(lgr, input, "null");
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, *input, mm);
 
   std::vector<std::string> paths;
   fs.walk([&](auto e) { paths.emplace_back(e.unix_path()); });

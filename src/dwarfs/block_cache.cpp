@@ -137,14 +137,15 @@ class block_request_set {
 template <typename LoggerPolicy>
 class block_cache_ final : public block_cache::impl {
  public:
-  block_cache_(logger& lgr, std::shared_ptr<mmif> mm,
+  block_cache_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
                block_cache_options const& options)
       : cache_(0)
       , mm_(std::move(mm))
       , LOG_PROXY_INIT(lgr)
+      , os_{os}
       , options_(options) {
     if (options.init_workers) {
-      wg_ = worker_group(lgr, "blkcache",
+      wg_ = worker_group(lgr, os_, "blkcache",
                          std::max(options.num_workers > 0
                                       ? options.num_workers
                                       : folly::hardware_concurrency(),
@@ -247,7 +248,7 @@ class block_cache_ final : public block_cache::impl {
       wg_.stop();
     }
 
-    wg_ = worker_group(LOG_GET_LOGGER, "blkcache", num);
+    wg_ = worker_group(LOG_GET_LOGGER, os_, "blkcache", num);
   }
 
   void set_tidy_config(cache_tidy_config const& cfg) override {
@@ -626,13 +627,15 @@ class block_cache_ final : public block_cache::impl {
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
   LOG_PROXY_DECL(LoggerPolicy);
+  os_access const& os_;
   const block_cache_options options_;
   cache_tidy_config tidy_config_;
 };
 
-block_cache::block_cache(logger& lgr, std::shared_ptr<mmif> mm,
+block_cache::block_cache(logger& lgr, os_access const& os,
+                         std::shared_ptr<mmif> mm,
                          const block_cache_options& options)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
-          lgr, std::move(mm), options)) {}
+          lgr, os, std::move(mm), options)) {}
 
 } // namespace dwarfs

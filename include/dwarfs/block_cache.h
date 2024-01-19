@@ -39,10 +39,11 @@ struct cache_tidy_config;
 class fs_section;
 class logger;
 class mmif;
+class os_access;
 
 class block_cache {
  public:
-  block_cache(logger& lgr, std::shared_ptr<mmif> mm,
+  block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
               const block_cache_options& options);
 
   size_t block_count() const { return impl_->block_count(); }

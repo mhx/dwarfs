@@ -1153,8 +1153,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (recompress) {
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    input_filesystem =
-        std::make_unique<filesystem_v2>(lgr, iol.os->map_file(path), fsopts);
+    input_filesystem = std::make_unique<filesystem_v2>(
+        lgr, *iol.os, iol.os->map_file(path), fsopts);
 
     LOG_INFO << "checking input filesystem...";
 
@@ -1245,7 +1245,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   block_compressor metadata_bc(metadata_compression);
   block_compressor history_bc(history_compression);
 
-  worker_group wg_compress(lgr, "compress", num_workers,
+  worker_group wg_compress(lgr, *iol.os, "compress", num_workers,
                            std::numeric_limits<size_t>::max(),
                            compress_niceness);
 
@@ -1322,7 +1322,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
 
-      worker_group wg_scanner(lgr, "scanner", num_scanner_workers);
+      worker_group wg_scanner(lgr, *iol.os, "scanner", num_scanner_workers);
 
       scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
                 std::move(script), options);

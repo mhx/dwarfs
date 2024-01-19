@@ -1225,9 +1225,9 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr)
   PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr)
 
-  userdata.fs =
-      filesystem_v2(userdata.lgr, std::make_shared<mmap>(opts.fsimage), fsopts,
-                    userdata.perfmon);
+  userdata.fs = filesystem_v2(userdata.lgr, *userdata.iol.os,
+                              std::make_shared<mmap>(opts.fsimage), fsopts,
+                              userdata.perfmon);
 
   ti << "file system initialized";
 }

@@ -33,6 +33,7 @@
 #include "dwarfs/mmap.h"
 
 #include "mmap_mock.h"
+#include "test_helpers.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
@@ -47,9 +48,10 @@ auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 
 TEST(filesystem, metadata_symlink_win) {
   test::test_logger lgr;
+  test::os_access_mock os;
 
   auto mm = std::make_shared<mmap>(test_dir / "winlink.dwarfs");
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, os, mm);
 
   auto i1 = fs.find("link.txt");
   auto i2 = fs.find("dir/link.txt");
@@ -116,9 +118,10 @@ TEST(filesystem, metadata_symlink_win) {
 
 TEST(filesystem, metadata_symlink_unix) {
   test::test_logger lgr;
+  test::os_access_mock os;
 
   auto mm = std::make_shared<mmap>(test_dir / "unixlink.dwarfs");
-  filesystem_v2 fs(lgr, mm);
+  filesystem_v2 fs(lgr, os, mm);
 
   auto i1 = fs.find("link.txt");
   auto i2 = fs.find("dir/link.txt");
@@ -217,13 +220,14 @@ std::string valid_v2_header(uint32_t section_number = 0) {
 
 TEST(filesystem, find_image_offset) {
   test::test_logger lgr;
+  test::os_access_mock os;
 
   auto make_fs =
       [&](std::string data,
           filesystem_options const& opt = {
               .image_offset = filesystem_options::IMAGE_OFFSET_AUTO}) {
         return filesystem_v2(
-            lgr, std::make_shared<test::mmap_mock>(std::move(data)), opt);
+            lgr, os, std::make_shared<test::mmap_mock>(std::move(data)), opt);
       };
 
   auto throws_rt_error = [](auto substr) {

@@ -170,7 +170,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         return 2;
       }
     } else {
-      filesystem_v2 fs(lgr, mm, fsopts);
+      filesystem_v2 fs(lgr, *iol.os, mm, fsopts);
 
       if (!export_metadata.empty()) {
         std::error_code ec;

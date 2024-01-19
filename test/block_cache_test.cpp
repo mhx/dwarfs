@@ -182,7 +182,7 @@ TEST_P(options_test, cache_stress) {
   filesystem_options opts{
       .block_cache = cache_opts,
   };
-  filesystem_v2 fs(lgr, mm, opts);
+  filesystem_v2 fs(lgr, *os, mm, opts);
 
   EXPECT_NO_THROW(
       fs.set_cache_tidy_config({.strategy = cache_tidy_strategy::NONE}));

@@ -29,6 +29,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 
+#include "test_helpers.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
@@ -55,14 +56,15 @@ TEST_P(bad_fs, test) {
   auto filename = testdata / GetParam();
 
   test::test_logger lgr;
+  test::os_access_mock os;
   std::ostringstream oss;
 
   int nerror = 0;
 
   try {
-    nerror =
-        filesystem_v2::identify(lgr, std::make_shared<mmap>(filename), oss, 9,
-                                1, true, filesystem_options::IMAGE_OFFSET_AUTO);
+    nerror = filesystem_v2::identify(lgr, os, std::make_shared<mmap>(filename),
+                                     oss, 9, 1, true,
+                                     filesystem_options::IMAGE_OFFSET_AUTO);
   } catch (std::exception const&) {
     nerror = 1;
   }

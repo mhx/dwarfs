@@ -145,8 +145,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<performance_monitor> perfmon =
         performance_monitor::create(perfmon_enabled);
 
-    filesystem_v2 fs(lgr, iol.os->map_file(filesystem), fsopts, perfmon);
-    filesystem_extractor fsx(lgr);
+    filesystem_v2 fs(lgr, *iol.os, iol.os->map_file(filesystem), fsopts,
+                     perfmon);
+    filesystem_extractor fsx(lgr, *iol.os);
 
     if (format.empty()) {
       fsx.open_disk(output);
