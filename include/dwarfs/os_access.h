@@ -21,9 +21,13 @@
 
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <string>
+#include <system_error>
+#include <thread>
 
 #include "dwarfs/file_stat.h"
 
@@ -56,5 +60,10 @@ class os_access {
   canonical(std::filesystem::path const& path) const = 0;
   virtual std::filesystem::path current_path() const = 0;
   virtual std::optional<std::string> getenv(std::string_view name) const = 0;
+  virtual void
+  thread_set_affinity(std::thread::id tid, std::span<int const> cpus,
+                      std::error_code& ec) const = 0;
+  virtual std::chrono::nanoseconds
+  thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const = 0;
 };
 } // namespace dwarfs

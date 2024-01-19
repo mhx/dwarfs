@@ -27,6 +27,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <set>
@@ -119,7 +120,16 @@ class os_access_mock : public os_access {
 
   std::optional<std::string> getenv(std::string_view name) const override;
 
+  void thread_set_affinity(std::thread::id tid, std::span<int const> cpus,
+                           std::error_code& ec) const override;
+
+  std::chrono::nanoseconds
+  thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
+
   std::set<std::filesystem::path> get_failed_paths() const;
+
+  std::vector<
+      std::tuple<std::thread::id, std::vector<int>>> mutable set_affinity_calls;
 
  private:
   struct error_info {
@@ -133,11 +143,13 @@ class os_access_mock : public os_access {
   void add_internal(std::filesystem::path const& path, simplestat const& st,
                     value_variant_type var);
 
+  std::mutex mutable mx_;
   std::unique_ptr<mock_dirent> root_;
   size_t ino_{1000000};
   std::set<std::filesystem::path> access_fail_set_;
   std::map<std::filesystem::path, error_info> map_file_errors_;
   std::map<std::string, std::string> env_;
+  std::shared_ptr<os_access> real_os_;
 };
 
 class script_mock : public script {

@@ -655,6 +655,7 @@ if(WITH_TESTS)
     tool_main_test
     tools_test
     utils_test
+    worker_group_test
   )
 
   if(WITH_MAN_OPTION)

@@ -35,6 +35,7 @@ namespace dwarfs {
 struct iolayer;
 
 std::string time_with_unit(double sec);
+std::string time_with_unit(std::chrono::nanoseconds ns);
 std::string size_with_unit(size_t size);
 size_t parse_size_with_unit(std::string const& str);
 std::chrono::milliseconds parse_time_with_unit(std::string const& str);

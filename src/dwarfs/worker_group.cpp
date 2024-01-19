@@ -35,7 +35,6 @@
 
 #include <folly/Conv.h>
 #include <folly/String.h>
-#include <folly/portability/PThread.h>
 #include <folly/portability/Windows.h>
 #include <folly/system/HardwareConcurrency.h>
 #include <folly/system/ThreadName.h>
@@ -49,49 +48,6 @@
 namespace dwarfs {
 
 namespace {
-
-#ifdef _WIN32
-
-double get_thread_cpu_time(std::thread const& t) {
-  static_assert(sizeof(std::thread::id) == sizeof(DWORD),
-                "Win32 thread id type mismatch");
-  auto tid = t.get_id();
-  DWORD id;
-  std::memcpy(&id, &tid, sizeof(id));
-  HANDLE h = ::OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, id);
-  FILETIME t_create, t_exit, t_sys, t_user;
-  if (::GetThreadTimes(h, &t_create, &t_exit, &t_sys, &t_user)) {
-    uint64_t sys = (static_cast<uint64_t>(t_sys.dwHighDateTime) << 32) +
-                   t_sys.dwLowDateTime;
-    uint64_t user = (static_cast<uint64_t>(t_user.dwHighDateTime) << 32) +
-                    t_user.dwLowDateTime;
-    return 1e-7 * (sys + user);
-  }
-  throw std::runtime_error("get_thread_cpu_time");
-}
-
-#else
-
-pthread_t std_to_pthread_id(std::thread::id tid) {
-  static_assert(std::is_same_v<pthread_t, std::thread::native_handle_type>);
-  static_assert(sizeof(std::thread::id) ==
-                sizeof(std::thread::native_handle_type));
-  pthread_t id{0};
-  std::memcpy(&id, &tid, sizeof(id));
-  return id;
-}
-
-double get_thread_cpu_time(std::thread const& t) {
-  ::clockid_t cid;
-  struct ::timespec ts;
-  if (::pthread_getcpuclockid(std_to_pthread_id(t.get_id()), &cid) == 0 &&
-      ::clock_gettime(cid, &ts) == 0) {
-    return ts.tv_sec + 1e-9 * ts.tv_nsec;
-  }
-  throw std::runtime_error("get_thread_cpu_time");
-}
-
-#endif
 
 template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
@@ -122,9 +78,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       });
     }
 
-#ifndef _WIN32
     check_set_affinity_from_enviroment(group_name);
-#endif
   }
 
   basic_worker_group(const basic_worker_group&) = delete;
@@ -214,15 +168,17 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     return jobs_.size();
   }
 
-  double get_cpu_time() const override {
+  folly::Expected<std::chrono::nanoseconds, std::error_code>
+  get_cpu_time() const override {
     std::lock_guard lock(mx_);
-    double t = 0.0;
+    std::chrono::nanoseconds t{};
 
-    // TODO:
-    // return workers_ | std::views::transform(get_thread_cpu_time) |
-    // std::ranges::accumulate;
     for (auto const& w : workers_) {
-      t += get_thread_cpu_time(w);
+      std::error_code ec;
+      t += os_.thread_get_cpu_time(w.get_id(), ec);
+      if (ec) {
+        return folly::makeUnexpected(ec);
+      }
     }
 
     return t;
@@ -233,23 +189,15 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       return false;
     }
 
-#ifndef _WIN32
     std::lock_guard lock(mx_);
 
-    cpu_set_t cpuset;
-
-    for (auto cpu : cpus) {
-      CPU_SET(cpu, &cpuset);
-    }
-
     for (size_t i = 0; i < workers_.size(); ++i) {
-      if (auto error = pthread_setaffinity_np(workers_[i].native_handle(),
-                                              sizeof(cpu_set_t), &cpuset);
-          error != 0) {
+      std::error_code ec;
+      os_.thread_set_affinity(workers_[i].get_id(), cpus, ec);
+      if (ec) {
         return false;
       }
     }
-#endif
 
     return true;
   }
@@ -258,9 +206,9 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   using jobs_t = std::queue<worker_group::job_t>;
 
   void check_set_affinity_from_enviroment(const char* group_name) {
-    if (auto var = std::getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
+    if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
       std::vector<std::string_view> groups;
-      folly::split(':', var, groups);
+      folly::split(':', var.value(), groups);
 
       for (auto& group : groups) {
         std::vector<std::string_view> parts;

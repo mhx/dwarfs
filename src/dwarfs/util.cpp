@@ -76,6 +76,10 @@ std::string time_with_unit(double sec) {
   return trimmed(folly::prettyPrint(sec, folly::PRETTY_TIME_HMS, false));
 }
 
+std::string time_with_unit(std::chrono::nanoseconds ns) {
+  return time_with_unit(1e-9 * ns.count());
+}
+
 size_t parse_size_with_unit(std::string const& str) {
   size_t value;
   auto [ptr, ec]{std::from_chars(str.data(), str.data() + str.size(), value)};

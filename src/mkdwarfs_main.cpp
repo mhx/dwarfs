@@ -1338,7 +1338,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!options.debug_filter_function) {
     LOG_INFO << "compression CPU time: "
-             << time_with_unit(wg_compress.get_cpu_time());
+             << time_with_unit(wg_compress.get_cpu_time().value_or(
+                    std::chrono::nanoseconds(0)));
   }
 
   {

@@ -33,6 +33,7 @@
 #include <folly/String.h>
 #include <folly/portability/Unistd.h>
 
+#include "dwarfs/os_access_generic.h"
 #include "dwarfs/overloaded.h"
 #include "dwarfs/util.h"
 #include "loremipsum.h"
@@ -160,7 +161,9 @@ class dir_reader_mock : public dir_reader {
   size_t index_;
 };
 
-os_access_mock::os_access_mock() = default;
+os_access_mock::os_access_mock()
+    : real_os_{std::make_shared<os_access_generic>()} {}
+
 os_access_mock::~os_access_mock() = default;
 
 std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
@@ -497,6 +500,20 @@ std::optional<std::string> os_access_mock::getenv(std::string_view name) const {
     return it->second;
   }
   return std::nullopt;
+}
+
+void os_access_mock::thread_set_affinity(std::thread::id tid,
+                                         std::span<int const> cpus,
+                                         std::error_code& /*ec*/) const {
+  std::lock_guard<std::mutex> lock{mx_};
+  set_affinity_calls.emplace_back(tid,
+                                  std::vector<int>(cpus.begin(), cpus.end()));
+}
+
+std::chrono::nanoseconds
+os_access_mock::thread_get_cpu_time(std::thread::id tid,
+                                    std::error_code& ec) const {
+  return real_os_->thread_get_cpu_time(tid, ec);
 }
 
 std::optional<fs::path> find_binary(std::string_view name) {

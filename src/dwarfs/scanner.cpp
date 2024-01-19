@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
@@ -69,6 +70,8 @@
 #include "dwarfs/gen-cpp2/metadata_types.h"
 
 namespace dwarfs {
+
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -604,7 +607,8 @@ void scanner_<LoggerPolicy>::scan(
 
   wg_.wait();
 
-  LOG_INFO << "scanning CPU time: " << time_with_unit(wg_.get_cpu_time());
+  LOG_INFO << "scanning CPU time: "
+           << time_with_unit(wg_.get_cpu_time().value_or(0ns));
 
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
@@ -795,10 +799,10 @@ void scanner_<LoggerPolicy>::scan(
     wg_ordering.wait();
 
     LOG_INFO << "total ordering CPU time: "
-             << time_with_unit(wg_ordering.get_cpu_time());
+             << time_with_unit(wg_ordering.get_cpu_time().value_or(0ns));
 
     LOG_INFO << "total segmenting CPU time: "
-             << time_with_unit(wg_blockify.get_cpu_time());
+             << time_with_unit(wg_blockify.get_cpu_time().value_or(0ns));
   }
 
   // seg.finish();

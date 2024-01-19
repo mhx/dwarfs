@@ -49,5 +49,9 @@ class os_access_generic : public os_access {
   canonical(std::filesystem::path const& path) const override;
   std::filesystem::path current_path() const override;
   std::optional<std::string> getenv(std::string_view name) const override;
+  void thread_set_affinity(std::thread::id tid, std::span<int const> cpus,
+                           std::error_code& ec) const override;
+  std::chrono::nanoseconds
+  thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
 };
 } // namespace dwarfs
