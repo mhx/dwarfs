@@ -67,7 +67,8 @@ class terminal {
   static void setup();
 
   virtual size_t width() const = 0;
-  virtual bool is_fancy(std::ostream& os) const = 0;
+  virtual bool is_tty(std::ostream& os) const = 0;
+  virtual bool is_fancy() const = 0;
   virtual std::string_view
   color(termcolor color, termstyle style = termstyle::NORMAL) const = 0;
   virtual std::string

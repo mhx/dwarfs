@@ -103,7 +103,7 @@ std::string logger::all_level_names() {
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
                              std::ostream& os, logger_options const& logopts)
     : os_(os)
-    , color_(term->is_fancy(os))
+    , color_(term->is_tty(os) && term->is_fancy())
     , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
     , with_context_(logopts.with_context ? logopts.with_context.value()
                                          : logopts.threshold >= logger::VERBOSE)

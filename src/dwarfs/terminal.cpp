@@ -167,7 +167,7 @@ class terminal_windows : public terminal_ansi {
     return csbi.srWindow.Right - csbi.srWindow.Left + 1;
   }
 
-  bool is_fancy(std::ostream& os) const override {
+  bool is_tty(std::ostream& os) const override {
     if (&os == &std::cout) {
       return ::_isatty(::_fileno(stdout));
     }
@@ -176,6 +176,8 @@ class terminal_windows : public terminal_ansi {
     }
     return false;
   }
+
+  bool is_fancy() const override { return true; }
 };
 
 #else
@@ -188,16 +190,21 @@ class terminal_posix : public terminal_ansi {
     return w.ws_col;
   }
 
-  bool is_fancy(std::ostream& os) const override {
-    auto term = ::getenv("TERM");
-    if (!term || term[0] == '\0' || std::string_view(term) == "dumb") {
-      return false;
-    }
+  bool is_tty(std::ostream& os) const override {
     if (&os == &std::cout) {
       return ::isatty(::fileno(stdout));
     }
     if (&os == &std::cerr) {
       return ::isatty(::fileno(stderr));
+    }
+    return false;
+  }
+
+  bool is_fancy() const override {
+    // TODO: we might want to use the iolayer here
+    if (auto term = ::getenv("TERM")) {
+      std::string_view term_sv(term);
+      return !term_sv.empty() && term_sv != "dumb";
     }
     return false;
   }

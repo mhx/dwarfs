@@ -165,10 +165,12 @@ class test_terminal : public terminal {
   test_terminal(std::ostream& out, std::ostream& err);
 
   void set_fancy(bool fancy) { fancy_ = fancy; }
+  void set_is_tty(bool is_tty) { is_tty_ = is_tty; }
   void set_width(size_t width) { width_ = width; }
 
   size_t width() const override;
-  bool is_fancy(std::ostream& os) const override;
+  bool is_tty(std::ostream& os) const override;
+  bool is_fancy() const override;
   std::string_view color(termcolor color, termstyle style) const override;
   std::string colored(std::string text, termcolor color, bool enable,
                       termstyle style) const override;
@@ -180,6 +182,7 @@ class test_terminal : public terminal {
   std::ostream* out_;
   std::ostream* err_;
   bool fancy_{false};
+  bool is_tty_{false};
   size_t width_{80};
 };
 
@@ -244,6 +247,7 @@ class test_iolayer {
 
   void use_real_terminal(bool use);
   void set_in(std::string in);
+  void set_terminal_is_tty(bool is_tty);
   void set_terminal_fancy(bool fancy);
   void set_terminal_width(size_t width);
 

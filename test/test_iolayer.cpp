@@ -216,9 +216,9 @@ test_terminal::test_terminal(std::ostream& out, std::ostream& err)
 
 size_t test_terminal::width() const { return width_; }
 
-bool test_terminal::is_fancy(std::ostream& os) const {
-  return fancy_ && (&os == out_ || &os == err_);
-}
+bool test_terminal::is_tty(std::ostream& /*os*/) const { return is_tty_; }
+
+bool test_terminal::is_fancy() const { return fancy_; }
 
 std::string_view test_terminal::carriage_return() const { return "<cr>"; }
 
@@ -344,6 +344,9 @@ void test_iolayer::use_real_terminal(bool use) {
   real_term_ = terminal::create();
 }
 
+void test_iolayer::set_terminal_is_tty(bool is_tty) {
+  term_->set_is_tty(is_tty);
+}
 void test_iolayer::set_terminal_fancy(bool fancy) { term_->set_fancy(fancy); }
 void test_iolayer::set_terminal_width(size_t width) { term_->set_width(width); }
 void test_iolayer::set_in(std::string in) { in_.str(std::move(in)); }

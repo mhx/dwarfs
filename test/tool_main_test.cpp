@@ -692,6 +692,7 @@ TEST_P(term_logging_test, end_to_end) {
 
   {
     mkdwarfs_tester t;
+    t.iol->set_terminal_is_tty(fancy);
     t.iol->set_terminal_fancy(fancy);
     t.os->set_access_fail("/somedir/ipsum.py"); // trigger an error
     EXPECT_EQ(2, t.run("-l1 -i / -o - --categorize --num-workers=8 -S 22 "
@@ -1419,6 +1420,7 @@ TEST(mkdwarfs_test, invalid_filter_debug_mode) {
 
 TEST(mkdwarfs_test, invalid_progress_mode) {
   mkdwarfs_tester t;
+  t.iol->set_terminal_is_tty(true);
   t.iol->set_terminal_fancy(true);
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--progress=grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid progress mode"));
@@ -1689,6 +1691,7 @@ TEST_P(mkdwarfs_progress_test, basic) {
 
   auto t = mkdwarfs_tester::create_empty();
 
+  t.iol->set_terminal_is_tty(true);
   t.iol->set_terminal_fancy(true);
 
   t.add_root_dir();

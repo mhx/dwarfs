@@ -896,7 +896,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (no_progress) {
     progress_mode = "none";
   }
-  if (progress_mode != "none" && !iol.term->is_fancy(iol.err)) {
+  if (progress_mode != "none" && !iol.term->is_tty(iol.err)) {
     progress_mode = "simple";
   }
 
