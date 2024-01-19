@@ -423,6 +423,12 @@ Most other options are concerned with compression tuning:
   Show full usage with all options, including defaults, compression level
   detail and supported compression algorithms.
 
+- `--man`:
+  If the project was built with support for built-in manual pages, this
+  option will show the manual page. If supported by the terminal and a
+  suitable pager (e.g. `less`) is found, the manual page is displayed
+  in the pager.
+
 ## EXIT CODES
 
 Upon successful completion, `mkdwarfs` will exit with exit code 0. If an

@@ -99,6 +99,12 @@ to disk:
 - `-h`, `--help`:
   Show program help, including option defaults.
 
+- `--man`:
+  If the project was built with support for built-in manual pages, this
+  option will show the manual page. If supported by the terminal and a
+  suitable pager (e.g. `less`) is found, the manual page is displayed
+  in the pager.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.

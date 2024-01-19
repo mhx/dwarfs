@@ -149,6 +149,12 @@ options:
   monitoring enabled. Available components include `fuse`, `filesystem_v2`
   and `inode_reader_v2`.
 
+- `--man`:
+  If the project was built with support for built-in manual pages, this
+  option will show the manual page. If supported by the terminal and a
+  suitable pager (e.g. `less`) is found, the manual page is displayed
+  in the pager.
+
 There's two particular FUSE options that you'll likely need at some
 point, e.g. when trying to set up an `overlayfs` mount on top of
 a DwarFS image:

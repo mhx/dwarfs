@@ -74,8 +74,14 @@ pcmaudio/waveform
   Enable logging context regardless of level. By default, context is enabled
   if the level is `verbose`, `debug` or `trace`.
 
-- `--help`:
+- `-h`, `--help`:
   Show program help, including option defaults.
+
+- `--man`:
+  If the project was built with support for built-in manual pages, this
+  option will show the manual page. If supported by the terminal and a
+  suitable pager (e.g. `less`) is found, the manual page is displayed
+  in the pager.
 
 ## AUTHOR
 
