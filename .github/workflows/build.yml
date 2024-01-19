@@ -57,11 +57,13 @@ jobs:
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target package
+        if: matrix.build_mode == 'Release'
 
       - name: Compress Universal Binary
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target universal_upx
+        if: matrix.build_mode == 'Release'
 
       - name: Copy Artifacts
         shell: cmd
