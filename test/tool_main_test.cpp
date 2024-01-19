@@ -1336,8 +1336,8 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   auto opts = GetParam();
   auto options = test::parse_args(opts);
   std::string const image_file = "test.dwarfs";
-
-  std::vector<std::string> args = {"-i", "/", "-o", image_file};
+  std::vector<std::string> args = {"-i",       "/",  "-o",
+                                   image_file, "-C", "zstd:level=9"};
   args.insert(args.end(), options.begin(), options.end());
 
   auto t = mkdwarfs_tester::create_empty();
@@ -1349,11 +1349,13 @@ TEST_P(mkdwarfs_build_options_test, basic) {
   ASSERT_EQ(0, t.run(args));
 
   auto fs = t.fs_from_file(image_file);
+
+  fs.dump(std::cout, 3);
 }
 
 namespace {
 
-constexpr std::array<std::string_view, 7> const build_options = {
+constexpr std::array<std::string_view, 8> const build_options = {
     "--categorize --order=none --file-hash=none",
     "--categorize=pcmaudio --order=path",
     "--categorize --order=revpath --file-hash=sha512",
@@ -1362,6 +1364,7 @@ constexpr std::array<std::string_view, 7> const build_options = {
     "--categorize --order=nilsimsa:max-children=1k --time-resolution=hour",
     "--categorize --order=nilsimsa:max-cluster-size=16:max-children=16 "
     "--max-similarity-size=1M",
+    "--categorize -B4 -S18",
 };
 
 } // namespace
