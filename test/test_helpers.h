@@ -44,6 +44,15 @@
 #include "dwarfs/script.h"
 #include "dwarfs/terminal.h"
 
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define DWARFS_TEST_RUNNING_ON_ASAN 1
+#endif
+#if __has_feature(address_sanitizer)
+#define DWARFS_TEST_RUNNING_ON_TSAN 1
+#endif
+#endif
+
 namespace dwarfs::test {
 
 struct simplestat {

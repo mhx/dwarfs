@@ -86,13 +86,7 @@ auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
 
 class scoped_no_leak_check {
  public:
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
-#define RUNNING_ON_ASAN 1
-#endif
-#endif
-
-#ifdef RUNNING_ON_ASAN
+#ifdef DWARFS_TEST_RUNNING_ON_ASAN
   static constexpr auto const kEnvVar = "ASAN_OPTIONS";
   static constexpr auto const kNoLeakCheck = "detect_leaks=0";
 

@@ -821,7 +821,16 @@ TEST_P(file_scanner, inode_ordering) {
   opts.no_create_timestamp = true;
 
   auto input = std::make_shared<test::os_access_mock>();
-  constexpr int dim{14};
+#if defined(DWARFS_TEST_RUNNING_ON_ASAN) || defined(DWARFS_TEST_RUNNING_ON_TSAN)
+  static constexpr int dim{7};
+#else
+  static constexpr int dim{14};
+#endif
+#ifdef NDEBUG
+  static constexpr int repetitions{50};
+#else
+  static constexpr int repetitions{10};
+#endif
 
   input->add_dir("");
 
@@ -838,7 +847,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   auto ref = build_dwarfs(lgr, input, "null", bmcfg, opts);
 
-  for (int i = 0; i < 50; ++i) {
+  for (int i = 0; i < repetitions; ++i) {
     auto fs = build_dwarfs(lgr, input, "null", bmcfg, opts);
     EXPECT_EQ(ref, fs);
     // if (ref != fs) {
