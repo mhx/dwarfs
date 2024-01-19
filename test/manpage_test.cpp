@@ -25,7 +25,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "dwarfs/pager.h"
 #include "dwarfs/render_manpage.h"
+
+#include "test_helpers.h"
 
 using namespace dwarfs;
 
@@ -62,3 +65,92 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::Values("mkdwarfs", "dwarfs", "dwarfsck",
                                          "dwarfsextract"),
                        ::testing::Bool()));
+
+TEST(pager_test, find_pager_program) {
+  auto resolver = [](std::filesystem::path const& name) {
+    std::map<std::string, std::filesystem::path> const programs = {
+        {"less", "/whatever/bin/less"},
+        {"more", "/somewhere/bin/more"},
+        {"cat", "/bin/cat"},
+    };
+    for (auto const& [n, p] : programs) {
+      if (name == n || name == p) {
+        return p;
+      }
+    }
+    return std::filesystem::path{};
+  };
+
+  {
+    test::os_access_mock os;
+    os.set_executable_resolver(
+        [](std::filesystem::path const&) { return std::filesystem::path{}; });
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_FALSE(pager);
+    }
+
+    os.set_executable_resolver(resolver);
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/whatever/bin/less", pager->name);
+      EXPECT_EQ(std::vector<std::string>({"-R"}), pager->args);
+    }
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/whatever/bin/less", pager->name);
+      EXPECT_EQ(std::vector<std::string>({"-R"}), pager->args);
+    }
+
+    os.set_access_fail("more");
+    os.set_access_fail("less");
+
+    os.setenv("PAGER", "more");
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/somewhere/bin/more", pager->name);
+      EXPECT_TRUE(pager->args.empty());
+    }
+
+    os.setenv("PAGER", "less");
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/whatever/bin/less", pager->name);
+      EXPECT_TRUE(pager->args.empty());
+    }
+
+    os.setenv("PAGER", "cat");
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_FALSE(pager);
+    }
+
+    os.setenv("PAGER", "/bla/foo");
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/bla/foo", pager->name);
+      EXPECT_TRUE(pager->args.empty());
+    }
+
+    os.setenv("PAGER", R"("/bla/foo")");
+
+    {
+      auto pager = find_pager_program(os);
+      ASSERT_TRUE(pager);
+      EXPECT_EQ("/bla/foo", pager->name);
+      EXPECT_TRUE(pager->args.empty());
+    }
+  }
+}

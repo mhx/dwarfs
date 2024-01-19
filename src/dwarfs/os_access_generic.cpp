@@ -25,6 +25,8 @@
 #include <folly/portability/PThread.h>
 #include <folly/portability/Unistd.h>
 
+#include <boost/process/search_path.hpp>
+
 #include "dwarfs/mmap.h"
 #include "dwarfs/os_access_generic.h"
 #include "dwarfs/util.h"
@@ -191,6 +193,11 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
   return std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec);
 
 #endif
+}
+
+std::filesystem::path
+os_access_generic::find_executable(std::filesystem::path const& name) const {
+  return boost::process::search_path(name.wstring()).wstring();
 }
 
 } // namespace dwarfs

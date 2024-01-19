@@ -53,5 +53,7 @@ class os_access_generic : public os_access {
                            std::error_code& ec) const override;
   std::chrono::nanoseconds
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
+  std::filesystem::path
+  find_executable(std::filesystem::path const& name) const override;
 };
 } // namespace dwarfs

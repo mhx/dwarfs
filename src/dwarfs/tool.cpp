@@ -91,11 +91,18 @@ void add_common_options(po::options_description& opts,
 #ifdef DWARFS_BUILTIN_MANPAGE
 void show_manpage(manpage::document doc, iolayer const& iol) {
   bool is_tty = iol.term->is_tty(iol.out);
+
   auto content =
       render_manpage(doc, iol.term->width(), is_tty && iol.term->is_fancy());
-  if (!is_tty || !show_in_pager(content)) {
-    iol.out << content;
+
+  if (is_tty) {
+    if (auto pager = find_pager_program(*iol.os)) {
+      show_in_pager(*pager, content);
+      return;
+    }
   }
+
+  iol.out << content;
 }
 #endif
 

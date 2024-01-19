@@ -26,6 +26,9 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
 
+#include <folly/portability/Unistd.h>
+
+#include "dwarfs/os_access.h"
 #include "dwarfs/pager.h"
 
 namespace dwarfs {
@@ -34,63 +37,53 @@ namespace {
 
 namespace bp = boost::process;
 
-struct pager_def {
-  std::string name;
-  std::vector<std::string> args;
-};
-
-std::vector<pager_def> const pagers{
+std::vector<pager_program> const pagers{
     {"less", {"-R"}},
 };
 
-auto find_executable(std::string name) { return bp::search_path(name); }
+} // namespace
 
-std::pair<boost::filesystem::path, std::vector<std::string>> find_pager() {
-  if (auto pager_env = std::getenv("PAGER")) {
-    std::string_view sv(pager_env);
+std::optional<pager_program> find_pager_program(os_access const& os) {
+  if (auto pager_env = os.getenv("PAGER")) {
+    std::string_view sv{pager_env.value()};
+
+    if (sv == "cat") {
+      return std::nullopt;
+    }
+
     if (sv.starts_with('"') && sv.ends_with('"')) {
       sv.remove_prefix(1);
       sv.remove_suffix(1);
     }
-    if (sv == "cat") {
-      return {};
+
+    std::filesystem::path p{std::string(sv)};
+
+    if (os.access(p, X_OK) == 0) {
+      return pager_program{p, {}};
     }
-    boost::filesystem::path p{std::string(sv)};
-    if (boost::filesystem::exists(p)) {
-      return {p.string(), {}};
-    }
-    if (auto exe = find_executable(pager_env); !exe.empty()) {
-      return {exe, {}};
+
+    if (auto exe = os.find_executable(p); !exe.empty()) {
+      return pager_program{exe, {}};
     }
   }
 
   for (auto const& p : pagers) {
-    if (auto exe = find_executable(std::string(p.name)); !exe.empty()) {
-      return {exe, p.args};
+    if (auto exe = os.find_executable(p.name); !exe.empty()) {
+      return pager_program{exe, p.args};
     }
   }
 
-  return {};
+  return std::nullopt;
 }
 
-} // namespace
-
-bool show_in_pager(std::string text) {
-  auto [pager_exe, pager_args] = find_pager();
-
-  if (pager_exe.empty()) {
-    return false;
-  }
-
+void show_in_pager(pager_program const& pager, std::string text) {
   boost::asio::io_service ios;
-  bp::child proc(pager_exe, bp::args(pager_args),
+  bp::child proc(pager.name.wstring(), bp::args(pager.args),
                  bp::std_in =
                      boost::asio::const_buffer(text.data(), text.size()),
                  bp::std_out > stdout, ios);
   ios.run();
   proc.wait();
-
-  return true;
 }
 
 } // namespace dwarfs

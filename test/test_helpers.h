@@ -73,6 +73,9 @@ class os_access_mock : public os_access {
       std::variant<std::monostate, std::string, std::function<std::string()>,
                    std::unique_ptr<mock_directory>>;
 
+  using executable_resolver_type =
+      std::function<std::filesystem::path(std::filesystem::path const&)>;
+
   os_access_mock();
   ~os_access_mock();
 
@@ -126,6 +129,11 @@ class os_access_mock : public os_access {
   std::chrono::nanoseconds
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
 
+  std::filesystem::path
+  find_executable(std::filesystem::path const& name) const override;
+
+  void set_executable_resolver(executable_resolver_type resolver);
+
   std::set<std::filesystem::path> get_failed_paths() const;
 
   std::vector<
@@ -150,6 +158,7 @@ class os_access_mock : public os_access {
   std::map<std::filesystem::path, error_info> map_file_errors_;
   std::map<std::string, std::string> env_;
   std::shared_ptr<os_access> real_os_;
+  executable_resolver_type executable_resolver_;
 };
 
 class script_mock : public script {

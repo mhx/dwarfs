@@ -516,20 +516,25 @@ os_access_mock::thread_get_cpu_time(std::thread::id tid,
   return real_os_->thread_get_cpu_time(tid, ec);
 }
 
-std::optional<fs::path> find_binary(std::string_view name) {
-  auto path_str = std::getenv("PATH");
-  if (!path_str) {
-    return std::nullopt;
+std::filesystem::path
+os_access_mock::find_executable(std::filesystem::path const& name) const {
+  if (executable_resolver_) {
+    return executable_resolver_(name);
   }
 
-  std::vector<std::string> path;
-  folly::split(':', path_str, path);
+  return real_os_->find_executable(name);
+}
 
-  for (auto dir : path) {
-    auto cand = fs::path(dir) / name;
-    if (fs::exists(cand) and ::access(cand.string().c_str(), X_OK) == 0) {
-      return cand;
-    }
+void os_access_mock::set_executable_resolver(
+    executable_resolver_type resolver) {
+  executable_resolver_ = std::move(resolver);
+}
+
+std::optional<fs::path> find_binary(std::string_view name) {
+  os_access_generic os;
+
+  if (auto path = os.find_executable(name); !path.empty()) {
+    return path;
   }
 
   return std::nullopt;

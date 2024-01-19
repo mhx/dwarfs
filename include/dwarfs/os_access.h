@@ -24,6 +24,7 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <system_error>
@@ -65,5 +66,7 @@ class os_access {
                       std::error_code& ec) const = 0;
   virtual std::chrono::nanoseconds
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const = 0;
+  virtual std::filesystem::path
+  find_executable(std::filesystem::path const& name) const = 0;
 };
 } // namespace dwarfs
