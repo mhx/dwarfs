@@ -166,6 +166,10 @@ void basic_end_to_end_test(std::string const& compressor,
   auto scr = std::make_shared<test::script_mock>();
 
   auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog, scr);
+
+  EXPECT_EQ(14, scr->filter_calls.size());
+  EXPECT_EQ(15, scr->transform_calls.size());
+
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 

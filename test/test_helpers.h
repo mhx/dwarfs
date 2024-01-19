@@ -37,6 +37,7 @@
 #include <variant>
 #include <vector>
 
+#include "dwarfs/entry_interface.h"
 #include "dwarfs/file_access.h"
 #include "dwarfs/file_stat.h"
 #include "dwarfs/iolayer.h"
@@ -179,15 +180,40 @@ class script_mock : public script {
 
   void configure(options_interface const& /*oi*/) override {}
 
-  bool filter(entry_interface const& /*ei*/) override { return true; }
+  bool filter(entry_interface const& ei) override {
+    filter_calls.push_back({ei.unix_dpath(), ei.name(), ei.size(),
+                            ei.is_directory(), ei.get_permissions(),
+                            ei.get_uid(), ei.get_gid(), ei.get_atime(),
+                            ei.get_mtime(), ei.get_ctime()});
+    return true;
+  }
 
-  void transform(entry_interface& /*ei*/) override {
-    // do nothing
+  void transform(entry_interface& ei) override {
+    transform_calls.push_back({ei.unix_dpath(), ei.name(), ei.size(),
+                               ei.is_directory(), ei.get_permissions(),
+                               ei.get_uid(), ei.get_gid(), ei.get_atime(),
+                               ei.get_mtime(), ei.get_ctime()});
   }
 
   void order(inode_vector& /*iv*/) override {
     // do nothing
   }
+
+  struct entry_data {
+    std::string path;
+    std::string name;
+    size_t size;
+    bool is_directory;
+    file_stat::mode_type mode;
+    file_stat::uid_type uid;
+    file_stat::gid_type gid;
+    uint64_t atime;
+    uint64_t mtime;
+    uint64_t ctime;
+  };
+
+  std::vector<entry_data> filter_calls;
+  std::vector<entry_data> transform_calls;
 };
 
 class test_terminal : public terminal {
