@@ -28,6 +28,7 @@
 #include <future>
 #include <iostream>
 #include <sstream>
+#include <string_view>
 #include <thread>
 #include <tuple>
 
@@ -42,7 +43,6 @@
 #endif
 
 #include <folly/FileUtil.h>
-#include <folly/ScopeGuard.h>
 #include <folly/portability/Unistd.h>
 
 #include <boost/asio/io_service.hpp>
@@ -83,6 +83,50 @@ auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
 auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
 auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
 auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
+
+class scoped_no_leak_check {
+ public:
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define RUNNING_ON_ASAN 1
+#endif
+#endif
+
+#ifdef RUNNING_ON_ASAN
+  static constexpr auto const kEnvVar = "ASAN_OPTIONS";
+  static constexpr auto const kNoLeakCheck = "detect_leaks=0";
+
+  scoped_no_leak_check() {
+    std::string new_asan_options;
+
+    if (auto const* asan_options = ::getenv(kEnvVar)) {
+      old_asan_options_.emplace(asan_options);
+      new_asan_options = *old_asan_options_ + ":" + std::string(kNoLeakCheck);
+    } else {
+      new_asan_options.assign(kNoLeakCheck);
+    }
+    ::setenv("ASAN_OPTIONS", new_asan_options.c_str(), 1);
+    unset_asan_ = true;
+  }
+
+  ~scoped_no_leak_check() {
+    if (unset_asan_) {
+      if (old_asan_options_) {
+        ::setenv(kEnvVar, old_asan_options_->c_str(), 1);
+      } else {
+        ::unsetenv(kEnvVar);
+      }
+    }
+  }
+
+ private:
+  std::optional<std::string> old_asan_options_;
+  bool unset_asan_{false};
+#else
+  // suppress unused variable warning
+  ~scoped_no_leak_check() {}
+#endif
+};
 
 #ifndef _WIN32
 pid_t get_dwarfs_pid(fs::path const& path) {
@@ -787,12 +831,7 @@ TEST_P(tools_test, end_to_end) {
 
   for (auto const& driver : drivers) {
     {
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
-      ::setenv("ASAN_OPTIONS", "detect_leaks=0", 1);
-      SCOPE_EXIT { ::unsetenv("ASAN_OPTIONS"); };
-#endif
-#endif
+      scoped_no_leak_check no_leak_check;
       auto const [out, err, ec] =
           subprocess::run(driver, dwarfs_tool_arg, "--help");
       EXPECT_THAT(out, ::testing::HasSubstr("Usage:"));
@@ -1421,6 +1460,8 @@ TEST_P(manpage_test, manpage) {
   } else {
     test_bin = &tools.at(tool);
   }
+
+  scoped_no_leak_check no_leak_check;
 
   auto out = subprocess::check_run(*test_bin, args, "--man");
 
