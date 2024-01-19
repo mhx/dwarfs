@@ -1398,6 +1398,48 @@ TEST_P(tools_test, categorize) {
 INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
                          ::testing::ValuesIn(tools_test_modes));
 
+#ifdef DWARFS_BUILTIN_MANPAGE
+class manpage_test
+    : public ::testing::TestWithParam<std::tuple<binary_mode, std::string>> {};
+
+TEST_P(manpage_test, manpage) {
+  auto [mode, tool] = GetParam();
+
+  std::map<std::string, fs::path> tools{
+      {"dwarfs", fuse3_bin},
+      {"mkdwarfs", mkdwarfs_bin},
+      {"dwarfsck", dwarfsck_bin},
+      {"dwarfsextract", dwarfsextract_bin},
+  };
+
+  std::vector<std::string> args;
+  fs::path const* test_bin{nullptr};
+
+  if (mode == binary_mode::universal_tool) {
+    test_bin = &universal_bin;
+    args.push_back("--tool=" + tool);
+  } else {
+    test_bin = &tools.at(tool);
+  }
+
+  auto out = subprocess::check_run(*test_bin, args, "--man");
+
+  ASSERT_TRUE(out);
+  EXPECT_GT(out->size(), 1000) << *out;
+  EXPECT_THAT(*out, ::testing::HasSubstr(tool));
+  EXPECT_THAT(*out, ::testing::HasSubstr("SYNOPSIS"));
+  EXPECT_THAT(*out, ::testing::HasSubstr("DESCRIPTION"));
+  EXPECT_THAT(*out, ::testing::HasSubstr("AUTHOR"));
+  EXPECT_THAT(*out, ::testing::HasSubstr("COPYRIGHT"));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs, manpage_test,
+    ::testing::Combine(
+        ::testing::Values(binary_mode::standalone, binary_mode::universal_tool),
+        ::testing::Values("dwarfs", "mkdwarfs", "dwarfsck", "dwarfsextract")));
+#endif
+
 TEST(tools_test, dwarfsextract_progress) {
   folly::test::TemporaryDirectory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
