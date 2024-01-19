@@ -169,10 +169,10 @@ class terminal_windows : public terminal_ansi {
 
   bool is_fancy(std::ostream& os) const override {
     if (&os == &std::cout) {
-      return true;
+      return ::_isatty(::_fileno(stdout));
     }
     if (&os == &std::cerr) {
-      return true;
+      return ::_isatty(::_fileno(stderr));
     }
     return false;
   }
@@ -189,14 +189,17 @@ class terminal_posix : public terminal_ansi {
   }
 
   bool is_fancy(std::ostream& os) const override {
-    if (&os == &std::cout && !::isatty(::fileno(stdout))) {
-      return false;
-    }
-    if (&os == &std::cerr && !::isatty(::fileno(stderr))) {
-      return false;
-    }
     auto term = ::getenv("TERM");
-    return term && term[0] != '\0' && ::strcmp(term, "dumb") != 0;
+    if (!term || term[0] == '\0' || std::string_view(term) == "dumb") {
+      return false;
+    }
+    if (&os == &std::cout) {
+      return ::isatty(::fileno(stdout));
+    }
+    if (&os == &std::cerr) {
+      return ::isatty(::fileno(stderr));
+    }
+    return false;
   }
 };
 
