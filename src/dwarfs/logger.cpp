@@ -111,9 +111,14 @@ stream_logger::stream_logger(std::shared_ptr<terminal const> term,
   set_threshold(logopts.threshold);
 }
 
-void stream_logger::preamble() {}
-void stream_logger::postamble() {}
+void stream_logger::preamble(std::ostream&) {}
+void stream_logger::postamble(std::ostream&) {}
 std::string_view stream_logger::get_newline() const { return "\n"; }
+
+void stream_logger::write_nolock(std::string_view output) {
+  // TODO
+  os_ << output;
+}
 
 void stream_logger::write(level_type level, const std::string& output,
                           char const* file, int line) {
@@ -207,14 +212,11 @@ void stream_logger::write(level_type level, const std::string& output,
       lines.pop_back();
     }
 
+    std::ostringstream oss;
     bool clear_ctx = true;
 
-    std::lock_guard lock(mx_);
-
-    preamble();
-
     for (auto l : lines) {
-      os_ << prefix << lchar << ' ' << t << ' ' << context << l << suffix
+      oss << prefix << lchar << ' ' << t << ' ' << context << l << suffix
           << newline;
 
       if (clear_ctx) {
@@ -226,11 +228,19 @@ void stream_logger::write(level_type level, const std::string& output,
 
 #if DWARFS_SYMBOLIZE
     for (auto l : st_lines) {
-      os_ << l << newline;
+      oss << l << newline;
     }
 #endif
 
-    postamble();
+    std::lock_guard lock(mx_);
+
+    std::ostringstream oss2;
+
+    preamble(oss2);
+    oss2 << oss.str();
+    postamble(oss2);
+
+    write_nolock(oss2.str());
   }
 
   if (level == FATAL) {

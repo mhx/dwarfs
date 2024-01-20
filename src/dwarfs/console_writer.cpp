@@ -151,9 +151,8 @@ console_writer::console_writer(std::shared_ptr<terminal const> term,
     , pg_mode_(pg_mode)
     , mode_(mode) {}
 
-void console_writer::rewind(int next_rewind_lines) {
+void console_writer::rewind(std::ostream& os, int next_rewind_lines) {
   if (!statebuf_.empty()) {
-    auto& os = log_stream();
     auto& term = this->term();
     auto clear_line = term.clear_line();
     auto rewind_line = term.rewind_line();
@@ -174,11 +173,11 @@ void console_writer::rewind(int next_rewind_lines) {
   rewind_lines_ = next_rewind_lines;
 }
 
-void console_writer::preamble() { rewind(rewind_lines_); }
+void console_writer::preamble(std::ostream& os) { rewind(os, rewind_lines_); }
 
-void console_writer::postamble() {
+void console_writer::postamble(std::ostream& os) {
   if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
-    log_stream() << statebuf_;
+    os << statebuf_;
   }
 }
 
@@ -283,7 +282,7 @@ void console_writer::update(progress& p, bool last) {
   if (pg_mode_ == NONE) {
     if (INFO <= log_threshold()) {
       std::lock_guard lock(log_mutex());
-      log_stream() << oss.str();
+      write_nolock(oss.str());
     }
     return;
   }
@@ -312,10 +311,10 @@ void console_writer::update(progress& p, bool last) {
     if (tmp != statebuf_) {
       auto t = get_current_time_string();
       statebuf_ = tmp;
-      log_stream() << "- " << t << statebuf_ << "\n";
+      write_nolock(fmt::format("- {}{}\n", t, statebuf_));
     }
     if (last) {
-      log_stream() << oss.str();
+      write_nolock(oss.str());
     }
   } else {
     auto w = width.get();
@@ -340,11 +339,15 @@ void console_writer::update(progress& p, bool last) {
 
     std::lock_guard lock(log_mutex());
 
-    rewind((mode_ == NORMAL ? 9 : 4) + ctxs.size());
-
     statebuf_ = oss.str();
 
-    log_stream() << statebuf_;
+    oss.clear();
+    oss.seekp(0);
+
+    rewind(oss, (mode_ == NORMAL ? 9 : 4) + ctxs.size());
+    oss << statebuf_;
+
+    write_nolock(oss.str());
   }
 }
 

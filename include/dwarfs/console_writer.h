@@ -47,10 +47,10 @@ class console_writer : public stream_logger {
   void update(progress& p, bool last);
 
  private:
-  void preamble() override;
-  void postamble() override;
+  void preamble(std::ostream& os) override;
+  void postamble(std::ostream& os) override;
   std::string_view get_newline() const override;
-  void rewind(int next_rewind_lines);
+  void rewind(std::ostream& os, int next_rewind_lines);
 
   std::string statebuf_;
   int rewind_lines_{0};

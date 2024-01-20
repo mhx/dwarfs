@@ -111,11 +111,11 @@ class stream_logger : public logger {
   void set_with_context(bool with_context) { with_context_ = with_context; }
 
  protected:
-  virtual void preamble();
-  virtual void postamble();
+  virtual void preamble(std::ostream& os);
+  virtual void postamble(std::ostream& os);
   virtual std::string_view get_newline() const;
 
-  std::ostream& log_stream() const { return os_; }
+  void write_nolock(std::string_view output);
   std::mutex& log_mutex() const { return mx_; }
   bool log_is_colored() const { return color_; }
   level_type log_threshold() const { return threshold_.load(); }
