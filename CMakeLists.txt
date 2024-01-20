@@ -573,7 +573,7 @@ if(FUSE3_FOUND OR WINFSP)
   if(WINFSP)
     target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
                                                    DWARFS_FUSE_LOWLEVEL=0)
-    target_include_directories(dwarfs_main PRIVATE "${WINFSP_PATH}/inc")
+    target_include_directories(dwarfs_main SYSTEM PRIVATE "${WINFSP_PATH}/inc")
     target_link_libraries(dwarfs_main ${WINFSP})
     target_link_libraries(dwarfsuniversal delayimp.lib)
     target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
@@ -765,7 +765,7 @@ add_library(
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
 target_link_libraries(thrift_light folly)
 
-target_include_directories(thrift_light PRIVATE ${INCLUDE_DIRS})
+target_include_directories(thrift_light SYSTEM PRIVATE ${INCLUDE_DIRS})
 
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
@@ -789,8 +789,8 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_include_directories(
-    ${tgt} SYSTEM
-    PRIVATE ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
+    ${tgt} SYSTEM PRIVATE
+            ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
             ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -871,7 +871,7 @@ add_library(
   fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
   fsst/fsst_avx512_unroll4.inc)
 
-target_include_directories(dwarfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
+target_include_directories(dwarfs SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
 
 target_link_libraries(
   dwarfs
