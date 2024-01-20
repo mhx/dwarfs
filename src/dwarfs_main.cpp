@@ -25,7 +25,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #include <cstddef>
 #include <cstdlib>
@@ -107,8 +109,9 @@ namespace dwarfs {
 namespace {
 
 struct options {
-  std::filesystem::path progname;
-  std::filesystem::path fsimage;
+  // std::string isn't standard-layout on MSVC
+  // std::unique_ptr isn't standard-layout with libstdc++
+  std::shared_ptr<std::string> fsimage;
   int seen_mountpoint{0};
   char const* cachesize_str{nullptr};           // TODO: const?? -> use string?
   char const* debuglevel_str{nullptr};          // TODO: const?? -> use string?
@@ -134,7 +137,13 @@ struct options {
   cache_tidy_strategy block_cache_tidy_strategy{cache_tidy_strategy::NONE};
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
+  bool is_help{false};
+#ifdef DWARFS_BUILTIN_MANPAGE
+  bool is_man{false};
+#endif
 };
+
+static_assert(std::is_standard_layout_v<options>);
 
 struct dwarfs_userdata {
   explicit dwarfs_userdata(iolayer const& iol)
@@ -144,10 +153,7 @@ struct dwarfs_userdata {
   dwarfs_userdata(dwarfs_userdata const&) = delete;
   dwarfs_userdata& operator=(dwarfs_userdata const&) = delete;
 
-  bool is_help{false};
-#ifdef DWARFS_BUILTIN_MANPAGE
-  bool is_man{false};
-#endif
+  std::filesystem::path progname;
   options opts;
   stream_logger lgr;
   filesystem_v2 fs;
@@ -170,7 +176,7 @@ struct dwarfs_userdata {
 // TODO: better error handling
 
 #define DWARFS_OPT(t, p, v)                                                    \
-  { t, offsetof(struct dwarfs_userdata, opts.p), v }
+  { t, offsetof(struct options, p), v }
 
 constexpr struct ::fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
@@ -991,8 +997,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 
 int option_hdl(void* data, char const* arg, int key,
                struct fuse_args* /*outargs*/) {
-  auto& userdata = *reinterpret_cast<dwarfs_userdata*>(data);
-  auto& opts = userdata.opts;
+  auto& opts = *reinterpret_cast<options*>(data);
 
   switch (key) {
   case FUSE_OPT_KEY_NONOPT:
@@ -1000,25 +1005,24 @@ int option_hdl(void* data, char const* arg, int key,
       return -1;
     }
 
-    if (!opts.fsimage.empty()) {
+    if (opts.fsimage) {
       opts.seen_mountpoint = 1;
       return 1;
     }
 
-    opts.fsimage = canonical_path(
-        std::filesystem::path(reinterpret_cast<char8_t const*>(arg)));
+    opts.fsimage = std::make_shared<std::string>(arg);
 
     return 0;
 
   case FUSE_OPT_KEY_OPT:
     if (::strncmp(arg, "-h", 2) == 0 || ::strncmp(arg, "--help", 6) == 0) {
-      userdata.is_help = true;
+      opts.is_help = true;
       return -1;
     }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (::strncmp(arg, "--man", 5) == 0) {
-      userdata.is_man = true;
+      opts.is_man = true;
       return -1;
     }
 #endif
@@ -1225,9 +1229,12 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr)
   PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr)
 
-  userdata.fs = filesystem_v2(userdata.lgr, *userdata.iol.os,
-                              std::make_shared<mmap>(opts.fsimage), fsopts,
-                              userdata.perfmon);
+  auto fsimage = canonical_path(std::filesystem::path(
+      reinterpret_cast<char8_t const*>(opts.fsimage->data())));
+
+  userdata.fs =
+      filesystem_v2(userdata.lgr, *userdata.iol.os,
+                    std::make_shared<mmap>(fsimage), fsopts, userdata.perfmon);
 
   ti << "file system initialized";
 }
@@ -1254,11 +1261,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   dwarfs_userdata userdata(iol);
   auto& opts = userdata.opts;
 
-  opts.progname = std::filesystem::path(argv[0]);
+  userdata.progname = std::filesystem::path(argv[0]);
   opts.cache_image = 0;
   opts.cache_files = 1;
 
-  fuse_opt_parse(&args, &userdata, dwarfs_opts, option_hdl);
+  fuse_opt_parse(&args, &userdata.opts, dwarfs_opts, option_hdl);
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
@@ -1266,13 +1273,13 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
 #ifdef DWARFS_BUILTIN_MANPAGE
-    if (userdata.is_man) {
+    if (userdata.opts.is_man) {
       show_manpage(manpage::get_dwarfs_manpage(), iol);
       return 0;
     }
 #endif
-    usage(iol.out, opts.progname);
-    return userdata.is_help ? 0 : 1;
+    usage(iol.out, userdata.progname);
+    return userdata.opts.is_help ? 0 : 1;
   }
 
   if (fuse_opts.foreground) {
@@ -1286,13 +1293,13 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
 #ifdef DWARFS_BUILTIN_MANPAGE
-    if (userdata.is_man) {
+    if (userdata.opts.is_man) {
       show_manpage(manpage::get_dwarfs_manpage(), iol);
       return 0;
     }
 #endif
-    usage(iol.out, opts.progname);
-    return userdata.is_help ? 0 : 1;
+    usage(iol.out, userdata.progname);
+    return userdata.opts.is_help ? 0 : 1;
   }
 
   if (fg) {
@@ -1363,14 +1370,14 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (userdata.is_man) {
+  if (userdata.opts.is_man) {
     show_manpage(manpage::get_dwarfs_manpage(), iol);
     return 0;
   }
 #endif
 
   if (!opts.seen_mountpoint) {
-    usage(iol.out, opts.progname);
+    usage(iol.out, userdata.progname);
     return 1;
   }
 
