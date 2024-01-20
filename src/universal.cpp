@@ -88,7 +88,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // first, see if we are called as a copy/hardlink/symlink
 
-  if (path.extension().string() == EXE_EXT) {
+  if (auto ext = path.extension().string(); ext.empty() || ext == EXE_EXT) {
     if (auto it = functions.find(path.stem().string()); it != functions.end()) {
       return safe_main([&] { return it->second(argc, argv); });
     }
