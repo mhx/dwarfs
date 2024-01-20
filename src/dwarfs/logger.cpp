@@ -116,8 +116,11 @@ void stream_logger::postamble(std::ostream&) {}
 std::string_view stream_logger::get_newline() const { return "\n"; }
 
 void stream_logger::write_nolock(std::string_view output) {
-  // TODO
-  os_ << output;
+  if (&os_ == &std::cerr) {
+    fmt::print(stderr, "{}", output);
+  } else {
+    os_ << output;
+  }
 }
 
 void stream_logger::write(level_type level, const std::string& output,
