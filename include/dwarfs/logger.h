@@ -96,7 +96,7 @@ std::istream& operator>>(std::istream& is, logger::level_type& optval);
 
 struct logger_options {
   logger::level_type threshold{logger::WARN};
-  std::optional<bool> with_context;
+  std::optional<bool> with_context{};
 };
 
 class stream_logger : public logger {
