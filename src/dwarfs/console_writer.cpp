@@ -21,6 +21,7 @@
 
 #include <cstring>
 #include <sstream>
+#include <string_view>
 
 #include <fmt/format.h>
 
@@ -38,10 +39,19 @@ namespace dwarfs {
 
 namespace {
 
-constexpr std::array<char const*, 8> asc_bar{
+constexpr std::array<std::string_view, 8> asc_bar{
     {"=", "=", "=", "=", "=", "=", "=", "="}};
-constexpr std::array<char const*, 8> uni_bar{
+constexpr std::array<std::string_view, 8> uni_bar{
     {"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}};
+
+constexpr std::array<std::string_view, 4> asc_spinner_def{
+    {"-", "\\", "|", "/"}};
+
+constexpr std::array<std::string_view, 8> uni_spinner_def{
+    {"🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"}};
+
+constexpr std::span<std::string_view const> asc_spinner{asc_spinner_def};
+constexpr std::span<std::string_view const> uni_spinner{uni_spinner_def};
 
 std::string progress_bar(size_t width, double frac, bool unicode) {
   size_t barlen = 8 * width * frac;
@@ -318,10 +328,11 @@ void console_writer::update(progress& p, bool last) {
     }
   } else {
     auto w = width.get();
+    auto spinner{pg_mode_ == UNICODE ? uni_spinner : asc_spinner};
 
-    oss << progress_bar(w - 6, frac_, pg_mode_ == UNICODE)
-        << fmt::format("{:3.0f}% ", 100 * frac_) << "-\\|/"[counter_ % 4]
-        << '\n';
+    oss << progress_bar(w - 8, frac_, pg_mode_ == UNICODE)
+        << fmt::format("{:3.0f}% ", 100 * frac_)
+        << spinner[counter_ % spinner.size()] << '\n';
 
     ++counter_;
 
