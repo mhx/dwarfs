@@ -108,7 +108,6 @@ jobs:
           - clang-release-ninja-static
           - clang-reldbg-ninja-static
           - clang-debug-ninja-static
-          - oldclang-debug-make
         include:
           - arch: amd64
             build_type: clang-asan-ninja
@@ -117,9 +116,11 @@ jobs:
           - arch: amd64
             build_type: clang-ubsan-ninja
           - arch: amd64
-            build_type: gcc-debug-noperfmon-ninja
-          - arch: amd64
             build_type: clang-coverage-ninja
+          - arch: arm64v8
+            build_type: gcc-debug-noperfmon-ninja
+          - arch: arm64v8
+            build_type: oldclang-debug-make
 
     runs-on:
       - self-hosted
