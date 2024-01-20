@@ -64,6 +64,9 @@
 
 - (fix) Fix slow sorting in `file_scanner` due to path comparison.
 
+- (fix) On Windows, don't crash with an assertion if the input path for
+  `mkdwarfs` is not found.
+
 - (remove) Python scripting support has been completely removed.
 
 - (feature) Categorizer framework. Initially supported categorizers are
@@ -113,6 +116,14 @@
   History timestamps can be disabled using `--no-history-timestamps`
   for bit-identical images. History creation can also be completely
   disabled using `--no-history`.
+
+- (feature) All tools now come with built-in manual pages. This is
+  valuable especially on Windows, which doesn't have `man` at all,
+  or for the universal binaries, which are usually not installed
+  alongside the manual pages. Running each tool with `--man` will
+  show the manual page for the tool, using the configured pager.
+  On Windows, if `less.exe` is in the PATH, it'll also be used as
+  a pager.
 
 - (feature) New `verbose` logging level (between `info` and `debug`).
 
@@ -202,6 +213,10 @@
   This allows testing of almost all tool functionality without the need
   to start the tool as a subprocess. It also allows to inject errors more
   easily, and change properties such as the terminal size.
+
+- (other) The universal binaries are now compressed with a different `upx`
+  compression level, making them slightly bigger, but decompress much
+  faster.
 
 ## Version 0.7.5 - 2024-01-16
 
