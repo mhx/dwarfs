@@ -97,18 +97,10 @@ const std::map<std::string, console_writer::progress_mode> progress_modes{
     {"none", console_writer::NONE},
     {"simple", console_writer::SIMPLE},
     {"ascii", console_writer::ASCII},
-#ifndef _WIN32
     {"unicode", console_writer::UNICODE},
-#endif
 };
 
-const std::string default_progress_mode =
-#ifdef _WIN32
-    "ascii"
-#else
-    "unicode"
-#endif
-    ;
+const std::string default_progress_mode = "unicode";
 
 const std::map<std::string, debug_filter_mode> debug_filter_modes{
     {"included", debug_filter_mode::INCLUDED},
