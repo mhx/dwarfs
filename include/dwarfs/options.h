@@ -61,7 +61,7 @@ struct history_config {
 struct cache_tidy_config {
   cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
   std::chrono::milliseconds interval{std::chrono::seconds(1)};
-  std::chrono::milliseconds expiry_time;
+  std::chrono::milliseconds expiry_time{std::chrono::seconds(60)};
 };
 
 struct metadata_options {
