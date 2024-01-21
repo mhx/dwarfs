@@ -69,7 +69,7 @@ generate_random_complex_symbolic_mode() {
 }
 
 # Main loop
-for i in {1..2000}; do
+for i in {1..5000}; do
     # Generate random chmod mode string
     if [ $((RANDOM % 10)) -eq 0 ]; then
         mode=$(generate_random_octal_mode_special)
@@ -95,7 +95,7 @@ for i in {1..2000}; do
 
     # Print umask, chmod string, original and new file permissions
     cat <<EOF
-  EXPECT_EQ_MODE(xfm("$mode", 0$umask_value).transform(0$original_permissions, false), 0$new_permissions);
+    {"$mode", 0$umask_value, 0$original_permissions, 0$new_permissions},
 EOF
 
     # Clean up
