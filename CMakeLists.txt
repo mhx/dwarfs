@@ -106,8 +106,8 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
   # For gcc, -O3 is *much* worse than -O2
   # Update: This is still true for gcc-12
-  set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
-  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
+  # set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
+  # set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
 endif()
@@ -381,6 +381,11 @@ if(NOT
               -Wredundant-decls
               -Wstrict-overflow=2)
   endif()
+endif()
+
+if(DWARFS_OPTIMIZE)
+  string(REPLACE "-O3" "-O${DWARFS_OPTIMIZE}" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+  string(REPLACE "-O3" "-O${DWARFS_OPTIMIZE}" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 endif()
 
 list(APPEND LIBDWARFS_SRC
@@ -1086,6 +1091,9 @@ endif()
 
 if(PRJ_VERSION_FULL)
   set(DWARFS_ARTIFACT_ID "${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+  if(DWARFS_OPTIMIZE)
+    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-O${DWARFS_OPTIMIZE}")
+  endif()
   if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-reldbg")
   elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
