@@ -77,6 +77,10 @@ case "-$BUILD_TYPE-" in
     exit 1
 esac
 
+if [[ "-$BUILD_TYPE-" == *-O2-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_OPTIMIZE=2"
+fi
+
 if [[ "-$BUILD_TYPE-" == *-nojemalloc-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DUSE_JEMALLOC=0"
 fi
@@ -117,39 +121,41 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  # in the clang-release-static case, we also try to build from the source tarball
-  if [[ "-$BUILD_TYPE-" == *-release-* ]] && [[ "-$BUILD_TYPE-" == *-clang-* ]]; then
-    $BUILD_TOOL package_source
+  if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
+    # in the clang-release-static case, we also try to build from the source tarball
+    if [[ "-$BUILD_TYPE-" == *-clang-* ]] && [[ "-$BUILD_TYPE-" != *-O2-* ]]; then
+      $BUILD_TOOL package_source
 
-    if [[ "$BUILD_ARCH" == "amd64" ]]; then
-      $BUILD_TOOL copy_source_artifacts
+      if [[ "$BUILD_ARCH" == "amd64" ]]; then
+        $BUILD_TOOL copy_source_artifacts
+      fi
+
+      $BUILD_TOOL realclean
+
+      cd "$HOME"
+
+      VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
+      VERSION=${VERSION:1}
+
+      rm -rf dwarfs-*
+      rm -f dwarfs
+
+      mv "build/dwarfs-${VERSION}.tar.zst" .
+      rm -rf build
+
+      tar xvf "dwarfs-${VERSION}.tar.zst"
+      mv "dwarfs-${VERSION}" dwarfs
+
+      mkdir build
+      cd build
+
+      # shellcheck disable=SC2086
+      cmake ../dwarfs/ $CMAKE_ARGS
+
+      $BUILD_TOOL
+
+      ctest --output-on-failure -j$(nproc)
     fi
-
-    $BUILD_TOOL realclean
-
-    cd "$HOME"
-
-    VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
-    VERSION=${VERSION:1}
-
-    rm -rf dwarfs-*
-    rm -f dwarfs
-
-    mv "build/dwarfs-${VERSION}.tar.zst" .
-    rm -rf build
-
-    tar xvf "dwarfs-${VERSION}.tar.zst"
-    mv "dwarfs-${VERSION}" dwarfs
-
-    mkdir build
-    cd build
-
-    # shellcheck disable=SC2086
-    cmake ../dwarfs/ $CMAKE_ARGS
-
-    $BUILD_TOOL
-
-    ctest --output-on-failure -j$(nproc)
 
     $BUILD_TOOL strip
   fi
