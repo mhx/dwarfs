@@ -32,12 +32,14 @@ esac
 case "-$BUILD_TYPE-" in
   *-gcc-*)
     export CC=gcc-13 CXX=g++-13
+    export COMPILER=gcc
     ;;
   *-oldgcc-*)
     export CC=gcc-12 CXX=g++-12
     ;;
   *-clang-*)
     export CC=clang-17 CXX=clang++-17
+    export COMPILER=clang
     ;;
   *-oldclang-*)
     export CC=clang-16 CXX=clang++-16
@@ -85,7 +87,7 @@ fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
 else
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
 fi
@@ -115,7 +117,8 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
+  # in the clang-release-static case, we also try to build from the source tarball
+  if [[ "-$BUILD_TYPE-" == *-release-* ]] && [[ "-$BUILD_TYPE-" == *-clang-* ]]; then
     $BUILD_TOOL package_source
 
     if [[ "$BUILD_ARCH" == "amd64" ]]; then

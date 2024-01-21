@@ -975,7 +975,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   import_static_lib(static_libflac "libFLAC++.a")
 
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                    PkgConfig::LIBLZMA)
+                                                    "${LIBLZMA_LIBRARIES};static_libz")
   set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES
                                                   static_libgflags)
   set_target_properties(static_librt PROPERTIES INTERFACE_LINK_LIBRARIES
@@ -1091,6 +1091,11 @@ endif()
 
 if(PRJ_VERSION_FULL)
   set(DWARFS_ARTIFACT_ID "${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-gcc")
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-clang")
+  endif()
   if(DWARFS_OPTIMIZE)
     set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-O${DWARFS_OPTIMIZE}")
   endif()

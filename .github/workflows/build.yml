@@ -105,6 +105,7 @@ jobs:
           - gcc-release-ninja
           - oldgcc-debug-make
           - clang-release-ninja
+          - gcc-release-ninja-static
           - clang-release-ninja-static
           - clang-reldbg-ninja-static
           - clang-debug-ninja-static
