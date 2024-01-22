@@ -1,6 +1,6 @@
 # Change Log
 
-## Version 0.8.0 - 2024-01-xx
+## Version 0.8.0 - 2024-01-22
 
 - (fix) Allow version override for nixpkgs. Fixes github #155.
 
