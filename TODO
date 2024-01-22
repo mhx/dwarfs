@@ -1,3 +1,7 @@
+- Add support for compressing uncompressed image formats,
+  currently primarily FITS, using different formats (e.g.
+  JPEG2K, Rice, Hcompress).
+
 - Fragment counts don't necessarily match up in presence
   of errors.
 
