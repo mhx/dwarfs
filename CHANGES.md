@@ -42,6 +42,12 @@
   this means `mkdwarfs` can now handle files that are vanishing while
   the file system is being built.
 
+- (fix) `mkdwarfs` progress updates are now "atomic", i.e. one update
+  is always written with a single system call. This didn't make much
+  of a difference on Linux, but the notoriously slow Windows terminal,
+  along with somewhat interesting thread scheduling, would sometimes
+  make the updates look like a typewriter in slow-motion.
+
 - (fix) `utf8_truncate()` didn't handle zero-width characters properly.
   This could cause issues when truncating certain UTF8 strings.
 
