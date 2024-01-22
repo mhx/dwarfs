@@ -282,9 +282,10 @@ $ apt install \
     libelf-dev \
     libfmt-dev \
     libfuse3-dev \
-    libutfcpp-dev \
     libgoogle-glog-dev \
-    libflac++-dev
+    libutfcpp-dev \
+    libflac++-dev \
+    python3-mistletoe
 ```
 
 Note that when building with `gcc`, the optimization level will be
@@ -386,17 +387,25 @@ $ ninja test
 
 ## Usage
 
-Please check out the man pages for [mkdwarfs](doc/mkdwarfs.md),
+Please check out the manual pages for [mkdwarfs](doc/mkdwarfs.md),
 [dwarfs](doc/dwarfs.md), [dwarfsck](doc/dwarfsck.md) and
-[dwarfsextract](doc/dwarfsextract.md).
+[dwarfsextract](doc/dwarfsextract.md). You can also access the manual
+pages using the `--man` option to each binary, e.g.:
 
-The [dwarfs](doc/dwarfs.md) man page also shows an example for setting
+```
+$ mkdwarfs --man
+```
+
+The [dwarfs](doc/dwarfs.md) manual page also shows an example for setting
 up DwarFS with [overlayfs](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt)
 in order to create a writable file system mount on top a read-only
 DwarFS image.
 
 A description of the DwarFS filesystem format can be found in
 [dwarfs-format](doc/dwarfs-format.md).
+
+A high-level overview of the internal operation of `mkdwarfs` is shown
+in [this sequence diagram](doc/mkdwarfs-sequence.svg).
 
 ## Windows Support
 
