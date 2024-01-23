@@ -207,9 +207,15 @@ file_stat make_file_stat(fs::path const& path) {
   rv.size = st.st_size;
   rv.blksize = st.st_blksize;
   rv.blocks = st.st_blocks;
+#ifdef __APPLE__
+  rv.atime = st.st_atimespec.tv_sec;
+  rv.mtime = st.st_mtimespec.tv_sec;
+  rv.ctime = st.st_ctimespec.tv_sec;
+#else
   rv.atime = st.st_atim.tv_sec;
   rv.mtime = st.st_mtim.tv_sec;
   rv.ctime = st.st_ctim.tv_sec;
+#endif
 
   return rv;
 }

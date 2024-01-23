@@ -720,7 +720,8 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
         if (mm) {
           LOG_DEBUG << "successfully opened: " << p->path_as_string();
 
-          wg.add_job([this, p, ino, mm = std::move(mm)] {
+          // TODO: p = p is a workaround for older Clang versions
+          wg.add_job([this, p = p, ino, mm = std::move(mm)] {
             ino->scan(mm.get(), opts_, prog_);
             update_prog(ino, p);
           });

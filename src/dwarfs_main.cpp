@@ -816,13 +816,21 @@ int op_statfs(char const* path, native_statvfs* st) {
 
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
-                 size_t size) {
+void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
+#ifdef __APPLE__
+                 ,
+                 uint32_t position
+#endif
+) {
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size << ")";
+  LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size
+#ifdef __APPLE__
+            << ", " << position
+#endif
+            << ")";
 
   checked_reply_err(log_, req, [&] {
     std::ostringstream oss;
@@ -857,7 +865,12 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name,
       }
     }
 
+// TODO: figure out under which conditions we don't have ::view()
+#ifdef __APPLE__
+    auto value = oss.str();
+#else
     auto value = oss.view();
+#endif
 
     LOG_TRACE << __func__ << ": value.size=" << value.size()
               << ", extra_size=" << extra_size;
@@ -912,7 +925,12 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
 
     oss << inodeinfo_xattr << '\0';
 
+// TODO: figure out under which conditions we don't have ::view()
+#ifdef __APPLE__
+    auto xattrs = oss.str();
+#else
     auto xattrs = oss.view();
+#endif
 
     LOG_TRACE << __func__ << ": xattrs.size=" << xattrs.size();
 

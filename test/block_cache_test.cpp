@@ -248,8 +248,9 @@ TEST_P(options_test, cache_stress) {
 
   for (auto const& [i, reqs] : folly::enumerate(data)) {
     auto& succ = success[i];
-    threads.emplace_back([&] {
-      for (auto const& req : reqs) {
+    // TODO: preqs is a workaround for older Clang versions
+    threads.emplace_back([&, preqs = &reqs] {
+      for (auto const& req : *preqs) {
         auto fh = fs.open(req.inode);
         auto range = fs.readv(fh, req.size, req.offset);
         if (!range) {

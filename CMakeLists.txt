@@ -225,6 +225,11 @@ endif()
 
 find_package(PkgConfig)
 
+if(APPLE)
+  # For whatever reason, thrift is unhappy if we don't do this
+  find_package(OpenSSL 1.1.1 MODULE REQUIRED)
+endif()
+
 if(STATIC_BUILD_DO_NOT_USE)
   if (PKG_CONFIG_FOUND)
     list(APPEND PKG_CONFIG_EXECUTABLE "--static")
@@ -572,7 +577,7 @@ list(APPEND BINARY_TARGETS dwarfsuniversal)
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
-if(FUSE3_FOUND OR WINFSP)
+if(FUSE3_FOUND OR WINFSP OR APPLE)
   add_library(dwarfs_main src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
   if(WINFSP)
@@ -582,6 +587,9 @@ if(FUSE3_FOUND OR WINFSP)
     target_link_libraries(dwarfs_main ${WINFSP})
     target_link_libraries(dwarfsuniversal delayimp.lib)
     target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+  elseif(APPLE)
+    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=29)
+    target_link_libraries(dwarfs_main PkgConfig::FUSE)
   else()
     target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
     target_link_libraries(dwarfs_main PkgConfig::FUSE3)
@@ -604,7 +612,7 @@ if(FUSE3_FOUND OR WINFSP)
   list(APPEND MAIN_TARGETS dwarfs_main)
 endif()
 
-if(FUSE_FOUND AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   add_library(dwarfs2_main src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                   FUSE_USE_VERSION=29)
@@ -1082,11 +1090,15 @@ if(FALSE)
   endif()
 endif()
 
-if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
+if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   foreach(tgt ${BINARY_TARGETS})
     list(APPEND FILES_TO_STRIP $<TARGET_FILE:${tgt}>)
   endforeach()
-  add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
+  if(APPLE)
+    add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
+  else()
+    add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
+  endif()
 endif()
 
 if(PRJ_VERSION_FULL)
@@ -1106,7 +1118,7 @@ if(PRJ_VERSION_FULL)
   endif()
 endif()
 
-if(STATIC_BUILD_DO_NOT_USE OR WIN32)
+if(STATIC_BUILD_DO_NOT_USE OR WIN32 OR APPLE)
   find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
   set(UNIVERSAL_PACKED

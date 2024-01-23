@@ -27,6 +27,11 @@
 
 #include <boost/process/search_path.hpp>
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+#include <mach/thread_info.h>
+#endif
+
 #include "dwarfs/mmap.h"
 #include "dwarfs/os_access_generic.h"
 #include "dwarfs/util.h"
@@ -132,7 +137,7 @@ void os_access_generic::thread_set_affinity(std::thread::id tid
                                             [[maybe_unused]],
                                             std::error_code& ec
                                             [[maybe_unused]]) const {
-#ifndef _WIN32
+#if !(defined(_WIN32) || defined(__APPLE__))
   cpu_set_t cpuset;
 
   for (auto cpu : cpus) {
@@ -173,6 +178,24 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
                   t_user.dwLowDateTime;
 
   return std::chrono::nanoseconds(100 * (sys + user));
+
+#elif defined(__APPLE__)
+
+  auto port = ::pthread_mach_thread_np(std_to_pthread_id(tid));
+
+  ::thread_basic_info_data_t ti;
+  ::mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+
+  if (::thread_info(port, THREAD_BASIC_INFO,
+                    reinterpret_cast<thread_info_t>(&ti),
+                    &count) != KERN_SUCCESS) {
+    ec = std::make_error_code(std::errc::not_supported);
+    return {};
+  }
+
+  return std::chrono::seconds(ti.user_time.seconds + ti.system_time.seconds) +
+         std::chrono::microseconds(ti.user_time.microseconds +
+                                   ti.system_time.microseconds);
 
 #else
 
