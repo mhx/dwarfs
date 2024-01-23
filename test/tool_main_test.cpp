@@ -57,6 +57,13 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// TODO: this is a workaround for older Clang versions
+struct fs_path_hash {
+  auto operator()(const std::filesystem::path& p) const noexcept {
+    return std::filesystem::hash_value(p);
+  }
+};
+
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto audio_data_dir = test_dir / "pcmaudio";
 
@@ -700,7 +707,7 @@ TEST_P(term_logging_test, end_to_end) {
     auto err = t.err();
     auto it = log_level_strings.begin();
 
-    auto make_contains_regex = [fancy](auto m) {
+    auto make_contains_regex = [fancy = fancy](auto m) {
       auto const& [color, prefix] = m->second;
       auto beg = fancy ? color : std::string_view{};
       auto end = fancy && !color.empty() ? "<normal>" : "";
@@ -2311,7 +2318,7 @@ TEST_P(map_file_error_test, delayed) {
   auto fs = t.fs_from_file("test.dwarfs");
   // fs.dump(std::cout, 2);
 
-  std::unordered_map<fs::path, std::string> actual_files;
+  std::unordered_map<fs::path, std::string, fs_path_hash> actual_files;
   fs.walk([&](auto const& dev) {
     auto iv = dev.inode();
     if (iv.is_regular_file()) {
@@ -2360,8 +2367,8 @@ TEST_P(map_file_error_test, delayed) {
       failed_expected.end(),
       std::inserter(surprisingly_missing, surprisingly_missing.begin()));
 
-  std::unordered_map<fs::path, std::string> original_files(files.begin(),
-                                                           files.end());
+  std::unordered_map<fs::path, std::string, fs_path_hash> original_files(
+      files.begin(), files.end());
 
   EXPECT_EQ(0, surprisingly_missing.size());
 

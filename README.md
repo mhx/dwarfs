@@ -23,6 +23,8 @@ A fast high compression read-only file system for Linux and Windows.
 - [Usage](#usage)
 - [Windows Support](#windows-support)
   - [Building on Windows](#building-on-windows)
+- [macOS Support](#macos-support)
+  - [Building on macOS](#building-on-macos)
 - [Extended Attributes](#extended-attributes)
 - [Comparison](#comparison)
   - [With SquashFS](#with-squashfs)
@@ -506,6 +508,70 @@ your machine.
 > set CTEST_PARALLEL_LEVEL=10
 > ninja test
 ```
+
+## macOS Support
+
+Support for the macOS operating system is currently experimental.
+
+The macOS version of the DwarFS filesystem driver relies on the awesome
+[macFUSE](https://https://osxfuse.github.io/) project.
+
+### Building on macOS
+
+Building on macOS involves a few steps, but should be relatively
+straightforward. This has so far only been tested on a 2014 iMac running
+macOS Big Sur. However, it seems to be possible to build universal (fat)
+binaries even on such an old platform.
+
+- First, install [macFUSE](https://https://osxfuse.github.io/).
+
+- Install the [mistletoe](https://pypi.org/project/mistletoe/) Python
+  library, e.g.:
+
+```
+$ pip3 install --user mistletoe
+```
+
+- Install `ninja` using Homebrew (you can optionally also install `ccache`):
+
+```
+$ brew install ninja
+```
+
+- Clone the [vcpkg](https://vcpkg.io/),
+  [lipo-dir-merge](https://github.com/faaxm/lipo-dir-merge) and
+  DwarFS repositories:
+
+```
+$ cd ~
+$ mkdir git
+$ cd git
+$ git clone https://github.com/Microsoft/vcpkg.git
+$ git clon  ne https://github.com/faaxm/lipo-dir-merge
+$ git clone --recurse-submodules https://github.com/mhx/dwarfs
+```
+
+- Bootstrap `vcpkg`:
+
+```
+$ ./vcpkg/bootstrap-vcpkg.sh
+```
+
+- Build DwarFS:
+
+```
+$ cd dwarfs
+$ git checkout experimental/osx-build
+$ mkdir build
+$ cd build
+$ sh ../cmake/osx.sh rebuild-vcpkg
+$ sh ../cmake/osx.sh
+$ ninja
+$ export CTEST_PARALLEL_LEVEL=$(sysctl -n hw.logicalcpu)
+$ ninja test
+```
+
+That's it!
 
 ## Extended Attributes
 

@@ -328,10 +328,25 @@ void categorizer_manager_<LoggerPolicy>::set_metadata_requirements(
 template <typename LoggerPolicy>
 bool categorizer_manager_<LoggerPolicy>::deterministic_less(
     fragment_category a, fragment_category b) const {
-  auto cmp = category_name(a.value()) <=> category_name(b.value());
-  if (cmp != 0) {
-    return cmp < 0;
+  auto cna = category_name(a.value());
+  auto cnb = category_name(b.value());
+
+  if (cna < cnb) {
+    return true;
   }
+
+  if (cna > cnb) {
+    return false;
+  }
+
+  // TODO: the above can be replaced by the following once we have support for
+  //       spaceship operator everywhere
+  //
+  //   auto cmp = category_name(a.value()) <=> category_name(b.value());
+  //   if (cmp != 0) {
+  //     return cmp < 0;
+  //   }
+
   auto cat = DWARFS_NOTHROW(categories_.at(a.value()));
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
   return categorizer->subcategory_less(a, b);

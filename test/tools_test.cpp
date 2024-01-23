@@ -38,7 +38,11 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
+#ifdef __APPLE__
+#include <sys/mount.h>
+#else
 #include <sys/vfs.h>
+#endif
 #include <sys/xattr.h>
 #endif
 
@@ -123,10 +127,27 @@ class scoped_no_leak_check {
 };
 
 #ifndef _WIN32
+ssize_t portable_listxattr(const char* path, char* list, size_t size) {
+#ifdef __APPLE__
+  return ::listxattr(path, list, size, 0);
+#else
+  return ::listxattr(path, list, size);
+#endif
+}
+
+ssize_t portable_getxattr(const char* path, const char* name, void* value,
+                          size_t size) {
+#ifdef __APPLE__
+  return ::getxattr(path, name, value, size, 0, 0);
+#else
+  return ::getxattr(path, name, value, size);
+#endif
+}
+
 pid_t get_dwarfs_pid(fs::path const& path) {
   std::array<char, 32> attr_buf;
-  auto attr_len = ::getxattr(path.c_str(), "user.dwarfs.driver.pid",
-                             attr_buf.data(), attr_buf.size());
+  auto attr_len = portable_getxattr(path.c_str(), "user.dwarfs.driver.pid",
+                                    attr_buf.data(), attr_buf.size());
   if (attr_len < 0) {
     throw std::runtime_error("could not read pid from xattr");
   }
@@ -332,7 +353,7 @@ class subprocess {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
 
     try {
-      // std::cout << "running: " << cmdline() << "\n";
+      // std::cerr << "running: " << cmdline() << "\n";
       c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
                      bp::std_out > out_, bp::std_err > err_, ios_
 #ifdef _WIN32
@@ -343,6 +364,14 @@ class subprocess {
     } catch (...) {
       std::cerr << "failed to create subprocess: " << cmdline() << "\n";
       throw;
+    }
+  }
+
+  ~subprocess() {
+    if (pt_) {
+      std::cerr << "subprocess still running in destructor: " << cmdline()
+                << "\n";
+      pt_->join();
     }
   }
 
@@ -378,10 +407,13 @@ class subprocess {
   }
 
   void interrupt() {
+    std::cerr << "interrupting: " << cmdline() << "\n";
 #ifdef _WIN32
     ::GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid());
 #else
-    ::kill(pid(), SIGINT);
+    if (auto rv = ::kill(pid(), SIGINT); rv != 0) {
+      std::cerr << "kill(" << pid() << ", SIGINT) = " << rv << "\n";
+    }
 #endif
   }
 
@@ -438,7 +470,7 @@ class subprocess {
   std::vector<std::string> cmdline_;
 };
 
-#ifndef _WIN32
+#if !(defined(_WIN32) || defined(__APPLE__))
 class process_guard {
  public:
   process_guard() = default;
@@ -497,11 +529,21 @@ class driver_runner {
 
     wait_until_file_ready(mountpoint, std::chrono::seconds(5));
 #else
+    std::vector<std::string> options;
+#ifdef __APPLE__
+    options.push_back("-o");
+    options.push_back("noapplexattr");
+#endif
     if (!subprocess::check_run(driver, make_tool_arg(tool_arg), image,
-                               mountpoint, std::forward<Args>(args)...)) {
+                               mountpoint, options,
+                               std::forward<Args>(args)...)) {
       throw std::runtime_error("error running " + driver.string());
     }
+#ifdef __APPLE__
+    wait_until_file_ready(mountpoint, std::chrono::seconds(5));
+#else
     dwarfs_guard_ = process_guard(get_dwarfs_pid(mountpoint));
+#endif
 #endif
   }
 
@@ -518,7 +560,7 @@ class driver_runner {
 #endif
                                             std::forward<Args>(args)...);
     process_->run_background();
-#ifndef _WIN32
+#if !(defined(_WIN32) || defined(__APPLE__))
     dwarfs_guard_ = process_guard(process_->pid());
 #endif
   }
@@ -531,6 +573,27 @@ class driver_runner {
 #endif
 
     if (!mountpoint_.empty()) {
+#ifdef __APPLE__
+      auto umount = dwarfs::test::find_binary("umount");
+      if (!umount) {
+        throw std::runtime_error("no umount binary found");
+      }
+      subprocess::check_run(umount.value(), mountpoint_);
+      bool rv{true};
+      if (process_) {
+        process_->wait();
+        auto ec = process_->exit_code();
+        if (ec != 0) {
+          std::cerr << "driver failed to unmount:\nout:\n"
+                    << process_->out() << "err:\n"
+                    << process_->err() << "exit code: " << ec << "\n";
+          rv = false;
+        }
+      }
+      process_.reset();
+      mountpoint_.clear();
+      return rv;
+#else
 #ifndef _WIN32
       if (process_) {
 #endif
@@ -552,6 +615,7 @@ class driver_runner {
         mountpoint_.clear();
         return dwarfs_guard_.check_exit(std::chrono::seconds(5));
       }
+#endif
 #endif
     }
     return false;
@@ -582,7 +646,7 @@ class driver_runner {
   }
 
  private:
-#ifndef _WIN32
+#if !(defined(_WIN32) || defined(__APPLE__))
   static fs::path find_fusermount() {
     auto fusermount_bin = dwarfs::test::find_binary("fusermount");
     if (!fusermount_bin) {
@@ -606,7 +670,7 @@ class driver_runner {
 
   fs::path mountpoint_;
   std::unique_ptr<subprocess> process_;
-#ifndef _WIN32
+#if !(defined(_WIN32) || defined(__APPLE__))
   process_guard dwarfs_guard_;
 #endif
 };
@@ -878,24 +942,26 @@ TEST_P(tools_test, end_to_end) {
           std::string buf;
           buf.resize(1);
 
-          auto r = ::listxattr(path.c_str(), buf.data(), buf.size());
+          auto r = portable_listxattr(path.c_str(), buf.data(), buf.size());
           EXPECT_LT(r, 0) << runner.cmdline();
           EXPECT_EQ(ERANGE, errno) << runner.cmdline();
-          r = ::listxattr(path.c_str(), buf.data(), 0);
-          EXPECT_GT(r, 0) << runner.cmdline();
+          r = portable_listxattr(path.c_str(), nullptr, 0);
+          ASSERT_GT(r, 0) << runner.cmdline() << ::strerror(errno);
           buf.resize(r);
-          r = ::listxattr(path.c_str(), buf.data(), buf.size());
+          r = portable_listxattr(path.c_str(), buf.data(), buf.size());
           EXPECT_GT(r, 0) << runner.cmdline();
           EXPECT_EQ(ref, buf) << runner.cmdline();
 
           buf.resize(1);
-          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), buf.size());
+          r = portable_getxattr(path.c_str(), kInodeInfoXattr, buf.data(),
+                                buf.size());
           EXPECT_LT(r, 0) << runner.cmdline();
           EXPECT_EQ(ERANGE, errno) << runner.cmdline();
-          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), 0);
-          EXPECT_GT(r, 0) << runner.cmdline();
+          r = portable_getxattr(path.c_str(), kInodeInfoXattr, nullptr, 0);
+          ASSERT_GT(r, 0) << runner.cmdline() << ::strerror(errno);
           buf.resize(r);
-          r = ::getxattr(path.c_str(), kInodeInfoXattr, buf.data(), buf.size());
+          r = portable_getxattr(path.c_str(), kInodeInfoXattr, buf.data(),
+                                buf.size());
           EXPECT_GT(r, 0) << runner.cmdline();
 
           auto info = folly::parseJson(buf);
@@ -1045,17 +1111,24 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 }
 
+#define EXPECT_EC_IMPL(ec, cat, val)                                           \
+  EXPECT_TRUE(ec) << runner.cmdline();                                         \
+  EXPECT_EQ(cat, (ec).category()) << runner.cmdline();                         \
+  EXPECT_EQ(val, (ec).value()) << runner.cmdline() << ": " << (ec).message()
+
 #ifdef _WIN32
-#define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
-  EXPECT_TRUE(ec) << runner.cmdline();                                         \
-  EXPECT_EQ(std::system_category(), (ec).category()) << runner.cmdline();      \
-  EXPECT_EQ(windows, (ec).value()) << runner.cmdline() << ": " << (ec).message()
+#define EXPECT_EC_UNIX_MAC_WIN(ec, unix, mac, windows)                         \
+  EXPECT_EC_IMPL(ec, std::system_category(), windows)
+#elif defined(__APPLE__)
+#define EXPECT_EC_UNIX_MAC_WIN(ec, unix, mac, windows)                         \
+  EXPECT_EC_IMPL(ec, std::generic_category(), mac)
 #else
-#define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
-  EXPECT_TRUE(ec) << runner.cmdline();                                         \
-  EXPECT_EQ(std::generic_category(), (ec).category()) << runner.cmdline();     \
-  EXPECT_EQ(unix, (ec).value()) << runner.cmdline() << ": " << (ec).message()
+#define EXPECT_EC_UNIX_MAC_WIN(ec, unix, mac, windows)                         \
+  EXPECT_EC_IMPL(ec, std::generic_category(), unix)
 #endif
+
+#define EXPECT_EC_UNIX_WIN(ec, unix, windows)                                  \
+  EXPECT_EC_UNIX_MAC_WIN(ec, unix, unix, windows)
 
 TEST_P(tools_test, mutating_and_error_ops) {
   auto mode = GetParam();
@@ -1136,7 +1209,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::rename(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1148,7 +1221,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::rename(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1162,7 +1235,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_hard_link(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1176,7 +1249,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_symlink(file, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1189,7 +1262,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_directory_symlink(empty_dir, name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1212,7 +1285,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::create_directory(name_inside_fs, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     // read directory as file (non-mutating)
