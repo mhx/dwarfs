@@ -309,7 +309,7 @@ class flac_block_compressor final : public block_compressor::impl {
     size_t input_pos = 0;
 
     while (num_samples > 0) {
-      size_t n = std::min(num_samples, samples_per_call);
+      auto n = std::min<size_t>(num_samples, samples_per_call);
       buffer.resize(n * num_channels);
       xfm.unpack(buffer,
                  std::span<uint8_t const>(data.data() + input_pos,
