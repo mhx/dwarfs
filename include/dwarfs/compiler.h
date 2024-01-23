@@ -21,6 +21,10 @@
 
 #pragma once
 
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
+
 #if defined(__SANITIZE_THREAD__)
 #define DWARFS_SANITIZE_THREAD 1
 #elif defined(__has_feature)
@@ -29,6 +33,7 @@
 #endif
 #endif
 
-#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__)
+#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__) &&                 \
+    __has_attribute(target_clones)
 #define DWARFS_MULTIVERSIONING 1
 #endif
