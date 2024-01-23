@@ -63,7 +63,11 @@
 #else
 #include <fuse.h>
 #if DWARFS_FUSE_LOWLEVEL
+#if __has_include(<fuse/fuse_lowlevel.h>)
 #include <fuse/fuse_lowlevel.h>
+#else
+#include <fuse_lowlevel.h>
+#endif
 #endif
 #endif
 
