@@ -43,11 +43,12 @@
 #include <io.h>
 #endif
 
-#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <boost/program_options.hpp>
 
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
+#include <folly/String.h>
 #include <folly/gen/String.h>
 #include <folly/portability/SysStat.h>
 #include <folly/system/HardwareConcurrency.h>
@@ -835,7 +836,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         rw_opts.recompress_categories_exclude = true;
         input.remove_prefix(1);
       }
-      boost::split(rw_opts.recompress_categories, input, boost::is_any_of(","));
+      folly::splitTo<std::string>(
+          ',', input,
+          std::inserter(rw_opts.recompress_categories,
+                        rw_opts.recompress_categories.end()));
     }
   }
 
@@ -924,7 +928,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
 
       std::vector<std::string_view> chmod_exprs;
-      boost::split(chmod_exprs, chmod_str, boost::is_any_of(","));
+      folly::split(',', chmod_str, chmod_exprs);
 
       // I'm pretty certain these warnings by Flawfinder are false positives.
       // After all, we're just doing a no-op by re-setting the original value
@@ -992,8 +996,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       options.pack_symlinks = true;
       options.pack_symlinks_index = false;
     } else {
-      std::vector<std::string> pack_opts;
-      boost::split(pack_opts, pack_metadata, boost::is_any_of(","));
+      std::vector<std::string_view> pack_opts;
+      folly::split(',', pack_metadata, pack_opts);
       for (auto const& opt : pack_opts) {
         if (opt == "chunk_table") {
           options.pack_chunk_table = true;
@@ -1130,7 +1134,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!categorizer_list.value.empty()) {
     std::vector<std::string> categorizers;
-    boost::split(categorizers, categorizer_list.value, boost::is_any_of(","));
+    folly::split(',', categorizer_list.value, categorizers);
 
     options.inode.categorizer_mgr = std::make_shared<categorizer_manager>(lgr);
 
