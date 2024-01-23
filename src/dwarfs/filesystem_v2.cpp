@@ -28,6 +28,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <version>
 
 #include <fmt/format.h>
 
@@ -94,9 +95,12 @@ class filesystem_parser {
       }
 
       auto ss = mm.span<char>(start);
-      auto it = std::search(
-          ss.begin(), ss.end(),
-          std::boyer_moore_horspool_searcher(magic.begin(), magic.end()));
+#if __cpp_lib_boyer_moore_searcher >= 201603
+      auto searcher = std::boyer_moore_searcher(magic.begin(), magic.end());
+#else
+      auto searcher = std::default_searcher(magic.begin(), magic.end());
+#endif
+      auto it = std::search(ss.begin(), ss.end(), searcher);
 
       if (it == ss.end()) {
         break;
