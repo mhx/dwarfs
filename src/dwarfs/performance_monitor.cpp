@@ -99,8 +99,8 @@ class single_timer {
   }
 
  private:
-  std::atomic<uint64_t> samples_;
-  std::atomic<uint64_t> total_time_;
+  std::atomic<uint64_t> samples_{};
+  std::atomic<uint64_t> total_time_{};
   folly::Histogram<size_t> log_hist_;
   std::mutex mutable log_hist_mutex_;
   std::string const namespace_;
