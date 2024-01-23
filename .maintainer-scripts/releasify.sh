@@ -18,12 +18,13 @@ for pkg in "$DIR"/dwarfs-*.tar.zst; do
   zstd -dc "$pkg" | xz -9e > "$RELDIR"/$(basename "$pkg" .zst).xz &
 done
 
-for exe in "$DIR"/dwarfs-universal-*; do
-  upx -d -qqq -o "$RELDIR"/$(basename "$exe").tmp "$exe" && upx -9 -qqq -o "$RELDIR"/$(basename "$exe") "$RELDIR"/$(basename "$exe").tmp &
-done
+# XXX: this recompression makes the executables much slower to start up
+# for exe in "$DIR"/dwarfs-universal-*; do
+#   upx -d -qqq -o "$RELDIR"/$(basename "$exe").tmp "$exe" && upx -9 -qqq -o "$RELDIR"/$(basename "$exe") "$RELDIR"/$(basename "$exe").tmp &
+# done
 
 jobs -l
 
 wait
 
-rm "$RELDIR"/*.tmp
+# rm "$RELDIR"/*.tmp
