@@ -564,11 +564,4 @@ std::string create_random_string(size_t size, size_t seed) {
   return create_random_string(size, tmprng);
 }
 
-std::string fix_regex(std::string regex) {
-#ifndef _WIN32
-  regex = std::regex_replace(regex, std::regex("\\\\d"), "[0-9]");
-#endif
-  return regex;
-}
-
 } // namespace dwarfs::test

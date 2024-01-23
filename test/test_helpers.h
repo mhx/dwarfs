@@ -339,6 +339,4 @@ std::string create_random_string(size_t size, uint8_t min, uint8_t max,
 std::string create_random_string(size_t size, std::mt19937_64& gen);
 std::string create_random_string(size_t size, size_t seed = 0);
 
-std::string fix_regex(std::string regex);
-
 } // namespace dwarfs::test

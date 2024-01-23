@@ -519,17 +519,14 @@ TEST(dwarfsextract_test, perfmon) {
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readlink]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.statvfs]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[inode_reader_v2.readv_future]"));
-#ifndef _WIN32
-  // googletest on Windows does not support fancy regexes
-  EXPECT_THAT(errs, ::testing::ContainsRegex(test::fix_regex(
-                        R"(\[filesystem_v2\.getattr\])"
-                        R"(\s+samples:\s+\d+)"
-                        R"(\s+overall:\s+\d+(\.\d+)?[num]?s)"
-                        R"(\s+avg latency:\s+\d+(\.\d+)?[num]?s)"
-                        R"(\s+p50 latency:\s+\d+(\.\d+)?[num]?s)"
-                        R"(\s+p90 latency:\s+\d+(\.\d+)?[num]?s)"
-                        R"(\s+p99 latency:\s+\d+(\.\d+)?[num]?s)")));
-#endif
+  static std::regex const perfmon_re{R"(\[filesystem_v2\.getattr\])"
+                                     R"(\s+samples:\s+\d+)"
+                                     R"(\s+overall:\s+\d+(\.\d+)?[num]?s)"
+                                     R"(\s+avg latency:\s+\d+(\.\d+)?[num]?s)"
+                                     R"(\s+p50 latency:\s+\d+(\.\d+)?[num]?s)"
+                                     R"(\s+p90 latency:\s+\d+(\.\d+)?[num]?s)"
+                                     R"(\s+p99 latency:\s+\d+(\.\d+)?[num]?s)"};
+  EXPECT_TRUE(std::regex_search(errs, perfmon_re)) << errs;
 }
 #endif
 
@@ -705,23 +702,25 @@ TEST_P(term_logging_test, end_to_end) {
 
     auto make_contains_regex = [fancy](auto m) {
       auto const& [color, prefix] = m->second;
-      auto beg = fancy ? color : "";
+      auto beg = fancy ? color : std::string_view{};
       auto end = fancy && !color.empty() ? "<normal>" : "";
-      return ::testing::ContainsRegex(test::fix_regex(fmt::format(
-          "{}{}\\s\\d\\d:\\d\\d:\\d\\d.*{}\r?\n", beg, prefix, end)));
+      return fmt::format("{}{}\\s\\d\\d:\\d\\d:\\d\\d.*{}\\r?\\n", beg, prefix,
+                         end);
     };
 
     while (it != cutoff + 1) {
       auto m = match.find(*it);
       EXPECT_FALSE(m == match.end());
-      EXPECT_THAT(err, make_contains_regex(m));
+      auto re = make_contains_regex(m);
+      EXPECT_TRUE(std::regex_search(err, std::regex(re))) << re << ", " << err;
       ++it;
     }
 
     while (it != log_level_strings.end()) {
       auto m = match.find(*it);
       EXPECT_FALSE(m == match.end());
-      EXPECT_THAT(err, ::testing::Not(make_contains_regex(m)));
+      auto re = make_contains_regex(m);
+      EXPECT_FALSE(std::regex_search(err, std::regex(re))) << re << ", " << err;
       ++it;
     }
   }
@@ -2223,26 +2222,29 @@ TEST_P(segmenter_repeating_sequence_test, github161) {
 
   auto log = t.err();
 
-  EXPECT_THAT(log,
-              ::testing::ContainsRegex(test::fix_regex(fmt::format(
-                  "avoided \\d\\d\\d\\d+ collisions in 0x{:02x}-byte sequences",
-                  byte))));
+  {
+    std::regex const re{fmt::format(
+        "avoided \\d\\d\\d\\d+ collisions in 0x{:02x}-byte sequences", byte)};
+    EXPECT_TRUE(std::regex_search(log, re)) << log;
+  }
 
-  std::regex const re{"segment matches: good=(\\d+), bad=(\\d+), "
-                      "collisions=(\\d+), total=(\\d+)"};
-  std::smatch m;
+  {
+    std::regex const re{"segment matches: good=(\\d+), bad=(\\d+), "
+                        "collisions=(\\d+), total=(\\d+)"};
+    std::smatch m;
 
-  ASSERT_TRUE(std::regex_search(log, m, re)) << log;
+    ASSERT_TRUE(std::regex_search(log, m, re)) << log;
 
-  auto good = std::stoi(m[1]);
-  auto bad = std::stoi(m[2]);
-  auto collisions = std::stoi(m[3]);
-  auto total = std::stoi(m[4]);
+    auto good = std::stoi(m[1]);
+    auto bad = std::stoi(m[2]);
+    auto collisions = std::stoi(m[3]);
+    auto total = std::stoi(m[4]);
 
-  EXPECT_GT(good, 2000);
-  EXPECT_EQ(0, bad);
-  EXPECT_EQ(0, collisions);
-  EXPECT_GT(total, 2000);
+    EXPECT_GT(good, 2000);
+    EXPECT_EQ(0, bad);
+    EXPECT_EQ(0, collisions);
+    EXPECT_GT(total, 2000);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, segmenter_repeating_sequence_test,
