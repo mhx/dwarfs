@@ -1245,12 +1245,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     std::ostream& fsw_os = std::visit(
-        overloaded(
+        overloaded{
             [&](std::monostate) -> std::ostream& { return iol.out; },
             [&](std::unique_ptr<output_stream>& os) -> std::ostream& {
               return os->os();
             },
-            [&](std::ostringstream& oss) -> std::ostream& { return oss; }),
+            [&](std::ostringstream& oss) -> std::ostream& { return oss; }},
         os);
 
     fsw = std::make_unique<filesystem_writer>(
@@ -1336,7 +1336,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   {
     auto ec = std::visit(
-        overloaded([](std::monostate) -> int { return 0; },
+        overloaded{[](std::monostate) -> int { return 0; },
                    [&](std::unique_ptr<output_stream>& os) -> int {
                      std::error_code ec;
                      os->close(ec);
@@ -1351,7 +1351,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                    [](std::ostringstream& oss [[maybe_unused]]) -> int {
                      assert(oss.str().empty());
                      return 0;
-                   }),
+                   }},
         os);
 
     if (ec != 0) {
