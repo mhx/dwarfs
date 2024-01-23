@@ -19,7 +19,6 @@
     "libarchive",
     "libevent",
     "libflac",
-    "libmagic",
     "openssl",
     "pkgconf",
     "utfcpp",
