@@ -29,7 +29,6 @@
 #include <limits>
 #include <numeric>
 #include <ostream>
-#include <ranges>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -93,8 +92,8 @@ class inode_ : public inode {
   bool has_category(fragment_category cat) const override {
     DWARFS_CHECK(!fragments_.empty(),
                  "has_category() called with no fragments");
-    return std::ranges::any_of(
-        fragments_, [cat](auto const& f) { return f.category() == cat; });
+    return std::any_of(fragments_.begin(), fragments_.end(),
+                       [cat](auto const& f) { return f.category() == cat; });
   }
 
   std::optional<uint32_t>
