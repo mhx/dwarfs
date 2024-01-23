@@ -23,6 +23,7 @@
 #include <limits>
 #include <mutex>
 #include <numeric>
+#include <unordered_map>
 #include <variant>
 
 #include <folly/container/Enumerate.h>

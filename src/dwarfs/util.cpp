@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <clocale>
 #include <cstdlib>
 
 #if __has_include(<utf8cpp/utf8.h>)

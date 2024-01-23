@@ -22,6 +22,7 @@
 #include <cerrno>
 #include <ctime>
 #include <filesystem>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
