@@ -284,6 +284,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   endforeach()
 
   set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
+else()
+  if(CMAKE_EXE_LINKER_FLAGS MATCHES "--as-needed")
+    message(FATAL_ERROR "DwarFS cannot be built with --as-needed")
+  endif()
 endif()
 
 set(ZSTD_INCLUDE_DIR
