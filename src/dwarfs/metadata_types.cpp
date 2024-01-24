@@ -28,8 +28,8 @@
 
 #include "dwarfs/error.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/match.h"
 #include "dwarfs/metadata_types.h"
-#include "dwarfs/overloaded.h"
 #include "dwarfs/util.h"
 
 #include "dwarfs/gen-cpp2/metadata_types_custom_protocol.h"
@@ -590,39 +590,34 @@ auto inode_view::getgid() const -> gid_type {
 // TODO: pretty certain some of this stuff can be simplified
 
 std::string dir_entry_view::name() const {
-  return std::visit(overloaded{
-                        [this](DirEntryView const& dev) {
-                          return g_->names()[dev.name_index()];
-                        },
-                        [this](InodeView const& iv) {
-                          return std::string(
-                              g_->meta().names()[iv.name_index_v2_2()]);
-                        },
-                    },
-                    v_);
+  return v_ |
+         match{
+             [this](DirEntryView const& dev) {
+               return g_->names()[dev.name_index()];
+             },
+             [this](InodeView const& iv) {
+               return std::string(g_->meta().names()[iv.name_index_v2_2()]);
+             },
+         };
 }
 
 inode_view dir_entry_view::inode() const {
-  return std::visit(overloaded{
-                        [this](DirEntryView const& dev) {
-                          return inode_view(
-                              g_->meta().inodes()[dev.inode_num()],
-                              dev.inode_num(), g_->meta());
-                        },
-                        [this](InodeView const& iv) {
-                          return inode_view(iv, iv.inode_v2_2(), g_->meta());
-                        },
-                    },
-                    v_);
+  return v_ | match{
+                  [this](DirEntryView const& dev) {
+                    return inode_view(g_->meta().inodes()[dev.inode_num()],
+                                      dev.inode_num(), g_->meta());
+                  },
+                  [this](InodeView const& iv) {
+                    return inode_view(iv, iv.inode_v2_2(), g_->meta());
+                  },
+              };
 }
 
 bool dir_entry_view::is_root() const {
-  return std::visit(
-      overloaded{
-          [](DirEntryView const& dev) { return dev.inode_num() == 0; },
-          [](InodeView const& iv) { return iv.inode_v2_2() == 0; },
-      },
-      v_);
+  return v_ | match{
+                  [](DirEntryView const& dev) { return dev.inode_num() == 0; },
+                  [](InodeView const& iv) { return iv.inode_v2_2() == 0; },
+              };
 }
 
 /**

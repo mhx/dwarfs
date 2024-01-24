@@ -33,7 +33,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 
-#include "dwarfs/overloaded.h"
+#include "dwarfs/match.h"
 
 namespace dwarfs {
 
@@ -51,30 +51,29 @@ class integral_value_parser {
   T parse(std::string_view arg) const {
     auto val = folly::to<T>(arg);
 
-    std::visit(overloaded{
-                   [](std::monostate const&) {},
-                   [val](std::pair<T, T> const& minmax) {
-                     if (val < minmax.first || val > minmax.second) {
-                       throw std::range_error(
-                           fmt::format("value {} out of range [{}..{}]", val,
-                                       minmax.first, minmax.second));
-                     }
-                   },
-                   [val](std::set<T> const& choices) {
-                     if (auto it = choices.find(val); it == choices.end()) {
-                       throw std::range_error(
-                           fmt::format("invalid value {}, must be one of [{}]",
-                                       val, folly::join(", ", choices)));
-                     }
-                   },
-                   [val](std::function<bool(T)> const& check) {
-                     if (!check(val)) {
-                       throw std::range_error(
-                           fmt::format("value {} out of range", val));
-                     }
-                   },
-               },
-               valid_);
+    valid_ | match{
+                 [](std::monostate const&) {},
+                 [val](std::pair<T, T> const& minmax) {
+                   if (val < minmax.first || val > minmax.second) {
+                     throw std::range_error(
+                         fmt::format("value {} out of range [{}..{}]", val,
+                                     minmax.first, minmax.second));
+                   }
+                 },
+                 [val](std::set<T> const& choices) {
+                   if (auto it = choices.find(val); it == choices.end()) {
+                     throw std::range_error(
+                         fmt::format("invalid value {}, must be one of [{}]",
+                                     val, folly::join(", ", choices)));
+                   }
+                 },
+                 [val](std::function<bool(T)> const& check) {
+                   if (!check(val)) {
+                     throw std::range_error(
+                         fmt::format("value {} out of range", val));
+                   }
+                 },
+             };
 
     return val;
   }

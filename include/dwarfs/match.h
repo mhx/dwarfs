@@ -21,14 +21,41 @@
 
 #pragma once
 
+#include <type_traits>
+#include <variant>
+
 namespace dwarfs {
 
 template <typename... Ts>
-struct overloaded : Ts... {
+struct match : Ts... {
   using Ts::operator()...;
 };
 
 template <typename... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
+match(Ts...) -> match<Ts...>;
+
+namespace detail {
+
+template <typename T>
+struct is_a_variant : std::false_type {};
+
+template <typename... Ts>
+struct is_a_variant<std::variant<Ts...>> : std::true_type {};
+
+template <typename T>
+struct is_a_match : std::false_type {};
+
+template <typename... Ts>
+struct is_a_match<match<Ts...>> : std::true_type {};
+
+} // namespace detail
+
+template <typename T, typename U>
+[[nodiscard]] constexpr decltype(auto) operator|(T&& v, U&& m)
+  requires(detail::is_a_variant<std::decay_t<T>>::value &&
+           detail::is_a_match<std::decay_t<U>>::value)
+{
+  return std::visit(std::forward<U>(m), std::forward<T>(v));
+}
 
 } // namespace dwarfs

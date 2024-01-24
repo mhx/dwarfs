@@ -49,11 +49,11 @@
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/inode_ordering.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/match.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/nilsimsa.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
-#include "dwarfs/overloaded.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/promise_receiver.h"
 #include "dwarfs/scanner_progress.h"
@@ -273,37 +273,33 @@ class inode_ : public inode {
 
     os << "  similarity: ";
 
-    auto basic_hash_visitor = [&os](uint32_t sh) {
+    auto basic_hash_matcher = [&os](uint32_t sh) {
       os << fmt::format("basic ({0:08x})\n", sh);
     };
 
-    auto nilsimsa_hash_visitor = [&os](nilsimsa::hash_type const& nh) {
+    auto nilsimsa_hash_matcher = [&os](nilsimsa::hash_type const& nh) {
       os << fmt::format("nilsimsa ({0:016x}{1:016x}{2:016x}{3:016x})\n", nh[0],
                         nh[1], nh[2], nh[3]);
     };
 
-    auto similarity_map_visitor = [&](similarity_map_type const& map) {
+    auto similarity_map_matcher = [&](similarity_map_type const& map) {
       os << "map\n";
       for (auto const& [cat, val] : map) {
         os << "    ";
         dump_category(cat);
-        std::visit(
-            overloaded{
-                basic_hash_visitor,
-                nilsimsa_hash_visitor,
-            },
-            val);
+        val | match{
+                  basic_hash_matcher,
+                  nilsimsa_hash_matcher,
+              };
       }
     };
 
-    std::visit(
-        overloaded{
-            [&os](std::monostate const&) { os << "none\n"; },
-            basic_hash_visitor,
-            nilsimsa_hash_visitor,
-            similarity_map_visitor,
-        },
-        similarity_);
+    similarity_ | match{
+                      [&os](std::monostate const&) { os << "none\n"; },
+                      basic_hash_matcher,
+                      nilsimsa_hash_matcher,
+                      similarity_map_matcher,
+                  };
   }
 
   void set_scan_error(file const* fp, std::exception_ptr ep) override {

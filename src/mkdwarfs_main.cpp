@@ -73,11 +73,11 @@
 #include "dwarfs/integral_value_parser.h"
 #include "dwarfs/iolayer.h"
 #include "dwarfs/logger.h"
+#include "dwarfs/match.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/options_interface.h"
 #include "dwarfs/os_access.h"
-#include "dwarfs/overloaded.h"
 #include "dwarfs/program_options_helpers.h"
 #include "dwarfs/progress.h"
 #include "dwarfs/scanner.h"
@@ -1248,14 +1248,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::unique_ptr<filesystem_writer> fsw;
 
   try {
-    std::ostream& fsw_os = std::visit(
-        overloaded{
-            [&](std::monostate) -> std::ostream& { return iol.out; },
-            [&](std::unique_ptr<output_stream>& os) -> std::ostream& {
-              return os->os();
-            },
-            [&](std::ostringstream& oss) -> std::ostream& { return oss; }},
-        os);
+    std::ostream& fsw_os =
+        os |
+        match{[&](std::monostate) -> std::ostream& { return iol.out; },
+              [&](std::unique_ptr<output_stream>& os) -> std::ostream& {
+                return os->os();
+              },
+              [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
     fsw = std::make_unique<filesystem_writer>(
         fsw_os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
@@ -1339,24 +1338,22 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   {
-    auto ec = std::visit(
-        overloaded{[](std::monostate) -> int { return 0; },
-                   [&](std::unique_ptr<output_stream>& os) -> int {
-                     std::error_code ec;
-                     os->close(ec);
-                     if (ec) {
-                       LOG_ERROR << "failed to close output file '" << output
-                                 << "': " << ec.message();
-                       return 1;
-                     }
-                     os.reset();
-                     return 0;
-                   },
-                   [](std::ostringstream& oss [[maybe_unused]]) -> int {
-                     assert(oss.str().empty());
-                     return 0;
-                   }},
-        os);
+    auto ec = os | match{[](std::monostate) -> int { return 0; },
+                         [&](std::unique_ptr<output_stream>& os) -> int {
+                           std::error_code ec;
+                           os->close(ec);
+                           if (ec) {
+                             LOG_ERROR << "failed to close output file '"
+                                       << output << "': " << ec.message();
+                             return 1;
+                           }
+                           os.reset();
+                           return 0;
+                         },
+                         [](std::ostringstream& oss [[maybe_unused]]) -> int {
+                           assert(oss.str().empty());
+                           return 0;
+                         }};
 
     if (ec != 0) {
       return ec;

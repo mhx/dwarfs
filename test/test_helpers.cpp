@@ -33,8 +33,8 @@
 #include <folly/String.h>
 #include <folly/portability/Unistd.h>
 
+#include "dwarfs/match.h"
 #include "dwarfs/os_access_generic.h"
-#include "dwarfs/overloaded.h"
 #include "dwarfs/util.h"
 #include "loremipsum.h"
 #include "mmap_mock.h"
@@ -448,16 +448,15 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
     }
 
     return std::make_unique<mmap_mock>(
-        std::visit(overloaded{
-                       [this](std::string const& str) { return str; },
-                       [this](std::function<std::string()> const& fun) {
-                         return fun();
-                       },
-                       [this](auto const&) -> std::string {
-                         throw std::runtime_error("oops in overloaded");
-                       },
-                   },
-                   de->v),
+        de->v | match{
+                    [this](std::string const& str) { return str; },
+                    [this](std::function<std::string()> const& fun) {
+                      return fun();
+                    },
+                    [this](auto const&) -> std::string {
+                      throw std::runtime_error("oops in match");
+                    },
+                },
         size);
   }
 
