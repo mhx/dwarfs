@@ -532,10 +532,11 @@ binaries even on such an old platform.
 $ pip3 install --user mistletoe
 ```
 
-- Install `ninja` using Homebrew (you can optionally also install `ccache`):
+- Install `ninja` and `ronn` using Homebrew (you can optionally also install `ccache`):
 
 ```
 $ brew install ninja
+$ brew install ronn
 ```
 
 - Clone the [vcpkg](https://vcpkg.io/),
@@ -547,7 +548,7 @@ $ cd ~
 $ mkdir git
 $ cd git
 $ git clone https://github.com/Microsoft/vcpkg.git
-$ git clon  ne https://github.com/faaxm/lipo-dir-merge
+$ git clone https://github.com/faaxm/lipo-dir-merge
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 ```
 
