@@ -2,16 +2,20 @@
 
 set -e
 
+if [[ -z "${VCPKG_BASEDIR}" ]]; then
+  VCPKG_BASEDIR=$HOME/git
+fi
+
 if [[ -z "${VCPKG_ROOT}" ]]; then
-  VCPKG_ROOT=$HOME/git/vcpkg
+  VCPKG_ROOT=$VCPKG_BASEDIR/vcpkg
 fi
 
 if [[ -z "${VCPKG_INSTALL_ROOT}" ]]; then
-  VCPKG_INSTALL_ROOT=$HOME/git/@vcpkg-install
+  VCPKG_INSTALL_ROOT=$VCPKG_BASEDIR/@vcpkg-install
 fi
 
 if [[ -z "${LIPO_DIR_MERGE}" ]]; then
-  LIPO_DIR_MERGE=$HOME/git/lipo-dir-merge/lipo-dir-merge.py
+  LIPO_DIR_MERGE=$VCPKG_BASEDIR/lipo-dir-merge/lipo-dir-merge.py
 fi
 
 build_mode=$1

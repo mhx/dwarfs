@@ -541,7 +541,8 @@ $ brew install ronn
 
 - Clone the [vcpkg](https://vcpkg.io/),
   [lipo-dir-merge](https://github.com/faaxm/lipo-dir-merge) and
-  DwarFS repositories:
+  DwarFS repositories. If you want the files to go to a different
+  location, you'll need set `VCPKG_BASEDIR` later.
 
 ```
 $ cd ~
@@ -565,6 +566,7 @@ $ cd dwarfs
 $ git checkout experimental/osx-build
 $ mkdir build
 $ cd build
+$ export VCPKG_BASEDIR=$HOME/git    # optional
 $ sh ../cmake/osx.sh rebuild-vcpkg
 $ sh ../cmake/osx.sh
 $ ninja
