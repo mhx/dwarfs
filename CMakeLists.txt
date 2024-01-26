@@ -1122,7 +1122,7 @@ if(PRJ_VERSION_FULL)
   endif()
 endif()
 
-if(STATIC_BUILD_DO_NOT_USE OR WIN32 OR APPLE)
+if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
   set(UNIVERSAL_PACKED
