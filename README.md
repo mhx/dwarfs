@@ -532,9 +532,11 @@ binaries even on such an old platform.
 $ pip3 install --user mistletoe
 ```
 
-- Install `ninja` and `ronn` using Homebrew (you can optionally also install `ccache`):
+- Install `cmake`, `ninja` and `ronn` using Homebrew (you can
+  optionally also install `ccache`):
 
 ```
+$ brew install cmake
 $ brew install ninja
 $ brew install ronn
 ```
