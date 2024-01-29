@@ -37,3 +37,12 @@ struct flac_block_header {
    2: UInt8 bits_per_sample
    3: UInt8 flags
 }
+
+struct ricepp_block_header {
+   1: UInt32 block_size
+   2: UInt16 component_count
+   3: UInt8 bytes_per_sample
+   4: UInt8 unused_lsb_count
+   5: bool big_endian
+   6: UInt16 ricepp_version
+}

@@ -241,38 +241,60 @@ const std::unordered_map<std::string, std::vector<std::string>>
 const std::unordered_map<std::string, std::vector<std::string>>
     categorize_defaults_fast{
         // clang-format off
-        {"--order",       {"pcmaudio/waveform::revpath"}},
-        {"--window-size", {"pcmaudio/waveform::0"}},
+        {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
+        {"--window-size", {"pcmaudio/waveform::0", "fits/image::0"}},
+        {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-        {"--compression", {"pcmaudio/waveform::flac:level=3"}},
+                           "pcmaudio/waveform::flac:level=3",
 #else
-        {"--compression", {"pcmaudio/waveform::zstd:level=3"}},
+                           "pcmaudio/waveform::zstd:level=3",
 #endif
+#ifdef DWARFS_HAVE_RICEPP
+                           "fits/image::ricepp",
+#else
+                           "fits/image::zstd:level=3",
+#endif
+                          }},
         // clang-format on
     };
 
 const std::unordered_map<std::string, std::vector<std::string>>
     categorize_defaults_medium{
         // clang-format off
-        {"--order",       {"pcmaudio/waveform::revpath"}},
-        {"--window-size", {"pcmaudio/waveform::20"}},
+        {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
+        {"--window-size", {"pcmaudio/waveform::20", "fits/image::0"}},
+        {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-        {"--compression", {"pcmaudio/waveform::flac:level=5"}},
+                           "pcmaudio/waveform::flac:level=5",
 #else
-        {"--compression", {"pcmaudio/waveform::zstd:level=5"}},
+                           "pcmaudio/waveform::zstd:level=5",
 #endif
+#ifdef DWARFS_HAVE_RICEPP
+                           "fits/image::ricepp",
+#else
+                           "fits/image::zstd:level=5",
+#endif
+                          }},
         // clang-format on
     };
 
 const std::unordered_map<std::string, std::vector<std::string>>
     categorize_defaults_slow{
         // clang-format off
-        {"--window-size", {"pcmaudio/waveform::16"}},
+        {"--order",       {"fits/image::revpath"}},
+        {"--window-size", {"pcmaudio/waveform::16", "fits/image::0"}},
+        {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-        {"--compression", {"pcmaudio/waveform::flac:level=8"}},
+                           "pcmaudio/waveform::flac:level=8",
 #else
-        {"--compression", {"pcmaudio/waveform::zstd:level=8"}},
+                           "pcmaudio/waveform::zstd:level=8",
 #endif
+#ifdef DWARFS_HAVE_RICEPP
+                           "fits/image::ricepp",
+#else
+                           "fits/image::zstd:level=8",
+#endif
+                          }},
         // clang-format on
     };
 
@@ -347,8 +369,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
-  constexpr size_t const kDefaultMaxActiveBlocks{1};
-  constexpr size_t const kDefaultBloomFilterSize{4};
+  static constexpr size_t const kDefaultMaxActiveBlocks{1};
+  static constexpr size_t const kDefaultBloomFilterSize{4};
 
   segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
@@ -474,7 +496,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "only recompress blocks of these categories")
     ("categorize",
         po::value<categorize_optval>(&categorizer_list)
-          ->implicit_value(categorize_optval("pcmaudio,incompressible")),
+          ->implicit_value(categorize_optval("fits,pcmaudio,incompressible")),
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)

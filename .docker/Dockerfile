@@ -44,6 +44,7 @@ RUN apt install -y \
         liblz4-dev \
         liblzma-dev \
         libmagic-dev \
+        librange-v3-dev \
         libssl-dev \
         libunwind-dev \
         libdwarf-dev \
