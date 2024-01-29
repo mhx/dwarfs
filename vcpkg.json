@@ -21,6 +21,7 @@
     "libflac",
     "openssl",
     "pkgconf",
+    "range-v3",
     "utfcpp",
     "xxhash",
     "zstd"
