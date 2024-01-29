@@ -248,6 +248,12 @@ const std::unordered_map<std::string, std::vector<std::string>>
 #else
         {"--compression", {"pcmaudio/waveform::zstd:level=3"}},
 #endif
+        {"--window-size", {"fits/image::0"}},
+#ifdef DWARFS_HAVE_RICEPP
+        {"--compression", {"fits/image::ricepp"}},
+#else
+        {"--compression", {"fits/image::zstd:level=3"}},
+#endif
         // clang-format on
     };
 
@@ -261,6 +267,12 @@ const std::unordered_map<std::string, std::vector<std::string>>
 #else
         {"--compression", {"pcmaudio/waveform::zstd:level=5"}},
 #endif
+        {"--window-size", {"fits/image::0"}},
+#ifdef DWARFS_HAVE_RICEPP
+        {"--compression", {"fits/image::ricepp"}},
+#else
+        {"--compression", {"fits/image::zstd:level=5"}},
+#endif
         // clang-format on
     };
 
@@ -272,6 +284,12 @@ const std::unordered_map<std::string, std::vector<std::string>>
         {"--compression", {"pcmaudio/waveform::flac:level=8"}},
 #else
         {"--compression", {"pcmaudio/waveform::zstd:level=8"}},
+#endif
+        {"--window-size", {"fits/image::0"}},
+#ifdef DWARFS_HAVE_RICEPP
+        {"--compression", {"fits/image::ricepp"}},
+#else
+        {"--compression", {"fits/image::zstd:level=8"}},
 #endif
         // clang-format on
     };
@@ -347,8 +365,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace folly::gen;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
-  constexpr size_t const kDefaultMaxActiveBlocks{1};
-  constexpr size_t const kDefaultBloomFilterSize{4};
+  static constexpr size_t const kDefaultMaxActiveBlocks{1};
+  static constexpr size_t const kDefaultBloomFilterSize{4};
 
   segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
@@ -474,7 +492,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         "only recompress blocks of these categories")
     ("categorize",
         po::value<categorize_optval>(&categorizer_list)
-          ->implicit_value(categorize_optval("pcmaudio,incompressible")),
+          ->implicit_value(categorize_optval("fits,pcmaudio,incompressible")),
         categorize_desc.c_str())
     ("order",
         po::value<std::vector<std::string>>(&order)

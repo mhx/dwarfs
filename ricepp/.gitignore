@@ -1,0 +1,13 @@
+/@*
+/tmp/
+/build*/
+*.log
+/.gdb_history
+
+*~
+.*.swp
+
+# VS build environment
+.vs/
+out/
+CMakeSettings.json

@@ -33,6 +33,7 @@ option(WITH_FUZZ "build with fuzzing binaries" OFF)
 option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(ENABLE_FLAC "build with FLAC support" ON)
+option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 if(WIN32)
   set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_ZSTD ON)
@@ -218,6 +219,7 @@ else()
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
+find_package(range-v3 CONFIG REQUIRED)
 
 if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -397,6 +399,10 @@ if(DWARFS_OPTIMIZE)
   string(REPLACE "-O3" "-O${DWARFS_OPTIMIZE}" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 endif()
 
+if(ENABLE_RICEPP)
+  add_subdirectory(ricepp)
+endif()
+
 list(APPEND LIBDWARFS_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
@@ -507,9 +513,14 @@ list(
   APPEND
   LIBDWARFS_CATEGORIZER_SRC
   # src/dwarfs/categorizer/binary_categorizer.cpp
+  src/dwarfs/categorizer/fits_categorizer.cpp
   src/dwarfs/categorizer/incompressible_categorizer.cpp
   src/dwarfs/categorizer/pcmaudio_categorizer.cpp
 )
+
+if(ENABLE_RICEPP)
+  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/ricepp.cpp)
+endif()
 
 # if(LIBMAGIC_FOUND)
 #   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
@@ -540,8 +551,11 @@ target_compile_definitions(
   PRJ_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
-target_link_libraries(dwarfs_categorizer folly)
+target_link_libraries(dwarfs_categorizer folly range-v3::range-v3)
 target_link_libraries(dwarfs_compression folly compression_thrift)
+if(ENABLE_RICEPP)
+  target_link_libraries(dwarfs_compression ricepp)
+endif()
 target_link_libraries(dwarfs_tool dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -681,6 +695,10 @@ if(WITH_TESTS)
 
   if(FLAC_FOUND)
     list(APPEND DWARFS_TESTS flac_compressor_test)
+  endif()
+
+  if(ENABLE_RICEPP)
+    list(APPEND DWARFS_TESTS ricepp_compressor_test)
   endif()
 
   foreach (test ${DWARFS_TESTS})
@@ -823,6 +841,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
             $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
             $<$<BOOL:${FLAC_FOUND}>:DWARFS_HAVE_FLAC>
+            $<$<BOOL:${ENABLE_RICEPP}>:DWARFS_HAVE_RICEPP>
   )
 
   if(DWARFS_USE_EXCEPTION_TRACER)
@@ -1068,6 +1087,8 @@ add_custom_target(
 )
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
+        ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h

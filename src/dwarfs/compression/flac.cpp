@@ -482,8 +482,6 @@ class flac_block_decompressor final : public block_decompressor::impl {
   }
 
   std::vector<uint8_t>& decompressed_;
-  folly::Range<uint8_t const*> backup_data_;
-
   size_t const uncompressed_size_;
   thrift::compression::flac_block_header const header_;
   std::unique_ptr<dwarfs_flac_stream_decoder> decoder_;
