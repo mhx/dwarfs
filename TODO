@@ -1,3 +1,6 @@
+- When hashing, start by only hashing the first, say, 4KiB,
+  and only if the hashes are identical, hash the whole file
+
 - Add support for compressing uncompressed image formats,
   currently primarily FITS, using different formats (e.g.
   JPEG2K, Rice, Hcompress).
