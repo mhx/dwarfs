@@ -26,6 +26,9 @@
 #include <folly/String.h>
 #include <folly/container/F14Map.h>
 
+#include <fmt/format.h>
+
+#include "dwarfs/checksum.h"
 #include "dwarfs/entry.h"
 #include "dwarfs/file_scanner.h"
 #include "dwarfs/inode.h"
@@ -40,6 +43,9 @@
 namespace dwarfs::detail {
 
 namespace {
+
+constexpr size_t const kLargeFileThreshold = 1024 * 1024;
+constexpr size_t const kLargeFileStartHashSize = 4096;
 
 template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
@@ -94,7 +100,14 @@ class file_scanner_ final : public file_scanner::impl {
   uint32_t num_unique_{0};
   folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
   std::mutex mx_;
-  folly::F14FastMap<uint64_t, inode::files_vector> unique_size_;
+  // The pair stores the file size and optionally a hash of the first
+  // 4 KiB of the file. If there's a collision, the worst that can
+  // happen is that we unnecessary hash a file that is not a duplicate.
+  folly::F14FastMap<std::pair<uint64_t, uint64_t>, inode::files_vector>
+      unique_size_;
+  // We need this lookup table to later find the unique_size_ entry
+  // given just a file pointer.
+  folly::F14FastMap<file const*, uint64_t> file_start_hash_;
   folly::F14FastMap<uint64_t, std::shared_ptr<condition_barrier>>
       first_file_hashed_;
   folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
@@ -102,18 +115,19 @@ class file_scanner_ final : public file_scanner::impl {
 };
 
 // The `unique_size_` table holds an entry for each file size we
-// discover:
+// discover, and optionally - for large files - an XXH3 hash of the
+// first 4 KiB of the file.
 //
-// - When we first discover a new file size, we know for sure that
-//   this file is *not* a duplicate of a file we've seen before.
-//   Thus, we can immediately create a new inode, and we can
+// - When we first discover a new file size (+hash), we know for
+//   sure that this file is *not* a duplicate of a file we've seen
+//   before. Thus, we can immediately create a new inode, and we can
 //   immediately start similarity scanning for this inode.
 //
-// - When we discover the second file of particular size, we must
-//   hash both files to see if they're identical. We already have
-//   an inode for the first file, so we must delay the creation of
-//   a new inode until we know that the second file is not a
-//   duplicate.
+// - When we discover the second file of particular size (+hash), we
+//   must fully hash both files (using the user-provided algorithm)
+//   to see if they're identical. We already have an inode for the
+//   first file, so we must delay the creation of a new inode until
+//   we know that the second file is not a duplicate.
 //
 // - Exactly the same applies for subsequent files.
 //
@@ -129,6 +143,15 @@ class file_scanner_ final : public file_scanner::impl {
 //   stored. As long as the first file's hash has not been stored,
 //   it is still present in `unique_size_`. It will be removed
 //   from `unique_size_` after its hash has been stored.
+//
+// - The optional hash value of the first 4 KiB of a large file is
+//   useful if there are a lot of large files with the same size.
+//   One potential scenario is uncompressed images which are very
+//   likely to have the same size, but very unlikely to have the
+//   same contents. The choice of 4 KiB is arbitrary, as is the
+//   threshold of 1 MiB for "large files". The 4 KiB hash is computed
+//   synchronously, so this could be a potential bottleneck; however,
+//   it should happen rarely enough to not be a problem.
 
 template <typename LoggerPolicy>
 file_scanner_<LoggerPolicy>::file_scanner_(
@@ -143,6 +166,8 @@ file_scanner_<LoggerPolicy>::file_scanner_(
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::scan(file* p) {
+  // This method is supposed to be called from a single thread only.
+
   if (p->num_hard_links() > 1) {
     auto& vec = hardlinks_[p->raw_inode_num()];
     vec.push_back(p);
@@ -178,11 +203,12 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   if (hash_algo_) {
     finalize_hardlinks([this](file const* p) -> inode::files_vector& {
-      auto it = by_hash_.find(p->hash());
-      if (it != by_hash_.end()) {
+      if (auto it = by_hash_.find(p->hash()); it != by_hash_.end()) {
         return it->second;
       }
-      return unique_size_.at(p->size());
+      auto it = file_start_hash_.find(p);
+      uint64_t hash = it != file_start_hash_.end() ? it->second : 0;
+      return unique_size_.at({p->size(), hash});
     });
     finalize_files<true>(unique_size_, inode_num, obj_num);
     finalize_files(by_raw_inode_, inode_num, obj_num);
@@ -199,8 +225,26 @@ template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
   // We need no lock yet, as `unique_size_` is only manipulated from
   // this thread.
-  auto size = p->size();
-  auto [it, is_new] = unique_size_.emplace(size, inode::files_vector());
+  uint64_t size = p->size();
+  uint64_t start_hash{0};
+
+  if (size >= kLargeFileThreshold && !p->is_invalid()) {
+    try {
+      auto mm = os_.map_file(p->fs_path(), kLargeFileStartHashSize);
+      checksum cs(checksum::algorithm::XXH3_64);
+      cs.update(mm->addr(), kLargeFileStartHashSize);
+      cs.finalize(&start_hash);
+    } catch (...) {
+      LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
+                << folly::exceptionStr(std::current_exception())
+                << ", creating empty file";
+      ++prog_.errors;
+      p->set_invalid();
+    }
+  }
+
+  auto [it, is_new] = unique_size_.emplace(std::make_pair(size, start_hash),
+                                           inode::files_vector());
 
   if (is_new) {
     // A file size that has never been seen before. We can safely
@@ -263,6 +307,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
         cv->notify();
       });
 
+      // Clear files vector, but don't delete the hash table entry,
+      // to indicate that files of this size *must* be hashed.
       it->second.clear();
     }
 
