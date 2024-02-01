@@ -578,7 +578,22 @@ class driver_runner {
       if (!umount) {
         throw std::runtime_error("no umount binary found");
       }
-      subprocess::check_run(umount.value(), mountpoint_);
+      auto t0 = std::chrono::steady_clock::now();
+      for (;;) {
+        auto [out, err, ec] = subprocess::run(umount.value(), mountpoint_);
+        if (ec == 0) {
+          break;
+        }
+        std::cerr << "driver failed to unmount:\nout:\n"
+                  << out << "err:\n"
+                  << err << "exit code: " << ec << "\n";
+        if (std::chrono::steady_clock::now() - t0 > std::chrono::seconds(5)) {
+          throw std::runtime_error(
+              "driver still failed to unmount after 5 seconds");
+        }
+        std::cerr << "retrying...\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
       bool rv{true};
       if (process_) {
         process_->wait();
