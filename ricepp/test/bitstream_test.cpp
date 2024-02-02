@@ -21,6 +21,9 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
+#include <iterator>
+#include <list>
 #include <random>
 #include <stdexcept>
 
@@ -45,8 +48,31 @@ TEST(ricepp, bitstream_basic_test) {
     writer.write_bit(true);
     writer.flush();
   }
+
+  static_assert(std::contiguous_iterator<decltype(data)::iterator>);
+
   {
     ricepp::bitstream_reader reader(data.begin(), data.end());
+    EXPECT_EQ(0x1234567U, reader.read_bits<uint32_t>(28));
+    EXPECT_EQ(UINT64_C(0x123456789abcdef), reader.read_bits<uint64_t>(60));
+    EXPECT_EQ(13, reader.find_first_set());
+    EXPECT_EQ(UINT64_C(0x000000FFFFFFFFFF), reader.read_bits<uint64_t>(40));
+    EXPECT_EQ(UINT64_C(0x000000FFFFFFFFFF), reader.read_bits<uint64_t>(40));
+    EXPECT_EQ(UINT64_C(0x000000FFFFFFFFFF), reader.read_bits<uint64_t>(40));
+    EXPECT_EQ(UINT64_C(0x000000FFFFFFFFFF), reader.read_bits<uint64_t>(40));
+    EXPECT_EQ(UINT64_C(0x000000FFFFFFFFFF), reader.read_bits<uint64_t>(40));
+    EXPECT_EQ(200, reader.find_first_set());
+    EXPECT_EQ(136, reader.find_first_set());
+
+    EXPECT_THAT([&] { auto v = reader.read_bits<uint64_t>(10); },
+                testing::Throws<std::out_of_range>());
+  }
+
+  std::list<uint8_t> data2{data.begin(), data.end()};
+  static_assert(!std::contiguous_iterator<decltype(data2)::iterator>);
+
+  {
+    ricepp::bitstream_reader reader(data2.begin(), data2.end());
     EXPECT_EQ(0x1234567U, reader.read_bits<uint32_t>(28));
     EXPECT_EQ(UINT64_C(0x123456789abcdef), reader.read_bits<uint64_t>(60));
     EXPECT_EQ(13, reader.find_first_set());
@@ -1460,8 +1486,30 @@ TEST(ricepp, bitstream_random_test) {
     EXPECT_EQ(expected_bitstream[i], data[i]) << "at index " << i;
   }
 
+  static_assert(std::contiguous_iterator<decltype(data)::iterator>);
+
   {
     ricepp::bitstream_reader reader(data.begin(), data.end());
+    for (const auto& td : testdata) {
+      switch (td.op) {
+      case oper::single:
+        EXPECT_EQ(td.value, reader.read_bit());
+        break;
+      case oper::multi:
+        EXPECT_EQ(td.value, reader.read_bits<uint64_t>(td.bits));
+        break;
+      case oper::sequence:
+        EXPECT_EQ(td.bits, reader.find_first_set());
+        break;
+      }
+    }
+  }
+
+  std::deque<uint8_t> data2{data.begin(), data.end()};
+  static_assert(!std::contiguous_iterator<decltype(data2)::iterator>);
+
+  {
+    ricepp::bitstream_reader reader(data2.begin(), data2.end());
     for (const auto& td : testdata) {
       switch (td.op) {
       case oper::single:
