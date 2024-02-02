@@ -345,12 +345,29 @@ struct new_process_group : public ::boost::process::detail::handler_base {
 };
 #endif
 
+void ignore_sigpipe() {
+#ifdef __APPLE__
+  static bool already_ignoring{false};
+
+  if (!already_ignoring) {
+    struct sigaction sa;
+    std::memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    int res = ::sigaction(SIGPIPE, &sa, NULL);
+    assert(res == 0);
+    already_ignoring = true;
+  }
+#endif
+}
+
 class subprocess {
  public:
   template <typename... Args>
   subprocess(std::filesystem::path const& prog, Args&&... args)
       : prog_{prog} {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
+
+    ignore_sigpipe();
 
     try {
       // std::cerr << "running: " << cmdline() << "\n";
@@ -755,8 +772,10 @@ std::ostream& operator<<(std::ostream& os, binary_mode m) {
 
 std::vector<binary_mode> tools_test_modes{
     binary_mode::standalone,
+#ifdef DWARFS_HAVE_UNIVERSAL_BINARY
     binary_mode::universal_tool,
     binary_mode::universal_symlink,
+#endif
 };
 
 class tools_test : public ::testing::TestWithParam<binary_mode> {};
@@ -1556,11 +1575,22 @@ TEST_P(manpage_test, manpage) {
   EXPECT_THAT(*out, ::testing::HasSubstr("COPYRIGHT"));
 }
 
+namespace {
+
+std::vector<binary_mode> manpage_test_modes{
+    binary_mode::standalone,
+#ifdef DWARFS_HAVE_UNIVERSAL_BINARY
+    binary_mode::universal_tool,
+#endif
+};
+
+} // namespace
+
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, manpage_test,
-    ::testing::Combine(
-        ::testing::Values(binary_mode::standalone, binary_mode::universal_tool),
-        ::testing::Values("dwarfs", "mkdwarfs", "dwarfsck", "dwarfsextract")));
+    ::testing::Combine(::testing::ValuesIn(manpage_test_modes),
+                       ::testing::Values("dwarfs", "mkdwarfs", "dwarfsck",
+                                         "dwarfsextract")));
 #endif
 
 TEST(tools_test, dwarfsextract_progress) {

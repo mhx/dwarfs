@@ -519,61 +519,52 @@ The macOS version of the DwarFS filesystem driver relies on the awesome
 ### Building on macOS
 
 Building on macOS involves a few steps, but should be relatively
-straightforward. This has so far only been tested on a 2014 iMac running
-macOS Big Sur. However, it seems to be possible to build universal (fat)
-binaries even on such an old platform.
+straightforward:
 
-- First, install [macFUSE](https://https://osxfuse.github.io/).
+- Install [Homebrew](https://brew.sh/)
 
-- Install the [mistletoe](https://pypi.org/project/mistletoe/) Python
-  library, e.g.:
+- Use Homebrew to install the necessary dependencies:
 
 ```
-$ pip3 install --user mistletoe
+$ brew install cmake ninja ronn macfuse python3 brotli howard-hinnant-date \
+               double-conversion fmt glog libarchive libevent flac openssl \
+               pkg-config range-v3 utf8cpp xxhash boost zstd jemalloc
 ```
 
-- Install `cmake`, `ninja` and `ronn` using Homebrew (you can
-  optionally also install `ccache`):
+- When installing macFUSE for the first time, you'll need to explicitly
+  allow the sofware in *System Preferences* / *Privacy & Security*. It's
+  quite likely that you'll have to reboot after this.
+
+- Clone the DwarFS repository:
 
 ```
-$ brew install cmake
-$ brew install ninja
-$ brew install ronn
-```
-
-- Clone the [vcpkg](https://vcpkg.io/),
-  [lipo-dir-merge](https://github.com/faaxm/lipo-dir-merge) and
-  DwarFS repositories. If you want the files to go to a different
-  location, you'll need set `VCPKG_BASEDIR` later.
-
-```
-$ cd ~
-$ mkdir git
-$ cd git
-$ git clone https://github.com/Microsoft/vcpkg.git
-$ git clone https://github.com/faaxm/lipo-dir-merge
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 ```
 
-- Bootstrap `vcpkg`:
-
-```
-$ ./vcpkg/bootstrap-vcpkg.sh
-```
-
-- Build DwarFS:
+- Prepare the build by installing the `mistletoe` python module
+  in a virtualenv:
 
 ```
 $ cd dwarfs
-$ git checkout experimental/osx-build
-$ mkdir build
-$ cd build
-$ export VCPKG_BASEDIR=$HOME/git    # optional
-$ sh ../cmake/osx.sh rebuild-vcpkg
-$ sh ../cmake/osx.sh
+$ python3 -m venv @buildenv
+$ source ./@buildenv/bin/activate
+$ pip3 install mistletoe
+```
+
+- Build DwarFS and run its tests:
+
+```
+$ mkdir build && cd build
+$ cmake .. -GNinja -DWITH_TESTS=ON
 $ ninja
 $ export CTEST_PARALLEL_LEVEL=$(sysctl -n hw.logicalcpu)
 $ ninja test
+```
+
+- Install DwarFS:
+
+```
+$ ninja install
 ```
 
 That's it!

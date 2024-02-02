@@ -34,6 +34,10 @@ option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
+option(WITH_UNIVERSAL_BINARY "build with universal binary" ON)
+if(APPLE)
+  option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
+endif()
 if(WIN32)
   set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_ZSTD ON)
@@ -230,6 +234,15 @@ find_package(PkgConfig)
 if(APPLE)
   # For whatever reason, thrift is unhappy if we don't do this
   find_package(OpenSSL 1.1.1 MODULE REQUIRED)
+
+  if(USE_HOMEBREW_LIBARCHIVE)
+    find_program(HOMEBREW_EXE brew)
+    execute_process(
+      COMMAND ${HOMEBREW_EXE} --prefix libarchive
+      OUTPUT_VARIABLE LIBARCHIVE_PREFIX
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    list(PREPEND CMAKE_PREFIX_PATH ${LIBARCHIVE_PREFIX})
+  endif()
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -576,22 +589,28 @@ add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
-add_executable(dwarfsuniversal src/universal.cpp)
+if(WITH_UNIVERSAL_BINARY)
+  add_executable(dwarfsuniversal src/universal.cpp)
+endif()
 
 target_link_libraries(mkdwarfs mkdwarfs_main)
 target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
 target_link_libraries(dwarfsextract dwarfsextract_main)
-target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
-        dwarfsextract_main)
-set_target_properties(dwarfsuniversal PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY universal
-        OUTPUT_NAME dwarfs-universal)
+if(WITH_UNIVERSAL_BINARY)
+  target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
+          dwarfsextract_main)
+  set_target_properties(dwarfsuniversal PROPERTIES
+          RUNTIME_OUTPUT_DIRECTORY universal
+          OUTPUT_NAME dwarfs-universal)
+endif()
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
 list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
-list(APPEND BINARY_TARGETS dwarfsuniversal)
+if(WITH_UNIVERSAL_BINARY)
+  list(APPEND BINARY_TARGETS dwarfsuniversal)
+endif()
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
@@ -603,8 +622,10 @@ if(FUSE3_FOUND OR WINFSP OR APPLE)
                                                    DWARFS_FUSE_LOWLEVEL=0)
     target_include_directories(dwarfs_main SYSTEM PRIVATE "${WINFSP_PATH}/inc")
     target_link_libraries(dwarfs_main ${WINFSP})
-    target_link_libraries(dwarfsuniversal delayimp.lib)
-    target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+    if(WITH_UNIVERSAL_BINARY)
+      target_link_libraries(dwarfsuniversal delayimp.lib)
+      target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+    endif()
   elseif(APPLE)
     target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=29)
     target_link_libraries(dwarfs_main PkgConfig::FUSE)
@@ -615,7 +636,9 @@ if(FUSE3_FOUND OR WINFSP OR APPLE)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin dwarfs_main)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-  target_link_libraries(dwarfsuniversal dwarfs_main)
+  if(WITH_UNIVERSAL_BINARY)
+    target_link_libraries(dwarfsuniversal dwarfs_main)
+  endif()
   if(WINFSP)
     install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
   else()
@@ -637,7 +660,7 @@ if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   target_link_libraries(dwarfs2_main PkgConfig::FUSE)
   add_executable(dwarfs2-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs2-bin dwarfs2_main)
-  if(NOT FUSE3_FOUND)
+  if(WITH_UNIVERSAL_BINARY AND (NOT FUSE3_FOUND))
     target_link_libraries(dwarfsuniversal dwarfs2_main)
   endif()
   set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
@@ -713,6 +736,11 @@ if(WITH_TESTS)
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
     list(APPEND TEST_TARGETS ${test})
   endforeach()
+
+  set_source_files_properties(test/tools_test.cpp PROPERTIES
+    COMPILE_DEFINITIONS
+    $<$<BOOL:${WITH_UNIVERSAL_BINARY}>:DWARFS_HAVE_UNIVERSAL_BINARY>
+  )
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
@@ -1145,21 +1173,23 @@ if(PRJ_VERSION_FULL)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR WIN32)
-  find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
+  if (WITH_UNIVERSAL_BINARY)
+    find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
-  set(UNIVERSAL_PACKED
-          "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
+    set(UNIVERSAL_PACKED
+            "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
 
-  # upx -9 is a good compromise between compression ratio and speed
-  # also, anything above --best increases the startup time of the compressed
-  # executable significantly
-  add_custom_command(
-    OUTPUT ${UNIVERSAL_PACKED}
-    COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  )
+    # upx -9 is a good compromise between compression ratio and speed
+    # also, anything above --best increases the startup time of the compressed
+    # executable significantly
+    add_custom_command(
+      OUTPUT ${UNIVERSAL_PACKED}
+      COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
 
-  add_custom_target(universal_upx DEPENDS ${UNIVERSAL_PACKED})
+    add_custom_target(universal_upx DEPENDS ${UNIVERSAL_PACKED})
+  endif()
 
   if(DEFINED ENV{GITHUB_REF_TYPE})
     message(STATUS "GITHUB_REF_TYPE: $ENV{GITHUB_REF_TYPE}")
