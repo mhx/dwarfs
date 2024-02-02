@@ -144,6 +144,7 @@ ssize_t portable_getxattr(const char* path, const char* name, void* value,
 #endif
 }
 
+#ifndef __APPLE__
 pid_t get_dwarfs_pid(fs::path const& path) {
   std::array<char, 32> attr_buf;
   auto attr_len = portable_getxattr(path.c_str(), "user.dwarfs.driver.pid",
@@ -153,6 +154,7 @@ pid_t get_dwarfs_pid(fs::path const& path) {
   }
   return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
 }
+#endif
 #endif
 
 bool wait_until_file_ready(fs::path const& path,
@@ -354,7 +356,11 @@ void ignore_sigpipe() {
     std::memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_IGN;
     int res = ::sigaction(SIGPIPE, &sa, NULL);
-    assert(res == 0);
+    if (res != 0) {
+      std::cerr << "sigaction(SIGPIPE, SIG_IGN): " << std::strerror(errno)
+                << "\n";
+      std::abort();
+    }
     already_ignoring = true;
   }
 #endif
@@ -585,7 +591,7 @@ class driver_runner {
   bool unmount() {
 #ifdef _WIN32
     static constexpr int const kSigIntExitCode{-1073741510};
-#else
+#elif !defined(__APPLE__)
     static constexpr int const kSigIntExitCode{SIGINT};
 #endif
 
