@@ -155,8 +155,4 @@ class bitstream_reader final {
   iterator_type beg_, end_;
 };
 
-template <typename T>
-concept bitstream_reader_type =
-    std::same_as<T, bitstream_reader<typename T::iterator_type>>;
-
 } // namespace ricepp

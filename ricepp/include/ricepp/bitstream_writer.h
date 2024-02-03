@@ -134,8 +134,4 @@ class bitstream_writer final {
   iterator_type out_;
 };
 
-template <typename T>
-concept bitstream_writer_type =
-    std::same_as<T, bitstream_writer<typename T::iterator_type>>;
-
 } // namespace ricepp

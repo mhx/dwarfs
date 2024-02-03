@@ -52,8 +52,9 @@ class codec final {
       : block_size_{block_size}
       , traits_{traits} {}
 
-  template <bitstream_writer_type W>
-  void encode(std::span<pixel_value_type const> input, W& writer) const {
+  template <typename BitstreamWriter>
+  void encode(std::span<pixel_value_type const> input,
+              BitstreamWriter& writer) const {
     assert(input.size() % kComponentStreamCount == 0);
 
     std::array<pixel_value_type, kComponentStreamCount> last_value;
@@ -77,8 +78,9 @@ class codec final {
     writer.flush();
   }
 
-  template <bitstream_reader_type R>
-  void decode(std::span<pixel_value_type> output, R& reader) const {
+  template <typename BitstreamReader>
+  void
+  decode(std::span<pixel_value_type> output, BitstreamReader& reader) const {
     assert(output.size() % kComponentStreamCount == 0);
 
     std::array<pixel_value_type, kComponentStreamCount> last_value;

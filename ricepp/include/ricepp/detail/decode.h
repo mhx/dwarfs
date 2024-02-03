@@ -32,11 +32,11 @@
 namespace ricepp::detail {
 
 template <size_t MaxBlockSize, typename PixelTraits, ranges::viewable_range V,
-          bitstream_reader_type R>
+          typename BitstreamReader>
   requires std::unsigned_integral<typename PixelTraits::value_type> &&
            std::same_as<ranges::range_value_t<std::decay_t<V>>,
                         typename PixelTraits::value_type>
-void decode_block(V block, R& reader, PixelTraits const& traits,
+void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
                   typename PixelTraits::value_type& last_value) {
   using pixel_value_type = typename PixelTraits::value_type;
   static constexpr unsigned kPixelBits{PixelTraits::kBitCount};

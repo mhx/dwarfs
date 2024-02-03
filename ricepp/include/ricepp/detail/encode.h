@@ -80,11 +80,11 @@ compute_best_split(T const& delta, size_t size, uint64_t sum) noexcept {
 }
 
 template <size_t MaxBlockSize, typename PixelTraits, ranges::viewable_range V,
-          bitstream_writer_type W>
+          typename BitstreamWriter>
   requires std::unsigned_integral<typename PixelTraits::value_type> &&
            std::same_as<ranges::range_value_t<std::decay_t<V>>,
                         typename PixelTraits::value_type>
-void encode_block(V block, W& writer, PixelTraits const& traits,
+void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
                   typename PixelTraits::value_type& last_value) {
   using pixel_value_type = typename PixelTraits::value_type;
   static constexpr unsigned kPixelBits{PixelTraits::kBitCount};
@@ -99,6 +99,7 @@ void encode_block(V block, W& writer, PixelTraits const& traits,
   assert(block.size() <= MaxBlockSize);
 
   uint64_t sum{0};
+
   for (size_t i = 0; i < block.size(); ++i) {
     auto const pixel = traits.read(block[i]);
     auto const diff = static_cast<pixel_value_type>(pixel - last);
