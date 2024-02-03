@@ -63,5 +63,6 @@ class console_writer : public stream_logger {
   bool const debug_progress_;
   bool writing_{false};
   speedometer<uint64_t> read_speed_;
+  bool fancy_{false};
 };
 } // namespace dwarfs

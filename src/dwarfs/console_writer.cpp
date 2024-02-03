@@ -76,10 +76,11 @@ console_writer::console_writer(std::ostream& os, progress_mode pg_mode,
     , get_term_width_(get_term_width)
     , mode_(mode)
     , debug_progress_(getenv_is_enabled("DWARFS_DEBUG_PROGRESS"))
-    , read_speed_{std::chrono::seconds(5)} {}
+    , read_speed_{std::chrono::seconds(5)}
+    , fancy_(pg_mode_ == UNICODE || pg_mode_ == ASCII) {}
 
 void console_writer::rewind() {
-  if (!statebuf_.empty()) {
+  if (!statebuf_.empty() && fancy_) {
     int lines = 0;
 
     switch (mode_) {
@@ -104,13 +105,13 @@ void console_writer::rewind() {
 void console_writer::preamble() { rewind(); }
 
 void console_writer::postamble() {
-  if (pg_mode_ == UNICODE || pg_mode_ == ASCII) {
+  if (fancy_) {
     log_stream() << statebuf_;
   }
 }
 
 std::string_view console_writer::get_newline() const {
-  return pg_mode_ != NONE ? "\x1b[K\n" : "\n";
+  return fancy_ ? "\x1b[K\n" : "\n";
 }
 
 void console_writer::update(const progress& p, bool last) {
@@ -123,10 +124,8 @@ void console_writer::update(const progress& p, bool last) {
   std::ostringstream oss;
   lazy_value width(get_term_width_);
 
-  bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
-
-  if (last || fancy) {
-    if (fancy) {
+  if (last || fancy_) {
+    if (fancy_) {
       for (size_t i = 0; i < width.get(); ++i) {
         oss << (pg_mode_ == UNICODE ? "⎯" : "-");
       }
@@ -146,13 +145,11 @@ void console_writer::update(const progress& p, bool last) {
         }
       }
 
-      if (fancy) {
+      if (fancy_) {
         oss << terminal_colored(p.status(width.get()), termcolor::BOLD_CYAN,
                                 log_is_colored())
             << newline;
-      }
 
-      {
         auto cur_size = p.current_size.load();
         double cur_offs = std::min(p.current_offset.load(), cur_size);
         double cur_frac = cur_size > 0 ? cur_offs / cur_size : 0.0;
@@ -233,7 +230,7 @@ void console_writer::update(const progress& p, bool last) {
     frac_ = frac;
   }
 
-  if (pg_mode_ == SIMPLE) {
+  if (!fancy_) {
     std::string tmp =
         fmt::format(" ==> {0:.0f}% done, {1} blocks/{2} written", 100 * frac_,
                     p.blocks_written.load(), size_with_unit(p.compressed_size));
