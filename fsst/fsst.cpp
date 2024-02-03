@@ -15,7 +15,11 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 // You can contact the authors via the FSST source repository : https://github.com/cwida/fsst
+#ifdef FSST12
+#include "fsst12.h" // the official FSST API -- also usable by C mortals
+#else
 #include "fsst.h" // the official FSST API -- also usable by C mortals
+#endif
 #include <condition_variable>
 #include <iostream>
 #include <fstream>

@@ -17,12 +17,6 @@
 // You can contact the authors via the FSST source repository : https://github.com/cwida/fsst
 #include "libfsst.hpp"
 
-inline uint64_t fsst_unaligned_load(u8 const* V) {
-  uint64_t Ret;
-  memcpy(&Ret, V, sizeof(uint64_t)); // compiler will generate efficient code (unaligned load, where possible)
-  return Ret;
-}
-
 Symbol concat(Symbol a, Symbol b) {
    Symbol s;
    u32 length = a.length()+b.length();
@@ -97,7 +91,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
       int gain = 0;
 
       for(size_t i=0; i<line.size(); i++) {
-         u8* cur = line[i];
+         u8* cur = line[i], *start = cur;
          u8* end = cur + len[i];
 
          if (sampleFrac < 128) {
@@ -105,7 +99,6 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
             if (rnd128(i) > sampleFrac) continue;
          }
          if (cur < end) {
-            u8* start = cur;
             u16 code2 = 255, code1 = st->findLongestSymbol(cur, end);
             cur += st->symbols[code1].length();
             gain += (int) (st->symbols[code1].length()-(1+isEscapeCode(code1)));
@@ -147,7 +140,6 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
                // compute compressed output size
                gain += ((int) (cur-start))-(1+isEscapeCode(code2));
 
-               // now count the subsequent two symbols we encode as an extension codesibility
                if (sampleFrac < 128) { // no need to count pairs in final round
 	          // consider the symbol that is the concatenation of the two last symbols
                   counters.count2Inc(code1, code2);
@@ -384,9 +376,11 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
 
 // optimized adaptive *scalar* compression method
 static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, size_t lenIn[], u8* strIn[], size_t size, u8* out, size_t lenOut[], u8* strOut[], bool noSuffixOpt, bool avoidBranch) {
-   u8 buf[512], *cur = NULL, *end =  NULL, *lim = out + size;
+   u8 *cur = NULL, *end =  NULL, *lim = out + size;
    size_t curLine, suffixLim = symbolTable.suffixLim;
    u8 byteLim = symbolTable.nSymbols + symbolTable.zeroTerminated - symbolTable.lenHisto[0];
+
+   u8 buf[512+8] = {}; /* +8 sentinel is to avoid 8-byte unaligned-loads going beyond 511 out-of-bounds */
 
    // three variants are possible. dead code falls away since the bool arguments are constants
    auto compressVariant = [&](bool noSuffixOpt, bool avoidBranch) {
@@ -427,22 +421,20 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, size_
       size_t chunk, curOff = 0;
       strOut[curLine] = out;
       do {
-         bool skipCopy = symbolTable.zeroTerminated;
          cur = strIn[curLine] + curOff; 
          chunk = lenIn[curLine] - curOff;
          if (chunk > 511) {
             chunk = 511; // we need to compress in chunks of 511 in order to be byte-compatible with simd-compressed FSST 
-            skipCopy = false; // need to put terminator, so no in place mem usage possible
          }
          if ((2*chunk+7) > (size_t) (lim-out)) {
             return curLine; // out of memory
          }
-         if (!skipCopy) { // only in case of short zero-terminated strings, we can avoid copying
-            memcpy(buf, cur, chunk);
-            cur = buf;
-            buf[chunk] = (u8) symbolTable.terminator;
-         } 
+         // copy the string to the 511-byte buffer
+         memcpy(buf, cur, chunk);
+         buf[chunk] = (u8) symbolTable.terminator;
+         cur = buf;
          end = cur + chunk; 
+
          // based on symboltable stats, choose a variant that is nice to the branch predictor
          if (noSuffixOpt) {
             compressVariant(true,false);

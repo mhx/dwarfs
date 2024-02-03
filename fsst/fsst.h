@@ -168,8 +168,11 @@ fsst_decompress(
          unsigned long firstEscapePos=__builtin_ctzl((unsigned long long) escapeMask)>>3;
          switch(firstEscapePos) { /* Duff's device */
          case 3: code = strIn[posIn++]; FSST_UNALIGNED_STORE(strOut+posOut, symbol[code]); posOut += len[code];
+                 // fall through
          case 2: code = strIn[posIn++]; FSST_UNALIGNED_STORE(strOut+posOut, symbol[code]); posOut += len[code];
+                 // fall through
          case 1: code = strIn[posIn++]; FSST_UNALIGNED_STORE(strOut+posOut, symbol[code]); posOut += len[code];
+                 // fall through
          case 0: posIn+=2; strOut[posOut++] = strIn[posIn-1]; /* decompress an escaped byte */
          }
       }

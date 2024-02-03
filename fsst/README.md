@@ -23,3 +23,13 @@ FSST compression is quite useful in database systems and data file formats. It e
 
 The implementation of FSST is quite portable, using CMake and has been verified to work on 64-bits x86 computers running Linux, Windows and MacOS (the latter also using arm64).
 
+FSST12 is an alternative version of FSST that uses 12-bits symbols, and hence can encode up to 4096 symbols (of max 8 bytes long). 
+It does not need an escaping mechanism as the first 256 codes are single-byte symbols consisting of only that byte. 
+These symbols ensure that FSST12 can always find some symbol matching the next input, but a code is 1.5bytes (12 bits) and those symbols are 1 byte, so there is still compression loss when that happens (though in FSST8 the penalty for an escape is heavier 2x compression loss).
+
+
+FSST12 lookup tables are 16x bigger than for 8-bits FSST (~8KB on average in storage, 32KB in memory), so a larger granularity of encoding volume is needed.
+Generally speaking, FSST12 needs 1.5x longer symbols on average than FSST to achieve the same compression ratio. 
+This is also what happens, by and large, because its symbol table can hold 16x more symbols, so there is room for more symbols that are much less frequent (which longer symbols are) and thus would not make the "worthwhile" cut in FSST8.
+FSST12 therefore can deal with data distributions that are less focused than natural (say, "english") text. For instance, JSON and XML compress better with it.
+Decoding it does need a larger lookup table, and encoding it is slower due to the increased memory pressure needed for 4096x4096 counters (and the absence of AVX512 path - for x86).

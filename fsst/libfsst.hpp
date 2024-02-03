@@ -56,6 +56,12 @@ typedef uint64_t u64;
 #define FSST_CODE_MAX       (1UL<<FSST_CODE_BITS) /* all bits set: indicating a symbol that has not been assigned a code yet */
 #define FSST_CODE_MASK      (FSST_CODE_MAX-1UL)   /* all bits set: indicating a symbol that has not been assigned a code yet */
 
+inline uint64_t fsst_unaligned_load(u8 const* V) {
+    uint64_t Ret;
+    memcpy(&Ret, V, sizeof(uint64_t)); // compiler will generate efficient code (unaligned load, where possible)
+    return Ret;
+}
+
 struct Symbol {
    static const unsigned maxLength = 8;
 
@@ -110,7 +116,7 @@ struct QSymbol{
 // two phases of compression, before and after optimize():
 //
 // (1) to encode values we probe (and maintain) three datastructures:
-// - u16 byteCodes[65536] array at the position of the next byte  (s.length==1)
+// - u16 byteCodes[256] array at the position of the next byte  (s.length==1)
 // - u16 shortCodes[65536] array at the position of the next twobyte pattern (s.length==2)
 // - Symbol hashtable[1024] (keyed by the next three bytes, ie for s.length>2), 
 // this search will yield a u16 code, it points into Symbol symbols[]. You always find a hit, because the first 256 codes are 
@@ -373,7 +379,7 @@ struct Counters {
    }
    u32 count1GetNext(u32 &pos1) { // note: we will advance pos1 to the next nonzero counter in register range
       // read 16-bits single symbol counter, split into two 8-bits numbers (count1Low, count1High), while skipping over zeros
-      u64 high = *(u64*) &count1High[pos1]; // note: this reads 8 subsequent counters [pos1..pos1+7]
+      u64 high = fsst_unaligned_load(&count1High[pos1]); // note: this reads 8 subsequent counters [pos1..pos1+7]
 
       u32 zero = high?(__builtin_ctzl(high)>>3):7UL; // number of zero bytes
       high = (high >> (zero << 3)) & 255; // advance to nonzero counter
@@ -386,7 +392,7 @@ struct Counters {
    }
    u32 count2GetNext(u32 pos1, u32 &pos2) { // note: we will advance pos2 to the next nonzero counter in register range
       // read 12-bits pairwise symbol counter, split into low 8-bits and high 4-bits number while skipping over zeros
-      u64 high = *(u64*) &count2High[pos1][pos2>>1]; // note: this reads 16 subsequent counters [pos2..pos2+15]
+      u64 high = fsst_unaligned_load(&count2High[pos1][pos2>>1]); // note: this reads 16 subsequent counters [pos2..pos2+15]
       high >>= ((pos2&1) << 2); // odd pos2: ignore the lowest 4 bits & we see only 15 counters
 
       u32 zero = high?(__builtin_ctzl(high)>>2):(15UL-(pos2&1UL)); // number of zero 4-bits counters
