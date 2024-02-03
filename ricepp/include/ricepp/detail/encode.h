@@ -34,14 +34,16 @@
 namespace ricepp::detail {
 
 template <unsigned FsMax, typename T>
+  requires std::unsigned_integral<typename T::value_type>
 [[nodiscard]] std::pair<unsigned, unsigned>
 compute_best_split(T const& delta, size_t size, uint64_t sum) noexcept {
   auto bits_for_fs = [&](auto fs) {
-    auto bits = size * (fs + 1);
+    auto const mask = std::numeric_limits<typename T::value_type>::max() << fs;
+    unsigned bits{0};
     for (size_t i = 0; i < size; ++i) {
-      bits += delta[i] >> fs;
+      bits += delta[i] & mask;
     }
-    return bits;
+    return size * (fs + 1) + (bits >> fs);
   };
 
   static constexpr auto const kMaxBits = std::numeric_limits<uint64_t>::digits;
