@@ -72,7 +72,7 @@ jobs:
       matrix:
         config:
 # Need XCode 14.3 for std::boyer_moore_horspool_searcher
-          - { os: macos-11, xcode: '12.4' , build_type: Release, extra_opts: '' }
+          - { os: macos-12, xcode: '13.1' , build_type: Release, extra_opts: '' }
 
 #  We are running two configurations:
 #   - ALL in order to run regression tests
