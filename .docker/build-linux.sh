@@ -96,6 +96,13 @@ else
   CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
 fi
 
+if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
+  if [[ "-$BUILD_TYPE-" == *-clang-* ]]; then
+    export LDFLAGS="-flto=thin"
+  fi
+fi
+
 CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 

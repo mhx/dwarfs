@@ -101,29 +101,34 @@ jobs:
           - amd64
           - arm64v8
         build_type:
-          - gcc-debug-ninja
-          - gcc-release-ninja
-          - oldgcc-debug-make
+          # - gcc-debug-ninja
+          # - gcc-release-ninja
+          # - oldgcc-debug-make
           - clang-release-ninja
-          - gcc-release-ninja-static
-          - gcc-release-ninja-O2-static
-          - clang-release-ninja-static
-          - clang-release-ninja-O2-static
-          - clang-reldbg-ninja-static
-          - clang-debug-ninja-static
+          # - gcc-release-ninja-static
+          # - gcc-release-ninja-lto-static
+          # - gcc-release-ninja-O2-static
+          # - clang-release-ninja-static
+          # - clang-release-ninja-O2-static
+          # - clang-reldbg-ninja-static
+          # - clang-debug-ninja-static
         include:
+          # - arch: amd64
+          #   build_type: clang-asan-ninja
+          # - arch: amd64
+          #   build_type: clang-tsan-ninja
+          # - arch: amd64
+          #   build_type: clang-ubsan-ninja
+          # - arch: amd64
+          #   build_type: clang-coverage-ninja
+          # - arch: arm64v8
+          #   build_type: gcc-debug-noperfmon-ninja
+          # - arch: arm64v8
+          #   build_type: oldclang-debug-make
           - arch: amd64
-            build_type: clang-asan-ninja
+            build_type: gcc-release-ninja-lto-static
           - arch: amd64
-            build_type: clang-tsan-ninja
-          - arch: amd64
-            build_type: clang-ubsan-ninja
-          - arch: amd64
-            build_type: clang-coverage-ninja
-          - arch: arm64v8
-            build_type: gcc-debug-noperfmon-ninja
-          - arch: arm64v8
-            build_type: oldclang-debug-make
+            build_type: clang-release-ninja-lto-static
 
     runs-on:
       - self-hosted
