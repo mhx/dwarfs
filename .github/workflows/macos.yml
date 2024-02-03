@@ -93,7 +93,7 @@ jobs:
           bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config ccache
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 

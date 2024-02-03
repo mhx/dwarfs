@@ -43,7 +43,7 @@ runs:
                 ${{ matrix.config.extra_opts }} .
 
       - name: Load Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_FLD }}
           key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-${{ github.sha }}

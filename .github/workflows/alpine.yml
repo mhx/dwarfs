@@ -88,7 +88,7 @@ jobs:
             fuse3 fuse3-dev jemalloc-dev ccache tar brotli-dev
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 

@@ -78,7 +78,7 @@ jobs:
     env: ${{ matrix.config.env }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -114,13 +114,13 @@ jobs:
           echo "CORES=$(nproc --all)" >> $GITHUB_ENV
 
       - name: vcpkg cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ matrix.config.os }}-${{ hashFiles('vcpkg.version') }}
 
       - name: ccache cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-${{ github.sha }}
