@@ -35,25 +35,47 @@ namespace ricepp::detail {
 
 template <unsigned FsMax, typename T>
 [[nodiscard]] std::pair<unsigned, unsigned>
-compute_best_split(T const& delta, size_t size) noexcept {
-  auto bits_for_fs = [&](unsigned fs) {
-    unsigned bits = size * (fs + 1);
+compute_best_split(T const& delta, size_t size, uint64_t sum) noexcept {
+  auto bits_for_fs = [&](auto fs) {
+    auto bits = size * (fs + 1);
     for (size_t i = 0; i < size; ++i) {
       bits += delta[i] >> fs;
     }
     return bits;
   };
 
-  unsigned cand_fs{0};
-  unsigned bits = bits_for_fs(0);
-  while (cand_fs < FsMax) {
-    unsigned const bits2 = bits_for_fs(cand_fs + 1);
-    if (bits2 > bits) {
-      break;
-    }
-    bits = bits2;
-    ++cand_fs;
+  static constexpr auto const kMaxBits = std::numeric_limits<uint64_t>::digits;
+  auto const start_fs =
+      kMaxBits - std::min(kMaxBits, std::countl_zero(sum / size) + 2);
+
+  auto bits0 = bits_for_fs(start_fs);
+  auto bits1 = bits_for_fs(start_fs + 1);
+
+  int cand_fs;
+  int bits;
+  int direction;
+
+  if (bits1 <= bits0) [[likely]] {
+    cand_fs = start_fs + 1;
+    bits = bits1;
+    direction = 1;
+  } else {
+    cand_fs = start_fs;
+    bits = bits0;
+    direction = -1;
   }
+
+  if (bits0 != bits1) [[likely]] {
+    while (cand_fs > 0 && cand_fs < FsMax) {
+      auto const tmp = bits_for_fs(cand_fs + direction);
+      if (tmp > bits) [[likely]] {
+        break;
+      }
+      bits = tmp;
+      cand_fs += direction;
+    }
+  }
+
   return std::make_pair(cand_fs, bits);
 }
 
@@ -93,7 +115,7 @@ void encode_block(V block, W& writer, PixelTraits const& traits,
   } else {
     // Find the best bit position to split the difference values.
     auto const [fs, bits_used] =
-        compute_best_split<kFsMax>(delta, block.size());
+        compute_best_split<kFsMax>(delta, block.size(), sum);
 
     if (fs >= kFsMax || bits_used >= kPixelBits * block.size()) [[unlikely]] {
       // Difference values are too large for entropy coding. Just plain copy
