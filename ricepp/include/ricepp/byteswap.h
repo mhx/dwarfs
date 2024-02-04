@@ -33,6 +33,13 @@ namespace ricepp {
 namespace detail {
 
 template <std::unsigned_integral T>
+[[nodiscard]] constexpr T byteswap_fallback(T value) noexcept {
+  auto value_repr = std::bit_cast<std::array<std::byte, sizeof(T)>>(value);
+  ranges::reverse(value_repr);
+  return std::bit_cast<T>(value_repr);
+}
+
+template <std::unsigned_integral T>
 [[nodiscard]] constexpr T byteswap(T value) noexcept {
 #if __cpp_lib_byteswap >= 202110L
   return std::byteswap(value);
@@ -47,17 +54,19 @@ template <std::unsigned_integral T>
   }
 #elif defined(_MSC_VER)
   static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
-  if constexpr (sizeof(T) == 2) {
-    return _byteswap_ushort(value);
-  } else if constexpr (sizeof(T) == 4) {
-    return _byteswap_ulong(value);
-  } else if constexpr (sizeof(T) == 8) {
-    return _byteswap_uint64(value);
+  if constexpr (std::is_constant_evaluated()) {
+    return byteswap_fallback(value);
+  } else {
+    if constexpr (sizeof(T) == 2) {
+      return _byteswap_ushort(value);
+    } else if constexpr (sizeof(T) == 4) {
+      return _byteswap_ulong(value);
+    } else if constexpr (sizeof(T) == 8) {
+      return _byteswap_uint64(value);
+    }
   }
 #else
-  auto value_repr = std::bit_cast<std::array<std::byte, sizeof(T)>>(value);
-  ranges::reverse(value_repr);
-  return std::bit_cast<T>(value_repr);
+  return byteswap_fallback(value);
 #endif
 }
 
