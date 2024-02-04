@@ -65,6 +65,10 @@ class bitstream_reader final {
   size_t find_first_set() {
     size_t zeros = 0;
     if (bit_pos_ != 0) [[likely]] {
+      if (peek_bit()) [[likely]] {
+        skip_bits(1);
+        return zeros;
+      }
       size_t const remaining_bits = kBitsTypeBits - bit_pos_;
       bits_type const bits = peek_bits(remaining_bits);
       size_t const ffs = std::countr_zero(bits);
@@ -105,6 +109,11 @@ class bitstream_reader final {
     if (bit_pos_ == sizeof(bits_type) * 8) [[unlikely]] {
       bit_pos_ = 0;
     }
+  }
+
+  bool peek_bit() {
+    assert(bit_pos_ > 0 && bit_pos_ < kBitsTypeBits);
+    return (data_ & (static_cast<bits_type>(1) << bit_pos_)) != 0;
   }
 
   bits_type peek_bits(size_t num_bits) {
