@@ -36,6 +36,24 @@ template <std::unsigned_integral T>
 [[nodiscard]] constexpr T byteswap(T value) noexcept {
 #if __cpp_lib_byteswap >= 202110L
   return std::byteswap(value);
+#elif defined(__GNUC__) || defined(__clang__)
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
+  if constexpr (sizeof(T) == 2) {
+    return __builtin_bswap16(value);
+  } else if constexpr (sizeof(T) == 4) {
+    return __builtin_bswap32(value);
+  } else if constexpr (sizeof(T) == 8) {
+    return __builtin_bswap64(value);
+  }
+#elif defined(_MSC_VER)
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
+  if constexpr (sizeof(T) == 2) {
+    return _byteswap_ushort(value);
+  } else if constexpr (sizeof(T) == 4) {
+    return _byteswap_ulong(value);
+  } else if constexpr (sizeof(T) == 8) {
+    return _byteswap_uint64(value);
+  }
 #else
   auto value_repr = std::bit_cast<std::array<std::byte, sizeof(T)>>(value);
   ranges::reverse(value_repr);
