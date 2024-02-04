@@ -74,6 +74,36 @@ class dynamic_pixel_traits {
 #endif
 };
 
+template <std::unsigned_integral ValueType, std::endian ByteOrder,
+          unsigned UnusedLsbCount>
+class static_pixel_traits {
+ public:
+  using value_type = ValueType;
+  static constexpr size_t const kBitCount =
+      std::numeric_limits<value_type>::digits;
+  static constexpr value_type const kAllOnes =
+      std::numeric_limits<value_type>::max();
+  static constexpr std::endian const kByteOrder = ByteOrder;
+  static constexpr unsigned const kUnusedLsbCount = UnusedLsbCount;
+  static constexpr value_type const kLsbMask =
+      static_cast<value_type>(~(kAllOnes << kUnusedLsbCount));
+  static constexpr value_type const kMsbMask =
+      static_cast<value_type>(~(kAllOnes >> kUnusedLsbCount));
+  static_assert(kUnusedLsbCount < kBitCount);
+
+  [[nodiscard]] static value_type read(value_type value) noexcept {
+    value_type tmp = byteswap<kByteOrder>(value);
+    assert((tmp & kLsbMask) == 0);
+    return tmp >> kUnusedLsbCount;
+  }
+
+  [[nodiscard]] static value_type write(value_type value) noexcept {
+    assert((value & kMsbMask) == 0);
+    return byteswap<kByteOrder>(
+        static_cast<value_type>(value << kUnusedLsbCount));
+  }
+};
+
 template <size_t MaxBlockSize, size_t ComponentStreamCount,
           typename PixelTraits>
 class codec_impl final
@@ -195,16 +225,53 @@ create_codec_(size_t block_size, size_t component_stream_count,
   return nullptr;
 }
 
+template <std::unsigned_integral PixelValueType, std::endian ByteOrder,
+          unsigned UnusedLsbCount>
+std::unique_ptr<codec_interface<PixelValueType>>
+create_codec_(size_t block_size, size_t component_stream_count) {
+  using pixel_traits =
+      static_pixel_traits<PixelValueType, ByteOrder, UnusedLsbCount>;
+
+  if (auto codec = create_codec_<pixel_traits>(
+          block_size, component_stream_count, pixel_traits{})) {
+    return codec;
+  }
+
+  return nullptr;
+}
+
+template <std::unsigned_integral PixelValueType>
+std::unique_ptr<codec_interface<PixelValueType>>
+create_codec_(codec_config const& config) {
+  if (config.byteorder == std::endian::big) {
+    switch (config.unused_lsb_count) {
+    case 0:
+      return create_codec_<PixelValueType, std::endian::big, 0>(
+          config.block_size, config.component_stream_count);
+
+    case 2:
+      return create_codec_<PixelValueType, std::endian::big, 2>(
+          config.block_size, config.component_stream_count);
+
+    case 4:
+      return create_codec_<PixelValueType, std::endian::big, 4>(
+          config.block_size, config.component_stream_count);
+    }
+  }
+
+  using pixel_traits = dynamic_pixel_traits<PixelValueType>;
+
+  return create_codec_<pixel_traits>(
+      config.block_size, config.component_stream_count,
+      pixel_traits{config.byteorder, config.unused_lsb_count});
+}
+
 } // namespace
 
 template <>
 std::unique_ptr<codec_interface<uint16_t>>
 create_codec<uint16_t>(codec_config const& config) {
-  using pixel_traits = dynamic_pixel_traits<uint16_t>;
-
-  if (auto codec = create_codec_<pixel_traits>(
-          config.block_size, config.component_stream_count,
-          pixel_traits{config.byteorder, config.unused_lsb_count})) {
+  if (auto codec = create_codec_<uint16_t>(config)) {
     return codec;
   }
 

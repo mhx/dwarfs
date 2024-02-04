@@ -57,21 +57,34 @@ class codec final {
               BitstreamWriter& writer) const {
     assert(input.size() % kComponentStreamCount == 0);
 
-    std::array<pixel_value_type, kComponentStreamCount> last_value;
+    if constexpr (kComponentStreamCount == 1) {
+      pixel_value_type last_value;
 
-    for (size_t i = 0; i < kComponentStreamCount; ++i) {
-      last_value[i] = traits_.read(input[i]);
-      writer.write_bits(last_value[i], PixelTraits::kBitCount);
-    }
+      last_value = traits_.read(input[0]);
+      writer.write_bits(last_value, PixelTraits::kBitCount);
 
-    for (auto pixels :
-         ranges::views::all(input) |
-             ranges::views::chunk(kComponentStreamCount * block_size_)) {
+      for (auto pixels :
+           ranges::views::all(input) | ranges::views::chunk(block_size_)) {
+        detail::encode_block<kMaxBlockSize, pixel_traits>(pixels, writer,
+                                                          traits_, last_value);
+      }
+    } else {
+      std::array<pixel_value_type, kComponentStreamCount> last_value;
+
       for (size_t i = 0; i < kComponentStreamCount; ++i) {
-        detail::encode_block<kMaxBlockSize, pixel_traits>(
-            pixels | ranges::views::drop(i) |
-                ranges::views::stride(kComponentStreamCount),
-            writer, traits_, last_value[i]);
+        last_value[i] = traits_.read(input[i]);
+        writer.write_bits(last_value[i], PixelTraits::kBitCount);
+      }
+
+      for (auto pixels :
+           ranges::views::all(input) |
+               ranges::views::chunk(kComponentStreamCount * block_size_)) {
+        for (size_t i = 0; i < kComponentStreamCount; ++i) {
+          detail::encode_block<kMaxBlockSize, pixel_traits>(
+              pixels | ranges::views::drop(i) |
+                  ranges::views::stride(kComponentStreamCount),
+              writer, traits_, last_value[i]);
+        }
       }
     }
 
@@ -83,21 +96,34 @@ class codec final {
   decode(std::span<pixel_value_type> output, BitstreamReader& reader) const {
     assert(output.size() % kComponentStreamCount == 0);
 
-    std::array<pixel_value_type, kComponentStreamCount> last_value;
+    if constexpr (kComponentStreamCount == 1) {
+      pixel_value_type last_value;
 
-    for (size_t i = 0; i < kComponentStreamCount; ++i) {
-      last_value[i] =
+      last_value =
           reader.template read_bits<pixel_value_type>(PixelTraits::kBitCount);
-    }
 
-    for (auto pixels :
-         ranges::views::all(output) |
-             ranges::views::chunk(kComponentStreamCount * block_size_)) {
+      for (auto pixels :
+           ranges::views::all(output) | ranges::views::chunk(block_size_)) {
+        detail::decode_block<kMaxBlockSize, pixel_traits>(pixels, reader,
+                                                          traits_, last_value);
+      }
+    } else {
+      std::array<pixel_value_type, kComponentStreamCount> last_value;
+
       for (size_t i = 0; i < kComponentStreamCount; ++i) {
-        detail::decode_block<kMaxBlockSize, pixel_traits>(
-            pixels | ranges::views::drop(i) |
-                ranges::views::stride(kComponentStreamCount),
-            reader, traits_, last_value[i]);
+        last_value[i] =
+            reader.template read_bits<pixel_value_type>(PixelTraits::kBitCount);
+      }
+
+      for (auto pixels :
+           ranges::views::all(output) |
+               ranges::views::chunk(kComponentStreamCount * block_size_)) {
+        for (size_t i = 0; i < kComponentStreamCount; ++i) {
+          detail::decode_block<kMaxBlockSize, pixel_traits>(
+              pixels | ranges::views::drop(i) |
+                  ranges::views::stride(kComponentStreamCount),
+              reader, traits_, last_value[i]);
+        }
       }
     }
   }
