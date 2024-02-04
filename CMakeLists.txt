@@ -1097,7 +1097,7 @@ add_custom_target(
         dwarfs_install.cmake package_version.cmake
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
         CTestTestfile.cmake Testing
-        fbthrift folly zstd
+        fbthrift folly zstd ricepp
         include src thrift universal bin lib man1 man5
         vcpkg-manifest-install.log
         build.ninja .ninja_deps
