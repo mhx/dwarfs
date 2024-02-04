@@ -41,6 +41,14 @@ target_compile_features(ricepp PUBLIC cxx_std_20)
 # add_executable(ricepp_demo ricepp_demo.cpp)
 # target_link_libraries(ricepp_demo PRIVATE ricepp fmt)
 
+if(WITH_BENCHMARKS)
+  pkg_check_modules(BENCHMARK IMPORTED_TARGET benchmark)
+  if(BENCHMARK_FOUND)
+    add_executable(ricepp_benchmark ricepp_benchmark.cpp)
+    target_link_libraries(ricepp_benchmark ricepp PkgConfig::BENCHMARK)
+  endif()
+endif()
+
 if(WITH_TESTS)
   if(NOT TARGET gtest)
     FetchContent_Declare(
