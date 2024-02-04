@@ -64,11 +64,11 @@ class bitstream_reader final {
 
   size_t find_first_set() {
     size_t zeros = 0;
-    if (bit_pos_ != 0) {
+    if (bit_pos_ != 0) [[likely]] {
       size_t const remaining_bits = kBitsTypeBits - bit_pos_;
       bits_type const bits = peek_bits(remaining_bits);
       size_t const ffs = std::countr_zero(bits);
-      if (ffs < remaining_bits) {
+      if (ffs < remaining_bits) [[likely]] {
         skip_bits(ffs + 1);
         return ffs;
       }
@@ -77,10 +77,10 @@ class bitstream_reader final {
     }
     for (;;) {
       bits_type const bits = read_packet();
-      if (bits != bits_type{}) {
+      if (bits != bits_type{}) [[likely]] {
         size_t const ffs = std::countr_zero(bits);
         assert(ffs < kBitsTypeBits);
-        if (ffs + 1 == kBitsTypeBits) {
+        if (ffs + 1 == kBitsTypeBits) [[unlikely]] {
           bit_pos_ = 0;
         } else {
           data_ = bits;
@@ -102,25 +102,25 @@ class bitstream_reader final {
   void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     bit_pos_ += num_bits;
-    if (bit_pos_ == sizeof(bits_type) * 8) {
+    if (bit_pos_ == sizeof(bits_type) * 8) [[unlikely]] {
       bit_pos_ = 0;
     }
   }
 
   bits_type peek_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
-    if (bit_pos_ == 0) {
+    if (bit_pos_ == 0) [[unlikely]] {
       data_ = read_packet();
     }
     bits_type bits = data_ >> bit_pos_;
-    if (num_bits < kBitsTypeBits) {
+    if (num_bits < kBitsTypeBits) [[likely]] {
       bits &= (static_cast<bits_type>(1) << num_bits) - 1;
     }
     return bits;
   }
 
   bits_type read_packet() {
-    if (beg_ == end_) {
+    if (beg_ == end_) [[unlikely]] {
       throw std::out_of_range{"bitstream_reader::read_packet"};
     }
     return read_packet_nocheck();
@@ -142,7 +142,7 @@ class bitstream_reader final {
     bits_type bits{};
     auto bits_ptr = reinterpret_cast<uint8_t*>(&bits);
     for (size_t i = 0; i < sizeof(bits_type); ++i) {
-      if (beg_ == end_) {
+      if (beg_ == end_) [[unlikely]] {
         break;
       }
       bits_ptr[i] = *beg_++;
