@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.9.0 - 2024-02-05
+
+- (feature) Experimental macOS support. Fixes github #132.
+
+- (feature) New ricepp compression algorithm for raw images as well
+  as a categorizer for the FITS image format. This is quite limited
+  at the moment, as only two-dimensional, 16-bit integer FITS is
+  supported. However, this covers the majority of astro camera images,
+  which is the primary use case at the moment. This can likely be
+  extended to other raw image formats in the future.
+
 ## Version 0.8.0 - 2024-01-22
 
 - (fix) Allow version override for nixpkgs. Fixes github #155.
