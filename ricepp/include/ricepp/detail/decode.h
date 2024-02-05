@@ -50,20 +50,20 @@ void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
   if (fsp1 == 0) [[unlikely]] {
     std::fill(block.begin(), block.end(), traits.write(last));
   } else if (fsp1 > kFsMax) [[unlikely]] {
-    for (size_t i = 0; i < block.size(); ++i) {
-      block[i] = reader.template read_bits<pixel_value_type>(kPixelBits);
+    for (auto& b : block) {
+      b = reader.template read_bits<pixel_value_type>(kPixelBits);
     }
     last = traits.read(block.back());
   } else {
     auto const fs = fsp1 - 1;
-    for (size_t i = 0; i < block.size(); ++i) {
+    for (auto& b : block) {
       pixel_value_type diff = reader.find_first_set() << fs;
       if (fs > 0) {
         diff |= reader.template read_bits<pixel_value_type>(fs);
       }
       last += static_cast<std::make_signed_t<pixel_value_type>>(
           (diff & 1) ? ~(diff >> 1) : (diff >> 1));
-      block[i] = traits.write(last);
+      b = traits.write(last);
     }
   }
 

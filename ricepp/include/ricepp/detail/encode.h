@@ -125,8 +125,8 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
       // the input pixel data. This is really unlikely, so reading the input
       // pixels again is fine.
       writer.write_bits(kFsMax + 1, kFsBits);
-      for (size_t i = 0; i < block.size(); ++i) {
-        writer.write_bits(block[i], kPixelBits);
+      for (auto& b : block) {
+        writer.write_bits(b, kPixelBits);
       }
     } else {
       // Encode the difference values using Rice entropy coding.
@@ -134,7 +134,7 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
       for (size_t i = 0; i < block.size(); ++i) {
         pixel_value_type const diff = delta[i];
         pixel_value_type const top = diff >> fs;
-        if (top > 0) {
+        if (top > 0) [[unlikely]] {
           writer.write_bit(0, top);
         }
         writer.write_bit(1);
