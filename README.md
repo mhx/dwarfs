@@ -25,6 +25,9 @@ A fast high compression read-only file system for Linux and Windows.
   - [Building on Windows](#building-on-windows)
 - [macOS Support](#macos-support)
   - [Building on macOS](#building-on-macos)
+- [Use Cases](#use-cases)
+  - [Astrophotography](#astrophotography)
+- [Dealing with Bit Rot](#dealing-with-bit-rot)
 - [Extended Attributes](#extended-attributes)
 - [Comparison](#comparison)
   - [With SquashFS](#with-squashfs)
@@ -568,6 +571,133 @@ $ ninja install
 ```
 
 That's it!
+
+## Use Cases
+
+### Astrophotography
+
+Astrophotography can generate huge amounts of raw image data. During a
+single night, it's not unlikely to end up with a few dozens of gigabytes
+of data. With most dedicated astrophotography cameras, this data ends up
+in the form of FITS images. These are usually uncompressed, don't compress
+very well with standard compression algorithms, and while there are certain
+compressed FITS formats, these aren't widely supported.
+
+One of the compression formats (simply called "Rice") compresses reasonably
+well and is really fast. However, its implementation for compressed FITS
+has a few drawbacks. The most severe drawbacks are that compression isn't
+quite as good as it could be for color sensors and sensors with a less than
+16 bits of resolution.
+
+DwarFS supports the `ricepp` (Rice++) compression, which builds on the basic
+idea of Rice compression, but makes a few enhancements: it compresses color
+and low bit depth images significantly better and always searches for the
+optimum solution during compression instead of relying on a heuristic.
+
+Let's look at an example using 129 images (darks, flats and lights) taken
+with an ASI1600MM camera. Each image is 32 MiB, so a total of 4 GiB of data.
+Compressing these with the standard `fpack` tool takes about 16.6 seconds
+and yields a total output size of 2.2 GiB:
+
+```
+$ time fpack */*.fit */*/*.fit
+
+user	14.992
+system	1.592
+total	16.616
+
+$ find . -name '*.fz' -print0 | xargs -0 cat | wc -c
+2369943360
+```
+
+However, this leaves you with `*.fz` files that not every application can
+actually read.
+
+Using DwarFS, here's what we get:
+
+```
+mkdwarfs -i ASI1600 -o asi1600-20.dwarfs -S 20 --categorize
+I 08:47:47.459077 scanning "ASI1600"
+I 08:47:47.491492 assigning directory and link inodes...
+I 08:47:47.491560 waiting for background scanners...
+I 08:47:47.675241 scanning CPU time: 1.051s
+I 08:47:47.675271 finalizing file inodes...
+I 08:47:47.675330 saved 0 B / 3.941 GiB in 0/258 duplicate files
+I 08:47:47.675360 assigning device inodes...
+I 08:47:47.675371 assigning pipe/socket inodes...
+I 08:47:47.675381 building metadata...
+I 08:47:47.675393 building blocks...
+I 08:47:47.675398 saving names and symlinks...
+I 08:47:47.675514 updating name and link indices...
+I 08:47:47.675796 waiting for segmenting/blockifying to finish...
+I 08:47:50.274285 total ordering CPU time: 616.3us
+I 08:47:50.274329 total segmenting CPU time: 1.132s
+I 08:47:50.279476 saving chunks...
+I 08:47:50.279622 saving directories...
+I 08:47:50.279674 saving shared files table...
+I 08:47:50.280745 saving names table... [1.047ms]
+I 08:47:50.280768 saving symlinks table... [743ns]
+I 08:47:50.282031 waiting for compression to finish...
+I 08:47:50.823924 compressed 3.941 GiB to 1.201 GiB (ratio=0.304825)
+I 08:47:50.824280 compression CPU time: 17.92s
+I 08:47:50.824316 filesystem created without errors [3.366s]
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+waiting for block compression to finish
+5 dirs, 0/0 soft/hard links, 258/258 files, 0 other
+original size: 3.941 GiB, hashed: 315.4 KiB (18 files, 0 B/s)
+scanned: 3.941 GiB (258 files, 117.1 GiB/s), categorizing: 0 B/s
+saved by deduplication: 0 B (0 files), saved by segmenting: 0 B
+filesystem: 3.941 GiB in 4037 blocks (4550 chunks, 516/516 fragments, 258 inodes)
+compressed filesystem: 4037 blocks/1.201 GiB written
+```
+
+In less than 3.4 seconds, it compresses the data down to 1.2 GiB, almost
+half the size of the `fpack` output.
+
+In addition to saving a lot of disk space, this can also be useful when your
+data is stored on a NAS. Here's a comparison of the same set of data accessed
+over a 1 Gb/s network connection, first using the uncompressed raw data:
+
+```
+find /mnt/ASI1600 -name '*.fit' -print0 | xargs -0 -P4 -n1 cat | dd of=/dev/null status=progress
+4229012160 bytes (4.2 GB, 3.9 GiB) copied, 36.0455 s, 117 MB/s
+```
+
+And next using a DwarFS image on the same share:
+
+```
+$ dwarfs /mnt/asi1600-20.dwarfs mnt
+
+$ find mnt -name '*.fit' -print0 | xargs -0 -P4 -n1 cat | dd of=/dev/null status=progress
+4229012160 bytes (4.2 GB, 3.9 GiB) copied, 14.3681 s, 294 MB/s
+```
+
+That's roughly 2.5 times faster. You can very likely see similar results
+with slow external hard drives.
+
+## Dealing with Bit Rot
+
+Currently, DwarFS has no built-in ability to add recovery information to a
+file system image. However, for archival purposes, it's a good idea to have
+such recovery infomation in order to be able to repair a damaged image.
+
+This is fortunately relatively straightforward using something like
+[par2cmdline](https://github.com/Parchive/par2cmdline):
+
+```
+$ par2create -n1 asi1600-20.dwarfs
+```
+
+This will create two additional files that you can place alongside the image
+(or on a different storage), as you'll only need them if DwarFS has detected
+an issue with the file system image. If there's an issue, you can run
+
+```
+$ par2repair asi1600-20.dwarfs
+```
+
+which will very likely be able to recover the image if less than 5% (that's
+the default used by `par2create`) of the image are damaged.
 
 ## Extended Attributes
 
