@@ -176,7 +176,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ steps.coverage-files.outputs.list }}
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Prepare Artifact Upload
         run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
