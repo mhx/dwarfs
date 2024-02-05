@@ -616,7 +616,7 @@ actually read.
 Using DwarFS, here's what we get:
 
 ```
-mkdwarfs -i ASI1600 -o asi1600-20.dwarfs -S 20 --categorize
+$ mkdwarfs -i ASI1600 -o asi1600-20.dwarfs -S 20 --categorize
 I 08:47:47.459077 scanning "ASI1600"
 I 08:47:47.491492 assigning directory and link inodes...
 I 08:47:47.491560 waiting for background scanners...
