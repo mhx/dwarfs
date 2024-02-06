@@ -1,5 +1,19 @@
 # Change Log
 
+## Version 0.9.1 - 2024-02-06
+
+- (fix) Invalid UTF-8 characters in file paths would crash `mkdwarfs`
+  if these paths were displayed in the progress output. A possible
+  workaround was to disable progress output. This fix replaces any
+  invalid characters before displaying them. Fixes github #191.
+
+- (fix) The `CMakeLists.txt` would bail out as soon as it discovered
+  `--as-needed` in the linker flags. However, `--as-needed` is only
+  a problem when combined with `BUILD_SHARED_LIBS=ON`. The check has
+  been changed to only trigger if both conditions are met.
+
+- (perf) Minor speed improvements in `ricepp` compression.
+
 ## Version 0.9.0 - 2024-02-05
 
 - (feature) Experimental macOS support. Fixes github #132.
