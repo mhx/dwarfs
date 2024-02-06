@@ -63,6 +63,7 @@ int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
 size_t utf8_display_width(char const* p, size_t len);
 size_t utf8_display_width(std::string const& str);
 void utf8_truncate(std::string& str, size_t len);
+void utf8_sanitize(std::string& str);
 
 void shorten_path_string(std::string& path, char separator, size_t max_len);
 

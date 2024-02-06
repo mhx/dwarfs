@@ -265,6 +265,12 @@ void utf8_truncate(std::string& str, size_t len) {
   str.resize(p - str.data());
 }
 
+void utf8_sanitize(std::string& str) {
+  if (!utf8::is_valid(str)) [[unlikely]] {
+    str = utf8::replace_invalid(str);
+  }
+}
+
 void shorten_path_string(std::string& path, char separator, size_t max_len) {
   auto len = utf8_display_width(path);
 

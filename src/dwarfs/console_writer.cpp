@@ -91,9 +91,15 @@ void output_context_line(terminal const& term, std::ostream& os,
 
   assert(width >= progress_w + speed_w + 1);
 
+  std::string path;
+  if (st.path) {
+    path = *st.path;
+    utf8_sanitize(path);
+  }
+
   size_t status_w = width - (progress_w + speed_w + 1);
-  auto path_len = st.path ? utf8_display_width(*st.path) : 0;
-  size_t extra_len = st.path && !st.status_string.empty() ? 2 : 0;
+  auto path_len = !path.empty() ? utf8_display_width(path) : 0;
+  size_t extra_len = !path.empty() && !st.status_string.empty() ? 2 : 0;
 
   if (status_w <
       st.context.size() + st.status_string.size() + path_len + extra_len) {
@@ -106,11 +112,10 @@ void output_context_line(terminal const& term, std::ostream& os,
 
       if (max_path_len > 0) {
         shorten_path_string(
-            *st.path,
-            static_cast<char>(std::filesystem::path::preferred_separator),
+            path, static_cast<char>(std::filesystem::path::preferred_separator),
             max_path_len);
 
-        path_len = utf8_display_width(*st.path);
+        path_len = utf8_display_width(path);
       }
     }
 
@@ -128,7 +133,7 @@ void output_context_line(terminal const& term, std::ostream& os,
     if (!st.status_string.empty()) {
       st.status_string += ": ";
     }
-    st.status_string += *st.path;
+    st.status_string += path;
   }
 
   std::string progress;

@@ -154,6 +154,7 @@ struct random_file_tree_options {
   int dimension{20};
   int max_name_len{50};
   bool with_errors{false};
+  bool with_invalid_utf8{false};
 };
 
 class mkdwarfs_tester : public tester_common {
@@ -193,10 +194,14 @@ class mkdwarfs_tester : public tester_common {
     std::mt19937_64 rng{42};
     std::exponential_distribution<> size_dist{1 / opt.avg_size};
     std::uniform_int_distribution<> path_comp_size_dist{0, opt.max_name_len};
+    std::uniform_int_distribution<> invalid_dist{0, 1};
     std::vector<std::pair<fs::path, std::string>> paths;
 
     auto random_path_component = [&] {
       auto size = path_comp_size_dist(rng);
+      if (opt.with_invalid_utf8 && invalid_dist(rng) == 0) {
+        return test::create_random_string(size, 96, 255, rng);
+      }
       return test::create_random_string(size, 'A', 'Z', rng);
     };
 
@@ -213,7 +218,7 @@ class mkdwarfs_tester : public tester_common {
           auto size = std::min(max_size, static_cast<size_t>(size_dist(rng)));
           std::string data;
 
-          if (rng() % 2 == 0) {
+          if (size < 1024 * 1024 && rng() % 2 == 0) {
             data = test::create_random_string(size, rng);
           } else {
             data = test::loremipsum(size);
@@ -1734,7 +1739,14 @@ TEST_P(mkdwarfs_progress_test, basic) {
   t.iol->set_terminal_fancy(true);
 
   t.add_root_dir();
-  t.add_random_file_tree();
+  t.add_random_file_tree({
+      .avg_size = 20.0 * 1024 * 1024,
+      .dimension = 2,
+#ifndef _WIN32
+      // Windows can't deal with non-UTF-8 filenames
+      .with_invalid_utf8 = true,
+#endif
+  });
   t.os->add_local_files(audio_data_dir);
   t.os->add_local_files(fits_data_dir);
 
