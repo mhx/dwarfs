@@ -1760,9 +1760,7 @@ constexpr std::array const progress_modes{
     "none",
     "simple",
     "ascii",
-#ifndef _WIN32
     "unicode",
-#endif
 };
 
 } // namespace
