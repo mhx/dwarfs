@@ -97,6 +97,8 @@ TEST_P(checksum_test_str, end_to_end) {
     cs.update(payload.data(), payload.size());
     digest.resize(cs.digest_size());
     ASSERT_TRUE(cs.finalize(digest.data()));
+    std::vector<uint8_t> tmp(digest.size());
+    EXPECT_FALSE(cs.finalize(tmp.data()));
   }
 
   std::string hexdigest;
@@ -141,6 +143,8 @@ TEST_P(checksum_test_enum, end_to_end) {
     cs.update(payload.data(), payload.size());
     digest.resize(cs.digest_size());
     ASSERT_TRUE(cs.finalize(digest.data()));
+    std::vector<uint8_t> tmp(digest.size());
+    EXPECT_FALSE(cs.finalize(tmp.data()));
   }
 
   std::string hexdigest;
