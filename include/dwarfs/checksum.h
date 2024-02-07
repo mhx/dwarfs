@@ -60,6 +60,8 @@ class checksum {
 
   size_t digest_size() const { return impl_->digest_size(); }
 
+  std::string hexdigest() const { return impl_->hexdigest(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -67,6 +69,7 @@ class checksum {
     virtual void update(void const* data, size_t size) = 0;
     virtual bool finalize(void* digest) = 0;
     virtual size_t digest_size() = 0;
+    virtual std::string hexdigest() = 0;
   };
 
  private:

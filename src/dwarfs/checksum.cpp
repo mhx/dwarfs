@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstring>
 #include <functional>
 #include <ostream>
@@ -29,6 +30,8 @@
 #include <openssl/evp.h>
 
 #include <xxhash.h>
+
+#include <boost/algorithm/hex.hpp>
 
 #include <fmt/format.h>
 
@@ -44,25 +47,45 @@ std::unordered_set<std::string> supported_algorithms{
     "xxh3-128",
 };
 
+std::string make_hexdigest(checksum::impl& cs) {
+  std::array<char, EVP_MAX_MD_SIZE> tmp;
+  auto dig_size = cs.digest_size();
+  assert(dig_size <= tmp.size());
+  if (!cs.finalize(tmp.data())) {
+    throw std::runtime_error("failed to finalize digest");
+  }
+  std::string result;
+  result.resize(dig_size * 2);
+  boost::algorithm::hex_lower(tmp.begin(), tmp.begin() + dig_size,
+                              result.begin());
+  return result;
+}
+
 class checksum_evp : public checksum::impl {
  public:
   explicit checksum_evp(::EVP_MD const* evp)
-      : context_(::EVP_MD_CTX_new())
+      : context_{::EVP_MD_CTX_new(), &::EVP_MD_CTX_free}
       , dig_size_(::EVP_MD_size(evp)) {
-    DWARFS_CHECK(::EVP_DigestInit(context_, evp), "EVP_DigestInit() failed");
+    DWARFS_CHECK(::EVP_DigestInit(context_.get(), evp),
+                 "EVP_DigestInit() failed");
   }
 
-  ~checksum_evp() override { ::EVP_MD_CTX_destroy(context_); }
-
   void update(void const* data, size_t size) override {
-    DWARFS_CHECK(::EVP_DigestUpdate(context_, data, size),
+    assert(context_);
+    DWARFS_CHECK(::EVP_DigestUpdate(context_.get(), data, size),
                  "EVP_DigestUpdate() failed");
   }
 
   bool finalize(void* digest) override {
+    if (!context_) {
+      return false;
+    }
+
     unsigned int dig_size = 0;
     bool rv = ::EVP_DigestFinal_ex(
-        context_, reinterpret_cast<unsigned char*>(digest), &dig_size);
+        context_.get(), reinterpret_cast<unsigned char*>(digest), &dig_size);
+
+    context_.reset();
 
     if (rv) {
       DWARFS_CHECK(
@@ -72,6 +95,8 @@ class checksum_evp : public checksum::impl {
 
     return rv;
   }
+
+  std::string hexdigest() override { return make_hexdigest(*this); }
 
   static std::vector<std::string> available_algorithms() {
     std::vector<std::string> available;
@@ -93,7 +118,7 @@ class checksum_evp : public checksum::impl {
     if (auto md = ::EVP_get_digestbyname(algo.c_str())) {
       ::EVP_MD_CTX* cx = ::EVP_MD_CTX_new();
       bool success = ::EVP_DigestInit(cx, md);
-      ::EVP_MD_CTX_destroy(cx);
+      ::EVP_MD_CTX_free(cx);
       return success;
     }
     return false;
@@ -102,69 +127,64 @@ class checksum_evp : public checksum::impl {
   size_t digest_size() override { return dig_size_; }
 
  private:
-  ::EVP_MD_CTX* context_;
+  std::unique_ptr<::EVP_MD_CTX, decltype(&::EVP_MD_CTX_free)> context_;
   size_t const dig_size_;
 };
 
-class checksum_xxh3_64 : public checksum::impl {
+struct xxh3_64_policy {
+  using result_type = XXH64_hash_t;
+  static constexpr auto reset = XXH3_64bits_reset;
+  static constexpr auto update = XXH3_64bits_update;
+  static constexpr auto digest = XXH3_64bits_digest;
+};
+
+struct xxh3_128_policy {
+  using result_type = XXH128_hash_t;
+  static constexpr auto reset = XXH3_128bits_reset;
+  static constexpr auto update = XXH3_128bits_update;
+  static constexpr auto digest = XXH3_128bits_digest;
+};
+
+template <typename Policy>
+class checksum_xxh3 : public checksum::impl {
  public:
-  checksum_xxh3_64()
-      : state_(XXH3_createState()) {
-    DWARFS_CHECK(XXH3_64bits_reset(state_) == XXH_OK,
-                 "XXH3_64bits_reset() failed");
+  checksum_xxh3()
+      : state_{XXH3_createState(), &XXH3_freeState} {
+    DWARFS_CHECK(Policy::reset(state_.get()) == XXH_OK, "XXH3 reset failed");
   }
 
-  ~checksum_xxh3_64() override { XXH3_freeState(state_); }
-
   void update(void const* data, size_t size) override {
-    auto err = XXH3_64bits_update(state_, data, size);
-    DWARFS_CHECK(err == XXH_OK, fmt::format("XXH3_64bits_update() failed: {}",
-                                            static_cast<int>(err)));
+    assert(state_);
+    auto err = Policy::update(state_.get(), data, size);
+    DWARFS_CHECK(err == XXH_OK,
+                 fmt::format("XXH3 update failed: {}", static_cast<int>(err)));
   }
 
   bool finalize(void* digest) override {
-    auto hash = XXH3_64bits_digest(state_);
+    if (!state_) {
+      return false;
+    }
+    auto hash = Policy::digest(state_.get());
+    state_.reset();
     ::memcpy(digest, &hash, sizeof(hash));
     return true;
   }
 
+  std::string hexdigest() override { return make_hexdigest(*this); }
+
   size_t digest_size() override {
-    return sizeof(decltype(std::function{XXH3_64bits_digest})::result_type);
+    static_assert(
+        sizeof(typename Policy::result_type) ==
+        sizeof(typename decltype(std::function{Policy::digest})::result_type));
+    return sizeof(typename Policy::result_type);
   }
 
  private:
-  XXH3_state_t* state_;
+  std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state_;
 };
 
-class checksum_xxh3_128 : public checksum::impl {
- public:
-  checksum_xxh3_128()
-      : state_(XXH3_createState()) {
-    DWARFS_CHECK(XXH3_128bits_reset(state_) == XXH_OK,
-                 "XXH3_128bits_reset() failed");
-  }
-
-  ~checksum_xxh3_128() override { XXH3_freeState(state_); }
-
-  void update(void const* data, size_t size) override {
-    auto err = XXH3_128bits_update(state_, data, size);
-    DWARFS_CHECK(err == XXH_OK, fmt::format("XXH3_128bits_update() failed: {}",
-                                            static_cast<int>(err)));
-  }
-
-  bool finalize(void* digest) override {
-    auto hash = XXH3_128bits_digest(state_);
-    ::memcpy(digest, &hash, sizeof(hash));
-    return true;
-  }
-
-  size_t digest_size() override {
-    return sizeof(decltype(std::function{XXH3_128bits_digest})::result_type);
-  }
-
- private:
-  XXH3_state_t* state_;
-};
+using checksum_xxh3_64 = checksum_xxh3<xxh3_64_policy>;
+using checksum_xxh3_128 = checksum_xxh3<xxh3_128_policy>;
 
 template <typename T>
 bool verify_impl(T&& alg, void const* data, size_t size, const void* digest,

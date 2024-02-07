@@ -28,6 +28,8 @@
 
 #include <boost/algorithm/hex.hpp>
 
+#include <folly/String.h>
+
 #include "dwarfs/checksum.h"
 
 using namespace dwarfs;
@@ -94,17 +96,32 @@ TEST_P(checksum_test_str, end_to_end) {
     checksum cs(alg);
     cs.update(payload.data(), payload.size());
     digest.resize(cs.digest_size());
-    cs.finalize(digest.data());
+    ASSERT_TRUE(cs.finalize(digest.data()));
   }
 
-  auto hexdigest =
-      boost::algorithm::hex(std::string(digest.begin(), digest.end()));
+  std::string hexdigest;
+
+  {
+    checksum cs(alg);
+    cs.update(payload.data(), payload.size());
+    hexdigest = cs.hexdigest();
+  }
+
+  std::string hexdigest_upper;
+  boost::algorithm::hex(digest.begin(), digest.end(),
+                        std::back_inserter(hexdigest_upper));
+
+  std::string hexdigest_lower;
+  boost::algorithm::hex_lower(digest.begin(), digest.end(),
+                              std::back_inserter(hexdigest_lower));
+
+  EXPECT_EQ(hexdigest_lower, hexdigest);
 
   EXPECT_TRUE(checksum::verify(alg, payload.data(), payload.size(),
                                digest.data(), digest.size()));
 
   if (auto it = ref_digests_str.find(alg); it != ref_digests_str.end()) {
-    EXPECT_EQ(it->second, hexdigest) << alg;
+    EXPECT_EQ(it->second, hexdigest_upper) << alg;
   }
 }
 
@@ -123,11 +140,12 @@ TEST_P(checksum_test_enum, end_to_end) {
     checksum cs(alg);
     cs.update(payload.data(), payload.size());
     digest.resize(cs.digest_size());
-    cs.finalize(digest.data());
+    ASSERT_TRUE(cs.finalize(digest.data()));
   }
 
-  auto hexdigest =
-      boost::algorithm::hex(std::string(digest.begin(), digest.end()));
+  std::string hexdigest;
+  boost::algorithm::hex(digest.begin(), digest.end(),
+                        std::back_inserter(hexdigest));
 
   auto it = ref_digests_enum.find(alg);
 
