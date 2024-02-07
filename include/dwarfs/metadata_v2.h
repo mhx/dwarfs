@@ -151,6 +151,14 @@ class metadata_v2 {
     return impl_->get_all_block_categories();
   }
 
+  std::vector<file_stat::uid_type> get_all_uids() const {
+    return impl_->get_all_uids();
+  }
+
+  std::vector<file_stat::gid_type> get_all_gids() const {
+    return impl_->get_all_gids();
+  }
+
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 
@@ -216,6 +224,10 @@ class metadata_v2 {
     get_block_category(size_t block_number) const = 0;
 
     virtual std::vector<std::string> get_all_block_categories() const = 0;
+
+    virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
+
+    virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
   };
 
  private:

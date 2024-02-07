@@ -534,6 +534,8 @@ class metadata_ final : public metadata_v2::impl {
   get_block_category(size_t block_number) const override;
 
   std::vector<std::string> get_all_block_categories() const override;
+  std::vector<file_stat::uid_type> get_all_uids() const override;
+  std::vector<file_stat::gid_type> get_all_gids() const override;
 
  private:
   template <typename K>
@@ -1763,6 +1765,22 @@ metadata_<LoggerPolicy>::get_all_block_categories() const {
     }
   }
 
+  return rv;
+}
+
+template <typename LoggerPolicy>
+std::vector<file_stat::uid_type> metadata_<LoggerPolicy>::get_all_uids() const {
+  std::vector<file_stat::uid_type> rv;
+  rv.resize(meta_.uids().size());
+  std::copy(meta_.uids().begin(), meta_.uids().end(), rv.begin());
+  return rv;
+}
+
+template <typename LoggerPolicy>
+std::vector<file_stat::gid_type> metadata_<LoggerPolicy>::get_all_gids() const {
+  std::vector<file_stat::gid_type> rv;
+  rv.resize(meta_.gids().size());
+  std::copy(meta_.gids().begin(), meta_.gids().end(), rv.begin());
   return rv;
 }
 

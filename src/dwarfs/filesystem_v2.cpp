@@ -433,6 +433,12 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<std::string> get_all_block_categories() const override {
     return meta_.get_all_block_categories();
   }
+  std::vector<file_stat::uid_type> get_all_uids() const override {
+    return meta_.get_all_uids();
+  }
+  std::vector<file_stat::gid_type> get_all_gids() const override {
+    return meta_.get_all_gids();
+  }
   void rewrite(progress& prog, filesystem_writer& writer,
                category_resolver const& cat_resolver,
                rewrite_options const& opts) const override;

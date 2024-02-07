@@ -189,6 +189,14 @@ class filesystem_v2 {
     return impl_->get_all_block_categories();
   }
 
+  std::vector<file_stat::uid_type> get_all_uids() const {
+    return impl_->get_all_uids();
+  }
+
+  std::vector<file_stat::gid_type> get_all_gids() const {
+    return impl_->get_all_gids();
+  }
+
   void rewrite(progress& prog, filesystem_writer& writer,
                category_resolver const& cat_resolver,
                rewrite_options const& opts) const {
@@ -241,6 +249,8 @@ class filesystem_v2 {
     virtual history const& get_history() const = 0;
     virtual folly::dynamic get_inode_info(inode_view entry) const = 0;
     virtual std::vector<std::string> get_all_block_categories() const = 0;
+    virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
+    virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
     virtual void rewrite(progress& prog, filesystem_writer& writer,
                          category_resolver const& cat_resolver,
                          rewrite_options const& opts) const = 0;
