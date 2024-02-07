@@ -1798,9 +1798,9 @@ TEST(dwarfsck_test, check_exclusive) {
 TEST(dwarfsck_test, print_header_and_json) {
   auto t = dwarfsck_tester::create_with_image();
   EXPECT_NE(0, t.run({"image.dwarfs", "--print-header", "--json"})) << t.err();
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "--print-header is mutually exclusive with --json, "
-                           "--export-metadata and --check-integrity"));
+  EXPECT_THAT(t.err(),
+              ::testing::ContainsRegex(
+                  "--print-header is mutually exclusive with.*--json"));
 }
 
 TEST(dwarfsck_test, print_header) {
@@ -2001,18 +2001,20 @@ TEST(dwarfsck_test, print_header_and_export_metadata) {
   EXPECT_NE(0, t.run({"image.dwarfs", "--print-header",
                       "--export-metadata=image.meta"}))
       << t.err();
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "--print-header is mutually exclusive with --json, "
-                           "--export-metadata and --check-integrity"));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::ContainsRegex(
+          "--print-header is mutually exclusive with.*--export-metadata"));
 }
 
 TEST(dwarfsck_test, print_header_and_check_integrity) {
   auto t = dwarfsck_tester::create_with_image();
   EXPECT_NE(0, t.run({"image.dwarfs", "--print-header", "--check-integrity"}))
       << t.err();
-  EXPECT_THAT(t.err(), ::testing::HasSubstr(
-                           "--print-header is mutually exclusive with --json, "
-                           "--export-metadata and --check-integrity"));
+  EXPECT_THAT(
+      t.err(),
+      ::testing::ContainsRegex(
+          "--print-header is mutually exclusive with.*--check-integrity"));
 }
 
 TEST(dwarfsck_test, print_header_no_header) {
