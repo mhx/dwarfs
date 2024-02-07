@@ -31,6 +31,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 #include <folly/FileUtil.h>
@@ -2052,6 +2053,91 @@ TEST(dwarfsck_test, export_metadata_close_error) {
       << t.err();
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("failed to close metadata output file"));
+}
+
+TEST(dwarfsck_test, checksum_algorithm_not_available) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_NE(0, t.run({"image.dwarfs", "--checksum=grmpf"})) << t.err();
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("checksum algorithm not available: grmpf"));
+}
+
+TEST(dwarfsck_test, list_files) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--list"})) << t.err();
+  auto out = t.out();
+
+  std::set<std::string> files;
+  folly::splitTo<std::string>('\n', out, std::inserter(files, files.end()),
+                              true);
+
+  std::set<std::string> const expected{
+      "test.pl",     "somelink",      "somedir",   "foo.pl",
+      "bar.pl",      "baz.pl",        "ipsum.txt", "somedir/ipsum.py",
+      "somedir/bad", "somedir/empty", "empty",
+  };
+
+  EXPECT_EQ(expected, files);
+}
+
+TEST(dwarfsck_test, list_files_verbose) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--list", "--verbose"})) << t.err();
+  auto out = t.out();
+
+  auto num_lines = std::count(out.begin(), out.end(), '\n');
+  EXPECT_EQ(12, num_lines);
+
+  std::vector<std::string> expected_re{
+      fmt::format("drwxrwxrwx\\s+1000/100\\s+8\\s+{:%Y-%m-%d %H:%M}\\s*\n",
+                  fmt::localtime(2)),
+      fmt::format(
+          "-rw-------\\s+1337/  0\\s+{:L}\\s+{:%Y-%m-%d %H:%M}\\s+baz.pl\n",
+          23456, fmt::localtime(8002)),
+      fmt::format("lrwxrwxrwx\\s+1000/100\\s+16\\s+{:%Y-%m-%d "
+                  "%H:%M}\\s+somelink -> somedir/ipsum.py\n",
+                  fmt::localtime(2002)),
+  };
+
+  for (auto const& str : expected_re) {
+    std::regex re{str};
+    EXPECT_TRUE(std::regex_search(out, re)) << "[" << str << "]\n" << out;
+  }
+}
+
+TEST(dwarfsck_test, checksum_files) {
+  auto t = dwarfsck_tester::create_with_image();
+  EXPECT_EQ(0, t.run({"image.dwarfs", "--checksum=md5"})) << t.err();
+  auto out = t.out();
+
+  auto num_lines = std::count(out.begin(), out.end(), '\n');
+  EXPECT_EQ(8, num_lines);
+
+  std::map<std::string, std::string> actual;
+  std::vector<std::string_view> lines;
+  folly::split('\n', out, lines);
+
+  for (auto const& line : lines) {
+    if (line.empty()) {
+      continue;
+    }
+    std::string file, hash;
+    folly::split("  ", line, hash, file);
+    EXPECT_TRUE(actual.emplace(file, hash).second);
+  }
+
+  std::map<std::string, std::string> const expected{
+      {"empty", "d41d8cd98f00b204e9800998ecf8427e"},
+      {"somedir/empty", "d41d8cd98f00b204e9800998ecf8427e"},
+      {"test.pl", "d41d8cd98f00b204e9800998ecf8427e"},
+      {"baz.pl", "e2bd36391abfd15dcc83cbdfb60a6bc3"},
+      {"somedir/ipsum.py", "70fe813c36ed50ebd7f4991857683676"},
+      {"foo.pl", "e2bd36391abfd15dcc83cbdfb60a6bc3"},
+      {"bar.pl", "e2bd36391abfd15dcc83cbdfb60a6bc3"},
+      {"ipsum.txt", "0782b6a546cedd8be8fc86ac47dc6d96"},
+  };
+
+  EXPECT_EQ(expected, actual);
 }
 
 class mkdwarfs_sim_order_test : public testing::TestWithParam<char const*> {};

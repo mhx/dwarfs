@@ -19,18 +19,25 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <string_view>
 #include <vector>
 
 #include <boost/program_options.hpp>
 
+#include <fmt/chrono.h>
+#include <fmt/format.h>
+
 #include <folly/String.h>
+#include <folly/gen/String.h>
 #include <folly/json.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
+#include "dwarfs/checksum.h"
 #include "dwarfs/error.h"
 #include "dwarfs/file_access.h"
 #include "dwarfs/filesystem_v2.h"
@@ -41,24 +48,131 @@
 #include "dwarfs/os_access.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
+#include "dwarfs/worker_group.h"
 #include "dwarfs_tool_main.h"
 
 namespace dwarfs {
 
 namespace po = boost::program_options;
 
+namespace {
+
+void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
+  auto max_width = [](auto const& vec) {
+    auto max = std::max_element(vec.begin(), vec.end());
+    return std::to_string(*max).size();
+  };
+
+  auto const uid_width = max_width(fs.get_all_uids());
+  auto const gid_width = max_width(fs.get_all_gids());
+
+  file_stat::off_type max_inode_size{0};
+  fs.walk([&](auto const& de) {
+    file_stat st;
+    fs.getattr(de.inode(), &st);
+    max_inode_size = std::max(max_inode_size, st.size);
+  });
+
+  auto const inode_size_width = fmt::format("{:L}", max_inode_size).size();
+
+  fs.walk([&](auto const& de) {
+    auto iv = de.inode();
+    file_stat st;
+    fs.getattr(iv, &st);
+    auto name = de.unix_path();
+    utf8_sanitize(name);
+
+    if (verbose) {
+      if (iv.is_symlink()) {
+        auto target = fs.readlink(iv).value();
+        utf8_sanitize(target);
+        name += " -> " + target;
+      }
+
+      iol.out << fmt::format(
+          "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%Y-%m-%d %H:%M} {8}\n", uid_width,
+          gid_width, inode_size_width, iv.mode_string(), iv.getuid(),
+          iv.getgid(), st.size, fmt::localtime(st.mtime), name);
+    } else if (!name.empty()) {
+      iol.out << name << "\n";
+    }
+  });
+}
+
+void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
+                 std::string const& algo, size_t num_workers) {
+  LOG_PROXY(debug_logger_policy, lgr);
+
+  worker_group wg{lgr, *iol.os, "checksum", num_workers};
+  std::mutex mx;
+
+  fs.walk_data_order([&](auto const& de) {
+    auto iv = de.inode();
+    if (iv.is_regular_file()) {
+      wg.add_job([&, de, iv] {
+        file_stat st;
+
+        if (fs.getattr(de.inode(), &st) != 0) {
+          LOG_ERROR << "failed to get attributes for inode " << iv.inode_num();
+          return;
+        }
+
+        auto ranges = fs.readv(iv.inode_num(), st.size);
+
+        if (!ranges) {
+          LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
+                    << std::strerror(-ranges.error());
+          return;
+        }
+
+        checksum cs(algo);
+
+        for (auto& fut : ranges.value()) {
+          try {
+            auto range = fut.get();
+            cs.update(range.data(), range.size());
+          } catch (std::exception const& e) {
+            LOG_ERROR << "error reading data from inode " << iv.inode_num()
+                      << ": " << e.what();
+            return;
+          }
+        }
+
+        auto output = fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+
+        {
+          std::lock_guard lock(mx);
+          iol.out << output;
+        }
+      });
+    }
+  });
+
+  wg.wait();
+}
+
+} // namespace
+
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
+  using namespace folly::gen;
+
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
-  std::string input, export_metadata, image_offset;
+  auto algo_list = checksum::available_algorithms();
+  auto checksum_desc = "print checksums for all files (" +
+                       (from(algo_list) | unsplit(", ")) + ")";
+
+  std::string input, export_metadata, image_offset, checksum_algo;
   logger_options logopts;
   size_t num_workers;
   int detail;
   bool quiet{false};
+  bool verbose{false};
   bool output_json{false};
   bool check_integrity{false};
   bool no_check{false};
   bool print_header{false};
+  bool list_files{false};
 
   // clang-format off
   po::options_description opts("Command line options");
@@ -72,12 +186,21 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     ("quiet,q",
         po::value<bool>(&quiet)->zero_tokens(),
         "don't print anything unless an error occurs")
+    ("verbose,v",
+        po::value<bool>(&verbose)->zero_tokens(),
+        "produce verbose output")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
     ("print-header,H",
         po::value<bool>(&print_header)->zero_tokens(),
         "print filesystem header to stdout and exit")
+    ("list,l",
+        po::value<bool>(&list_files)->zero_tokens(),
+        "list all files and exit")
+    ("checksum",
+        po::value<std::string>(&checksum_algo),
+        checksum_desc.c_str())
     ("num-workers,n",
         po::value<size_t>(&num_workers)->default_value(num_cpu),
         "number of reader worker threads")
@@ -138,10 +261,16 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
+    if (vm.count("checksum") && !checksum::is_available(checksum_algo)) {
+      LOG_WARN << "checksum algorithm not available: " << checksum_algo;
+      return 1;
+    }
+
     if (print_header &&
-        (output_json || !export_metadata.empty() || check_integrity)) {
+        (output_json || !export_metadata.empty() || check_integrity ||
+         list_files || !checksum_algo.empty())) {
       LOG_WARN << "--print-header is mutually exclusive with --json, "
-                  "--export-metadata and --check-integrity";
+                  "--export-metadata, --check-integrity, --list and --checksum";
       return 1;
     }
 
@@ -191,12 +320,20 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
                                      : filesystem_check_level::CHECKSUM;
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
-        if (!quiet) {
+        if (!quiet && !list_files && checksum_algo.empty()) {
           if (output_json) {
             iol.out << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
           } else {
             fs.dump(iol.out, detail);
           }
+        }
+
+        if (list_files) {
+          do_list_files(fs, iol, verbose);
+        }
+
+        if (!checksum_algo.empty()) {
+          do_checksum(lgr, fs, iol, checksum_algo, num_workers);
         }
 
         if (errors > 0) {

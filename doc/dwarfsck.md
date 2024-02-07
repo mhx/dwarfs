@@ -25,6 +25,9 @@ with a non-zero exit code.
 - `-q`, `--quiet`:
   Don't produce any output unless there is an error.
 
+- `-v`, `--verbose`:
+  Produce verbose output, where applicable.
+
 - `-O`, `--image-offset=`*value*|`auto`:
   Specify the byte offset at which the filesystem is located in the image.
   Use `auto` to detect the offset automatically. This is also the default.
@@ -35,6 +38,19 @@ with a non-zero exit code.
   Print the header located before the filesystem image to stdout. If no
   header is present, the program will exit with exit code 2 and emit a
   warning.
+
+- `-l`, `--list`:
+  List all entries in the file system image. Uses output similar to `tar -t`.
+  With `--verbose`, also print details about each entry.
+
+- `--checksum=`*name*:
+  Produce a checksum using the specified algorithm for each regular file in
+  the file system image. This can be used to easily verify the file system
+  image against local files, e.g.:
+
+```
+dwarfsck --checksum=sha512 /tmp/fs.dwarfs | sha512sum --check
+```
 
 - `-n`, `--num-workers=`*value*:
   Number of worker threads used for integrity checking.
