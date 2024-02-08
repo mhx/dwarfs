@@ -72,6 +72,7 @@
 #endif
 
 #ifdef _WIN32
+#include <delayimp.h>
 #include <fuse3/winfsp_fuse.h>
 #define st_atime st_atim.tv_sec
 #define st_ctime st_ctim.tv_sec
@@ -97,6 +98,7 @@
 #include "dwarfs_tool_main.h"
 
 namespace {
+
 #ifdef DWARFS_FSP_COMPAT
 using native_stat = struct ::fuse_stat;
 using native_statvfs = struct ::fuse_statvfs;
@@ -106,7 +108,31 @@ using native_stat = struct ::stat;
 using native_statvfs = struct ::statvfs;
 using native_off_t = ::off_t;
 #endif
+
+#ifdef _WIN32
+FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
+  switch (dliNotify) {
+  case dliFailLoadLib:
+    std::cerr << "failed to load " << pdli->szDll << "\n";
+    break;
+
+  case dliFailGetProc:
+    std::cerr << "failed to load symbol from " << pdli->szDll << "\n";
+    break;
+
+  default:
+    return NULL;
+  }
+
+  ::exit(1);
+}
+#endif
+
 } // namespace
+
+#ifdef _WIN32
+extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
+#endif
 
 namespace dwarfs {
 

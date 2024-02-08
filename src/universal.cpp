@@ -31,10 +31,6 @@
 #include <folly/gen/String.h>
 #include <folly/portability/Windows.h>
 
-#ifdef _WIN32
-#include <delayimp.h>
-#endif
-
 #include "dwarfs/safe_main.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
@@ -43,25 +39,6 @@
 namespace {
 
 using namespace dwarfs;
-
-#ifdef _WIN32
-FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
-  switch (dliNotify) {
-  case dliFailLoadLib:
-    std::cerr << "failed to load " << pdli->szDll << "\n";
-    break;
-
-  case dliFailGetProc:
-    std::cerr << "failed to load symbol from " << pdli->szDll << "\n";
-    break;
-
-  default:
-    return NULL;
-  }
-
-  ::exit(1);
-}
-#endif
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -78,10 +55,6 @@ std::map<std::string_view, int (*)(int, sys_char**)> const functions{
 };
 
 } // namespace
-
-#ifdef _WIN32
-extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
-#endif
 
 int SYS_MAIN(int argc, sys_char** argv) {
   auto path = std::filesystem::path(argv[0]);
