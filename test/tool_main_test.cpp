@@ -281,12 +281,13 @@ class mkdwarfs_tester : public tester_common {
     return filesystem_v2(*lgr, *os, mm, opt);
   }
 
-  filesystem_v2 fs_from_file(std::string path) {
+  filesystem_v2
+  fs_from_file(std::string path, filesystem_options const& opt = {}) {
     auto fsimage = fa->get_file(path);
     if (!fsimage) {
       throw std::runtime_error("file not found: " + path);
     }
-    return fs_from_data(std::move(fsimage.value()));
+    return fs_from_data(std::move(fsimage.value()), opt);
   }
 
   filesystem_v2 fs_from_stdout(filesystem_options const& opt = {}) {
@@ -2404,8 +2405,6 @@ class map_file_error_test : public testing::TestWithParam<char const*> {};
 TEST_P(map_file_error_test, delayed) {
   std::string extra_args{GetParam()};
 
-  // TODO: we must also simulate hardlinks here...
-
   auto t = mkdwarfs_tester::create_empty();
   t.add_root_dir();
   t.os->add_local_files(audio_data_dir);
@@ -2413,6 +2412,25 @@ TEST_P(map_file_error_test, delayed) {
                                        .dimension = 20,
                                        .max_name_len = 8,
                                        .with_errors = true});
+
+  static constexpr size_t const kSizeSmall{1 << 10};
+  static constexpr size_t const kSizeLarge{1 << 20};
+  auto gen_small = [] { return test::loremipsum(kSizeLarge); };
+  auto gen_large = [] { return test::loremipsum(kSizeLarge); };
+  t.os->add("large_link1", {43, 0100755, 2, 1000, 100, kSizeLarge, 42, 0, 0, 0},
+            gen_large);
+  t.os->add("large_link2", {43, 0100755, 2, 1000, 100, kSizeLarge, 42, 0, 0, 0},
+            gen_large);
+  t.os->add("small_link1", {44, 0100755, 2, 1000, 100, kSizeSmall, 42, 0, 0, 0},
+            gen_small);
+  t.os->add("small_link2", {44, 0100755, 2, 1000, 100, kSizeSmall, 42, 0, 0, 0},
+            gen_small);
+  for (auto const& link :
+       {"large_link1", "large_link2", "small_link1", "small_link2"}) {
+    t.os->set_map_file_error(
+        fs::path{"/"} / link,
+        std::make_exception_ptr(std::runtime_error("map_file_error")), 0);
+  }
 
   {
     std::mt19937_64 rng{42};
@@ -2444,8 +2462,27 @@ TEST_P(map_file_error_test, delayed) {
 
   EXPECT_EQ(2, t.run(args)) << t.err();
 
-  auto fs = t.fs_from_file("test.dwarfs");
+  auto fs = t.fs_from_file("test.dwarfs", {.metadata = {.enable_nlink = true}});
   // fs.dump(std::cout, 2);
+
+  {
+    auto large_link1 = fs.find("/large_link1");
+    auto large_link2 = fs.find("/large_link2");
+    auto small_link1 = fs.find("/small_link1");
+    auto small_link2 = fs.find("/small_link2");
+
+    ASSERT_TRUE(large_link1);
+    ASSERT_TRUE(large_link2);
+    ASSERT_TRUE(small_link1);
+    ASSERT_TRUE(small_link2);
+    EXPECT_EQ(large_link1->inode_num(), large_link2->inode_num());
+    EXPECT_EQ(small_link1->inode_num(), small_link2->inode_num());
+    file_stat st;
+    ASSERT_EQ(0, fs.getattr(*large_link1, &st));
+    EXPECT_EQ(0, st.size);
+    ASSERT_EQ(0, fs.getattr(*small_link1, &st));
+    EXPECT_EQ(0, st.size);
+  }
 
   std::unordered_map<fs::path, std::string, fs_path_hash> actual_files;
   fs.walk([&](auto const& dev) {

@@ -234,20 +234,23 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
   uint64_t size = p->size();
   uint64_t start_hash{0};
 
-  if (size >= kLargeFileThreshold && !p->is_invalid()) {
-    try {
-      auto mm = os_.map_file(p->fs_path(), kLargeFileStartHashSize);
-      checksum cs(checksum::algorithm::XXH3_64);
-      cs.update(mm->addr(), kLargeFileStartHashSize);
-      cs.finalize(&start_hash);
-      file_start_hash_.emplace(p, start_hash);
-    } catch (...) {
-      LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
-                << folly::exceptionStr(std::current_exception())
-                << ", creating empty file";
-      ++prog_.errors;
-      p->set_invalid();
+  if (size >= kLargeFileThreshold) {
+    if (!p->is_invalid()) {
+      try {
+        auto mm = os_.map_file(p->fs_path(), kLargeFileStartHashSize);
+        checksum cs(checksum::algorithm::XXH3_64);
+        cs.update(mm->addr(), kLargeFileStartHashSize);
+        cs.finalize(&start_hash);
+      } catch (...) {
+        LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
+                  << folly::exceptionStr(std::current_exception())
+                  << ", creating empty file";
+        ++prog_.errors;
+        p->set_invalid();
+      }
     }
+
+    file_start_hash_.emplace(p, start_hash);
   }
 
   auto [it, is_new] = unique_size_.emplace(std::make_pair(size, start_hash),
