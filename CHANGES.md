@@ -1,5 +1,32 @@
 # Change Log
 
+## Version 0.9.2 - 2024-02-09
+
+- (fix) v0.9.0 introduced an optimization where large files of equal
+  size were only fully hashed for deduplication if the first 4K of their
+  contents also produced the same hash. This introduced a bug causing
+  an exception to be thrown when processing large hard-linked files.
+  The root cause was that the data structure intended to be used for
+  exactly this case was just never populated, and the fix was adding
+  a single line to fill the data structure. The test cases didn't cover
+  large hard-linked files, so this slipped through into the release.
+  A new test case has been added as well.
+
+- (fix) On Windows, when using Power Shell, the error message dialog
+  for a missing WinFsp DLL was not shown when running `dwarfs.exe`.
+  The workaround is to use the same delayed loading mechanism that's
+  already used for the universal binary and show the error in the
+  terminal. See also the discussion on github #192.
+
+- (feature) Added a `--list` option to `dwarfsck`. This lists all files
+  in the files system image. When used with `--verbose`, the list also
+  shows permissions, size, uid/git and symbolic link information.
+  Fixes github #192.
+
+- (feature) Added a `--checksum` option to `dwarfsck`. This produces
+  output similar to the `*sum` programs from coreutils and can be used
+  to check the contents of a DwarFS image against local files.
+
 ## Version 0.9.1 - 2024-02-06
 
 - (fix) Invalid UTF-8 characters in file paths would crash `mkdwarfs`
