@@ -103,7 +103,6 @@ jobs:
         build_type:
           - gcc-debug-ninja
           - gcc-release-ninja
-          - oldgcc-debug-make
           - clang-release-ninja
           - gcc-release-ninja-static
           - gcc-release-ninja-O2-static
@@ -120,6 +119,8 @@ jobs:
             build_type: clang-ubsan-ninja
           - arch: amd64
             build_type: clang-coverage-ninja
+          - arch: amd64
+            build_type: oldgcc-debug-make
           - arch: arm64v8
             build_type: gcc-debug-noperfmon-ninja
           - arch: arm64v8
