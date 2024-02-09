@@ -206,9 +206,15 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
       if (auto it = by_hash_.find(p->hash()); it != by_hash_.end()) {
         return it->second;
       }
-      auto it = file_start_hash_.find(p);
-      uint64_t hash = it != file_start_hash_.end() ? it->second : 0;
-      return unique_size_.at({p->size(), hash});
+      auto const size = p->size();
+      uint64_t hash{0};
+      if (size >= kLargeFileThreshold) [[unlikely]] {
+        auto it = file_start_hash_.find(p);
+        DWARFS_CHECK(it != file_start_hash_.end(),
+                     "internal error: missing start hash for large file");
+        hash = it->second;
+      }
+      return unique_size_.at({size, hash});
     });
     finalize_files<true>(unique_size_, inode_num, obj_num);
     finalize_files(by_raw_inode_, inode_num, obj_num);
