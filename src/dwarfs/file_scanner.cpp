@@ -234,6 +234,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
       checksum cs(checksum::algorithm::XXH3_64);
       cs.update(mm->addr(), kLargeFileStartHashSize);
       cs.finalize(&start_hash);
+      file_start_hash_.emplace(p, start_hash);
     } catch (...) {
       LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
                 << folly::exceptionStr(std::current_exception())

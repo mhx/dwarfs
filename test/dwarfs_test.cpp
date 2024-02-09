@@ -1231,3 +1231,38 @@ TEST(filesystem, find_by_path) {
     EXPECT_FALSE(fs.find((p + "/desktop.ini").c_str())) << p;
   }
 }
+
+TEST(file_scanner, file_start_hash) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+  static constexpr size_t const kSize{1 << 20};
+  auto generator = [] { return test::loremipsum(kSize); };
+
+  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  input->add("hardlink1", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
+             generator);
+  input->add("hardlink2", {42, 0100755, 2, 1000, 100, kSize, 4711, 0, 0, 0},
+             generator);
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, *input, mm, {.metadata = {.enable_nlink = true}});
+
+  auto link1 = fs.find("/hardlink1");
+  auto link2 = fs.find("/hardlink2");
+
+  EXPECT_TRUE(link1);
+  EXPECT_TRUE(link2);
+
+  file_stat st1, st2;
+
+  EXPECT_EQ(0, fs.getattr(*link1, &st1));
+  EXPECT_EQ(0, fs.getattr(*link2, &st2));
+
+  EXPECT_EQ(st1.ino, st2.ino);
+  EXPECT_EQ(st1.nlink, 2);
+  EXPECT_EQ(st2.nlink, 2);
+}
