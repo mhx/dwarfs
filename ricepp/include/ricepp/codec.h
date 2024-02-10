@@ -130,7 +130,7 @@ class codec final {
 
   [[nodiscard]] size_t worst_case_bit_count(size_t pixel_count) const noexcept {
     static constexpr size_t const kFsBits{
-        std::countr_zero(pixel_traits::kBitCount)};
+        static_cast<size_t>(std::countr_zero(pixel_traits::kBitCount))};
     assert(pixel_count % kComponentStreamCount == 0);
     pixel_count /= kComponentStreamCount;
     size_t num = pixel_traits::kBitCount; // initial value

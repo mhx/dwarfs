@@ -40,7 +40,8 @@ void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
                   typename PixelTraits::value_type& last_value) {
   using pixel_value_type = typename PixelTraits::value_type;
   static constexpr unsigned kPixelBits{PixelTraits::kBitCount};
-  static constexpr unsigned kFsBits{std::countr_zero(kPixelBits)};
+  static constexpr unsigned kFsBits{
+      static_cast<unsigned>(std::countr_zero(kPixelBits))};
   static constexpr unsigned kFsMax{kPixelBits - 2};
 
   auto last = last_value;

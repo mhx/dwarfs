@@ -91,7 +91,8 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
                   typename PixelTraits::value_type& last_value) {
   using pixel_value_type = typename PixelTraits::value_type;
   static constexpr unsigned kPixelBits{PixelTraits::kBitCount};
-  static constexpr unsigned kFsBits{std::countr_zero(kPixelBits)};
+  static constexpr unsigned kFsBits{
+      static_cast<unsigned>(std::countr_zero(kPixelBits))};
   static constexpr unsigned kFsMax{kPixelBits - 2};
   static constexpr pixel_value_type kPixelMsb{static_cast<pixel_value_type>(1)
                                               << (kPixelBits - 1)};
