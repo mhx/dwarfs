@@ -52,13 +52,13 @@ class bitstream_writer final {
  public:
   using iterator_type = OutputIt;
   using bits_type = uint64_t;
-  static constexpr size_t kBitsTypeBits = sizeof(bits_type) * 8;
+  static constexpr size_t kBitsTypeBits{std::numeric_limits<bits_type>::digits};
 
   bitstream_writer(OutputIt out)
       : out_{out} {}
 
   void write_bit(bool bit) {
-    assert(bit_pos_ < sizeof(bits_type) * 8);
+    assert(bit_pos_ < kBitsTypeBits);
     write_bits_impl(bit, 1);
   }
 
@@ -82,8 +82,9 @@ class bitstream_writer final {
 
   template <std::unsigned_integral T>
   void write_bits(T bits, size_t num_bits) {
+    static constexpr size_t kArgBits{std::numeric_limits<T>::digits};
     assert(bit_pos_ < kBitsTypeBits);
-    assert(num_bits <= sizeof(T) * 8);
+    assert(num_bits <= kArgBits);
     while (num_bits > 0) {
       size_t const bits_to_write = std::min(num_bits, kBitsTypeBits - bit_pos_);
       write_bits_impl(bits, bits_to_write);
@@ -114,7 +115,7 @@ class bitstream_writer final {
     }
     data_ |= bits << bit_pos_;
     bit_pos_ += num_bits;
-    if (bit_pos_ == sizeof(bits_type) * 8) {
+    if (bit_pos_ == kBitsTypeBits) {
       write_packet(data_);
       data_ = bits_type{};
       bit_pos_ = 0;

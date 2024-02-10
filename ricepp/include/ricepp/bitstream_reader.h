@@ -40,7 +40,7 @@ class bitstream_reader final {
  public:
   using iterator_type = InputIt;
   using bits_type = uint64_t;
-  static constexpr size_t kBitsTypeBits = sizeof(bits_type) * 8;
+  static constexpr size_t kBitsTypeBits{std::numeric_limits<bits_type>::digits};
 
   bitstream_reader(InputIt beg, InputIt end)
       : beg_{std::move(beg)}
@@ -50,7 +50,8 @@ class bitstream_reader final {
 
   template <std::unsigned_integral T>
   T read_bits(size_t num_bits) {
-    assert(num_bits <= sizeof(T) * 8);
+    static constexpr size_t kResultBits{std::numeric_limits<T>::digits};
+    assert(num_bits <= kResultBits);
     T bits = 0;
     size_t pos = 0;
     while (num_bits > 0) {
@@ -106,7 +107,7 @@ class bitstream_reader final {
   void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     bit_pos_ += num_bits;
-    if (bit_pos_ == sizeof(bits_type) * 8) [[unlikely]] {
+    if (bit_pos_ == kBitsTypeBits) [[unlikely]] {
       bit_pos_ = 0;
     }
   }
