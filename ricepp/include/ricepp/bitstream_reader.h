@@ -54,11 +54,17 @@ class bitstream_reader final {
     assert(num_bits <= kResultBits);
     T bits = 0;
     size_t pos = 0;
-    while (num_bits > 0) {
-      size_t const bits_to_read = std::min(num_bits, kBitsTypeBits - bit_pos_);
-      bits |= static_cast<T>(read_bits_impl(bits_to_read)) << pos;
-      num_bits -= bits_to_read;
-      pos += bits_to_read;
+    if (num_bits > 0) [[likely]] {
+      for (;;) {
+        size_t const bits_to_read =
+            std::min(num_bits, kBitsTypeBits - bit_pos_);
+        bits |= static_cast<T>(read_bits_impl(bits_to_read)) << pos;
+        if (bits_to_read == num_bits) [[likely]] {
+          break;
+        }
+        num_bits -= bits_to_read;
+        pos += bits_to_read;
+      }
     }
     return bits;
   }
