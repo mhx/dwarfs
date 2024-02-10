@@ -121,6 +121,12 @@ class bitstream_reader final {
     if (bit_pos_ == 0) [[unlikely]] {
       data_ = read_packet();
     }
+    // The remainder of this function is equivalent to:
+    //
+    //   return _bextr_u64(data_, bit_pos_, num_bits);
+    //
+    // However, in practice, at least clang generates code that is as fast
+    // as the intrinsic, so we use the following code for portability.
     bits_type bits = data_ >> bit_pos_;
     if (num_bits < kBitsTypeBits) [[likely]] {
       bits &= (static_cast<bits_type>(1) << num_bits) - 1;
