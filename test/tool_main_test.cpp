@@ -1272,7 +1272,11 @@ TEST(mkdwarfs_test, cannot_open_input_list_file) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("cannot open input list file"));
 }
 
-TEST(mkdwarfs_test, recompress) {
+class mkdwarfs_recompress_test
+    : public testing::TestWithParam<std::string_view> {};
+
+TEST_P(mkdwarfs_recompress_test, recompress) {
+  std::string const compression{GetParam()};
   std::string const image_file = "test.dwarfs";
   std::string image;
 
@@ -1281,7 +1285,8 @@ TEST(mkdwarfs_test, recompress) {
     t.os->add_local_files(audio_data_dir);
     t.os->add_local_files(fits_data_dir);
     t.os->add_file("random", 4096, true);
-    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize"}))
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-C",
+                        compression}))
         << t.err();
     auto img = t.fa->get_file(image_file);
     EXPECT_TRUE(img);
@@ -1370,6 +1375,18 @@ TEST(mkdwarfs_test, recompress) {
     EXPECT_THAT(t.err(), ::testing::HasSubstr("input filesystem is corrupt"));
   }
 }
+
+namespace {
+
+constexpr std::array<std::string_view, 2> const source_fs_compression = {
+    "zstd:level=5",
+    "null",
+};
+
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_recompress_test,
+                         ::testing::ValuesIn(source_fs_compression));
 
 class mkdwarfs_build_options_test
     : public testing::TestWithParam<std::string_view> {};
