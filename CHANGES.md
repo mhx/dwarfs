@@ -1,5 +1,17 @@
 # Change Log
 
+## Version 0.9.3 - 2024-02-11
+
+- (fix) v0.8.0 removed the implementation of the `null` decompressor
+  under the assumption that it was no longer used; it was, however,
+  still used when recompressing an image with `null`-compressed blocks.
+  The change to remove the implementation was reverted and a new test
+  case was added. Fixes github #193.
+
+- (perf) Some more `ricepp` compression speed improvements. Also, the
+  universal binaries for `x86_64` now automatically choose a `ricepp`
+  version based on CPU capabilities.
+
 ## Version 0.9.2 - 2024-02-09
 
 - (fix) v0.9.0 introduced an optimization where large files of equal
