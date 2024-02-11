@@ -94,6 +94,106 @@ jobs:
           compression-level: 0
         if: matrix.build_mode == 'Release'
 
+  windows-hybrid:
+    runs-on:
+      - self-hosted
+      - Windows
+
+    strategy:
+      matrix:
+        arch:
+          - X64
+        build_mode:
+          - Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Set MSVC Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure Rice++ Build
+        shell: cmd
+        run: |
+          cmake -B${{ runner.temp }}\build-ricepp -S${{ runner.workspace }}\dwarfs\ricepp -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+
+      - name: Run Build
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build-ricepp
+
+      - name: Run Test
+        shell: cmd
+        run: |
+          ctest --test-dir ${{ runner.temp }}\build-ricepp --output-on-failure -j8
+
+      - name: Install Rice++ Library
+        shell: cmd
+        run: |
+          cmake --install ${{ runner.temp }}\build-ricepp --prefix ${{ runner.temp }}\ricepp-install
+
+      - name: Configure Build
+        shell: cmd
+        run: |
+          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DCMAKE_PREFIX_PATH=${{ runner.temp }}\ricepp-install -DUSE_RICEPP_PACKAGE=ON
+
+      - name: Run Build
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build
+
+      - name: Run Test
+        shell: cmd
+        run: |
+          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
+          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j8
+
+      - name: Build Package
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target package
+        if: matrix.build_mode == 'Release'
+
+      - name: Compress Universal Binary
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target universal_upx
+        if: matrix.build_mode == 'Release'
+
+      - name: Copy Artifacts
+        shell: cmd
+        run: |
+          cmake --build ${{ runner.temp }}\build --target copy_artifacts
+        if: matrix.build_mode == 'Release'
+
+      - name: Prepare Artifact Upload
+        shell: cmd
+        run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
+        if: matrix.build_mode == 'Release'
+
+      - name: Upload Binary Tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.binary_tarball }}
+          path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
+          if-no-files-found: error
+          compression-level: 0
+        if: matrix.build_mode == 'Release'
+
+      - name: Upload Universal Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.universal_binary }}
+          path: ${{ runner.temp }}\build\${{ env.universal_binary }}
+          if-no-files-found: error
+          compression-level: 0
+        if: matrix.build_mode == 'Release'
+
   linux:
     strategy:
       matrix:
