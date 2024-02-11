@@ -28,7 +28,12 @@ if(NOT TARGET range-v3)
     GIT_REPOSITORY https://github.com/ericniebler/range-v3
     GIT_TAG 0.12.0
   )
-  FetchContent_MakeAvailable(range-v3)
+  # FetchContent_MakeAvailable(range-v3)
+  FetchContent_GetProperties(range-v3)
+  if(NOT range-v3_POPULATED)
+    FetchContent_Populate(range-v3)
+    add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
 endif()
 
 if(WIN32)
@@ -75,9 +80,60 @@ endforeach()
 
 add_library(ricepp ricepp.cpp ${RICEPP_OBJECTS_CPUSPECIFIC})
 target_link_libraries(ricepp PUBLIC range-v3)
-target_include_directories(ricepp PUBLIC include)
+target_include_directories(ricepp PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 target_compile_features(ricepp PUBLIC cxx_std_20)
 target_compile_definitions(ricepp PRIVATE ${RICEPP_CPU_SUPPORT})
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+set(CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp CACHE STRING
+    "CMake package config files install location")
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ricepp-config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
+  PATH_VARS
+    CMAKE_INSTALL_INCLUDEDIR
+    CMAKE_INSTALL_DIR
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config-version.cmake
+  VERSION 0.1.0
+  COMPATIBILITY SameMajorVersion
+)
+
+install(
+  TARGETS ricepp
+  EXPORT ricepp-targets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  FILES_MATCHING PATTERN "*.h"
+)
+
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
+)
+
+install(
+  EXPORT ricepp-targets
+  FILE ricepp-targets.cmake
+  NAMESPACE ricepp::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
+)
 
 # # TODO: remove/rework
 # add_executable(ricepp_demo ricepp_demo.cpp)
@@ -98,7 +154,12 @@ if(WITH_TESTS)
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.14.0
     )
-    FetchContent_MakeAvailable(googletest)
+    # FetchContent_MakeAvailable(googletest)
+    FetchContent_GetProperties(googletest)
+    if(NOT googletest_POPULATED)
+      FetchContent_Populate(googletest)
+      add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
   endif()
 
   enable_testing()
