@@ -39,10 +39,38 @@ if(WIN32)
   add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
 endif()
 
-add_library(ricepp ricepp.cpp)
+CHECK_CXX_COMPILER_FLAG(-mbmi2 COMPILER_SUPPORTS_MBMI2)
+CHECK_CXX_COMPILER_FLAG(-mavx512vl COMPILER_SUPPORTS_MAVX512VL)
+CHECK_CXX_COMPILER_FLAG(-mavx512vbmi COMPILER_SUPPORTS_MAVX512VBMI)
 
+add_library(ricepp_fallback ricepp_cpuspecific.cpp)
+target_compile_definitions(ricepp_fallback PRIVATE RICEPP_CPU_VARIANT=fallback)
+list(APPEND RICEPP_LIBS_CPUSPECIFIC ricepp_fallback)
+
+if(COMPILER_SUPPORTS_MBMI2)
+  add_library(ricepp_bmi2 ricepp_cpuspecific.cpp)
+  target_compile_options(ricepp_bmi2 PRIVATE -mbmi2)
+  target_compile_definitions(ricepp_bmi2 PRIVATE RICEPP_CPU_VARIANT=has_bmi2)
+  list(APPEND RICEPP_LIBS_CPUSPECIFIC ricepp_bmi2)
+
+  if(COMPILER_SUPPORTS_MAVX512VL AND COMPILER_SUPPORTS_MAVX512VBMI)
+    add_library(ricepp_bmi2_avx512 ricepp_cpuspecific.cpp)
+    target_compile_options(ricepp_bmi2_avx512 PRIVATE -mbmi2 -mavx512vl -mavx512vbmi)
+    target_compile_definitions(ricepp_bmi2_avx512 PRIVATE RICEPP_CPU_VARIANT=has_bmi2_avx512)
+    list(APPEND RICEPP_LIBS_CPUSPECIFIC ricepp_bmi2_avx512)
+  endif()
+endif()
+
+foreach(target ${RICEPP_LIBS_CPUSPECIFIC})
+  message(STATUS "Adding target: ${target}")
+  target_include_directories(${target} PUBLIC include)
+  target_link_libraries(${target} PUBLIC range-v3)
+  target_compile_features(${target} PUBLIC cxx_std_20)
+endforeach()
+
+add_library(ricepp ricepp.cpp)
+target_link_libraries(ricepp PRIVATE ${RICEPP_LIBS_CPUSPECIFIC})
 target_include_directories(ricepp PUBLIC include)
-target_link_libraries(ricepp PUBLIC range-v3)
 target_compile_features(ricepp PUBLIC cxx_std_20)
 
 # # TODO: remove/rework
