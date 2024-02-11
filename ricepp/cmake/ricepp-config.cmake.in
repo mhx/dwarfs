@@ -1,0 +1,17 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+set_and_check(RICEPP_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(RICEPP_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(RICEPP_CMAKE_DIR "@PACKAGE_CMAKE_INSTALL_DIR@")
+
+set(RICEPP_PREFIX_DIR "${PACKAGE_PREFIX_DIR}")
+
+if (NOT TARGET ricepp::ricepp)
+  include("${RICEPP_CMAKE_DIR}/ricepp-targets.cmake")
+endif()
+
+set(RICEPP_LIBRARIES ricepp::ricepp)
+
+find_dependency(range-v3)
