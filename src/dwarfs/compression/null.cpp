@@ -61,6 +61,52 @@ class null_block_compressor final : public block_compressor::impl {
   }
 };
 
+class null_block_decompressor final : public block_decompressor::impl {
+ public:
+  null_block_decompressor(const uint8_t* data, size_t size,
+                          std::vector<uint8_t>& target)
+      : decompressed_(target)
+      , data_(data)
+      , uncompressed_size_(size) {
+    // TODO: we shouldn't have to copy this to memory at all...
+    try {
+      decompressed_.reserve(uncompressed_size_);
+    } catch (std::bad_alloc const&) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("could not reserve {} bytes for decompressed block",
+                      uncompressed_size_));
+    }
+  }
+
+  compression_type type() const override { return compression_type::NONE; }
+
+  std::optional<std::string> metadata() const override { return std::nullopt; }
+
+  bool decompress_frame(size_t frame_size) override {
+    if (decompressed_.size() + frame_size > uncompressed_size_) {
+      frame_size = uncompressed_size_ - decompressed_.size();
+    }
+
+    assert(frame_size > 0);
+
+    size_t offset = decompressed_.size();
+    decompressed_.resize(offset + frame_size);
+
+    std::copy(data_ + offset, data_ + offset + frame_size,
+              &decompressed_[offset]);
+
+    return decompressed_.size() == uncompressed_size_;
+  }
+
+  size_t uncompressed_size() const override { return uncompressed_size_; }
+
+ private:
+  std::vector<uint8_t>& decompressed_;
+  const uint8_t* const data_;
+  const size_t uncompressed_size_;
+};
+
 class null_compression_factory : public compression_factory {
  public:
   std::string_view name() const override { return "null"; }
@@ -77,9 +123,10 @@ class null_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const>,
-                    std::vector<uint8_t>&) const override {
-    DWARFS_THROW(runtime_error, "null_decompressor not implemented");
+  make_decompressor(std::span<uint8_t const> data,
+                    std::vector<uint8_t>& target) const override {
+    return std::make_unique<null_block_decompressor>(data.data(), data.size(),
+                                                     target);
   }
 
  private:
