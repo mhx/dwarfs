@@ -83,32 +83,35 @@ compute_best_split(T const& delta, size_t const size,
 }
 
 template <size_t MaxBlockSize, typename PixelTraits, ranges::viewable_range V,
-          typename BitstreamWriter>
+          typename BitstreamWriter, std::unsigned_integral ValueT>
   requires std::unsigned_integral<typename PixelTraits::value_type> &&
            std::same_as<ranges::range_value_t<std::decay_t<V>>,
                         typename PixelTraits::value_type>
 void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
-                  typename PixelTraits::value_type& last_value) {
+                  ValueT& last_value) {
   using pixel_value_type = typename PixelTraits::value_type;
-  static constexpr unsigned kPixelBits{PixelTraits::kBitCount};
-  static constexpr unsigned kFsBits{
-      static_cast<unsigned>(std::countr_zero(kPixelBits))};
-  static constexpr unsigned kFsMax{kPixelBits - 2};
-  static constexpr pixel_value_type kPixelMsb{static_cast<pixel_value_type>(1)
-                                              << (kPixelBits - 1)};
+  using value_type = ValueT;
+  static_assert(sizeof(pixel_value_type) <= sizeof(value_type));
+  static constexpr value_type kPixelBits{PixelTraits::kBitCount};
+  static constexpr value_type kFsBits{
+      static_cast<value_type>(std::countr_zero(kPixelBits))};
+  static constexpr value_type kFsMax{kPixelBits - 2};
+  static constexpr value_type kPixelMsb{static_cast<value_type>(1)
+                                        << (kPixelBits - 1)};
 
   std::array<pixel_value_type, MaxBlockSize> delta;
-  auto last = last_value;
+  value_type last = last_value;
 
   assert(block.size() <= MaxBlockSize);
 
   uint64_t sum{0};
 
   for (size_t i = 0; i < block.size(); ++i) {
-    auto const pixel = traits.read(block[i]);
-    auto const diff = static_cast<pixel_value_type>(pixel - last);
-    delta[i] = diff & kPixelMsb ? ~(diff << 1) : (diff << 1);
-    sum += delta[i];
+    value_type const pixel = traits.read(block[i]);
+    value_type const diff = static_cast<value_type>(pixel - last);
+    pixel_value_type d = diff & kPixelMsb ? ~(diff << 1) : (diff << 1);
+    delta[i] = d;
+    sum += d;
     last = pixel;
   }
 
@@ -134,8 +137,8 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
       // Encode the difference values using Rice entropy coding.
       writer.write_bits(fs + 1, kFsBits);
       for (size_t i = 0; i < block.size(); ++i) {
-        pixel_value_type const diff = delta[i];
-        pixel_value_type const top = diff >> fs;
+        value_type const diff = delta[i];
+        value_type const top = diff >> fs;
         if (top > 0) [[unlikely]] {
           writer.write_bit(0, top);
         }

@@ -113,6 +113,8 @@ class bitstream_reader final {
   void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     bit_pos_ += num_bits;
+    // Equivalent, but slower:
+    //   bit_pos_ &= kBitsTypeBits - 1;
     if (bit_pos_ == kBitsTypeBits) [[unlikely]] {
       bit_pos_ = 0;
     }

@@ -55,10 +55,12 @@ class codec final {
   template <typename BitstreamWriter>
   void encode(std::span<pixel_value_type const> input,
               BitstreamWriter& writer) const {
+    using value_type = uint_fast32_t;
+
     assert(input.size() % kComponentStreamCount == 0);
 
     if constexpr (kComponentStreamCount == 1) {
-      pixel_value_type last_value;
+      value_type last_value;
 
       last_value = traits_.read(input[0]);
       writer.write_bits(last_value, PixelTraits::kBitCount);
@@ -69,7 +71,7 @@ class codec final {
                                                           traits_, last_value);
       }
     } else {
-      std::array<pixel_value_type, kComponentStreamCount> last_value;
+      std::array<value_type, kComponentStreamCount> last_value;
 
       for (size_t i = 0; i < kComponentStreamCount; ++i) {
         last_value[i] = traits_.read(input[i]);
@@ -94,13 +96,15 @@ class codec final {
   template <typename BitstreamReader>
   void
   decode(std::span<pixel_value_type> output, BitstreamReader& reader) const {
+    using value_type = uint_fast32_t;
+
     assert(output.size() % kComponentStreamCount == 0);
 
     if constexpr (kComponentStreamCount == 1) {
-      pixel_value_type last_value;
+      value_type last_value;
 
       last_value =
-          reader.template read_bits<pixel_value_type>(PixelTraits::kBitCount);
+          reader.template read_bits<value_type>(PixelTraits::kBitCount);
 
       for (auto pixels :
            ranges::views::all(output) | ranges::views::chunk(block_size_)) {
@@ -108,11 +112,11 @@ class codec final {
                                                           traits_, last_value);
       }
     } else {
-      std::array<pixel_value_type, kComponentStreamCount> last_value;
+      std::array<value_type, kComponentStreamCount> last_value;
 
       for (size_t i = 0; i < kComponentStreamCount; ++i) {
         last_value[i] =
-            reader.template read_bits<pixel_value_type>(PixelTraits::kBitCount);
+            reader.template read_bits<value_type>(PixelTraits::kBitCount);
       }
 
       for (auto pixels :
