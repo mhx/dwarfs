@@ -36,7 +36,8 @@ namespace {
 detail::cpu_variant get_cpu_variant_init() {
 #ifndef _WIN32
 #if defined(__has_builtin)
-#if __has_builtin(__builtin_cpu_supports) && (defined(RICEPP_CPU_BMI2) || defined(RICEPP_CPU_BMI2_AVX512))
+#if __has_builtin(__builtin_cpu_supports) &&                                   \
+    (defined(RICEPP_CPU_BMI2) || defined(RICEPP_CPU_BMI2_AVX512))
   __builtin_cpu_init();
 
   bool const has_avx512vl = __builtin_cpu_supports("avx512vl");
