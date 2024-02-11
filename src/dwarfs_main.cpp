@@ -138,12 +138,19 @@ namespace dwarfs {
 
 namespace {
 
+#ifdef __APPLE__
+constexpr size_t const kDefaultBlockSize{static_cast<size_t>(256) << 10};
+#else
+constexpr size_t const kDefaultBlockSize{512};
+#endif
+
 struct options {
   // std::string isn't standard-layout on MSVC
   // std::unique_ptr isn't standard-layout with libstdc++
   std::shared_ptr<std::string> fsimage;
   int seen_mountpoint{0};
   char const* cachesize_str{nullptr};           // TODO: const?? -> use string?
+  char const* blocksize_str{nullptr};           // TODO: const?? -> use string?
   char const* debuglevel_str{nullptr};          // TODO: const?? -> use string?
   char const* workers_str{nullptr};             // TODO: const?? -> use string?
   char const* mlock_str{nullptr};               // TODO: const?? -> use string?
@@ -160,6 +167,7 @@ struct options {
   int cache_image{0};
   int cache_files{0};
   size_t cachesize{0};
+  size_t blocksize{0};
   size_t workers{0};
   mlock_mode lock_mode{mlock_mode::NONE};
   double decompress_ratio{0.0};
@@ -211,6 +219,7 @@ struct dwarfs_userdata {
 constexpr struct ::fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
     DWARFS_OPT("cachesize=%s", cachesize_str, 0),
+    DWARFS_OPT("blocksize=%s", blocksize_str, 0),
     DWARFS_OPT("debuglevel=%s", debuglevel_str, 0),
     DWARFS_OPT("workers=%s", workers_str, 0),
     DWARFS_OPT("mlock=%s", mlock_str, 0),
@@ -1009,6 +1018,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << " <image> <mountpoint> [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
+     << "    -o blocksize=SIZE      set file block size\n"
      << "    -o workers=NUM         number of worker threads (2)\n"
      << "    -o mlock=NAME          mlock mode: (none), try, must\n"
      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
@@ -1247,6 +1257,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.init_workers = false;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
+  fsopts.metadata.block_size = opts.blocksize;
   fsopts.inode_offset = inode_offset;
 
   if (opts.image_offset_str) {
@@ -1377,6 +1388,9 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     opts.cachesize = opts.cachesize_str
                          ? parse_size_with_unit(opts.cachesize_str)
                          : (static_cast<size_t>(512) << 20);
+    opts.blocksize = opts.blocksize_str
+                         ? parse_size_with_unit(opts.blocksize_str)
+                         : kDefaultBlockSize;
     opts.workers = opts.workers_str ? folly::to<size_t>(opts.workers_str) : 2;
     opts.lock_mode =
         opts.mlock_str ? parse_mlock_mode(opts.mlock_str) : mlock_mode::NONE;

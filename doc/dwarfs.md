@@ -32,6 +32,13 @@ options:
   with it, which can use a significant amount of additional
   memory. For more details, see mkdwarfs(1).
 
+- `-o blocksize=`*value*:
+  Size reported for files in `st_blksize`. This is 512 bytes
+  by default on Linux/Windows. On macOS, the value is 256 kiB,
+  as macFUSE uses this to derive the maximum size of a read
+  request. Use this along with macFUSE's `iosize` option to
+  tune throughput.
+
 - `-o workers=`*value*:
   Number of worker threads to use for decompressing blocks.
   If you have a lot of CPUs, increasing this number can help

@@ -68,6 +68,7 @@ struct metadata_options {
   bool enable_nlink{false};
   bool readonly{false};
   bool check_consistency{false};
+  size_t block_size{512};
 };
 
 struct filesystem_options {
