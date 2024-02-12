@@ -5,10 +5,13 @@ RUN apt update && apt install -y gnupg wget software-properties-common
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
 RUN apt-add-repository 'deb https://apt.kitware.com/ubuntu/ jammy main'
 RUN apt install -y \
+        gcc-11 \
+        g++-11 \
         gcc-12 \
         g++-12 \
         gcc-13 \
         g++-13 \
+        clang-15 \
         clang-16 \
         clang-17 \
         git \
