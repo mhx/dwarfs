@@ -87,53 +87,59 @@ target_include_directories(ricepp PUBLIC
 target_compile_features(ricepp PUBLIC cxx_std_20)
 target_compile_definitions(ricepp PRIVATE ${RICEPP_CPU_SUPPORT})
 
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  message(STATUS "[ricepp] building standalone")
 
-set(CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp CACHE STRING
-    "CMake package config files install location")
+  include(GNUInstallDirs)
+  include(CMakePackageConfigHelpers)
 
-configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ricepp-config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
-  PATH_VARS
-    CMAKE_INSTALL_INCLUDEDIR
-    CMAKE_INSTALL_DIR
-)
+  set(CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp CACHE STRING
+      "CMake package config files install location")
 
-write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config-version.cmake
-  VERSION 0.1.0
-  COMPATIBILITY SameMajorVersion
-)
+  configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ricepp-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
+    PATH_VARS
+      CMAKE_INSTALL_INCLUDEDIR
+      CMAKE_INSTALL_DIR
+  )
 
-install(
-  TARGETS ricepp
-  EXPORT ricepp-targets
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+  write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config-version.cmake
+    VERSION 0.1.0
+    COMPATIBILITY SameMajorVersion
+  )
 
-install(
-  DIRECTORY include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  FILES_MATCHING PATTERN "*.h"
-)
+  install(
+    TARGETS ricepp
+    EXPORT ricepp-targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
 
-install(
-  FILES ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
-)
+  install(
+    DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
+  )
 
-install(
-  EXPORT ricepp-targets
-  FILE ricepp-targets.cmake
-  NAMESPACE ricepp::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
-)
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/ricepp-config.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
+  )
+
+  install(
+    EXPORT ricepp-targets
+    FILE ricepp-targets.cmake
+    NAMESPACE ricepp::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ricepp
+  )
+else()
+  message(STATUS "[ricepp] building as subproject")
+endif()
 
 # # TODO: remove/rework
 # add_executable(ricepp_demo ricepp_demo.cpp)
