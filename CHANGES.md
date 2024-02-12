@@ -9,8 +9,7 @@
 
 - (feature) Added `blocksize` option to the FUSE driver, which allows
   the `st_blksize` value to be configured for the mounted file system.
-  This is necessary on macOS as macFUSE derives the optimum read size
-  from this value. Use along with macFUSE's `iosize` for best effect.
+  Increasing this value can improve throughput for large files.
 
 - (feature) Added experimental `readahead` option to the FUSE driver.
   This can potentially increase throughput when performing sequential

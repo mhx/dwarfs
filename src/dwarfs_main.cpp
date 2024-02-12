@@ -138,11 +138,7 @@ namespace dwarfs {
 
 namespace {
 
-#ifdef __APPLE__
-constexpr size_t const kDefaultBlockSize{static_cast<size_t>(256) << 10};
-#else
-constexpr size_t const kDefaultBlockSize{512};
-#endif
+constexpr size_t const kDefaultBlockSize{static_cast<size_t>(512) << 10};
 
 struct options {
   // std::string isn't standard-layout on MSVC
@@ -1021,7 +1017,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << " <image> <mountpoint> [options]\n\n"
      << "DWARFS options:\n"
      << "    -o cachesize=SIZE      set size of block cache (512M)\n"
-     << "    -o blocksize=SIZE      set file block size\n"
+     << "    -o blocksize=SIZE      set file I/O block size (512K)\n"
      << "    -o readahead=SIZE      set readahead size (0)\n"
      << "    -o workers=NUM         number of worker threads (2)\n"
      << "    -o mlock=NAME          mlock mode: (none), try, must\n"

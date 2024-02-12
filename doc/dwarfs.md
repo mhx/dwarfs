@@ -33,11 +33,8 @@ options:
   memory. For more details, see mkdwarfs(1).
 
 - `-o blocksize=`*value*:
-  Size reported for files in `st_blksize`. This is 512 bytes
-  by default on Linux/Windows. On macOS, the value is 256 kiB,
-  as macFUSE uses this to derive the maximum size of a read
-  request. Use this along with macFUSE's `iosize` option to
-  tune throughput.
+  Size reported for files in `st_blksize`. You can use this to
+  optimize throughput in certain situations.
 
 - `-o readahead=`*value*:
   How much data to read ahead when receiving a read request.

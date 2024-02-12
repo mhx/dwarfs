@@ -1554,7 +1554,7 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
                                       : file_size(iv, mode);
   stbuf->ino = inode + inode_offset_;
   stbuf->blksize = options_.block_size;
-  stbuf->blocks = (stbuf->size + options_.block_size - 1) / options_.block_size;
+  stbuf->blocks = (stbuf->size + 511) / 512;
   stbuf->uid = iv.getuid();
   stbuf->gid = iv.getgid();
   stbuf->mtime = resolution * (timebase + iv.mtime_offset());
