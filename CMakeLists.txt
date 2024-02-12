@@ -354,7 +354,13 @@ set(ZSTD_LIBRARY_DEBUG
     CACHE FILEPATH "don't build folly with zstd" FORCE)
 
 if(WITH_TESTS)
-  if(NOT PREFER_SYSTEM_GTEST)
+  if(PREFER_SYSTEM_GTEST)
+    find_package(GTest 1.13.0 CONFIG REQUIRED)
+    add_library(gtest ALIAS GTest::gtest)
+    add_library(gtest_main ALIAS GTest::gtest_main)
+    add_library(gmock ALIAS GTest::gmock)
+    add_library(gmock_main ALIAS GTest::gmock_main)
+  else()
     include(FetchContent)
     FetchContent_Declare(
       googletest

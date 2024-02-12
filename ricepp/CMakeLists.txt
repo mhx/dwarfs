@@ -155,6 +155,7 @@ endif()
 
 if(WITH_TESTS)
   if(NOT TARGET gtest)
+    message(STATUS "[ricepp] fetching googletest")
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
