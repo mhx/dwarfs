@@ -39,6 +39,7 @@
 #include "dwarfs/iovec_read_buf.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/offset_cache.h"
+#include "dwarfs/options.h"
 #include "dwarfs/performance_monitor.h"
 
 namespace dwarfs {
@@ -85,14 +86,16 @@ namespace {
 constexpr size_t const offset_cache_chunk_index_interval = 256;
 constexpr size_t const offset_cache_updater_max_inline_offsets = 4;
 constexpr size_t const offset_cache_size = 64;
+constexpr size_t const readahead_cache_size = 64;
 
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
-  inode_reader_(logger& lgr, block_cache&& bc,
+  inode_reader_(logger& lgr, block_cache&& bc, inode_reader_options const& opts,
                 std::shared_ptr<performance_monitor const> perfmon
                 [[maybe_unused]])
       : cache_(std::move(bc))
+      , opts_{opts}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "inode_reader_v2")
@@ -100,6 +103,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
       PERFMON_CLS_TIMER_INIT(readv_iovec)
       PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
       , offset_cache_{offset_cache_size}
+      , readahead_cache_{readahead_cache_size}
       , iovec_sizes_(1, 0, 256) {}
 
   ~inode_reader_() override {
@@ -135,23 +139,32 @@ class inode_reader_ final : public inode_reader_v2::impl {
                          offset_cache_chunk_index_interval,
                          offset_cache_updater_max_inline_offsets>;
 
+  using readahead_cache_type = folly::EvictingCacheMap<uint32_t, file_off_t>;
+
   folly::Expected<std::vector<std::future<block_range>>, int>
   read_internal(uint32_t inode, size_t size, file_off_t offset,
                 chunk_range chunks) const;
 
   template <typename StoreFunc>
-  ssize_t read_internal(uint32_t inode, size_t size, file_off_t offset,
+  ssize_t read_internal(uint32_t inode, size_t size, file_off_t read_offset,
                         chunk_range chunks, const StoreFunc& store) const;
 
+  void do_readahead(uint32_t inode, chunk_range::iterator it,
+                    chunk_range::iterator end, file_off_t read_offset,
+                    size_t size, file_off_t it_offset) const;
+
   block_cache cache_;
+  inode_reader_options const opts_;
   LOG_PROXY_DECL(LoggerPolicy);
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(read)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
   PERFMON_CLS_TIMER_DECL(readv_future)
   mutable offset_cache_type offset_cache_;
-  mutable folly::Histogram<size_t> iovec_sizes_;
+  mutable std::mutex readahead_cache_mutex_;
+  mutable readahead_cache_type readahead_cache_;
   mutable std::mutex iovec_sizes_mutex_;
+  mutable folly::Histogram<size_t> iovec_sizes_;
 };
 
 template <typename LoggerPolicy>
@@ -165,10 +178,58 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
 }
 
 template <typename LoggerPolicy>
+void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
+                                               chunk_range::iterator it,
+                                               chunk_range::iterator end,
+                                               file_off_t const read_offset,
+                                               size_t const size,
+                                               file_off_t it_offset) const {
+  LOG_TRACE << "readahead (" << inode << "): " << read_offset << "/" << size
+            << "/" << it_offset;
+
+  file_off_t readahead_pos{0};
+  file_off_t const current_offset = read_offset + size;
+  file_off_t const readahead_until = current_offset + opts_.readahead;
+
+  {
+    std::lock_guard lock(readahead_cache_mutex_);
+
+    if (read_offset > 0) {
+      if (auto it = readahead_cache_.find(inode);
+          it != readahead_cache_.end()) {
+        readahead_pos = it->second;
+      }
+
+      if (readahead_until <= readahead_pos) {
+        return;
+      }
+    }
+
+    readahead_cache_.set(inode, readahead_until);
+  }
+
+  while (it != end) {
+    if (it_offset + it->size() >= readahead_pos) {
+      cache_.get(it->block(), it->offset(), it->size());
+    }
+
+    it_offset += it->size();
+
+    if (it_offset >= readahead_until) {
+      break;
+    }
+
+    ++it;
+  }
+}
+
+template <typename LoggerPolicy>
 folly::Expected<std::vector<std::future<block_range>>, int>
 inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
-                                           file_off_t offset,
+                                           file_off_t const read_offset,
                                            chunk_range chunks) const {
+  auto offset = read_offset;
+
   if (offset < 0) {
     return folly::makeUnexpected(-EINVAL);
   }
@@ -243,6 +304,10 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
       if (oc_ent) {
         oc_ent->update(oc_upd, it_index, it_offset, chunksize);
         offset_cache_.set(inode, std::move(oc_ent));
+      }
+
+      if (opts_.readahead > 0) {
+        do_readahead(inode, it, end, read_offset, size, it_offset);
       }
 
       break;
@@ -332,10 +397,10 @@ ssize_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
 } // namespace
 
 inode_reader_v2::inode_reader_v2(
-    logger& lgr, block_cache&& bc,
+    logger& lgr, block_cache&& bc, inode_reader_options const& opts,
     std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<inode_reader_v2::impl, inode_reader_,
-                                       logger_policies>(lgr, std::move(bc),
-                                                        std::move(perfmon))) {}
+                                       logger_policies>(
+          lgr, std::move(bc), opts, std::move(perfmon))) {}
 
 } // namespace dwarfs

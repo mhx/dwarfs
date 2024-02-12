@@ -39,6 +39,12 @@ options:
   request. Use this along with macFUSE's `iosize` option to
   tune throughput.
 
+- `-o readahead=`*value*:
+  How much data to read ahead when receiving a read request.
+  This is experimental and disabled by default. If you perform
+  a lot of large, sequential reads, throughput may benefit from
+  enabling readahead.
+
 - `-o workers=`*value*:
   Number of worker threads to use for decompressing blocks.
   If you have a lot of CPUs, increasing this number can help

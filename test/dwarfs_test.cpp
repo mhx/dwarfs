@@ -114,7 +114,7 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool pack_names, bool pack_names_index,
                            bool pack_symlinks, bool pack_symlinks_index,
                            bool plain_names_table, bool plain_symlinks_table,
-                           bool access_fail,
+                           bool access_fail, size_t readahead,
                            std::optional<std::string> file_hash_algo) {
   segmenter::config cfg;
   scanner_options options;
@@ -218,6 +218,7 @@ void basic_end_to_end_test(std::string const& compressor,
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
+  opts.inode_reader.readahead = readahead;
 
   filesystem_v2 fs(lgr, *input, mm, opts);
 
@@ -552,9 +553,15 @@ TEST_P(compression_test, end_to_end) {
     return;
   }
 
+  size_t readahead = 0;
+
+  if (block_size_bits < 20) {
+    readahead = static_cast<size_t>(4) << block_size_bits;
+  }
+
   basic_end_to_end_test(compressor, block_size_bits, file_order, true, true,
                         false, false, false, false, false, true, true, true,
-                        true, true, true, true, false, false, false,
+                        true, true, true, true, false, false, false, readahead,
                         file_hash_algo);
 }
 
@@ -562,16 +569,17 @@ TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
         enable_nlink, access_fail, file_hash_algo] = GetParam();
 
-  basic_end_to_end_test(
-      compressions[0], 15, file_order_mode::NONE, with_devices, with_specials,
-      set_uid, set_gid, set_time, keep_all_times, enable_nlink, true, true,
-      true, true, true, true, true, false, false, access_fail, file_hash_algo);
+  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
+                        with_devices, with_specials, set_uid, set_gid, set_time,
+                        keep_all_times, enable_nlink, true, true, true, true,
+                        true, true, true, false, false, access_fail, 0,
+                        file_hash_algo);
 }
 
 TEST_P(hashing_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
                         true, true, true, true, true, true, true, true, true,
-                        true, true, true, false, false, false, GetParam());
+                        true, true, true, false, false, false, 0, GetParam());
 }
 
 TEST_P(packing_test, end_to_end) {
@@ -582,7 +590,7 @@ TEST_P(packing_test, end_to_end) {
                         false, false, false, false, false, pack_chunk_table,
                         pack_directories, pack_shared_files_table, pack_names,
                         pack_names_index, pack_symlinks, pack_symlinks_index,
-                        false, false, false, default_file_hash_algo);
+                        false, false, false, 0, default_file_hash_algo);
 }
 
 TEST_P(plain_tables_test, end_to_end) {
@@ -591,7 +599,7 @@ TEST_P(plain_tables_test, end_to_end) {
   basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
                         false, false, false, false, false, false, false, false,
                         false, false, false, false, plain_names_table,
-                        plain_symlinks_table, false, default_file_hash_algo);
+                        plain_symlinks_table, false, 0, default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {

@@ -71,6 +71,10 @@ struct metadata_options {
   size_t block_size{512};
 };
 
+struct inode_reader_options {
+  size_t readahead{0};
+};
+
 struct filesystem_options {
   static constexpr file_off_t IMAGE_OFFSET_AUTO{-1};
 
@@ -78,6 +82,7 @@ struct filesystem_options {
   file_off_t image_offset{0};
   block_cache_options block_cache{};
   metadata_options metadata{};
+  inode_reader_options inode_reader{};
   int inode_offset{0};
 };
 
