@@ -560,7 +560,7 @@ $ pip3 install mistletoe
 - Build DwarFS and run its tests:
 
 ```
-$ git checkout v0.9.1
+$ git checkout v0.9.4
 $ git submodule update
 $ mkdir build && cd build
 $ cmake .. -GNinja -DWITH_TESTS=ON
