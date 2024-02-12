@@ -1,5 +1,21 @@
 # Change Log
 
+## Version 0.9.4 - 2024-02-12
+
+- (fix) Prevent installation of ricepp headers/libs. Fixes github #195.
+
+- (fix) Don't fetch googletest in ricepp build if the targets are
+  already available. Fixes github #194.
+
+- (feature) Added `blocksize` option to the FUSE driver, which allows
+  the `st_blksize` value to be configured for the mounted file system.
+  This is necessary on macOS as macFUSE derives the optimum read size
+  from this value. Use along with macFUSE's `iosize` for best effect.
+
+- (feature) Added experimental `readahead` option to the FUSE driver.
+  This can potentially increase throughput when performing sequential
+  reads.
+
 ## Version 0.9.3 - 2024-02-11
 
 - (fix) v0.8.0 removed the implementation of the `null` decompressor
