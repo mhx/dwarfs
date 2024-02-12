@@ -46,6 +46,7 @@
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
+#include "dwarfs/program_options_helpers.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs/worker_group.h"
@@ -162,7 +163,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto checksum_desc = "print checksums for all files (" +
                        (from(algo_list) | unsplit(", ")) + ")";
 
-  std::string input, export_metadata, image_offset, checksum_algo;
+  sys_string input, export_metadata;
+  std::string image_offset, checksum_algo;
   logger_options logopts;
   size_t num_workers;
   int detail;
@@ -178,7 +180,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   po::options_description opts("Command line options");
   opts.add_options()
     ("input,i",
-        po::value<std::string>(&input),
+        po_sys_value<sys_string>(&input),
         "input filesystem")
     ("detail,d",
         po::value<int>(&detail)->default_value(2),
@@ -214,7 +216,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<bool>(&output_json)->zero_tokens(),
         "print information in JSON format")
     ("export-metadata",
-        po::value<std::string>(&export_metadata),
+        po_sys_value<sys_string>(&export_metadata),
         "export raw metadata as JSON to file")
     ;
   // clang-format on
@@ -280,7 +282,9 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.metadata.check_consistency = check_integrity;
     fsopts.image_offset = parse_image_offset(image_offset);
 
-    std::shared_ptr<mmif> mm = iol.os->map_file(input);
+    auto input_path = iol.os->canonical(input);
+
+    std::shared_ptr<mmif> mm = iol.os->map_file(input_path);
 
     if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
@@ -303,7 +307,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
       if (!export_metadata.empty()) {
         std::error_code ec;
-        auto of = iol.file->open_output(export_metadata, ec);
+        auto of = iol.file->open_output(iol.os->canonical(export_metadata), ec);
         if (ec) {
           LOG_ERROR << "failed to open metadata output file: " << ec.message();
           return 1;

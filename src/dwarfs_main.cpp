@@ -90,6 +90,7 @@
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
+#include "dwarfs/os_access.h"
 #include "dwarfs/performance_monitor.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
@@ -1289,8 +1290,10 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr)
   PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr)
 
-  auto fsimage = canonical_path(std::filesystem::path(
+  auto fsimage = userdata.iol.os->canonical(std::filesystem::path(
       reinterpret_cast<char8_t const*>(opts.fsimage->data())));
+
+  LOG_DEBUG << "attempting to load filesystem from " << fsimage;
 
   userdata.fs =
       filesystem_v2(userdata.lgr, *userdata.iol.os,

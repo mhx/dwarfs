@@ -305,15 +305,17 @@ void shorten_path_string(std::string& path, char separator, size_t max_len) {
 }
 
 std::filesystem::path canonical_path(std::filesystem::path p) {
-  try {
-    p = std::filesystem::canonical(p);
-  } catch (std::filesystem::filesystem_error const&) {
-    p = std::filesystem::absolute(p);
-  }
-
+  if (!p.empty()) {
 #ifdef _WIN32
-  p = std::filesystem::path(L"\\\\?\\" + p.wstring());
+    p = std::filesystem::path(L"\\\\?\\" + p.wstring());
 #endif
+
+    try {
+      p = std::filesystem::canonical(p);
+    } catch (std::filesystem::filesystem_error const&) {
+      p = std::filesystem::absolute(p);
+    }
+  }
 
   return p;
 }

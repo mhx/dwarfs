@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -44,7 +45,8 @@ class filesystem_extractor {
  public:
   filesystem_extractor(logger& lgr, os_access const& os);
 
-  void open_archive(std::string const& output, std::string const& format) {
+  void
+  open_archive(std::filesystem::path const& output, std::string const& format) {
     return impl_->open_archive(output, format);
   }
 
@@ -52,7 +54,9 @@ class filesystem_extractor {
     return impl_->open_stream(os, format);
   }
 
-  void open_disk(std::string const& output) { return impl_->open_disk(output); }
+  void open_disk(std::filesystem::path const& output) {
+    return impl_->open_disk(output);
+  }
 
   void close() { return impl_->close(); }
 
@@ -66,10 +70,10 @@ class filesystem_extractor {
    public:
     virtual ~impl() = default;
 
-    virtual void
-    open_archive(std::string const& output, std::string const& format) = 0;
+    virtual void open_archive(std::filesystem::path const& output,
+                              std::string const& format) = 0;
     virtual void open_stream(std::ostream& os, std::string const& format) = 0;
-    virtual void open_disk(std::string const& output) = 0;
+    virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
     virtual bool extract(filesystem_v2 const& fs,
                          filesystem_extractor_options const& opts) = 0;

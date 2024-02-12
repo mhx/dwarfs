@@ -22,6 +22,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 #include <boost/program_options.hpp>
 
@@ -37,6 +38,7 @@
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
 #include "dwarfs/performance_monitor.h"
+#include "dwarfs/program_options_helpers.h"
 #include "dwarfs/tool.h"
 #include "dwarfs/util.h"
 #include "dwarfs_tool_main.h"
@@ -45,8 +47,19 @@ namespace po = boost::program_options;
 
 namespace dwarfs {
 
+namespace {
+
+#ifdef _WIN32
+constexpr std::wstring_view kDash{L"-"};
+#else
+constexpr std::string_view kDash{"-"};
+#endif
+
+} // namespace
+
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
-  std::string filesystem, output, format, cache_size_str, image_offset;
+  sys_string filesystem, output;
+  std::string format, cache_size_str, image_offset;
   logger_options logopts;
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
@@ -59,10 +72,10 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   po::options_description opts("Command line options");
   opts.add_options()
     ("input,i",
-        po::value<std::string>(&filesystem),
+        po_sys_value<sys_string>(&filesystem),
         "input filesystem file")
     ("output,o",
-        po::value<std::string>(&output),
+        po_sys_value<sys_string>(&output),
         "output file or directory")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
@@ -145,16 +158,17 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<performance_monitor> perfmon =
         performance_monitor::create(perfmon_enabled);
 
-    filesystem_v2 fs(lgr, *iol.os, iol.os->map_file(filesystem), fsopts,
-                     perfmon);
+    auto fs_path = iol.os->canonical(filesystem);
+
+    filesystem_v2 fs(lgr, *iol.os, iol.os->map_file(fs_path), fsopts, perfmon);
     filesystem_extractor fsx(lgr, *iol.os);
 
     if (format.empty()) {
-      fsx.open_disk(output);
+      fsx.open_disk(iol.os->canonical(output));
     } else {
       std::ostream* stream{nullptr};
 
-      if (output.empty() or output == "-") {
+      if (output.empty() or output == kDash) {
         if (stdout_progress) {
           DWARFS_THROW(runtime_error,
                        "cannot use --stdout-progress with --output=-");
@@ -170,7 +184,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
       if (stream) {
         fsx.open_stream(*stream, format);
       } else {
-        fsx.open_archive(output, format);
+        fsx.open_archive(iol.os->canonical(output), format);
       }
     }
 

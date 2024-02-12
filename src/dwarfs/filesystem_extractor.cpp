@@ -104,13 +104,19 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  void
-  open_archive(std::string const& output, std::string const& format) override {
+  void open_archive(std::filesystem::path const& output,
+                    std::string const& format) override {
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+
+#ifdef _WIN32
+    check_result(::archive_write_open_filename_w(
+        a_, output.empty() ? nullptr : output.wstring().c_str()));
+#else
     check_result(::archive_write_open_filename(
-        a_, output.empty() ? nullptr : output.c_str()));
+        a_, output.empty() ? nullptr : output.string().c_str()));
+#endif
   }
 
   void open_stream(std::ostream& os, std::string const& format) override {
@@ -133,12 +139,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     check_result(::archive_write_open_fd(a_, pipefd_[1]));
   }
 
-  void open_disk(std::string const& output) override {
+  void open_disk(std::filesystem::path const& output) override {
     if (!output.empty()) {
-      if (::chdir(output.c_str()) != 0) {
-        DWARFS_THROW(runtime_error,
-                     output + ": " + std::string(strerror(errno)));
-      }
+      std::filesystem::current_path(output);
     }
 
     a_ = ::archive_write_disk_new();
