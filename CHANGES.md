@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.9.5 - 2024-02-13
+
+- (fix) Windows path handling was wrong and didn't work properly for
+  e.g. network shares. This is hopefully fixed for all tools now.
+
 ## Version 0.9.4 - 2024-02-12
 
 - (fix) Prevent installation of ricepp headers/libs. Fixes github #195.
