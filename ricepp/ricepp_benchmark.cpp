@@ -59,6 +59,10 @@ std::vector<ValueType> generate_random_data(std::mt19937_64& rng, size_t count,
 class ricepp_bm : public ::benchmark::Fixture {
  public:
   void SetUp(::benchmark::State const& state) {
+    if (state.thread_index() > 0) {
+      return;
+    }
+
     std::mt19937_64 rng(42);
 
     data_ = generate_random_data<uint16_t>(
@@ -136,10 +140,14 @@ BENCHMARK_DEFINE_F(ricepp_bm, decode)(::benchmark::State& state) {
 
 BENCHMARK_REGISTER_F(ricepp_bm, encode)
     ->Unit(benchmark::kMillisecond)
-    ->Apply(ricepp_params);
+    ->Apply(ricepp_params)
+    ->ThreadRange(1, 4)
+    ->UseRealTime();
 
 BENCHMARK_REGISTER_F(ricepp_bm, decode)
     ->Unit(benchmark::kMillisecond)
-    ->Apply(ricepp_params);
+    ->Apply(ricepp_params)
+    ->ThreadRange(1, 4)
+    ->UseRealTime();
 
 BENCHMARK_MAIN();
