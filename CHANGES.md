@@ -1,5 +1,14 @@
 # Change Log
 
+## Version 0.9.6 - 2024-02-24
+
+- (fix) Add workaround for new glog release breaking folly build.
+  Fixes github #201.
+
+- (perf) Improve `ricepp` decoding speed by about 25% on x86 and arm
+  and up to 100% on Windows. Also improve encoding speed on Windows
+  by 25%. No more need for special Clang build.
+
 ## Version 0.9.5 - 2024-02-13
 
 - (fix) Windows path handling was wrong and didn't work properly for
