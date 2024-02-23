@@ -28,6 +28,7 @@
 #include <ricepp/bitstream_writer.h>
 #include <ricepp/byteswap.h>
 #include <ricepp/codec.h>
+#include <ricepp/detail/compiler.h>
 #include <ricepp/ricepp.h>
 
 #include "ricepp_cpuspecific.h"
@@ -57,13 +58,15 @@ class dynamic_pixel_traits {
     assert(unused_lsb_count < kBitCount);
   }
 
-  [[nodiscard]] value_type read(value_type value) const noexcept {
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type
+  read(value_type value) const noexcept {
     value_type tmp = byteswap(value, byteorder_);
     assert((tmp & lsb_mask_) == 0);
     return tmp >> unused_lsb_count_;
   }
 
-  [[nodiscard]] value_type write(value_type value) const noexcept {
+  [[nodiscard]] RICEPP_FORCE_INLINE value_type
+  write(value_type value) const noexcept {
     assert((value & msb_mask_) == 0);
     return byteswap(static_cast<value_type>(value << unused_lsb_count_),
                     byteorder_);
@@ -95,13 +98,15 @@ class static_pixel_traits {
       static_cast<value_type>(~(kAllOnes >> kUnusedLsbCount));
   static_assert(kUnusedLsbCount < kBitCount);
 
-  [[nodiscard]] static value_type read(value_type value) noexcept {
+  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
+  read(value_type value) noexcept {
     value_type tmp = byteswap<kByteOrder>(value);
     assert((tmp & kLsbMask) == 0);
     return tmp >> kUnusedLsbCount;
   }
 
-  [[nodiscard]] static value_type write(value_type value) noexcept {
+  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
+  write(value_type value) noexcept {
     assert((value & kMsbMask) == 0);
     return byteswap<kByteOrder>(
         static_cast<value_type>(value << kUnusedLsbCount));

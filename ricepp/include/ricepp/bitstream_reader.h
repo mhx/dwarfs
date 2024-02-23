@@ -30,6 +30,7 @@
 #include <stdexcept>
 
 #include <ricepp/byteswap.h>
+#include <ricepp/detail/compiler.h>
 
 namespace ricepp {
 
@@ -46,10 +47,10 @@ class bitstream_reader final {
       : beg_{std::move(beg)}
       , end_{std::move(end)} {}
 
-  bool read_bit() { return read_bits_impl(1); }
+  RICEPP_FORCE_INLINE bool read_bit() { return read_bits_impl(1); }
 
   template <std::unsigned_integral T>
-  T read_bits(size_t num_bits) {
+  RICEPP_FORCE_INLINE T read_bits(size_t num_bits) {
     assert(num_bits <= std::numeric_limits<T>::digits);
     T bits = 0;
     uint16_t pos = 0;
@@ -68,7 +69,7 @@ class bitstream_reader final {
     return bits;
   }
 
-  size_t find_first_set() {
+  RICEPP_FORCE_INLINE size_t find_first_set() {
     size_t zeros = 0;
     if (bit_pos_ != 0) {
       if (peek_bit()) [[likely]] {
@@ -103,24 +104,24 @@ class bitstream_reader final {
   }
 
  private:
-  bits_type read_bits_impl(size_t num_bits) {
+  RICEPP_FORCE_INLINE bits_type read_bits_impl(size_t num_bits) {
     auto bits = peek_bits(num_bits);
     skip_bits(num_bits);
     return bits;
   }
 
-  void skip_bits(size_t num_bits) {
+  RICEPP_FORCE_INLINE void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     bit_pos_ += num_bits;
     bit_pos_ &= kBitsTypeBits - 1;
   }
 
-  bool peek_bit() {
+  RICEPP_FORCE_INLINE bool peek_bit() {
     assert(bit_pos_ > 0 && bit_pos_ < kBitsTypeBits);
     return (data_ >> bit_pos_) & 1;
   }
 
-  bits_type peek_bits(size_t num_bits) {
+  RICEPP_FORCE_INLINE bits_type peek_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     if (bit_pos_ == 0) [[unlikely]] {
       data_ = read_packet();
@@ -138,14 +139,14 @@ class bitstream_reader final {
     return bits;
   }
 
-  bits_type read_packet() {
+  RICEPP_FORCE_INLINE bits_type read_packet() {
     if (beg_ == end_) [[unlikely]] {
       throw std::out_of_range{"bitstream_reader::read_packet"};
     }
     return read_packet_nocheck();
   }
 
-  bits_type read_packet_nocheck()
+  RICEPP_FORCE_INLINE bits_type read_packet_nocheck()
     requires std::contiguous_iterator<iterator_type>
   {
     bits_type bits{};
@@ -160,7 +161,7 @@ class bitstream_reader final {
     return byteswap<std::endian::little>(bits);
   }
 
-  bits_type read_packet_nocheck()
+  RICEPP_FORCE_INLINE bits_type read_packet_nocheck()
     requires(!std::contiguous_iterator<iterator_type>)
   {
     bits_type bits{};
