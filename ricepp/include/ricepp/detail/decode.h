@@ -28,6 +28,7 @@
 #include <range/v3/range/concepts.hpp>
 
 #include <ricepp/bitstream_reader.h>
+#include <ricepp/detail/compiler.h>
 
 namespace ricepp::detail {
 

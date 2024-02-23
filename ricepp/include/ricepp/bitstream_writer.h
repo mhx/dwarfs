@@ -28,6 +28,7 @@
 #include <type_traits>
 
 #include <ricepp/byteswap.h>
+#include <ricepp/detail/compiler.h>
 
 namespace ricepp {
 
@@ -57,12 +58,12 @@ class bitstream_writer final {
   bitstream_writer(OutputIt out)
       : out_{out} {}
 
-  void write_bit(bool bit) {
+  RICEPP_FORCE_INLINE void write_bit(bool bit) {
     assert(bit_pos_ < kBitsTypeBits);
     write_bits_impl(bit, 1);
   }
 
-  void write_bit(bool bit, size_t repeat) {
+  RICEPP_FORCE_INLINE void write_bit(bool bit, size_t repeat) {
     bits_type const bits = bit ? ~bits_type{} : bits_type{};
     if (bit_pos_ != 0) [[likely]] {
       auto remaining_bits = kBitsTypeBits - bit_pos_;
@@ -81,7 +82,7 @@ class bitstream_writer final {
   }
 
   template <std::unsigned_integral T>
-  void write_bits(T bits, size_t num_bits) {
+  RICEPP_FORCE_INLINE void write_bits(T bits, size_t num_bits) {
     static constexpr size_t kArgBits{std::numeric_limits<T>::digits};
     assert(bit_pos_ < kBitsTypeBits);
     assert(num_bits <= kArgBits);
@@ -108,7 +109,7 @@ class bitstream_writer final {
   iterator_type iterator() const { return out_; }
 
  private:
-  void write_bits_impl(bits_type bits, size_t num_bits) {
+  RICEPP_FORCE_INLINE void write_bits_impl(bits_type bits, size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     if (num_bits < kBitsTypeBits) {
       bits &= (static_cast<bits_type>(1) << num_bits) - 1;
@@ -122,7 +123,7 @@ class bitstream_writer final {
     }
   }
 
-  void write_packet(bits_type bits) {
+  RICEPP_FORCE_INLINE void write_packet(bits_type bits) {
     size_t const to_copy =
         bit_pos_ == 0 ? sizeof(bits_type) : (bit_pos_ + 7) / 8;
     bits = byteswap<std::endian::little>(bits);

@@ -28,19 +28,22 @@
 
 #include <range/v3/algorithm/reverse.hpp>
 
+#include <ricepp/detail/compiler.h>
+
 namespace ricepp {
 
 namespace detail {
 
 template <std::unsigned_integral T>
-[[nodiscard]] constexpr T byteswap_fallback(T value) noexcept {
+[[nodiscard]] RICEPP_FORCE_INLINE constexpr T
+byteswap_fallback(T value) noexcept {
   auto value_repr = std::bit_cast<std::array<std::byte, sizeof(T)>>(value);
   ranges::reverse(value_repr);
   return std::bit_cast<T>(value_repr);
 }
 
 template <std::unsigned_integral T>
-[[nodiscard]] constexpr T byteswap(T value) noexcept {
+[[nodiscard]] RICEPP_FORCE_INLINE constexpr T byteswap(T value) noexcept {
 #if __cpp_lib_byteswap >= 202110L
   return std::byteswap(value);
 #elif defined(__GNUC__) || defined(__clang__)
@@ -73,7 +76,8 @@ template <std::unsigned_integral T>
 } // namespace detail
 
 template <std::unsigned_integral T>
-[[nodiscard]] T byteswap(T value, std::endian byteorder) noexcept {
+[[nodiscard]] RICEPP_FORCE_INLINE T byteswap(T value,
+                                             std::endian byteorder) noexcept {
   static_assert(std::endian::native == std::endian::little ||
                 std::endian::native == std::endian::big);
   if constexpr (sizeof(T) > 1) {
@@ -85,7 +89,7 @@ template <std::unsigned_integral T>
 }
 
 template <std::endian byteorder, std::unsigned_integral T>
-[[nodiscard]] constexpr T byteswap(T value) noexcept {
+[[nodiscard]] RICEPP_FORCE_INLINE constexpr T byteswap(T value) noexcept {
   static_assert(std::endian::native == std::endian::little ||
                 std::endian::native == std::endian::big);
   if constexpr (sizeof(T) > 1 && byteorder != std::endian::native) {
