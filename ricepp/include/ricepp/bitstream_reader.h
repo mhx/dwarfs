@@ -50,20 +50,19 @@ class bitstream_reader final {
 
   template <std::unsigned_integral T>
   T read_bits(size_t num_bits) {
-    static constexpr size_t kResultBits{std::numeric_limits<T>::digits};
-    assert(num_bits <= kResultBits);
+    assert(num_bits <= std::numeric_limits<T>::digits);
     T bits = 0;
-    size_t pos = 0;
-    if (num_bits > 0) [[likely]] {
+    uint16_t pos = 0;
+    if (num_bits > 0) {
       for (;;) {
-        size_t const bits_to_read =
-            std::min(num_bits, kBitsTypeBits - bit_pos_);
-        bits |= static_cast<T>(read_bits_impl(bits_to_read)) << pos;
-        if (bits_to_read == num_bits) [[likely]] {
+        size_t const remain = kBitsTypeBits - bit_pos_;
+        if (num_bits <= remain) {
+          bits |= static_cast<T>(read_bits_impl(num_bits)) << pos;
           break;
         }
-        num_bits -= bits_to_read;
-        pos += bits_to_read;
+        bits |= static_cast<T>(read_bits_impl(remain)) << pos;
+        num_bits -= remain;
+        pos += remain;
       }
     }
     return bits;
@@ -71,7 +70,7 @@ class bitstream_reader final {
 
   size_t find_first_set() {
     size_t zeros = 0;
-    if (bit_pos_ != 0) [[likely]] {
+    if (bit_pos_ != 0) {
       if (peek_bit()) [[likely]] {
         skip_bits(1);
         return zeros;
@@ -113,16 +112,12 @@ class bitstream_reader final {
   void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
     bit_pos_ += num_bits;
-    // Equivalent, but slower:
-    //   bit_pos_ &= kBitsTypeBits - 1;
-    if (bit_pos_ == kBitsTypeBits) [[unlikely]] {
-      bit_pos_ = 0;
-    }
+    bit_pos_ &= kBitsTypeBits - 1;
   }
 
   bool peek_bit() {
     assert(bit_pos_ > 0 && bit_pos_ < kBitsTypeBits);
-    return (data_ & (static_cast<bits_type>(1) << bit_pos_)) != 0;
+    return (data_ >> bit_pos_) & 1;
   }
 
   bits_type peek_bits(size_t num_bits) {
@@ -154,9 +149,14 @@ class bitstream_reader final {
     requires std::contiguous_iterator<iterator_type>
   {
     bits_type bits{};
-    auto const to_copy = std::min<size_t>(sizeof(bits_type), end_ - beg_);
-    std::memcpy(&bits, &*beg_, to_copy);
-    beg_ += to_copy;
+    if (auto const remain = end_ - beg_; remain >= sizeof(bits_type))
+        [[likely]] {
+      std::memcpy(&bits, &*beg_, sizeof(bits_type));
+      beg_ += sizeof(bits_type);
+    } else {
+      std::memcpy(&bits, &*beg_, remain);
+      beg_ = end_;
+    }
     return byteswap<std::endian::little>(bits);
   }
 
