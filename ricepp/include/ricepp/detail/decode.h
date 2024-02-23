@@ -60,9 +60,7 @@ void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
     auto const fs = fsp1 - 1;
     for (auto& b : block) {
       value_type diff = reader.find_first_set() << fs;
-      if (fs > 0) {
-        diff |= reader.template read_bits<value_type>(fs);
-      }
+      diff |= reader.template read_bits<value_type>(fs);
       last += static_cast<std::make_signed_t<value_type>>(
           (diff & 1) ? ~(diff >> 1) : (diff >> 1));
       b = traits.write(last);
