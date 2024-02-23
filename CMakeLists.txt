@@ -324,6 +324,10 @@ add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
 
 add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES NOMINMAX NOGDI)
 
+# TODO: temporary workaround until this is fixed in folly
+#       see https://github.com/facebook/folly/issues/2149
+add_compile_definitions(GLOG_USE_GLOG_EXPORT)
+
 set(
   CXX_STD "gnu++20"
   CACHE STRING
