@@ -146,7 +146,7 @@ endif()
 # target_link_libraries(ricepp_demo PRIVATE ricepp fmt)
 
 if(WITH_BENCHMARKS)
-  find_package(benchmark)
+  find_package(benchmark 1.8)
   if(benchmark_FOUND)
     add_executable(ricepp_benchmark ricepp_benchmark.cpp)
     target_link_libraries(ricepp_benchmark ricepp benchmark::benchmark)

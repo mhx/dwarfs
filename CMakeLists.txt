@@ -767,7 +767,7 @@ endif()
 
 if(WITH_BENCHMARKS)
   if(NOT STATIC_BUILD_DO_NOT_USE)
-    find_package(benchmark)
+    find_package(benchmark 1.8)
     if(benchmark_FOUND)
       add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
       target_link_libraries(dwarfs_benchmark test_helpers benchmark::benchmark)
