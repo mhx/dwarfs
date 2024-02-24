@@ -54,7 +54,7 @@ class bitstream_reader final {
     assert(num_bits <= std::numeric_limits<T>::digits);
     T bits = 0;
     uint16_t pos = 0;
-    if (num_bits > 0) {
+    if (num_bits > 0) [[likely]] {
       for (;;) {
         size_t const remain = kBitsTypeBits - bit_pos_;
         if (num_bits <= remain) {
@@ -91,11 +91,11 @@ class bitstream_reader final {
       if (bits != bits_type{}) [[likely]] {
         size_t const ffs = std::countr_zero(bits);
         assert(ffs < kBitsTypeBits);
-        if (ffs + 1 == kBitsTypeBits) [[unlikely]] {
-          bit_pos_ = 0;
-        } else {
+        if (ffs + 1 != kBitsTypeBits) {
           data_ = bits;
           bit_pos_ = ffs + 1;
+        } else {
+          bit_pos_ = 0;
         }
         return zeros + ffs;
       }
@@ -112,8 +112,7 @@ class bitstream_reader final {
 
   RICEPP_FORCE_INLINE void skip_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
-    bit_pos_ += num_bits;
-    bit_pos_ &= kBitsTypeBits - 1;
+    bit_pos_ = (bit_pos_ + num_bits) & (kBitsTypeBits - 1);
   }
 
   RICEPP_FORCE_INLINE bool peek_bit() {
@@ -123,16 +122,17 @@ class bitstream_reader final {
 
   RICEPP_FORCE_INLINE bits_type peek_bits(size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
-    if (bit_pos_ == 0) [[unlikely]] {
+    auto const bp = bit_pos_;
+    if (bp == 0) {
       data_ = read_packet();
     }
     // The remainder of this function is equivalent to:
     //
-    //   return _bextr_u64(data_, bit_pos_, num_bits);
+    //   return _bextr_u64(data_, bp, num_bits);
     //
     // However, in practice, at least clang generates code that is as fast
     // as the intrinsic, so we use the following code for portability.
-    bits_type bits = data_ >> bit_pos_;
+    bits_type bits = data_ >> bp;
     if (num_bits < kBitsTypeBits) [[likely]] {
       bits &= (static_cast<bits_type>(1) << num_bits) - 1;
     }

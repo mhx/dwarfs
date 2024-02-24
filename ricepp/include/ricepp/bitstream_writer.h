@@ -76,7 +76,7 @@ class bitstream_writer final {
       write_packet(bits);
       repeat -= kBitsTypeBits;
     }
-    if (repeat > 0) {
+    if (repeat > 0) [[likely]] {
       write_bits_impl(bits, repeat);
     }
   }
@@ -86,11 +86,17 @@ class bitstream_writer final {
     static constexpr size_t kArgBits{std::numeric_limits<T>::digits};
     assert(bit_pos_ < kBitsTypeBits);
     assert(num_bits <= kArgBits);
-    while (num_bits > 0) {
-      size_t const bits_to_write = std::min(num_bits, kBitsTypeBits - bit_pos_);
-      write_bits_impl(bits, bits_to_write);
-      bits >>= bits_to_write;
-      num_bits -= bits_to_write;
+    if (num_bits > 0) [[likely]] {
+      for (;;) {
+        size_t const bits_to_write =
+            std::min(num_bits, kBitsTypeBits - bit_pos_);
+        write_bits_impl(bits, bits_to_write);
+        bits >>= bits_to_write;
+        if (num_bits == bits_to_write) [[likely]] {
+          break;
+        }
+        num_bits -= bits_to_write;
+      }
     }
   }
 
@@ -111,7 +117,7 @@ class bitstream_writer final {
  private:
   RICEPP_FORCE_INLINE void write_bits_impl(bits_type bits, size_t num_bits) {
     assert(bit_pos_ + num_bits <= kBitsTypeBits);
-    if (num_bits < kBitsTypeBits) {
+    if (num_bits < kBitsTypeBits) [[likely]] {
       bits &= (static_cast<bits_type>(1) << num_bits) - 1;
     }
     data_ |= bits << bit_pos_;

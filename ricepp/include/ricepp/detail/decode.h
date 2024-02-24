@@ -50,22 +50,26 @@ void decode_block(V block, BitstreamReader& reader, PixelTraits const& traits,
 
   auto const fsp1 = reader.template read_bits<value_type>(kFsBits);
 
-  if (fsp1 == 0) [[unlikely]] {
-    std::fill(block.begin(), block.end(), traits.write(last));
-  } else if (fsp1 > kFsMax) [[unlikely]] {
-    for (auto& b : block) {
-      b = reader.template read_bits<value_type>(kPixelBits);
+  if (fsp1 > 0) {
+    if (fsp1 <= kFsMax) {
+      auto const fs = fsp1 - 1;
+      for (auto& b : block) {
+        value_type diff = reader.find_first_set() << fs;
+        diff |= reader.template read_bits<value_type>(fs);
+        last += static_cast<std::make_signed_t<value_type>>(
+            ((diff & 1) * value_type(-1)) ^ (diff >> 1));
+        // last += static_cast<std::make_signed_t<value_type>>(
+        //     (diff & 1) ? ~(diff >> 1) : (diff >> 1));
+        b = traits.write(last);
+      }
+    } else {
+      for (auto& b : block) {
+        b = reader.template read_bits<value_type>(kPixelBits);
+      }
+      last = traits.read(block.back());
     }
-    last = traits.read(block.back());
   } else {
-    auto const fs = fsp1 - 1;
-    for (auto& b : block) {
-      value_type diff = reader.find_first_set() << fs;
-      diff |= reader.template read_bits<value_type>(fs);
-      last += static_cast<std::make_signed_t<value_type>>(
-          (diff & 1) ? ~(diff >> 1) : (diff >> 1));
-      b = traits.write(last);
-    }
+    std::fill(block.begin(), block.end(), traits.write(last));
   }
 
   last_value = last;

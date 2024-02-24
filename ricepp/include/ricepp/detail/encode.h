@@ -117,23 +117,12 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
 
   last_value = last;
 
-  if (sum == 0) [[unlikely]] {
-    // All differences are zero, so just write a zero fs and we're done.
-    writer.write_bits(0U, kFsBits);
-  } else {
+  if (sum > 0) [[likely]] {
     // Find the best bit position to split the difference values.
     auto const [fs, bits_used] =
         compute_best_split<kFsMax>(delta, block.size(), sum);
 
-    if (fs >= kFsMax || bits_used >= kPixelBits * block.size()) [[unlikely]] {
-      // Difference values are too large for entropy coding. Just plain copy
-      // the input pixel data. This is really unlikely, so reading the input
-      // pixels again is fine.
-      writer.write_bits(kFsMax + 1, kFsBits);
-      for (auto& b : block) {
-        writer.write_bits(b, kPixelBits);
-      }
-    } else {
+    if (fs < kFsMax && bits_used < kPixelBits * block.size()) [[likely]] {
       // Encode the difference values using Rice entropy coding.
       writer.write_bits(fs + 1, kFsBits);
       for (size_t i = 0; i < block.size(); ++i) {
@@ -145,7 +134,18 @@ void encode_block(V block, BitstreamWriter& writer, PixelTraits const& traits,
         writer.write_bit(1);
         writer.write_bits(diff, fs);
       }
+    } else {
+      // Difference values are too large for entropy coding. Just plain copy
+      // the input pixel data. This is really unlikely, so reading the input
+      // pixels again is fine.
+      writer.write_bits(kFsMax + 1, kFsBits);
+      for (auto& b : block) {
+        writer.write_bits(b, kPixelBits);
+      }
     }
+  } else {
+    // All differences are zero, so just write a zero fs and we're done.
+    writer.write_bits(0U, kFsBits);
   }
 }
 
