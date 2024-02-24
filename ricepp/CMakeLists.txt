@@ -150,6 +150,9 @@ if(WITH_BENCHMARKS)
   if(benchmark_FOUND)
     add_executable(ricepp_benchmark ricepp_benchmark.cpp)
     target_link_libraries(ricepp_benchmark ricepp benchmark::benchmark)
+
+    add_executable(ricepp_benchmark_fits ricepp_benchmark_fits.cpp)
+    target_link_libraries(ricepp_benchmark_fits ricepp benchmark::benchmark)
   endif()
 endif()
 
