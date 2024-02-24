@@ -8,6 +8,7 @@ cd pkgs
 
 FILE_VERSION=5.45
 FILE_SHA512=12611a59ff766c22a55db4b4a9f80f95a0a2e916a1d8593612c6ead32c247102a8fdc23693c6bf81bda9b604d951a62c0051e91580b1b79e190a3504c0efc20a
+BZIP2_VERSION=1.0.8
 LIBARCHIVE_VERSION=3.7.2
 FLAC_VERSION=1.4.3
 LIBUNWIND_VERSION=1.7.2
@@ -27,6 +28,7 @@ while true; do
     fi
 done
 
+wget https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz
 wget https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/libarchive-${LIBARCHIVE_VERSION}.tar.xz
 wget https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/flac-${FLAC_VERSION}.tar.xz
 wget https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz
@@ -34,8 +36,8 @@ wget https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSI
 
 for COMPILER in clang gcc; do
     if [[ "$COMPILER" == "clang" ]]; then
-        export CC=clang-17
-        export CXX=clang++-17
+        export CC=clang-18
+        export CXX=clang++-18
     elif [[ "$COMPILER" == "gcc" ]]; then
         export CC=gcc-13
         export CXX=g++-13
@@ -50,6 +52,12 @@ for COMPILER in clang gcc; do
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
 
+    tar xf ../bzip2-${BZIP2_VERSION}.tar.gz
+    cd bzip2-${BZIP2_VERSION}
+    make -j$(nproc)
+    make PREFIX="$INSTALL_DIR" install
+
+    cd "$HOME/pkgs/$COMPILER"
     tar xf ../libarchive-${LIBARCHIVE_VERSION}.tar.xz
     cd libarchive-${LIBARCHIVE_VERSION}
     ./configure --prefix="$INSTALL_DIR" --without-iconv --without-xml2 --without-expat

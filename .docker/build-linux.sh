@@ -31,18 +31,18 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-gcc-*)
-    export CC=gcc-13 CXX=g++-13
+    export CC=gcc-14 CXX=g++-14
     export COMPILER=gcc
     ;;
   *-oldgcc-*)
     export CC=gcc-11 CXX=g++-11
     ;;
   *-clang-*)
-    export CC=clang-17 CXX=clang++-17
+    export CC=clang-18 CXX=clang++-18
     export COMPILER=clang
     ;;
   *-oldclang-*)
-    export CC=clang-15 CXX=clang++-15
+    export CC=clang-15 CXX=clang++-16
     ;;
   *)
     echo "missing compiler in: $BUILD_TYPE"
@@ -90,6 +90,7 @@ if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+  export LDFLAGS="-L/opt/static-libs/$COMPILER/lib"
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1"
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
 else
@@ -114,9 +115,9 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   unset LLVM_PROFILE_FILE
   rm -rf /tmp-runner/coverage
   mkdir -p /tmp-runner/coverage
-  llvm-profdata-17 merge -sparse profile/* -o dwarfs.profdata
+  llvm-profdata-18 merge -sparse profile/* -o dwarfs.profdata
   for binary in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do
-    llvm-cov-17 show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$(basename $binary).txt
+    llvm-cov-18 show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$(basename $binary).txt
   done
 fi
 

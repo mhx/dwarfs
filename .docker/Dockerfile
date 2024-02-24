@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
-FROM $ARCH/ubuntu:23.10
-RUN apt update && apt install -y gnupg wget software-properties-common
-RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-RUN apt-add-repository 'deb https://apt.kitware.com/ubuntu/ jammy main'
+FROM $ARCH/ubuntu:24.04
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y gnupg wget software-properties-common apt-utils
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 RUN apt install -y \
         gcc-11 \
         g++-11 \
@@ -11,9 +12,12 @@ RUN apt install -y \
         g++-12 \
         gcc-13 \
         g++-13 \
+        gcc-14 \
+        g++-14 \
         clang-15 \
         clang-16 \
         clang-17 \
+        clang-18 \
         git \
         vim \
         zstd \
