@@ -37,3 +37,11 @@
     __has_attribute(target_clones)
 #define DWARFS_MULTIVERSIONING 1
 #endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define DWARFS_FORCE_INLINE inline __attribute__((__always_inline__))
+#elif defined(_MSC_VER)
+#define DWARFS_FORCE_INLINE __forceinline
+#else
+#define DWARFS_FORCE_INLINE inline
+#endif

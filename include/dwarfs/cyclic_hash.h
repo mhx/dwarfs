@@ -24,33 +24,38 @@
 #include <cstdint>
 #include <stdexcept>
 
+#include "dwarfs/compiler.h"
+
 namespace dwarfs {
 
 class rsync_hash {
  public:
   rsync_hash() = default;
 
-  uint32_t operator()() const { return a_ | (uint32_t(b_) << 16); }
+  DWARFS_FORCE_INLINE uint32_t operator()() const {
+    return a_ | (uint32_t(b_) << 16);
+  }
 
-  void update(uint8_t inbyte) {
+  DWARFS_FORCE_INLINE void update(uint8_t inbyte) {
     a_ += inbyte;
     b_ += a_;
     ++len_;
   }
 
-  void update(uint8_t outbyte, uint8_t inbyte) {
+  DWARFS_FORCE_INLINE void update(uint8_t outbyte, uint8_t inbyte) {
     a_ = a_ - outbyte + inbyte;
     b_ -= len_ * outbyte;
     b_ += a_;
   }
 
-  void clear() {
+  DWARFS_FORCE_INLINE void clear() {
     a_ = 0;
     b_ = 0;
     len_ = 0;
   }
 
-  static constexpr uint32_t repeating_window(uint8_t byte, size_t length) {
+  static DWARFS_FORCE_INLINE constexpr uint32_t
+  repeating_window(uint8_t byte, size_t length) {
     uint16_t v = static_cast<uint16_t>(byte);
     uint16_t a{static_cast<uint16_t>(v * length)};
     uint16_t b{static_cast<uint16_t>(v * (length * (length + 1)) / 2)};

@@ -44,6 +44,7 @@
 #include "dwarfs/block_data.h"
 #include "dwarfs/block_manager.h"
 #include "dwarfs/chunkable.h"
+#include "dwarfs/compiler.h"
 #include "dwarfs/compression_constraints.h"
 #include "dwarfs/cyclic_hash.h"
 #include "dwarfs/entry.h"
@@ -103,14 +104,14 @@ class fast_multimap {
   using collision_t = phmap::flat_hash_map<KeyT, collision_vector>;
 
  public:
-  void insert(KeyT const& key, ValT const& val) {
+  DWARFS_FORCE_INLINE void insert(KeyT const& key, ValT const& val) {
     if (!values_.insert(std::make_pair(key, val)).second) [[unlikely]] {
       collisions_[key].emplace_back(val);
     }
   }
 
   template <typename F>
-  void for_each_value(KeyT const& key, F&& func) const {
+  DWARFS_FORCE_INLINE void for_each_value(KeyT const& key, F&& func) const {
     if (auto it = values_.find(key); it != values_.end()) [[unlikely]] {
       func(it->second);
       if (auto it2 = collisions_.find(key); it2 != collisions_.end())
@@ -123,7 +124,7 @@ class fast_multimap {
   }
 
   template <typename F>
-  bool any_value_is(KeyT const& key, F&& func) const {
+  DWARFS_FORCE_INLINE bool any_value_is(KeyT const& key, F&& func) const {
     if (auto it = values_.find(key); it != values_.end()) [[unlikely]] {
       if (func(it->second)) {
         return true;
@@ -145,8 +146,10 @@ class fast_multimap {
     collisions_.clear();
   }
 
-  blockhash_t const& values() const { return values_; };
-  collision_t const& collisions() const { return collisions_; };
+  DWARFS_FORCE_INLINE blockhash_t const& values() const { return values_; };
+  DWARFS_FORCE_INLINE collision_t const& collisions() const {
+    return collisions_;
+  };
 
  private:
   blockhash_t values_;
@@ -204,14 +207,14 @@ class alignas(64) bloom_filter {
     }
   }
 
-  void add(size_t ix) {
+  DWARFS_FORCE_INLINE void add(size_t ix) {
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
     bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
                                                << (ix & value_mask);
   }
 
-  bool test(size_t ix) const {
+  DWARFS_FORCE_INLINE bool test(size_t ix) const {
     auto bits = bits_;
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
     return bits[(ix >> index_shift) & index_mask_] &
@@ -219,7 +222,7 @@ class alignas(64) bloom_filter {
   }
 
   // size in bits
-  size_t size() const { return size_; }
+  DWARFS_FORCE_INLINE size_t size() const { return size_; }
 
   void clear() { std::fill(begin(), end(), 0); }
 
@@ -231,10 +234,14 @@ class alignas(64) bloom_filter {
   }
 
  private:
-  bits_type const* cbegin() const { return bits_; }
-  bits_type const* cend() const { return bits_ + (size_ >> index_shift); }
-  bits_type* begin() { return bits_; }
-  bits_type* end() { return bits_ + (size_ >> index_shift); }
+  DWARFS_FORCE_INLINE bits_type const* cbegin() const { return bits_; }
+  DWARFS_FORCE_INLINE bits_type const* cend() const {
+    return bits_ + (size_ >> index_shift);
+  }
+  DWARFS_FORCE_INLINE bits_type* begin() { return bits_; }
+  DWARFS_FORCE_INLINE bits_type* end() {
+    return bits_ + (size_ >> index_shift);
+  }
 
   bits_type* bits_{nullptr};
   size_t const index_mask_;
@@ -294,11 +301,12 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T, typename U>
-  static void add_match(T& matches, U const* block, uint32_t off) {
+  static DWARFS_FORCE_INLINE void
+  add_match(T& matches, U const* block, uint32_t off) {
     matches.emplace_back(block, off);
   }
 
-  static bool is_valid_granularity_size(auto size) {
+  static DWARFS_FORCE_INLINE bool is_valid_granularity_size(auto size) {
     if constexpr (kGranularity > 1) {
       return size % kGranularity == 0;
     } else {
@@ -306,14 +314,14 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
     }
   }
 
-  static void check_chunkable_size(auto size) {
+  static DWARFS_FORCE_INLINE void check_chunkable_size(auto size) {
     if constexpr (kGranularity > 1) {
       DWARFS_CHECK(is_valid_granularity_size(size),
                    chunkable_size_fail_message(size, kGranularity));
     }
   }
 
-  static size_t constrained_block_size(size_t size) {
+  static DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) {
     if constexpr (kGranularity > 1) {
       size -= size % kGranularity;
     }
@@ -321,32 +329,37 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T, typename... Args>
-  static T create(Args&&... args) {
+  static DWARFS_FORCE_INLINE T create(Args&&... args) {
     return T(std::forward<Args>(args)...);
   }
 
-  static size_t bytes_to_frames(size_t size) {
+  static DWARFS_FORCE_INLINE size_t bytes_to_frames(size_t size) {
     assert(size % kGranularity == 0);
     return size / kGranularity;
   }
 
-  static size_t frames_to_bytes(size_t size) { return size * kGranularity; }
+  static DWARFS_FORCE_INLINE size_t frames_to_bytes(size_t size) {
+    return size * kGranularity;
+  }
 
   template <typename T>
-  static void for_bytes_in_frame(T&& func) {
+  static DWARFS_FORCE_INLINE void for_bytes_in_frame(T&& func) {
     for (size_t i = 0; i < kGranularity; ++i) {
       func();
     }
   }
 
-  static uint_fast32_t granularity_bytes() { return kGranularity; }
+  static DWARFS_FORCE_INLINE uint_fast32_t granularity_bytes() {
+    return kGranularity;
+  }
 
-  static bool compile_time_granularity() { return true; }
+  static DWARFS_FORCE_INLINE bool compile_time_granularity() { return true; }
 };
 
 class VariableGranularityPolicy : private GranularityPolicyBase {
  public:
-  explicit VariableGranularityPolicy(uint32_t granularity) noexcept
+  explicit DWARFS_FORCE_INLINE
+  VariableGranularityPolicy(uint32_t granularity) noexcept
       : granularity_{granularity} {}
 
   template <typename T>
@@ -360,22 +373,23 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T, typename U>
-  void add_match(T& matches, U const* block, uint32_t off) const {
+  DWARFS_FORCE_INLINE void
+  add_match(T& matches, U const* block, uint32_t off) const {
     matches.emplace_back(block, off, granularity_);
   }
 
-  bool is_valid_granularity_size(auto size) const {
+  DWARFS_FORCE_INLINE bool is_valid_granularity_size(auto size) const {
     return size % granularity_ == 0;
   }
 
-  void check_chunkable_size(auto size) const {
+  DWARFS_FORCE_INLINE void check_chunkable_size(auto size) const {
     if (granularity_ > 1) {
       DWARFS_CHECK(is_valid_granularity_size(size),
                    chunkable_size_fail_message(size, granularity_));
     }
   }
 
-  size_t constrained_block_size(size_t size) const {
+  DWARFS_FORCE_INLINE size_t constrained_block_size(size_t size) const {
     if (granularity_ > 1) {
       size -= size % granularity_;
     }
@@ -383,27 +397,31 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T, typename... Args>
-  T create(Args&&... args) const {
+  DWARFS_FORCE_INLINE T create(Args&&... args) const {
     return T(std::forward<Args>(args)..., granularity_);
   }
 
-  size_t bytes_to_frames(size_t size) const {
+  DWARFS_FORCE_INLINE size_t bytes_to_frames(size_t size) const {
     assert(size % granularity_ == 0);
     return size / granularity_;
   }
 
-  size_t frames_to_bytes(size_t size) const { return size * granularity_; }
+  DWARFS_FORCE_INLINE size_t frames_to_bytes(size_t size) const {
+    return size * granularity_;
+  }
 
   template <typename T>
-  void for_bytes_in_frame(T&& func) const {
+  DWARFS_FORCE_INLINE void for_bytes_in_frame(T&& func) const {
     for (size_t i = 0; i < granularity_; ++i) {
       func();
     }
   }
 
-  uint_fast32_t granularity_bytes() const { return granularity_; }
+  DWARFS_FORCE_INLINE uint_fast32_t granularity_bytes() const {
+    return granularity_;
+  }
 
-  static bool compile_time_granularity() { return false; }
+  static DWARFS_FORCE_INLINE bool compile_time_granularity() { return false; }
 
  private:
   uint_fast32_t const granularity_;
@@ -413,28 +431,33 @@ template <typename T, typename GranularityPolicy>
 class granular_span_adapter : private GranularityPolicy {
  public:
   template <typename... PolicyArgs>
+  DWARFS_FORCE_INLINE
   granular_span_adapter(std::span<T> s, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , s_{s} {}
 
-  size_t size() const { return this->bytes_to_frames(s_.size()); }
+  DWARFS_FORCE_INLINE size_t size() const {
+    return this->bytes_to_frames(s_.size());
+  }
 
-  std::span<T> raw() const { return s_; }
+  DWARFS_FORCE_INLINE std::span<T> raw() const { return s_; }
 
-  granular_span_adapter subspan(size_t offset, size_t count) const {
+  DWARFS_FORCE_INLINE granular_span_adapter subspan(size_t offset,
+                                                    size_t count) const {
     return this->template create<granular_span_adapter<T, GranularityPolicy>>(
         s_.subspan(this->frames_to_bytes(offset),
                    this->frames_to_bytes(count)));
   }
 
   template <typename H>
-  void update_hash(H& hasher, size_t offset) const {
+  DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
     offset = this->frames_to_bytes(offset);
     this->for_bytes_in_frame([&] { hasher.update(s_[offset++]); });
   }
 
   template <typename H>
-  void update_hash(H& hasher, size_t from, size_t to) const {
+  DWARFS_FORCE_INLINE void
+  update_hash(H& hasher, size_t from, size_t to) const {
     from = this->frames_to_bytes(from);
     to = this->frames_to_bytes(to);
     this->for_bytes_in_frame([&] { hasher.update(s_[from++], s_[to++]); });
@@ -450,14 +473,16 @@ class BasicSegmentationPolicy : public GranularityPolicy {
   using GranularityPolicyT = GranularityPolicy;
 
   template <typename... PolicyArgs>
-  BasicSegmentationPolicy(PolicyArgs&&... args)
+  DWARFS_FORCE_INLINE BasicSegmentationPolicy(PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...) {}
 
-  static constexpr bool is_segmentation_enabled() {
+  static DWARFS_FORCE_INLINE constexpr bool is_segmentation_enabled() {
     return SegmentationEnabled;
   }
 
-  static constexpr bool is_multi_block_mode() { return MultiBlock; }
+  static DWARFS_FORCE_INLINE constexpr bool is_multi_block_mode() {
+    return MultiBlock;
+  }
 };
 
 template <typename GranularityPolicy>
@@ -476,35 +501,40 @@ template <typename T, typename GranularityPolicy>
 class granular_vector_adapter : private GranularityPolicy {
  public:
   template <typename... PolicyArgs>
+  DWARFS_FORCE_INLINE
   granular_vector_adapter(std::vector<T>& v, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , v_{v} {}
 
-  size_t size() const { return this->bytes_to_frames(v_.size()); }
+  DWARFS_FORCE_INLINE size_t size() const {
+    return this->bytes_to_frames(v_.size());
+  }
 
-  void append(granular_span_adapter<T const, GranularityPolicy> const& span) {
+  DWARFS_FORCE_INLINE void
+  append(granular_span_adapter<T const, GranularityPolicy> const& span) {
     auto raw = span.raw();
     auto off = v_.size();
     v_.resize(off + raw.size());
     ::memcpy(v_.data() + off, raw.data(), raw.size());
   }
 
-  int compare(
-      size_t offset,
-      granular_span_adapter<T const, GranularityPolicy> const& span) const {
+  DWARFS_FORCE_INLINE int
+  compare(size_t offset,
+          granular_span_adapter<T const, GranularityPolicy> const& span) const {
     auto raw = span.raw();
     return std::memcmp(v_.data() + this->frames_to_bytes(offset), raw.data(),
                        raw.size());
   }
 
   template <typename H>
-  void update_hash(H& hasher, size_t offset) const {
+  DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
     offset = this->frames_to_bytes(offset);
     this->for_bytes_in_frame([&] { hasher.update(v_[offset++]); });
   }
 
   template <typename H>
-  void update_hash(H& hasher, size_t from, size_t to) const {
+  DWARFS_FORCE_INLINE void
+  update_hash(H& hasher, size_t from, size_t to) const {
     from = this->frames_to_bytes(from);
     to = this->frames_to_bytes(to);
     this->for_bytes_in_frame([&] { hasher.update(v_[from++], v_[to++]); });
@@ -543,33 +573,38 @@ class active_block : private GranularityPolicy {
     data_->reserve(this->frames_to_bytes(capacity_in_frames_));
   }
 
-  size_t num() const { return num_; }
+  DWARFS_FORCE_INLINE size_t num() const { return num_; }
 
-  size_t size_in_frames() const { return this->bytes_to_frames(data_->size()); }
+  DWARFS_FORCE_INLINE size_t size_in_frames() const {
+    return this->bytes_to_frames(data_->size());
+  }
 
-  bool full() const { return size_in_frames() == capacity_in_frames_; }
+  DWARFS_FORCE_INLINE bool full() const {
+    return size_in_frames() == capacity_in_frames_;
+  }
 
-  std::shared_ptr<block_data> data() const { return data_; }
+  DWARFS_FORCE_INLINE std::shared_ptr<block_data> data() const { return data_; }
 
-  void append_bytes(std::span<uint8_t const> data, bloom_filter& global_filter);
+  DWARFS_FORCE_INLINE void
+  append_bytes(std::span<uint8_t const> data, bloom_filter& global_filter);
 
-  size_t next_hash_distance_in_frames() const {
+  DWARFS_FORCE_INLINE size_t next_hash_distance_in_frames() const {
     return window_step_mask_ + 1 - (size_in_frames() & window_step_mask_);
   }
 
   template <typename F>
-  void for_each_offset(hash_t key, F&& func) const {
+  DWARFS_FORCE_INLINE void for_each_offset(hash_t key, F&& func) const {
     offsets_.for_each_value(key, std::forward<F>(func));
   }
 
   template <typename F>
-  void for_each_offset_filter(hash_t key, F&& func) const {
+  DWARFS_FORCE_INLINE void for_each_offset_filter(hash_t key, F&& func) const {
     if (filter_.test(key)) [[unlikely]] {
       offsets_.for_each_value(key, std::forward<F>(func));
     }
   }
 
-  void finalize(segmenter_stats& stats) {
+  DWARFS_FORCE_INLINE void finalize(segmenter_stats& stats) {
     stats.total_hashes += offsets_.values().size();
     for (auto& c : offsets_.collisions()) {
       stats.total_hashes += c.second.size();
@@ -578,10 +613,11 @@ class active_block : private GranularityPolicy {
     }
   }
 
-  bloom_filter const& filter() const { return filter_; }
+  DWARFS_FORCE_INLINE bloom_filter const& filter() const { return filter_; }
 
  private:
-  bool is_existing_repeating_sequence(hash_t hashval, size_t offset);
+  DWARFS_FORCE_INLINE bool
+  is_existing_repeating_sequence(hash_t hashval, size_t offset);
 
   static constexpr size_t num_inline_offsets = 4;
 
@@ -685,15 +721,18 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     size_t size_in_frames{0};
   };
 
-  void block_ready();
+  DWARFS_FORCE_INLINE void block_ready();
   void finish_chunk(chunkable& chkable);
-  void append_to_block(chunkable& chkable, size_t offset_in_frames,
-                       size_t size_in_frames);
+  DWARFS_FORCE_INLINE void
+  append_to_block(chunkable& chkable, size_t offset_in_frames,
+                  size_t size_in_frames);
   void
   add_data(chunkable& chkable, size_t offset_in_frames, size_t size_in_frames);
-  void segment_and_add_data(chunkable& chkable, size_t size_in_frames);
+  DWARFS_FORCE_INLINE void
+  segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
-  size_t bloom_filter_size(const segmenter::config& cfg) const {
+  DWARFS_FORCE_INLINE size_t
+  bloom_filter_size(const segmenter::config& cfg) const {
     if constexpr (is_segmentation_enabled()) {
       auto hash_count =
           std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
@@ -704,17 +743,18 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     return 0;
   }
 
-  static size_t window_size(const segmenter::config& cfg) {
+  static DWARFS_FORCE_INLINE size_t window_size(const segmenter::config& cfg) {
     return cfg.blockhash_window_size > 0
                ? static_cast<size_t>(1) << cfg.blockhash_window_size
                : 0;
   }
 
-  static size_t window_step(const segmenter::config& cfg) {
+  static DWARFS_FORCE_INLINE size_t window_step(const segmenter::config& cfg) {
     return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
   }
 
-  size_t block_size_in_frames(const segmenter::config& cfg) const {
+  size_t DWARFS_FORCE_INLINE
+  block_size_in_frames(const segmenter::config& cfg) const {
     auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
     return bytes_to_frames(constrained_block_size(raw_size));
   }
@@ -756,8 +796,8 @@ class segment_match : private GranularityPolicy {
   using active_block_type = active_block<LoggerPolicy, GranularityPolicy>;
 
   template <typename... PolicyArgs>
-  segment_match(active_block_type const* blk, uint32_t off,
-                PolicyArgs&&... args) noexcept
+  DWARFS_FORCE_INLINE segment_match(active_block_type const* blk, uint32_t off,
+                                    PolicyArgs&&... args) noexcept
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , block_{blk}
       , offset_{off} {}
@@ -766,17 +806,17 @@ class segment_match : private GranularityPolicy {
       granular_span_adapter<uint8_t const, GranularityPolicy> const& data,
       size_t pos, size_t len, size_t begin, size_t end);
 
-  bool operator<(segment_match const& rhs) const {
+  DWARFS_FORCE_INLINE bool operator<(segment_match const& rhs) const {
     return size_ < rhs.size_ ||
            (size_ == rhs.size_ &&
             (block_->num() < rhs.block_->num() ||
              (block_->num() == rhs.block_->num() && offset_ < rhs.offset_)));
   }
 
-  size_t pos() const { return pos_; }
-  uint32_t size() const { return size_; }
-  uint32_t offset() const { return offset_; }
-  size_t block_num() const { return block_->num(); }
+  DWARFS_FORCE_INLINE size_t pos() const { return pos_; }
+  DWARFS_FORCE_INLINE uint32_t size() const { return size_; }
+  DWARFS_FORCE_INLINE uint32_t offset() const { return offset_; }
+  DWARFS_FORCE_INLINE size_t block_num() const { return block_->num(); }
 
  private:
   active_block_type const* block_;
@@ -786,8 +826,9 @@ class segment_match : private GranularityPolicy {
 };
 
 template <typename LoggerPolicy, typename GranularityPolicy>
-bool active_block<LoggerPolicy, GranularityPolicy>::
-    is_existing_repeating_sequence(hash_t hashval, size_t offset) {
+DWARFS_FORCE_INLINE bool
+active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
+    hash_t hashval, size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
     auto& raw = data_->vec();
     auto winbeg = raw.begin() + frames_to_bytes(offset);
@@ -822,7 +863,8 @@ bool active_block<LoggerPolicy, GranularityPolicy>::
 }
 
 template <typename LoggerPolicy, typename GranularityPolicy>
-void active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
+DWARFS_FORCE_INLINE void
+active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
     std::span<uint8_t const> data, bloom_filter& global_filter) {
   auto src = this->template create<
       granular_span_adapter<uint8_t const, GranularityPolicy>>(data);
@@ -977,7 +1019,8 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish() {
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
+DWARFS_FORCE_INLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
   block_ready_(block.data(), block.num());
@@ -985,7 +1028,8 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
+DWARFS_FORCE_INLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
     chunkable& chkable, size_t offset_in_frames, size_t size_in_frames) {
   if (blocks_.empty() or blocks_.back().full()) [[unlikely]] {
     if (blocks_.size() >= std::max<size_t>(1, cfg_.max_active_blocks)) {
@@ -1062,7 +1106,8 @@ void segmenter_<LoggerPolicy, SegmentingPolicy>::finish_chunk(
 }
 
 template <typename LoggerPolicy, typename SegmentingPolicy>
-void segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
+DWARFS_FORCE_INLINE void
+segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     chunkable& chkable, size_t size_in_frames) {
   rsync_hash hasher;
   size_t offset_in_frames = 0;
