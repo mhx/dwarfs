@@ -766,17 +766,15 @@ if(WITH_TESTS)
 endif()
 
 if(WITH_BENCHMARKS)
-  if(NOT STATIC_BUILD_DO_NOT_USE)
-    find_package(benchmark 1.8)
-    if(benchmark_FOUND)
-      add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
-      target_link_libraries(dwarfs_benchmark test_helpers benchmark::benchmark)
-      list(APPEND BINARY_TARGETS dwarfs_benchmark)
+  find_package(benchmark 1.8)
+  if(benchmark_FOUND)
+    add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
+    target_link_libraries(dwarfs_benchmark test_helpers benchmark::benchmark)
+    list(APPEND BINARY_TARGETS dwarfs_benchmark)
 
-      add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
-      target_link_libraries(multiversioning_benchmark test_helpers benchmark::benchmark)
-      list(APPEND BINARY_TARGETS multiversioning_benchmark)
-    endif()
+    add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
+    target_link_libraries(multiversioning_benchmark test_helpers benchmark::benchmark)
+    list(APPEND BINARY_TARGETS multiversioning_benchmark)
   endif()
 
   add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
@@ -1237,10 +1235,21 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
                "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
                "universal_binary=${UNIVERSAL_PACKED}\n")
 
+    if(USE_RICEPP_PACKAGE)
+      add_executable(ricepp_benchmark_fits ricepp/ricepp_benchmark_fits.cpp)
+      target_link_libraries(ricepp_benchmark_fits ricepp benchmark::benchmark)
+      set(RICEPP_BENCHMARK_FITS "ricepp_benchmark_fits")
+    else()
+      set(RICEPP_BENCHMARK_FITS "ricepp/ricepp_benchmark_fits")
+    endif()
+
     add_custom_target(copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_PACKED} ${ARTIFACTS_FULL_PATH}
+      COMMAND ${CMAKE_COMMAND} -E copy
+          ${CMAKE_CURRENT_BINARY_DIR}/${RICEPP_BENCHMARK_FITS}${CMAKE_EXECUTABLE_SUFFIX}
+          ${ARTIFACTS_FULL_PATH}/ricepp_benchmark_fits-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
     )
 
     add_custom_target(copy_source_artifacts

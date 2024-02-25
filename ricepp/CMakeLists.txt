@@ -148,6 +148,10 @@ endif()
 if(WITH_BENCHMARKS)
   find_package(benchmark 1.8)
   if(benchmark_FOUND)
+    if(STATIC_BUILD_DO_NOT_USE)
+      add_link_options(-static -static-libgcc)
+    endif()
+
     add_executable(ricepp_benchmark ricepp_benchmark.cpp)
     target_link_libraries(ricepp_benchmark ricepp benchmark::benchmark)
 

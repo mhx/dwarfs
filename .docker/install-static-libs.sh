@@ -12,7 +12,7 @@ BZIP2_VERSION=1.0.8
 LIBARCHIVE_VERSION=3.7.2
 FLAC_VERSION=1.4.3
 LIBUNWIND_VERSION=1.7.2
-# BENCHMARK_VERSION=1.8.2
+BENCHMARK_VERSION=1.8.3
 
 RETRY=0
 while true; do
@@ -32,7 +32,7 @@ wget https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz
 wget https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/libarchive-${LIBARCHIVE_VERSION}.tar.xz
 wget https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/flac-${FLAC_VERSION}.tar.xz
 wget https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz
-# wget https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}.tar.gz
+wget https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}.tar.gz
 
 for COMPILER in clang gcc; do
     if [[ "$COMPILER" == "clang" ]]; then
@@ -85,14 +85,14 @@ for COMPILER in clang gcc; do
     make -j$(nproc)
     make install
 
-    # cd "$HOME/pkgs"
-    # tar xf v${BENCHMARK_VERSION}.tar.gz
-    # cd benchmark-${BENCHMARK_VERSION}
-    # mkdir build
-    # cd build
-    # cmake .. -DBENCHMARK_DOWNLOAD_DEPENDENCIES=1 -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
-    # make -j$(nproc)
-    # make install
+    cd "$HOME/pkgs/$COMPILER"
+    tar xf ../v${BENCHMARK_VERSION}.tar.gz
+    cd benchmark-${BENCHMARK_VERSION}
+    mkdir build
+    cd build
+    cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    make -j$(nproc)
+    make install
 done
 
 cd "$HOME"
