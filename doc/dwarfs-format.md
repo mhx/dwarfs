@@ -192,7 +192,7 @@ to each other:
 
 Thanks to the bit-packing, fields that are unused or only contain a
 single (zero) value, e.g. a `group_index` that's always zero because
-all files belong to the same group, do not occupy any space in the
+all files belong to the same group, does not occupy any space in the
 metadata block.
 
 ### Determining Inode Offsets
@@ -211,7 +211,7 @@ The `inodes` list is strictly in the following order:
 - socket/pipe inodes (`S_IFSOCK`, `S_IFIFO`)
 
 The offsets can thus be found by using a binary search with a
-predicate on the inode more. The shared file offset can be found
+predicate on the inode mode. The shared file offset can be found
 by subtracting the length of `shared_files_table` from the total
 number of regular files.
 
