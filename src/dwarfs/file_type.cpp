@@ -77,7 +77,7 @@ uint16_t file_status_to_mode(std::filesystem::file_status status) {
     ft = posix_file_type::block;
     break;
   case fs::file_type::directory:
-#ifdef _WIN32
+#ifdef _MSC_VER
   case fs::file_type::junction:
 #endif
     ft = posix_file_type::directory;

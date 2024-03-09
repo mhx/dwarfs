@@ -44,7 +44,7 @@ namespace {
 
 using namespace dwarfs;
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
   switch (dliNotify) {
   case dliFailLoadLib:
@@ -81,7 +81,7 @@ std::map<std::string_view, int (*)(int, sys_char**)> const functions{
 
 } // namespace
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
 #endif
 

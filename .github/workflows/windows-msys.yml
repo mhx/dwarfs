@@ -1,0 +1,153 @@
+# Copyright (c) 2022, 2024 [Ribose Inc](https://www.ribose.com).
+# All rights reserved.
+# This file is a part of tamatebako
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# The purpose of this workflow is to check that build procedures work correctly
+# in specific environment. Due to this reason there is no caching. It is done by
+# intention. All caching is in upstream projects.
+#
+# Also this file contains comments that will be useful is dwarfs has to be build
+# in different environment, not GHA.
+name: Windows-MSys
+
+on:
+  schedule:
+    - cron: "0 6 20 * 6"
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/windows-msys.yml'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - '.cirrus.yml'
+      - '.github/workflows/*.yml'
+      - '!.github/workflows/windows-msys.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.ref_name }}'
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  CCACHE_FLD: ccache
+
+jobs:
+  build:
+    name: windows-msys [${{ matrix.env.CC }}, scope ${{ matrix.setup.scope }}, Release]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+#  We are running two configurations:
+#   - ALL in order to run regression tests
+#   - MKD just to be sure that configuration needed for teabako builds without issues
+        setup:
+          - scope: 'ALL'
+            tests: 'ON'
+          - scope: 'MKD'
+            tests: 'OFF'
+        env:
+          - sys: ucrt64
+            CC: gcc
+            CXX: g++
+    env: ${{ matrix.env }}
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Setup MSys
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.env.sys}}
+          path-type: minimal
+          update: true
+          install: >-
+            git
+            tar
+            bison
+            flex
+          pacboy: >-
+            toolchain:p
+            openssl:p
+            cmake:p
+            boost:p
+            make:p
+            diffutils:p
+            libevent:p
+            double-conversion:p
+            fmt:p
+            glog:p
+            dlfcn:p
+            ninja:p
+            ccache:p
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Get number of CPU cores
+        run:  echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+
+      - name: Configure
+        run: |
+          echo "CCACHE_DIR=$PWD/${{ env.CCACHE_FLD }}"  >> $GITHUB_ENV
+          mkdir -p ${{ env.CCACHE_FLD }}
+          cmake -B build                                                 \
+                -DFOLLY_NO_EXCEPTION_TRACER=ON                           \
+                -DUSE_JEMALLOC=OFF                                       \
+                -DWITH_MAN_PAGES=OFF                                     \
+                -DNIXPKGS_DWARFS_VERSION_OVERRIDE=tebako                 \
+                -DWITH_TESTS=${{ matrix.setup.tests }}                   \
+                -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}           \
+                -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}                 \
+                -GNinja .
+
+      - name: Load Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_FLD }}
+          key: |
+            ccache-${{ env.BUILD_TYPE }}-${{ matrix.env.sys }}-${{ matrix.env.CC }}-${{ matrix.setup.scope }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ env.BUILD_TYPE }}-${{ matrix.env.sys }}-${{ matrix.env.CC }}-${{ matrix.setup.scope }}-${{ github.ref }}-
+            ccache-${{ env.BUILD_TYPE }}-${{ matrix.env.sys }}-${{ matrix.env.CC }}-${{ matrix.setup.scope }}-
+
+      - name: Build
+        run: cmake --build build --parallel "$CORES"
+
+      - name: Test
+        if: ${{ matrix.setup.tests == 'ON' }}
+        run: ctest --test-dir build --output-on-failure --parallel "$CORES"

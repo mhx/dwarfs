@@ -29,7 +29,7 @@ namespace dwarfs {
 
 using file_off_t = int64_t;
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 using sys_char = wchar_t;
 using sys_string = std::wstring;
 #define SYS_CERR std::wcerr

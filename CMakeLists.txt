@@ -158,8 +158,16 @@ include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
 
+set(IS_MSYS OFF)
 if(MSVC)
   set(OSTYPE_TXT "Windows")
+  message(STATUS "OSTYPE (forced by MSVC): '${OSTYPE_TXT}'")
+  set(PREFER_SYSTEM_LIBFMT ON)
+elseif(MINGW)
+  set(OSTYPE_TXT "msys")
+  message(STATUS "OSTYPE  (forced by MINGW): '${OSTYPE_TXT}'")
+  set(IS_MSYS ON)
+  include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 else(MSVC)
   include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 
@@ -181,24 +189,45 @@ else(MSVC)
 endif(MSVC)
 
 set(PATCH_FOLLY OFF)
+set(PATCH_FBTHRIFT OFF)
 
 if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
   message(STATUS "Adding __musl__ compile definition")
   add_compile_definitions(__musl__)
   include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
-  set(PATCH_FOLLY ON)
+  if (NOT NO_PATCH)
+    set(PATCH_FOLLY ON)
+  endif(NOT NO_PATCH)
 endif()
 
 if ("${OSTYPE_TXT}" MATCHES "^darwin*")
   include(${TOOLS}/cmake-scripts/macos-environment.cmake)
   include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
-  set(PATCH_FOLLY ON)
+  if (NOT NO_PATCH)
+    set(PATCH_FOLLY ON)
+  endif(NOT NO_PATCH)
+endif()
+
+if ("${OSTYPE_TXT}" MATCHES "msys")
+  include(${TOOLS}/cmake-scripts/msys-environment.cmake)
+  include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
+  add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+  find_library(WINSOCK ws2_32 REQUIRED)
+  message(STATUS "Using winsock2 at ${WINSOCK}")
+  # This is because of some new features of glog 0.7.0
+  add_definitions(-DGLOG_USE_GLOG_EXPORT)
+
+  if (NOT NO_PATCH)
+    set(PATCH_FOLLY ON)
+    set(PATCH_FBTHRIFT ON)
+  endif(NOT NO_PATCH)
 endif()
 
 if (${PATCH_FOLLY})
   set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
+  message(STATUS "Patching folly with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh ${FOLLY_ROOT}'")
   execute_process(
     COMMAND "${GNU_BASH}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh"
@@ -215,6 +244,26 @@ if (${PATCH_FOLLY})
     message(FATAL_ERROR "Failed to patch folly at '${FOLLY_ROOT}': ${PATH_FOLLY_TXT}")
   endif(PATCH_FOLLY_RES EQUAL 0)
 endif(${PATCH_FOLLY})
+
+if (${PATCH_FBTHRIFT})
+  set(FBTHRIFT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/fbthrift")
+  message(STATUS "Patching fbthrift with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-fbthrift.sh ${FBTHRIFT_ROOT}'")
+  execute_process(
+    COMMAND "${GNU_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-fbthrift.sh"
+            "${FBTHRIFT_ROOT}"
+    RESULT_VARIABLE PATCH_FBTHRIFT_RES
+    OUTPUT_VARIABLE PATCH_FBTHRIFT_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(PATCH_FBTHRIFT_RES EQUAL 0)
+    message(STATUS "Patched fbthrift at '${FBTHRIFT_ROOT}'")
+  else(PATCH_FBTHRIFT_RES EQUAL 0)
+    message(FATAL_ERROR "Failed to patch fbthrift at '${FBTHRIFT_ROOT}': ${PATCH_FBTHRIFT_TXT}")
+  endif(PATCH_FBTHRIFT_RES EQUAL 0)
+endif(${PATCH_FBTHRIFT})
 
 check_cxx_source_compiles(
   "#include <filesystem>
@@ -303,6 +352,7 @@ else()
     GIT_TAG 10.1.0
   )
   FetchContent_MakeAvailable(fmt)
+  include_directories(${fmt_SOURCE_DIR}/include)
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
@@ -517,6 +567,7 @@ list(
 
 if(DWARFS_GIT_BUILD)
   list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
+  include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
 else()
   list(APPEND LIBDWARFS_SRC src/dwarfs/version.cpp)
 endif()
@@ -540,16 +591,12 @@ add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_tool src/dwarfs/tool.cpp)
 
-if(DWARFS_GIT_BUILD)
-  target_include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
-endif()
+# [maxirmx] For me it does not make sense but is required on Ubuntu 20.04 (gcc 10.5)
+target_link_libraries(dwarfs_tool dwarfs)
 
 target_compile_definitions(
   dwarfs_tool PRIVATE PRJ_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
-
-target_link_libraries(dwarfs_compression folly)
-target_link_libraries(dwarfs_tool dwarfs)
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
@@ -558,7 +605,6 @@ endif(STATIC_BUILD_DO_NOT_USE)
 if("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL" OR
    "${TEBAKO_BUILD_SCOPE}" STREQUAL "MKD")
    add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
-   target_link_libraries(mkdwarfs_main folly)
 
    add_executable(mkdwarfs src/mkdwarfs.cpp)
    target_link_libraries(mkdwarfs mkdwarfs_main)
@@ -573,10 +619,6 @@ if("${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL")
   add_library(dwarfsck_main src/dwarfsck_main.cpp)
   add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
   add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
-
-  target_link_libraries(dwarfsck_main folly)
-  target_link_libraries(dwarfsbench_main folly)
-  target_link_libraries(dwarfsextract_main folly)
 
   add_executable(dwarfsck src/dwarfsck.cpp)
   add_executable(dwarfsbench src/dwarfsbench.cpp)
@@ -902,6 +944,9 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_tool ${BINARY_TARGETS} ${MAIN_TARGE
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
   add_dependencies(${tgt} metadata_thrift)
+  if (NOT ("${OSTYPE_TXT}" MATCHES "Windows"))
+    add_dependencies(${tgt} ${LIBARCHIVE_PRJ})
+  endif()
 
   if(ENABLE_ASAN)
     target_compile_options(${tgt} PRIVATE -fsanitize=address
@@ -948,54 +993,61 @@ add_library(
 
 target_include_directories(dwarfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
 
-target_link_libraries(
+list(APPEND LIBRARIES
   dwarfs
+  dwarfs_tool
   metadata_thrift
   thrift_light
   folly
+  ${WINSOCK}
   fsst
-  ${Boost_LIBRARIES})
+  ${Boost_LIBRARIES}
+)
+
+if(NOT PREFER_SYSTEM_LIBFMT)
+  list(APPEND LIBRARIES fmt)
+endif()
 
 if(LIBLZ4_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBLZ4)
+  list(APPEND LIBRARIES PkgConfig::LIBLZ4)
 endif()
 
 if(LIBLZMA_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBLZMA)
+  list(APPEND LIBRARIES PkgConfig::LIBLZMA)
 endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND AND LIBBROTLICOMMON_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC PkgConfig::LIBBROTLICOMMON)
+  list(APPEND LIBRARIES PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC PkgConfig::LIBBROTLICOMMON)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   if(MSVC)
-    target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+    list(APPEND LIBRARIES PkgConfig::LIBARCHIVE)
   else(MSVC)
-    target_link_libraries(dwarfs _LIBARCHIVE)
+    list(APPEND LIBRARIES _LIBARCHIVE)
   endif(MSVC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
-  target_link_libraries(dwarfs PkgConfig::ZSTD)
+  list(APPEND LIBRARIES PkgConfig::ZSTD)
 else()
-  target_link_libraries(dwarfs libzstd_static)
+  list(APPEND LIBRARIES libzstd_static)
 endif()
 
 if(XXHASH_FOUND
    AND XXHASH_VERSION_OK
    AND PREFER_SYSTEM_XXHASH)
-  target_link_libraries(dwarfs PkgConfig::XXHASH)
+   list(APPEND LIBRARIES PkgConfig::XXHASH)
 else()
-  target_link_libraries(dwarfs xxhash)
+  list(APPEND LIBRARIES xxhash)
 endif()
 
 foreach(tgt ${BINARY_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   if(MSVC)
-    target_link_libraries(${tgt} dwarfs dwarfs_tool PkgConfig::LIBARCHIVE)
+    target_link_libraries(${tgt} ${LIBRARIES} PkgConfig::LIBARCHIVE)
   else(MSVC)
-    target_link_libraries(${tgt} dwarfs dwarfs_tool _LIBARCHIVE)
+    target_link_libraries(${tgt} ${LIBRARIES} _LIBARCHIVE)
   endif(MSVC)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
@@ -1150,7 +1202,7 @@ if(STATIC_BUILD_DO_NOT_USE AND NOT WIN32)
   add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
 endif()
 
-if(STATIC_BUILD_DO_NOT_USE OR (WIN32 AND "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL"))
+if(STATIC_BUILD_DO_NOT_USE OR (WIN32 AND NOT IS_MSYS AND "${TEBAKO_BUILD_SCOPE}" STREQUAL "ALL"))
   find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
   set(UNIVERSAL_PACKED

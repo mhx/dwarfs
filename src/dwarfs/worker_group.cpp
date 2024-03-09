@@ -59,7 +59,7 @@ namespace dwarfs {
 
 namespace {
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 
 double get_thread_cpu_time(std::thread const& t) {
   static_assert(sizeof(std::thread::id) == sizeof(DWORD),
@@ -101,6 +101,17 @@ double get_thread_cpu_time(std::thread const& t) {
         return (info.user_time.seconds + info.user_time.microseconds * 1e-6) +
                (info.system_time.seconds + info.system_time.microseconds * 1e-6);
       }
+#elif __MINGW32__
+      FILETIME CreationTime, ExitTime, KernelTime, UserTime;
+// pthread_gethandle is MINGW private extension
+      double w = 0.0;
+      HANDLE hThread = pthread_gethandle(std_to_pthread_id(t.get_id()));
+      BOOL r = GetThreadTimes(hThread, &CreationTime, &ExitTime, &KernelTime, &UserTime);
+      if (r) {
+        w = UserTime.dwLowDateTime * 1e-7 + KernelTime.dwLowDateTime * 1e-7;
+      }
+      return w;
+// GetThreadTimes is not really reliable
 #else
   ::clockid_t cid;
   struct ::timespec ts;

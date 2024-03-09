@@ -847,7 +847,7 @@ void metadata_<LoggerPolicy>::dump(
     time_t tp = *ts;
     std::string str(32, '\0');
     str.resize(
-        std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
+        std::strftime(str.data(), str.size(), "%Y-%m-%d %H:%M:%S", std::localtime(&tp)));
     os << "created on: " << str << "\n";
   }
 

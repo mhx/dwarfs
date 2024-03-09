@@ -23,7 +23,7 @@
 
 #include "dwarfs/types.h"
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #define SYS_MAIN wmain
 #else
 #define SYS_MAIN main

@@ -24,7 +24,7 @@
 #include <charconv>
 #include <cstdlib>
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #include <utf8cpp/utf8.h>
 #else
 #include <utf8.h>

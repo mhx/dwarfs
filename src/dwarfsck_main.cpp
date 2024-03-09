@@ -161,6 +161,7 @@ int dwarfsck_main(int argc, sys_char** argv) {
         return 1;
       }
     }
+
   } catch (system_error const& e) {
     std::cerr << folly::exceptionStr(e) << "\n";
     return 1;
