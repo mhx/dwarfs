@@ -1004,6 +1004,10 @@ list(APPEND LIBRARIES
   ${Boost_LIBRARIES}
 )
 
+if (IS_MSYS)
+  list(APPEND LIBRARIES glog gflags)
+endif()
+
 if(NOT PREFER_SYSTEM_LIBFMT)
   list(APPEND LIBRARIES fmt)
 endif()
