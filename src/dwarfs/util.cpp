@@ -126,7 +126,7 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str) {
 }
 
 std::string sys_string_to_string(sys_string const& in) {
-#ifdef _WIN32
+#ifdef _MSC_VER
   std::u16string tmp(in.size(), 0);
   std::transform(in.begin(), in.end(), tmp.begin(),
                  [](sys_char c) { return static_cast<char16_t>(c); });

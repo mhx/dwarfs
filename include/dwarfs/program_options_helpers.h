@@ -28,7 +28,7 @@
 
 namespace dwarfs {
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 template <typename T>
 auto po_sys_value(T* v) {
   return boost::program_options::wvalue<T>(v);

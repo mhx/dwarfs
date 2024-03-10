@@ -38,14 +38,17 @@ int safe_main(std::function<int(void)> fn) {
     folly::symbolizer::installFatalSignalHandler();
 #endif
     try {
-#ifdef _WIN32
+#if defined(_MSC_VER)
       char const* locale = "en_US.utf8";
+#elif defined(__MINGW32__)
+     //Only "C" and "POSIX" locales are supported under MinGW port of GCC and libstdc++.
+      char const* locale = "C";
 #else
       char const* locale = "";
 #endif
       std::locale::global(std::locale(locale));
       if (!std::setlocale(LC_ALL, locale)) {
-        std::cerr << "warning: setlocale(LC_ALL, \"\") failed\n";
+        std::cerr << "warning: setlocale(LC_ALL, \"" << locale << "\") failed\n";
       }
     } catch (std::exception const& e) {
       std::cerr << "warning: failed to set user default locale: " << e.what()
