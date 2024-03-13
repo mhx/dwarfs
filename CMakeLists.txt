@@ -158,6 +158,9 @@ include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
 
+# This is because of some new features of glog 0.7.0
+add_definitions(-DGLOG_USE_GLOG_EXPORT)
+
 set(IS_MSYS OFF)
 if(MSVC)
   set(OSTYPE_TXT "Windows")
@@ -216,8 +219,6 @@ if ("${OSTYPE_TXT}" MATCHES "msys")
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
   find_library(WINSOCK ws2_32 REQUIRED)
   message(STATUS "Using winsock2 at ${WINSOCK}")
-  # This is because of some new features of glog 0.7.0
-  add_definitions(-DGLOG_USE_GLOG_EXPORT)
 
   if (NOT NO_PATCH)
     set(PATCH_FOLLY ON)
