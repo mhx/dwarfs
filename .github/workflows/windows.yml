@@ -27,25 +27,25 @@
 name: Windows
 
 on:
-  schedule:
-    - cron: "0 8 * * 6"
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-      - '**.adoc'
-      - '**.md'
-      - '.cirrus.yml'
-      - '.github/workflows/*.yml'
-      - '!.github/workflows/windows.yml'
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**.adoc'
-      - '**.md'
-      - '.cirrus.yml'
-      - '.github/workflows/*.yml'
-      - '!.github/workflows/windows.yml'
+#  schedule:
+#    - cron: "0 8 * * 6"
+#  push:
+#    branches: [ main ]
+#    paths-ignore:
+#      - 'docs/**'
+#      - '**.adoc'
+#      - '**.md'
+#      - '.cirrus.yml'
+#      - '.github/workflows/*.yml'
+#      - '!.github/workflows/windows.yml'
+#  pull_request:
+#    paths-ignore:
+#      - 'docs/**'
+#      - '**.adoc'
+#      - '**.md'
+#      - '.cirrus.yml'
+#      - '.github/workflows/*.yml'
+#      - '!.github/workflows/windows.yml'
   workflow_dispatch:
 
 concurrency:

@@ -158,20 +158,21 @@ include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 include_directories(${DEPS_INCLUDE_DIR})
 link_directories(${DEPS_LIB_DIR})
 
-# This is because of some new features of glog 0.7.0
-add_definitions(-DGLOG_USE_GLOG_EXPORT)
-
 set(IS_MSYS OFF)
 if(MSVC)
   set(OSTYPE_TXT "Windows")
   message(STATUS "OSTYPE (forced by MSVC): '${OSTYPE_TXT}'")
   set(PREFER_SYSTEM_LIBFMT ON)
+  # This is for glog 0.7.0 that is installed by vcpkg
+  add_compile_definitions(GLOG_USE_GLOG_EXPORT)
 elseif(MINGW)
   set(OSTYPE_TXT "msys")
   message(STATUS "OSTYPE  (forced by MINGW): '${OSTYPE_TXT}'")
   set(IS_MSYS ON)
+  # This is for glog 0.6.0 taht we build ourself
+  add_definitions(-DGLOG_USE_GLOG_EXPORT)
   include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
-else(MSVC)
+  else(MSVC)
   include(${TOOLS}/cmake-scripts/setup-libarchive.cmake)
 
   execute_process(
@@ -344,7 +345,7 @@ if(WITH_MAN_PAGES)
 endif()
 
 if(PREFER_SYSTEM_LIBFMT)
-  find_package(fmt 10.0 CONFIG)
+  find_package(fmt 10 CONFIG)
 else()
   include(FetchContent)
   FetchContent_Declare(
