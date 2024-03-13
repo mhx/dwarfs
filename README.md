@@ -3,7 +3,6 @@
 [![Ubuntu](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/ubuntu.yml)
 [![MacOS](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/macos.yml)
 [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml)
-[![Windows](https://github.com/tamatebako/dwarfs/actions/workflows/windows.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows.yml)
 [![Windows-MSys](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml)
 
 [![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
