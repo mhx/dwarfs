@@ -752,9 +752,8 @@ void inode_manager_<LoggerPolicy>::dump(std::ostream& os) const {
 }
 
 template <typename LoggerPolicy>
-auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
-                                                worker_group& wg) const
-    -> sortable_inode_span {
+auto inode_manager_<LoggerPolicy>::ordered_span(
+    fragment_category cat, worker_group& wg) const -> sortable_inode_span {
   auto prefix = category_prefix(opts_.categorizer_mgr, cat);
   auto opts = opts_.fragment_order.get(cat);
 

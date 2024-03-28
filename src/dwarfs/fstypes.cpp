@@ -45,15 +45,15 @@ const std::map<section_type, std::string_view> sections{
     SECTION_TYPE_(HISTORY),
 #undef SECTION_TYPE_
 };
-// clang-format on
 
-const std::map<compression_type, std::string_view> compressions{
-#define DWARFS_COMPRESSION_TYPE_(name, value) {compression_type::name, #name}
+const std::map<compression_type, std::string_view> compressions {
+#define DWARFS_COMPRESSION_TYPE_(name, _) {compression_type::name, #name}
 #define DWARFS_COMMA_ ,
-    DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_, DWARFS_COMMA_)
+  DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_, DWARFS_COMMA_)
 #undef DWARFS_COMPRESSION_TYPE_
 #undef DWARFS_COMMA_
 };
+// clang-format on
 
 template <typename HT>
 std::string get_default(const HT& ht, const typename HT::key_type& key) {
