@@ -1274,3 +1274,164 @@ TEST(file_scanner, file_start_hash) {
   EXPECT_EQ(st1.nlink, 2);
   EXPECT_EQ(st2.nlink, 2);
 }
+
+TEST(filesystem, root_access_github204) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+  input->add("", {1, 040755, 1, 1000, 100, 10, 42, 0, 0, 0});
+  input->add("other", {2, 040755, 1, 1000, 100, 10, 42, 0, 0, 0});
+  input->add("group", {3, 040750, 1, 1000, 100, 10, 42, 0, 0, 0});
+  input->add("user", {4, 040700, 1, 1000, 100, 10, 42, 0, 0, 0});
+  input->add("other/file", {5, 0100644, 1, 1000, 100, 5, 42, 0, 0, 0}, "other");
+  input->add("group/file", {6, 0100640, 1, 1000, 100, 5, 42, 0, 0, 0}, "group");
+  input->add("user/file", {7, 0100600, 1, 1000, 100, 4, 42, 0, 0, 0}, "user");
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, *input, mm);
+
+  auto other = fs.find("/other");
+  auto group = fs.find("/group");
+  auto user = fs.find("/user");
+
+  EXPECT_TRUE(other);
+  EXPECT_TRUE(group);
+  EXPECT_TRUE(user);
+
+#ifdef _WIN32
+  static constexpr int const x_ok{1};
+#else
+  static constexpr int const x_ok{X_OK};
+#endif
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, x_ok, 1000, 100));
+  EXPECT_EQ(0, fs.access(*group, x_ok, 1000, 100));
+  EXPECT_EQ(0, fs.access(*user, x_ok, 1000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 0));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 0));
+
+  EXPECT_EQ(0, fs.access(*other, x_ok, 1000, 0));
+  EXPECT_EQ(0, fs.access(*group, x_ok, 1000, 0));
+  EXPECT_EQ(0, fs.access(*user, x_ok, 1000, 0));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 100));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 100));
+
+  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, x_ok, 2000, 100));
+  EXPECT_EQ(0, fs.access(*group, x_ok, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, R_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 200));
+
+  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 200));
+
+  EXPECT_EQ(0, fs.access(*other, x_ok, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 200));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 0, 0));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 0, 0));
+
+  EXPECT_EQ(0, fs.access(*other, x_ok, 0, 0));
+  EXPECT_EQ(0, fs.access(*group, x_ok, 0, 0));
+  EXPECT_EQ(0, fs.access(*user, x_ok, 0, 0));
+
+  other = fs.find("/other/file");
+  group = fs.find("/group/file");
+  user = fs.find("/user/file");
+
+  EXPECT_TRUE(other);
+  EXPECT_TRUE(group);
+  EXPECT_TRUE(user);
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 100));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 100));
+
+  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 1000, 100));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 1000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 1000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 0));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 0));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 0));
+
+  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 1000, 0));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 1000, 0));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 1000, 0));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 100));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 100));
+
+  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 100));
+
+  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 100));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 100));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, R_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 200));
+
+  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 200));
+
+  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 200));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 200));
+
+  EXPECT_EQ(0, fs.access(*other, R_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*group, R_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*user, R_OK, 0, 0));
+
+  EXPECT_EQ(0, fs.access(*other, W_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*group, W_OK, 0, 0));
+  EXPECT_EQ(0, fs.access(*user, W_OK, 0, 0));
+
+  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 0, 0));
+  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 0, 0));
+  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 0, 0));
+}

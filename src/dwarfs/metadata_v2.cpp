@@ -1615,6 +1615,10 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
                                     gid_t gid) const {
+  LOG_DEBUG << fmt::format("access([{}, {:o}, {}, {}], {:o}, {}, {})",
+                           iv.inode_num(), iv.mode(), iv.getuid(), iv.getgid(),
+                           mode, uid, gid);
+
   if (mode == F_OK) {
     // easy; we're only interested in the file's existance
     return 0;
@@ -1622,34 +1626,51 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
 
   int access_mode = 0;
 
-  auto test = [e_mode = iv.mode(), &access_mode, readonly = options_.readonly](
-                  fs::perms r_bit, fs::perms w_bit, fs::perms x_bit) {
-    if (e_mode & uint16_t(r_bit)) {
-      access_mode |= R_OK;
-    }
-    if (e_mode & uint16_t(w_bit)) {
-      if (!readonly) {
-        access_mode |= W_OK;
-      }
-    }
-    if (e_mode & uint16_t(x_bit)) {
+  auto set_xok = [&access_mode]() {
 #ifdef _WIN32
-      access_mode |= 1; // Windows has no notion of X_OK
+    access_mode |= 1; // Windows has no notion of X_OK
 #else
-      access_mode |= X_OK;
+    access_mode |= X_OK;
 #endif
-    }
   };
 
-  // Let's build the inode's access mask
-  test(fs::perms::others_read, fs::perms::others_write, fs::perms::others_exec);
+  if (uid == 0) {
+    access_mode = R_OK | W_OK;
 
-  if (iv.getgid() == gid) {
-    test(fs::perms::group_read, fs::perms::group_write, fs::perms::group_exec);
-  }
+    if (iv.mode() & uint16_t(fs::perms::owner_exec | fs::perms::group_exec |
+                             fs::perms::others_exec)) {
+      set_xok();
+    }
+  } else {
+    auto test = [e_mode = iv.mode(), &access_mode, &set_xok,
+                 readonly = options_.readonly](fs::perms r_bit, fs::perms w_bit,
+                                               fs::perms x_bit) {
+      if (e_mode & uint16_t(r_bit)) {
+        access_mode |= R_OK;
+      }
+      if (e_mode & uint16_t(w_bit)) {
+        if (!readonly) {
+          access_mode |= W_OK;
+        }
+      }
+      if (e_mode & uint16_t(x_bit)) {
+        set_xok();
+      }
+    };
 
-  if (iv.getuid() == uid) {
-    test(fs::perms::owner_read, fs::perms::owner_write, fs::perms::owner_exec);
+    // Let's build the inode's access mask
+    test(fs::perms::others_read, fs::perms::others_write,
+         fs::perms::others_exec);
+
+    if (iv.getgid() == gid) {
+      test(fs::perms::group_read, fs::perms::group_write,
+           fs::perms::group_exec);
+    }
+
+    if (iv.getuid() == uid) {
+      test(fs::perms::owner_read, fs::perms::owner_write,
+           fs::perms::owner_exec);
+    }
   }
 
   return (access_mode & mode) == mode ? 0 : EACCES;
