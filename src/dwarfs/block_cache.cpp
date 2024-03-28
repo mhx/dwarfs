@@ -236,7 +236,7 @@ class block_cache_ final : public block_cache::impl {
                     << " from cache, decompression ratio = "
                     << double(block->range_end()) /
                            double(block->uncompressed_size());
-          ++blocks_evicted_;
+          blocks_evicted_.fetch_add(1, std::memory_order_relaxed);
           update_block_stats(*block);
         });
   }
@@ -276,7 +276,7 @@ class block_cache_ final : public block_cache::impl {
 
   std::future<block_range>
   get(size_t block_no, size_t offset, size_t size) const override {
-    ++range_requests_;
+    range_requests_.fetch_add(1, std::memory_order_relaxed);
 
     std::promise<block_range> promise;
     auto future = promise.get_future();
@@ -356,7 +356,7 @@ class block_cache_ final : public block_cache::impl {
         if (range_end <= block->range_end()) {
           // We can immediately satisfy the promise
           promise.set_value(block_range(std::move(block), offset, size));
-          ++active_hits_fast_;
+          active_hits_fast_.fetch_add(1, std::memory_order_relaxed);
         } else {
           if (!add_to_set) {
             // Make a new set for the same block
@@ -366,7 +366,7 @@ class block_cache_ final : public block_cache::impl {
 
           // Promise will be fulfilled asynchronously
           brs->add(offset, range_end, std::move(promise));
-          ++active_hits_slow_;
+          active_hits_slow_.fetch_add(1, std::memory_order_relaxed);
 
           if (!add_to_set) {
             ia->second.emplace_back(brs);
@@ -393,14 +393,14 @@ class block_cache_ final : public block_cache::impl {
       if (range_end <= block->range_end()) {
         // We can immediately satisfy the promise
         promise.set_value(block_range(std::move(block), offset, size));
-        ++cache_hits_fast_;
+        cache_hits_fast_.fetch_add(1, std::memory_order_relaxed);
       } else {
         // Make a new set for the block
         brs = std::make_shared<block_request_set>(std::move(block), block_no);
 
         // Promise will be fulfilled asynchronously
         brs->add(offset, range_end, std::move(promise));
-        ++cache_hits_slow_;
+        cache_hits_slow_.fetch_add(1, std::memory_order_relaxed);
 
         active_[block_no].emplace_back(brs);
         enqueue_job(std::move(brs));
@@ -417,7 +417,7 @@ class block_cache_ final : public block_cache::impl {
       std::shared_ptr<cached_block> block = cached_block::create(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
           options_.mm_release, options_.disable_block_integrity_check);
-      ++blocks_created_;
+      blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
       brs = std::make_shared<block_request_set>(std::move(block), block_no);
@@ -446,10 +446,12 @@ class block_cache_ final : public block_cache::impl {
 
   void update_block_stats(cached_block const& cb) {
     if (cb.range_end() < cb.uncompressed_size()) {
-      ++partially_decompressed_;
+      partially_decompressed_.fetch_add(1, std::memory_order_relaxed);
     }
-    total_decompressed_bytes_ += cb.range_end();
-    total_block_bytes_ += cb.uncompressed_size();
+    total_decompressed_bytes_.fetch_add(cb.range_end(),
+                                        std::memory_order_relaxed);
+    total_block_bytes_.fetch_add(cb.uncompressed_size(),
+                                 std::memory_order_relaxed);
   }
 
   void enqueue_job(std::shared_ptr<block_request_set> brs) const {
@@ -478,7 +480,7 @@ class block_cache_ final : public block_cache::impl {
         if (auto other = di->second.lock()) {
           LOG_TRACE << "merging sets for block " << block_no;
           other->merge(std::move(*brs));
-          ++sets_merged_;
+          sets_merged_.fetch_add(1, std::memory_order_relaxed);
           brs.reset();
           return;
         }
@@ -555,7 +557,7 @@ class block_cache_ final : public block_cache::impl {
     while (it != cache_.end()) {
       if (predicate(*it->second)) {
         it = cache_.erase(it);
-        ++blocks_tidied_;
+        blocks_tidied_.fetch_add(1, std::memory_order_relaxed);
       } else {
         ++it;
       }
