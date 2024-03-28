@@ -39,6 +39,7 @@
 
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
+#include <folly/stats/Histogram.h>
 #include <folly/system/HardwareConcurrency.h>
 #include <folly/system/ThreadName.h>
 
@@ -208,6 +209,17 @@ class block_cache_ final : public block_cache::impl {
     LOG_VERBOSE << "slow hit rate: " << fmt::format("{:.3f}", slow_hit_rate)
                 << "%";
     LOG_VERBOSE << "miss rate: " << fmt::format("{:.3f}", miss_rate) << "%";
+
+    LOG_VERBOSE << "expired active requests: " << active_expired_.load();
+
+    auto active_pct = [&](double p) {
+      return active_set_size_.getPercentileEstimate(p);
+    };
+
+    LOG_VERBOSE << "active set size p50: " << active_pct(0.5)
+                << ", p75: " << active_pct(0.75) << ", p90: " << active_pct(0.9)
+                << ", p95: " << active_pct(0.95)
+                << ", p99: " << active_pct(0.99);
   }
 
   size_t block_count() const override { return block_.size(); }
@@ -335,8 +347,13 @@ class block_cache_ final : public block_cache::impl {
                            return true;
                          });
 
-      // Remove all expired weak pointers
-      ia->second.erase(end, ia->second.end());
+      if (end != ia->second.end()) {
+        active_expired_.fetch_add(std::distance(end, ia->second.end()),
+                                  std::memory_order_relaxed);
+
+        // Remove all expired weak pointers
+        ia->second.erase(end, ia->second.end());
+      }
 
       if (ia->second.empty()) {
         // No request sets left at all? M'kay.
@@ -370,6 +387,7 @@ class block_cache_ final : public block_cache::impl {
 
           if (!add_to_set) {
             ia->second.emplace_back(brs);
+            active_set_size_.addValue(ia->second.size());
             enqueue_job(std::move(brs));
           }
         }
@@ -402,7 +420,9 @@ class block_cache_ final : public block_cache::impl {
         brs->add(offset, range_end, std::move(promise));
         cache_hits_slow_.fetch_add(1, std::memory_order_relaxed);
 
-        active_[block_no].emplace_back(brs);
+        auto& active = active_[block_no];
+        active.emplace_back(brs);
+        active_set_size_.addValue(active.size());
         enqueue_job(std::move(brs));
       }
 
@@ -425,7 +445,9 @@ class block_cache_ final : public block_cache::impl {
       // Promise will be fulfilled asynchronously
       brs->add(offset, range_end, std::move(promise));
 
-      active_[block_no].emplace_back(brs);
+      auto& active = active_[block_no];
+      active.emplace_back(brs);
+      active_set_size_.addValue(active.size());
       enqueue_job(std::move(brs));
     } catch (...) {
       promise.set_exception(std::current_exception());
@@ -623,6 +645,8 @@ class block_cache_ final : public block_cache::impl {
   mutable std::atomic<size_t> total_block_bytes_{0};
   mutable std::atomic<size_t> total_decompressed_bytes_{0};
   mutable std::atomic<size_t> blocks_tidied_{0};
+  mutable std::atomic<size_t> active_expired_{0};
+  mutable folly::Histogram<size_t> active_set_size_{1, 0, 1024};
 
   mutable std::shared_mutex mx_wg_;
   mutable worker_group wg_;
