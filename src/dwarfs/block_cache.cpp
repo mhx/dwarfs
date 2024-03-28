@@ -24,7 +24,6 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
-#include <deque>
 #include <exception>
 #include <future>
 #include <iterator>
@@ -623,7 +622,7 @@ class block_cache_ final : public block_cache::impl {
   mutable std::mutex mx_;
   mutable lru_type cache_;
   mutable folly::F14FastMap<size_t,
-                            std::deque<std::weak_ptr<block_request_set>>>
+                            std::vector<std::weak_ptr<block_request_set>>>
       active_;
   std::thread tidy_thread_;
   std::condition_variable tidy_cond_;
