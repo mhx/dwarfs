@@ -48,6 +48,7 @@ struct history_entry {
    3: string compiler_id
    4: optional list<string> arguments
    5: optional UInt64 timestamp
+   6: optional set<string> library_versions
 }
 
 struct history {

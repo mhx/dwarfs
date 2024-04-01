@@ -86,6 +86,7 @@
 #include "dwarfs/fstypes.h"
 #include "dwarfs/iolayer.h"
 #include "dwarfs/iovec_read_buf.h"
+#include "dwarfs/library_dependencies.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/mmap.h"
@@ -1011,6 +1012,7 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 void usage(std::ostream& os, std::filesystem::path const& progname) {
   os << tool_header("dwarfs",
                     fmt::format(", fuse version {}", FUSE_USE_VERSION))
+     << library_dependencies::common_as_string() << "\n\n"
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif

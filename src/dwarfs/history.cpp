@@ -27,6 +27,7 @@
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include "dwarfs/history.h"
+#include "dwarfs/library_dependencies.h"
 #include "dwarfs/version.h"
 
 namespace dwarfs {
@@ -66,6 +67,9 @@ void history::append(std::optional<std::vector<std::string>> args) {
   if (cfg_.with_timestamps) {
     histent.timestamp() = std::time(nullptr);
   }
+  library_dependencies deps;
+  deps.add_common_libraries();
+  histent.library_versions() = deps.as_set();
 }
 
 std::vector<uint8_t> history::serialize() const {
@@ -161,6 +165,14 @@ folly::dynamic history::as_dynamic() const {
                                 fmt::localtime(histent.timestamp().value())))
           // clang-format on
           ;
+    }
+
+    if (histent.library_versions().has_value()) {
+      folly::dynamic libs = folly::dynamic::array;
+      for (auto const& lib : histent.library_versions().value()) {
+        libs.push_back(lib);
+      }
+      entry["library_versions"] = std::move(libs);
     }
 
     dyn.push_back(std::move(entry));

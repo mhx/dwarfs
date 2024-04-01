@@ -72,6 +72,7 @@
 #include "dwarfs/fragment_order_parser.h"
 #include "dwarfs/integral_value_parser.h"
 #include "dwarfs/iolayer.h"
+#include "dwarfs/library_dependencies.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/match.h"
 #include "dwarfs/mmap.h"
@@ -699,7 +700,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool_header("mkdwarfs") << usage << opts << "\n"
+    iol.out << tool_header("mkdwarfs")
+            << library_dependencies::common_as_string() << "\n\n"
+            << usage << opts << "\n"
             << "Compression level defaults:\n"
             << "  " << sep << "\n"
             << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
@@ -752,7 +755,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
       (!vm.count("output") and !vm.count("debug-filter"))) {
-    iol.out << tool_header("mkdwarfs") << usage << "\n" << basic_opts << "\n";
+    iol.out << tool_header("mkdwarfs")
+            << library_dependencies::common_as_string() << "\n\n"
+            << usage << "\n"
+            << basic_opts << "\n";
     return 0;
   }
 

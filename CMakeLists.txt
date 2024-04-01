@@ -469,6 +469,7 @@ list(APPEND LIBDWARFS_SRC
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_ordering.cpp
   src/dwarfs/inode_reader_v2.cpp
+  src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/metadata_types.cpp
   src/dwarfs/metadata_v2.cpp

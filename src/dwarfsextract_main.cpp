@@ -33,6 +33,7 @@
 #include "dwarfs/filesystem_extractor.h"
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/iolayer.h"
+#include "dwarfs/library_dependencies.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -128,8 +129,11 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
   if (vm.count("help") or !vm.count("input")) {
-    iol.out << tool_header("dwarfsextract") << "using "
-            << ::archive_version_string() << "\n\n"
+    library_dependencies deps;
+    deps.add_common_libraries();
+    deps.add_library(::archive_version_string());
+
+    iol.out << tool_header("dwarfsextract") << deps.as_string() << "\n\n"
             << usage << "\n"
             << opts << "\n";
     return 0;

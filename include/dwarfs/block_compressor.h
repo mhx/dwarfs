@@ -26,6 +26,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -161,6 +162,7 @@ class compression_info {
   virtual std::string_view name() const = 0;
   virtual std::string_view description() const = 0;
   virtual std::vector<std::string> const& options() const = 0;
+  virtual std::set<std::string> library_dependencies() const = 0;
 };
 
 class compression_factory : public compression_info {

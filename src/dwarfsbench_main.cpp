@@ -30,6 +30,7 @@
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/fstypes.h"
 #include "dwarfs/iolayer.h"
+#include "dwarfs/library_dependencies.h"
 #include "dwarfs/logger.h"
 #include "dwarfs/mmap.h"
 #include "dwarfs/options.h"
@@ -85,7 +86,9 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (vm.count("help") or !vm.count("filesystem")) {
-    iol.out << tool_header("dwarfsbench") << opts << "\n";
+    iol.out << tool_header("dwarfsbench")
+            << library_dependencies::common_as_string() << "\n\n"
+            << opts << "\n";
     return 0;
   }
 

@@ -505,6 +505,10 @@ class flac_compression_factory : public compression_factory {
 
   std::vector<std::string> const& options() const override { return options_; }
 
+  std::set<std::string> library_dependencies() const override {
+    return {fmt::format("libFLAC++-{}", ::FLAC__VERSION_STRING)};
+  }
+
   std::unique_ptr<block_compressor::impl>
   make_compressor(option_map& om) const override {
     return std::make_unique<flac_block_compressor>(
