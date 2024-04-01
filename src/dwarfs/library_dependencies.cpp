@@ -23,6 +23,7 @@
 
 #include <fmt/format.h>
 
+#include <boost/version.hpp>
 #include <openssl/crypto.h>
 #include <xxhash.h>
 
@@ -37,6 +38,9 @@ std::string version_to_string(uint64_t version, version_format fmt) {
   switch (fmt) {
   case version_format::maj_min_patch_dec_100:
     return fmt::format("{}.{}.{}", version / 10000, (version / 100) % 100,
+                       version % 100);
+  case version_format::boost:
+    return fmt::format("{}.{}.{}", version / 100000, (version / 100) % 1000,
                        version % 100);
   }
 
@@ -82,6 +86,7 @@ void library_dependencies::add_common_libraries() {
   add_library("libfmt", FMT_VERSION, version_format::maj_min_patch_dec_100);
   add_library("libcrypto", OPENSSL_version_major(), OPENSSL_version_minor(),
               OPENSSL_version_patch());
+  add_library("libboost", BOOST_VERSION, version_format::boost);
 
   compression_registry::instance().for_each_algorithm(
       [this](compression_type, compression_info const& info) {

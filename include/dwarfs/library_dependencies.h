@@ -28,6 +28,7 @@ namespace dwarfs {
 
 enum class version_format {
   maj_min_patch_dec_100, // 1.2.3 <-> 10203
+  boost,                 // 1.2.3 <-> 100203
 };
 
 class library_dependencies {
