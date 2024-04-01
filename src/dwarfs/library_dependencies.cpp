@@ -27,6 +27,10 @@
 #include <openssl/crypto.h>
 #include <xxhash.h>
 
+#ifdef DWARFS_USE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif
+
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/library_dependencies.h"
 
@@ -46,6 +50,19 @@ std::string version_to_string(uint64_t version, version_format fmt) {
 
   throw std::invalid_argument("unsupported version format");
 }
+
+#ifdef DWARFS_USE_JEMALLOC
+std::string get_jemalloc_version() {
+  const char* j;
+  size_t s = sizeof(j);
+  ::mallctl("version", &j, &s, nullptr, 0);
+  std::string rv{j};
+  if (auto pos = rv.find('-'); pos != std::string::npos) {
+    rv.erase(pos, std::string::npos);
+  }
+  return rv;
+}
+#endif
 
 } // namespace
 
@@ -87,6 +104,10 @@ void library_dependencies::add_common_libraries() {
   add_library("libcrypto", OPENSSL_version_major(), OPENSSL_version_minor(),
               OPENSSL_version_patch());
   add_library("libboost", BOOST_VERSION, version_format::boost);
+
+#ifdef DWARFS_USE_JEMALLOC
+  add_library("libjemalloc", get_jemalloc_version());
+#endif
 
   compression_registry::instance().for_each_algorithm(
       [this](compression_type, compression_info const& info) {
