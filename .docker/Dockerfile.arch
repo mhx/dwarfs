@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1
+FROM archlinux/archlinux:latest
+RUN pacman -Syu --noconfirm
+RUN pacman -S --noconfirm \
+        bash-completion \
+        vim \
+        devtools \
+        less
+RUN pacman -S --noconfirm --needed \
+        gcc \
+        clang \
+        man \
+        git \
+        zstd \
+        ccache \
+        ninja \
+        cmake \
+        make \
+        bison \
+        flex \
+        ruby-ronn \
+        python-mistletoe \
+        fuse \
+        fuse3 \
+        pkg-config \
+        binutils \
+        libarchive \
+        benchmark \
+        boost \
+        brotli \
+        libevent \
+        openssl \
+        fmt \
+        chrono-date \
+        range-v3 \
+        jemalloc \
+        double-conversion \
+        lz4 \
+        xz \
+        libunwind \
+        libdwarf \
+        google-glog \
+        flac \
+        utf8cpp
+RUN useradd -g users -u 1000 -m mhx
+USER mhx
+ENTRYPOINT /bin/bash
