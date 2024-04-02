@@ -200,31 +200,82 @@ jobs:
         arch:
           - amd64
           - arm64v8
+        dist:
+          - ubuntu
+          - fedora
+          - arch
         build_type:
           - gcc-debug-ninja
           - gcc-release-ninja
           - clang-release-ninja
-          - gcc-release-ninja-static
-          - gcc-release-ninja-O2-static
-          - clang-release-ninja-static
-          - clang-release-ninja-O2-static
-          - clang-reldbg-ninja-static
-          - clang-debug-ninja-static
+        exclude:
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-debug-ninja
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-release-ninja
+          - arch: arm64v8
+            dist: arch
+            build_type: clang-release-ninja
         include:
           - arch: amd64
+            dist: ubuntu
             build_type: clang-asan-ninja
           - arch: amd64
+            dist: ubuntu
             build_type: clang-tsan-ninja
           - arch: amd64
+            dist: ubuntu
             build_type: clang-ubsan-ninja
           - arch: amd64
+            dist: ubuntu
             build_type: clang-coverage-ninja
           - arch: amd64
+            dist: ubuntu
             build_type: oldgcc-debug-make
           - arch: arm64v8
+            dist: ubuntu
             build_type: gcc-debug-noperfmon-ninja
           - arch: arm64v8
+            dist: ubuntu
             build_type: oldclang-debug-make
+          - arch: amd64
+            dist: ubuntu
+            build_type: gcc-release-ninja-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-release-ninja-static
+          - arch: amd64
+            dist: ubuntu
+            build_type: gcc-release-ninja-O2-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-release-ninja-O2-static
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-release-ninja-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: clang-release-ninja-static
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-release-ninja-O2-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: clang-release-ninja-O2-static
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-reldbg-ninja-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: clang-reldbg-ninja-static
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-debug-ninja-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: clang-debug-ninja-static
 
     runs-on:
       - self-hosted
@@ -242,7 +293,8 @@ jobs:
       - name: Build Docker Image
         run: |
           docker build \
-            -t dwarfs-linux-build \
+            -f .docker/Dockerfile.${{ matrix.dist }} \
+            -t dwarfs-linux-build-${{ matrix.dist }} \
             --build-arg ARCH=${{ matrix.arch }} \
             --build-arg SCRIPT=build-linux.sh \
             .docker
@@ -257,12 +309,13 @@ jobs:
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=${{ matrix.build_type }} \
             --env BUILD_ARCH=${{ matrix.arch }} \
+            --env BUILD_DIST=${{ matrix.dist }} \
             --env GITHUB_REF_NAME \
             --env GITHUB_REF_TYPE \
             --env GITHUB_RUN_ID \
             --env GITHUB_RUN_NUMBER \
             --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build
+            dwarfs-linux-build-${{ matrix.dist }}
 
       - name: List Coverage Files
         id: coverage-files

@@ -6,6 +6,9 @@ cd "$HOME"
 mkdir pkgs
 cd pkgs
 
+GCC_VERSION=13
+CLANG_VERSION=17
+
 FILE_VERSION=5.45
 FILE_SHA512=12611a59ff766c22a55db4b4a9f80f95a0a2e916a1d8593612c6ead32c247102a8fdc23693c6bf81bda9b604d951a62c0051e91580b1b79e190a3504c0efc20a
 BZIP2_VERSION=1.0.8
@@ -36,11 +39,11 @@ wget https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}
 
 for COMPILER in clang gcc; do
     if [[ "$COMPILER" == "clang" ]]; then
-        export CC=clang-18
-        export CXX=clang++-18
+        export CC=clang-$CLANG_VERSION
+        export CXX=clang++-$CLANG_VERSION
     elif [[ "$COMPILER" == "gcc" ]]; then
-        export CC=gcc-13
-        export CXX=g++-13
+        export CC=gcc-$GCC_VERSION
+        export CXX=g++-$GCC_VERSION
     else
         echo "Unknown compiler: $COMPILER"
         exit 1

@@ -1,4 +1,4 @@
-IMAGE="dwarfs-buildenv"
+IMAGE_UBUNTU="dwarfs-buildenv"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_ARCH="dwarfs-buildenv-arch"
 
@@ -6,10 +6,10 @@ ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 NPROC:=$(shell nproc)
 
 build:
-	docker build -t $(IMAGE) .
+	docker build -t $(IMAGE_UBUNTU) .
 
 build_arm:
-	docker build -t $(IMAGE) --build-arg ARCH=arm64v8 .
+	docker build -f Dockerfile.ubuntu -t $(IMAGE_UBUNTU) --build-arg ARCH=arm64v8 .
 
 run:
 	@docker run -it --rm \
@@ -19,7 +19,7 @@ run:
             --mount type=bind,source="$(ROOT_DIR)"/../@docker-home,target=/home/ubuntu \
             --mount type=bind,source="$(ROOT_DIR)"/../@docker-build,target=/home/ubuntu/build \
             --env CCACHE_DIR=/ccache --env CTEST_PARALLEL_LEVEL=$(NPROC) \
-            --entrypoint /bin/bash $(IMAGE)
+            --entrypoint /bin/bash $(IMAGE_UBUNTU)
 
 build_fedora:
 	docker build -f Dockerfile.fedora -t $(IMAGE_FEDORA) .

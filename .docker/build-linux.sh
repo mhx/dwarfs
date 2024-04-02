@@ -15,6 +15,9 @@ rm -rf build
 mkdir build
 cd build
 
+GCC_VERSION=13
+CLANG_VERSION=17
+
 case "-$BUILD_TYPE-" in
   *-ninja-*)
     BUILD_TOOL=ninja
@@ -31,18 +34,29 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-gcc-*)
-    export CC=gcc-14 CXX=g++-14
+    case "-$BUILD_DIST-" in
+      *-ubuntu-*)
+        export CC=gcc-$GCC_VERSION CXX=g++-$GCC_VERSION
+        ;;
+    esac
     export COMPILER=gcc
     ;;
   *-oldgcc-*)
     export CC=gcc-11 CXX=g++-11
     ;;
   *-clang-*)
-    export CC=clang-18 CXX=clang++-18
+    case "-$BUILD_DIST-" in
+      *-ubuntu-*)
+        export CC=clang-$CLANG_VERSION CXX=clang++-$CLANG_VERSION
+        ;;
+      *)
+        export CC=clang CXX=clang++
+        ;;
+    esac
     export COMPILER=clang
     ;;
   *-oldclang-*)
-    export CC=clang-15 CXX=clang++-16
+    export CC=clang-15 CXX=clang++-15
     ;;
   *)
     echo "missing compiler in: $BUILD_TYPE"
@@ -114,9 +128,9 @@ if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   unset LLVM_PROFILE_FILE
   rm -rf /tmp-runner/coverage
   mkdir -p /tmp-runner/coverage
-  llvm-profdata-18 merge -sparse profile/* -o dwarfs.profdata
+  llvm-profdata-$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
   for binary in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do
-    llvm-cov-18 show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$(basename $binary).txt
+    llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$(basename $binary).txt
   done
 fi
 

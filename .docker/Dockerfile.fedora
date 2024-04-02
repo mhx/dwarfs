@@ -3,13 +3,16 @@ ARG ARCH=amd64
 FROM $ARCH/fedora:rawhide
 RUN dnf update -y
 RUN dnf install -y \
+        bash-completion \
+        vim \
+        less
+RUN dnf install -y \
         gcc \
         g++ \
         clang \
         man \
         pip \
         git \
-        vim \
         zstd \
         ccache \
         ninja-build \
@@ -41,8 +44,11 @@ RUN dnf install -y \
         glog-devel \
         flac-devel \
         utf8cpp-devel \
-        bash-completion
+        range-v3-devel
 RUN pip install mistletoe
+ARG SCRIPT=build-linux.sh
+COPY $SCRIPT /usr/local/bin/run.sh
+RUN chmod +x /usr/local/bin/run.sh
 RUN useradd -g users -u 1000 -m mhx
 USER mhx
-ENTRYPOINT /bin/bash
+ENTRYPOINT /usr/local/bin/run.sh
