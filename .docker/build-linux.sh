@@ -15,8 +15,8 @@ rm -rf build
 mkdir build
 cd build
 
-GCC_VERSION=13
-CLANG_VERSION=17
+GCC_VERSION=14
+CLANG_VERSION=18
 
 case "-$BUILD_TYPE-" in
   *-ninja-*)
@@ -56,7 +56,7 @@ case "-$BUILD_TYPE-" in
     export COMPILER=clang
     ;;
   *-oldclang-*)
-    export CC=clang-15 CXX=clang++-15
+    export CC=clang-16 CXX=clang++-16
     ;;
   *)
     echo "missing compiler in: $BUILD_TYPE"
