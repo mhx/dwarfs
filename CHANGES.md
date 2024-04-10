@@ -1,5 +1,21 @@
 # Change Log
 
+## Version 0.9.7 - 2024-04-10
+
+- (fix) Handle root uid correctly in access() implementation.
+  Fixes github #204.
+
+- (feature) Show and track library dependencies. Dependencies will
+  be displayed in the command line help; they will also be tracked
+  in the history metadata of a DwarFS image. See also github #207.
+
+- (doc) Describe nilsimsa ordering algorithm more accurately.
+
+- (perf) Reorder branches to improve ricepp speed with real world
+  data.
+
+- (perf) Some tweaks to improve segmenter speed.
+
 ## Version 0.9.6 - 2024-02-24
 
 - (fix) Add workaround for new glog release breaking folly build.
