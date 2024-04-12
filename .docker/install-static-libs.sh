@@ -17,6 +17,7 @@ LIBARCHIVE_VERSION=3.7.2
 FLAC_VERSION=1.4.3
 LIBUNWIND_VERSION=1.7.2
 BENCHMARK_VERSION=1.8.3
+OPENSSL_VERSION=3.0.13
 
 RETRY=0
 while true; do
@@ -37,6 +38,7 @@ wget https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VE
 wget https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/flac-${FLAC_VERSION}.tar.xz
 wget https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz
 wget https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}.tar.gz
+wget https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
 
 for COMPILER in clang gcc; do
     if [[ "$COMPILER" == "clang" ]]; then
@@ -52,14 +54,28 @@ for COMPILER in clang gcc; do
 
     cd "$HOME/pkgs"
     mkdir $COMPILER
-    cd $COMPILER
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
 
+    cd "$HOME/pkgs/$COMPILER"
+    tar xf ../libunwind-${LIBUNWIND_VERSION}.tar.gz
+    cd libunwind-${LIBUNWIND_VERSION}
+    ./configure --prefix="$INSTALL_DIR"
+    make -j$(nproc)
+    make install
+
+    cd "$HOME/pkgs/$COMPILER"
     tar xf ../bzip2-${BZIP2_VERSION}.tar.gz
     cd bzip2-${BZIP2_VERSION}
     make -j$(nproc)
     make PREFIX="$INSTALL_DIR" install
+
+    cd "$HOME/pkgs/$COMPILER"
+    tar xf ../openssl-${OPENSSL_VERSION}.tar.gz
+    cd openssl-${OPENSSL_VERSION}
+    ./Configure --prefix="$INSTALL_DIR" --libdir=lib threads no-fips no-shared no-pic no-dso
+    make -j$(nproc)
+    make install
 
     cd "$HOME/pkgs/$COMPILER"
     tar xf ../libarchive-${LIBARCHIVE_VERSION}.tar.xz
@@ -79,13 +95,6 @@ for COMPILER in clang gcc; do
     tar xf ../flac-${FLAC_VERSION}.tar.xz
     cd flac-${FLAC_VERSION}
     ./configure --prefix="$INSTALL_DIR" --enable-static=yes --enable-shared=no --disable-doxygen-docs --disable-ogg --disable-programs --disable-examples
-    make -j$(nproc)
-    make install
-
-    cd "$HOME/pkgs/$COMPILER"
-    tar xf ../libunwind-${LIBUNWIND_VERSION}.tar.gz
-    cd libunwind-${LIBUNWIND_VERSION}
-    ./configure --prefix="$INSTALL_DIR"
     make -j$(nproc)
     make install
 
