@@ -553,10 +553,6 @@ class driver_runner {
     wait_until_file_ready(mountpoint, std::chrono::seconds(5));
 #else
     std::vector<std::string> options;
-#ifdef __APPLE__
-    options.push_back("-o");
-    options.push_back("noapplexattr");
-#endif
     if (!subprocess::check_run(driver, make_tool_arg(tool_arg), image,
                                mountpoint, options,
                                std::forward<Args>(args)...)) {

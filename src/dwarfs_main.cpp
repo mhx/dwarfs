@@ -912,7 +912,12 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
               << ", extra_size=" << extra_size;
 
     if (value.empty()) {
+      // Linux and macOS disagree on the error code for "attribute not found"
+#ifdef __APPLE__
+      return ENOATTR;
+#else
       return ENODATA;
+#endif
     }
 
     if (size == 0) {
