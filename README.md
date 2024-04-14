@@ -70,11 +70,11 @@ less CPU resources.
 To give you an idea of what DwarFS is capable of, here's a quick comparison
 of DwarFS and SquashFS on a set of video files with a total size of 39 GiB.
 The twist is that each unique video file has two sibling files with a
-different set of audio streams (I didn't make this up, this is
-[an actual use case](https://github.com/mhx/dwarfs/discussions/63)). So
-there's redundancy in both the video and audio data, but as the streams
+different set of audio streams (this is
+[an actual use case](https://github.com/mhx/dwarfs/discussions/63)).
+So there's redundancy in both the video and audio data, but as the streams
 are interleaved and identical blocks are typically very far apart, it's
-quite challenging to make use of that redundancy for compression. SquashFS
+challenging to make use of that redundancy for compression. SquashFS
 essentially fails to compress the source data at all, whereas DwarFS is
 able to reduce the size by almost a factor of 3, which is close to the
 theoretical maximum:
@@ -87,10 +87,9 @@ $ ls -lh dwarfs-video-test.*fs
 -rw-r--r-- 1 mhx users 39G Jul 12 09:41 dwarfs-video-test.squashfs
 ```
 
-While this is already impressive, it gets even better. When mounting
-the SquashFS image and performing a random-read throughput test using
-[fio](https://github.com/axboe/fio/)-3.34, both `squashfuse` and
-`squashfuse_ll` top out at around 230 MiB/s:
+Furthermore, when mounting the SquashFS image and performing a random-read
+throughput test using [fio](https://github.com/axboe/fio/)-3.34, both
+`squashfuse` and `squashfuse_ll` top out at around 230 MiB/s:
 
 ```
 $ fio --readonly --rw=randread --name=randread --bs=64k --direct=1 \
@@ -100,7 +99,7 @@ $ fio --readonly --rw=randread --name=randread --bs=64k --direct=1 \
    READ: bw=230MiB/s (241MB/s), 230MiB/s-230MiB/s (241MB/s-241MB/s), io=13.5GiB (14.5GB), run=60004-60004msec
 ```
 
-DwarFS, however, manages to sustain **random read rates of 20 GiB/s**:
+In comparison, DwarFS manages to sustain **random read rates of 20 GiB/s**:
 
 ```
   READ: bw=20.2GiB/s (21.7GB/s), 20.2GiB/s-20.2GiB/s (21.7GB/s-21.7GB/s), io=1212GiB (1301GB), run=60001-60001msec
