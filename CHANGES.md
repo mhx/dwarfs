@@ -1,5 +1,23 @@
 # Change Log
 
+## Version 0.9.8 - 2024-04-14
+
+- (fix) Build custom version of libcrypto to link with the release
+  binaries in order for them to run properly on FIPS-enabled setups.
+  Fixes github #210.
+
+- (fix) When mounting a DwarFS image on macOS and viewing the volume
+  in Finder, only the directories were shown, but no files. The root
+  cause was that a non-existent extended attribute is reported via a
+  different error code in macOS (`ENOATTR`) compared to Linux (`ENODATA`)
+  and the wrong error code was returned for certain Finder-related
+  attributes. Fixes github #211.
+
+- (fix) macOS builds using jemalloc were crashing when calling
+  `mallctl("version", ...)`. The root cause of the crash is still
+  unclear, but as a workaround, the jemalloc version is compiled
+  in from a preprocessor constant rather than using `mallctl`.
+
 ## Version 0.9.7 - 2024-04-10
 
 - (fix) Handle root uid correctly in access() implementation.
