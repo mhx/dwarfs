@@ -777,8 +777,11 @@ file.
 The SquashFS, `xz`, `lrzip`, `zpaq` and `wimlib` tests were all done on
 an 8 core Intel(R) Xeon(R) E-2286M CPU @ 2.40GHz with 64 GiB of RAM.
 
-The Cromfs and EROFS tests were done with an older version of DwarFS
+The Cromfs tests were done with an older version of DwarFS
 on a 6 core Intel(R) Xeon(R) CPU D-1528 @ 1.90GHz with 64 GiB of RAM.
+
+The EROFS tests were done using DwarFS v0.9.8 and EROFS v1.7.1 on an
+Intel(R) Core(TM) i9-13900K with 64 GiB of RAM.
 
 The systems were mostly idle during all of the tests.
 
@@ -1944,112 +1947,177 @@ it crashed right upon trying to list the directory after mounting.
 
 ### With EROFS
 
-[EROFS](https://github.com/hsiangkao/erofs-utils) is a new read-only
-compressed file system that has recently been added to the Linux kernel.
-Its goals are quite different from those of DwarFS, though. It is
-designed to be lightweight (which DwarFS is definitely not) and to run
-on constrained hardware like embedded devices or smartphones. It only
-supports LZ4 compression.
+[EROFS](https://github.com/erofs/erofs-utils) is a read-only compressed
+file system that has been added to the Linux kernel recently.
+Its goals are different from those of DwarFS, though. It is designed to
+be lightweight (which DwarFS is definitely not) and to run on constrained
+hardware like embedded devices or smartphones. It is not designed to provide
+maximum compression. It currently supports LZ4 and LZMA compression.
 
-I was feeling lucky and decided to run it on the full Perl dataset:
-
-```
-$ time mkfs.erofs perl-install.erofs install -zlz4hc,9 -d2
-mkfs.erofs 1.2
-        c_version:           [     1.2]
-        c_dbg_lvl:           [       2]
-        c_dry_run:           [       0]
-^C
-
-real    912m42.601s
-user    903m2.777s
-sys     1m52.812s
-```
-
-As you can tell, after more than 15 hours I just gave up. In those
-15 hours, `mkfs.erofs` had produced a 13 GiB output file:
+Running it on the full Perl dataset using options given in the README for
+"well-compressed images":
 
 ```
-$ ll -h perl-install.erofs
--rw-r--r-- 1 mhx users 13G Dec  9 14:42 perl-install.erofs
+$ time mkfs.erofs -C1048576 -Eztailpacking,fragments,all-fragments,dedupe -zlzma,9 perl-install-lzma9.erofs perl-install
+mkfs.erofs 1.7.1-gd93a18c9
+<W> erofs: It may take a longer time since MicroLZMA is still single-threaded for now.
+Build completed.
+------
+Filesystem UUID: 538ce164-5f9d-4a6a-9808-5915f17ced30
+Filesystem total blocks: 599854 (of 4096-byte blocks)
+Filesystem total inodes: 2255795
+Filesystem total metadata blocks: 74253
+Filesystem total deduplicated bytes (of source files): 29625028195
+
+user	2:35:08.03
+system	1:12.65
+total	2:39:25.35
+
+$ ll -h perl-install-lzma9.erofs
+-rw-r--r-- 1 mhx mhx 2.3G Apr 15 16:23 perl-install-lzma9.erofs
 ```
 
-I don't think this would have been very useful to compare with DwarFS.
+That's definitely slower than SquashFS, but also significantly smaller.
 
-Just as for Cromfs, I re-ran with the smaller Perl dataset:
-
-```
-$ time mkfs.erofs perl-install-small.erofs install-small -zlz4hc,9 -d2
-mkfs.erofs 1.2
-        c_version:           [     1.2]
-        c_dbg_lvl:           [       2]
-        c_dry_run:           [       0]
-
-real    0m27.844s
-user    0m20.570s
-sys     0m1.848s
-```
-
-That was surprisingly quick, which makes me think that, again, there
-might be some accidentally quadratic complexity hiding in `mkfs.erofs`.
-The output file it produced is an order of magnitude larger than the
-DwarFS image:
+For a fair comparison, let's use the same 1 MiB block size with DwarFS,
+but also tweak the options for best compression:
 
 ```
-$ ls -l perl-install-small.*fs
--rw-r--r-- 1 mhx users  26928161 Dec  8 15:05 perl-install-small.dwarfs
--rw-r--r-- 1 mhx users 296488960 Dec  9 14:45 perl-install-small.erofs
+$ time mkdwarfs -i perl-install -o perl-install-1M.dwarfs -l9 -S20 -B64 --order=nilsimsa:max-cluster-size=150000
+[...]
+330733 dirs, 0/2440 soft/hard links, 1927501/1927501 files, 0 other
+original size: 47.49 GiB, hashed: 43.47 GiB (1920025 files, 1.451 GiB/s)
+scanned: 19.45 GiB (144675 files, 159.3 MiB/s), categorizing: 0 B/s
+saved by deduplication: 28.03 GiB (1780386 files), saved by segmenting: 15.4 GiB
+filesystem: 4.053 GiB in 4151 blocks (937069 chunks, 144674/144674 fragments, 144675 inodes)
+compressed filesystem: 4151 blocks/806.2 MiB written
+[...]
+user	24:27.47
+system	4:20.74
+total	3:26.79
 ```
 
-Admittedly, this isn't a fair comparison. EROFS has a fixed block size
-of 4 KiB, and it uses LZ4 compression. If we tweak DwarFS to the same
-parameters, we get:
+That's significantly smaller and, almost more importantly, 46 times
+faster than `mkfs.erofs`.
+
+Actually using the file system images, here's how DwarFS performs:
 
 ```
-$ time mkdwarfs -i install-small -o perl-install-small-lz4.dwarfs -C lz4hc:level=9 -S 12
-21:21:18.136796 scanning install-small
-21:21:18.376998 waiting for background scanners...
-21:21:18.770703 assigning directory and link inodes...
-21:21:18.776422 finding duplicate files...
-21:21:18.903505 saved 267.8 MiB / 611.8 MiB in 22842/26401 duplicate files
-21:21:18.903621 waiting for inode scanners...
-21:21:19.676420 assigning device inodes...
-21:21:19.677400 assigning pipe/socket inodes...
-21:21:19.678014 building metadata...
-21:21:19.678101 building blocks...
-21:21:19.678116 saving names and links...
-21:21:19.678306 ordering 3559 inodes using nilsimsa similarity...
-21:21:19.678566 nilsimsa: depth=20000, limit=255
-21:21:19.684227 pre-sorted index (3360 name, 2127 path lookups) [5.592ms]
-21:21:19.685550 updating name and link indices...
-21:21:19.810401 3559 inodes ordered [132ms]
-21:21:19.810519 waiting for segmenting/blockifying to finish...
-21:21:26.773913 saving chunks...
-21:21:26.776832 saving directories...
-21:21:26.821085 waiting for compression to finish...
-21:21:27.020929 compressed 611.8 MiB to 140.7 MiB (ratio=0.230025)
-21:21:27.036202 filesystem created without errors [8.899s]
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-waiting for block compression to finish
-3334 dirs, 0/0 soft/hard links, 26401/26401 files, 0 other
-original size: 611.8 MiB, dedupe: 267.8 MiB (22842 files), segment: 0 B
-filesystem: 344 MiB in 88073 blocks (91628 chunks, 3559/3559 inodes)
-compressed filesystem: 88073 blocks/140.7 MiB written
-████████████████████████████████████████████████████████████████▏100% |
-
-real    0m9.075s
-user    0m37.718s
-sys     0m2.427s
+$ dwarfs perl-install-1M.dwarfs mnt -oworkers=8
+$ find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
+50392172594 bytes (50 GB, 47 GiB) copied, 19 s, 2.7 GB/s
+0+1662649 records in
+0+1662649 records out
+51161953159 bytes (51 GB, 48 GiB) copied, 19.4813 s, 2.6 GB/s
 ```
 
-It finishes in less than half the time and produces an output image
-that's half the size of the EROFS image.
+Reading every single file from 16 parallel processes took less than
+20 seconds. The FUSE driver consumed 143 seconds of CPU time.
 
-I'm going to stop the comparison here, as it's pretty obvious that the
-domains in which EROFS and DwarFS are being used have extremely little
-overlap. DwarFS will likely never be able to run on embedded devices
-and EROFS will likely never be able to achieve the compression ratios
-of DwarFS.
+Here's the same for EROFS:
+
+```
+$ erofsfuse perl-install-lzma9.erofs mnt
+$ find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
+2594306810 bytes (2.6 GB, 2.4 GiB) copied, 300 s, 8.6 MB/s^C
+0+133296 records in
+0+133296 records out
+2595212832 bytes (2.6 GB, 2.4 GiB) copied, 300.336 s, 8.6 MB/s
+```
+
+Note that I've stopped this after 5 minutes. The DwarFS FUSE driver
+delivered about 300 times faster throughput compared to EROFS. The
+EROFS FUSE driver consumed 50 minutes (!) of CPU time for only about
+5% of the data, i.e. more than 400 times the CPU time consumed by
+the DwarFS FUSE driver.
+
+I've tried two more EROFS configurations on the same set of data.
+The first one uses more or less just the defaults:
+
+```
+$ time mkfs.erofs -zlz4hc,12 perl-install-lz4hc.erofs perl-install
+mkfs.erofs 1.7.1-gd93a18c9
+Build completed.
+------
+Filesystem UUID: b75142ed-6cf3-46a4-84f3-12693f7759a0
+Filesystem total blocks: 5847130 (of 4096-byte blocks)
+Filesystem total inodes: 2255794
+Filesystem total metadata blocks: 419699
+Filesystem total deduplicated bytes (of source files): 0
+
+user	3:38:23.36
+system	1:10.84
+total	3:41:37.33
+```
+
+The second one additionally enables the `-Ededupe` option:
+
+```
+$ time mkfs.erofs -zlz4hc,12 -Ededupe perl-install-lz4hc-dedupe.erofs perl-install
+mkfs.erofs 1.7.1-gd93a18c9
+Build completed.
+------
+Filesystem UUID: 0ccf581e-ad3b-4d08-8b10-5b7e15f8e3cd
+Filesystem total blocks: 1510091 (of 4096-byte blocks)
+Filesystem total inodes: 2255794
+Filesystem total metadata blocks: 435599
+Filesystem total deduplicated bytes (of source files): 19220717568
+
+user	4:19:57.61
+system	1:21.62
+total	4:23:55.85
+```
+
+I don't know why these are even slower than the first, seemingly more
+complex, set of options. As was to be expected, the resulting images
+were significantly bigger:
+
+```
+$ ll -h perl-install*.erofs
+-rw-r--r-- 1 mhx mhx 5.8G Apr 16 02:46 perl-install-lz4hc-dedupe.erofs
+-rw-r--r-- 1 mhx mhx  23G Apr 15 22:34 perl-install-lz4hc.erofs
+-rw-r--r-- 1 mhx mhx 2.3G Apr 15 16:23 perl-install-lzma9.erofs
+```
+
+The good news is that these perform *much* better and even outperform
+DwarFS, albeit by a small margin:
+
+```
+$ erofsfuse perl-install-lz4hc.erofs mnt
+$ find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
+49920168315 bytes (50 GB, 46 GiB) copied, 16 s, 3.1 GB/s
+0+1493031 records in
+0+1493031 records out
+51161953159 bytes (51 GB, 48 GiB) copied, 16.4329 s, 3.1 GB/s
+```
+
+The deduplicated version is even a tiny bit faster:
+
+```
+$ erofsfuse perl-install-lz4hc-dedupe.erofs mnt
+find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
+50808037121 bytes (51 GB, 47 GiB) copied, 16 s, 3.2 GB/s
+0+1499949 records in
+0+1499949 records out
+51161953159 bytes (51 GB, 48 GiB) copied, 16.1184 s, 3.2 GB/s
+```
+
+The EROFS kernel driver wasn't any faster than the FUSE driver.
+
+The FUSE driver used about 27 seconds of CPU time in both cases,
+substantially less than before and 5 times less than DwarFS.
+
+DwarFS can get close to the throughput of EROFS by using `zstd` instead
+of `lzma` compression:
+
+```
+$ dwarfs perl-install-1M-zstd.dwarfs mnt -oworkers=8
+find mnt -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M status=progress
+49224202357 bytes (49 GB, 46 GiB) copied, 16 s, 3.1 GB/s
+0+1529018 records in
+0+1529018 records out
+51161953159 bytes (51 GB, 48 GiB) copied, 16.6716 s, 3.1 GB/s
+```
 
 ### With fuse-archive
 
