@@ -44,6 +44,7 @@ A fast high compression read-only file system for Linux and Windows.
   - [With fuse-archive](#with-fuse-archive)
 - [Performance Monitoring](#performance-monitoring)
 - [Other Obscure Features](#other-obscure-features)
+- [Stargazers over Time](#stargazers-over-time)
 
 ## Overview
 
@@ -2453,3 +2454,7 @@ lookup) runs on. `mkdwarfs` uses a whole array of different worker groups,
 namely `compress` for compression, `scanner` for scanning, `ordering` for
 input ordering, and `blockify` for segmenting. `blockify` is what you would
 typically want to run on your "performance" cores.
+
+## Stargazers over Time
+
+[![Stargazers over Time](https://starchart.cc/mhx/dwarfs.svg?variant=adaptive)](https://starchart.cc/mhx/dwarfs)
