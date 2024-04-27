@@ -92,7 +92,7 @@ bool parse_metadata_requirements_set(T& container, folly::dynamic& req,
             v.asString(), name, e.what()));
       }
 
-      if (auto maybe_value = value_parser(v)) {
+      if (maybe_value) {
         if (!container.emplace(*maybe_value).second) {
           throw std::runtime_error(fmt::format(
               "duplicate value '{}' for requirement '{}'", v.asString(), name));
