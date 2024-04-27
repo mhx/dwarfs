@@ -158,6 +158,10 @@ struct random_file_tree_options {
   bool with_invalid_utf8{false};
 };
 
+auto constexpr default_fs_opts = filesystem_options{
+    .block_cache = {.max_bytes = 256 * 1024,
+                    .sequential_access_detector_threshold = 4}};
+
 class mkdwarfs_tester : public tester_common {
  public:
   mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
@@ -272,8 +276,8 @@ class mkdwarfs_tester : public tester_common {
     }
   }
 
-  filesystem_v2
-  fs_from_data(std::string data, filesystem_options const& opt = {}) {
+  filesystem_v2 fs_from_data(std::string data,
+                             filesystem_options const& opt = default_fs_opts) {
     if (!lgr) {
       lgr = std::make_unique<test::test_logger>();
     }
@@ -281,8 +285,8 @@ class mkdwarfs_tester : public tester_common {
     return filesystem_v2(*lgr, *os, mm, opt);
   }
 
-  filesystem_v2
-  fs_from_file(std::string path, filesystem_options const& opt = {}) {
+  filesystem_v2 fs_from_file(std::string path,
+                             filesystem_options const& opt = default_fs_opts) {
     auto fsimage = fa->get_file(path);
     if (!fsimage) {
       throw std::runtime_error("file not found: " + path);
@@ -290,7 +294,8 @@ class mkdwarfs_tester : public tester_common {
     return fs_from_data(std::move(fsimage.value()), opt);
   }
 
-  filesystem_v2 fs_from_stdout(filesystem_options const& opt = {}) {
+  filesystem_v2
+  fs_from_stdout(filesystem_options const& opt = default_fs_opts) {
     return fs_from_data(out(), opt);
   }
 
@@ -2599,3 +2604,71 @@ std::array const map_file_error_args{
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, map_file_error_test,
                          ::testing::ValuesIn(map_file_error_args));
+
+TEST(block_cache, sequential_access_detector) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  auto paths = t.add_random_file_tree({.avg_size = 4096.0, .dimension = 10});
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "-S14", "--file-hash=none"}))
+      << t.err();
+  auto image = t.out();
+
+  std::sort(paths.begin(), paths.end(), [](auto const& a, auto const& b) {
+    return a.first.string() < b.first.string();
+  });
+
+  t.lgr = std::make_unique<test::test_logger>(logger::VERBOSE);
+  auto test_lgr = dynamic_cast<test::test_logger*>(t.lgr.get());
+
+  for (size_t thresh : {0, 1, 2, 4, 8, 16, 32}) {
+    size_t block_count{0};
+    test_lgr->clear();
+
+    {
+      auto fs = t.fs_from_data(
+          image,
+          {.block_cache = {.max_bytes = 256 * 1024,
+                           .sequential_access_detector_threshold = thresh}});
+      auto info = fs.info_as_dynamic(3);
+      for (auto const& s : info["sections"]) {
+        if (s["type"] == "BLOCK") {
+          ++block_count;
+        }
+      }
+
+      for (auto const& [path, data] : paths) {
+        auto pstr = path.string();
+#ifdef _WIN32
+        std::replace(pstr.begin(), pstr.end(), '\\', '/');
+#endif
+        auto iv = fs.find(pstr.c_str());
+        ASSERT_TRUE(iv);
+        ASSERT_TRUE(iv->is_regular_file());
+        file_stat st;
+        ASSERT_EQ(0, fs.getattr(*iv, &st));
+        ASSERT_EQ(data.size(), st.size);
+        std::string buffer;
+        buffer.resize(data.size());
+        auto nread = fs.read(iv->inode_num(), buffer.data(), st.size);
+        EXPECT_EQ(data.size(), nread);
+        EXPECT_EQ(data, buffer);
+      }
+    }
+
+    auto log = test_lgr->get_log();
+    std::optional<size_t> sequential_prefetches;
+    for (auto const& ent : log) {
+      if (ent.output.starts_with("sequential prefetches: ")) {
+        sequential_prefetches = std::stoul(ent.output.substr(23));
+        break;
+      }
+    }
+
+    ASSERT_TRUE(sequential_prefetches);
+    if (thresh == 0) {
+      EXPECT_EQ(0, sequential_prefetches.value());
+    } else {
+      EXPECT_EQ(sequential_prefetches.value(), block_count - thresh);
+    }
+  }
+}
