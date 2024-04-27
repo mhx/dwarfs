@@ -99,9 +99,9 @@ class inode_reader_ final : public inode_reader_v2::impl {
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "inode_reader_v2")
-      PERFMON_CLS_TIMER_INIT(read)
-      PERFMON_CLS_TIMER_INIT(readv_iovec)
-      PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
+      PERFMON_CLS_TIMER_INIT(read, "offset", "size")
+      PERFMON_CLS_TIMER_INIT(readv_iovec, "offset", "size")
+      PERFMON_CLS_TIMER_INIT(readv_future, "offset", "size") // clang-format on
       , offset_cache_{offset_cache_size}
       , readahead_cache_{readahead_cache_size}
       , iovec_sizes_(1, 0, 256) {}
@@ -358,6 +358,7 @@ inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
                                    file_off_t offset,
                                    chunk_range chunks) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future)
+  PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
   return read_internal(inode, size, offset, chunks);
 }
@@ -367,6 +368,7 @@ ssize_t
 inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
                                   file_off_t offset, chunk_range chunks) const {
   PERFMON_CLS_SCOPED_SECTION(read)
+  PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
   return read_internal(inode, size, offset, chunks,
                        [&](size_t num_read, const block_range& br) {
@@ -379,6 +381,7 @@ ssize_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
                                            size_t size, file_off_t offset,
                                            chunk_range chunks) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec)
+  PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
   auto rv = read_internal(
       inode, size, offset, chunks, [&](size_t, const block_range& br) {
