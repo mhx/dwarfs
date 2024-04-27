@@ -59,7 +59,7 @@ constexpr std::string_view kDash{"-"};
 } // namespace
 
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
-  sys_string filesystem, output;
+  sys_string filesystem, output, trace_file;
   std::string format, cache_size_str, image_offset;
   logger_options logopts;
 #if DWARFS_PERFMON_ENABLED
@@ -103,6 +103,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("perfmon",
         po::value<std::string>(&perfmon_str),
         "enable performance monitor")
+    ("perfmon-trace",
+        po_sys_value<sys_string>(&trace_file),
+        "write performance monitor trace file")
 #endif
     ;
   // clang-format on
@@ -152,15 +155,19 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.metadata.enable_nlink = true;
 
     std::unordered_set<std::string> perfmon_enabled;
+    std::optional<std::filesystem::path> perfmon_trace_file;
 #if DWARFS_PERFMON_ENABLED
     if (!perfmon_str.empty()) {
       folly::splitTo<std::string>(
           ',', perfmon_str,
           std::inserter(perfmon_enabled, perfmon_enabled.begin()));
     }
+    if (!trace_file.empty()) {
+      perfmon_trace_file = iol.os->canonical(trace_file);
+    }
 #endif
-    std::shared_ptr<performance_monitor> perfmon =
-        performance_monitor::create(perfmon_enabled);
+    std::shared_ptr<performance_monitor> perfmon = performance_monitor::create(
+        perfmon_enabled, iol.file, perfmon_trace_file);
 
     auto fs_path = iol.os->canonical(filesystem);
 

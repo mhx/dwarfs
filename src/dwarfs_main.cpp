@@ -159,7 +159,8 @@ struct options {
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
 #if DWARFS_PERFMON_ENABLED
-  char const* perfmon_enabled_str{nullptr}; // TODO: const?? -> use string?
+  char const* perfmon_enabled_str{nullptr};    // TODO: const?? -> use string?
+  char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
 #endif
   int enable_nlink{0};
   int readonly{0};
@@ -237,6 +238,7 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("no_cache_files", cache_files, 0),
 #if DWARFS_PERFMON_ENABLED
     DWARFS_OPT("perfmon=%s", perfmon_enabled_str, 0),
+    DWARFS_OPT("perfmon_trace=%s", perfmon_trace_file_str, 0),
 #endif
     FUSE_OPT_END};
 
@@ -1041,6 +1043,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
 #if DWARFS_PERFMON_ENABLED
      << "    -o perfmon=name[,...]  enable performance monitor\n"
+     << "    -o perfmon_trace=FILE  write performance monitor trace file\n"
 #endif
 #ifdef DWARFS_BUILTIN_MANPAGE
      << "    --man                  show manual page and exit\n"
@@ -1274,15 +1277,21 @@ void load_filesystem(dwarfs_userdata& userdata) {
   }
 
   std::unordered_set<std::string> perfmon_enabled;
+  std::optional<std::filesystem::path> perfmon_trace_file;
 #if DWARFS_PERFMON_ENABLED
   if (opts.perfmon_enabled_str) {
     folly::splitTo<std::string>(
         ',', opts.perfmon_enabled_str,
         std::inserter(perfmon_enabled, perfmon_enabled.begin()));
   }
+  if (opts.perfmon_trace_file_str) {
+    perfmon_trace_file = userdata.iol.os->canonical(std::filesystem::path(
+        reinterpret_cast<char8_t const*>(opts.perfmon_trace_file_str)));
+  }
 #endif
 
-  userdata.perfmon = performance_monitor::create(perfmon_enabled);
+  userdata.perfmon = performance_monitor::create(
+      perfmon_enabled, userdata.iol.file, perfmon_trace_file);
 
   PERFMON_EXT_PROXY_SETUP(userdata, userdata.perfmon, "fuse")
   PERFMON_EXT_TIMER_SETUP(userdata, op_init)
