@@ -477,7 +477,7 @@ You'll need to install:
 
 - [WinFsp](https://github.com/winfsp/winfsp/releases)
 
-`WinFsp` is expected to be installed in `C:\Program Files (x68)\WinFsp`;
+`WinFsp` is expected to be installed in `C:\Program Files (x86)\WinFsp`;
 if it's not, you'll need to set `WINFSP_PATH` when running CMake via
 `cmake/win.bat`.
 
