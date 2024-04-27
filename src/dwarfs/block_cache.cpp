@@ -194,8 +194,6 @@ class block_request_set {
 
   bool empty() const { return queue_.empty(); }
 
-  size_t size() const { return queue_.size(); }
-
   std::shared_ptr<cached_block> block() const { return block_; }
 
   size_t block_no() const { return block_no_; }
