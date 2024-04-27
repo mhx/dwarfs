@@ -110,23 +110,24 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
 
   fs.walk_data_order([&](auto const& de) {
     auto iv = de.inode();
+
     if (iv.is_regular_file()) {
-      wg.add_job([&, de, iv] {
-        file_stat st;
+      file_stat st;
 
-        if (fs.getattr(de.inode(), &st) != 0) {
-          LOG_ERROR << "failed to get attributes for inode " << iv.inode_num();
-          return;
-        }
+      if (fs.getattr(de.inode(), &st) != 0) {
+        LOG_ERROR << "failed to get attributes for inode " << iv.inode_num();
+        return;
+      }
 
-        auto ranges = fs.readv(iv.inode_num(), st.size);
+      auto ranges = fs.readv(iv.inode_num(), st.size);
 
-        if (!ranges) {
-          LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
-                    << std::strerror(-ranges.error());
-          return;
-        }
+      if (!ranges) {
+        LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
+                  << std::strerror(-ranges.error());
+        return;
+      }
 
+      wg.add_job([&, de, iv, ranges = std::move(ranges)]() mutable {
         checksum cs(algo);
 
         for (auto& fut : ranges.value()) {
