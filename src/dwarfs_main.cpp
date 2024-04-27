@@ -1042,7 +1042,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
 #if DWARFS_PERFMON_ENABLED
-     << "    -o perfmon=name[,...]  enable performance monitor\n"
+     << "    -o perfmon=name[+...]  enable performance monitor\n"
      << "    -o perfmon_trace=FILE  write performance monitor trace file\n"
 #endif
 #ifdef DWARFS_BUILTIN_MANPAGE
@@ -1281,7 +1281,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
 #if DWARFS_PERFMON_ENABLED
   if (opts.perfmon_enabled_str) {
     folly::splitTo<std::string>(
-        ',', opts.perfmon_enabled_str,
+        '+', opts.perfmon_enabled_str,
         std::inserter(perfmon_enabled, perfmon_enabled.begin()));
   }
   if (opts.perfmon_trace_file_str) {

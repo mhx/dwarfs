@@ -154,7 +154,7 @@ options:
   If no suffix is given, the value will be assumed to be in seconds.
 
 - `-o perfmon=`*name*:
-  Enable performance monitoring for the list of comma-separated components.
+  Enable performance monitoring for the list of `+`-separated components.
   This option is only available if the project was built with performance
   monitoring enabled. Available components include `fuse`, `filesystem_v2`,
   `inode_reader_v2` and `block_cache`.
