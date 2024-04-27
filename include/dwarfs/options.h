@@ -52,6 +52,7 @@ struct block_cache_options {
   bool mm_release{true};
   bool init_workers{true};
   bool disable_block_integrity_check{false};
+  size_t sequential_access_detector_threshold{0};
 };
 
 struct history_config {
