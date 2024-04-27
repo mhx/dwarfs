@@ -378,6 +378,8 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       e.attr_timeout = std::numeric_limits<double>::max();
       e.entry_timeout = std::numeric_limits<double>::max();
 
+      PERFMON_SET_CONTEXT(e.ino)
+
       fuse_reply_entry(req, &e);
     }
 
@@ -417,11 +419,12 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
+  PERFMON_SET_CONTEXT(ino)
 
   native_stat st;
 
-  int err = op_getattr_common(
-      log_, userdata, &st, [&userdata, ino] { return userdata.fs.find(ino); });
+  int err = op_getattr_common(log_, userdata, &st,
+                              [&] { return userdata.fs.find(ino); });
 
   if (err == 0) {
     fuse_reply_attr(req, &st, std::numeric_limits<double>::max());
@@ -438,8 +441,13 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
 
   LOG_DEBUG << __func__ << "(" << path << ")";
 
-  return -op_getattr_common(
-      log_, userdata, st, [&userdata, path] { return userdata.fs.find(path); });
+  return -op_getattr_common(log_, userdata, st, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
+  });
 }
 #endif
 
@@ -462,6 +470,7 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ")";
+  PERFMON_SET_CONTEXT(ino)
 
   auto ctx = fuse_req_ctx(req);
 
@@ -482,9 +491,13 @@ int op_access(char const* path, int mode) {
 
   auto ctx = fuse_get_context();
 
-  return -op_access_common(
-      log_, userdata, mode, ctx->uid, ctx->gid,
-      [&userdata, path] { return userdata.fs.find(path); });
+  return -op_access_common(log_, userdata, mode, ctx->uid, ctx->gid, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
+  });
 }
 #endif
 
@@ -507,12 +520,12 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
+  PERFMON_SET_CONTEXT(ino)
 
   std::string symlink;
 
-  auto err = op_readlink_common(log_, userdata, &symlink, [&userdata, ino] {
-    return userdata.fs.find(ino);
-  });
+  auto err = op_readlink_common(log_, userdata, &symlink,
+                                [&] { return userdata.fs.find(ino); });
 
   if (err == 0) {
     fuse_reply_readlink(req, symlink.c_str());
@@ -531,8 +544,12 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
 
   std::string symlink;
 
-  auto err = op_readlink_common(log_, userdata, &symlink, [&userdata, path] {
-    return userdata.fs.find(path);
+  auto err = op_readlink_common(log_, userdata, &symlink, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
   });
 
   if (err == 0) {
@@ -586,9 +603,10 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
+  PERFMON_SET_CONTEXT(ino)
 
-  auto err = op_open_common(log_, userdata, fi,
-                            [&userdata, ino] { return userdata.fs.find(ino); });
+  auto err =
+      op_open_common(log_, userdata, fi, [&] { return userdata.fs.find(ino); });
 
   if (err == 0) {
     fuse_reply_open(req, fi);
@@ -605,8 +623,13 @@ int op_open(char const* path, struct fuse_file_info* fi) {
 
   LOG_DEBUG << __func__;
 
-  return -op_open_common(log_, userdata, fi,
-                         [&userdata, path] { return userdata.fs.find(path); });
+  return -op_open_common(log_, userdata, fi, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
+  });
 }
 #endif
 
@@ -619,6 +642,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
+  PERFMON_SET_CONTEXT(ino, size)
 
   checked_reply_err(log_, req, [&]() -> ssize_t {
     if (FUSE_ROOT_ID + fi->fh != ino) {
@@ -648,6 +672,7 @@ int op_read(char const* path, char* buf, size_t size, native_off_t off,
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__;
+  PERFMON_SET_CONTEXT(fi->fh, size)
 
   return -checked_call(log_, [&] {
     auto rv = userdata.fs.read(fi->fh, buf, size, off);
@@ -722,13 +747,16 @@ class readdir_policy {
 };
 #endif
 
-template <typename Policy>
-int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off) {
+template <typename Policy, typename OnInode>
+int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
+                      OnInode&& on_inode) {
   auto dirent = policy.find(fs);
 
   if (!dirent) {
     return ENOENT;
   }
+
+  std::forward<OnInode>(on_inode)(*dirent);
 
   auto dir = fs.opendir(*dirent);
 
@@ -773,10 +801,11 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")";
+  PERFMON_SET_CONTEXT(ino, size)
 
   checked_reply_err(log_, req, [&] {
     readdir_lowlevel_policy policy{req, ino, size};
-    return op_readdir_common(userdata.fs, policy, off);
+    return op_readdir_common(userdata.fs, policy, off, [](inode_view) {});
   });
 }
 #else
@@ -792,7 +821,9 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
 
   return -checked_call(log_, [&] {
     readdir_policy policy{path, buf, filler};
-    return op_readdir_common(userdata.fs, policy, off);
+    return op_readdir_common(userdata.fs, policy, off, [&](inode_view e) {
+      PERFMON_SET_CONTEXT(e.inode_num())
+    });
   });
 }
 #endif
@@ -869,6 +900,7 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
             << ", " << position
 #endif
             << ")";
+  PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
     std::ostringstream oss;
@@ -957,6 +989,7 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")";
+  PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
     std::ostringstream oss;
@@ -1295,16 +1328,16 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   PERFMON_EXT_PROXY_SETUP(userdata, userdata.perfmon, "fuse")
   PERFMON_EXT_TIMER_SETUP(userdata, op_init)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_lookup)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_getattr)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_access)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_readlink)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_open)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_read)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_readdir)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_lookup, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_getattr, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_access, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_readlink, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_open, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_read, "inode", "size")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_readdir, "inode", "size")
   PERFMON_EXT_TIMER_SETUP(userdata, op_statfs)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr)
-  PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr)
+  PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr, "inode")
+  PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr, "inode")
 
   auto fsimage = userdata.iol.os->canonical(std::filesystem::path(
       reinterpret_cast<char8_t const*>(opts.fsimage->data())));
