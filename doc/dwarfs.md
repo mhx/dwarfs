@@ -153,7 +153,7 @@ options:
   be an integer value. Suffixes `ms`, `s`, `m`, `h` are supported.
   If no suffix is given, the value will be assumed to be in seconds.
 
-- `-o perfmon=`*name*:
+- `-o perfmon=`*name*[`+`*name*...]:
   Enable performance monitoring for the list of `+`-separated components.
   This option is only available if the project was built with performance
   monitoring enabled. Available components include `fuse`, `filesystem_v2`,

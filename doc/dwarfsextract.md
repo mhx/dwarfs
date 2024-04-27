@@ -90,7 +90,7 @@ to disk:
   Enable logging context regardless of level. By default, context is enabled
   if the level is `verbose`, `debug` or `trace`.
 
-- `--perfmon=`*name*:
+- `--perfmon=`*name*[`,`*name*...]:
   Enable performance monitoring for the list of comma-separated components.
   This option is only available if the project was built with performance
   monitoring enabled. Available components include `fuse`, `filesystem_v2`,
