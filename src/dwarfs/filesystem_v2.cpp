@@ -553,7 +553,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_iovec)
     PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
 {
-  block_cache cache(lgr, os_, mm_, options.block_cache);
+  block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
   filesystem_parser parser(mm_, image_offset_);
 
   if (parser.has_index()) {

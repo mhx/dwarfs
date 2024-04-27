@@ -48,6 +48,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/worker_group.h"
 
 namespace dwarfs {
@@ -138,10 +139,17 @@ template <typename LoggerPolicy>
 class block_cache_ final : public block_cache::impl {
  public:
   block_cache_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-               block_cache_options const& options)
+               block_cache_options const& options,
+               std::shared_ptr<performance_monitor const> perfmon
+               [[maybe_unused]])
       : cache_(0)
       , mm_(std::move(mm))
       , LOG_PROXY_INIT(lgr)
+      // clang-format off
+      PERFMON_CLS_PROXY_INIT(perfmon, "block_cache")
+      PERFMON_CLS_TIMER_INIT(get, "block_no", "offset", "size")
+      PERFMON_CLS_TIMER_INIT(process, "block_no")
+      PERFMON_CLS_TIMER_INIT(decompress, "range_end") // clang-format on
       , os_{os}
       , options_(options) {
     if (options.init_workers) {
@@ -287,6 +295,9 @@ class block_cache_ final : public block_cache::impl {
 
   std::future<block_range>
   get(size_t block_no, size_t offset, size_t size) const override {
+    PERFMON_CLS_SCOPED_SECTION(get)
+    PERFMON_SET_CONTEXT(block_no, offset, size)
+
     range_requests_.fetch_add(1, std::memory_order_relaxed);
 
     std::promise<block_range> promise;
@@ -485,7 +496,10 @@ class block_cache_ final : public block_cache::impl {
   }
 
   void process_job(std::shared_ptr<block_request_set> brs) const {
+    PERFMON_CLS_SCOPED_SECTION(process)
+
     auto block_no = brs->block_no();
+    PERFMON_SET_CONTEXT(block_no)
 
     LOG_TRACE << "processing block " << block_no;
 
@@ -546,11 +560,17 @@ class block_cache_ final : public block_cache::impl {
         }
       }
 
-      LOG_TRACE << "decompressing block " << block_no << " until position "
-                << req.end();
-
       try {
-        block->decompress_until(range_end);
+        if (range_end > block->range_end()) {
+          PERFMON_CLS_SCOPED_SECTION(decompress)
+          PERFMON_SET_CONTEXT(range_end)
+
+          LOG_TRACE << "decompressing block " << block_no << " until position "
+                    << req.end();
+
+          block->decompress_until(range_end);
+        }
+
         req.fulfill(block);
       } catch (...) {
         req.error(std::current_exception());
@@ -652,6 +672,10 @@ class block_cache_ final : public block_cache::impl {
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
   LOG_PROXY_DECL(LoggerPolicy);
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(get)
+  PERFMON_CLS_TIMER_DECL(process)
+  PERFMON_CLS_TIMER_DECL(decompress)
   os_access const& os_;
   const block_cache_options options_;
   cache_tidy_config tidy_config_;
@@ -659,8 +683,9 @@ class block_cache_ final : public block_cache::impl {
 
 block_cache::block_cache(logger& lgr, os_access const& os,
                          std::shared_ptr<mmif> mm,
-                         const block_cache_options& options)
+                         const block_cache_options& options,
+                         std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
-          lgr, os, std::move(mm), options)) {}
+          lgr, os, std::move(mm), options, std::move(perfmon))) {}
 
 } // namespace dwarfs

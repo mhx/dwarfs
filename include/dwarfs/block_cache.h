@@ -40,11 +40,13 @@ class fs_section;
 class logger;
 class mmif;
 class os_access;
+class performance_monitor;
 
 class block_cache {
  public:
   block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-              const block_cache_options& options);
+              const block_cache_options& options,
+              std::shared_ptr<performance_monitor const> perfmon);
 
   size_t block_count() const { return impl_->block_count(); }
 
