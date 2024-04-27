@@ -645,7 +645,14 @@ class driver_runner {
         return is_expected_exit_code;
 #ifndef _WIN32
       } else {
-        subprocess::check_run(find_fusermount(), "-u", mountpoint_);
+        auto fusermount = find_fusermount();
+        for (int i = 0; i < 5; ++i) {
+          if (subprocess::check_run(fusermount, "-u", mountpoint_)) {
+            break;
+          }
+          std::cerr << "retrying fusermount...\n";
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
         mountpoint_.clear();
         return dwarfs_guard_.check_exit(std::chrono::seconds(5));
       }
