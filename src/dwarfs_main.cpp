@@ -141,6 +141,7 @@ namespace dwarfs {
 namespace {
 
 constexpr size_t const kDefaultBlockSize{static_cast<size_t>(512) << 10};
+constexpr size_t const kDefaultSeqDetectorThreshold{4};
 
 struct options {
   // std::string isn't standard-layout on MSVC
@@ -158,6 +159,7 @@ struct options {
   char const* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
+  char const* seq_detector_thresh_str{nullptr}; // TODO: const?? -> use string?
 #if DWARFS_PERFMON_ENABLED
   char const* perfmon_enabled_str{nullptr};    // TODO: const?? -> use string?
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
@@ -176,6 +178,7 @@ struct options {
   cache_tidy_strategy block_cache_tidy_strategy{cache_tidy_strategy::NONE};
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
+  size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};
   bool is_help{false};
 #ifdef DWARFS_BUILTIN_MANPAGE
   bool is_man{false};
@@ -230,6 +233,7 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("tidy_strategy=%s", cache_tidy_strategy_str, 0),
     DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
     DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
+    DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("cache_image", cache_image, 1),
@@ -1074,6 +1078,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
+     << "    -o seq_detector=NUM    sequential access detector threshold (4)\n"
 #if DWARFS_PERFMON_ENABLED
      << "    -o perfmon=name[+...]  enable performance monitor\n"
      << "    -o perfmon_trace=FILE  write performance monitor trace file\n"
@@ -1299,6 +1304,8 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.decompress_ratio = opts.decompress_ratio;
   fsopts.block_cache.mm_release = !opts.cache_image;
   fsopts.block_cache.init_workers = false;
+  fsopts.block_cache.sequential_access_detector_threshold =
+      opts.seq_detector_threshold;
   fsopts.inode_reader.readahead = opts.readahead;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
@@ -1485,6 +1492,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     iol.err << "error: decratio must be between 0.0 and 1.0\n";
     return 1;
   }
+
+  opts.seq_detector_threshold =
+      opts.seq_detector_thresh_str
+          ? folly::to<size_t>(opts.seq_detector_thresh_str)
+          : kDefaultSeqDetectorThreshold;
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (userdata.opts.is_man) {

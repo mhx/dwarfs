@@ -153,6 +153,13 @@ options:
   be an integer value. Suffixes `ms`, `s`, `m`, `h` are supported.
   If no suffix is given, the value will be assumed to be in seconds.
 
+- `-o seq_detector=`*num*:
+  Threshold, in blocks, for the sequential access detector. If the most
+  recently accessed *num* blocks are sequential, then the block following
+  the sequence is prefetched. This can significantly increase throughput
+  if data is acccessed sequentially. A value of `0` completely disables
+  detection and prefetching.
+
 - `-o perfmon=`*name*[`+`*name*...]:
   Enable performance monitoring for the list of `+`-separated components.
   This option is only available if the project was built with performance
