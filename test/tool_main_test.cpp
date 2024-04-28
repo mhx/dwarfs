@@ -548,6 +548,35 @@ TEST(dwarfsextract_test, perfmon) {
                                      R"(\s+p99 latency:\s+\d+(\.\d+)?[num]?s)"};
   EXPECT_TRUE(std::regex_search(errs, perfmon_re)) << errs;
 }
+
+TEST(dwarfsextract_test, perfmon_trace) {
+  auto t = dwarfsextract_tester::create_with_image();
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "gnutar", "--perfmon",
+                      "filesystem_v2,inode_reader_v2,block_cache",
+                      "--perfmon-trace", "trace.json"}))
+      << t.err();
+
+  EXPECT_GT(t.out().size(), 1'000'000);
+
+  auto trace_file = t.fa->get_file("trace.json");
+  ASSERT_TRUE(trace_file);
+  EXPECT_GT(trace_file->size(), 10'000);
+
+  auto trace = folly::parseJson(*trace_file);
+  EXPECT_TRUE(trace.isArray());
+
+  std::set<std::string> const expected = {"filesystem_v2", "inode_reader_v2",
+                                          "block_cache"};
+  std::set<std::string> actual;
+
+  for (auto const& obj : trace) {
+    EXPECT_TRUE(obj.isObject());
+    EXPECT_TRUE(obj["cat"].isString());
+    actual.insert(obj["cat"].getString());
+  }
+
+  EXPECT_EQ(expected, actual);
+}
 #endif
 
 class mkdwarfs_input_list_test : public testing::TestWithParam<input_mode> {};
