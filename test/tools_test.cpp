@@ -945,9 +945,16 @@ TEST_P(tools_test, end_to_end) {
     }
 
     {
+      scoped_no_leak_check no_leak_check;
+      std::vector<std::string> args;
+
+#if DWARFS_PERFMON_ENABLED
+      args.push_back("-operfmon=fuse+inode_reader_v2+block_cache");
+#endif
+
       driver_runner runner(driver_runner::foreground, driver,
                            mode == binary_mode::universal_tool, image,
-                           mountpoint);
+                           mountpoint, args);
 
       ASSERT_TRUE(wait_until_file_ready(mountpoint / "format.sh", timeout))
           << runner.cmdline();
