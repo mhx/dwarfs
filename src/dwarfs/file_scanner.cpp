@@ -19,12 +19,14 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <concepts>
 #include <mutex>
 #include <string_view>
 #include <vector>
 
 #include <folly/String.h>
 #include <folly/container/F14Map.h>
+#include <folly/json.h>
 
 #include <fmt/format.h>
 
@@ -40,6 +42,16 @@
 #include "dwarfs/progress.h"
 #include "dwarfs/worker_group.h"
 
+template <typename T, typename U>
+class fmt::formatter<std::pair<T, U>> {
+ public:
+  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+  template <typename Context>
+  constexpr auto format(std::pair<T, U> const& foo, Context& ctx) const {
+    return fmt::format_to(ctx.out(), "({}, {})", foo.first, foo.second);
+  }
+};
+
 namespace dwarfs::detail {
 
 namespace {
@@ -51,13 +63,15 @@ template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
  public:
   file_scanner_(logger& lgr, worker_group& wg, os_access const& os,
-                inode_manager& im, std::optional<std::string> const& hash_algo,
-                progress& prog);
+                inode_manager& im, progress& prog,
+                file_scanner::options const& opts);
 
   void scan(file* p) override;
   void finalize(uint32_t& inode_num) override;
 
   uint32_t num_unique() const override { return num_unique_; }
+
+  void dump(std::ostream& os) const override;
 
  private:
   class condition_barrier {
@@ -77,7 +91,7 @@ class file_scanner_ final : public file_scanner::impl {
 
   void scan_dedupe(file* p);
   void hash_file(file* p);
-  void add_inode(file* p);
+  void add_inode(file* p, int lineno);
 
   template <typename Lookup>
   void finalize_hardlinks(Lookup&& lookup);
@@ -91,15 +105,47 @@ class file_scanner_ final : public file_scanner::impl {
   finalize_inodes(std::vector<std::pair<KeyType, inode::files_vector>>& ent,
                   uint32_t& inode_num, uint32_t& obj_num);
 
+  template <typename T>
+  std::string format_key(T const& key) const {
+    return fmt::format("{}", key);
+  }
+
+  template <typename T>
+  std::string format_key(T const* key) const {
+    return fmt::format("{}", reinterpret_cast<void const*>(key));
+  }
+
+  std::string format_key(std::string_view key) const {
+    return fmt::format("{}", folly::hexlify(key));
+  }
+
+  void dump_value(std::ostream& os, std::integral auto val) const {
+    os << fmt::format("{}", val);
+  }
+
+  void dump_value(std::ostream& os,
+                  std::shared_ptr<condition_barrier> const&) const {
+    os << "null";
+  }
+
+  void dump_value(std::ostream& os, file const* p) const;
+  void dump_value(std::ostream& os, inode::files_vector const& vec) const;
+
+  void dump_inodes(std::ostream& os) const;
+  void dump_inode_create_info(std::ostream& os) const;
+
+  template <typename T>
+  void dump_map(std::ostream& os, std::string_view name, T const& map) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
   os_access const& os_;
   inode_manager& im_;
-  std::optional<std::string> const hash_algo_;
   progress& prog_;
+  file_scanner::options const opts_;
   uint32_t num_unique_{0};
   folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
-  std::mutex mx_;
+  std::mutex mutable mx_;
   // The pair stores the file size and optionally a hash of the first
   // 4 KiB of the file. If there's a collision, the worst that can
   // happen is that we unnecessary hash a file that is not a duplicate.
@@ -112,6 +158,13 @@ class file_scanner_ final : public file_scanner::impl {
       first_file_hashed_;
   folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
   folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
+
+  struct inode_create_info {
+    inode const* i;
+    file const* f;
+    int line;
+  };
+  std::vector<inode_create_info> debug_inode_create_;
 };
 
 // The `unique_size_` table holds an entry for each file size we
@@ -154,15 +207,16 @@ class file_scanner_ final : public file_scanner::impl {
 //   it should happen rarely enough to not be a problem.
 
 template <typename LoggerPolicy>
-file_scanner_<LoggerPolicy>::file_scanner_(
-    logger& lgr, worker_group& wg, os_access const& os, inode_manager& im,
-    std::optional<std::string> const& hash_algo, progress& prog)
+file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, worker_group& wg,
+                                           os_access const& os,
+                                           inode_manager& im, progress& prog,
+                                           file_scanner::options const& opts)
     : LOG_PROXY_INIT(lgr)
     , wg_(wg)
     , os_(os)
     , im_(im)
-    , hash_algo_{hash_algo}
-    , prog_(prog) {}
+    , prog_(prog)
+    , opts_{opts} {}
 
 template <typename LoggerPolicy>
 void file_scanner_<LoggerPolicy>::scan(file* p) {
@@ -183,15 +237,15 @@ void file_scanner_<LoggerPolicy>::scan(file* p) {
 
   prog_.original_size += p->size();
 
-  if (hash_algo_) {
+  if (opts_.hash_algo) {
     scan_dedupe(p);
   } else {
     prog_.current.store(p);
-    p->scan(nullptr, prog_, hash_algo_); // TODO
+    p->scan(nullptr, prog_, opts_.hash_algo); // TODO
 
     by_raw_inode_[p->raw_inode_num()].push_back(p);
 
-    add_inode(p);
+    add_inode(p, __LINE__);
   }
 }
 
@@ -201,7 +255,7 @@ void file_scanner_<LoggerPolicy>::finalize(uint32_t& inode_num) {
 
   assert(first_file_hashed_.empty());
 
-  if (hash_algo_) {
+  if (opts_.hash_algo) {
     finalize_hardlinks([this](file const* p) -> inode::files_vector& {
       if (auto it = by_hash_.find(p->hash()); it != by_hash_.end()) {
         return it->second;
@@ -263,7 +317,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
     {
       std::lock_guard lock(mx_);
-      add_inode(p);
+      add_inode(p, __LINE__);
     }
   } else {
     // This file size has been seen before, so this is potentially
@@ -336,14 +390,14 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
         }
 
         if (p->is_invalid()) [[unlikely]] {
-          add_inode(p);
+          add_inode(p, __LINE__);
           by_raw_inode_[p->raw_inode_num()].push_back(p);
         } else {
           auto& ref = by_hash_[p->hash()];
 
           if (ref.empty()) {
             // This is *not* a duplicate. We must allocate a new inode.
-            add_inode(p);
+            add_inode(p, __LINE__);
           } else {
             auto inode = ref.front()->get_inode();
             assert(inode);
@@ -383,16 +437,20 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
   }
 
   prog_.current.store(p);
-  p->scan(mm.get(), prog_, hash_algo_);
+  p->scan(mm.get(), prog_, opts_.hash_algo);
 }
 
 template <typename LoggerPolicy>
-void file_scanner_<LoggerPolicy>::add_inode(file* p) {
+void file_scanner_<LoggerPolicy>::add_inode(file* p, int lineno) {
   assert(!p->get_inode());
 
   auto inode = im_.create_inode();
 
   p->set_inode(inode);
+
+  if (opts_.debug_inode_create) {
+    debug_inode_create_.push_back({inode.get(), p, lineno});
+  }
 
   im_.scan_background(wg_, os_, std::move(inode), p);
 }
@@ -449,8 +507,7 @@ void file_scanner_<LoggerPolicy>::finalize_files(
     finalize_inodes<false>(ent, inode_num, obj_num);
   }
 
-  tv << "finalized " << ent.size() << (UniqueOnly ? " " : " non-")
-     << "unique files";
+  tv << "finalized " << ent.size() << (UniqueOnly ? " unique" : "") << " files";
 }
 
 template <typename LoggerPolicy>
@@ -458,10 +515,19 @@ template <bool Unique, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_inodes(
     std::vector<std::pair<KeyType, inode::files_vector>>& ent,
     uint32_t& inode_num, uint32_t& obj_num) {
+  int const obj_num_before = obj_num;
+
+  auto tv = LOG_TIMED_VERBOSE;
+
   for (auto& p : ent) {
     auto& files = p.second;
 
     if constexpr (Unique) {
+      DWARFS_CHECK(!files.empty(),
+                   fmt::format("internal error in finalize_inodes: empty files "
+                               "vector for key {}",
+                               p.first));
+
       // this is true regardless of how the files are ordered
       if (files.size() > files.front()->refcount()) {
         continue;
@@ -470,15 +536,18 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
       ++num_unique_;
     } else {
       if (files.empty()) {
+        // This is fine: the !Unique version is *always* called after the Unique
+        // version, which will have moved the unique file vectors.
         continue;
       }
 
       DWARFS_CHECK(files.size() > 1, "unexpected non-duplicate file");
-    }
 
-    // needed for reproducibility
-    std::sort(files.begin(), files.end(),
-              [](file const* a, file const* b) { return a->less_revpath(*b); });
+      // needed for reproducibility
+      std::sort(files.begin(), files.end(), [](file const* a, file const* b) {
+        return a->less_revpath(*b);
+      });
+    }
 
     for (auto fp : files) {
       // need to check because hardlinks share the same number
@@ -496,14 +565,141 @@ void file_scanner_<LoggerPolicy>::finalize_inodes(
 
     ++obj_num;
   }
+
+  tv << "finalized " << (obj_num - obj_num_before) << (Unique ? " " : " non-")
+     << "unique inodes";
 }
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
+                                             file const* p) const {
+  std::shared_ptr<inode const> ino = p->get_inode();
+  auto ino_num = p->inode_num();
+
+  os << "{\n"
+     << "        \"ptr\": \""
+     << fmt::format("{}", reinterpret_cast<void const*>(p)) << "\",\n"
+     << "        \"path\": " << folly::toJson(p->path_as_string()) << ",\n"
+     << "        \"size\": " << fmt::format("{}", p->size()) << ",\n"
+     << "        \"refcnt\": " << fmt::format("{}", p->refcount()) << ",\n"
+     << "        \"hash\": \"" << folly::hexlify(p->hash()) << "\",\n"
+     << "        \"invalid\": " << (p->is_invalid() ? "true" : "false") << ",\n"
+     << "        \"inode_num\": "
+     << (ino_num ? fmt::format("{}", *ino_num) : "null") << ",\n"
+     << "        \"inode\": \""
+     << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\"\n"
+     << "      }";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_value(
+    std::ostream& os, inode::files_vector const& vec) const {
+  os << "[\n";
+  bool first = true;
+  for (auto p : vec) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    os << "      ";
+    dump_value(os, p);
+  }
+  os << "\n    ]";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
+  os << "  \"inodes\": [\n";
+  auto inodes = im_.sortable_span();
+  inodes.all();
+  bool first = true;
+  for (auto const& ino : inodes) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    os << "    {\n"
+       << "      \"ptr\": \""
+       << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\",\n"
+       << "      \"files\": ";
+    dump_value(os, ino->all());
+    os << "\n    }";
+  }
+  os << "\n  ]";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump_inode_create_info(
+    std::ostream& os) const {
+  os << "  \"inode_create_info\": [\n";
+  bool first = true;
+  for (auto const& ici : debug_inode_create_) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    os << "    {\n"
+       << "      \"inode\": \""
+       << fmt::format("{}", reinterpret_cast<void const*>(ici.i)) << "\",\n"
+       << "      \"file\": ";
+    dump_value(os, ici.f);
+    os << ",\n"
+       << "      \"line\": " << fmt::format("{}", ici.line) << "\n"
+       << "    }";
+  }
+  os << "\n  ]";
+}
+
+template <typename LoggerPolicy>
+template <typename T>
+void file_scanner_<LoggerPolicy>::dump_map(std::ostream& os,
+                                           std::string_view name,
+                                           T const& map) const {
+  os << "  \"" << name << "\": {\n";
+
+  bool first = true;
+
+  for (auto const& [k, v] : map) {
+    if (!first) {
+      os << ",\n";
+    }
+    first = false;
+    os << "    \"" << format_key(k) << "\": ";
+    dump_value(os, v);
+  }
+
+  os << "\n  }";
+}
+
+template <typename LoggerPolicy>
+void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
+  std::lock_guard lock(mx_);
+
+  os << "{\n";
+  dump_map(os, "hardlinks", hardlinks_);
+  os << ",\n";
+  dump_map(os, "unique_size", unique_size_);
+  os << ",\n";
+  dump_map(os, "file_start_hash", file_start_hash_);
+  os << ",\n";
+  dump_map(os, "first_file_hashed", first_file_hashed_);
+  os << ",\n";
+  dump_map(os, "by_raw_inode", by_raw_inode_);
+  os << ",\n";
+  dump_map(os, "by_hash", by_hash_);
+  os << ",\n";
+  dump_inode_create_info(os);
+  os << ",\n";
+  dump_inodes(os);
+  os << "\n}\n";
+}
+
 } // namespace
 
 file_scanner::file_scanner(logger& lgr, worker_group& wg, os_access const& os,
-                           inode_manager& im,
-                           std::optional<std::string> const& hash_algo,
-                           progress& prog)
+                           inode_manager& im, progress& prog,
+                           options const& opts)
     : impl_{make_unique_logging_object<impl, file_scanner_, logger_policies>(
-          lgr, wg, os, im, hash_algo, prog)} {}
+          lgr, wg, os, im, prog, opts)} {}
 
 } // namespace dwarfs::detail

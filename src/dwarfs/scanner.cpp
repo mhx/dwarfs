@@ -25,6 +25,7 @@
 #include <cstring>
 #include <ctime>
 #include <deque>
+#include <functional>
 #include <iterator>
 #include <numeric>
 #include <stdexcept>
@@ -74,6 +75,10 @@ namespace dwarfs {
 using namespace std::chrono_literals;
 
 namespace {
+
+constexpr std::string_view kEnvVarDumpFilesRaw{"DWARFS_DUMP_FILES_RAW"};
+constexpr std::string_view kEnvVarDumpFilesFinal{"DWARFS_DUMP_FILES_FINAL"};
+constexpr std::string_view kEnvVarDumpInodes{"DWARFS_DUMP_INODES"};
 
 class visitor_base : public entry_visitor {
  public:
@@ -302,6 +307,10 @@ class scanner_ final : public scanner::impl {
             progress& prog, detail::file_scanner& fs,
             bool debug_filter = false);
 
+  void dump_state(std::string_view env_var, std::string_view what,
+                  std::shared_ptr<file_access const> fa,
+                  std::function<void(std::ostream&)> dumper) const;
+
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
   scanner_options const& options_;
@@ -430,6 +439,31 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
   }
 
   return nullptr;
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::dump_state(
+    std::string_view env_var, std::string_view what,
+    std::shared_ptr<file_access const> fa,
+    std::function<void(std::ostream&)> dumper) const {
+  if (auto dumpfile = os_->getenv(env_var)) {
+    if (fa) {
+      LOG_VERBOSE << "dumping " << what << " to " << *dumpfile;
+      std::error_code ec;
+      auto ofs = fa->open_output(*dumpfile, ec);
+      if (ec) {
+        LOG_ERROR << "cannot open '" << *dumpfile << "': " << ec.message();
+      } else {
+        dumper(ofs->os());
+        ofs->close(ec);
+        if (ec) {
+          LOG_ERROR << "cannot close '" << *dumpfile << "': " << ec.message();
+        }
+      }
+    } else {
+      LOG_ERROR << "cannot dump " << what << ": no file access";
+    }
+  }
 }
 
 template <typename LoggerPolicy>
@@ -578,8 +612,11 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(status_string);
 
   inode_manager im(LOG_GET_LOGGER, prog, options_.inode);
-  detail::file_scanner fs(LOG_GET_LOGGER, wg_, *os_, im,
-                          options_.file_hash_algorithm, prog);
+  detail::file_scanner fs(
+      LOG_GET_LOGGER, wg_, *os_, im, prog,
+      {.hash_algo = options_.file_hash_algorithm,
+       .debug_inode_create = os_->getenv(kEnvVarDumpFilesRaw) ||
+                             os_->getenv(kEnvVarDumpFilesFinal)});
 
   auto root =
       list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
@@ -611,9 +648,15 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "scanning CPU time: "
            << time_with_unit(wg_.get_cpu_time().value_or(0ns));
 
+  dump_state(kEnvVarDumpFilesRaw, "raw files", fa,
+             [&fs](auto& os) { fs.dump(os); });
+
   LOG_INFO << "finalizing file inodes...";
   uint32_t first_device_inode = first_file_inode;
   fs.finalize(first_device_inode);
+
+  dump_state(kEnvVarDumpFilesFinal, "final files", fa,
+             [&fs](auto& os) { fs.dump(os); });
 
   // this must be done after finalizing the inodes since this is when
   // the file vectors are populated
@@ -675,24 +718,7 @@ void scanner_<LoggerPolicy>::scan(
     });
   });
 
-  if (auto dumpfile = os_->getenv("DWARFS_DUMP_INODES")) {
-    if (fa) {
-      LOG_VERBOSE << "dumping inodes to " << *dumpfile;
-      std::error_code ec;
-      auto ofs = fa->open_output(*dumpfile, ec);
-      if (ec) {
-        LOG_ERROR << "cannot open '" << *dumpfile << "': " << ec.message();
-      } else {
-        im.dump(ofs->os());
-        ofs->close(ec);
-        if (ec) {
-          LOG_ERROR << "cannot close '" << *dumpfile << "': " << ec.message();
-        }
-      }
-    } else {
-      LOG_ERROR << "cannot dump inodes: no file access";
-    }
-  }
+  dump_state(kEnvVarDumpInodes, "inodes", fa, [&im](auto& os) { im.dump(os); });
 
   LOG_INFO << "building blocks...";
 

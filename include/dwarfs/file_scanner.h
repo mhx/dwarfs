@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <iosfwd>
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,13 +41,18 @@ namespace detail {
 
 class file_scanner {
  public:
+  struct options {
+    std::optional<std::string> hash_algo{};
+    bool debug_inode_create{false};
+  };
+
   file_scanner(logger& lgr, worker_group& wg, os_access const& os,
-               inode_manager& im, std::optional<std::string> const& hash_algo,
-               progress& prog);
+               inode_manager& im, progress& prog, options const& opts);
 
   void scan(file* p) { impl_->scan(p); }
   void finalize(uint32_t& inode_num) { impl_->finalize(inode_num); }
   uint32_t num_unique() const { return impl_->num_unique(); }
+  void dump(std::ostream& os) const { impl_->dump(os); }
 
   class impl {
    public:
@@ -55,6 +61,7 @@ class file_scanner {
     virtual void scan(file* p) = 0;
     virtual void finalize(uint32_t& inode_num) = 0;
     virtual uint32_t num_unique() const = 0;
+    virtual void dump(std::ostream& os) const = 0;
   };
 
  private:
