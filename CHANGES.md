@@ -1,5 +1,27 @@
 # Change Log
 
+## Version 0.9.9 - 2024-04-30
+
+- (fix) A bug introduced by an optimization to skip hashing of large
+  files if they already differ in the first 4 KiB could, under rare
+  circumstances, lead to an unexpected "inode has no file" exception
+  after the scanning phase. This bug did not cause any file system
+  inconsistency issues; `mkdwarfs` either crashes with the exception,
+  or its output will be correct. Fixes github #217.
+
+- (feat) Add sequential access detector and block prefetching to the
+  block cache. This improves sequential read throughput roughly by a
+  factor of two. Can be configured / disabled using `-o seq_detector`.
+
+- (feat) Add tracing support in FUSE driver and `dwarfsextract`, which
+  allows simple performance analysis using chrome://tracing. Traces can
+  be enabled using `-o perfmon_trace` and `--perfmon-trace`.
+
+- (feat) Add performance monitoring and tracing support for the block
+  cache.
+
+- (perf) Significantly improve speed of `dwarfsck --checksum`.
+
 ## Version 0.9.8 - 2024-04-14
 
 - (fix) Build custom version of libcrypto to link with the release
