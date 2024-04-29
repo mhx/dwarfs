@@ -154,7 +154,8 @@ class file_scanner_ final : public file_scanner::impl {
   // We need this lookup table to later find the unique_size_ entry
   // given just a file pointer.
   folly::F14FastMap<file const*, uint64_t> file_start_hash_;
-  folly::F14FastMap<uint64_t, std::shared_ptr<condition_barrier>>
+  folly::F14FastMap<std::pair<uint64_t, uint64_t>,
+                    std::shared_ptr<condition_barrier>>
       first_file_hashed_;
   folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
   folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
@@ -310,8 +311,9 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
     file_start_hash_.emplace(p, start_hash);
   }
 
-  auto [it, is_new] = unique_size_.emplace(std::make_pair(size, start_hash),
-                                           inode::files_vector());
+  auto const unique_key = std::make_pair(size, start_hash);
+
+  auto [it, is_new] = unique_size_.emplace(unique_key, inode::files_vector());
 
   if (is_new) {
     // A file (size, start_hash) that has never been seen before. We can safely
@@ -332,7 +334,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
       // This is any file of this (size, start_hash) after the second file
       std::lock_guard lock(mx_);
 
-      if (auto ffi = first_file_hashed_.find(size);
+      if (auto ffi = first_file_hashed_.find(unique_key);
           ffi != first_file_hashed_.end()) {
         cv = ffi->second;
       }
@@ -347,12 +349,12 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
       {
         std::lock_guard lock(mx_);
         DWARFS_CHECK(
-            first_file_hashed_.emplace(size, cv).second,
+            first_file_hashed_.emplace(unique_key, cv).second,
             "internal error: first file condition barrier already exists");
       }
 
       // Add a job for the first file
-      wg_.add_job([this, p = it->second.front(), cv] {
+      wg_.add_job([this, p = it->second.front(), cv, unique_key] {
         hash_file(p);
 
         {
@@ -371,7 +373,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
           cv->set();
 
-          first_file_hashed_.erase(p->size());
+          first_file_hashed_.erase(unique_key);
         }
 
         cv->notify();

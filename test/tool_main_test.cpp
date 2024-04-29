@@ -2701,3 +2701,89 @@ TEST(block_cache, sequential_access_detector) {
     }
   }
 }
+
+TEST(file_scanner, large_file_handling) {
+  using namespace std::chrono_literals;
+
+  /*
+    We have 5 files, each 1MB in size. Files 0 and 3 are identical, as are
+    files 1, 2 and 4. In order to reproduce the bug from github #217, we must
+    ensure the following order of events. Note that this description is only
+    accurate for the old, buggy code.
+
+    [10ms] `f0` is discovered; the first 4K are hashed; unique_size_ is
+           updated with (s, h0) -> f0; inode i0 is created
+
+    [20ms] `f1` is discovered; the first 4K are hashed; unique_size_ is
+           updated with (s, h1) -> f1; inode i1 is created
+
+    [30ms] `f2` is discovered; the first 4K are hashed; (s, h2) == (s, h1)
+           is found in unique_size_; latch l0 is created in slot s; a hash
+           job is started for f1; unique_size_[(s, h2)] -> []; a hash job is
+           started for f2
+
+    [40ms] `f3` is discovered; the first 4K are hashed; (s, h3) == (s, h0)
+           is found in unique_size_; latch l1 is created but cannot be
+           stored in slot s because it's occupied by l0; a hash job is
+           started for f0; unique_size_[(s, h3)] -> []; a hash job is
+           started for f3
+
+    [50ms] `f4` is discovered; the first 4K are hashed; (s, h4) == (s, h0)
+           is found in unique_size_; latch l0 is found in slot s [where we
+           would have rather expected l1]; a hash job is started for f4
+
+    [60ms] the hash job for f1 completes; latch l0 is released; f1 (i1) is
+           added to `by_hash_`; latch l0 is removed from slot s
+
+    [70ms] the hash job for f4 completes; latch l0 has already been released;
+           the hash for f4 is not in `by_hash_`; a new inode i2 is created;
+           f4 (i2) is added to `by_hash_` [THIS IS THE BUG]
+
+    [80ms] the hash job for f0 completes; latch l1 is released; the hash for
+           f0 is already in `by_hash_` [per f4, which shouldn't be there yet];
+           f0 (i0) is added to `by_hash_`; an attempt is made to remove latch
+           l1 from slot s [but it's not there, which isn't checked]
+
+    [90ms] the hash job for f2 completes; latch l0 has already been released;
+           the hash for f2 == f1 is already in `by_hash_`; f2 (i1) is added
+           [this is irrelevant]
+
+   [100ms] the hash job for f3 completes; latch l1 has already been released;
+           the hash for f3 == f0 is already in `by_hash_`; f3 (i0) is added
+           [this is irrelevant]
+  */
+
+  std::vector<std::string> data(5, test::loremipsum(1 << 20));
+  std::vector<std::chrono::milliseconds> delays{40ms, 30ms, 60ms, 60ms, 20ms};
+
+  data[1][100] ^= 0x01;
+  data[2][100] ^= 0x01;
+
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+
+  for (size_t i = 0; i < data.size(); ++i) {
+    auto file = fmt::format("f{}", i);
+    t.os->add_file(file, data[i]);
+    t.os->set_map_file_delay(fs::path{"/"} / file, delays[i]);
+  }
+
+  t.os->set_map_file_delay_min_size(10'000);
+  t.os->set_dir_reader_delay(10ms);
+
+  ASSERT_EQ(0, t.run("-i / -o - -l1")) << t.err();
+
+  auto fs = t.fs_from_stdout();
+
+  for (size_t i = 0; i < data.size(); ++i) {
+    auto iv = fs.find(fmt::format("f{}", i).c_str());
+    ASSERT_TRUE(iv) << i;
+    file_stat st;
+    ASSERT_EQ(0, fs.getattr(*iv, &st)) << i;
+    std::string buffer;
+    buffer.resize(st.size);
+    auto nread = fs.read(iv->inode_num(), buffer.data(), st.size);
+    EXPECT_EQ(data[i].size(), nread) << i;
+    EXPECT_EQ(data[i], buffer) << i;
+  }
+}
