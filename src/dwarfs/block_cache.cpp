@@ -674,7 +674,7 @@ class block_cache_ final : public block_cache::impl {
           PERFMON_SET_CONTEXT(range_end)
 
           LOG_TRACE << "decompressing block " << block_no << " until position "
-                    << req.end();
+                    << range_end;
 
           block->decompress_until(range_end);
         }
