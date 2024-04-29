@@ -523,7 +523,7 @@ TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
   EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
 }
 
-#ifdef DWARFS_PERFMON_ENABLED
+#if DWARFS_PERFMON_ENABLED
 TEST(dwarfsextract_test, perfmon) {
   auto t = dwarfsextract_tester::create_with_image();
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--perfmon",
