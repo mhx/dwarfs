@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <concepts>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -103,7 +104,7 @@ class scoped_no_leak_check {
     } else {
       new_asan_options.assign(kNoLeakCheck);
     }
-    ::setenv("ASAN_OPTIONS", new_asan_options.c_str(), 1);
+    ::setenv(kEnvVar, new_asan_options.c_str(), 1);
     unset_asan_ = true;
   }
 
@@ -366,9 +367,14 @@ void ignore_sigpipe() {
 #endif
 }
 
+template <typename T>
+concept subprocess_arg = std::convertible_to<T, std::string> ||
+                         std::convertible_to<T, std::vector<std::string>> ||
+                         std::convertible_to<T, fs::path>;
+
 class subprocess {
  public:
-  template <typename... Args>
+  template <subprocess_arg... Args>
   subprocess(std::filesystem::path const& prog, Args&&... args)
       : prog_{prog} {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
@@ -477,7 +483,7 @@ class subprocess {
     args.insert(args.end(), more.begin(), more.end());
   }
 
-  template <typename T>
+  template <std::convertible_to<std::string> T>
   static void append_arg(std::vector<std::string>& args, T const& arg) {
     args.emplace_back(arg);
   }
