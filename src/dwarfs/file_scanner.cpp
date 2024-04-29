@@ -288,6 +288,9 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
   uint64_t size = p->size();
   uint64_t start_hash{0};
 
+  LOG_TRACE << "scanning file " << p->path_as_string() << " [size=" << size
+            << "]";
+
   if (size >= kLargeFileThreshold) {
     if (!p->is_invalid()) {
       try {
@@ -311,7 +314,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
                                            inode::files_vector());
 
   if (is_new) {
-    // A file size that has never been seen before. We can safely
+    // A file (size, start_hash) that has never been seen before. We can safely
     // create a new inode and we'll keep track of the file.
     it->second.push_back(p);
 
@@ -320,13 +323,13 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
       add_inode(p, __LINE__);
     }
   } else {
-    // This file size has been seen before, so this is potentially
+    // This file (size, start_hash) has been seen before, so this is potentially
     // a duplicate.
 
     std::shared_ptr<condition_barrier> cv;
 
     if (it->second.empty()) {
-      // This is any file of this size after the second file
+      // This is any file of this (size, start_hash) after the second file
       std::lock_guard lock(mx_);
 
       if (auto ffi = first_file_hashed_.find(size);
@@ -334,16 +337,18 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
         cv = ffi->second;
       }
     } else {
-      // This is the second file of this size. We now need to hash
-      // both the first and second file and ensure that the first
-      // file's hash is stored to `by_hash_` first. We set up a
-      // condition variable to synchronize insertion into `by_hash_`.
+      // This is the second file of this (size, start_hash). We now need to
+      // hash both the first and second file and ensure that the first file's
+      // hash is stored to `by_hash_` first. We set up a condition variable
+      // to synchronize insertion into `by_hash_`.
 
       cv = std::make_shared<condition_barrier>();
 
       {
         std::lock_guard lock(mx_);
-        first_file_hashed_.emplace(size, cv);
+        DWARFS_CHECK(
+            first_file_hashed_.emplace(size, cv).second,
+            "internal error: first file condition barrier already exists");
       }
 
       // Add a job for the first file
@@ -359,7 +364,8 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
             by_raw_inode_[p->raw_inode_num()].push_back(p);
           } else {
             auto& ref = by_hash_[p->hash()];
-            assert(ref.empty());
+            DWARFS_CHECK(ref.empty(),
+                         "internal error: unexpected existing hash");
             ref.push_back(p);
           }
 
