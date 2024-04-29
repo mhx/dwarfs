@@ -2787,3 +2787,28 @@ TEST(file_scanner, large_file_handling) {
     EXPECT_EQ(data[i], buffer) << i;
   }
 }
+
+TEST(mkdwarfs_test, file_scanner_dump) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_root_dir();
+  t.os->add_local_files(audio_data_dir);
+  t.os->add_local_files(fits_data_dir);
+  t.add_random_file_tree({.avg_size = 1024.0, .dimension = 10});
+
+  t.os->setenv("DWARFS_DUMP_FILES_RAW", "raw.json");
+  t.os->setenv("DWARFS_DUMP_FILES_FINAL", "final.json");
+
+  ASSERT_EQ(0, t.run("-l1 -i / -o -")) << t.err();
+
+  auto raw = t.fa->get_file("raw.json");
+  ASSERT_TRUE(raw);
+  EXPECT_GT(raw->size(), 100'000);
+  EXPECT_NO_THROW(folly::parseJson(raw.value()));
+
+  auto finalized = t.fa->get_file("final.json");
+  ASSERT_TRUE(finalized);
+  EXPECT_GT(finalized->size(), 100'000);
+  EXPECT_NO_THROW(folly::parseJson(finalized.value()));
+
+  EXPECT_NE(*raw, *finalized);
+}
