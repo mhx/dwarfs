@@ -282,8 +282,8 @@ fragment_category categorizer_manager::default_category() {
 
 template <typename LoggerPolicy>
 void categorizer_manager_<LoggerPolicy>::add(std::shared_ptr<categorizer> c) {
-  for (auto const& c : c->categories()) {
-    add_category(c, categorizers_.size());
+  for (auto const& cat : c->categories()) {
+    add_category(cat, categorizers_.size());
   }
 
   categorizers_.emplace_back(std::move(c));

@@ -49,6 +49,7 @@
 #include <folly/Conv.h>
 #include <folly/FileUtil.h>
 #include <folly/String.h>
+#include <folly/container/Enumerate.h>
 #include <folly/gen/String.h>
 #include <folly/portability/SysStat.h>
 #include <folly/system/HardwareConcurrency.h>
@@ -334,8 +335,8 @@ class categorize_optval {
   void add_implicit_defaults(T& cop) const {
     if (is_implicit_default()) {
       if (auto it = defaults_.find(cop.name()); it != defaults_.end()) {
-        for (auto const& value : it->second) {
-          cop.parse_fallback(value);
+        for (auto const& v : it->second) {
+          cop.parse_fallback(v);
         }
       }
     }
@@ -713,16 +714,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                            metadata_hdr, l_mc, "Size/Step  Order")
             << "  " << sep << "\n";
 
-    int level = 0;
-    for (auto const& l : levels) {
+    for (auto const& [i, l] : folly::enumerate(levels)) {
       iol.out << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
                              "  {:2d} / {:1d}    {:{}s}",
-                             level, l.block_size_bits, l.data_compression, l_dc,
+                             i, l.block_size_bits, l.data_compression, l_dc,
                              l.schema_history_compression, l_sc,
                              l.metadata_compression, l_mc, l.window_size,
                              l.window_step, l.order, l_or)
               << "\n";
-      ++level;
     }
 
     iol.out << "  " << sep << "\n";

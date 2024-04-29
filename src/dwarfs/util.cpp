@@ -272,9 +272,7 @@ void utf8_sanitize(std::string& str) {
 }
 
 void shorten_path_string(std::string& path, char separator, size_t max_len) {
-  auto len = utf8_display_width(path);
-
-  if (len > max_len) {
+  if (utf8_display_width(path) > max_len) {
     if (max_len < 3) {
       path.clear();
       return;
@@ -293,7 +291,7 @@ void shorten_path_string(std::string& path, char separator, size_t max_len) {
 
     path.replace(0, start, "...");
 
-    if (auto len = utf8_display_width(path); len > max_len) {
+    if (utf8_display_width(path) > max_len) {
       if (max_len >= 7) {
         utf8_truncate(path, max_len - 3);
         path += "...";

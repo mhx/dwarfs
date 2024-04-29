@@ -609,7 +609,7 @@ class block_cache_ final : public block_cache::impl {
 
     // Check if another worker is already processing this block
     {
-      std::lock_guard lock(mx_dec_);
+      std::lock_guard lock_dec(mx_dec_);
 
       auto di = decompressing_.find(block_no);
 

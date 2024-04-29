@@ -195,9 +195,8 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
     std::lock_guard lock(readahead_cache_mutex_);
 
     if (read_offset > 0) {
-      if (auto it = readahead_cache_.find(inode);
-          it != readahead_cache_.end()) {
-        readahead_pos = it->second;
+      if (auto i = readahead_cache_.find(inode); i != readahead_cache_.end()) {
+        readahead_pos = i->second;
       }
 
       if (readahead_until <= readahead_pos) {

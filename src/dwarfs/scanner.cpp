@@ -491,10 +491,10 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
     DWARFS_CHECK(parent, "expected directory");
 
     queue.pop_front();
-    auto path = parent->fs_path();
+    auto ppath = parent->fs_path();
 
     try {
-      auto d = os_->opendir(path);
+      auto d = os_->opendir(ppath);
       std::filesystem::path name;
       std::vector<std::shared_ptr<entry>> subdirs;
 
@@ -510,7 +510,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 
       prog.dirs_scanned++;
     } catch (const std::system_error& e) {
-      LOG_ERROR << "cannot read directory `" << path
+      LOG_ERROR << "cannot read directory `" << ppath
                 << "`: " << folly::exceptionStr(e);
       prog.errors++;
     }

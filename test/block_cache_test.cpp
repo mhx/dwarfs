@@ -138,7 +138,6 @@ TEST_P(options_test, cache_stress) {
 
   auto const& cache_opts = GetParam();
 
-  std::mt19937_64 rng{42};
   auto os = std::make_shared<test::os_access_mock>();
 
   {
@@ -222,6 +221,7 @@ TEST_P(options_test, cache_stress) {
   };
 
   std::vector<std::vector<read_request>> data(num_threads);
+  std::mt19937_64 rng{42};
 
   for (auto& reqs : data) {
     while (reqs.size() < num_read_reqs) {
