@@ -110,6 +110,12 @@ class os_access_mock : public os_access {
   void set_access_fail(std::filesystem::path const& path);
   void set_map_file_error(std::filesystem::path const& path,
                           std::exception_ptr ep, int after_n_attempts = 0);
+  void set_map_file_delay(std::filesystem::path const& path,
+                          std::chrono::nanoseconds delay);
+
+  void set_map_file_delay_min_size(size_t size) {
+    map_file_delay_min_size_ = size;
+  }
 
   void setenv(std::string name, std::string value);
 
@@ -147,6 +153,10 @@ class os_access_mock : public os_access {
 
   std::set<std::filesystem::path> get_failed_paths() const;
 
+  void set_dir_reader_delay(std::chrono::nanoseconds delay) {
+    dir_reader_delay_ = delay;
+  }
+
   std::vector<
       std::tuple<std::thread::id, std::vector<int>>> mutable set_affinity_calls;
 
@@ -170,6 +180,9 @@ class os_access_mock : public os_access {
   std::map<std::string, std::string> env_;
   std::shared_ptr<os_access> real_os_;
   executable_resolver_type executable_resolver_;
+  std::chrono::nanoseconds dir_reader_delay_{0};
+  std::map<std::filesystem::path, std::chrono::nanoseconds> map_file_delays_;
+  size_t map_file_delay_min_size_{0};
 };
 
 class script_mock : public script {

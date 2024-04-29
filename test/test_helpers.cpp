@@ -143,11 +143,17 @@ void os_access_mock::mock_directory::add(std::string const& name,
 
 class dir_reader_mock : public dir_reader {
  public:
-  explicit dir_reader_mock(std::vector<fs::path>&& files)
+  explicit dir_reader_mock(std::vector<fs::path>&& files,
+                           std::chrono::nanoseconds delay)
       : files_(files)
-      , index_(0) {}
+      , index_(0)
+      , delay_{delay} {}
 
   bool read(fs::path& name) override {
+    if (delay_ > std::chrono::nanoseconds::zero()) {
+      std::this_thread::sleep_for(delay_);
+    }
+
     if (index_ < files_.size()) {
       name = files_[index_++];
       return true;
@@ -159,6 +165,7 @@ class dir_reader_mock : public dir_reader {
  private:
   std::vector<fs::path> files_;
   size_t index_;
+  std::chrono::nanoseconds const delay_;
 };
 
 os_access_mock::os_access_mock()
@@ -339,6 +346,11 @@ void os_access_mock::set_map_file_error(std::filesystem::path const& path,
   e.remaining_successful_attempts = after_n_attempts;
 }
 
+void os_access_mock::set_map_file_delay(std::filesystem::path const& path,
+                                        std::chrono::nanoseconds delay) {
+  map_file_delays_[path] = delay;
+}
+
 size_t os_access_mock::size() const { return root_ ? root_->size() : 0; }
 
 std::vector<std::string> os_access_mock::splitpath(fs::path const& path) {
@@ -408,7 +420,8 @@ os_access_mock::opendir(fs::path const& path) const {
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
       files.push_back(path / e.name);
     }
-    return std::make_unique<dir_reader_mock>(std::move(files));
+    return std::make_unique<dir_reader_mock>(std::move(files),
+                                             dir_reader_delay_);
   }
 
   throw std::runtime_error(fmt::format("oops in opendir: {}", path.string()));
@@ -444,6 +457,12 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
       }
       if (remaining <= 0) {
         std::rethrow_exception(it->second.ep);
+      }
+    }
+
+    if (size >= map_file_delay_min_size_) {
+      if (auto it = map_file_delays_.find(path); it != map_file_delays_.end()) {
+        std::this_thread::sleep_for(it->second);
       }
     }
 
