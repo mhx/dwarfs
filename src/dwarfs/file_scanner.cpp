@@ -20,6 +20,7 @@
  */
 
 #include <concepts>
+#include <latch>
 #include <mutex>
 #include <string_view>
 #include <vector>
@@ -74,21 +75,6 @@ class file_scanner_ final : public file_scanner::impl {
   void dump(std::ostream& os) const override;
 
  private:
-  class condition_barrier {
-   public:
-    void set() { ready_ = true; }
-
-    void notify() { cv_.notify_all(); }
-
-    void wait(std::unique_lock<std::mutex>& lock) {
-      cv_.wait(lock, [this] { return ready_; });
-    }
-
-   private:
-    std::condition_variable cv_;
-    bool ready_{false};
-  };
-
   void scan_dedupe(file* p);
   void hash_file(file* p);
   void add_inode(file* p, int lineno);
@@ -123,8 +109,7 @@ class file_scanner_ final : public file_scanner::impl {
     os << fmt::format("{}", val);
   }
 
-  void dump_value(std::ostream& os,
-                  std::shared_ptr<condition_barrier> const&) const {
+  void dump_value(std::ostream& os, std::shared_ptr<std::latch> const&) const {
     os << "null";
   }
 
@@ -154,8 +139,7 @@ class file_scanner_ final : public file_scanner::impl {
   // We need this lookup table to later find the unique_size_ entry
   // given just a file pointer.
   folly::F14FastMap<file const*, uint64_t> file_start_hash_;
-  folly::F14FastMap<std::pair<uint64_t, uint64_t>,
-                    std::shared_ptr<condition_barrier>>
+  folly::F14FastMap<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
   folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
   folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
@@ -328,7 +312,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
     // This file (size, start_hash) has been seen before, so this is potentially
     // a duplicate.
 
-    std::shared_ptr<condition_barrier> cv;
+    std::shared_ptr<std::latch> latch;
 
     if (it->second.empty()) {
       // This is any file of this (size, start_hash) after the second file
@@ -336,25 +320,24 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
 
       if (auto ffi = first_file_hashed_.find(unique_key);
           ffi != first_file_hashed_.end()) {
-        cv = ffi->second;
+        latch = ffi->second;
       }
     } else {
       // This is the second file of this (size, start_hash). We now need to
       // hash both the first and second file and ensure that the first file's
-      // hash is stored to `by_hash_` first. We set up a condition variable
-      // to synchronize insertion into `by_hash_`.
+      // hash is stored to `by_hash_` first. We set up a latch to synchronize
+      // insertion into `by_hash_`.
 
-      cv = std::make_shared<condition_barrier>();
+      latch = std::make_shared<std::latch>(1);
 
       {
         std::lock_guard lock(mx_);
-        DWARFS_CHECK(
-            first_file_hashed_.emplace(unique_key, cv).second,
-            "internal error: first file condition barrier already exists");
+        DWARFS_CHECK(first_file_hashed_.emplace(unique_key, latch).second,
+                     "internal error: first file hashed latch already exists");
       }
 
       // Add a job for the first file
-      wg_.add_job([this, p = it->second.front(), cv, unique_key] {
+      wg_.add_job([this, p = it->second.front(), latch, unique_key] {
         hash_file(p);
 
         {
@@ -371,31 +354,30 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
             ref.push_back(p);
           }
 
-          cv->set();
+          latch->count_down();
 
-          first_file_hashed_.erase(unique_key);
+          DWARFS_CHECK(first_file_hashed_.erase(unique_key) > 0,
+                       "internal error: missing first file hashed latch");
         }
-
-        cv->notify();
       });
 
-      // Clear files vector, but don't delete the hash table entry,
-      // to indicate that files of this size *must* be hashed.
+      // Clear files vector, but don't delete the hash table entry, to indicate
+      // that files of this (size, start_hash) *must* be hashed.
       it->second.clear();
     }
 
     // Add a job for any subsequent files
-    wg_.add_job([this, p, cv] {
+    wg_.add_job([this, p, latch] {
       hash_file(p);
+
+      if (latch) {
+        // Wait until the first file of this (size, start_hash) has been added
+        // to `by_hash_`.
+        latch->wait();
+      }
 
       {
         std::unique_lock lock(mx_);
-
-        if (cv) {
-          // Wait until the first file of this size has been added to
-          // `by_hash_`.
-          cv->wait(lock);
-        }
 
         if (p->is_invalid()) [[unlikely]] {
           add_inode(p, __LINE__);
