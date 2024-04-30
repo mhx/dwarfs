@@ -48,6 +48,27 @@ uint64_t get_page_size() {
 #endif
 }
 
+#ifndef _WIN32
+int posix_advice(advice adv) {
+  switch (adv) {
+  case advice::normal:
+    return MADV_NORMAL;
+  case advice::random:
+    return MADV_RANDOM;
+  case advice::sequential:
+    return MADV_SEQUENTIAL;
+  case advice::willneed:
+    return MADV_WILLNEED;
+  case advice::dontneed:
+    return MADV_DONTNEED;
+  }
+
+  assert(false);
+
+  return MADV_NORMAL;
+}
+#endif
+
 boost::filesystem::path boost_from_std_path(std::filesystem::path const& p) {
 #ifdef _WIN32
   return boost::filesystem::path(p.wstring());
@@ -77,19 +98,10 @@ mmap::lock(file_off_t offset [[maybe_unused]], size_t size [[maybe_unused]]) {
   return ec;
 }
 
-std::error_code mmap::release(file_off_t offset [[maybe_unused]],
-                              size_t size [[maybe_unused]]) {
+std::error_code
+mmap::advise(advice adv [[maybe_unused]], file_off_t offset [[maybe_unused]],
+             size_t size [[maybe_unused]]) {
   std::error_code ec;
-
-#ifndef _WIN32
-  auto misalign = offset % page_size_;
-
-  offset -= misalign;
-  size += misalign;
-  size -= size % page_size_;
-
-  auto data = const_cast<char*>(mf_.const_data() + offset);
-#endif
 
 #ifdef _WIN32
   //// TODO: this doesn't currently work
@@ -97,7 +109,17 @@ std::error_code mmap::release(file_off_t offset [[maybe_unused]],
   //   ec.assign(::GetLastError(), std::system_category());
   // }
 #else
-  if (::madvise(data, size, MADV_DONTNEED) != 0) {
+  auto misalign = offset % page_size_;
+
+  offset -= misalign;
+  size += misalign;
+  size -= size % page_size_;
+
+  auto data = const_cast<char*>(mf_.const_data() + offset);
+
+  int native_adv = posix_advice(adv);
+
+  if (::madvise(data, size, native_adv) != 0) {
     ec.assign(errno, std::generic_category());
   }
 #endif
@@ -105,27 +127,14 @@ std::error_code mmap::release(file_off_t offset [[maybe_unused]],
   return ec;
 }
 
-std::error_code mmap::release_until(file_off_t offset [[maybe_unused]]) {
-  std::error_code ec;
+std::error_code mmap::advise(advice adv) { return advise(adv, 0, size()); }
 
-#ifndef _WIN32
-  offset -= offset % page_size_;
+std::error_code mmap::release(file_off_t offset, size_t size) {
+  return advise(advice::dontneed, offset, size);
+}
 
-  auto data = const_cast<char*>(mf_.const_data());
-#endif
-
-#ifdef _WIN32
-  //// TODO: this doesn't currently work
-  // if (::VirtualFree(data, offset, MEM_DECOMMIT) == 0) {
-  //   ec.assign(::GetLastError(), std::system_category());
-  // }
-#else
-  if (::madvise(data, offset, MADV_DONTNEED) != 0) {
-    ec.assign(errno, std::generic_category());
-  }
-#endif
-
-  return ec;
+std::error_code mmap::release_until(file_off_t offset) {
+  return release(0, offset);
 }
 
 void const* mmap::addr() const { return mf_.const_data(); }

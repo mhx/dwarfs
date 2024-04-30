@@ -57,6 +57,11 @@ class mmap_mock : public mmif {
     return std::error_code();
   }
 
+  std::error_code advise(advice) override { return std::error_code(); }
+  std::error_code advise(advice, file_off_t, size_t) override {
+    return std::error_code();
+  }
+
  private:
   std::string const data_;
   std::filesystem::path const path_;
