@@ -404,7 +404,7 @@ char const* reference_v0_2 = R"(
   },
   "statvfs": {
     "f_blocks": 10614,
-    "f_bsize": 1024,
+    "f_bsize": 1,
     "f_files": 33
   }
 }
@@ -777,7 +777,7 @@ char const* reference = R"(
   },
   "statvfs": {
     "f_blocks": 10614,
-    "f_bsize": 1024,
+    "f_bsize": 1,
     "f_files": 36
   }
 }
@@ -822,7 +822,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1024, vfsbuf.bsize);
+  EXPECT_EQ(1, vfsbuf.bsize);
   EXPECT_EQ(1, vfsbuf.frsize);
   EXPECT_EQ(10614, vfsbuf.blocks);
   EXPECT_EQ(33 + 3 * has_devices, vfsbuf.files);

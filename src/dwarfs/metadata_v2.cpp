@@ -983,7 +983,7 @@ metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
   }
 
   if (detail_level > 0) {
-    info["block_size"] = stbuf.bsize;
+    info["block_size"] = meta_.block_size();
     info["block_count"] = fsinfo.block_count;
     info["inode_count"] = stbuf.files;
     if (auto ps = meta_.preferred_path_separator()) {
@@ -1710,7 +1710,9 @@ template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
-  stbuf->bsize = meta_.block_size();
+  // Make sure bsize and frsize are the same, as doing otherwise can confuse
+  // some applications (such as `duf`).
+  stbuf->bsize = 1UL;
   stbuf->frsize = 1UL;
   stbuf->blocks = meta_.total_fs_size();
   if (!options_.enable_nlink) {
