@@ -227,7 +227,7 @@ void basic_end_to_end_test(std::string const& compressor,
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
-  EXPECT_EQ(1 << block_size_bits, vfsbuf.bsize);
+  EXPECT_EQ(1, vfsbuf.bsize);
   EXPECT_EQ(1, vfsbuf.frsize);
   if (enable_nlink) {
     EXPECT_EQ(access_fail ? 2046934 : 2056934, vfsbuf.blocks);
