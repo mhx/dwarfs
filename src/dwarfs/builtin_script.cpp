@@ -190,6 +190,10 @@ void builtin_script_<LoggerPolicy>::set_root_path(
     std::filesystem::path const& path) {
   // TODO: this whole thing needs to be windowsized
   root_path_ = u8string_to_string(path.u8string());
+
+  if (root_path_ == "/") {
+    root_path_.clear();
+  }
 }
 
 template <typename LoggerPolicy>
@@ -252,7 +256,8 @@ bool builtin_script_<LoggerPolicy>::filter(entry_interface const& ei) {
 
   for (const auto& r : filter_) {
     if (std::regex_match(r.floating ? path : relpath, r.re)) {
-      LOG_TRACE << path << " matched rule '" << r.rule << "'";
+      LOG_TRACE << "[" << path << "] / [" << relpath << "] matched rule '"
+                << r.rule << "'";
       switch (r.type) {
       case filter_rule::rule_type::include:
         return true;
@@ -263,7 +268,7 @@ bool builtin_script_<LoggerPolicy>::filter(entry_interface const& ei) {
     }
   }
 
-  LOG_TRACE << path << " matched no rule";
+  LOG_TRACE << "[" << path << "] / [" << relpath << "] matched no rule";
 
   return true;
 }
