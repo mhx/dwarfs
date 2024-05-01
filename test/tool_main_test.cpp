@@ -1591,6 +1591,19 @@ TEST(mkdwarfs_test, filter_recursion) {
                            "recursion detected while opening file: filt1.txt"));
 }
 
+TEST(mkdwarfs_test, filter_root_dir) {
+  auto t = mkdwarfs_tester::create_empty();
+  t.add_test_file_tree();
+  EXPECT_EQ(0, t.run({"-i", "/", "-o", "-", "-F", "- /var/", "-F", "- /usr/"}))
+      << t.err();
+  auto fs = t.fs_from_stdout();
+  EXPECT_TRUE(fs.find("/"));
+  EXPECT_FALSE(fs.find("/var"));
+  EXPECT_FALSE(fs.find("/usr"));
+  EXPECT_TRUE(fs.find("/dev"));
+  EXPECT_TRUE(fs.find("/etc"));
+}
+
 namespace {
 
 constexpr std::array<std::string_view, 9> const pack_mode_names = {
