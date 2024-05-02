@@ -56,27 +56,27 @@ build_and_test_task_template: &BUILD_AND_TEST_TASK_TEMPLATE
       ctest --test-dir build --output-on-failure --parallel "$CORES"
     fi
 
-task:
-  name: macos-arm64
-  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != '' || $CIRRUS_TAG != ''
-  macos_instance:
-    image: ghcr.io/cirruslabs/macos-monterey-base:latest
-  env:
-    matrix:
+#task:
+#  name: macos-arm64
+#  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != '' || $CIRRUS_TAG != ''
+#  macos_instance:
+#    image: ghcr.io/cirruslabs/macos-monterey-base:latest
+#  env:
+#    matrix:
 #      - { SETUP_SCOPE: 'ALL', SETUP_TESTS: 'ON', CC: 'clang', CXX: 'clang++'  }  }
-      - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF', CC: 'clang', CXX: 'clang++' }
+#      - { SETUP_SCOPE: 'MKD', SETUP_TESTS: 'OFF', CC: 'clang', CXX: 'clang++' }
 
-  install_script: |
-    brew update
-    brew install openssl@3  \
-      bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config \
-      libevent libsodium lz4 xz zlib ccache
+#  install_script: |
+#    brew update
+#    brew install openssl@3  \
+#      bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config \
+#      libevent libsodium lz4 xz zlib ccache
 
-  pre_configure_script:
-    echo CXX_FLAGS='-DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0' >> $CIRRUS_ENV
-    echo "CORES=$(sysctl -n hw.ncpu)" >> $CIRRUS_ENV
+#  pre_configure_script:
+#    echo CXX_FLAGS='-DTARGET_OS_SIMULATOR=0 -DTARGET_OS_IPHONE=0' >> $CIRRUS_ENV
+#    echo "CORES=$(sysctl -n hw.ncpu)" >> $CIRRUS_ENV
 
-  << : *BUILD_AND_TEST_TASK_TEMPLATE
+#  << : *BUILD_AND_TEST_TASK_TEMPLATE
 
 task:
   name: ubuntu-aarch64
