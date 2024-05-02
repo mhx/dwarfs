@@ -5,7 +5,6 @@
 [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml)
 [![Windows-MSys](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml)
 
-[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=macos-arm64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
 [![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
 
 # DwarFS
