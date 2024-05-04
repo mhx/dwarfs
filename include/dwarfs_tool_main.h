@@ -28,12 +28,6 @@
 
 #include "dwarfs/types.h"
 
-#ifdef _WIN32
-#define SYS_MAIN wmain
-#else
-#define SYS_MAIN main
-#endif
-
 namespace dwarfs {
 
 struct iolayer;
