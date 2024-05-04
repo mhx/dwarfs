@@ -624,15 +624,17 @@ add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
-if(WITH_UNIVERSAL_BINARY)
-  add_executable(dwarfsuniversal src/universal.cpp)
-endif()
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
 
 target_link_libraries(mkdwarfs mkdwarfs_main)
 target_link_libraries(dwarfsck dwarfsck_main)
 target_link_libraries(dwarfsbench dwarfsbench_main)
 target_link_libraries(dwarfsextract dwarfsextract_main)
+
 if(WITH_UNIVERSAL_BINARY)
+  add_executable(dwarfsuniversal src/universal.cpp)
+  list(APPEND BINARY_TARGETS dwarfsuniversal)
+
   target_link_libraries(dwarfsuniversal mkdwarfs_main dwarfsck_main
           dwarfsextract_main)
   set_target_properties(dwarfsuniversal PROPERTIES
@@ -642,10 +644,6 @@ endif()
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
 
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
-if(WITH_UNIVERSAL_BINARY)
-  list(APPEND BINARY_TARGETS dwarfsuniversal)
-endif()
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
