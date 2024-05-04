@@ -35,6 +35,7 @@ option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" ON)
+option(WITH_PXATTR "build with pxattr binary" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -641,6 +642,11 @@ if(WITH_UNIVERSAL_BINARY)
   set_target_properties(dwarfsuniversal PROPERTIES
           RUNTIME_OUTPUT_DIRECTORY universal
           OUTPUT_NAME dwarfs-universal)
+endif()
+
+if(WITH_PXATTR)
+  add_executable(pxattr src/pxattr.cpp)
+  list(APPEND BINARY_TARGETS pxattr)
 endif()
 
 install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
