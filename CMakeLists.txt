@@ -63,9 +63,11 @@ endif()
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
+  set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
+  set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
 endif()
 
 if(NOT DISABLE_CCACHE)
@@ -225,7 +227,22 @@ else()
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
-find_package(range-v3 CONFIG REQUIRED)
+
+find_package(range-v3 0.12.0 CONFIG QUIET)
+
+if(NOT range-v3_FOUND)
+  FetchContent_Declare(
+    range-v3
+    GIT_REPOSITORY ${RANGE_V3_GIT_REPO}
+    GIT_TAG 0.12.0
+  )
+  # FetchContent_MakeAvailable(range-v3)
+  FetchContent_GetProperties(range-v3)
+  if(NOT range-v3_POPULATED)
+    FetchContent_Populate(range-v3)
+    add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
+endif()
 
 if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
