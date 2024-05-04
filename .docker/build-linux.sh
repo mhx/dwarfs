@@ -15,8 +15,13 @@ rm -rf build
 mkdir build
 cd build
 
-GCC_VERSION=14
-CLANG_VERSION=18
+if [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
+  GCC_VERSION=12
+  CLANG_VERSION=15
+else
+  GCC_VERSION=14
+  CLANG_VERSION=18
+fi
 
 case "-$BUILD_TYPE-" in
   *-ninja-*)
