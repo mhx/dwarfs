@@ -1774,9 +1774,10 @@ TEST(mkdwarfs_test, output_file_fail_close) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
 }
 
+#if DWARFS_HAVE_RICEPP
 TEST(mkdwarfs_test, compression_cannot_be_used_without_category) {
   mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "flac"}));
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "ricepp"}));
   EXPECT_THAT(t.err(),
               ::testing::HasSubstr("cannot be used without a category"));
 }
@@ -1784,11 +1785,12 @@ TEST(mkdwarfs_test, compression_cannot_be_used_without_category) {
 TEST(mkdwarfs_test, compression_cannot_be_used_for_category) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--categorize", "-C",
-                      "incompressible::flac"}));
+                      "incompressible::ricepp"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr(
                            "cannot be used for category 'incompressible': "
                            "metadata requirements not met"));
 }
+#endif
 
 class mkdwarfs_progress_test : public testing::TestWithParam<char const*> {};
 
