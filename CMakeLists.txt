@@ -511,6 +511,7 @@ list(APPEND LIBDWARFS_SRC
   src/dwarfs/util.cpp
   src/dwarfs/wcwidth.c
   src/dwarfs/worker_group.cpp
+  src/dwarfs/xattr.cpp
 )
 
 if(WITH_MAN_OPTION)

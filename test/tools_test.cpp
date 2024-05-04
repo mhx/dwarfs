@@ -44,7 +44,6 @@
 #else
 #include <sys/vfs.h>
 #endif
-#include <sys/xattr.h>
 #endif
 
 #include <folly/FileUtil.h>
@@ -61,6 +60,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/file_stat.h"
+#include "dwarfs/xattr.h"
 
 #include "test_helpers.h"
 
@@ -68,8 +68,6 @@ namespace {
 
 namespace bp = boost::process;
 namespace fs = std::filesystem;
-
-using namespace std::literals::string_view_literals;
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
 auto test_data_dwarfs = test_dir / "data.dwarfs";
@@ -127,35 +125,10 @@ class scoped_no_leak_check {
 #endif
 };
 
-#ifndef _WIN32
-ssize_t portable_listxattr(const char* path, char* list, size_t size) {
-#ifdef __APPLE__
-  return ::listxattr(path, list, size, 0);
-#else
-  return ::listxattr(path, list, size);
-#endif
-}
-
-ssize_t portable_getxattr(const char* path, const char* name, void* value,
-                          size_t size) {
-#ifdef __APPLE__
-  return ::getxattr(path, name, value, size, 0, 0);
-#else
-  return ::getxattr(path, name, value, size);
-#endif
-}
-
-#ifndef __APPLE__
+#if !(defined(_WIN32) || defined(__APPLE__))
 pid_t get_dwarfs_pid(fs::path const& path) {
-  std::array<char, 32> attr_buf;
-  auto attr_len = portable_getxattr(path.c_str(), "user.dwarfs.driver.pid",
-                                    attr_buf.data(), attr_buf.size());
-  if (attr_len < 0) {
-    throw std::runtime_error("could not read pid from xattr");
-  }
-  return folly::to<pid_t>(std::string_view(attr_buf.data(), attr_len));
+  return folly::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
 }
-#endif
 #endif
 
 bool wait_until_file_ready(fs::path const& path,
@@ -987,40 +960,18 @@ TEST_P(tools_test, end_to_end) {
 
       {
         static constexpr auto kInodeInfoXattr{"user.dwarfs.inodeinfo"};
-        std::vector<std::pair<fs::path, std::string_view>> xattr_tests{
+        std::vector<std::pair<fs::path, std::vector<std::string>>> xattr_tests{
             {mountpoint,
-             "user.dwarfs.driver.pid\0user.dwarfs.driver.perfmon\0user.dwarfs.inodeinfo\0"sv},
-            {mountpoint / "format.sh", "user.dwarfs.inodeinfo\0"sv},
-            {mountpoint / "empty", "user.dwarfs.inodeinfo\0"sv},
+             {"user.dwarfs.driver.pid", "user.dwarfs.driver.perfmon",
+              kInodeInfoXattr}},
+            {mountpoint / "format.sh", {kInodeInfoXattr}},
+            {mountpoint / "empty", {kInodeInfoXattr}},
         };
 
         for (auto const& [path, ref] : xattr_tests) {
-          std::string buf;
-          buf.resize(1);
+          EXPECT_EQ(dwarfs::listxattr(path), ref) << runner.cmdline();
 
-          auto r = portable_listxattr(path.c_str(), buf.data(), buf.size());
-          EXPECT_LT(r, 0) << runner.cmdline();
-          EXPECT_EQ(ERANGE, errno) << runner.cmdline();
-          r = portable_listxattr(path.c_str(), nullptr, 0);
-          ASSERT_GT(r, 0) << runner.cmdline() << ::strerror(errno);
-          buf.resize(r);
-          r = portable_listxattr(path.c_str(), buf.data(), buf.size());
-          EXPECT_GT(r, 0) << runner.cmdline();
-          EXPECT_EQ(ref, buf) << runner.cmdline();
-
-          buf.resize(1);
-          r = portable_getxattr(path.c_str(), kInodeInfoXattr, buf.data(),
-                                buf.size());
-          EXPECT_LT(r, 0) << runner.cmdline();
-          EXPECT_EQ(ERANGE, errno) << runner.cmdline();
-          r = portable_getxattr(path.c_str(), kInodeInfoXattr, nullptr, 0);
-          ASSERT_GT(r, 0) << runner.cmdline() << ::strerror(errno);
-          buf.resize(r);
-          r = portable_getxattr(path.c_str(), kInodeInfoXattr, buf.data(),
-                                buf.size());
-          EXPECT_GT(r, 0) << runner.cmdline();
-
-          auto info = folly::parseJson(buf);
+          auto info = folly::parseJson(dwarfs::getxattr(path, kInodeInfoXattr));
           EXPECT_TRUE(info.count("uid"));
           EXPECT_TRUE(info.count("gid"));
           EXPECT_TRUE(info.count("mode"));
