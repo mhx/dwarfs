@@ -253,11 +253,9 @@ std::unordered_map<std::string_view, cache_tidy_strategy> const
         {"swap", cache_tidy_strategy::BLOCK_SWAPPED_OUT},
     };
 
-#if DWARFS_FUSE_LOWLEVEL
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
 constexpr std::string_view perfmon_xattr{"user.dwarfs.driver.perfmon"};
 constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
-#endif
 
 template <typename LogProxy, typename T>
 auto checked_call(LogProxy& log_, T&& f) -> decltype(std::forward<T>(f)()) {
@@ -887,6 +885,57 @@ int op_statfs(char const* path, native_statvfs* st) {
 }
 #endif
 
+template <typename LogProxy, typename Find>
+int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
+                       std::string_view name, std::string& value,
+                       size_t& extra_size, Find const& find) {
+  return checked_call(log_, [&] {
+    auto entry = find();
+
+    if (!entry) {
+      return ENOENT;
+    }
+
+    std::ostringstream oss;
+
+    if (entry->inode_num() == 0) {
+      if (name == pid_xattr) {
+        // use to_string() to prevent locale-specific formatting
+        oss << std::to_string(::getpid());
+      } else if (name == perfmon_xattr) {
+#if DWARFS_PERFMON_ENABLED
+        if (userdata.perfmon) {
+          userdata.perfmon->summarize(oss);
+          extra_size = 4096;
+        } else {
+          oss << "performance monitor is disabled\n";
+        }
+#else
+        oss << "no performance monitor support\n";
+#endif
+      }
+    }
+
+    if (name == inodeinfo_xattr) {
+      auto ii = userdata.fs.get_inode_info(*entry);
+      oss << folly::toPrettyJson(ii) << "\n";
+    }
+
+    value = oss.str();
+
+    if (value.empty()) {
+      // Linux and macOS disagree on the error code for "attribute not found"
+#ifdef __APPLE__
+      return ENOATTR;
+#else
+      return ENODATA;
+#endif
+    }
+
+    return 0;
+  });
+}
+
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
@@ -907,56 +956,18 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
   PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
-    std::ostringstream oss;
-    size_t extra_size = 0;
+    std::string value;
+    size_t extra_size{0};
+    auto err = op_getxattr_common(log_, userdata, name, value, extra_size,
+                                  [&] { return userdata.fs.find(ino); });
 
-    if (ino == FUSE_ROOT_ID) {
-      if (name == pid_xattr) {
-        // use to_string() to prevent locale-specific formatting
-        oss << std::to_string(::getpid());
-      } else if (name == perfmon_xattr) {
-#if DWARFS_PERFMON_ENABLED
-        if (userdata.perfmon) {
-          userdata.perfmon->summarize(oss);
-          extra_size = 4096;
-        } else {
-          oss << "performance monitor is disabled\n";
-        }
-#else
-        oss << "no performance monitor support\n";
-#endif
-      }
+    if (err != 0) {
+      LOG_TRACE << __func__ << ": err=" << err;
+      return err;
     }
-
-    if (name == inodeinfo_xattr) {
-      auto entry = userdata.fs.find(ino);
-
-      if (entry) {
-        auto ii = userdata.fs.get_inode_info(*entry);
-        oss << folly::toPrettyJson(ii) << "\n";
-      } else {
-        return ENOENT;
-      }
-    }
-
-// TODO: figure out under which conditions we don't have ::view()
-#ifdef __APPLE__
-    auto value = oss.str();
-#else
-    auto value = oss.view();
-#endif
 
     LOG_TRACE << __func__ << ": value.size=" << value.size()
               << ", extra_size=" << extra_size;
-
-    if (value.empty()) {
-      // Linux and macOS disagree on the error code for "attribute not found"
-#ifdef __APPLE__
-      return ENOATTR;
-#else
-      return ENODATA;
-#endif
-    }
 
     if (size == 0) {
       fuse_reply_xattr(req, value.size() + extra_size);
@@ -973,17 +984,92 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
 }
 #else
 template <typename LoggerPolicy>
-int op_getxattr(char const* path, char const* name, char* /*value*/,
-                size_t size) {
+int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
 
+  std::string tmp;
+  size_t extra_size{0};
+  auto err = op_getxattr_common(log_, userdata, name, tmp, extra_size, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
+  });
+
+  if (err != 0) {
+    LOG_TRACE << __func__ << ": err=" << err;
+    return -err;
+  }
+
+  LOG_TRACE << __func__ << ": value.size=" << tmp.size()
+            << ", extra_size=" << extra_size;
+
+  if (value) {
+    if (size < tmp.size()) {
+      return -ERANGE;
+    }
+
+    std::memcpy(value, tmp.data(), tmp.size());
+
+    return tmp.size();
+  }
+
+  return tmp.size() + extra_size;
+}
+
+template <typename LoggerPolicy>
+int op_setxattr(char const* path, char const* name, char const* /*value*/,
+                size_t size, int /*flags*/) {
+  dUSERDATA;
+  // PERFMON_EXT_SCOPED_SECTION(userdata, op_setxattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
+
+  return -ENOTSUP;
+}
+
+template <typename LoggerPolicy>
+int op_removexattr(char const* path, char const* name) {
+  dUSERDATA;
+  // PERFMON_EXT_SCOPED_SECTION(userdata, op_removexattr)
+  LOG_PROXY(LoggerPolicy, userdata.lgr);
+
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ")";
+
   return -ENOTSUP;
 }
 #endif
+
+template <typename LogProxy, typename Find>
+int op_listxattr_common(LogProxy& log_, std::string& xattr_names,
+                        Find const& find) {
+  return checked_call(log_, [&] {
+    auto entry = find();
+
+    if (!entry) {
+      return ENOENT;
+    }
+
+    std::ostringstream oss;
+
+    if (entry->inode_num() == 0) {
+      oss << pid_xattr << '\0';
+      oss << perfmon_xattr << '\0';
+    }
+
+    oss << inodeinfo_xattr << '\0';
+
+    xattr_names = oss.str();
+
+    return 0;
+  });
+}
 
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
@@ -996,21 +1082,13 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
   PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
-    std::ostringstream oss;
+    std::string xattrs;
+    auto err = op_listxattr_common(log_, xattrs,
+                                   [&] { return userdata.fs.find(ino); });
 
-    if (ino == FUSE_ROOT_ID) {
-      oss << pid_xattr << '\0';
-      oss << perfmon_xattr << '\0';
+    if (err != 0) {
+      return err;
     }
-
-    oss << inodeinfo_xattr << '\0';
-
-// TODO: figure out under which conditions we don't have ::view()
-#ifdef __APPLE__
-    auto xattrs = oss.str();
-#else
-    auto xattrs = oss.view();
-#endif
 
     LOG_TRACE << __func__ << ": xattrs.size=" << xattrs.size();
 
@@ -1029,14 +1107,35 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
 }
 #else
 template <typename LoggerPolicy>
-int op_listxattr(char const* path, char* /*list*/, size_t size) {
+int op_listxattr(char const* path, char* list, size_t size) {
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
 
-  return -ENOTSUP;
+  std::string xattrs;
+  auto err = op_listxattr_common(log_, xattrs, [&] {
+    auto e = userdata.fs.find(path);
+    if (e) {
+      PERFMON_SET_CONTEXT(e->inode_num())
+    }
+    return e;
+  });
+
+  if (err != 0) {
+    return -err;
+  }
+
+  if (list) {
+    if (size < xattrs.size()) {
+      return -ERANGE;
+    }
+
+    std::memcpy(list, xattrs.data(), xattrs.size());
+  }
+
+  return xattrs.size();
 }
 #endif
 
@@ -1176,6 +1275,8 @@ void init_fuse_ops(struct fuse_operations& ops,
   ops.statfs = &op_statfs<LoggerPolicy>;
   ops.getxattr = &op_getxattr<LoggerPolicy>;
   ops.listxattr = &op_listxattr<LoggerPolicy>;
+  ops.setxattr = &op_setxattr<LoggerPolicy>;
+  ops.removexattr = &op_removexattr<LoggerPolicy>;
   ops.rename = &op_rename<LoggerPolicy>;
 }
 #endif

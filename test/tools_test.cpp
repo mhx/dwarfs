@@ -957,6 +957,7 @@ TEST_P(tools_test, end_to_end) {
         ASSERT_EQ(0, ::statfs(mountpoint.c_str(), &stfs)) << runner.cmdline();
         EXPECT_EQ(stfs.f_files, 44) << runner.cmdline();
       }
+#endif
 
       {
         static constexpr auto kInodeInfoXattr{"user.dwarfs.inodeinfo"};
@@ -977,7 +978,6 @@ TEST_P(tools_test, end_to_end) {
           EXPECT_TRUE(info.count("mode"));
         }
       }
-#endif
 
       EXPECT_TRUE(runner.unmount()) << runner.cmdline();
     }
