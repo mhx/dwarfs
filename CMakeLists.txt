@@ -515,6 +515,12 @@ list(APPEND LIBDWARFS_SRC
   src/dwarfs/xattr.cpp
 )
 
+if(WIN32)
+  list(APPEND LIBDWARFS_SRC src/dwarfs/xattr_win.cpp)
+else()
+  list(APPEND LIBDWARFS_SRC src/dwarfs/xattr_posix.cpp)
+endif()
+
 if(WITH_MAN_OPTION)
   include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
 
