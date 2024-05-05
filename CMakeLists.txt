@@ -963,6 +963,10 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
     endif()
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
+
+  if(WIN32)
+    target_link_libraries(${tgt} ntdll.lib)
+  endif()
 endforeach()
 
 # not sure why exactly, copied from fsst/CMakeLists.txt
