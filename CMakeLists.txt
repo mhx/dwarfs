@@ -41,7 +41,6 @@ if(APPLE)
 endif()
 if(WIN32)
   option(USE_RICEPP_PACKAGE "use pre-built RICEPP package" OFF)
-  set(PREFER_SYSTEM_ZSTD ON)
 else()
   option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
   option(WITH_MAN_PAGES "build man pages using ronn" ON)
@@ -50,10 +49,10 @@ else()
   option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc" ON)
-  option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(DISABLE_MOLD "disable mold" OFF)
+  option(USE_PREFERRED_LIBS "use preferred versions of libraries" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
@@ -72,18 +71,23 @@ set(PARALLEL_HASHMAP_PREFERRED_VERSION 1.3.12)
 set(XXHASH_REQUIRED_VERSION 0.8.1)
 set(XXHASH_PREFERRED_VERSION 0.8.2)
 
+set(ZSTD_REQUIRED_VERSION 1.5.2)
+set(ZSTD_PREFERRED_VERSION 1.5.6)
+
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
   set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
   set(XXHASH_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/xxHash)
+  set(ZSTD_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/zstd)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
   set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
   set(XXHASH_GIT_REPO https://github.com/Cyan4973/xxHash.git)
+  set(ZSTD_GIT_REPO https://github.com/facebook/zstd.git)
 endif()
 
 if(NOT DEFINED BUILD_SHARED_LIBS)
@@ -229,7 +233,9 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG QUIET)
+if(NOT USE_PREFERRED_LIBS)
+  find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG QUIET)
+endif()
 
 include(FetchContent)
 
@@ -247,7 +253,9 @@ if(NOT fmt_FOUND)
   endif()
 endif()
 
-find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG QUIET)
+if(NOT USE_PREFERRED_LIBS)
+  find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG QUIET)
+endif()
 
 if(NOT range-v3_FOUND)
   FetchContent_Declare(
@@ -263,12 +271,14 @@ if(NOT range-v3_FOUND)
   endif()
 endif()
 
-try_run(
-  PHMAP_RUN_RESULT
-  PHMAP_COMPILE_RESULT
-  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
-  RUN_OUTPUT_VARIABLE PHMAP_VERSION
-)
+if(NOT USE_PREFERRED_LIBS)
+  try_run(
+    PHMAP_RUN_RESULT
+    PHMAP_COMPILE_RESULT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
+    RUN_OUTPUT_VARIABLE PHMAP_VERSION
+  )
+endif()
 
 if(PHMAP_RUN_RESULT EQUAL 0 AND PHMAP_VERSION VERSION_GREATER_EQUAL ${PARALLEL_HASHMAP_REQUIRED_VERSION})
   add_library(phmap INTERFACE)
@@ -321,8 +331,10 @@ pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
 if(ENABLE_FLAC)
   pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
 endif()
-pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
-pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
+if(NOT USE_PREFERRED_LIBS)
+  pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
+  pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
+endif()
 
 if(WIN32)
   if(NOT WINFSP_PATH)
@@ -356,6 +368,24 @@ else()
     FetchContent_Populate(libxxhash)
     add_subdirectory(${libxxhash_SOURCE_DIR}/cmake_unofficial ${libxxhash_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
+endif()
+
+if(ZSTD_FOUND)
+  add_library(zstd::zstd ALIAS PkgConfig::ZSTD)
+else()
+  FetchContent_Declare(
+    zstd
+    GIT_REPOSITORY ${ZSTD_GIT_REPO}
+    GIT_TAG v${ZSTD_PREFERRED_VERSION}
+    SOURCE_SUBDIR build/cmake
+  )
+  # FetchContent_MakeAvailable(zstd)
+  FetchContent_GetProperties(zstd)
+  if(NOT zstd_POPULATED)
+    FetchContent_Populate(zstd)
+    add_subdirectory(${zstd_SOURCE_DIR}/build/cmake ${zstd_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
+  add_library(zstd::zstd ALIAS libzstd_static)
 endif()
 
 if(USE_JEMALLOC)
@@ -405,10 +435,6 @@ set(
 
 add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
-if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
-  set(ZSTD_BUILD_SHARED ${BUILD_SHARED_LIBS})
-  add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL SYSTEM)
-endif()
 
 set_property(TARGET folly PROPERTY CXX_STANDARD 20)
 set_property(TARGET folly_base PROPERTY CXX_STANDARD 20)
@@ -1026,13 +1052,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   # target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
-if(ZSTD_FOUND AND PREFER_SYSTEM_ZSTD)
-  target_link_libraries(dwarfs PkgConfig::ZSTD)
-else()
-  target_link_libraries(dwarfs libzstd_static)
-endif()
-
-target_link_libraries(dwarfs phmap xxHash::xxhash)
+target_link_libraries(dwarfs phmap xxHash::xxhash zstd::zstd)
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
