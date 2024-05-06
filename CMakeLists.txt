@@ -59,14 +59,28 @@ else()
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
+set(LIBFMT_REQUIRED_VERSION 10.0)
+set(LIBFMT_PREFERRED_VERSION 10.2.1)
+
+set(GOOGLETEST_REQUIRED_VERSION 1.13.0)
+set(GOOGLETEST_PREFERRED_VERSION 1.14.0)
+
+set(RANGE_V3_REQUIRED_VERSION 0.12.0)
+set(RANGE_V3_PREFERRED_VERSION 0.12.0)
+
+set(PARALLEL_HASHMAP_REQUIRED_VERSION 1.3.8)
+set(PARALLEL_HASHMAP_PREFERRED_VERSION 1.3.12)
+
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
+  set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
+  set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
 endif()
 
 if(NOT DISABLE_CCACHE)
@@ -208,14 +222,14 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-find_package(fmt 10.0 CONFIG QUIET)
+find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG QUIET)
 
 if(NOT fmt_FOUND)
   include(FetchContent)
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
-    GIT_TAG 10.2.1
+    GIT_TAG ${LIBFMT_PREFERRED_VERSION}
   )
   # FetchContent_MakeAvailable(fmt)
   FetchContent_GetProperties(fmt)
@@ -225,19 +239,42 @@ if(NOT fmt_FOUND)
   endif()
 endif()
 
-find_package(range-v3 0.12.0 CONFIG QUIET)
+find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG QUIET)
 
 if(NOT range-v3_FOUND)
   FetchContent_Declare(
     range-v3
     GIT_REPOSITORY ${RANGE_V3_GIT_REPO}
-    GIT_TAG 0.12.0
+    GIT_TAG ${RANGE_V3_PREFERRED_VERSION}
   )
   # FetchContent_MakeAvailable(range-v3)
   FetchContent_GetProperties(range-v3)
   if(NOT range-v3_POPULATED)
     FetchContent_Populate(range-v3)
     add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
+endif()
+
+try_run(
+  PHMAP_RUN_RESULT
+  PHMAP_COMPILE_RESULT
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
+  RUN_OUTPUT_VARIABLE PHMAP_VERSION
+)
+
+if(PHMAP_RUN_RESULT EQUAL 0 AND PHMAP_VERSION VERSION_GREATER_EQUAL ${PARALLEL_HASHMAP_REQUIRED_VERSION})
+  add_library(phmap INTERFACE)
+else()
+  FetchContent_Declare(
+    parallel-hashmap
+    GIT_REPOSITORY ${PARALLEL_HASHMAP_GIT_REPO}
+    GIT_TAG v${PARALLEL_HASHMAP_PREFERRED_VERSION}
+  )
+  # FetchContent_MakeAvailable(parallel-hashmap)
+  FetchContent_GetProperties(parallel-hashmap)
+  if(NOT parallel-hashmap_POPULATED)
+    FetchContent_Populate(parallel-hashmap)
+    add_subdirectory(${parallel-hashmap_SOURCE_DIR} ${parallel-hashmap_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 endif()
 
@@ -376,7 +413,7 @@ set(ZSTD_LIBRARY_DEBUG
 
 if(WITH_TESTS)
   if(PREFER_SYSTEM_GTEST)
-    find_package(GTest 1.13.0 CONFIG REQUIRED)
+    find_package(GTest ${GOOGLETEST_REQUIRED_VERSION} CONFIG REQUIRED)
     add_library(gtest ALIAS GTest::gtest)
     add_library(gtest_main ALIAS GTest::gtest_main)
     add_library(gmock ALIAS GTest::gmock)
@@ -386,7 +423,7 @@ if(WITH_TESTS)
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
-      GIT_TAG v1.14.0
+      GIT_TAG v${GOOGLETEST_PREFERRED_VERSION}
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -898,8 +935,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
 
   target_include_directories(
     ${tgt} SYSTEM PRIVATE
-            ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS}
-            ${CMAKE_CURRENT_SOURCE_DIR}/parallel-hashmap)
+            ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS})
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -1033,6 +1069,8 @@ if(XXHASH_FOUND
 else()
   target_link_libraries(dwarfs xxhash)
 endif()
+
+target_link_libraries(dwarfs phmap)
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")

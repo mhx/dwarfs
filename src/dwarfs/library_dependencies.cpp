@@ -25,6 +25,7 @@
 
 #include <boost/version.hpp>
 #include <openssl/crypto.h>
+#include <parallel_hashmap/phmap_config.h>
 #include <xxhash.h>
 
 #ifdef DWARFS_USE_JEMALLOC
@@ -112,6 +113,9 @@ void library_dependencies::add_common_libraries() {
 #ifdef DWARFS_USE_JEMALLOC
   add_library("libjemalloc", get_jemalloc_version());
 #endif
+
+  add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
+              PHMAP_VERSION_PATCH);
 
   compression_registry::instance().for_each_algorithm(
       [this](compression_type, compression_info const& info) {

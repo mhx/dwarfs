@@ -10,6 +10,3 @@
 [submodule "xxHash"]
 	path = xxHash
 	url = https://github.com/Cyan4973/xxHash
-[submodule "parallel-hashmap"]
-	path = parallel-hashmap
-	url = https://github.com/greg7mdp/parallel-hashmap
