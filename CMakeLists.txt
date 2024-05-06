@@ -1031,20 +1031,23 @@ target_link_libraries(
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
 # endif()
 
+target_link_libraries(dwarfs_categorizer zstd::zstd)
+target_link_libraries(dwarfs_compression zstd::zstd)
+
 if(LIBLZ4_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBLZ4)
+  target_link_libraries(dwarfs_compression PkgConfig::LIBLZ4)
 endif()
 
 if(LIBLZMA_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBLZMA)
+  target_link_libraries(dwarfs_compression PkgConfig::LIBLZMA)
 endif()
 
 if(FLAC_FOUND)
-  target_link_libraries(dwarfs PkgConfig::FLAC)
+  target_link_libraries(dwarfs_compression PkgConfig::FLAC)
 endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
-  target_link_libraries(dwarfs PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+  target_link_libraries(dwarfs_compression PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
@@ -1052,7 +1055,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   # target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
-target_link_libraries(dwarfs phmap xxHash::xxhash zstd::zstd)
+target_link_libraries(dwarfs phmap xxHash::xxhash)
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
