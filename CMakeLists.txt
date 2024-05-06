@@ -413,12 +413,14 @@ set(ZSTD_LIBRARY_DEBUG
 
 if(WITH_TESTS)
   if(PREFER_SYSTEM_GTEST)
-    find_package(GTest ${GOOGLETEST_REQUIRED_VERSION} CONFIG REQUIRED)
+    find_package(GTest ${GOOGLETEST_REQUIRED_VERSION} CONFIG)
     add_library(gtest ALIAS GTest::gtest)
     add_library(gtest_main ALIAS GTest::gtest_main)
     add_library(gmock ALIAS GTest::gmock)
     add_library(gmock_main ALIAS GTest::gmock_main)
-  else()
+  endif()
+
+  if(NOT GTest_FOUND)
     include(FetchContent)
     FetchContent_Declare(
       googletest
