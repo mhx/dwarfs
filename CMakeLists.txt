@@ -41,7 +41,6 @@ if(APPLE)
 endif()
 if(WIN32)
   option(USE_RICEPP_PACKAGE "use pre-built RICEPP package" OFF)
-  set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_ZSTD ON)
   set(PREFER_SYSTEM_XXHASH ON)
 else()
@@ -52,7 +51,6 @@ else()
   option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc" ON)
-  option(PREFER_SYSTEM_LIBFMT "use system libfmt if available" OFF)
   option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
   option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
@@ -210,9 +208,9 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-if(PREFER_SYSTEM_LIBFMT)
-  find_package(fmt 10.0 CONFIG)
-else()
+find_package(fmt 10.0 CONFIG QUIET)
+
+if(NOT fmt_FOUND)
   include(FetchContent)
   FetchContent_Declare(
     fmt
@@ -226,8 +224,6 @@ else()
     add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 endif()
-
-find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
 
 find_package(range-v3 0.12.0 CONFIG QUIET)
 
@@ -244,6 +240,8 @@ if(NOT range-v3_FOUND)
     add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 endif()
+
+find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
 
 if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
