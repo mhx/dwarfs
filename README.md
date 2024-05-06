@@ -168,6 +168,48 @@ some rudimentary docs as well.
 
 ## Building and Installing
 
+### Note to Package Maintainers
+
+DwarFS should usually build fine with minimal changes out of the box.
+If it doesn't, please file a issue. I've set up
+[CI jobs](https://github.com/mhx/dwarfs/actions/workflows/build.yml)
+using Docker images for Ubuntu ([22.04](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.ubuntu-2204)
+and [24.04](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.ubuntu)),
+[Fedora Rawhide](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.fedora)
+and [Arch](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.arch)
+that can help with determining an up-to-date set of dependencies.
+
+There are some things to be aware of:
+
+- There's a tendency to try and unbundle the [folly](https://github.com/facebook/folly/)
+  and [fbthrift](https://github.com/facebook/fbthrift) libraries that
+  are included as submodules and are built along with DwarFS.
+  While I agree with the sentiment, it's unfortunately a bad idea.
+  Besides the fact that folly does not make any claims about ABI
+  stability (i.e. you can't just dynamically link a binary built
+  against one version of folly against another version), it's not
+  even possible to safely link against a folly library built with
+  different compile options. Even subtle differences, such as the
+  C++ standard version, can cause run-time errors.
+  See [this issue](https://github.com/facebook/folly/pull/1949)
+  for details.
+
+- Similar issues can arise when using a system-installed version
+  of GoogleTest. GoogleTest itself recommends that it is being
+  downloaded as part of the build. However, you can use the system
+  installed version by passing `-DPREFER_SYSTEM_GTEST=ON` to the
+  `cmake` call.
+
+- For other bundled libraries (namely `fmt`, `parallel-hashmap`,
+  `range-v3`, `xxhash` and `zstd`), the system installed version
+  is used as long as it meets the minimum required version.
+  Otherwise, the preferred version is fetched during the build.
+
+- Building the project with `-DBUILD_SHARED_LIBS=ON` is unsupported,
+  the reason being that there's no point in installing *any* of the
+  libraries. As long as dependencies are available as shared system
+  libraries, DwarFS will happily link against them.
+
 ### Prebuilt Binaries
 
 [Each release](https://github.com/mhx/dwarfs/releases) has pre-built,
