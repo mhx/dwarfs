@@ -86,6 +86,10 @@ else()
   set(XXHASH_GIT_REPO https://github.com/Cyan4973/xxHash.git)
 endif()
 
+if(NOT DEFINED BUILD_SHARED_LIBS)
+  set(BUILD_SHARED_LIBS OFF)
+endif()
+
 if(NOT DISABLE_CCACHE)
   find_program(CCACHE_EXE ccache ccache.exe PATHS "c:/bin")
   if(CCACHE_EXE)
