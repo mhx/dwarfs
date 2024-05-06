@@ -39,6 +39,8 @@ RUN dnf install -y \
         double-conversion-devel \
         lz4-devel \
         xz-devel \
+        libzstd-devel \
+        xxhash-devel \
         libunwind-devel \
         libdwarf-devel \
         glog-devel \

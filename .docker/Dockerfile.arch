@@ -37,6 +37,7 @@ RUN pacman -S --noconfirm --needed \
         double-conversion \
         lz4 \
         xz \
+        xxhash \
         libunwind \
         libdwarf \
         google-glog \

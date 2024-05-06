@@ -54,7 +54,10 @@ RUN apt install -y \
         libiberty-dev \
         liblz4-dev \
         liblzma-dev \
+        libzstd-dev \
+        libxxhash-dev \
         libmagic-dev \
+        libparallel-hashmap-dev \
         librange-v3-dev \
         libssl-dev \
         libunwind-dev \
