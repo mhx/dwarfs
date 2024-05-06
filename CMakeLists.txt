@@ -90,9 +90,11 @@ else()
   set(ZSTD_GIT_REPO https://github.com/facebook/zstd.git)
 endif()
 
-if(NOT DEFINED BUILD_SHARED_LIBS)
-  set(BUILD_SHARED_LIBS OFF)
+if(BUILD_SHARED_LIBS)
+  message(WARNING "Building shared libraries is unsupported. Setting BUILD_SHARED_LIBS to OFF.")
 endif()
+
+set(BUILD_SHARED_LIBS OFF)
 
 if(NOT DISABLE_CCACHE)
   find_program(CCACHE_EXE ccache ccache.exe PATHS "c:/bin")
@@ -398,10 +400,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   endforeach()
 
   set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
-else()
-  if(BUILD_SHARED_LIBS AND CMAKE_EXE_LINKER_FLAGS MATCHES "--as-needed")
-    message(FATAL_ERROR "DwarFS cannot be built with `BUILD_SHARED_LIBS` and `--as-needed` enabled simultaneously.")
-  endif()
 endif()
 
 set(ZSTD_INCLUDE_DIR
