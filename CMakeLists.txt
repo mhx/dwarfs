@@ -42,7 +42,6 @@ endif()
 if(WIN32)
   option(USE_RICEPP_PACKAGE "use pre-built RICEPP package" OFF)
   set(PREFER_SYSTEM_ZSTD ON)
-  set(PREFER_SYSTEM_XXHASH ON)
 else()
   option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
   option(WITH_MAN_PAGES "build man pages using ronn" ON)
@@ -52,7 +51,6 @@ else()
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc" ON)
   option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
-  option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(DISABLE_MOLD "disable mold" OFF)
@@ -71,16 +69,21 @@ set(RANGE_V3_PREFERRED_VERSION 0.12.0)
 set(PARALLEL_HASHMAP_REQUIRED_VERSION 1.3.8)
 set(PARALLEL_HASHMAP_PREFERRED_VERSION 1.3.12)
 
+set(XXHASH_REQUIRED_VERSION 0.8.1)
+set(XXHASH_PREFERRED_VERSION 0.8.2)
+
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
   set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
+  set(XXHASH_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/xxHash)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
   set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
+  set(XXHASH_GIT_REPO https://github.com/Cyan4973/xxHash.git)
 endif()
 
 if(NOT DISABLE_CCACHE)
@@ -224,8 +227,9 @@ endif()
 
 find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG QUIET)
 
+include(FetchContent)
+
 if(NOT fmt_FOUND)
-  include(FetchContent)
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
@@ -301,39 +305,20 @@ if(APPLE)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  if (PKG_CONFIG_FOUND)
-    list(APPEND PKG_CONFIG_EXECUTABLE "--static")
-  endif()
+  list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 endif()
 
-if(PKG_CONFIG_FOUND)
-  pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
-  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
-  pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
-  pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
-  pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
-  pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
-  pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
-  # pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
-  if(ENABLE_FLAC)
-    pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
-  endif()
-  pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=1.5.2)
-  pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=0.8.1)
+pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
+pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
+pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
+pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
+pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
+# pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
+if(ENABLE_FLAC)
+  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
 endif()
-
-if(XXHASH_FOUND)
-  list(APPEND CMAKE_REQUIRED_LIBRARIES PkgConfig::XXHASH)
-  check_cxx_source_compiles(
-    "#include <xxhash.h>
-    #if XXH_VERSION_NUMBER < 800
-    #error XXH_VERSION_NUMBER < 800
-    #endif
-    int main() {
-      return 0;
-    }"
-    XXHASH_VERSION_OK)
-endif()
+pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
+pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
 
 if(WIN32)
   if(NOT WINFSP_PATH)
@@ -344,8 +329,28 @@ if(WIN32)
     message(FATAL_ERROR "No WinFsp library found")
   endif()
 else()
+  pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
+  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
+
   if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
     message(FATAL_ERROR "No FUSE or FUSE3 library found")
+  endif()
+endif()
+
+if(XXHASH_FOUND)
+  add_library(xxHash::xxhash ALIAS PkgConfig::XXHASH)
+else()
+  FetchContent_Declare(
+    libxxhash
+    GIT_REPOSITORY ${XXHASH_GIT_REPO}
+    GIT_TAG v${XXHASH_PREFERRED_VERSION}
+    SOURCE_SUBDIR cmake_unofficial
+  )
+  # FetchContent_MakeAvailable(libxxhash)
+  FetchContent_GetProperties(libxxhash)
+  if(NOT libxxhash_POPULATED)
+    FetchContent_Populate(libxxhash)
+    add_subdirectory(${libxxhash_SOURCE_DIR}/cmake_unofficial ${libxxhash_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 endif()
 
@@ -397,7 +402,7 @@ set(
 add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
-  set(ZSTD_BUILD_SHARED OFF)
+  set(ZSTD_BUILD_SHARED ${BUILD_SHARED_LIBS})
   add_subdirectory(zstd/build/cmake EXCLUDE_FROM_ALL SYSTEM)
 endif()
 
@@ -421,7 +426,6 @@ if(WITH_TESTS)
   endif()
 
   if(NOT GTest_FOUND)
-    include(FetchContent)
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
@@ -439,39 +443,6 @@ if(WITH_TESTS)
 
   enable_testing()
   include(GoogleTest)
-endif()
-
-if(NOT
-   (XXHASH_FOUND
-    AND XXHASH_VERSION_OK
-    AND PREFER_SYSTEM_XXHASH))
-  add_library(xxhash xxHash/xxhash.c)
-
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
-     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    target_compile_options(
-      xxhash
-      PRIVATE -Wall
-              -Wextra
-              -Wconversion
-              -Wcast-qual
-              -Wcast-align
-              -Wshadow
-              -Wstrict-aliasing=1
-              -Wswitch-enum
-              -Wdeclaration-after-statement
-              -Wstrict-prototypes
-              -Wundef
-              -Wpointer-arith
-              -Wformat-security
-              -Wvla
-              -Wformat=2
-              -Winit-self
-              -Wfloat-equal
-              -Wwrite-strings
-              -Wredundant-decls
-              -Wstrict-overflow=2)
-  endif()
 endif()
 
 if(DWARFS_OPTIMIZE)
@@ -877,13 +848,6 @@ if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
   list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib)
 endif()
 
-if(NOT
-   (XXHASH_FOUND
-    AND XXHASH_VERSION_OK
-    AND PREFER_SYSTEM_XXHASH))
-  list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/xxHash)
-endif()
-
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
 if(NOT STATIC_BUILD_DO_NOT_USE)
   if(TARGET folly_exception_tracer)
@@ -1064,15 +1028,7 @@ else()
   target_link_libraries(dwarfs libzstd_static)
 endif()
 
-if(XXHASH_FOUND
-   AND XXHASH_VERSION_OK
-   AND PREFER_SYSTEM_XXHASH)
-  target_link_libraries(dwarfs PkgConfig::XXHASH)
-else()
-  target_link_libraries(dwarfs xxhash)
-endif()
-
-target_link_libraries(dwarfs phmap)
+target_link_libraries(dwarfs phmap xxHash::xxhash)
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
