@@ -521,7 +521,7 @@ your machine.
 Support for the macOS operating system is currently experimental.
 
 The macOS version of the DwarFS filesystem driver relies on the awesome
-[macFUSE](https://https://osxfuse.github.io/) project.
+[macFUSE](https://osxfuse.github.io/) project.
 
 ### Building on macOS
 
