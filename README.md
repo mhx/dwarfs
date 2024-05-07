@@ -17,6 +17,7 @@ A fast high compression read-only file system for Linux and Windows.
 - [Overview](#overview)
 - [History](#history)
 - [Building and Installing](#building-and-installing)
+  - [Note to Package Maintainers](#note-to-package-maintainers)
   - [Prebuilt Binaries](#prebuilt-binaries)
   - [Universal Binaries](#universal-binaries)
   - [Dependencies](#dependencies)
