@@ -60,6 +60,7 @@
 #include <fmt/format.h>
 
 #include "dwarfs/file_stat.h"
+#include "dwarfs/util.h"
 #include "dwarfs/xattr.h"
 
 #include "test_helpers.h"
@@ -310,6 +311,10 @@ bool compare_directories(fs::path const& p1, fs::path const& p2,
   }
 
   return rv;
+}
+
+bool skip_fuse_tests() {
+  return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
 }
 
 #ifdef _WIN32
@@ -909,6 +914,10 @@ TEST_P(tools_test, end_to_end) {
 
   unicode_symlink = mountpoint / unicode_symlink_name;
 
+  if (skip_fuse_tests()) {
+    drivers.clear();
+  }
+
   for (auto const& driver : drivers) {
     {
       scoped_no_leak_check no_leak_check;
@@ -1139,6 +1148,10 @@ TEST_P(tools_test, end_to_end) {
 
 TEST_P(tools_test, mutating_and_error_ops) {
   auto mode = GetParam();
+
+  if (skip_fuse_tests()) {
+    GTEST_SKIP() << "skipping FUSE tests";
+  }
 
   std::chrono::seconds const timeout{5};
   folly::test::TemporaryDirectory tempdir("dwarfs");
@@ -1413,7 +1426,7 @@ TEST_P(tools_test, categorize) {
     EXPECT_LT(image_size_recompressed, image_size);
   }
 
-  {
+  if (!skip_fuse_tests()) {
     auto mountpoint = td / "mnt";
     fs::path driver;
 
