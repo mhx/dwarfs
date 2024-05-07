@@ -217,8 +217,7 @@ struct dwarfs_userdata {
 
 // TODO: better error handling
 
-#define DWARFS_OPT(t, p, v)                                                    \
-  { t, offsetof(struct options, p), v }
+#define DWARFS_OPT(t, p, v) {t, offsetof(struct options, p), v}
 
 constexpr struct ::fuse_opt dwarfs_opts[] = {
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
