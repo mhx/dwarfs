@@ -147,7 +147,7 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
 
   ea = reinterpret_cast<PFILE_FULL_EA_INFORMATION>(ea_buf.data());
 
-  auto res = ::NtQueryEaFile(fh, &iosb, ea, ea_buf.size(), FALSE, getea,
+  auto res = ::NtQueryEaFile(fh, &iosb, ea, ea_buf.size(), TRUE, getea,
                              getea_len, nullptr, FALSE);
 
   if (res != STATUS_SUCCESS) {
