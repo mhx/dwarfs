@@ -775,8 +775,7 @@ int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
     auto res = fs.readdir(*dir, off);
     assert(res);
 
-    auto [entry, name_view] = *res;
-    std::string name(name_view);
+    auto [entry, name] = *res;
 
     fs.getattr(entry, &stbuf);
     copy_file_stat(&st, stbuf);
