@@ -332,7 +332,8 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               const metadata_options& options, int inode_offset = 0,
               bool force_buffers = false,
               mlock_mode lock_mode = mlock_mode::NONE,
-              bool force_consistency_check = false) {
+              bool force_consistency_check = false,
+              std::shared_ptr<performance_monitor const> perfmon = nullptr) {
   LOG_PROXY(debug_logger_policy, lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
@@ -379,7 +380,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
                      get_section_data(mm, schema_it->second.front(),
                                       schema_buffer, force_buffers),
                      meta_section_range, options, inode_offset,
-                     force_consistency_check);
+                     force_consistency_check, perfmon);
 }
 
 template <typename LoggerPolicy>
@@ -529,7 +530,7 @@ template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
     const filesystem_options& options,
-    std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
+    std::shared_ptr<performance_monitor const> perfmon)
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{std::move(mm)}
@@ -598,7 +599,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
                         options.metadata, options.inode_offset, false,
-                        options.lock_mode, !parser.has_checksums());
+                        options.lock_mode, !parser.has_checksums(), perfmon);
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";

@@ -53,6 +53,7 @@
 #include "dwarfs/logger.h"
 #include "dwarfs/metadata_v2.h"
 #include "dwarfs/options.h"
+#include "dwarfs/performance_monitor.h"
 #include "dwarfs/string_table.h"
 #include "dwarfs/util.h"
 #include "dwarfs/vfs_stat.h"
@@ -393,7 +394,8 @@ class metadata_ final : public metadata_v2::impl {
  public:
   metadata_(logger& lgr, std::span<uint8_t const> schema,
             std::span<uint8_t const> data, metadata_options const& options,
-            int inode_offset, bool force_consistency_check)
+            int inode_offset, bool force_consistency_check,
+            std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
       : data_(data)
       , meta_(
             check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_)))
@@ -420,7 +422,15 @@ class metadata_ final : public metadata_v2::impl {
       , options_(options)
       , symlinks_(meta_.compact_symlinks()
                       ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
-                      : string_table(meta_.symlinks())) {
+                      : string_table(meta_.symlinks()))
+      // clang-format off
+      PERFMON_CLS_PROXY_INIT(perfmon, "metadata_v2")
+      PERFMON_CLS_TIMER_INIT(find)
+      PERFMON_CLS_TIMER_INIT(getattr)
+      PERFMON_CLS_TIMER_INIT(readdir)
+      PERFMON_CLS_TIMER_INIT(reg_file_size)
+      PERFMON_CLS_TIMER_INIT(unpack_metadata) // clang-format on
+  {
     if (static_cast<int>(meta_.directories().size() - 1) !=
         symlink_inode_offset_) {
       DWARFS_THROW(
@@ -674,6 +684,7 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t reg_file_size(inode_view iv) const {
+    PERFMON_CLS_SCOPED_SECTION(reg_file_size)
     auto cr = get_chunk_range(iv.inode_num());
     DWARFS_CHECK(cr, "invalid chunk range");
     return std::accumulate(
@@ -846,6 +857,12 @@ class metadata_ final : public metadata_v2::impl {
   const int unique_files_;
   const metadata_options options_;
   const string_table symlinks_;
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(find)
+  PERFMON_CLS_TIMER_DECL(getattr)
+  PERFMON_CLS_TIMER_DECL(readdir)
+  PERFMON_CLS_TIMER_DECL(reg_file_size)
+  PERFMON_CLS_TIMER_DECL(unpack_metadata)
 };
 
 template <typename LoggerPolicy>
@@ -1310,6 +1327,8 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
 
 template <typename LoggerPolicy>
 thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
+  PERFMON_CLS_SCOPED_SECTION(unpack_metadata)
+
   auto meta = meta_.thaw();
 
   if (auto opts = meta.options()) {
@@ -1460,6 +1479,8 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
 template <typename LoggerPolicy>
 std::optional<inode_view>
 metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
+  PERFMON_CLS_SCOPED_SECTION(find)
+
   auto range = dir.entry_range();
 
   auto it = std::lower_bound(range.begin(), range.end(), name,
@@ -1530,6 +1551,8 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 
 template <typename LoggerPolicy>
 int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr)
+
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   auto mode = iv.mode();
@@ -1590,6 +1613,8 @@ metadata_<LoggerPolicy>::opendir(inode_view iv) const {
 template <typename LoggerPolicy>
 std::optional<std::pair<inode_view, std::string>>
 metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(readdir)
+
   switch (offset) {
   case 0:
     return std::pair(make_inode_view(dir.inode()), ".");
@@ -1815,9 +1840,11 @@ metadata_v2::freeze(const thrift::metadata::metadata& data) {
 metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
                          std::span<uint8_t const> data,
                          metadata_options const& options, int inode_offset,
-                         bool force_consistency_check)
+                         bool force_consistency_check,
+                         std::shared_ptr<performance_monitor const> perfmon)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
-          lgr, schema, data, options, inode_offset, force_consistency_check)) {}
+          lgr, schema, data, options, inode_offset, force_consistency_check,
+          std::move(perfmon))) {}
 
 } // namespace dwarfs

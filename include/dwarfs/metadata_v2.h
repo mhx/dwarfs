@@ -46,6 +46,8 @@ struct filesystem_info;
 struct file_stat;
 struct vfs_stat;
 
+class performance_monitor;
+
 namespace thrift::metadata {
 class metadata;
 }
@@ -58,7 +60,8 @@ class metadata_v2 {
 
   metadata_v2(logger& lgr, std::span<uint8_t const> schema,
               std::span<uint8_t const> data, metadata_options const& options,
-              int inode_offset = 0, bool force_consistency_check = false);
+              int inode_offset = 0, bool force_consistency_check = false,
+              std::shared_ptr<performance_monitor const> perfmon = nullptr);
 
   void check_consistency() const { impl_->check_consistency(); }
 
