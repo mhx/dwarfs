@@ -3,4 +3,4 @@
 	url = https://github.com/mhx/folly
 [submodule "fbthrift"]
 	path = fbthrift
-	url = https://github.com/facebook/fbthrift
+	url = https://github.com/mhx/fbthrift
