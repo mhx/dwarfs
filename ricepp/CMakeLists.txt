@@ -74,7 +74,7 @@ foreach(target ${RICEPP_LIBS_CPUSPECIFIC})
   message(STATUS "[ricepp] adding CPU target: ${target}")
   target_include_directories(${target} PUBLIC include)
   target_link_libraries(${target} PUBLIC range-v3)
-  target_compile_features(${target} PUBLIC cxx_std_20)
+  target_compile_features(${target} PUBLIC cxx_std_23)
   list(APPEND RICEPP_OBJECTS_CPUSPECIFIC $<TARGET_OBJECTS:${target}>)
 endforeach()
 
@@ -84,7 +84,7 @@ target_include_directories(ricepp PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_features(ricepp PUBLIC cxx_std_20)
+target_compile_features(ricepp PUBLIC cxx_std_23)
 target_compile_definitions(ricepp PRIVATE ${RICEPP_CPU_SUPPORT})
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)

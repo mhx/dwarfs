@@ -126,7 +126,7 @@ endif()
 
 set(default_build_type "Release")
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -420,13 +420,13 @@ add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES NOMINMAX NOGDI)
 add_compile_definitions(GLOG_USE_GLOG_EXPORT)
 
 set(
-  CXX_STD "gnu++20"
+  CXX_STD "gnu++23"
   CACHE STRING
   "The C++ standard argument to pass to the compiler."
 )
 
 set(
-  MSVC_LANGUAGE_VERSION "c++20"
+  MSVC_LANGUAGE_VERSION "c++23"
   CACHE STRING
   "The C++ standard argument to pass to the compiler."
 )
@@ -434,8 +434,8 @@ set(
 add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 
-set_property(TARGET folly PROPERTY CXX_STANDARD 20)
-set_property(TARGET folly_base PROPERTY CXX_STANDARD 20)
+set_property(TARGET folly PROPERTY CXX_STANDARD 23)
+set_property(TARGET folly_base PROPERTY CXX_STANDARD 23)
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
@@ -765,7 +765,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
                            test/test_strings.cpp test/loremipsum.cpp
                            test/test_dirtree.cpp test/filter_test_data.cpp)
   target_link_libraries(test_helpers dwarfs folly)
-  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
+  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 23)
 endif()
 
 if(WITH_TESTS)
@@ -901,7 +901,7 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
-set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
+set_property(TARGET thrift_light PROPERTY CXX_STANDARD 23)
 target_link_libraries(thrift_light folly)
 
 target_include_directories(thrift_light SYSTEM PRIVATE ${INCLUDE_DIRS})
@@ -960,7 +960,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
     target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
   endif()
 
-  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 23)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
