@@ -33,6 +33,7 @@ RUN pacman -S --noconfirm --needed \
         fmt \
         chrono-date \
         range-v3 \
+        nlohmann-json \
         jemalloc \
         double-conversion \
         lz4 \

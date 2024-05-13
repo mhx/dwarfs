@@ -337,6 +337,7 @@ $ apt install \
     libgoogle-glog-dev \
     libutfcpp-dev \
     libflac++-dev \
+    nlohmann-json3-dev \
     python3-mistletoe
 ```
 

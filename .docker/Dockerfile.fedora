@@ -46,6 +46,7 @@ RUN dnf install -y \
         glog-devel \
         flac-devel \
         utf8cpp-devel \
+        json-devel \
         range-v3-devel
 RUN pip install mistletoe
 ARG SCRIPT=build-linux.sh
