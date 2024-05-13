@@ -34,7 +34,6 @@
 #include <fmt/ostream.h>
 
 #include <folly/Synchronized.h>
-#include <folly/json.h>
 #include <folly/lang/Bits.h>
 
 #include "dwarfs/categorizer.h"
@@ -92,8 +91,8 @@ std::optional<endianness> parse_endianness(std::string_view e) {
   return get_optional(lookup, e);
 }
 
-std::optional<endianness> parse_endianness_dyn(folly::dynamic const& e) {
-  return parse_endianness(e.asString());
+std::optional<endianness> parse_endianness_dyn(nlohmann::json const& e) {
+  return parse_endianness(e.get<std::string>());
 }
 
 std::ostream& operator<<(std::ostream& os, signedness e) {
@@ -118,8 +117,8 @@ std::optional<signedness> parse_signedness(std::string_view s) {
   return get_optional(lookup, s);
 }
 
-std::optional<signedness> parse_signedness_dyn(folly::dynamic const& s) {
-  return parse_signedness(s.asString());
+std::optional<signedness> parse_signedness_dyn(nlohmann::json const& s) {
+  return parse_signedness(s.get<std::string>());
 }
 
 std::ostream& operator<<(std::ostream& os, padding e) {
@@ -144,8 +143,8 @@ std::optional<padding> parse_padding(std::string_view p) {
   return get_optional(lookup, p);
 }
 
-std::optional<padding> parse_padding_dyn(folly::dynamic const& p) {
-  return parse_padding(p.asString());
+std::optional<padding> parse_padding_dyn(nlohmann::json const& p) {
+  return parse_padding(p.get<std::string>());
 }
 
 } // namespace
@@ -472,14 +471,15 @@ class pcmaudio_metadata_store {
 
   std::string lookup(size_t ix) const {
     auto const& m = DWARFS_NOTHROW(forward_index_.at(ix));
-    folly::dynamic obj = folly::dynamic::object;
-    obj.insert("endianness", fmt::format("{}", m.sample_endianness));
-    obj.insert("signedness", fmt::format("{}", m.sample_signedness));
-    obj.insert("padding", fmt::format("{}", m.sample_padding));
-    obj.insert("bytes_per_sample", m.bytes_per_sample);
-    obj.insert("bits_per_sample", m.bits_per_sample);
-    obj.insert("number_of_channels", m.number_of_channels);
-    return folly::toJson(obj);
+    nlohmann::json obj{
+        {"endianness", fmt::format("{}", m.sample_endianness)},
+        {"signedness", fmt::format("{}", m.sample_signedness)},
+        {"padding", fmt::format("{}", m.sample_padding)},
+        {"bytes_per_sample", m.bytes_per_sample},
+        {"bits_per_sample", m.bits_per_sample},
+        {"number_of_channels", m.number_of_channels},
+    };
+    return obj.dump();
   }
 
   bool less(size_t a, size_t b) const {
@@ -1128,7 +1128,7 @@ template <typename LoggerPolicy>
 void pcmaudio_categorizer_<LoggerPolicy>::set_metadata_requirements(
     std::string_view category_name, std::string requirements) {
   if (!requirements.empty()) {
-    auto req = folly::parseJson(requirements);
+    auto req = nlohmann::json::parse(requirements);
     if (category_name == WAVEFORM_CATEGORY) {
       waveform_req_.parse(req);
     } else {

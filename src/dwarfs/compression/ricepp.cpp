@@ -20,11 +20,12 @@
  */
 
 #include <folly/Varint.h>
-#include <folly/json.h>
 
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
+
+#include <nlohmann/json.hpp>
 
 #include <ricepp/ricepp.h>
 
@@ -59,12 +60,12 @@ class ricepp_block_compressor final : public block_compressor::impl {
                    "internal error: ricepp compression requires metadata");
     }
 
-    auto meta = folly::parseJson(*metadata);
+    auto meta = nlohmann::json::parse(*metadata);
 
-    auto endianness = meta["endianness"].asString();
-    auto component_count = meta["component_count"].asInt();
-    auto unused_lsb_count = meta["unused_lsb_count"].asInt();
-    auto bytes_per_sample = meta["bytes_per_sample"].asInt();
+    auto endianness = meta["endianness"].get<std::string>();
+    auto component_count = meta["component_count"].get<int>();
+    auto unused_lsb_count = meta["unused_lsb_count"].get<int>();
+    auto bytes_per_sample = meta["bytes_per_sample"].get<int>();
 
     assert(2 <= bytes_per_sample && bytes_per_sample <= 2);
     assert(0 <= unused_lsb_count && unused_lsb_count <= 8);
@@ -142,24 +143,22 @@ class ricepp_block_compressor final : public block_compressor::impl {
   }
 
   std::string metadata_requirements() const override {
-    folly::dynamic req = folly::dynamic::object
-        // clang-format off
-      ("endianness",       folly::dynamic::array("set",
-                             folly::dynamic::array("big", "little")))
-      ("bytes_per_sample", folly::dynamic::array("set",
-                             folly::dynamic::array(2)))
-      ("component_count",  folly::dynamic::array("range", 1, 2))
-      ("unused_lsb_count", folly::dynamic::array("range", 0, 8))
-      ; // clang-format on
-    return folly::toJson(req);
+    using nlj = nlohmann::json;
+    nlohmann::json req{
+        {"endianness", nlj::array({"set", nlj::array({"big", "little"})})},
+        {"bytes_per_sample", nlj::array({"set", nlj::array({2})})},
+        {"component_count", nlj::array({"range", 1, 2})},
+        {"unused_lsb_count", nlj::array({"range", 0, 8})},
+    };
+    return req.dump();
   }
 
   compression_constraints
   get_compression_constraints(std::string const& metadata) const override {
-    auto meta = folly::parseJson(metadata);
+    auto meta = nlohmann::json::parse(metadata);
 
-    auto component_count = meta["component_count"].asInt();
-    auto bytes_per_sample = meta["bytes_per_sample"].asInt();
+    auto component_count = meta["component_count"].get<int>();
+    auto bytes_per_sample = meta["bytes_per_sample"].get<int>();
 
     compression_constraints cc;
 
@@ -211,15 +210,13 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
   compression_type type() const override { return compression_type::RICEPP; }
 
   std::optional<std::string> metadata() const override {
-    folly::dynamic meta = folly::dynamic::object
-        // clang-format off
-      ("endianness",       header_.big_endian().value() ? "big" : "little")
-      ("bytes_per_sample", header_.bytes_per_sample().value())
-      ("unused_lsb_count", header_.unused_lsb_count().value())
-      ("component_count",  header_.component_count().value())
-      ; // clang-format on
-
-    return folly::toJson(meta);
+    nlohmann::json meta{
+        {"endianness", header_.big_endian().value() ? "big" : "little"},
+        {"bytes_per_sample", header_.bytes_per_sample().value()},
+        {"unused_lsb_count", header_.unused_lsb_count().value()},
+        {"component_count", header_.component_count().value()},
+    };
+    return meta.dump();
   }
 
   bool decompress_frame(size_t) override {

@@ -32,7 +32,7 @@
 
 #include <fmt/format.h>
 
-#include <folly/dynamic.h>
+#include <nlohmann/json.hpp>
 
 namespace dwarfs {
 
@@ -48,54 +48,56 @@ std::vector<T> ordered_set(std::unordered_set<T> const& set) {
 }
 
 template <typename T>
-std::optional<T> value_parser(folly::dynamic const& v) {
+std::optional<T> value_parser(nlohmann::json const& v) {
   if constexpr (std::is_same_v<T, std::string>) {
-    return v.asString();
+    return v.get<std::string>();
   } else {
     static_assert(std::is_integral_v<T>);
-    return v.asInt();
+    return v.get<T>();
   }
 }
 
-void check_dynamic_common(folly::dynamic const& dyn,
-                          std::string_view expected_type, size_t expected_size,
-                          std::string_view name);
+void check_json_common(nlohmann::json const& jsn,
+                       std::string_view expected_type, size_t expected_size,
+                       std::string_view name);
 
-void check_unsupported_metadata_requirements(folly::dynamic& req);
+void check_unsupported_metadata_requirements(nlohmann::json& req);
 
 template <typename T, typename ValueParser>
-bool parse_metadata_requirements_set(T& container, folly::dynamic& req,
+bool parse_metadata_requirements_set(T& container, nlohmann::json& req,
                                      std::string_view name,
                                      ValueParser const& value_parser) {
-  if (auto it = req.find(name); it != req.items().end()) {
-    detail::check_dynamic_common(it->second, "set", 2, name);
+  if (auto it = req.find(name); it != req.end()) {
+    auto& val = *it;
 
-    if (it->second[1].type() != folly::dynamic::ARRAY) {
+    detail::check_json_common(val, "set", 2, name);
+
+    if (!val[1].is_array()) {
       throw std::runtime_error(
           fmt::format("non-array type argument for requirement '{}', got '{}'",
-                      name, it->second[1].typeName()));
+                      name, val[1].type_name()));
     }
 
-    if (it->second[1].empty()) {
+    if (val[1].empty()) {
       throw std::runtime_error(
           fmt::format("unexpected empty set for requirement '{}'", name));
     }
 
-    for (auto v : it->second[1]) {
+    for (auto v : val[1]) {
       std::optional<typename T::value_type> maybe_value;
 
       try {
         maybe_value = value_parser(v);
       } catch (std::exception const& e) {
-        throw std::runtime_error(fmt::format(
-            "could not parse set value '{}' for requirement '{}': {}",
-            v.asString(), name, e.what()));
+        throw std::runtime_error(
+            fmt::format("could not parse set value {} for requirement '{}': {}",
+                        v.dump(), name, e.what()));
       }
 
       if (maybe_value) {
         if (!container.emplace(*maybe_value).second) {
           throw std::runtime_error(fmt::format(
-              "duplicate value '{}' for requirement '{}'", v.asString(), name));
+              "duplicate value {} for requirement '{}'", v.dump(), name));
         }
       }
     }
@@ -114,35 +116,37 @@ bool parse_metadata_requirements_set(T& container, folly::dynamic& req,
 }
 
 template <typename T, typename ValueParser>
-bool parse_metadata_requirements_range(T& min, T& max, folly::dynamic& req,
+bool parse_metadata_requirements_range(T& min, T& max, nlohmann::json& req,
                                        std::string_view name,
                                        ValueParser const& value_parser) {
-  if (auto it = req.find(name); it != req.items().end()) {
-    detail::check_dynamic_common(it->second, "range", 3, name);
+  if (auto it = req.find(name); it != req.end()) {
+    auto& val = *it;
+
+    detail::check_json_common(val, "range", 3, name);
 
     auto get_value = [&](std::string_view what, int index) {
       try {
-        if (auto maybe_value = value_parser(it->second[index])) {
+        if (auto maybe_value = value_parser(val[index])) {
           return *maybe_value;
         }
       } catch (std::exception const& e) {
-        throw std::runtime_error(fmt::format(
-            "could not parse {} value '{}' for requirement '{}': {}", what,
-            it->second[index].asString(), name, e.what()));
+        throw std::runtime_error(
+            fmt::format("could not parse {} value {} for requirement '{}': {}",
+                        what, val[index].dump(), name, e.what()));
       }
       throw std::runtime_error(
-          fmt::format("could not parse {} value '{}' for requirement '{}'",
-                      what, it->second[index].asString(), name));
+          fmt::format("could not parse {} value {} for requirement '{}'", what,
+                      val[index].dump(), name));
     };
 
     min = get_value("minimum", 1);
     max = get_value("maximum", 2);
 
     if (min > max) {
-      throw std::runtime_error(fmt::format(
-          "expected minimum '{}' to be less than or equal "
-          "to maximum '{}' for requirement '{}'",
-          it->second[1].asString(), it->second[2].asString(), name));
+      throw std::runtime_error(
+          fmt::format("expected minimum '{}' to be less than or equal "
+                      "to maximum '{}' for requirement '{}'",
+                      min, max, name));
     }
 
     req.erase(it);
@@ -160,7 +164,7 @@ class metadata_requirement_base {
   metadata_requirement_base(std::string const& name)
       : name_{name} {}
 
-  virtual void parse(folly::dynamic& req) = 0;
+  virtual void parse(nlohmann::json& req) = 0;
 
   std::string_view name() const { return name_; }
 
@@ -183,7 +187,7 @@ class dynamic_metadata_requirement_base {
   dynamic_metadata_requirement_base(std::string const& name)
       : name_{name} {}
 
-  virtual void check(folly::dynamic const& m) const = 0;
+  virtual void check(nlohmann::json const& m) const = 0;
 
   std::string_view name() const { return name_; }
 
@@ -196,7 +200,7 @@ class typed_metadata_requirement_base
     : public checked_metadata_requirement_base<Meta> {
  public:
   using value_parser_type =
-      std::function<std::optional<T>(folly::dynamic const& v)>;
+      std::function<std::optional<T>(nlohmann::json const& v)>;
   using member_ptr_type = U(Meta::*);
 
   typed_metadata_requirement_base(std::string const& name, member_ptr_type mp)
@@ -229,9 +233,16 @@ class metadata_requirement_set
   using typed_metadata_requirement_base<Meta, T,
                                         U>::typed_metadata_requirement_base;
 
-  void parse(folly::dynamic& req) override {
+  void parse(nlohmann::json& req) override {
     set_.reset();
     std::unordered_set<T> tmp;
+
+    if (!req.is_object()) {
+      throw std::runtime_error(
+          fmt::format("non-object type argument for requirements, got '{}'",
+                      req.type_name()));
+    }
+
     if (parse_metadata_requirements_set(tmp, req, this->name(),
                                         this->value_parser())) {
       set_.emplace(std::move(tmp));
@@ -258,7 +269,7 @@ class metadata_requirement_range
   using typed_metadata_requirement_base<Meta, T,
                                         U>::typed_metadata_requirement_base;
 
-  void parse(folly::dynamic& req) override {
+  void parse(nlohmann::json& req) override {
     range_.reset();
     T min, max;
     if (parse_metadata_requirements_range(min, max, req, this->name(),
@@ -289,7 +300,7 @@ class compression_metadata_requirements {
 
   template <
       typename F, typename U,
-      typename T = typename std::invoke_result_t<F, folly::dynamic>::value_type>
+      typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
   void add_set(std::string const& name, U(Meta::*mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_set<Meta, T, U>>(
@@ -303,7 +314,7 @@ class compression_metadata_requirements {
 
   template <
       typename F, typename U,
-      typename T = typename std::invoke_result_t<F, folly::dynamic>::value_type>
+      typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
   void add_range(std::string const& name, U(Meta::*mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_range<Meta, T, U>>(
@@ -315,7 +326,7 @@ class compression_metadata_requirements {
     add_range(name, mp, detail::value_parser<T>);
   }
 
-  void parse(folly::dynamic req) const {
+  void parse(nlohmann::json req) const {
     for (auto const& r : req_) {
       r->parse(req);
     }
@@ -337,20 +348,20 @@ class compression_metadata_requirements {
 template <>
 class compression_metadata_requirements<void> {
  public:
-  void parse(folly::dynamic req) const {
+  void parse(nlohmann::json req) const {
     detail::check_unsupported_metadata_requirements(req);
   }
 };
 
 template <>
-class compression_metadata_requirements<folly::dynamic> {
+class compression_metadata_requirements<nlohmann::json> {
  public:
   compression_metadata_requirements(std::string const& req);
-  compression_metadata_requirements(folly::dynamic const& req);
+  compression_metadata_requirements(nlohmann::json const& req);
 
   void check(std::optional<std::string> const& meta) const;
   void check(std::string const& meta) const;
-  void check(folly::dynamic const& meta) const;
+  void check(nlohmann::json const& meta) const;
 
  private:
   std::vector<std::unique_ptr<detail::dynamic_metadata_requirement_base>> req_;

@@ -35,7 +35,6 @@
 #include <fmt/ostream.h>
 
 #include <folly/Synchronized.h>
-#include <folly/json.h>
 #include <folly/lang/Bits.h>
 
 #include <range/v3/algorithm/fold_left.hpp>
@@ -67,8 +66,8 @@ std::optional<std::endian> parse_endian(std::string_view e) {
   return get_optional(lookup, e);
 }
 
-std::optional<std::endian> parse_endian_dyn(folly::dynamic const& e) {
-  return parse_endian(e.asString());
+std::optional<std::endian> parse_endian_dyn(nlohmann::json const& e) {
+  return parse_endian(e.get<std::string>());
 }
 
 struct fits_info {
@@ -303,12 +302,13 @@ class fits_metadata_store {
 
   std::string lookup(size_t ix) const {
     auto const& m = DWARFS_NOTHROW(forward_index_.at(ix));
-    folly::dynamic obj = folly::dynamic::object;
-    obj.insert("endianness", fmt::format("{}", m.endianness));
-    obj.insert("bytes_per_sample", m.bytes_per_sample);
-    obj.insert("unused_lsb_count", m.unused_lsb_count);
-    obj.insert("component_count", m.component_count);
-    return folly::toJson(obj);
+    nlohmann::json obj{
+        {"endianness", fmt::format("{}", m.endianness)},
+        {"bytes_per_sample", m.bytes_per_sample},
+        {"unused_lsb_count", m.unused_lsb_count},
+        {"component_count", m.component_count},
+    };
+    return obj.dump();
   }
 
   bool less(size_t a, size_t b) const {
@@ -436,7 +436,7 @@ template <typename LoggerPolicy>
 void fits_categorizer_<LoggerPolicy>::set_metadata_requirements(
     std::string_view category_name, std::string requirements) {
   if (!requirements.empty()) {
-    auto req = folly::parseJson(requirements);
+    auto req = nlohmann::json::parse(requirements);
     if (category_name == IMAGE_CATEGORY) {
       image_req_.parse(req);
     } else {

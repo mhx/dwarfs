@@ -46,18 +46,18 @@
 #endif
 #endif
 
-#include <folly/FileUtil.h>
-#include <folly/portability/Unistd.h>
-
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
 
 #include <folly/Conv.h>
+#include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/experimental/TestUtil.h>
-#include <folly/json.h>
+#include <folly/portability/Unistd.h>
 
 #include <fmt/format.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/file_stat.h"
 #include "dwarfs/util.h"
@@ -981,7 +981,8 @@ TEST_P(tools_test, end_to_end) {
         for (auto const& [path, ref] : xattr_tests) {
           EXPECT_EQ(dwarfs::listxattr(path), ref) << runner.cmdline();
 
-          auto info = folly::parseJson(dwarfs::getxattr(path, kInodeInfoXattr));
+          auto info =
+              nlohmann::json::parse(dwarfs::getxattr(path, kInodeInfoXattr));
           EXPECT_TRUE(info.count("uid"));
           EXPECT_TRUE(info.count("gid"));
           EXPECT_TRUE(info.count("mode"));
@@ -1464,7 +1465,7 @@ TEST_P(tools_test, categorize) {
                                          image_recompressed, "--json");
   ASSERT_TRUE(json_info);
 
-  auto info = folly::parseJson(*json_info);
+  auto info = nlohmann::json::parse(*json_info);
 
   EXPECT_EQ(info["block_size"], 65'536);
   EXPECT_EQ(info["image_offset"], 0);
@@ -1477,28 +1478,28 @@ TEST_P(tools_test, categorize) {
 
   {
     auto it = info["categories"].find("<default>");
-    ASSERT_NE(it, info["categories"].items().end());
-    EXPECT_EQ(it->second["block_count"].asInt(), 1);
+    ASSERT_NE(it, info["categories"].end());
+    EXPECT_EQ((*it)["block_count"].get<int>(), 1);
   }
 
   {
     auto it = info["categories"].find("incompressible");
-    ASSERT_NE(it, info["categories"].items().end());
-    EXPECT_EQ(it->second["block_count"].asInt(), 1);
-    EXPECT_EQ(it->second["compressed_size"].asInt(), 4'096);
-    EXPECT_EQ(it->second["uncompressed_size"].asInt(), 4'096);
+    ASSERT_NE(it, info["categories"].end());
+    EXPECT_EQ((*it)["block_count"].get<int>(), 1);
+    EXPECT_EQ((*it)["compressed_size"].get<int>(), 4'096);
+    EXPECT_EQ((*it)["uncompressed_size"].get<int>(), 4'096);
   }
 
   {
     auto it = info["categories"].find("pcmaudio/metadata");
-    ASSERT_NE(it, info["categories"].items().end());
-    EXPECT_EQ(it->second["block_count"].asInt(), 3);
+    ASSERT_NE(it, info["categories"].end());
+    EXPECT_EQ((*it)["block_count"].get<int>(), 3);
   }
 
   {
     auto it = info["categories"].find("pcmaudio/waveform");
-    ASSERT_NE(it, info["categories"].items().end());
-    EXPECT_EQ(it->second["block_count"].asInt(), 48);
+    ASSERT_NE(it, info["categories"].end());
+    EXPECT_EQ((*it)["block_count"].get<int>(), 48);
   }
 
   ASSERT_EQ(info["history"].size(), 2);
@@ -1510,15 +1511,21 @@ TEST_P(tools_test, categorize) {
     EXPECT_TRUE(entry.count("timestamp"));
   }
 
-  folly::dynamic ref_args = folly::dynamic::array();
-  ref_args.push_back(mkdwarfs_test_bin->string());
-  ref_args.insert(ref_args.end(), mkdwarfs_args.begin(), mkdwarfs_args.end());
-  EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
+  {
+    nlohmann::json ref_args;
+    ref_args.push_back(mkdwarfs_test_bin->string());
+    std::copy(mkdwarfs_args.begin(), mkdwarfs_args.end(),
+              std::back_inserter(ref_args));
+    EXPECT_EQ(ref_args, info["history"][0]["arguments"]);
+  }
 
-  ref_args.resize(1);
-  ref_args.insert(ref_args.end(), mkdwarfs_args_recompress.begin(),
-                  mkdwarfs_args_recompress.end());
-  EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
+  {
+    nlohmann::json ref_args;
+    ref_args.push_back(mkdwarfs_test_bin->string());
+    std::copy(mkdwarfs_args_recompress.begin(), mkdwarfs_args_recompress.end(),
+              std::back_inserter(ref_args));
+    EXPECT_EQ(ref_args, info["history"][1]["arguments"]);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,

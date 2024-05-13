@@ -27,8 +27,11 @@
 
 #include <gtest/gtest.h>
 
-#include <folly/json.h>
+#include <fmt/format.h>
+
 #include <folly/lang/Bits.h>
+
+#include <nlohmann/json.hpp>
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/concat.hpp>
@@ -132,18 +135,19 @@ class ricepp_param : public testing::TestWithParam<data_params> {};
 TEST_P(ricepp_param, combinations) {
   auto param = GetParam();
 
-  folly::dynamic meta = folly::dynamic::object;
-  meta.insert("endianness", "big");
-  meta.insert("bytes_per_sample", 2);
-  meta.insert("unused_lsb_count", param.unused_lsb);
-  meta.insert("component_count", param.num_components);
+  nlohmann::json meta{
+      {"endianness", "big"},
+      {"bytes_per_sample", 2},
+      {"unused_lsb_count", param.unused_lsb},
+      {"component_count", param.num_components},
+  };
 
   auto const data = make_test_data<uint16_t>(
       param.num_components, param.num_pixels, param.unused_lsb);
 
   block_compressor comp(fmt::format("ricepp:block_size={}", param.block_size));
 
-  auto compressed = comp.compress(data, folly::toJson(meta));
+  auto compressed = comp.compress(data, meta.dump());
 
   EXPECT_LT(compressed.size(), 7 * data.size() / 10);
 

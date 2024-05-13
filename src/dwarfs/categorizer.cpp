@@ -28,7 +28,8 @@
 
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
-#include <folly/json.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/categorizer.h"
 #include "dwarfs/compiler.h"
@@ -86,7 +87,8 @@ categorizer::category_metadata(std::string_view, fragment_category) const {
 void categorizer::set_metadata_requirements(std::string_view,
                                             std::string requirements) {
   if (!requirements.empty()) {
-    compression_metadata_requirements().parse(folly::parseJson(requirements));
+    compression_metadata_requirements().parse(
+        nlohmann::json::parse(requirements));
   }
 }
 

@@ -27,7 +27,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
-#include <folly/json.h>
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/compression_metadata_requirements.h"
 #include "dwarfs/map_util.h"
@@ -41,10 +41,10 @@ TEST(metadata_requirements, dynamic_test) {
     "channels": ["set", [1, 2, 4]]
   })";
 
-  std::unique_ptr<compression_metadata_requirements<folly::dynamic>> req;
+  std::unique_ptr<compression_metadata_requirements<nlohmann::json>> req;
 
   ASSERT_NO_THROW(
-      req = std::make_unique<compression_metadata_requirements<folly::dynamic>>(
+      req = std::make_unique<compression_metadata_requirements<nlohmann::json>>(
           requirements));
   {
     std::string metadata = R"({
@@ -126,7 +126,7 @@ TEST(metadata_requirements, dynamic_test) {
     EXPECT_THAT([&] { req->check(metadata); },
                 ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                     "non-string type for requirement 'compression', "
-                    "got type 'int64'")));
+                    "got type 'number'")));
   }
 
   {
@@ -157,7 +157,7 @@ TEST(metadata_requirements, dynamic_test) {
 
 TEST(metadata_requirements, dynamic_test_error) {
   using namespace std::literals::string_literals;
-  using req_type = compression_metadata_requirements<folly::dynamic>;
+  using req_type = compression_metadata_requirements<nlohmann::json>;
 
   EXPECT_THAT(
       [&] { req_type tmp(R"([])"s); },
@@ -171,7 +171,7 @@ TEST(metadata_requirements, dynamic_test_error) {
         })"s);
       },
       ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-          "requirement 'compression' must be an array, got type 'int64'")));
+          "requirement 'compression' must be an array, got type 'number'")));
 
   EXPECT_THAT(
       [&] {
@@ -191,7 +191,7 @@ TEST(metadata_requirements, dynamic_test_error) {
       },
       ThrowsMessage<std::runtime_error>(testing::HasSubstr(
           "type for requirement 'compression' must be a string, got type "
-          "'int64'")));
+          "'number'")));
 
   EXPECT_THAT(
       [&] {
@@ -200,7 +200,7 @@ TEST(metadata_requirements, dynamic_test_error) {
         })"s);
       },
       ThrowsMessage<std::runtime_error>(
-          testing::HasSubstr("unsupported requirement type 'foo'")));
+          testing::HasSubstr("unsupported requirement type \"foo\"")));
 
   EXPECT_THAT(
       [&] {
@@ -218,9 +218,9 @@ TEST(metadata_requirements, dynamic_test_error) {
           "compression": ["range", "foo", 42]
         })"s);
       },
-      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-          "could not parse minimum value 'foo' for requirement 'compression': "
-          "Invalid leading character: \"foo\"")));
+      ThrowsMessage<std::runtime_error>(
+          testing::HasSubstr("could not parse minimum value \"foo\" for "
+                             "requirement 'compression':")));
 
   EXPECT_THAT(
       [&] {
@@ -240,7 +240,7 @@ TEST(metadata_requirements, dynamic_test_error) {
       },
       ThrowsMessage<std::runtime_error>(
           testing::HasSubstr("set for requirement 'compression' must be an "
-                             "array, got type 'int64'")));
+                             "array, got type 'number'")));
 
   EXPECT_THAT(
       [&] {
@@ -258,7 +258,7 @@ TEST(metadata_requirements, dynamic_test_error) {
         })"s);
       },
       ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-          "duplicate value 'foo' for requirement 'compression'")));
+          "duplicate value \"foo\" for requirement 'compression'")));
 }
 
 namespace {
@@ -272,12 +272,12 @@ struct test_metadata {
   uint32_t uint32_value;
 };
 
-std::optional<test_enum> parse_enum(folly::dynamic const& value) {
+std::optional<test_enum> parse_enum(nlohmann::json const& value) {
   static std::unordered_map<std::string_view, test_enum> const enum_map{
       {"foo", test_enum::foo},
       {"bar", test_enum::bar},
       {"baz", test_enum::baz}};
-  return get_optional(enum_map, value.asString());
+  return get_optional(enum_map, value.get<std::string>());
 }
 
 std::ostream& operator<<(std::ostream& os, test_enum e) {
@@ -313,14 +313,14 @@ class metadata_requirements_test : public ::testing::Test {
 };
 
 TEST_F(metadata_requirements_test, static_test) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["foo"]],
     "string": ["set", ["cat", "dog"]],
     "int16": ["range", -1024, 1024],
     "uint32": ["set", [1, 2, 3, 5]]
   })");
 
-  ASSERT_NO_THROW(req->parse(dyn));
+  ASSERT_NO_THROW(req->parse(jsn));
 
   test_metadata metadata{
       .enum_value = test_enum::foo,
@@ -386,7 +386,7 @@ TEST_F(metadata_requirements_test, static_test) {
 }
 
 TEST_F(metadata_requirements_test, static_test_unsupported) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["foo"]],
     "string": ["set", ["cat", "dog"]],
     "int16": ["range", -1024, 1024],
@@ -394,18 +394,18 @@ TEST_F(metadata_requirements_test, static_test_unsupported) {
     "strange": ["set", ["foo", "bar"]]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "unsupported metadata requirements: strange")));
 }
 
 TEST_F(metadata_requirements_test, static_test_less_strict) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["foo"]],
     "int16": ["range", -1024, 1024]
   })");
 
-  ASSERT_NO_THROW(req->parse(dyn));
+  ASSERT_NO_THROW(req->parse(jsn));
 
   test_metadata metadata{
       .enum_value = test_enum::foo,
@@ -418,157 +418,155 @@ TEST_F(metadata_requirements_test, static_test_less_strict) {
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_non_object) {
-  auto dyn = folly::parseJson(R"([])");
+  auto jsn = nlohmann::json::parse(R"([])");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-                  "TypeError: expected dynamic type `object', "
-                  "but had type `array'")));
+                  "non-object type argument for requirements, got 'array'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_non_array) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": 42
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "found non-array type for requirement 'enum', "
-                  "got type 'int64'")));
+                  "got type 'number'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_empty_array) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": []
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "unexpected empty value for requirement 'enum'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_wrong_type) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": [17]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
-              ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-                  "invalid type '17' for requirement 'enum', "
-                  "expected 'set'")));
+  EXPECT_THAT(
+      [&]() { req->parse(jsn); },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "non-string type for requirement 'enum', got type 'number'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_unexpected_type) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["range"]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "invalid type 'range' for requirement 'enum', "
                   "expected 'set'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_invalid_set1) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set"]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "unexpected array size 1 for requirement 'enum', "
                   "expected 2")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_invalid_set2) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", 42]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "non-array type argument for requirement 'enum', "
-                  "got 'int64'")));
+                  "got 'number'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_empty_set) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", []]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "unexpected empty set for requirement 'enum'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_invalid_set3) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["grmpf"]]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "no supported values for requirement 'enum'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_invalid_set4) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "uint32": ["set", ["grmpf"]]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
-              ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-                  "could not parse set value 'grmpf' for requirement 'uint32': "
-                  "Invalid leading character: \"grmpf\"")));
+  EXPECT_THAT(
+      [&]() { req->parse(jsn); },
+      ThrowsMessage<std::runtime_error>(testing::HasSubstr(
+          "could not parse set value \"grmpf\" for requirement 'uint32':")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_set_with_invalid_value) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["grmpf", "foo"]]
   })");
 
-  EXPECT_NO_THROW(req->parse(dyn));
+  EXPECT_NO_THROW(req->parse(jsn));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_invalid_set5) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "enum": ["set", ["grmpf", "foo", "foo"]]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-                  "duplicate value 'foo' for requirement 'enum'")));
+                  "duplicate value \"foo\" for requirement 'enum'")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_range_invalid1) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "int16": ["range"]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "unexpected array size 1 for requirement 'int16', "
                   "expected 3")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_range_invalid2) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "int16": ["range", "bla", 17]
   })");
 
   EXPECT_THAT(
-      [&]() { req->parse(dyn); },
+      [&]() { req->parse(jsn); },
       ThrowsMessage<std::runtime_error>(testing::HasSubstr(
-          "could not parse minimum value 'bla' for requirement 'int16': "
-          "Invalid leading character: \"bla\"")));
+          "could not parse minimum value \"bla\" for requirement 'int16':")));
 }
 
 TEST_F(metadata_requirements_test, static_test_req_error_range_invalid3) {
-  auto dyn = folly::parseJson(R"({
+  auto jsn = nlohmann::json::parse(R"({
     "int16": ["range", 18, 17]
   })");
 
-  EXPECT_THAT([&]() { req->parse(dyn); },
+  EXPECT_THAT([&]() { req->parse(jsn); },
               ThrowsMessage<std::runtime_error>(testing::HasSubstr(
                   "expected minimum '18' to be less than or equal to "
                   "maximum '17' for requirement 'int16'")));

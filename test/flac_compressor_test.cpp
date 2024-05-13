@@ -24,7 +24,7 @@
 
 #include <gtest/gtest.h>
 
-#include <folly/json.h>
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/pcm_sample_transformer.h"
@@ -136,13 +136,9 @@ TEST(flac_compressor, sine) {
 }
 
 TEST(flac_compressor, basic) {
-  folly::dynamic meta = folly::dynamic::object;
-  meta.insert("endianness", "little");
-  meta.insert("signedness", "signed");
-  meta.insert("padding", "msb");
-  meta.insert("bytes_per_sample", 2);
-  meta.insert("bits_per_sample", 16);
-  meta.insert("number_of_channels", 2);
+  nlohmann::json meta{{"endianness", "little"}, {"signedness", "signed"},
+                      {"padding", "msb"},       {"bytes_per_sample", 2},
+                      {"bits_per_sample", 16},  {"number_of_channels", 2}};
 
   auto const data =
       make_test_data(2, 1000, 2, 16, pcm_sample_endianness::Little,
@@ -150,7 +146,7 @@ TEST(flac_compressor, basic) {
 
   block_compressor comp("flac");
 
-  auto compressed = comp.compress(data, folly::toJson(meta));
+  auto compressed = comp.compress(data, meta.dump());
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 
@@ -167,15 +163,15 @@ class flac_param : public testing::TestWithParam<
 TEST_P(flac_param, combinations) {
   auto [end, sig, pad, param] = GetParam();
 
-  folly::dynamic meta = folly::dynamic::object;
-  meta.insert("endianness",
-              end == pcm_sample_endianness::Big ? "big" : "little");
-  meta.insert("signedness",
-              sig == pcm_sample_signedness::Signed ? "signed" : "unsigned");
-  meta.insert("padding", pad == pcm_sample_padding::Msb ? "msb" : "lsb");
-  meta.insert("bytes_per_sample", param.bytes_per_sample);
-  meta.insert("bits_per_sample", param.bits_per_sample);
-  meta.insert("number_of_channels", param.num_channels);
+  nlohmann::json meta{
+      {"endianness", end == pcm_sample_endianness::Big ? "big" : "little"},
+      {"signedness",
+       sig == pcm_sample_signedness::Signed ? "signed" : "unsigned"},
+      {"padding", pad == pcm_sample_padding::Msb ? "msb" : "lsb"},
+      {"bytes_per_sample", param.bytes_per_sample},
+      {"bits_per_sample", param.bits_per_sample},
+      {"number_of_channels", param.num_channels},
+  };
 
   auto const data = make_test_data(param.num_channels, param.num_samples,
                                    param.bytes_per_sample,
@@ -183,7 +179,7 @@ TEST_P(flac_param, combinations) {
 
   block_compressor comp("flac");
 
-  auto compressed = comp.compress(data, folly::toJson(meta));
+  auto compressed = comp.compress(data, meta.dump());
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 

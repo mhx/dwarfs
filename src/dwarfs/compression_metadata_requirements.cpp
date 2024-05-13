@@ -19,43 +19,46 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/json.h>
-
 #include "dwarfs/compression_metadata_requirements.h"
 
 namespace dwarfs {
 
 namespace detail {
 
-void check_dynamic_common(folly::dynamic const& dyn,
-                          std::string_view expected_type, size_t expected_size,
-                          std::string_view name) {
-  if (dyn.type() != folly::dynamic::ARRAY) {
+void check_json_common(nlohmann::json const& jsn,
+                       std::string_view expected_type, size_t expected_size,
+                       std::string_view name) {
+  if (!jsn.is_array()) {
     throw std::runtime_error(
         fmt::format("found non-array type for requirement '{}', got type '{}'",
-                    name, dyn.typeName()));
+                    name, jsn.type_name()));
   }
-  if (dyn.empty()) {
+  if (jsn.empty()) {
     throw std::runtime_error(
         fmt::format("unexpected empty value for requirement '{}'", name));
   }
-  if (auto type = dyn[0].asString(); type != expected_type) {
+  if (!jsn[0].is_string()) {
+    throw std::runtime_error(
+        fmt::format("non-string type for requirement '{}', got type '{}'", name,
+                    jsn[0].type_name()));
+  }
+  if (auto type = jsn[0].get<std::string>(); type != expected_type) {
     throw std::runtime_error(
         fmt::format("invalid type '{}' for requirement '{}', expected '{}'",
                     type, name, expected_type));
   }
-  if (dyn.size() != expected_size) {
+  if (jsn.size() != expected_size) {
     throw std::runtime_error(fmt::format(
         "unexpected array size {} for requirement '{}', expected {}",
-        dyn.size(), name, expected_size));
+        jsn.size(), name, expected_size));
   }
 }
 
-void check_unsupported_metadata_requirements(folly::dynamic& req) {
+void check_unsupported_metadata_requirements(nlohmann::json& req) {
   if (!req.empty()) {
     std::vector<std::string> keys;
-    for (auto k : req.keys()) {
-      keys.emplace_back(k.asString());
+    for (auto const& [k, v] : req.items()) {
+      keys.emplace_back(k);
     }
     std::sort(keys.begin(), keys.end());
     throw std::runtime_error(fmt::format(
@@ -70,7 +73,7 @@ class dynamic_metadata_requirement_set
   static_assert(std::is_same_v<T, std::string> || std::is_integral_v<T>);
 
   dynamic_metadata_requirement_set(std::string const& name,
-                                   folly::dynamic const& req)
+                                   nlohmann::json const& req)
       : dynamic_metadata_requirement_base{name} {
     auto tmp = req;
     if (!parse_metadata_requirements_set(set_, tmp, name,
@@ -80,30 +83,30 @@ class dynamic_metadata_requirement_set
     }
   }
 
-  void check(folly::dynamic const& dyn) const override {
+  void check(nlohmann::json const& jsn) const override {
     if constexpr (std::is_same_v<T, std::string>) {
-      if (!dyn.isString()) {
+      if (!jsn.is_string()) {
         throw std::runtime_error(
             fmt::format("non-string type for requirement '{}', got type '{}'",
-                        name(), dyn.typeName()));
+                        name(), jsn.type_name()));
       }
 
-      if (set_.find(dyn.asString()) == set_.end()) {
-        throw std::runtime_error(
-            fmt::format("{} '{}' does not meet requirements [{}]", name(),
-                        dyn.asString(), fmt::join(ordered_set(set_), ", ")));
+      if (set_.find(jsn.get<std::string>()) == set_.end()) {
+        throw std::runtime_error(fmt::format(
+            "{} '{}' does not meet requirements [{}]", name(),
+            jsn.get<std::string>(), fmt::join(ordered_set(set_), ", ")));
       }
     } else {
-      if (!dyn.isInt()) {
+      if (!jsn.is_number_integer()) {
         throw std::runtime_error(
             fmt::format("non-integral type for requirement '{}', got type '{}'",
-                        name(), dyn.typeName()));
+                        name(), jsn.type_name()));
       }
 
-      if (set_.find(dyn.asInt()) == set_.end()) {
+      if (set_.find(jsn.get<int>()) == set_.end()) {
         throw std::runtime_error(
             fmt::format("{} '{}' does not meet requirements [{}]", name(),
-                        dyn.asInt(), fmt::join(ordered_set(set_), ", ")));
+                        jsn.get<int>(), fmt::join(ordered_set(set_), ", ")));
       }
     }
   }
@@ -116,7 +119,7 @@ class dynamic_metadata_requirement_range
     : public dynamic_metadata_requirement_base {
  public:
   dynamic_metadata_requirement_range(std::string const& name,
-                                     folly::dynamic const& req)
+                                     nlohmann::json const& req)
       : dynamic_metadata_requirement_base{name} {
     auto tmp = req;
     if (!parse_metadata_requirements_range(min_, max_, tmp, name,
@@ -126,14 +129,14 @@ class dynamic_metadata_requirement_range
     }
   }
 
-  void check(folly::dynamic const& dyn) const override {
-    if (!dyn.isInt()) {
+  void check(nlohmann::json const& jsn) const override {
+    if (!jsn.is_number_integer()) {
       throw std::runtime_error(
           fmt::format("non-integral type for requirement '{}', got type '{}'",
-                      name(), dyn.typeName()));
+                      name(), jsn.type_name()));
     }
 
-    auto v = dyn.asInt();
+    auto v = jsn.get<int>();
 
     if (v < min_ || v > max_) {
       throw std::runtime_error(
@@ -149,73 +152,71 @@ class dynamic_metadata_requirement_range
 } // namespace detail
 
 compression_metadata_requirements<
-    folly::dynamic>::compression_metadata_requirements(std::string const& req)
-    : compression_metadata_requirements(folly::parseJson(req)) {}
+    nlohmann::json>::compression_metadata_requirements(std::string const& req)
+    : compression_metadata_requirements(nlohmann::json::parse(req)) {}
 
-compression_metadata_requirements<folly::dynamic>::
-    compression_metadata_requirements(folly::dynamic const& req) {
-  if (req.type() != folly::dynamic::OBJECT) {
+compression_metadata_requirements<nlohmann::json>::
+    compression_metadata_requirements(nlohmann::json const& req) {
+  if (!req.is_object()) {
     throw std::runtime_error(
         fmt::format("metadata requirements must be an object, got type '{}'",
-                    req.typeName()));
+                    req.type_name()));
   }
 
   for (auto const& [k, v] : req.items()) {
-    if (v.type() != folly::dynamic::ARRAY) {
+    if (!v.is_array()) {
       throw std::runtime_error(
-          fmt::format("requirement '{}' must be an array, got type '{}'",
-                      k.asString(), v.typeName()));
+          fmt::format("requirement '{}' must be an array, got type '{}'", k,
+                      v.type_name()));
     }
 
     if (v.size() < 2) {
       throw std::runtime_error(
           fmt::format("requirement '{}' must be an array of at least 2 "
                       "elements, got only {}",
-                      k.asString(), v.size()));
+                      k, v.size()));
     }
 
-    if (v[0].type() != folly::dynamic::STRING) {
+    if (!v[0].is_string()) {
       throw std::runtime_error(fmt::format(
-          "type for requirement '{}' must be a string, got type '{}'",
-          k.asString(), v[0].typeName()));
+          "type for requirement '{}' must be a string, got type '{}'", k,
+          v[0].type_name()));
     }
 
-    if (v[0].asString() == "set") {
-      if (v[1].type() != folly::dynamic::ARRAY) {
+    if (v[0].get<std::string>() == "set") {
+      if (!v[1].is_array()) {
         throw std::runtime_error(fmt::format(
-            "set for requirement '{}' must be an array, got type '{}'",
-            k.asString(), v[1].typeName()));
+            "set for requirement '{}' must be an array, got type '{}'", k,
+            v[1].type_name()));
       }
       if (v[1].empty()) {
-        throw std::runtime_error(fmt::format(
-            "set for requirement '{}' must not be empty", k.asString()));
+        throw std::runtime_error(
+            fmt::format("set for requirement '{}' must not be empty", k));
       }
-      if (v[1][0].isString()) {
+      if (v[1][0].is_string()) {
         req_.emplace_back(
             std::make_unique<
-                detail::dynamic_metadata_requirement_set<std::string>>(
-                k.asString(), req));
+                detail::dynamic_metadata_requirement_set<std::string>>(k, req));
       } else {
         req_.emplace_back(
             std::make_unique<detail::dynamic_metadata_requirement_set<int64_t>>(
-                k.asString(), req));
+                k, req));
       }
-    } else if (v[0].asString() == "range") {
+    } else if (v[0].get<std::string>() == "range") {
       req_.emplace_back(
-          std::make_unique<detail::dynamic_metadata_requirement_range>(
-              k.asString(), req));
+          std::make_unique<detail::dynamic_metadata_requirement_range>(k, req));
     } else {
       throw std::runtime_error(
-          fmt::format("unsupported requirement type '{}'", v[0].asString()));
+          fmt::format("unsupported requirement type {}", v[0].dump()));
     }
   }
 }
 
-void compression_metadata_requirements<folly::dynamic>::check(
-    folly::dynamic const& dyn) const {
+void compression_metadata_requirements<nlohmann::json>::check(
+    nlohmann::json const& jsn) const {
   for (auto const& r : req_) {
-    if (auto it = dyn.find(r->name()); it != dyn.items().end()) {
-      r->check(it->second);
+    if (auto it = jsn.find(r->name()); it != jsn.end()) {
+      r->check(*it);
     } else {
       throw std::runtime_error(
           fmt::format("missing requirement '{}'", r->name()));
@@ -223,16 +224,16 @@ void compression_metadata_requirements<folly::dynamic>::check(
   }
 }
 
-void compression_metadata_requirements<folly::dynamic>::check(
+void compression_metadata_requirements<nlohmann::json>::check(
     std::string const& metadata) const {
-  check(folly::parseJson(metadata));
+  check(nlohmann::json::parse(metadata));
 }
 
-void compression_metadata_requirements<folly::dynamic>::check(
+void compression_metadata_requirements<nlohmann::json>::check(
     std::optional<std::string> const& metadata) const {
-  folly::dynamic obj = folly::dynamic::object;
+  nlohmann::json obj;
   if (metadata) {
-    obj = folly::parseJson(*metadata);
+    obj = nlohmann::json::parse(*metadata);
   }
   check(obj);
 }

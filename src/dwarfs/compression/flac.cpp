@@ -31,7 +31,8 @@
 #include <fmt/format.h>
 
 #include <folly/Varint.h>
-#include <folly/json.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/compression.h"
@@ -353,19 +354,16 @@ class flac_block_compressor final : public block_compressor::impl {
   }
 
   std::string metadata_requirements() const override {
-    folly::dynamic req = folly::dynamic::object
-        // clang-format off
-      ("endianness",         folly::dynamic::array("set",
-                               folly::dynamic::array("big", "little")))
-      ("signedness",         folly::dynamic::array("set",
-                               folly::dynamic::array("signed", "unsigned")))
-      ("padding",            folly::dynamic::array("set",
-                               folly::dynamic::array("msb", "lsb")))
-      ("bytes_per_sample",   folly::dynamic::array("range", 1, 4))
-      ("bits_per_sample",    folly::dynamic::array("range", 8, 32))
-      ("number_of_channels", folly::dynamic::array("range", 1, 8))
-      ; // clang-format on
-    return folly::toJson(req);
+    using nlj = nlohmann::json;
+    nlohmann::json req = {
+        {"endianness", nlj::array({"set", nlj::array({"big", "little"})})},
+        {"signedness", nlj::array({"set", nlj::array({"signed", "unsigned"})})},
+        {"padding", nlj::array({"set", nlj::array({"msb", "lsb"})})},
+        {"bytes_per_sample", nlj::array({"range", 1, 4})},
+        {"bits_per_sample", nlj::array({"range", 8, 32})},
+        {"number_of_channels", nlj::array({"range", 1, 8})},
+    };
+    return req.dump();
   }
 
   compression_constraints
@@ -427,17 +425,15 @@ class flac_block_decompressor final : public block_decompressor::impl {
 
   std::optional<std::string> metadata() const override {
     auto const flags = header_.flags().value();
-    folly::dynamic meta = folly::dynamic::object
-        // clang-format off
-      ("endianness",         flags & kFlagBigEndian ? "big" : "little")
-      ("signedness",         flags & kFlagSigned ? "signed" : "unsigned")
-      ("padding",            flags & kFlagLsbPadding ? "lsb" : "msb")
-      ("bytes_per_sample",   (flags & kBytesPerSampleMask) + 1)
-      ("bits_per_sample",    header_.bits_per_sample().value())
-      ("number_of_channels", header_.num_channels().value())
-      ; // clang-format on
-
-    return folly::toJson(meta);
+    nlohmann::json meta{
+        {"endianness", flags & kFlagBigEndian ? "big" : "little"},
+        {"signedness", flags & kFlagSigned ? "signed" : "unsigned"},
+        {"padding", flags & kFlagLsbPadding ? "lsb" : "msb"},
+        {"bytes_per_sample", (flags & kBytesPerSampleMask) + 1},
+        {"bits_per_sample", header_.bits_per_sample().value()},
+        {"number_of_channels", header_.num_channels().value()},
+    };
+    return meta.dump();
   }
 
   bool decompress_frame(size_t frame_size) override {

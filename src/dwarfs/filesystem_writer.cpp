@@ -635,7 +635,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
                              block_compressor const& bc) {
     if (auto reqstr = bc.metadata_requirements(); !reqstr.empty()) {
       try {
-        auto req = compression_metadata_requirements<folly::dynamic>{reqstr};
+        auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
         req.check(std::nullopt);
       } catch (std::exception const& e) {
         auto msg = fmt::format(
@@ -867,7 +867,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
   }
 
   if (auto reqstr = bc->metadata_requirements(); !reqstr.empty()) {
-    auto req = compression_metadata_requirements<folly::dynamic>{reqstr};
+    auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
     std::vector<uint8_t> tmp;
     block_decompressor bd(compression, data.data(), data.size(), tmp);
