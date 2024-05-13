@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include <folly/dynamic.h>
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/options.h"
 
@@ -45,7 +45,7 @@ class history {
   void append(std::optional<std::vector<std::string>> args);
   std::vector<uint8_t> serialize() const;
   void dump(std::ostream& os) const;
-  folly::dynamic as_dynamic() const;
+  nlohmann::json as_json() const;
 
  private:
   thrift::history::history history_;

@@ -393,8 +393,8 @@ class filesystem_ final : public filesystem_v2::impl {
   int check(filesystem_check_level level, size_t num_threads) const override;
   void dump(std::ostream& os, int detail_level) const override;
   std::string dump(int detail_level) const override;
-  folly::dynamic info_as_dynamic(int detail_level) const override;
-  folly::dynamic metadata_as_dynamic() const override;
+  nlohmann::json info_as_json(int detail_level) const override;
+  nlohmann::json metadata_as_json() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
   void walk(std::function<void(dir_entry_view)> const& func) const override;
   void walk_data_order(
@@ -428,7 +428,7 @@ class filesystem_ final : public filesystem_v2::impl {
   size_t num_blocks() const override { return ir_.num_blocks(); }
   bool has_symlinks() const override { return meta_.has_symlinks(); }
   history const& get_history() const override { return history_; }
-  folly::dynamic get_inode_info(inode_view entry) const override {
+  nlohmann::json get_inode_info(inode_view entry) const override {
     return meta_.get_inode_info(entry);
   }
   std::vector<std::string> get_all_block_categories() const override {
@@ -912,23 +912,24 @@ std::string filesystem_<LoggerPolicy>::dump(int detail_level) const {
 }
 
 template <typename LoggerPolicy>
-folly::dynamic
-filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
+nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  folly::dynamic info = folly::dynamic::object;
-
-  info["version"] = folly::dynamic::object("major", parser.major_version())(
-      "minor", parser.minor_version())("header", parser.header_version());
-  info["image_offset"] = parser.image_offset();
+  nlohmann::json info{
+      {"version",
+       {
+           {"major", parser.major_version()},
+           {"minor", parser.minor_version()},
+           {"header", parser.header_version()},
+       }},
+      {"image_offset", parser.image_offset()},
+  };
 
   if (detail_level > 1) {
-    info["history"] = history_.as_dynamic();
+    info["history"] = history_.as_json();
   }
 
   if (detail_level > 2) {
-    info["sections"] = folly::dynamic::array;
-
     size_t block_no{0};
 
     while (auto sp = parser.next_section()) {
@@ -936,13 +937,11 @@ filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
 
       bool checksum_ok = s.check_fast(*mm_);
 
-      folly::dynamic section_info = folly::dynamic::object
-          // clang-format off
-          ("type", s.name())
-          ("compressed_size", s.length())
-          ("checksum_ok", checksum_ok)
-          // clang-format on
-          ;
+      nlohmann::json section_info{
+          {"type", s.name()},
+          {"compressed_size", s.length()},
+          {"checksum_ok", checksum_ok},
+      };
 
       if (auto uncompressed_size = try_get_uncompressed_section_size(mm_, s)) {
         section_info["size"] = uncompressed_size.value();
@@ -960,14 +959,14 @@ filesystem_<LoggerPolicy>::info_as_dynamic(int detail_level) const {
     }
   }
 
-  info.update(meta_.info_as_dynamic(detail_level, get_info()));
+  info.update(meta_.info_as_json(detail_level, get_info()));
 
   return info;
 }
 
 template <typename LoggerPolicy>
-folly::dynamic filesystem_<LoggerPolicy>::metadata_as_dynamic() const {
-  return meta_.as_dynamic();
+nlohmann::json filesystem_<LoggerPolicy>::metadata_as_json() const {
+  return meta_.as_json();
 }
 
 template <typename LoggerPolicy>

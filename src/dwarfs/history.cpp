@@ -115,22 +115,20 @@ void history::dump(std::ostream& os) const {
   }
 }
 
-folly::dynamic history::as_dynamic() const {
-  folly::dynamic dyn = folly::dynamic::array;
+nlohmann::json history::as_json() const {
+  nlohmann::json dyn;
 
   for (auto const& histent : *history_.entries()) {
-    folly::dynamic entry = folly::dynamic::object;
+    auto& entry = dyn.emplace_back();
 
     auto const& version = histent.version().value();
 
-    entry["libdwarfs_version"] = folly::dynamic::object
-        // clang-format off
-        ("major", version.major().value())
-        ("minor", version.minor().value())
-        ("patch", version.patch().value())
-        ("is_release", version.is_release().value())
-        // clang-format on
-        ;
+    entry["libdwarfs_version"] = {
+        {"major", version.major().value()},
+        {"minor", version.minor().value()},
+        {"patch", version.patch().value()},
+        {"is_release", version.is_release().value()},
+    };
 
     auto& version_dyn = entry["libdwarfs_version"];
 
@@ -150,32 +148,26 @@ folly::dynamic history::as_dynamic() const {
     entry["compiler_id"] = histent.compiler_id().value();
 
     if (histent.arguments().has_value()) {
-      folly::dynamic args = folly::dynamic::array;
+      auto& args = entry["arguments"];
       for (auto const& arg : histent.arguments().value()) {
         args.push_back(arg);
       }
-      entry["arguments"] = std::move(args);
     }
 
     if (histent.timestamp().has_value()) {
-      entry["timestamp"] = folly::dynamic::object
-          // clang-format off
-          ("epoch", histent.timestamp().value())
-          ("local", fmt::format("{:%Y-%m-%dT%H:%M:%S}",
-                                fmt::localtime(histent.timestamp().value())))
-          // clang-format on
-          ;
+      entry["timestamp"] = {
+          {"epoch", histent.timestamp().value()},
+          {"local", fmt::format("{:%Y-%m-%dT%H:%M:%S}",
+                                fmt::localtime(histent.timestamp().value()))},
+      };
     }
 
     if (histent.library_versions().has_value()) {
-      folly::dynamic libs = folly::dynamic::array;
+      auto& libs = entry["library_versions"].emplace_back();
       for (auto const& lib : histent.library_versions().value()) {
         libs.push_back(lib);
       }
-      entry["library_versions"] = std::move(libs);
     }
-
-    dyn.push_back(std::move(entry));
   }
 
   return dyn;

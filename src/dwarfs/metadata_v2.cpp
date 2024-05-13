@@ -486,10 +486,10 @@ class metadata_ final : public metadata_v2::impl {
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
-  folly::dynamic info_as_dynamic(int detail_level,
-                                 filesystem_info const& fsinfo) const override;
+  nlohmann::json
+  info_as_json(int detail_level, filesystem_info const& fsinfo) const override;
 
-  folly::dynamic as_dynamic() const override;
+  nlohmann::json as_json() const override;
   std::string serialize_as_json(bool simple) const override;
 
   size_t size() const override { return data_.size(); }
@@ -538,7 +538,7 @@ class metadata_ final : public metadata_v2::impl {
 
   bool has_symlinks() const override { return !meta_.symlink_table().empty(); }
 
-  folly::dynamic get_inode_info(inode_view iv) const override;
+  nlohmann::json get_inode_info(inode_view iv) const override;
 
   std::optional<std::string>
   get_block_category(size_t block_number) const override;
@@ -638,8 +638,8 @@ class metadata_ final : public metadata_v2::impl {
             dir_entry_view entry, int detail_level,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
-  folly::dynamic as_dynamic(dir_entry_view entry) const;
-  folly::dynamic as_dynamic(directory_view dir, dir_entry_view entry) const;
+  nlohmann::json as_json(dir_entry_view entry) const;
+  nlohmann::json as_json(directory_view dir, dir_entry_view entry) const;
 
   std::optional<inode_view>
   find(directory_view dir, std::string_view name) const;
@@ -983,10 +983,10 @@ void metadata_<LoggerPolicy>::dump(
 }
 
 template <typename LoggerPolicy>
-folly::dynamic
-metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
-                                         filesystem_info const& fsinfo) const {
-  folly::dynamic info = folly::dynamic::object;
+nlohmann::json
+metadata_<LoggerPolicy>::info_as_json(int detail_level,
+                                      filesystem_info const& fsinfo) const {
+  nlohmann::json info;
   vfs_stat stbuf;
   statvfs(&stbuf);
 
@@ -1017,7 +1017,7 @@ metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
     }
 
     if (auto opt = meta_.options()) {
-      folly::dynamic options = folly::dynamic::array;
+      nlohmann::json options;
       parse_metadata_options(meta_, [&](auto const& name, bool value) {
         if (value) {
           options.push_back(name);
@@ -1032,21 +1032,23 @@ metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
     if (meta_.block_categories()) {
       auto catnames = *meta_.category_names();
       auto catinfo = get_category_info(meta_, fsinfo);
-      folly::dynamic categories = folly::dynamic::object;
+      nlohmann::json& categories = info["categories"];
       for (auto const& [category, ci] : catinfo) {
-        categories[catnames[category]] = folly::dynamic::object(
-            "block_count", ci.count)("compressed_size", ci.compressed_size);
+        std::string name{catnames[category]};
+        categories[name] = {
+            {"block_count", ci.count},
+            {"compressed_size", ci.compressed_size},
+        };
         if (!ci.uncompressed_size_is_estimate) {
-          categories[catnames[category]]["uncompressed_size"] =
-              ci.uncompressed_size;
+          categories[name]["uncompressed_size"] = ci.uncompressed_size;
         }
       }
-      info["categories"] = std::move(categories);
     }
   }
 
   if (detail_level > 2) {
-    folly::dynamic meta = folly::dynamic::object;
+    nlohmann::json meta;
+
     meta["symlink_inode_offset"] = symlink_inode_offset_;
     meta["file_inode_offset"] = file_inode_offset_;
     meta["dev_inode_offset"] = dev_inode_offset_;
@@ -1084,7 +1086,7 @@ metadata_<LoggerPolicy>::info_as_dynamic(int detail_level,
   }
 
   if (detail_level > 3) {
-    info["root"] = as_dynamic(root_);
+    info["root"] = as_json(root_);
   }
 
   return info;
@@ -1241,24 +1243,23 @@ void metadata_<LoggerPolicy>::dump(
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::as_dynamic(directory_view dir,
-                                                   dir_entry_view entry) const {
-  folly::dynamic obj = folly::dynamic::array;
+nlohmann::json metadata_<LoggerPolicy>::as_json(directory_view dir,
+                                                dir_entry_view entry) const {
+  nlohmann::json arr = nlohmann::json::array();
 
   auto count = dir.entry_count();
   auto first = dir.first_entry();
 
   for (size_t i = 0; i < count; ++i) {
-    obj.push_back(
-        as_dynamic(make_dir_entry_view(first + i, entry.self_index())));
+    arr.push_back(as_json(make_dir_entry_view(first + i, entry.self_index())));
   }
 
-  return obj;
+  return arr;
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
-  folly::dynamic obj = folly::dynamic::object;
+nlohmann::json metadata_<LoggerPolicy>::as_json(dir_entry_view entry) const {
+  nlohmann::json obj;
 
   auto iv = entry.inode();
   auto mode = iv.mode();
@@ -1280,7 +1281,7 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
 
   case posix_file_type::directory:
     obj["type"] = "directory";
-    obj["inodes"] = as_dynamic(make_directory_view(iv), entry);
+    obj["inodes"] = as_json(make_directory_view(iv), entry);
     break;
 
   case posix_file_type::symlink:
@@ -1311,16 +1312,17 @@ folly::dynamic metadata_<LoggerPolicy>::as_dynamic(dir_entry_view entry) const {
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::as_dynamic() const {
-  folly::dynamic obj = folly::dynamic::object;
-
+nlohmann::json metadata_<LoggerPolicy>::as_json() const {
   vfs_stat stbuf;
   statvfs(&stbuf);
 
-  obj["statvfs"] = folly::dynamic::object("f_bsize", stbuf.bsize)(
-      "f_files", stbuf.files)("f_blocks", stbuf.blocks);
-
-  obj["root"] = as_dynamic(root_);
+  nlohmann::json obj{
+      {"statvfs",
+       {{"f_bsize", stbuf.bsize},
+        {"f_files", stbuf.files},
+        {"f_blocks", stbuf.blocks}}},
+      {"root", as_json(root_)},
+  };
 
   return obj;
 }
@@ -1759,16 +1761,14 @@ metadata_<LoggerPolicy>::get_chunks(int inode) const {
 }
 
 template <typename LoggerPolicy>
-folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
-  folly::dynamic obj = folly::dynamic::object;
+nlohmann::json metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
+  nlohmann::json obj;
 
   auto chunk_range = get_chunk_range(iv.inode_num());
 
   if (chunk_range) {
-    obj["chunks"] = folly::dynamic::array;
-
     for (auto const& chunk : *chunk_range) {
-      folly::dynamic chk = folly::dynamic::object;
+      nlohmann::json& chk = obj["chunks"].emplace_back();
 
       chk["block"] = chunk.block();
       chk["offset"] = chunk.offset();
@@ -1777,8 +1777,6 @@ folly::dynamic metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
       if (auto catname = get_block_category(chunk.block())) {
         chk["category"] = catname.value();
       }
-
-      obj["chunks"].push_back(chk);
     }
   }
 

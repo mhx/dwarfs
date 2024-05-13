@@ -33,7 +33,6 @@
 
 #include <folly/String.h>
 #include <folly/gen/String.h>
-#include <folly/json.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
@@ -331,7 +330,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
         if (!quiet && !list_files && checksum_algo.empty()) {
           if (output_json) {
-            iol.out << folly::toPrettyJson(fs.info_as_dynamic(detail)) << "\n";
+            iol.out << fs.info_as_json(detail) << "\n";
           } else {
             fs.dump(iol.out, detail);
           }

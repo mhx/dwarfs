@@ -33,7 +33,8 @@
 #include <vector>
 
 #include <folly/Expected.h>
-#include <folly/dynamic.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/metadata_types.h"
 
@@ -71,12 +72,12 @@ class metadata_v2 {
     impl_->dump(os, detail_level, fsinfo, icb);
   }
 
-  folly::dynamic
-  info_as_dynamic(int detail_level, filesystem_info const& fsinfo) const {
-    return impl_->info_as_dynamic(detail_level, fsinfo);
+  nlohmann::json
+  info_as_json(int detail_level, filesystem_info const& fsinfo) const {
+    return impl_->info_as_json(detail_level, fsinfo);
   }
 
-  folly::dynamic as_dynamic() const { return impl_->as_dynamic(); }
+  nlohmann::json as_json() const { return impl_->as_json(); }
 
   std::string serialize_as_json(bool simple) const {
     return impl_->serialize_as_json(simple);
@@ -142,7 +143,7 @@ class metadata_v2 {
 
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
-  folly::dynamic get_inode_info(inode_view iv) const {
+  nlohmann::json get_inode_info(inode_view iv) const {
     return impl_->get_inode_info(iv);
   }
 
@@ -175,10 +176,10 @@ class metadata_v2 {
         std::ostream& os, int detail_level, filesystem_info const& fsinfo,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
-    virtual folly::dynamic
-    info_as_dynamic(int detail_level, filesystem_info const& fsinfo) const = 0;
+    virtual nlohmann::json
+    info_as_json(int detail_level, filesystem_info const& fsinfo) const = 0;
 
-    virtual folly::dynamic as_dynamic() const = 0;
+    virtual nlohmann::json as_json() const = 0;
     virtual std::string serialize_as_json(bool simple) const = 0;
 
     virtual size_t size() const = 0;
@@ -221,7 +222,7 @@ class metadata_v2 {
 
     virtual bool has_symlinks() const = 0;
 
-    virtual folly::dynamic get_inode_info(inode_view iv) const = 0;
+    virtual nlohmann::json get_inode_info(inode_view iv) const = 0;
 
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;

@@ -37,7 +37,8 @@
 #include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
-#include <folly/json.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/filesystem_v2.h"
 #include "dwarfs/history.h"
@@ -562,17 +563,17 @@ TEST(dwarfsextract_test, perfmon_trace) {
   ASSERT_TRUE(trace_file);
   EXPECT_GT(trace_file->size(), 10'000);
 
-  auto trace = folly::parseJson(*trace_file);
-  EXPECT_TRUE(trace.isArray());
+  auto trace = nlohmann::json::parse(*trace_file);
+  EXPECT_TRUE(trace.is_array());
 
   std::set<std::string> const expected = {"filesystem_v2", "inode_reader_v2",
                                           "block_cache"};
   std::set<std::string> actual;
 
   for (auto const& obj : trace) {
-    EXPECT_TRUE(obj.isObject());
-    EXPECT_TRUE(obj["cat"].isString());
-    actual.insert(obj["cat"].getString());
+    EXPECT_TRUE(obj.is_object());
+    EXPECT_TRUE(obj["cat"].is_string());
+    actual.insert(obj["cat"].get<std::string>());
   }
 
   EXPECT_EQ(expected, actual);
@@ -705,8 +706,8 @@ TEST_P(logging_test, end_to_end) {
     std::vector<std::string> infos;
 
     for (int detail = 0; detail <= 4; ++detail) {
-      auto info = fs.info_as_dynamic(detail);
-      auto i = folly::toJson(info);
+      auto info = fs.info_as_json(detail);
+      auto i = info.dump();
       if (!infos.empty()) {
         EXPECT_GT(i.size(), infos.back().size()) << detail;
       }
@@ -821,7 +822,7 @@ TEST(mkdwarfs_test, metadata_inode_info) {
 
     for (auto chunk : info["chunks"]) {
       ASSERT_TRUE(chunk.count("category") > 0);
-      categories.insert(chunk["category"].asString());
+      categories.insert(chunk["category"].get<std::string>());
     }
 
     std::set<std::string> expected{
@@ -843,7 +844,7 @@ TEST(mkdwarfs_test, metadata_inode_info) {
 
     for (auto chunk : info["chunks"]) {
       ASSERT_TRUE(chunk.count("category") > 0);
-      categories.insert(chunk["category"].asString());
+      categories.insert(chunk["category"].get<std::string>());
     }
 
     std::set<std::string> expected{
@@ -986,13 +987,13 @@ TEST(mkdwarfs_test, metadata_specials) {
   fs.dump(oss, 9);
   auto dump = oss.str();
 
-  auto meta = fs.metadata_as_dynamic();
+  auto meta = fs.metadata_as_json();
   std::set<std::string> types;
   for (auto const& ino : meta["root"]["inodes"]) {
-    types.insert(ino["type"].asString());
-    if (auto di = ino.find("inodes"); di != ino.items().end()) {
-      for (auto const& ino2 : di->second) {
-        types.insert(ino2["type"].asString());
+    types.insert(ino["type"].get<std::string>());
+    if (auto di = ino.find("inodes"); di != ino.end()) {
+      for (auto const& ino2 : *di) {
+        types.insert(ino2["type"].get<std::string>());
       }
     }
   }
@@ -1027,8 +1028,8 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
 
   EXPECT_THAT(dump, ::testing::HasSubstr("time resolution: 60 seconds"));
 
-  auto dyn = fs.info_as_dynamic(9);
-  EXPECT_EQ(60, dyn["time_resolution"].asInt());
+  auto dyn = fs.info_as_json(9);
+  EXPECT_EQ(60, dyn["time_resolution"].get<int>());
 
   auto iv = fs.find("/suid");
   ASSERT_TRUE(iv);
@@ -1326,7 +1327,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_TRUE(img);
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
-    auto history = fs.info_as_dynamic(2)["history"];
+    auto history = fs.info_as_json(2)["history"];
     EXPECT_EQ(1, history.size());
   }
 
@@ -1343,7 +1344,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
-    auto history = fs.info_as_dynamic(2)["history"];
+    auto history = fs.info_as_json(2)["history"];
     EXPECT_EQ(2, history.size());
   }
 
@@ -1396,7 +1397,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
     EXPECT_EQ(0, fs.get_history().get().entries()->size());
-    EXPECT_EQ(1, fs.info_as_dynamic(2).count("history"));
+    EXPECT_EQ(1, fs.info_as_json(2).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
   }
 
@@ -1630,11 +1631,11 @@ TEST(mkdwarfs_test, pack_modes_random) {
         0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
         << t.err();
     auto fs = t.fs_from_stdout();
-    auto info = fs.info_as_dynamic(2);
+    auto info = fs.info_as_json(2);
     std::set<std::string> ms(modes.begin(), modes.end());
     std::set<std::string> fsopt;
     for (auto const& opt : info["options"]) {
-      fsopt.insert(opt.asString());
+      fsopt.insert(opt.get<std::string>());
     }
     auto ctx = mode_arg + "\n" + fs.dump(2);
     EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"))
@@ -1660,13 +1661,13 @@ TEST(mkdwarfs_test, pack_mode_none) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=none"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info = fs.info_as_dynamic(2);
+  auto info = fs.info_as_json(2);
   std::set<std::string> fsopt;
   for (auto const& opt : info["options"]) {
-    fsopt.insert(opt.asString());
+    fsopt.insert(opt.get<std::string>());
   }
   fsopt.erase("mtime_only");
-  EXPECT_TRUE(fsopt.empty()) << folly::toJson(info["options"]);
+  EXPECT_TRUE(fsopt.empty()) << info["options"].dump();
 }
 
 TEST(mkdwarfs_test, pack_mode_all) {
@@ -1676,7 +1677,7 @@ TEST(mkdwarfs_test, pack_mode_all) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=all"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info = fs.info_as_dynamic(2);
+  auto info = fs.info_as_json(2);
   std::set<std::string> expected = {"packed_chunk_table",
                                     "packed_directories",
                                     "packed_names",
@@ -1685,10 +1686,10 @@ TEST(mkdwarfs_test, pack_mode_all) {
                                     "packed_symlinks_index"};
   std::set<std::string> fsopt;
   for (auto const& opt : info["options"]) {
-    fsopt.insert(opt.asString());
+    fsopt.insert(opt.get<std::string>());
   }
   fsopt.erase("mtime_only");
-  EXPECT_EQ(expected, fsopt) << folly::toJson(info["options"]);
+  EXPECT_EQ(expected, fsopt) << info["options"].dump();
 }
 
 TEST(mkdwarfs_test, pack_mode_invalid) {
@@ -1910,14 +1911,14 @@ TEST(dwarfsck_test, check_fail) {
     auto t = dwarfsck_tester::create_with_image(image);
     EXPECT_EQ(0, t.run({"image.dwarfs", "--no-check", "-j", "-d3"})) << t.err();
 
-    auto info = folly::parseJson(t.out());
-    ASSERT_TRUE(info.count("sections") > 0) << folly::toPrettyJson(info);
+    auto info = nlohmann::json::parse(t.out());
+    ASSERT_TRUE(info.count("sections") > 0) << info;
 
     size_t offset = 0;
 
     for (auto const& section : info["sections"]) {
-      auto type = section["type"].asString();
-      auto size = section["compressed_size"].asInt();
+      auto type = section["type"].get<std::string>();
+      auto size = section["compressed_size"].get<int>();
       section_offsets.emplace_back(type, offset);
       offset += section_header_size + size;
     }
@@ -1960,11 +1961,11 @@ TEST(dwarfsck_test, check_fail) {
                       ::testing::HasSubstr(
                           fmt::format("checksum error in section: {}", type)));
         }
-        auto info = fs.info_as_dynamic(3);
+        auto info = fs.info_as_json(3);
         ASSERT_EQ(1, info.count("sections"));
         ASSERT_EQ(section_offsets.size(), info["sections"].size());
         for (auto const& [i, section] : folly::enumerate(info["sections"])) {
-          EXPECT_EQ(section["checksum_ok"].asBool(), i != index)
+          EXPECT_EQ(section["checksum_ok"].get<bool>(), i != index)
               << type << ", " << index;
         }
         auto dump = fs.dump(3);
@@ -1995,7 +1996,7 @@ TEST(dwarfsck_test, check_fail) {
         EXPECT_EQ(0, json.size()) << json;
       } else {
         EXPECT_GT(json.size(), 100) << json;
-        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+        EXPECT_TRUE(nlohmann::json::accept(json)) << json;
       }
     }
 
@@ -2015,7 +2016,7 @@ TEST(dwarfsck_test, check_fail) {
         EXPECT_EQ(0, json.size()) << json;
       } else {
         EXPECT_GT(json.size(), 100) << json;
-        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+        EXPECT_TRUE(nlohmann::json::accept(json)) << json;
       }
     }
 
@@ -2041,7 +2042,7 @@ TEST(dwarfsck_test, check_fail) {
         EXPECT_EQ(0, json.size()) << json;
       } else {
         EXPECT_GT(json.size(), 100) << json;
-        EXPECT_NO_THROW(folly::parseJson(json)) << json;
+        EXPECT_TRUE(nlohmann::json::accept(json)) << json;
       }
     }
 
@@ -2099,7 +2100,7 @@ TEST(dwarfsck_test, export_metadata) {
   auto meta = t.fa->get_file("image.meta");
   ASSERT_TRUE(meta);
   EXPECT_GT(meta->size(), 1000);
-  EXPECT_NO_THROW(folly::parseJson(meta.value()));
+  EXPECT_TRUE(nlohmann::json::accept(meta.value())) << meta.value();
 }
 
 TEST(dwarfsck_test, export_metadata_open_error) {
@@ -2236,7 +2237,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
       auto info = fs.get_inode_info(*iv);
       assert(1 == info["chunks"].size());
       auto const& chunk = info["chunks"][0];
-      tmp.emplace_back(chunk["offset"].asInt(), chunk["size"].asInt());
+      tmp.emplace_back(chunk["offset"].get<int>(), chunk["size"].get<int>());
     }
 
     std::sort(tmp.begin(), tmp.end(),
@@ -2673,7 +2674,7 @@ TEST(block_cache, sequential_access_detector) {
           image,
           {.block_cache = {.max_bytes = 256 * 1024,
                            .sequential_access_detector_threshold = thresh}});
-      auto info = fs.info_as_dynamic(3);
+      auto info = fs.info_as_json(3);
       for (auto const& s : info["sections"]) {
         if (s["type"] == "BLOCK") {
           ++block_count;
@@ -2818,12 +2819,12 @@ TEST(mkdwarfs_test, file_scanner_dump) {
   auto raw = t.fa->get_file("raw.json");
   ASSERT_TRUE(raw);
   EXPECT_GT(raw->size(), 100'000);
-  EXPECT_NO_THROW(folly::parseJson(raw.value()));
+  EXPECT_TRUE(nlohmann::json::accept(raw.value())) << raw.value();
 
   auto finalized = t.fa->get_file("final.json");
   ASSERT_TRUE(finalized);
   EXPECT_GT(finalized->size(), 100'000);
-  EXPECT_NO_THROW(folly::parseJson(finalized.value()));
+  EXPECT_TRUE(nlohmann::json::accept(finalized.value())) << finalized.value();
 
   EXPECT_NE(*raw, *finalized);
 }

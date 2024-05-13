@@ -459,9 +459,9 @@ void basic_end_to_end_test(std::string const& compressor,
     }
   }
 
-  auto dyn = fs.metadata_as_dynamic();
+  auto dyn = fs.metadata_as_json();
 
-  EXPECT_TRUE(dyn.isObject());
+  EXPECT_TRUE(dyn.is_object());
 
   auto json = fs.serialize_metadata_as_json(true);
 
@@ -472,7 +472,7 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(json.size(), 1000) << json;
 
   for (int detail = 0; detail <= 5; ++detail) {
-    auto info = fs.info_as_dynamic(detail);
+    auto info = fs.info_as_json(detail);
 
     ASSERT_TRUE(info.count("version"));
     ASSERT_TRUE(info.count("image_offset"));

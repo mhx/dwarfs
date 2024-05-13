@@ -48,7 +48,6 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
-#include <folly/json.h>
 
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
@@ -72,7 +71,10 @@
 #endif
 
 #ifdef _WIN32
+#include <folly/portability/Windows.h>
+
 #include <delayimp.h>
+
 #include <fuse3/winfsp_fuse.h>
 #define st_atime st_atim.tv_sec
 #define st_ctime st_ctim.tv_sec
@@ -915,8 +917,7 @@ int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
     }
 
     if (name == inodeinfo_xattr) {
-      auto ii = userdata.fs.get_inode_info(*entry);
-      oss << folly::toPrettyJson(ii) << "\n";
+      oss << userdata.fs.get_inode_info(*entry) << "\n";
     }
 
     value = oss.str();

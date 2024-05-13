@@ -35,7 +35,6 @@
 
 #include <folly/FileUtil.h>
 #include <folly/String.h>
-#include <folly/json.h>
 
 #include "dwarfs/block_compressor.h"
 #include "dwarfs/file_stat.h"
@@ -1035,12 +1034,12 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 class compat_metadata : public testing::TestWithParam<std::string> {};
 
 void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
-  auto meta = fs.metadata_as_dynamic();
-  folly::dynamic ref;
+  auto meta = fs.metadata_as_json();
+  nlohmann::json ref;
   if (version == "0.2.0" or version == "0.2.3") {
-    ref = folly::parseJson(reference_v0_2);
+    ref = nlohmann::json::parse(reference_v0_2);
   } else {
-    ref = folly::parseJson(reference);
+    ref = nlohmann::json::parse(reference);
   }
   EXPECT_EQ(ref, meta);
 }

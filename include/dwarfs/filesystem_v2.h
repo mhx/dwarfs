@@ -33,7 +33,8 @@
 #include <utility>
 
 #include <folly/Expected.h>
-#include <folly/dynamic.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/block_range.h"
 #include "dwarfs/fstypes.h"
@@ -87,13 +88,11 @@ class filesystem_v2 {
 
   std::string dump(int detail_level) const { return impl_->dump(detail_level); }
 
-  folly::dynamic info_as_dynamic(int detail_level) const {
-    return impl_->info_as_dynamic(detail_level);
+  nlohmann::json info_as_json(int detail_level) const {
+    return impl_->info_as_json(detail_level);
   }
 
-  folly::dynamic metadata_as_dynamic() const {
-    return impl_->metadata_as_dynamic();
-  }
+  nlohmann::json metadata_as_json() const { return impl_->metadata_as_json(); }
 
   std::string serialize_metadata_as_json(bool simple) const {
     return impl_->serialize_metadata_as_json(simple);
@@ -181,7 +180,7 @@ class filesystem_v2 {
 
   history const& get_history() const { return impl_->get_history(); }
 
-  folly::dynamic get_inode_info(inode_view entry) const {
+  nlohmann::json get_inode_info(inode_view entry) const {
     return impl_->get_inode_info(entry);
   }
 
@@ -211,8 +210,8 @@ class filesystem_v2 {
     check(filesystem_check_level level, size_t num_threads) const = 0;
     virtual void dump(std::ostream& os, int detail_level) const = 0;
     virtual std::string dump(int detail_level) const = 0;
-    virtual folly::dynamic info_as_dynamic(int detail_level) const = 0;
-    virtual folly::dynamic metadata_as_dynamic() const = 0;
+    virtual nlohmann::json info_as_json(int detail_level) const = 0;
+    virtual nlohmann::json metadata_as_json() const = 0;
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
@@ -247,7 +246,7 @@ class filesystem_v2 {
     virtual size_t num_blocks() const = 0;
     virtual bool has_symlinks() const = 0;
     virtual history const& get_history() const = 0;
-    virtual folly::dynamic get_inode_info(inode_view entry) const = 0;
+    virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
     virtual std::vector<std::string> get_all_block_categories() const = 0;
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
