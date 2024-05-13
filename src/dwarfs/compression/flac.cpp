@@ -212,14 +212,14 @@ class flac_block_compressor final : public block_compressor::impl {
                    "internal error: flac compression requires metadata");
     }
 
-    auto meta = folly::parseJson(*metadata);
+    auto meta = nlohmann::json::parse(*metadata);
 
-    auto endianness = meta["endianness"].asString();
-    auto signedness = meta["signedness"].asString();
-    auto padding = meta["padding"].asString();
-    auto num_channels = meta["number_of_channels"].asInt();
-    auto bits_per_sample = meta["bits_per_sample"].asInt();
-    auto bytes_per_sample = meta["bytes_per_sample"].asInt();
+    auto endianness = meta["endianness"].get<std::string>();
+    auto signedness = meta["signedness"].get<std::string>();
+    auto padding = meta["padding"].get<std::string>();
+    auto num_channels = meta["number_of_channels"].get<int>();
+    auto bits_per_sample = meta["bits_per_sample"].get<int>();
+    auto bytes_per_sample = meta["bytes_per_sample"].get<int>();
 
     assert(1 <= bytes_per_sample && bytes_per_sample <= 4);
     assert(8 <= bits_per_sample && bits_per_sample <= 32);
@@ -368,10 +368,10 @@ class flac_block_compressor final : public block_compressor::impl {
 
   compression_constraints
   get_compression_constraints(std::string const& metadata) const override {
-    auto meta = folly::parseJson(metadata);
+    auto meta = nlohmann::json::parse(metadata);
 
-    auto num_channels = meta["number_of_channels"].asInt();
-    auto bytes_per_sample = meta["bytes_per_sample"].asInt();
+    auto num_channels = meta["number_of_channels"].get<int>();
+    auto bytes_per_sample = meta["bytes_per_sample"].get<int>();
 
     compression_constraints cc;
 

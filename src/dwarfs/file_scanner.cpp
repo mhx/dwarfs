@@ -27,9 +27,10 @@
 
 #include <folly/String.h>
 #include <folly/container/F14Map.h>
-#include <folly/json.h>
 
 #include <fmt/format.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/checksum.h"
 #include "dwarfs/entry.h"
@@ -569,7 +570,8 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
   os << "{\n"
      << "        \"ptr\": \""
      << fmt::format("{}", reinterpret_cast<void const*>(p)) << "\",\n"
-     << "        \"path\": " << folly::toJson(p->path_as_string()) << ",\n"
+     << "        \"path\": " << nlohmann::json{p->path_as_string()}.dump()
+     << ",\n"
      << "        \"size\": " << fmt::format("{}", p->size()) << ",\n"
      << "        \"refcnt\": " << fmt::format("{}", p->refcount()) << ",\n"
      << "        \"hash\": \"" << folly::hexlify(p->hash()) << "\",\n"

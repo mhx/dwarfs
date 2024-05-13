@@ -31,8 +31,9 @@
 #include <boost/program_options.hpp>
 
 #include <folly/String.h>
-#include <folly/json.h>
 #include <folly/lang/Bits.h>
+
+#include <nlohmann/json.hpp>
 
 #include "dwarfs/categorizer.h"
 #include "dwarfs/mmap.h"
@@ -171,7 +172,7 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
     EXPECT_EQ(1, unused_lsb_counts.size());
     unsigned unused_lsb_count = *unused_lsb_counts.begin();
     auto json = catmgr->category_metadata(cat);
-    auto metadata = folly::parseJson(json);
-    EXPECT_EQ(unused_lsb_count, metadata["unused_lsb_count"].asInt());
+    auto metadata = nlohmann::json::parse(json);
+    EXPECT_EQ(unused_lsb_count, metadata["unused_lsb_count"].get<int>());
   }
 }
