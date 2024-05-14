@@ -324,6 +324,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 endif()
 
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=3.0.0)
 pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
 pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
 pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
@@ -434,8 +435,78 @@ set(
 add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 
-set_property(TARGET folly PROPERTY CXX_STANDARD 20)
-set_property(TARGET folly_base PROPERTY CXX_STANDARD 20)
+add_library(folly_light
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeCommon.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeSse42.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SimpleSimdStringUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/io/FsUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfSection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/LineReader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Dwarf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfImpl.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfLineNumberVM.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Elf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/ElfCache.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SignalHandler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/StackTrace.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SymbolizePrinter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SymbolizedFrame.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Symbolizer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/TestUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/CString.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/PThread.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/QuantileEstimator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/HardwareConcurrency.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Demangle.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
+)
+
+set_property(TARGET folly_light PROPERTY CXX_STANDARD 20)
+target_include_directories(
+  folly_light SYSTEM PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/folly
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly
+)
+apply_folly_compile_options_to_target(folly_light)
+target_link_libraries(folly_light folly_deps)
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
@@ -625,9 +696,9 @@ add_library(dwarfs_tool src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
 
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
 
-target_link_libraries(dwarfs_compression_metadata folly)
+target_link_libraries(dwarfs_compression_metadata folly_light)
 target_link_libraries(dwarfs_categorizer dwarfs_compression_metadata)
-target_link_libraries(dwarfs dwarfs_compression_metadata)
+target_link_libraries(dwarfs dwarfs_compression_metadata PkgConfig::LIBCRYPTO)
 
 if(DWARFS_GIT_BUILD)
   target_include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
@@ -643,8 +714,8 @@ target_compile_definitions(
   PRJ_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
-target_link_libraries(dwarfs_categorizer folly range-v3::range-v3)
-target_link_libraries(dwarfs_compression folly compression_thrift)
+target_link_libraries(dwarfs_categorizer folly_light range-v3::range-v3)
+target_link_libraries(dwarfs_compression folly_light compression_thrift)
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_compression ricepp)
 endif()
@@ -659,10 +730,10 @@ add_library(dwarfsck_main src/dwarfsck_main.cpp)
 add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
 add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
 
-target_link_libraries(mkdwarfs_main folly)
-target_link_libraries(dwarfsck_main folly)
-target_link_libraries(dwarfsbench_main folly)
-target_link_libraries(dwarfsextract_main folly)
+target_link_libraries(mkdwarfs_main folly_light)
+target_link_libraries(dwarfsck_main folly_light)
+target_link_libraries(dwarfsbench_main folly_light)
+target_link_libraries(dwarfsextract_main folly_light)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
@@ -764,7 +835,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(test_helpers test/test_helpers.cpp test/test_iolayer.cpp
                            test/test_strings.cpp test/loremipsum.cpp
                            test/test_dirtree.cpp test/filter_test_data.cpp)
-  target_link_libraries(test_helpers dwarfs folly)
+  target_link_libraries(test_helpers dwarfs folly_light)
   set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
@@ -843,9 +914,10 @@ if(WITH_BENCHMARKS)
     list(APPEND BINARY_TARGETS multiversioning_benchmark)
   endif()
 
-  add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
-  target_link_libraries(segmenter_benchmark follybenchmark test_helpers)
-  list(APPEND BINARY_TARGETS segmenter_benchmark)
+  # TODO: migrate to benchmark?
+  # add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
+  # target_link_libraries(segmenter_benchmark follybenchmark test_helpers)
+  # list(APPEND BINARY_TARGETS segmenter_benchmark)
 endif()
 
 if(WITH_FUZZ)
@@ -902,7 +974,7 @@ add_library(
   ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
-target_link_libraries(thrift_light folly)
+target_link_libraries(thrift_light folly_light)
 
 target_include_directories(thrift_light SYSTEM PRIVATE ${INCLUDE_DIRS})
 
@@ -998,6 +1070,8 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
 
+  target_link_libraries(${tgt} fmt::fmt)
+
   if(WIN32)
     target_link_libraries(${tgt} ntdll.lib)
   endif()
@@ -1021,7 +1095,7 @@ target_link_libraries(
   metadata_thrift
   history_thrift
   features_thrift
-  folly
+  folly_light
   fsst
   ${Boost_LIBRARIES})
 
@@ -1055,6 +1129,20 @@ endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 target_link_libraries(dwarfs phmap xxHash::xxhash)
 
+if(DWARFS_USE_EXCEPTION_TRACER)
+  add_library(
+    folly_exception_tracer_base_light
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/ExceptionTracer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/StackTrace.cpp
+  )
+  set_property(TARGET folly_exception_tracer_base_light PROPERTY CXX_STANDARD 20)
+  apply_folly_compile_options_to_target(folly_exception_tracer_base_light)
+  target_link_libraries(
+    folly_exception_tracer_base_light
+    PUBLIC folly_light
+  )
+endif()
+
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   target_link_libraries(${tgt} dwarfs dwarfs_tool)
@@ -1062,7 +1150,8 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
-    target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,folly_exception_tracer_base>")
+    target_link_libraries(${tgt}
+            "$<LINK_LIBRARY:WHOLE_ARCHIVE,folly_exception_tracer_base_light>")
   endif()
 endforeach()
 
