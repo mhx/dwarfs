@@ -927,8 +927,8 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
   static_assert(sizeof(file_hdr_t) == FormatPolicy::file_header_size);
   static_assert(sizeof(chunk_hdr_t) == FormatPolicy::chunk_header_size);
 
-  static constexpr uint16_t const WAVE_FORMAT_PCM{0x0001};
-  static constexpr uint16_t const WAVE_FORMAT_EXTENSIBLE{0xFFFE};
+  static constexpr uint16_t const DWARFS_WAVE_FORMAT_PCM{0x0001};
+  static constexpr uint16_t const DWARFS_WAVE_FORMAT_EXTENSIBLE{0xFFFE};
 
   iff_parser<LoggerPolicy, WavChunkPolicy<FormatPolicy>, chunk_hdr_t> parser(
       LOG_GET_LOGGER, path, data, sizeof(file_hdr_t));
@@ -988,9 +988,10 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
         fmt.sub_format_code = 0;
       }
 
-      if (!(fmt.format_code == WAVE_FORMAT_PCM ||
-            (fmt.format_code == WAVE_FORMAT_EXTENSIBLE && chunk->size() == 40 &&
-             fmt.sub_format_code == WAVE_FORMAT_PCM))) {
+      if (!(fmt.format_code == DWARFS_WAVE_FORMAT_PCM ||
+            (fmt.format_code == DWARFS_WAVE_FORMAT_EXTENSIBLE &&
+             chunk->size() == 40 &&
+             fmt.sub_format_code == DWARFS_WAVE_FORMAT_PCM))) {
         LOG_WARN << "[" << FormatPolicy::format_name << "] " << path
                  << ": unsupported format: " << fmt.format_code << "/"
                  << fmt.sub_format_code;
