@@ -935,19 +935,6 @@ if(WITH_MAN_PAGES)
   add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
 endif()
 
-list(
-  APPEND
-  INCLUDE_DIRS
-  ${CMAKE_CURRENT_BINARY_DIR}/folly
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-  ${CMAKE_CURRENT_BINARY_DIR})
-
-if(NOT (ZSTD_FOUND AND PREFER_SYSTEM_ZSTD))
-  list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib)
-endif()
-
 set(DWARFS_USE_EXCEPTION_TRACER OFF)
 if(NOT STATIC_BUILD_DO_NOT_USE)
   if(TARGET folly_exception_tracer)
@@ -976,7 +963,10 @@ add_library(
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
 target_link_libraries(thrift_light folly_light)
 
-target_include_directories(thrift_light SYSTEM PRIVATE ${INCLUDE_DIRS})
+target_include_directories(thrift_light SYSTEM PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
+  ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
@@ -994,14 +984,14 @@ target_link_libraries(compression_thrift thrift_light)
 target_link_libraries(history_thrift thrift_light)
 target_link_libraries(features_thrift thrift_light)
 
+target_link_libraries(dwarfs_categorizer metadata_thrift)
+
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
-  target_include_directories(
-    ${tgt} SYSTEM PRIVATE
-            ${Boost_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS} ${INCLUDE_DIRS})
+  target_link_libraries(${tgt} Boost::boost folly_light thrift_light)
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -1092,12 +1082,14 @@ target_include_directories(dwarfs SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fss
 
 target_link_libraries(
   dwarfs
+  Boost::boost
+  Boost::chrono
+  Boost::iostreams
   metadata_thrift
   history_thrift
   features_thrift
-  folly_light
   fsst
-  ${Boost_LIBRARIES})
+)
 
 # if(LIBMAGIC_FOUND)
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
