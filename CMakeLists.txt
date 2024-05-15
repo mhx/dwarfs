@@ -1127,6 +1127,9 @@ add_library(
   fsst/fsst_avx512_unroll4.inc)
 
 target_include_directories(dwarfs SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
+set_property(TARGET fsst PROPERTY CXX_STANDARD 20)
+set_property(TARGET fsst PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET fsst PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(
   dwarfs
