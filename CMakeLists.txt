@@ -471,6 +471,7 @@ add_library(folly_light
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeLeak.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
