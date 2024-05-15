@@ -1070,6 +1070,10 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
     target_compile_options(${tgt} PRIVATE -Wall -Wextra -pedantic)
   endif()
 
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    target_compile_options(${tgt} PRIVATE -Wno-stringop-overflow)
+  endif()
+
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
