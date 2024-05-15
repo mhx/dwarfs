@@ -979,11 +979,6 @@ add_cpp2_thrift_library(thrift/history.thrift
 add_cpp2_thrift_library(thrift/features.thrift
                         TARGET features_thrift OUTPUT_PATH dwarfs)
 
-target_link_libraries(metadata_thrift thrift_light)
-target_link_libraries(compression_thrift thrift_light)
-target_link_libraries(history_thrift thrift_light)
-target_link_libraries(features_thrift thrift_light)
-
 target_link_libraries(dwarfs_categorizer metadata_thrift)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer

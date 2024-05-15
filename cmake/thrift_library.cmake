@@ -126,12 +126,11 @@ function(add_cpp2_thrift_library idlfile)
   if(NOT _THRIFT_NO_LIBRARY)
     add_library(${_THRIFT_TARGET} ${_THRIFT_LIB_SRC})
     target_include_directories(${_THRIFT_TARGET} PUBLIC
-        ${CMAKE_CURRENT_BINARY_DIR}/folly
         ${CMAKE_CURRENT_BINARY_DIR}/thrift
-        ${CMAKE_CURRENT_SOURCE_DIR}/folly
         ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
         ${CMAKE_CURRENT_BINARY_DIR}
     )
+    target_link_libraries(${_THRIFT_TARGET} PUBLIC thrift_light)
     if(NOT WIN32)
       target_compile_options(${_THRIFT_TARGET} PRIVATE -Wno-deprecated-declarations)
     endif()
