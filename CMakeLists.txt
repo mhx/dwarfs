@@ -502,15 +502,6 @@ add_library(folly_light
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
 )
 
-set_property(TARGET folly_light PROPERTY CXX_STANDARD 20)
-target_include_directories(
-  folly_light SYSTEM PUBLIC
-  ${CMAKE_CURRENT_BINARY_DIR}/folly
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly
-)
-apply_folly_compile_options_to_target(folly_light)
-target_link_libraries(folly_light folly_deps)
-
 list(APPEND FOLLY_BENCHMARK_LITE_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
@@ -550,10 +541,14 @@ if(NOT WIN32)
   )
 endif()
 
-add_library(follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
-set_property(TARGET follybenchmark_lite PROPERTY CXX_STANDARD 20)
-apply_folly_compile_options_to_target(follybenchmark_lite)
-target_link_libraries(follybenchmark_lite folly_light)
+set_property(TARGET folly_light PROPERTY CXX_STANDARD 20)
+target_include_directories(
+  folly_light SYSTEM PUBLIC
+  ${CMAKE_CURRENT_BINARY_DIR}/folly
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly
+)
+apply_folly_compile_options_to_target(folly_light)
+target_link_libraries(folly_light folly_deps)
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
@@ -960,6 +955,11 @@ if(WITH_BENCHMARKS)
     target_link_libraries(multiversioning_benchmark test_helpers benchmark::benchmark)
     list(APPEND BINARY_TARGETS multiversioning_benchmark)
   endif()
+
+  add_library(follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
+  set_property(TARGET follybenchmark_lite PROPERTY CXX_STANDARD 20)
+  apply_folly_compile_options_to_target(follybenchmark_lite)
+  target_link_libraries(follybenchmark_lite folly_light)
 
   # TODO: migrate to benchmark?
   add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
