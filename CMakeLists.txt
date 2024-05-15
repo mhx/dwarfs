@@ -511,6 +511,55 @@ target_include_directories(
 apply_folly_compile_options_to_target(folly_light)
 target_link_libraries(folly_light folly_deps)
 
+list(APPEND FOLLY_BENCHMARK_LITE_SRC
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/PerfScoped.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/StaticSingletonManager.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/dynamic.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json_pointer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/AsyncFileWriter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/AsyncLogWriter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/CustomLogFormatter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/FileWriterFactory.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/GlogStyleFormatter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/ImmediateFileWriter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogCategory.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogCategoryConfig.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogHandlerConfig.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogLevel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogMessage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogName.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogStream.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogStreamProcessor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LoggerDB.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/ObjectToString.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/RateLimiter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StandardLogHandler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StandardLogHandlerFactory.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StreamHandlerFactory.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/xlog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/Pid.cpp
+)
+
+if(NOT WIN32)
+  list(APPEND FOLLY_BENCHMARK_LITE_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Subprocess.cpp
+  )
+endif()
+
+add_library(follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
+set_property(TARGET follybenchmark_lite PROPERTY CXX_STANDARD 20)
+target_include_directories(
+  follybenchmark_lite SYSTEM PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/folly
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly
+)
+apply_folly_compile_options_to_target(follybenchmark_lite)
+target_link_libraries(follybenchmark_lite folly_light)
+
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
     CACHE FILEPATH "don't build folly with zstd" FORCE)
@@ -918,9 +967,9 @@ if(WITH_BENCHMARKS)
   endif()
 
   # TODO: migrate to benchmark?
-  # add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
-  # target_link_libraries(segmenter_benchmark follybenchmark test_helpers)
-  # list(APPEND BINARY_TARGETS segmenter_benchmark)
+  add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
+  target_link_libraries(segmenter_benchmark follybenchmark_lite test_helpers)
+  list(APPEND BINARY_TARGETS segmenter_benchmark)
 endif()
 
 if(WITH_FUZZ)
