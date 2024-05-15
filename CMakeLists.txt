@@ -504,7 +504,7 @@ add_library(folly_light
 
 set_property(TARGET folly_light PROPERTY CXX_STANDARD 20)
 target_include_directories(
-  folly_light SYSTEM PRIVATE
+  folly_light SYSTEM PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/folly
 )
@@ -552,11 +552,6 @@ endif()
 
 add_library(follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
 set_property(TARGET follybenchmark_lite PROPERTY CXX_STANDARD 20)
-target_include_directories(
-  follybenchmark_lite SYSTEM PRIVATE
-  ${CMAKE_CURRENT_BINARY_DIR}/folly
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly
-)
 apply_folly_compile_options_to_target(follybenchmark_lite)
 target_link_libraries(follybenchmark_lite folly_light)
 
@@ -1021,7 +1016,7 @@ add_library(
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
 target_link_libraries(thrift_light folly_light)
 
-target_include_directories(thrift_light SYSTEM PRIVATE
+target_include_directories(thrift_light SYSTEM PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
   ${THRIFT_GENERATED_DIR}
 )

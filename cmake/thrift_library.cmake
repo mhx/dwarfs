@@ -135,9 +135,7 @@ function(add_cpp2_thrift_library idlfile)
     add_library(${_THRIFT_TARGET} ${_THRIFT_LIB_SRC})
     target_include_directories(${_THRIFT_TARGET} PUBLIC
         ${CMAKE_CURRENT_BINARY_DIR}/thrift
-        ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
         ${_THRIFT_GENERATED_DIR}/thrift
-        ${_THRIFT_GENERATED_DIR}
     )
     target_link_libraries(${_THRIFT_TARGET} PUBLIC thrift_light)
     if(NOT WIN32)
