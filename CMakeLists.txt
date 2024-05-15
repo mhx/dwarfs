@@ -407,10 +407,6 @@ set(ZSTD_INCLUDE_DIR
     ""
     CACHE PATH "don't build folly with zstd" FORCE)
 
-set(THRIFT_COMPILER_ONLY
-    ON
-    CACHE BOOL "only build thrift compiler")
-
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
 
@@ -433,7 +429,14 @@ set(
 )
 
 add_subdirectory(folly EXCLUDE_FROM_ALL SYSTEM)
-add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
+
+if(DWARFS_GIT_BUILD)
+  set(THRIFT_COMPILER_ONLY
+      ON
+      CACHE BOOL "only build thrift compiler")
+
+  add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
+endif()
 
 add_library(folly_light
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
@@ -942,6 +945,12 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   endif()
 endif()
 
+if(DWARFS_GIT_BUILD)
+  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
+else()
+  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 add_library(
   thrift_light
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
@@ -957,15 +966,15 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/Frozen.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/FrozenUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
 set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
 target_link_libraries(thrift_light folly_light)
 
 target_include_directories(thrift_light SYSTEM PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-  ${CMAKE_CURRENT_BINARY_DIR}
+  ${THRIFT_GENERATED_DIR}
 )
 
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
