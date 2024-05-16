@@ -577,62 +577,34 @@ if(ENABLE_RICEPP)
   endif()
 endif()
 
-list(APPEND LIBDWARFS_SRC
+list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/block_cache.cpp
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
-  src/dwarfs/block_manager.cpp
   src/dwarfs/block_range.cpp
-  src/dwarfs/builtin_script.cpp
   src/dwarfs/cached_block.cpp
-  src/dwarfs/categorizer.cpp
-  src/dwarfs/category_parser.cpp
   src/dwarfs/checksum.cpp
-  src/dwarfs/chmod_transformer.cpp
-  src/dwarfs/chmod_entry_transformer.cpp
-  src/dwarfs/console_writer.cpp
-  src/dwarfs/entry.cpp
   src/dwarfs/error.cpp
   src/dwarfs/features.cpp
   src/dwarfs/file_access_generic.cpp
-  src/dwarfs/file_scanner.cpp
   src/dwarfs/file_stat.cpp
   src/dwarfs/file_type.cpp
-  src/dwarfs/filesystem_block_category_resolver.cpp
-  src/dwarfs/filesystem_extractor.cpp
   src/dwarfs/filesystem_v2.cpp
-  src/dwarfs/filesystem_writer.cpp
-  src/dwarfs/filter_debug.cpp
-  src/dwarfs/fragment_chunkable.cpp
-  src/dwarfs/fragment_order_parser.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/fs_section.cpp
-  src/dwarfs/global_entry_data.cpp
   src/dwarfs/history.cpp
-  src/dwarfs/inode_element_view.cpp
-  src/dwarfs/inode_fragments.cpp
-  src/dwarfs/inode_manager.cpp
-  src/dwarfs/inode_ordering.cpp
   src/dwarfs/inode_reader_v2.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/metadata_types.cpp
   src/dwarfs/metadata_v2.cpp
   src/dwarfs/mmap.cpp
-  src/dwarfs/nilsimsa.cpp
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
   src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
-  src/dwarfs/progress.cpp
   src/dwarfs/safe_main.cpp
-  src/dwarfs/scanner.cpp
-  src/dwarfs/scanner_progress.cpp
-  src/dwarfs/segmenter.cpp
-  src/dwarfs/segmenter_factory.cpp
-  src/dwarfs/similarity.cpp
-  src/dwarfs/similarity_ordering.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
@@ -641,16 +613,50 @@ list(APPEND LIBDWARFS_SRC
   src/dwarfs/xattr.cpp
 )
 
+list(APPEND LIBDWARFS_WRITER_SRC
+  src/dwarfs/block_manager.cpp
+  src/dwarfs/builtin_script.cpp
+  src/dwarfs/categorizer.cpp
+  src/dwarfs/category_parser.cpp
+  src/dwarfs/chmod_transformer.cpp
+  src/dwarfs/chmod_entry_transformer.cpp
+  src/dwarfs/console_writer.cpp
+  src/dwarfs/entry.cpp
+  src/dwarfs/file_scanner.cpp
+  src/dwarfs/filesystem_block_category_resolver.cpp
+  src/dwarfs/filesystem_writer.cpp
+  src/dwarfs/filter_debug.cpp
+  src/dwarfs/fragment_chunkable.cpp
+  src/dwarfs/fragment_order_parser.cpp
+  src/dwarfs/global_entry_data.cpp
+  src/dwarfs/inode_element_view.cpp
+  src/dwarfs/inode_fragments.cpp
+  src/dwarfs/inode_manager.cpp
+  src/dwarfs/inode_ordering.cpp
+  src/dwarfs/nilsimsa.cpp
+  src/dwarfs/progress.cpp
+  src/dwarfs/scanner.cpp
+  src/dwarfs/scanner_progress.cpp
+  src/dwarfs/segmenter.cpp
+  src/dwarfs/segmenter_factory.cpp
+  src/dwarfs/similarity.cpp
+  src/dwarfs/similarity_ordering.cpp
+)
+
+list(APPEND LIBDWARFS_EXTRACTOR_SRC
+  src/dwarfs/filesystem_extractor.cpp
+)
+
 if(WIN32)
-  list(APPEND LIBDWARFS_SRC src/dwarfs/xattr_win.cpp)
+  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/xattr_win.cpp)
 else()
-  list(APPEND LIBDWARFS_SRC src/dwarfs/xattr_posix.cpp)
+  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/xattr_posix.cpp)
 endif()
 
 if(WITH_MAN_OPTION)
   include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
 
-  list(APPEND LIBDWARFS_SRC
+  list(APPEND LIBDWARFS_COMMON_SRC
     src/dwarfs/pager.cpp
     src/dwarfs/render_manpage.cpp
   )
@@ -659,7 +665,9 @@ if(WITH_MAN_OPTION)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
     add_manpage_source(doc/${man}.md NAME ${man}
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
-    list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+    # TODO: this doesn't need to be in the common library -> just link to the
+    #       specific tool
+    list(APPEND LIBDWARFS_COMMON_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
   endforeach()
 endif()
 
@@ -667,9 +675,9 @@ endif()
 # set_source_files_properties(src/dwarfs/segmenter.cpp PROPERTIES COMPILE_FLAGS -march=tigerlake)
 
 if(DWARFS_GIT_BUILD)
-  list(APPEND LIBDWARFS_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
+  list(APPEND LIBDWARFS_COMMON_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
 else()
-  list(APPEND LIBDWARFS_SRC src/dwarfs/version.cpp)
+  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/version.cpp)
 endif()
 
 list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/null.cpp)
@@ -708,19 +716,22 @@ endif()
 #   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
 # endif()
 
-add_library(dwarfs ${LIBDWARFS_SRC})
+add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC})
+add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC})
+add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
-add_library(dwarfs_tool OBJECT src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
-
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
+add_library(dwarfs_tool src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
 
 target_link_libraries(dwarfs_compression_metadata dwarfs_folly_lite)
 target_link_libraries(dwarfs_categorizer dwarfs_compression_metadata)
-target_link_libraries(dwarfs dwarfs_compression_metadata PkgConfig::LIBCRYPTO)
+target_link_libraries(dwarfs_common PkgConfig::LIBCRYPTO dwarfs_folly_lite)
+target_link_libraries(dwarfs_writer dwarfs_common dwarfs_compression_metadata)
+target_link_libraries(dwarfs_extractor dwarfs_common)
 
 if(DWARFS_GIT_BUILD)
-  target_include_directories(dwarfs PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
+  target_include_directories(dwarfs_common PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
 endif()
 
 target_compile_definitions(
@@ -728,42 +739,32 @@ target_compile_definitions(
 )
 
 target_compile_definitions(
-  dwarfs PRIVATE
+  dwarfs_common PRIVATE
   PRJ_SYSTEM_ID="${CMAKE_SYSTEM} [${CMAKE_SYSTEM_PROCESSOR}]"
   PRJ_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
 target_link_libraries(dwarfs_categorizer dwarfs_folly_lite range-v3::range-v3)
-target_link_libraries(dwarfs_compression dwarfs_folly_lite dwarfs_compression_thrift)
+target_link_libraries(dwarfs_compression dwarfs_common dwarfs_compression_thrift)
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_compression ricepp)
 endif()
-target_link_libraries(dwarfs_tool dwarfs)
+target_link_libraries(dwarfs_tool dwarfs_common)
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
-add_library(mkdwarfs_main OBJECT src/mkdwarfs_main.cpp)
-add_library(dwarfsck_main OBJECT src/dwarfsck_main.cpp)
-add_library(dwarfsbench_main OBJECT src/dwarfsbench_main.cpp)
-add_library(dwarfsextract_main OBJECT src/dwarfsextract_main.cpp)
-
-target_link_libraries(mkdwarfs_main dwarfs_folly_lite)
-target_link_libraries(dwarfsck_main dwarfs_folly_lite)
-target_link_libraries(dwarfsbench_main dwarfs_folly_lite)
-target_link_libraries(dwarfsextract_main dwarfs_folly_lite)
+add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
+add_library(dwarfsck_main src/dwarfsck_main.cpp)
+add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
+add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
 list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
-
-target_link_libraries(mkdwarfs mkdwarfs_main)
-target_link_libraries(dwarfsck dwarfsck_main)
-target_link_libraries(dwarfsbench dwarfsbench_main)
-target_link_libraries(dwarfsextract dwarfsextract_main)
 
 if(WITH_UNIVERSAL_BINARY)
   add_executable(dwarfsuniversal src/universal.cpp)
@@ -787,7 +788,7 @@ list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
-  add_library(dwarfs_main OBJECT src/dwarfs_main.cpp)
+  add_library(dwarfs_main src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin dwarfs_main)
@@ -828,7 +829,7 @@ if(FUSE3_FOUND OR WINFSP OR APPLE)
 endif()
 
 if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
-  add_library(dwarfs2_main OBJECT src/dwarfs_main.cpp)
+  add_library(dwarfs2_main src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                   FUSE_USE_VERSION=29)
   target_link_libraries(dwarfs2_main PkgConfig::FUSE)
@@ -859,7 +860,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
     test/test_dirtree.cpp
     test/filter_test_data.cpp
   )
-  target_link_libraries(dwarfs_test_helpers dwarfs dwarfs_folly_lite)
+  target_link_libraries(dwarfs_test_helpers dwarfs_common)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
@@ -927,7 +928,8 @@ if(WITH_TESTS)
 
   foreach(tgt fits_categorizer_test
               incompressible_categorizer_test
-              pcmaudio_categorizer_test)
+              pcmaudio_categorizer_test
+              tool_main_test)
     target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
   endforeach()
 
@@ -1026,7 +1028,8 @@ add_cpp2_thrift_library(thrift/features.thrift
 
 target_link_libraries(dwarfs_categorizer dwarfs_metadata_thrift)
 
-foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
+foreach(tgt dwarfs_common dwarfs_writer dwarfs_extractor
+            dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
@@ -1122,13 +1125,13 @@ add_library(
   fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
   fsst/fsst_avx512_unroll4.inc)
 
-target_include_directories(dwarfs SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
+target_include_directories(dwarfs_common SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD 20)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(
-  dwarfs
+  dwarfs_common
   Boost::boost
   Boost::chrono
   Boost::iostreams
@@ -1162,11 +1165,11 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs PkgConfig::LIBARCHIVE)
+  target_link_libraries(dwarfs_extractor PkgConfig::LIBARCHIVE)
   # target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
-target_link_libraries(dwarfs phmap xxHash::xxhash)
+target_link_libraries(dwarfs_common phmap xxHash::xxhash)
 
 if(DWARFS_USE_EXCEPTION_TRACER)
   add_library(
@@ -1182,19 +1185,54 @@ if(DWARFS_USE_EXCEPTION_TRACER)
   )
 endif()
 
-foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
-  target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
-  target_link_libraries(${tgt} dwarfs dwarfs_tool)
+foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
+  target_link_libraries(${tgt} dwarfs_tool)
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
+endforeach()
+
+foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
+  target_link_libraries(${tgt} dwarfs_common)
+  target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(${tgt}
             "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_folly_exception_tracer_base_lite>")
   endif()
 endforeach()
 
-target_link_libraries(mkdwarfs_main "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+target_link_libraries(mkdwarfs_main dwarfs_writer "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+target_link_libraries(dwarfsck_main dwarfs_common)
+target_link_libraries(dwarfsextract_main dwarfs_extractor PkgConfig::LIBARCHIVE)
+target_link_libraries(dwarfsbench_main dwarfs_extractor)
+
+target_link_libraries(mkdwarfs mkdwarfs_main)
+target_link_libraries(dwarfsck dwarfsck_main)
+target_link_libraries(dwarfsextract dwarfsextract_main)
+target_link_libraries(dwarfsbench dwarfsbench_main)
+
+if(TARGET dwarfsuniversal)
+  target_link_libraries(dwarfsuniversal dwarfs_writer dwarfs_extractor "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+endif()
+if(TARGET dwarfs_main)
+  target_link_libraries(dwarfs_main dwarfs_common)
+endif()
+if(TARGET dwarfs2_main)
+  target_link_libraries(dwarfs2_main dwarfs_common)
+endif()
+if(TARGET dwarfs_benchmark)
+  target_link_libraries(dwarfs_benchmark dwarfs_writer)
+endif()
+if(TARGET multiversioning_benchmark)
+  target_link_libraries(multiversioning_benchmark dwarfs_writer)
+endif()
+if(TARGET segmenter_benchmark)
+  target_link_libraries(segmenter_benchmark dwarfs_writer)
+endif()
+
+foreach(tgt ${TEST_TARGETS})
+  target_link_libraries(${tgt} dwarfs_writer dwarfs_extractor)
+endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
   # ...................................................................
