@@ -137,7 +137,7 @@ function(add_cpp2_thrift_library idlfile)
         ${CMAKE_CURRENT_BINARY_DIR}/thrift
         ${_THRIFT_GENERATED_DIR}/thrift
     )
-    target_link_libraries(${_THRIFT_TARGET} PUBLIC thrift_light)
+    target_link_libraries(${_THRIFT_TARGET} PUBLIC dwarfs_thrift_lite)
     if(NOT WIN32)
       target_compile_options(${_THRIFT_TARGET} PRIVATE -Wno-deprecated-declarations)
     endif()

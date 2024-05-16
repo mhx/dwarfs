@@ -438,7 +438,7 @@ if(DWARFS_GIT_BUILD)
   add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 endif()
 
-add_library(folly_light
+add_library(dwarfs_folly_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
@@ -542,14 +542,14 @@ if(NOT WIN32)
   )
 endif()
 
-set_property(TARGET folly_light PROPERTY CXX_STANDARD 20)
+set_property(TARGET dwarfs_folly_lite PROPERTY CXX_STANDARD 20)
 target_include_directories(
-  folly_light SYSTEM PUBLIC
+  dwarfs_folly_lite SYSTEM PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/folly
   ${CMAKE_CURRENT_SOURCE_DIR}/folly
 )
-apply_folly_compile_options_to_target(folly_light)
-target_link_libraries(folly_light folly_deps)
+apply_folly_compile_options_to_target(dwarfs_folly_lite)
+target_link_libraries(dwarfs_folly_lite folly_deps)
 
 set(ZSTD_LIBRARY_RELEASE
     "ZSTD_LIBRARY_RELEASE-NOTFOUND"
@@ -735,11 +735,11 @@ endif()
 add_library(dwarfs ${LIBDWARFS_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
-add_library(dwarfs_tool src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
+add_library(dwarfs_tool OBJECT src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
 
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
 
-target_link_libraries(dwarfs_compression_metadata folly_light)
+target_link_libraries(dwarfs_compression_metadata dwarfs_folly_lite)
 target_link_libraries(dwarfs_categorizer dwarfs_compression_metadata)
 target_link_libraries(dwarfs dwarfs_compression_metadata PkgConfig::LIBCRYPTO)
 
@@ -757,8 +757,8 @@ target_compile_definitions(
   PRJ_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
-target_link_libraries(dwarfs_categorizer folly_light range-v3::range-v3)
-target_link_libraries(dwarfs_compression folly_light compression_thrift)
+target_link_libraries(dwarfs_categorizer dwarfs_folly_lite range-v3::range-v3)
+target_link_libraries(dwarfs_compression dwarfs_folly_lite dwarfs_compression_thrift)
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_compression ricepp)
 endif()
@@ -768,15 +768,15 @@ if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
-add_library(mkdwarfs_main src/mkdwarfs_main.cpp)
-add_library(dwarfsck_main src/dwarfsck_main.cpp)
-add_library(dwarfsbench_main src/dwarfsbench_main.cpp)
-add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
+add_library(mkdwarfs_main OBJECT src/mkdwarfs_main.cpp)
+add_library(dwarfsck_main OBJECT src/dwarfsck_main.cpp)
+add_library(dwarfsbench_main OBJECT src/dwarfsbench_main.cpp)
+add_library(dwarfsextract_main OBJECT src/dwarfsextract_main.cpp)
 
-target_link_libraries(mkdwarfs_main folly_light)
-target_link_libraries(dwarfsck_main folly_light)
-target_link_libraries(dwarfsbench_main folly_light)
-target_link_libraries(dwarfsextract_main folly_light)
+target_link_libraries(mkdwarfs_main dwarfs_folly_lite)
+target_link_libraries(dwarfsck_main dwarfs_folly_lite)
+target_link_libraries(dwarfsbench_main dwarfs_folly_lite)
+target_link_libraries(dwarfsextract_main dwarfs_folly_lite)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
@@ -811,7 +811,7 @@ list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
-  add_library(dwarfs_main src/dwarfs_main.cpp)
+  add_library(dwarfs_main OBJECT src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin dwarfs_main)
@@ -852,7 +852,7 @@ if(FUSE3_FOUND OR WINFSP OR APPLE)
 endif()
 
 if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
-  add_library(dwarfs2_main src/dwarfs_main.cpp)
+  add_library(dwarfs2_main OBJECT src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                   FUSE_USE_VERSION=29)
   target_link_libraries(dwarfs2_main PkgConfig::FUSE)
@@ -875,11 +875,16 @@ endif()
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
-  add_library(test_helpers test/test_helpers.cpp test/test_iolayer.cpp
-                           test/test_strings.cpp test/loremipsum.cpp
-                           test/test_dirtree.cpp test/filter_test_data.cpp)
-  target_link_libraries(test_helpers dwarfs folly_light)
-  set_property(TARGET test_helpers PROPERTY CXX_STANDARD 20)
+  add_library(dwarfs_test_helpers
+    test/test_helpers.cpp
+    test/test_iolayer.cpp
+    test/test_strings.cpp
+    test/loremipsum.cpp
+    test/test_dirtree.cpp
+    test/filter_test_data.cpp
+  )
+  target_link_libraries(dwarfs_test_helpers dwarfs dwarfs_folly_lite)
+  set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
 if(WITH_TESTS)
@@ -926,8 +931,7 @@ if(WITH_TESTS)
   foreach (test ${DWARFS_TESTS})
     add_executable(${test} test/${test}.cpp)
     target_link_libraries(
-      ${test} test_helpers gmock gtest gtest_main
-      ${MAIN_TARGETS}
+      ${test} dwarfs_test_helpers gmock gtest gtest_main
     )
     target_compile_definitions(${test}
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
@@ -940,6 +944,17 @@ if(WITH_TESTS)
     $<$<BOOL:${WITH_UNIVERSAL_BINARY}>:DWARFS_HAVE_UNIVERSAL_BINARY>
   )
 
+  target_link_libraries(tool_main_test
+    mkdwarfs_main dwarfsck_main dwarfsbench_main dwarfsextract_main)
+
+  target_link_libraries(block_cache_test mkdwarfs_main)
+
+  foreach(tgt fits_categorizer_test
+              incompressible_categorizer_test
+              pcmaudio_categorizer_test)
+    target_link_libraries(${tgt} "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+  endforeach()
+
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
   endforeach()
@@ -949,22 +964,22 @@ if(WITH_BENCHMARKS)
   find_package(benchmark 1.8)
   if(benchmark_FOUND)
     add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
-    target_link_libraries(dwarfs_benchmark test_helpers benchmark::benchmark)
+    target_link_libraries(dwarfs_benchmark dwarfs_test_helpers benchmark::benchmark)
     list(APPEND BINARY_TARGETS dwarfs_benchmark)
 
     add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
-    target_link_libraries(multiversioning_benchmark test_helpers benchmark::benchmark)
+    target_link_libraries(multiversioning_benchmark dwarfs_test_helpers benchmark::benchmark)
     list(APPEND BINARY_TARGETS multiversioning_benchmark)
   endif()
 
-  add_library(follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
-  set_property(TARGET follybenchmark_lite PROPERTY CXX_STANDARD 20)
-  apply_folly_compile_options_to_target(follybenchmark_lite)
-  target_link_libraries(follybenchmark_lite folly_light)
+  add_library(dwarfs_follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
+  set_property(TARGET dwarfs_follybenchmark_lite PROPERTY CXX_STANDARD 20)
+  apply_folly_compile_options_to_target(dwarfs_follybenchmark_lite)
+  target_link_libraries(dwarfs_follybenchmark_lite dwarfs_folly_lite)
 
   # TODO: migrate to benchmark?
   add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
-  target_link_libraries(segmenter_benchmark follybenchmark_lite test_helpers)
+  target_link_libraries(segmenter_benchmark dwarfs_follybenchmark_lite dwarfs_test_helpers)
   list(APPEND BINARY_TARGETS segmenter_benchmark)
 endif()
 
@@ -974,7 +989,7 @@ if(WITH_FUZZ)
   list(APPEND BINARY_TARGETS fuzz_categorizers)
 
   add_executable(fuzz_mkdwarfs test/fuzz_mkdwarfs.cpp)
-  target_link_libraries(fuzz_mkdwarfs mkdwarfs_main test_helpers)
+  target_link_libraries(fuzz_mkdwarfs mkdwarfs_main dwarfs_test_helpers)
   list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
 endif()
 
@@ -997,7 +1012,7 @@ else()
 endif()
 
 add_library(
-  thrift_light
+  dwarfs_thrift_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/Protocol.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/CompactProtocol.cpp
@@ -1014,10 +1029,10 @@ add_library(
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
 
-set_property(TARGET thrift_light PROPERTY CXX_STANDARD 20)
-target_link_libraries(thrift_light folly_light)
+set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD 20)
+target_link_libraries(dwarfs_thrift_lite dwarfs_folly_lite)
 
-target_include_directories(thrift_light SYSTEM PUBLIC
+target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
   ${THRIFT_GENERATED_DIR}
 )
@@ -1025,22 +1040,22 @@ target_include_directories(thrift_light SYSTEM PUBLIC
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
 add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
-                        TARGET metadata_thrift OUTPUT_PATH dwarfs)
+                        TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
 add_cpp2_thrift_library(thrift/compression.thrift
-                        TARGET compression_thrift OUTPUT_PATH dwarfs)
+                        TARGET dwarfs_compression_thrift OUTPUT_PATH dwarfs)
 add_cpp2_thrift_library(thrift/history.thrift
-                        TARGET history_thrift OUTPUT_PATH dwarfs)
+                        TARGET dwarfs_history_thrift OUTPUT_PATH dwarfs)
 add_cpp2_thrift_library(thrift/features.thrift
-                        TARGET features_thrift OUTPUT_PATH dwarfs)
+                        TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
-target_link_libraries(dwarfs_categorizer metadata_thrift)
+target_link_libraries(dwarfs_categorizer dwarfs_metadata_thrift)
 
 foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
             dwarfs_compression_metadata dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
-  target_link_libraries(${tgt} Boost::boost folly_light thrift_light)
+  target_link_libraries(${tgt} Boost::boost dwarfs_folly_lite dwarfs_thrift_lite)
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -1079,7 +1094,7 @@ foreach(tgt dwarfs dwarfs_compression dwarfs_categorizer
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
-  add_dependencies(${tgt} metadata_thrift history_thrift)
+  add_dependencies(${tgt} dwarfs_metadata_thrift dwarfs_history_thrift)
 
   if(ENABLE_ASAN)
     target_compile_options(${tgt} PRIVATE -fsanitize=address
@@ -1126,25 +1141,25 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
 endif()
 
 add_library(
-  fsst
+  dwarfs_fsst
   fsst/libfsst.cpp fsst/fsst_avx512.cpp fsst/fsst_avx512_unroll1.inc
   fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
   fsst/fsst_avx512_unroll4.inc)
 
 target_include_directories(dwarfs SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
-set_property(TARGET fsst PROPERTY CXX_STANDARD 20)
-set_property(TARGET fsst PROPERTY CXX_STANDARD_REQUIRED ON)
-set_property(TARGET fsst PROPERTY CXX_EXTENSIONS OFF)
+set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD 20)
+set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(
   dwarfs
   Boost::boost
   Boost::chrono
   Boost::iostreams
-  metadata_thrift
-  history_thrift
-  features_thrift
-  fsst
+  dwarfs_metadata_thrift
+  dwarfs_history_thrift
+  dwarfs_features_thrift
+  dwarfs_fsst
 )
 
 # if(LIBMAGIC_FOUND)
@@ -1179,15 +1194,15 @@ target_link_libraries(dwarfs phmap xxHash::xxhash)
 
 if(DWARFS_USE_EXCEPTION_TRACER)
   add_library(
-    folly_exception_tracer_base_light
+    dwarfs_folly_exception_tracer_base_lite
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/ExceptionTracer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/StackTrace.cpp
   )
-  set_property(TARGET folly_exception_tracer_base_light PROPERTY CXX_STANDARD 20)
-  apply_folly_compile_options_to_target(folly_exception_tracer_base_light)
+  set_property(TARGET dwarfs_folly_exception_tracer_base_lite PROPERTY CXX_STANDARD 20)
+  apply_folly_compile_options_to_target(dwarfs_folly_exception_tracer_base_lite)
   target_link_libraries(
-    folly_exception_tracer_base_light
-    PUBLIC folly_light
+    dwarfs_folly_exception_tracer_base_lite
+    PUBLIC dwarfs_folly_lite
   )
 endif()
 
@@ -1199,7 +1214,7 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   endif(USE_JEMALLOC)
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(${tgt}
-            "$<LINK_LIBRARY:WHOLE_ARCHIVE,folly_exception_tracer_base_light>")
+            "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_folly_exception_tracer_base_lite>")
   endif()
 endforeach()
 
