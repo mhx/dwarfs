@@ -654,20 +654,28 @@ else()
 endif()
 
 if(WITH_MAN_OPTION)
-  include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
-
   list(APPEND LIBDWARFS_COMMON_SRC
     src/dwarfs/pager.cpp
     src/dwarfs/render_manpage.cpp
   )
 
+  if(DWARFS_GIT_BUILD)
+    include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
+    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR})
+  else()
+    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
+
   foreach(man mkdwarfs dwarfs dwarfsck dwarfsextract)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
-    add_manpage_source(doc/${man}.md NAME ${man}
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+    if(DWARFS_GIT_BUILD)
+      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
+      add_manpage_source(doc/${man}.md NAME ${man}
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+    endif()
+
     # TODO: this doesn't need to be in the common library -> just link to the
     #       specific tool
-    list(APPEND LIBDWARFS_COMMON_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+    list(APPEND LIBDWARFS_COMMON_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/${man}_manpage.cpp)
   endforeach()
 endif()
 
