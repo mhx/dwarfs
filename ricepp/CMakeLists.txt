@@ -16,24 +16,20 @@
 # ricepp.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 3.25.0)
+cmake_minimum_required(VERSION 3.28.0)
 
 project(ricepp)
 
 include(FetchContent)
 
-if(NOT TARGET range-v3)
+if(NOT TARGET range-v3::range-v3)
   FetchContent_Declare(
     range-v3
     GIT_REPOSITORY https://github.com/ericniebler/range-v3
     GIT_TAG 0.12.0
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(range-v3)
-  FetchContent_GetProperties(range-v3)
-  if(NOT range-v3_POPULATED)
-    FetchContent_Populate(range-v3)
-    add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  FetchContent_MakeAvailable(range-v3)
 endif()
 
 if(WIN32)
@@ -73,13 +69,13 @@ endif()
 foreach(target ${RICEPP_LIBS_CPUSPECIFIC})
   message(STATUS "[ricepp] adding CPU target: ${target}")
   target_include_directories(${target} PUBLIC include)
-  target_link_libraries(${target} PUBLIC range-v3)
+  target_link_libraries(${target} PUBLIC range-v3::range-v3)
   target_compile_features(${target} PUBLIC cxx_std_20)
   list(APPEND RICEPP_OBJECTS_CPUSPECIFIC $<TARGET_OBJECTS:${target}>)
 endforeach()
 
 add_library(ricepp ricepp.cpp ${RICEPP_OBJECTS_CPUSPECIFIC})
-target_link_libraries(ricepp PUBLIC range-v3)
+target_link_libraries(ricepp PUBLIC range-v3::range-v3)
 target_include_directories(ricepp PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -167,13 +163,9 @@ if(WITH_TESTS)
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.14.0
+      EXCLUDE_FROM_ALL
     )
-    # FetchContent_MakeAvailable(googletest)
-    FetchContent_GetProperties(googletest)
-    if(NOT googletest_POPULATED)
-      FetchContent_Populate(googletest)
-      add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
-    endif()
+    FetchContent_MakeAvailable(googletest)
   endif()
 
   enable_testing()

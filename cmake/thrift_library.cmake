@@ -16,7 +16,7 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 3.25.0)
+cmake_minimum_required(VERSION 3.28.0)
 
 function(add_cpp2_thrift_library idlfile)
   set(_options FROZEN METADATA CONSTANTS NO_LIBRARY)

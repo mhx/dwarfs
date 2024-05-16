@@ -16,7 +16,7 @@
 # dwarfs.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 3.25.0)
+cmake_minimum_required(VERSION 3.28.0)
 
 # Enable CMAKE_MSVC_RUNTIME_LIBRARY
 cmake_policy(SET CMP0091 NEW)
@@ -95,6 +95,7 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 if(NOT DISABLE_CCACHE)
   find_program(CCACHE_EXE ccache ccache.exe PATHS "c:/bin")
@@ -246,13 +247,9 @@ if(NOT fmt_FOUND)
     fmt
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
     GIT_TAG ${LIBFMT_PREFERRED_VERSION}
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(fmt)
-  FetchContent_GetProperties(fmt)
-  if(NOT fmt_POPULATED)
-    FetchContent_Populate(fmt)
-    add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  FetchContent_MakeAvailable(fmt)
 endif()
 
 if(NOT USE_PREFERRED_LIBS)
@@ -264,13 +261,9 @@ if(NOT range-v3_FOUND)
     range-v3
     GIT_REPOSITORY ${RANGE_V3_GIT_REPO}
     GIT_TAG ${RANGE_V3_PREFERRED_VERSION}
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(range-v3)
-  FetchContent_GetProperties(range-v3)
-  if(NOT range-v3_POPULATED)
-    FetchContent_Populate(range-v3)
-    add_subdirectory(${range-v3_SOURCE_DIR} ${range-v3_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  FetchContent_MakeAvailable(range-v3)
 endif()
 
 if(NOT USE_PREFERRED_LIBS)
@@ -289,13 +282,9 @@ else()
     parallel-hashmap
     GIT_REPOSITORY ${PARALLEL_HASHMAP_GIT_REPO}
     GIT_TAG v${PARALLEL_HASHMAP_PREFERRED_VERSION}
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(parallel-hashmap)
-  FetchContent_GetProperties(parallel-hashmap)
-  if(NOT parallel-hashmap_POPULATED)
-    FetchContent_Populate(parallel-hashmap)
-    add_subdirectory(${parallel-hashmap_SOURCE_DIR} ${parallel-hashmap_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  FetchContent_MakeAvailable(parallel-hashmap)
 endif()
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
@@ -364,31 +353,22 @@ else()
     GIT_REPOSITORY ${XXHASH_GIT_REPO}
     GIT_TAG v${XXHASH_PREFERRED_VERSION}
     SOURCE_SUBDIR cmake_unofficial
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(libxxhash)
-  FetchContent_GetProperties(libxxhash)
-  if(NOT libxxhash_POPULATED)
-    FetchContent_Populate(libxxhash)
-    add_subdirectory(${libxxhash_SOURCE_DIR}/cmake_unofficial ${libxxhash_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  FetchContent_MakeAvailable(libxxhash)
 endif()
 
 if(ZSTD_FOUND)
-  add_library(zstd::zstd ALIAS PkgConfig::ZSTD)
+  add_library(libzstd_static ALIAS PkgConfig::ZSTD)
 else()
   FetchContent_Declare(
     zstd
     GIT_REPOSITORY ${ZSTD_GIT_REPO}
     GIT_TAG v${ZSTD_PREFERRED_VERSION}
     SOURCE_SUBDIR build/cmake
+    EXCLUDE_FROM_ALL
   )
-  # FetchContent_MakeAvailable(zstd)
-  FetchContent_GetProperties(zstd)
-  if(NOT zstd_POPULATED)
-    FetchContent_Populate(zstd)
-    add_subdirectory(${zstd_SOURCE_DIR}/build/cmake ${zstd_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
-  add_library(zstd::zstd ALIAS libzstd_static)
+  FetchContent_MakeAvailable(zstd)
 endif()
 
 if(USE_JEMALLOC)
@@ -572,15 +552,11 @@ if(WITH_TESTS)
       googletest
       GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
       GIT_TAG v${GOOGLETEST_PREFERRED_VERSION}
+      EXCLUDE_FROM_ALL
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    # FetchContent_MakeAvailable(googletest)
-    FetchContent_GetProperties(googletest)
-    if(NOT googletest_POPULATED)
-      FetchContent_Populate(googletest)
-      add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
-    endif()
+    FetchContent_MakeAvailable(googletest)
   endif()
 
   enable_testing()
@@ -1166,8 +1142,8 @@ target_link_libraries(
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
 # endif()
 
-target_link_libraries(dwarfs_categorizer zstd::zstd)
-target_link_libraries(dwarfs_compression zstd::zstd)
+target_link_libraries(dwarfs_categorizer libzstd_static)
+target_link_libraries(dwarfs_compression libzstd_static)
 
 if(LIBLZ4_FOUND)
   target_link_libraries(dwarfs_compression PkgConfig::LIBLZ4)
