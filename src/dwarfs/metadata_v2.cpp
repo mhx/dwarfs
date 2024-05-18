@@ -71,32 +71,6 @@ namespace {
 
 using ::apache::thrift::frozen::MappedFrozen;
 
-template <class T>
-std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-freeze_to_buffer(const T& x) {
-  using namespace ::apache::thrift::frozen;
-
-  Layout<T> layout;
-  size_t content_size = LayoutRoot::layout(x, layout);
-
-  std::string schema;
-  serializeRootLayout(layout, schema);
-
-  size_t schema_size = schema.size();
-  auto schema_begin = reinterpret_cast<uint8_t const*>(schema.data());
-  std::vector<uint8_t> schema_buffer(schema_begin, schema_begin + schema_size);
-
-  std::vector<uint8_t> data_buffer;
-  data_buffer.resize(content_size, 0);
-
-  folly::MutableByteRange content_range(data_buffer.data(), data_buffer.size());
-  ByteRangeFreezer::freeze(layout, x, content_range);
-
-  data_buffer.resize(data_buffer.size() - content_range.size());
-
-  return {schema_buffer, data_buffer};
-}
-
 void check_schema(std::span<uint8_t const> data) {
   using namespace ::apache::thrift;
   frozen::schema::Schema schema;
@@ -1828,11 +1802,6 @@ std::vector<file_stat::gid_type> metadata_<LoggerPolicy>::get_all_gids() const {
   rv.resize(meta_.gids().size());
   std::copy(meta_.gids().begin(), meta_.gids().end(), rv.begin());
   return rv;
-}
-
-std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-metadata_v2::freeze(const thrift::metadata::metadata& data) {
-  return freeze_to_buffer(data);
 }
 
 metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,

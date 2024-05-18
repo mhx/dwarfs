@@ -55,7 +55,7 @@
 #include "dwarfs/inode_manager.h"
 #include "dwarfs/inode_ordering.h"
 #include "dwarfs/logger.h"
-#include "dwarfs/metadata_v2.h"
+#include "dwarfs/metadata_freezer.h"
 #include "dwarfs/mmif.h"
 #include "dwarfs/options.h"
 #include "dwarfs/os_access.h"
@@ -981,7 +981,7 @@ void scanner_<LoggerPolicy>::scan(
 
   mv2.features() = features.get();
 
-  auto [schema, data] = metadata_v2::freeze(mv2);
+  auto [schema, data] = metadata_freezer::freeze(mv2);
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 

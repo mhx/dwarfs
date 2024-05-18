@@ -163,9 +163,6 @@ class metadata_v2 {
     return impl_->get_all_gids();
   }
 
-  static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-  freeze(const thrift::metadata::metadata& data);
-
   class impl {
    public:
     virtual ~impl() = default;
