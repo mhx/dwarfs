@@ -590,7 +590,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/history.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
-  src/dwarfs/metadata_types.cpp
   src/dwarfs/mmap.cpp
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
@@ -613,6 +612,7 @@ list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/fs_section.cpp
   src/dwarfs/inode_reader_v2.cpp
+  src/dwarfs/metadata_types.cpp
   src/dwarfs/metadata_v2.cpp
 )
 
