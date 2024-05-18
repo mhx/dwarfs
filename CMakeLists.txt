@@ -90,6 +90,11 @@ else()
   set(ZSTD_GIT_REPO https://github.com/facebook/zstd.git)
 endif()
 
+if(APPLE)
+  set(HOMEBREW_PREFIX_PATH "/opt/homebrew")
+  set(TRY_RUN_INCLUDE_DIRECTORIES ${HOMEBREW_PREFIX_PATH}/include)
+endif()
+
 if(BUILD_SHARED_LIBS)
   message(WARNING "Building shared libraries is unsupported. Setting BUILD_SHARED_LIBS to OFF.")
 endif()
@@ -180,7 +185,7 @@ if(STATIC_BUILD_DO_NOT_USE)
 
   if(STATIC_BUILD_EXTRA_PREFIX)
     include_directories(BEFORE ${STATIC_BUILD_EXTRA_PREFIX}/include)
-    set(CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
+    list(PREPEND CMAKE_PREFIX_PATH ${STATIC_BUILD_EXTRA_PREFIX})
     set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH ON)
   endif()
 
@@ -271,8 +276,20 @@ if(NOT USE_PREFERRED_LIBS)
     PHMAP_RUN_RESULT
     PHMAP_COMPILE_RESULT
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
+    CMAKE_FLAGS -DINCLUDE_DIRECTORIES=${TRY_RUN_INCLUDE_DIRECTORIES}
+    CXX_STANDARD 20
     RUN_OUTPUT_VARIABLE PHMAP_VERSION
+    COMPILE_OUTPUT_VARIABLE PHMAP_COMPILE_OUTPUT
   )
+endif()
+
+if(PHMAP_RUN_RESULT EQUAL 0)
+  if(PHMAP_VERSION VERSION_LESS ${PARALLEL_HASHMAP_REQUIRED_VERSION})
+    string(STRIP "${PHMAP_VERSION}" PHMAP_VERSION)
+    message(STATUS "System-installed parallel-hashmap version ${PHMAP_VERSION} is less than required version ${PARALLEL_HASHMAP_REQUIRED_VERSION}")
+  endif()
+else()
+  message(STATUS "failed to check parallel-hashmap version: ${PHMAP_COMPILE_OUTPUT}")
 endif()
 
 if(PHMAP_RUN_RESULT EQUAL 0 AND PHMAP_VERSION VERSION_GREATER_EQUAL ${PARALLEL_HASHMAP_REQUIRED_VERSION})
