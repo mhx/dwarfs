@@ -596,7 +596,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/os_access_generic.cpp
   src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
-  src/dwarfs/safe_main.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/util.cpp
@@ -649,6 +648,12 @@ list(APPEND LIBDWARFS_WRITER_SRC
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
   src/dwarfs/filesystem_extractor.cpp
+)
+
+list(APPEND LIBDWARFS_TOOL_SRC
+  src/dwarfs/iolayer.cpp
+  src/dwarfs/safe_main.cpp
+  src/dwarfs/tool.cpp
 )
 
 if(WIN32)
@@ -735,7 +740,7 @@ add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
-add_library(dwarfs_tool src/dwarfs/tool.cpp src/dwarfs/iolayer.cpp)
+add_library(dwarfs_tool ${LIBDWARFS_TOOL_SRC})
 
 target_link_libraries(dwarfs_compression_metadata PUBLIC dwarfs_folly_lite)
 target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_compression_metadata)
@@ -746,6 +751,7 @@ target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compression_metadata)
 target_link_libraries(dwarfs_writer PRIVATE phmap)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
+target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
 if(DWARFS_GIT_BUILD)
   target_include_directories(dwarfs_common PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
