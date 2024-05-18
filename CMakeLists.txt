@@ -1044,6 +1044,10 @@ foreach(tgt dwarfs_common dwarfs_writer dwarfs_extractor
 
   target_link_libraries(${tgt} Boost::boost dwarfs_folly_lite dwarfs_thrift_lite)
 
+  if(USE_JEMALLOC)
+    target_link_libraries(${tgt} PkgConfig::JEMALLOC)
+  endif(USE_JEMALLOC)
+
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
   target_compile_definitions(
@@ -1195,9 +1199,6 @@ endif()
 
 foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} dwarfs_tool)
-  if(USE_JEMALLOC)
-    target_link_libraries(${tgt} PkgConfig::JEMALLOC)
-  endif(USE_JEMALLOC)
 endforeach()
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
