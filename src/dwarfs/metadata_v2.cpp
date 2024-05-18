@@ -44,8 +44,6 @@
 #include <folly/portability/Unistd.h>
 #include <folly/stats/Histogram.h>
 
-#include <fsst.h>
-
 #include "dwarfs/error.h"
 #include "dwarfs/features.h"
 #include "dwarfs/file_stat.h"
