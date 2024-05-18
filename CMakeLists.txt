@@ -594,7 +594,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
-  src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
@@ -740,9 +739,11 @@ add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
+add_library(dwarfs_pcm_sample_transformer src/dwarfs/pcm_sample_transformer.cpp)
 add_library(dwarfs_tool ${LIBDWARFS_TOOL_SRC})
 
 target_link_libraries(dwarfs_compression_metadata PUBLIC dwarfs_folly_lite)
+target_link_libraries(dwarfs_pcm_sample_transformer PUBLIC dwarfs_folly_lite)
 target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_compression_metadata)
 target_link_libraries(dwarfs_categorizer PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_common PUBLIC dwarfs_folly_lite)
@@ -768,7 +769,7 @@ target_compile_definitions(
 )
 
 target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_folly_lite range-v3::range-v3)
-target_link_libraries(dwarfs_compression PUBLIC dwarfs_common dwarfs_compression_thrift)
+target_link_libraries(dwarfs_compression PUBLIC dwarfs_common dwarfs_compression_thrift dwarfs_pcm_sample_transformer)
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_compression PRIVATE ricepp)
 endif()
@@ -1053,8 +1054,8 @@ add_cpp2_thrift_library(thrift/features.thrift
 target_link_libraries(dwarfs_categorizer PRIVATE dwarfs_metadata_thrift)
 
 foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor
-            dwarfs_compression dwarfs_categorizer
-            dwarfs_compression_metadata dwarfs_tool
+            dwarfs_compression dwarfs_categorizer dwarfs_tool
+            dwarfs_compression_metadata dwarfs_pcm_sample_transformer
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
