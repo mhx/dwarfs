@@ -25,12 +25,12 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/builtin_script.h"
-#include "dwarfs/entry_interface.h"
-#include "dwarfs/entry_transformer.h"
-#include "dwarfs/file_access.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/util.h"
+#include <dwarfs/builtin_script.h>
+#include <dwarfs/entry_interface.h>
+#include <dwarfs/entry_transformer.h>
+#include <dwarfs/file_access.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

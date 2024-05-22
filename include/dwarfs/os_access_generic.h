@@ -27,7 +27,7 @@
 #include <optional>
 #include <string>
 
-#include "dwarfs/os_access.h"
+#include <dwarfs/os_access.h>
 
 namespace dwarfs {
 

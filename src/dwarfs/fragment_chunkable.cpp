@@ -21,12 +21,12 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/entry.h"
-#include "dwarfs/fragment_chunkable.h"
-#include "dwarfs/inode.h"
-#include "dwarfs/inode_fragments.h"
-#include "dwarfs/mmif.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/entry.h>
+#include <dwarfs/fragment_chunkable.h>
+#include <dwarfs/inode.h>
+#include <dwarfs/inode_fragments.h>
+#include <dwarfs/mmif.h>
 
 namespace dwarfs {
 

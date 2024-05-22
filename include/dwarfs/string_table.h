@@ -28,7 +28,7 @@
 #include <string_view>
 #include <vector>
 
-#include "dwarfs/gen-cpp2/metadata_layouts.h"
+#include <dwarfs/gen-cpp2/metadata_layouts.h>
 
 namespace dwarfs {
 

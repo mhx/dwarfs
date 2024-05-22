@@ -28,7 +28,7 @@
 #include <mutex>
 #include <string>
 
-#include "dwarfs/logger.h"
+#include <dwarfs/logger.h>
 
 namespace dwarfs {
 

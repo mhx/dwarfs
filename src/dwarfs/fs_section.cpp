@@ -25,10 +25,10 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/checksum.h"
-#include "dwarfs/error.h"
-#include "dwarfs/fs_section.h"
-#include "dwarfs/mmif.h"
+#include <dwarfs/checksum.h>
+#include <dwarfs/error.h>
+#include <dwarfs/fs_section.h>
+#include <dwarfs/mmif.h>
 
 namespace dwarfs {
 

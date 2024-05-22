@@ -25,7 +25,7 @@
 #include <optional>
 #include <string_view>
 
-#include "dwarfs/file_stat.h"
+#include <dwarfs/file_stat.h>
 
 namespace dwarfs {
 

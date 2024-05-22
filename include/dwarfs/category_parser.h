@@ -24,7 +24,7 @@
 #include <memory>
 #include <vector>
 
-#include "dwarfs/fragment_category.h"
+#include <dwarfs/fragment_category.h>
 
 namespace dwarfs {
 

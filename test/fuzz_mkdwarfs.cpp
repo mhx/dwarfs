@@ -23,7 +23,8 @@
 
 #include <folly/FileUtil.h>
 
-#include "dwarfs_tool_main.h"
+#include <dwarfs_tool_main.h>
+
 #include "test_helpers.h"
 
 using namespace dwarfs;

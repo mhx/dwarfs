@@ -25,12 +25,12 @@
 #include <sys/mman.h>
 #endif
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/cached_block.h"
-#include "dwarfs/error.h"
-#include "dwarfs/fs_section.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/mmif.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/cached_block.h>
+#include <dwarfs/error.h>
+#include <dwarfs/fs_section.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/mmif.h>
 
 namespace dwarfs {
 

@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/compression_metadata_requirements.h"
+#include <dwarfs/compression_metadata_requirements.h>
 
 namespace dwarfs {
 

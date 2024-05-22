@@ -31,8 +31,8 @@
 #include <span>
 #include <string_view>
 
-#include "dwarfs/category_resolver.h"
-#include "dwarfs/inode_fragments.h"
+#include <dwarfs/category_resolver.h>
+#include <dwarfs/inode_fragments.h>
 
 namespace boost::program_options {
 class options_description;

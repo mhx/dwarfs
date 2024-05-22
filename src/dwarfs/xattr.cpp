@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/xattr.h"
+#include <dwarfs/xattr.h>
 
 namespace dwarfs {
 

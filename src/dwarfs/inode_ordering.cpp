@@ -21,14 +21,14 @@
 
 #include <algorithm>
 
-#include "dwarfs/entry.h"
-#include "dwarfs/inode_element_view.h"
-#include "dwarfs/inode_ordering.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/options.h"
-#include "dwarfs/promise_receiver.h"
-#include "dwarfs/similarity_ordering.h"
-#include "dwarfs/worker_group.h"
+#include <dwarfs/entry.h>
+#include <dwarfs/inode_element_view.h>
+#include <dwarfs/inode_ordering.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/options.h>
+#include <dwarfs/promise_receiver.h>
+#include <dwarfs/similarity_ordering.h>
+#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 

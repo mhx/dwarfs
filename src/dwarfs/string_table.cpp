@@ -26,9 +26,9 @@
 
 #include <fsst.h>
 
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/string_table.h"
+#include <dwarfs/error.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/string_table.h>
 
 namespace dwarfs {
 

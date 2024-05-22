@@ -21,11 +21,11 @@
 
 #include <lzma.h>
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/error.h"
-#include "dwarfs/fstypes.h"
-#include "dwarfs/option_map.h"
-#include "dwarfs/types.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/error.h>
+#include <dwarfs/fstypes.h>
+#include <dwarfs/option_map.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 

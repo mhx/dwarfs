@@ -24,7 +24,7 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/file_access_generic.h"
+#include <dwarfs/file_access_generic.h>
 
 #include "test_helpers.h"
 

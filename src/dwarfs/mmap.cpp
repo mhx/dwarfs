@@ -31,8 +31,8 @@
 
 #include <boost/filesystem/path.hpp>
 
-#include "dwarfs/error.h"
-#include "dwarfs/mmap.h"
+#include <dwarfs/error.h>
+#include <dwarfs/mmap.h>
 
 namespace dwarfs {
 

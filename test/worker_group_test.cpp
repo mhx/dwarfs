@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "dwarfs/worker_group.h"
+#include <dwarfs/worker_group.h>
 
 #include "test_helpers.h"
 #include "test_logger.h"

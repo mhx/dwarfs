@@ -36,7 +36,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/concat.hpp>
 
-#include "dwarfs/block_compressor.h"
+#include <dwarfs/block_compressor.h>
 
 using namespace dwarfs;
 

@@ -31,11 +31,11 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/compiler.h"
-#include "dwarfs/compression_metadata_requirements.h"
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/compiler.h>
+#include <dwarfs/compression_metadata_requirements.h>
+#include <dwarfs/error.h>
+#include <dwarfs/logger.h>
 
 namespace dwarfs {
 

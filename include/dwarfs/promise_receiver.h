@@ -23,7 +23,7 @@
 
 #include <future>
 
-#include "dwarfs/receiver.h"
+#include <dwarfs/receiver.h>
 
 namespace dwarfs {
 

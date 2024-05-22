@@ -26,7 +26,7 @@
 #include <folly/portability/Windows.h>
 #include <folly/system/ThreadName.h>
 
-#include "dwarfs/progress.h"
+#include <dwarfs/progress.h>
 
 namespace dwarfs {
 

@@ -26,8 +26,9 @@
 
 #include <folly/experimental/TestUtil.h>
 
-#include "dwarfs/file_access.h"
-#include "dwarfs/file_access_generic.h"
+#include <dwarfs/file_access.h>
+#include <dwarfs/file_access_generic.h>
+
 #include "test_helpers.h"
 
 using namespace dwarfs;

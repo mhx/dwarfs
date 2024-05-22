@@ -38,13 +38,13 @@
 #include <variant>
 #include <vector>
 
-#include "dwarfs/entry_interface.h"
-#include "dwarfs/file_access.h"
-#include "dwarfs/file_stat.h"
-#include "dwarfs/iolayer.h"
-#include "dwarfs/os_access.h"
-#include "dwarfs/script.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/entry_interface.h>
+#include <dwarfs/file_access.h>
+#include <dwarfs/file_stat.h>
+#include <dwarfs/iolayer.h>
+#include <dwarfs/os_access.h>
+#include <dwarfs/script.h>
+#include <dwarfs/terminal.h>
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)

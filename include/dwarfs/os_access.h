@@ -30,7 +30,7 @@
 #include <system_error>
 #include <thread>
 
-#include "dwarfs/file_stat.h"
+#include <dwarfs/file_stat.h>
 
 namespace dwarfs {
 

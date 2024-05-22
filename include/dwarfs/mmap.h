@@ -25,7 +25,7 @@
 
 #include <boost/iostreams/device/mapped_file.hpp>
 
-#include "dwarfs/mmif.h"
+#include <dwarfs/mmif.h>
 
 namespace dwarfs {
 

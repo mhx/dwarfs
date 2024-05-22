@@ -25,15 +25,15 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/console_writer.h"
-#include "dwarfs/entry.h"
-#include "dwarfs/entry_interface.h"
-#include "dwarfs/inode.h"
-#include "dwarfs/lazy_value.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/progress.h"
-#include "dwarfs/terminal.h"
-#include "dwarfs/util.h"
+#include <dwarfs/console_writer.h>
+#include <dwarfs/entry.h>
+#include <dwarfs/entry_interface.h>
+#include <dwarfs/inode.h>
+#include <dwarfs/lazy_value.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/progress.h>
+#include <dwarfs/terminal.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include "dwarfs/contextual_option.h"
-#include "dwarfs/fragment_category.h"
+#include <dwarfs/contextual_option.h>
+#include <dwarfs/fragment_category.h>
 
 namespace dwarfs {
 

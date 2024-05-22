@@ -35,8 +35,8 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/checksum.h"
-#include "dwarfs/error.h"
+#include <dwarfs/checksum.h>
+#include <dwarfs/error.h>
 
 namespace dwarfs {
 

@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
-#include "dwarfs/compression.h"
-#include "dwarfs/compression_constraints.h"
+#include <dwarfs/compression.h>
+#include <dwarfs/compression_constraints.h>
 
 namespace dwarfs {
 

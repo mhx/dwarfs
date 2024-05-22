@@ -40,11 +40,11 @@
 #include <range/v3/algorithm/fold_left.hpp>
 #include <range/v3/view/chunk.hpp>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/compression_metadata_requirements.h"
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/map_util.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/compression_metadata_requirements.h>
+#include <dwarfs/error.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/map_util.h>
 
 namespace dwarfs {
 

@@ -27,8 +27,8 @@
 
 #include <folly/gen/String.h>
 
-#include "dwarfs/fragment_order_parser.h"
-#include "dwarfs/option_map.h"
+#include <dwarfs/fragment_order_parser.h>
+#include <dwarfs/option_map.h>
 
 namespace dwarfs {
 

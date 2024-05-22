@@ -28,8 +28,8 @@
 
 #include <folly/portability/Unistd.h>
 
-#include "dwarfs/os_access.h"
-#include "dwarfs/pager.h"
+#include <dwarfs/os_access.h>
+#include <dwarfs/pager.h>
 
 namespace dwarfs {
 

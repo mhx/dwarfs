@@ -29,8 +29,8 @@
 
 #include <folly/Conv.h>
 
-#include "dwarfs/logger.h"
-#include "dwarfs/util.h"
+#include <dwarfs/logger.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs::test {
 

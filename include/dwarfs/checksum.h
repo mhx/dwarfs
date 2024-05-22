@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-#include "dwarfs/error.h"
+#include <dwarfs/error.h>
 
 namespace dwarfs {
 

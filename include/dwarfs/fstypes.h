@@ -28,8 +28,8 @@
 #include <string>
 #include <vector>
 
-#include "dwarfs/block_compressor.h" // TODO: or the other way round?
-#include "dwarfs/checksum.h"
+#include <dwarfs/block_compressor.h> // TODO: or the other way round?
+#include <dwarfs/checksum.h>
 
 namespace dwarfs {
 

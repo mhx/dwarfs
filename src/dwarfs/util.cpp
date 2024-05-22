@@ -36,9 +36,9 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 
-#include "dwarfs/error.h"
-#include "dwarfs/options.h"
-#include "dwarfs/util.h"
+#include <dwarfs/error.h>
+#include <dwarfs/options.h>
+#include <dwarfs/util.h>
 
 extern "C" int dwarfs_wcwidth(int ucs);
 

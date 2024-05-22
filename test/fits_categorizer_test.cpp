@@ -35,8 +35,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/mmap.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/mmap.h>
 
 #include "test_logger.h"
 

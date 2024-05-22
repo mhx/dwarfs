@@ -24,12 +24,12 @@
 
 #include <folly/Benchmark.h>
 
-#include "dwarfs/block_data.h"
-#include "dwarfs/block_manager.h"
-#include "dwarfs/chunkable.h"
-#include "dwarfs/compression_constraints.h"
-#include "dwarfs/progress.h"
-#include "dwarfs/segmenter.h"
+#include <dwarfs/block_data.h>
+#include <dwarfs/block_manager.h>
+#include <dwarfs/chunkable.h>
+#include <dwarfs/compression_constraints.h>
+#include <dwarfs/progress.h>
+#include <dwarfs/segmenter.h>
 
 #include "loremipsum.h"
 #include "test_logger.h"

@@ -26,8 +26,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/pcm_sample_transformer.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/pcm_sample_transformer.h>
 
 using namespace dwarfs;
 

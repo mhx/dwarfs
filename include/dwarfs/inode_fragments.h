@@ -29,10 +29,10 @@
 
 #include <folly/small_vector.h>
 
-#include "dwarfs/fragment_category.h"
-#include "dwarfs/types.h"
+#include <dwarfs/fragment_category.h>
+#include <dwarfs/types.h>
 
-#include "dwarfs/gen-cpp2/metadata_types.h"
+#include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs {
 

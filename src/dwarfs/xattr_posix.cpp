@@ -23,7 +23,7 @@
 
 #include <folly/String.h>
 
-#include "dwarfs/xattr.h"
+#include <dwarfs/xattr.h>
 
 namespace dwarfs {
 

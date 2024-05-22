@@ -24,8 +24,8 @@
 #include <atomic>
 #include <string>
 
-#include "dwarfs/progress.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/progress.h>
+#include <dwarfs/terminal.h>
 
 namespace dwarfs {
 

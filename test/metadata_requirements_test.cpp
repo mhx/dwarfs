@@ -29,8 +29,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/compression_metadata_requirements.h"
-#include "dwarfs/map_util.h"
+#include <dwarfs/compression_metadata_requirements.h>
+#include <dwarfs/map_util.h>
 
 using namespace dwarfs;
 

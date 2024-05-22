@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "dwarfs/category_resolver.h"
+#include <dwarfs/category_resolver.h>
 
 namespace dwarfs {
 

@@ -24,7 +24,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-#include "dwarfs/compiler.h"
+#include <dwarfs/compiler.h>
 
 namespace dwarfs {
 

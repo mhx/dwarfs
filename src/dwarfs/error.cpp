@@ -32,9 +32,9 @@
 #include <folly/experimental/exception_tracer/ExceptionTracer.h>
 #endif
 
-#include "dwarfs/error.h"
-#include "dwarfs/terminal.h"
-#include "dwarfs/util.h"
+#include <dwarfs/error.h>
+#include <dwarfs/terminal.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

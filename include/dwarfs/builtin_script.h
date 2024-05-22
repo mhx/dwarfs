@@ -26,8 +26,8 @@
 #include <memory>
 #include <string>
 
-#include "dwarfs/inode.h"
-#include "dwarfs/script.h"
+#include <dwarfs/inode.h>
+#include <dwarfs/script.h>
 
 namespace dwarfs {
 

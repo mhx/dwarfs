@@ -21,7 +21,7 @@
 
 #include <folly/container/Enumerate.h>
 
-#include "dwarfs/filesystem_block_category_resolver.h"
+#include <dwarfs/filesystem_block_category_resolver.h>
 
 namespace dwarfs {
 

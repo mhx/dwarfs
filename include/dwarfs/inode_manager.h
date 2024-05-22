@@ -29,8 +29,8 @@
 #include <utility>
 #include <vector>
 
-#include "dwarfs/fragment_category.h"
-#include "dwarfs/inode.h"
+#include <dwarfs/fragment_category.h>
+#include <dwarfs/inode.h>
 
 namespace dwarfs {
 

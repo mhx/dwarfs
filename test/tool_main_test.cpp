@@ -40,12 +40,12 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/filesystem_v2.h"
-#include "dwarfs/history.h"
-#include "dwarfs/iovec_read_buf.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/util.h"
-#include "dwarfs_tool_main.h"
+#include <dwarfs/filesystem_v2.h>
+#include <dwarfs/history.h>
+#include <dwarfs/iovec_read_buf.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/util.h>
+#include <dwarfs_tool_main.h>
 
 #include "filter_test_data.h"
 #include "loremipsum.h"

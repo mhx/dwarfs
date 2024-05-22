@@ -29,7 +29,7 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/fragment_category.h"
+#include <dwarfs/fragment_category.h>
 
 using namespace dwarfs;
 

@@ -24,7 +24,7 @@
 #include <string>
 #include <string_view>
 
-#include "dwarfs/options.h"
+#include <dwarfs/options.h>
 
 namespace dwarfs {
 

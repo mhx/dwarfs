@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "dwarfs/speedometer.h"
+#include <dwarfs/speedometer.h>
 
 using namespace dwarfs;
 

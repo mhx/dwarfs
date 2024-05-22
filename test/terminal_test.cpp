@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "dwarfs/terminal.h"
+#include <dwarfs/terminal.h>
 
 using namespace dwarfs;
 

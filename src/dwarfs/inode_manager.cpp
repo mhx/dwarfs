@@ -42,27 +42,27 @@
 #include <folly/small_vector.h>
 #include <folly/sorted_vector_types.h>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/compiler.h"
-#include "dwarfs/entry.h"
-#include "dwarfs/error.h"
-#include "dwarfs/inode_manager.h"
-#include "dwarfs/inode_ordering.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/match.h"
-#include "dwarfs/mmif.h"
-#include "dwarfs/nilsimsa.h"
-#include "dwarfs/options.h"
-#include "dwarfs/os_access.h"
-#include "dwarfs/progress.h"
-#include "dwarfs/promise_receiver.h"
-#include "dwarfs/scanner_progress.h"
-#include "dwarfs/script.h"
-#include "dwarfs/similarity.h"
-#include "dwarfs/similarity_ordering.h"
-#include "dwarfs/worker_group.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/compiler.h>
+#include <dwarfs/entry.h>
+#include <dwarfs/error.h>
+#include <dwarfs/inode_manager.h>
+#include <dwarfs/inode_ordering.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/match.h>
+#include <dwarfs/mmif.h>
+#include <dwarfs/nilsimsa.h>
+#include <dwarfs/options.h>
+#include <dwarfs/os_access.h>
+#include <dwarfs/progress.h>
+#include <dwarfs/promise_receiver.h>
+#include <dwarfs/scanner_progress.h>
+#include <dwarfs/script.h>
+#include <dwarfs/similarity.h>
+#include <dwarfs/similarity_ordering.h>
+#include <dwarfs/worker_group.h>
 
-#include "dwarfs/gen-cpp2/metadata_types.h"
+#include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs {
 

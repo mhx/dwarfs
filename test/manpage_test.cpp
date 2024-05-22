@@ -25,8 +25,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "dwarfs/pager.h"
-#include "dwarfs/render_manpage.h"
+#include <dwarfs/pager.h>
+#include <dwarfs/render_manpage.h>
 
 #include "test_helpers.h"
 

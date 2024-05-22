@@ -34,8 +34,8 @@
 
 #include <folly/small_vector.h>
 
-#include "dwarfs/entry_interface.h"
-#include "dwarfs/file_stat.h"
+#include <dwarfs/entry_interface.h>
+#include <dwarfs/file_stat.h>
 
 namespace dwarfs {
 

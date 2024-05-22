@@ -23,8 +23,8 @@
 
 #include <string>
 
-#include "dwarfs/file_stat.h"
-#include "dwarfs/object.h"
+#include <dwarfs/file_stat.h>
+#include <dwarfs/object.h>
 
 namespace dwarfs {
 

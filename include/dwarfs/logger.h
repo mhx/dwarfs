@@ -40,8 +40,8 @@
 
 #include <boost/chrono/thread_clock.hpp>
 
-#include "dwarfs/error.h"
-#include "dwarfs/util.h"
+#include <dwarfs/error.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

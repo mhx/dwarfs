@@ -34,9 +34,9 @@
 
 #include <magic.h>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/error.h>
+#include <dwarfs/logger.h>
 
 namespace dwarfs {
 

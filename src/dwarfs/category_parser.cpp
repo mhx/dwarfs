@@ -23,8 +23,8 @@
 
 #include <folly/String.h>
 
-#include "dwarfs/category_parser.h"
-#include "dwarfs/category_resolver.h"
+#include <dwarfs/category_parser.h>
+#include <dwarfs/category_resolver.h>
 
 namespace dwarfs {
 

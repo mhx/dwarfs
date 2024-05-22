@@ -27,7 +27,7 @@
 #include <boost/program_options.hpp>
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-#include "dwarfs/manpage.h"
+#include <dwarfs/manpage.h>
 #endif
 
 namespace dwarfs {

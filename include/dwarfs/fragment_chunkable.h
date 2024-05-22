@@ -23,7 +23,7 @@
 
 #include <memory>
 
-#include "dwarfs/chunkable.h"
+#include <dwarfs/chunkable.h>
 
 namespace dwarfs {
 

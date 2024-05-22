@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include "dwarfs/fstypes.h"
+#include <dwarfs/fstypes.h>
 
 namespace dwarfs {
 

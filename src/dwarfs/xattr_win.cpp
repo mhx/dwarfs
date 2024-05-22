@@ -30,7 +30,7 @@
 
 #include <folly/ScopeGuard.h>
 
-#include "dwarfs/xattr.h"
+#include <dwarfs/xattr.h>
 
 extern "C" {
 

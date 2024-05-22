@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/mmif.h"
+#include <dwarfs/mmif.h>
 
 namespace dwarfs {
 namespace test {

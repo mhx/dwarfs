@@ -29,9 +29,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/options.h"
+#include <dwarfs/options.h>
 
-#include "dwarfs/gen-cpp2/history_types.h"
+#include <dwarfs/gen-cpp2/history_types.h>
 
 namespace dwarfs {
 

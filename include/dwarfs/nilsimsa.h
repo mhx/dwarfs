@@ -27,7 +27,7 @@
 #include <span>
 #include <type_traits>
 
-#include "dwarfs/compiler.h"
+#include <dwarfs/compiler.h>
 
 namespace dwarfs {
 

@@ -24,7 +24,7 @@
 
 #include <thrift/lib/cpp/util/EnumUtils.h>
 
-#include "dwarfs/features.h"
+#include <dwarfs/features.h>
 
 namespace dwarfs {
 

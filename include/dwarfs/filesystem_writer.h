@@ -31,12 +31,12 @@
 
 #include <folly/Function.h>
 
-#include "dwarfs/compression_constraints.h"
-#include "dwarfs/fragment_category.h"
-#include "dwarfs/fs_section.h"
-#include "dwarfs/fstypes.h"
-#include "dwarfs/options.h"
-#include "dwarfs/worker_group.h"
+#include <dwarfs/compression_constraints.h>
+#include <dwarfs/fragment_category.h>
+#include <dwarfs/fs_section.h>
+#include <dwarfs/fstypes.h>
+#include <dwarfs/options.h>
+#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 

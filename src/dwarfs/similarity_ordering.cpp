@@ -29,11 +29,11 @@
 #include <folly/container/Enumerate.h>
 #include <folly/experimental/Bits.h>
 
-#include "dwarfs/compiler.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/progress.h"
-#include "dwarfs/similarity_ordering.h"
-#include "dwarfs/worker_group.h"
+#include <dwarfs/compiler.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/progress.h>
+#include <dwarfs/similarity_ordering.h>
+#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 

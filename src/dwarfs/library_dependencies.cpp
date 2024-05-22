@@ -32,8 +32,8 @@
 #include <jemalloc/jemalloc.h>
 #endif
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/library_dependencies.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/library_dependencies.h>
 
 namespace dwarfs {
 

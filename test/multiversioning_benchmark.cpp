@@ -27,8 +27,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include "dwarfs/compiler.h"
-#include "dwarfs/nilsimsa.h"
+#include <dwarfs/compiler.h>
+#include <dwarfs/nilsimsa.h>
 
 #include "test_helpers.h"
 #include "test_strings.h"

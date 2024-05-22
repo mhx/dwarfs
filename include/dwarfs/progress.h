@@ -35,8 +35,8 @@
 
 #include <folly/Function.h>
 
-#include "dwarfs/speedometer.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/speedometer.h>
+#include <dwarfs/terminal.h>
 
 namespace dwarfs {
 

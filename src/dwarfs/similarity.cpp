@@ -25,7 +25,7 @@
 
 #include <folly/Hash.h>
 
-#include "dwarfs/similarity.h"
+#include <dwarfs/similarity.h>
 
 namespace dwarfs {
 

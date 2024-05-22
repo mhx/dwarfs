@@ -31,11 +31,11 @@
 
 #include <zstd.h>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/error.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/util.h"
-#include "dwarfs/zstd_context_manager.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/error.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/util.h>
+#include <dwarfs/zstd_context_manager.h>
 
 namespace dwarfs {
 

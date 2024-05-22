@@ -27,9 +27,9 @@
 #include <future>
 #include <memory>
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/block_range.h"
-#include "dwarfs/fstypes.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/block_range.h>
+#include <dwarfs/fstypes.h>
 
 namespace dwarfs {
 

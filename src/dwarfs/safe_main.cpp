@@ -26,10 +26,10 @@
 #include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
-#include "dwarfs/error.h"
-#include "dwarfs/safe_main.h"
-#include "dwarfs/terminal.h"
-#include "dwarfs/util.h"
+#include <dwarfs/error.h>
+#include <dwarfs/safe_main.h>
+#include <dwarfs/terminal.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

@@ -26,7 +26,7 @@
 #include <string>
 #include <string_view>
 
-#include "dwarfs/types.h"
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 

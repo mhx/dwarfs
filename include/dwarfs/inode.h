@@ -30,10 +30,10 @@
 
 #include <folly/small_vector.h>
 
-#include "dwarfs/inode_fragments.h"
-#include "dwarfs/nilsimsa.h"
-#include "dwarfs/object.h"
-#include "dwarfs/sortable_span.h"
+#include <dwarfs/inode_fragments.h>
+#include <dwarfs/nilsimsa.h>
+#include <dwarfs/object.h>
+#include <dwarfs/sortable_span.h>
 
 namespace dwarfs {
 

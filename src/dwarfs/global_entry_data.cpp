@@ -21,9 +21,9 @@
 
 #include <folly/gen/Base.h>
 
-#include "dwarfs/error.h"
-#include "dwarfs/global_entry_data.h"
-#include "dwarfs/options.h"
+#include <dwarfs/error.h>
+#include <dwarfs/global_entry_data.h>
+#include <dwarfs/options.h>
 
 namespace dwarfs {
 

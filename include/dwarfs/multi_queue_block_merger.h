@@ -27,8 +27,8 @@
 
 #include <folly/Function.h>
 
-#include "dwarfs/block_merger.h"
-#include "dwarfs/detail/multi_queue_block_merger_impl.h"
+#include <dwarfs/block_merger.h>
+#include <dwarfs/detail/multi_queue_block_merger_impl.h>
 
 namespace dwarfs {
 

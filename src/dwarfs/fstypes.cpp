@@ -28,8 +28,8 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/compression.h"
-#include "dwarfs/fstypes.h"
+#include <dwarfs/compression.h>
+#include <dwarfs/fstypes.h>
 
 namespace dwarfs {
 

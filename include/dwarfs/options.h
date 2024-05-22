@@ -30,9 +30,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dwarfs/categorized_option.h"
-#include "dwarfs/file_stat.h"
-#include "dwarfs/types.h"
+#include <dwarfs/categorized_option.h>
+#include <dwarfs/file_stat.h>
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 

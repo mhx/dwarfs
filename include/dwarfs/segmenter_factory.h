@@ -23,8 +23,8 @@
 
 #include <memory>
 
-#include "dwarfs/categorized_option.h"
-#include "dwarfs/segmenter.h"
+#include <dwarfs/categorized_option.h>
+#include <dwarfs/segmenter.h>
 
 namespace dwarfs {
 

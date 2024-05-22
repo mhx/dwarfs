@@ -26,7 +26,7 @@
 #include <optional>
 #include <vector>
 
-#include "dwarfs/receiver.h"
+#include <dwarfs/receiver.h>
 
 namespace dwarfs {
 

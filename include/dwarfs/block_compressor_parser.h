@@ -24,7 +24,7 @@
 #include <string>
 #include <string_view>
 
-#include "dwarfs/block_compressor.h"
+#include <dwarfs/block_compressor.h>
 
 namespace dwarfs {
 

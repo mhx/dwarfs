@@ -21,11 +21,11 @@
 
 #include <iostream>
 
-#include "dwarfs/file_access.h"
-#include "dwarfs/file_access_generic.h"
-#include "dwarfs/iolayer.h"
-#include "dwarfs/os_access_generic.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/file_access.h>
+#include <dwarfs/file_access_generic.h>
+#include <dwarfs/iolayer.h>
+#include <dwarfs/os_access_generic.h>
+#include <dwarfs/terminal.h>
 
 namespace dwarfs {
 

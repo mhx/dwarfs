@@ -23,9 +23,9 @@
 
 #include <boost/program_options.hpp>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/logger.h"
-#include "dwarfs/mmap.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/logger.h>
+#include <dwarfs/mmap.h>
 
 using namespace dwarfs;
 

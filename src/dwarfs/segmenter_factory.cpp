@@ -19,8 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/segmenter_factory.h"
-#include "dwarfs/categorizer.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/segmenter_factory.h>
 
 namespace dwarfs {
 

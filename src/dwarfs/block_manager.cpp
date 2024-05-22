@@ -21,7 +21,7 @@
 
 #include <cassert>
 
-#include "dwarfs/block_manager.h"
+#include <dwarfs/block_manager.h>
 
 namespace dwarfs {
 

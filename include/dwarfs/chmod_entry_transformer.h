@@ -25,8 +25,8 @@
 #include <memory>
 #include <string_view>
 
-#include "dwarfs/entry_transformer.h"
-#include "dwarfs/file_stat.h"
+#include <dwarfs/entry_transformer.h>
+#include <dwarfs/file_stat.h>
 
 namespace dwarfs {
 

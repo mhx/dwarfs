@@ -21,7 +21,7 @@
 
 #include <stdexcept>
 
-#include "dwarfs/render_manpage.h"
+#include <dwarfs/render_manpage.h>
 
 namespace dwarfs {
 

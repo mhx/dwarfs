@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "dwarfs/integral_value_parser.h"
+#include <dwarfs/integral_value_parser.h>
 
 using namespace dwarfs;
 

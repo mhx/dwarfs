@@ -19,9 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/chmod_entry_transformer.h"
-#include "dwarfs/chmod_transformer.h"
-#include "dwarfs/entry_interface.h"
+#include <dwarfs/chmod_entry_transformer.h>
+#include <dwarfs/chmod_transformer.h>
+#include <dwarfs/entry_interface.h>
 
 namespace dwarfs {
 

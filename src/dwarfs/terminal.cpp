@@ -33,7 +33,7 @@
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
 
-#include "dwarfs/terminal.h"
+#include <dwarfs/terminal.h>
 
 namespace dwarfs {
 

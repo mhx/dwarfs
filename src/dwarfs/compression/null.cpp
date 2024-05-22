@@ -19,10 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/error.h"
-#include "dwarfs/fstypes.h"
-#include "dwarfs/option_map.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/error.h>
+#include <dwarfs/fstypes.h>
+#include <dwarfs/option_map.h>
 
 namespace dwarfs {
 

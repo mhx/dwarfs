@@ -23,9 +23,9 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/entry.h"
-#include "dwarfs/inode.h"
-#include "dwarfs/inode_element_view.h"
+#include <dwarfs/entry.h>
+#include <dwarfs/inode.h>
+#include <dwarfs/inode_element_view.h>
 
 namespace dwarfs {
 

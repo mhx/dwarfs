@@ -24,7 +24,7 @@
 #include <optional>
 #include <string_view>
 
-#include "dwarfs/fragment_category.h"
+#include <dwarfs/fragment_category.h>
 
 namespace dwarfs {
 

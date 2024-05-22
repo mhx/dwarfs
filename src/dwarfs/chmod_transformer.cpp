@@ -25,7 +25,7 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/chmod_transformer.h"
+#include <dwarfs/chmod_transformer.h>
 
 namespace dwarfs {
 

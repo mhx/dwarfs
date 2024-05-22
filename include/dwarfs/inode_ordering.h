@@ -23,7 +23,7 @@
 
 #include <memory>
 
-#include "dwarfs/inode.h"
+#include <dwarfs/inode.h>
 
 namespace dwarfs {
 

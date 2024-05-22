@@ -36,7 +36,7 @@
 #include <folly/String.h>
 #include <folly/Synchronized.h>
 
-#include "dwarfs/multi_queue_block_merger.h"
+#include <dwarfs/multi_queue_block_merger.h>
 
 using namespace dwarfs;
 

@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "dwarfs/entry.h"
+#include <dwarfs/entry.h>
 
 #include "test_helpers.h"
 

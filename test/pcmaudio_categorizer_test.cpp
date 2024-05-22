@@ -31,8 +31,8 @@
 #include <folly/String.h>
 #include <folly/lang/Bits.h>
 
-#include "dwarfs/categorizer.h"
-#include "dwarfs/mmap.h"
+#include <dwarfs/categorizer.h>
+#include <dwarfs/mmap.h>
 
 #include "test_logger.h"
 

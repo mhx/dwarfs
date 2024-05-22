@@ -32,9 +32,9 @@
 #include <mach/thread_info.h>
 #endif
 
-#include "dwarfs/mmap.h"
-#include "dwarfs/os_access_generic.h"
-#include "dwarfs/util.h"
+#include <dwarfs/mmap.h>
+#include <dwarfs/os_access_generic.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

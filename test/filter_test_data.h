@@ -27,7 +27,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dwarfs/filter_debug.h"
+#include <dwarfs/filter_debug.h>
 
 namespace dwarfs::test {
 

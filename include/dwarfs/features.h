@@ -24,7 +24,7 @@
 #include <set>
 #include <string>
 
-#include "dwarfs/gen-cpp2/features_types.h"
+#include <dwarfs/gen-cpp2/features_types.h>
 
 namespace dwarfs {
 

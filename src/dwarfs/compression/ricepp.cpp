@@ -29,12 +29,12 @@
 
 #include <ricepp/ricepp.h>
 
-#include "dwarfs/block_compressor.h"
-#include "dwarfs/compression.h"
-#include "dwarfs/error.h"
-#include "dwarfs/option_map.h"
+#include <dwarfs/block_compressor.h>
+#include <dwarfs/compression.h>
+#include <dwarfs/error.h>
+#include <dwarfs/option_map.h>
 
-#include "dwarfs/gen-cpp2/compression_types.h"
+#include <dwarfs/gen-cpp2/compression_types.h>
 
 namespace dwarfs {
 

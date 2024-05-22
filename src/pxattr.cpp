@@ -23,9 +23,9 @@
 
 #include <boost/program_options.hpp>
 
-#include "dwarfs/program_options_helpers.h"
-#include "dwarfs/types.h"
-#include "dwarfs/xattr.h"
+#include <dwarfs/program_options_helpers.h>
+#include <dwarfs/types.h>
+#include <dwarfs/xattr.h>
 
 namespace dwarfs {
 

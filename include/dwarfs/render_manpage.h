@@ -23,7 +23,7 @@
 
 #include <string>
 
-#include "dwarfs/manpage.h"
+#include <dwarfs/manpage.h>
 
 namespace dwarfs {
 

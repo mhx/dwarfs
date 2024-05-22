@@ -24,9 +24,9 @@
 #include <optional>
 #include <span>
 
-#include "dwarfs/fragment_category.h"
-#include "dwarfs/nilsimsa.h"
-#include "dwarfs/similarity_ordering.h"
+#include <dwarfs/fragment_category.h>
+#include <dwarfs/nilsimsa.h>
+#include <dwarfs/similarity_ordering.h>
 
 namespace dwarfs {
 

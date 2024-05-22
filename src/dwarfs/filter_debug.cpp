@@ -21,8 +21,8 @@
 
 #include <ostream>
 
-#include "dwarfs/entry.h"
-#include "dwarfs/filter_debug.h"
+#include <dwarfs/entry.h>
+#include <dwarfs/filter_debug.h>
 
 namespace dwarfs {
 

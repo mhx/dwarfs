@@ -22,11 +22,11 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
-#include "dwarfs/metadata_freezer.h"
+#include <dwarfs/metadata_freezer.h>
 
-#include "dwarfs/gen-cpp2/metadata_layouts.h"
+#include <dwarfs/gen-cpp2/metadata_layouts.h>
 
-#include "thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h"
+#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 namespace dwarfs {
 

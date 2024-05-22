@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dwarfs/scanner_progress.h"
+#include <dwarfs/scanner_progress.h>
 
 namespace dwarfs {
 

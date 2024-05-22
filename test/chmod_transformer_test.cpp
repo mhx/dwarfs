@@ -30,7 +30,7 @@
 
 #include <folly/container/Enumerate.h>
 
-#include "dwarfs/chmod_transformer.h"
+#include <dwarfs/chmod_transformer.h>
 
 using namespace dwarfs;
 namespace fs = std::filesystem;

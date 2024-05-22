@@ -37,8 +37,8 @@
 #include <folly/String.h>
 #include <folly/gen/String.h>
 
-#include "dwarfs/block_merger.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/block_merger.h>
+#include <dwarfs/terminal.h>
 
 namespace dwarfs::detail {
 

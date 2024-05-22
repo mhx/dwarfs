@@ -33,9 +33,10 @@
 #include <folly/String.h>
 #include <folly/portability/Unistd.h>
 
-#include "dwarfs/match.h"
-#include "dwarfs/os_access_generic.h"
-#include "dwarfs/util.h"
+#include <dwarfs/match.h>
+#include <dwarfs/os_access_generic.h>
+#include <dwarfs/util.h>
+
 #include "loremipsum.h"
 #include "mmap_mock.h"
 #include "test_helpers.h"

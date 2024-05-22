@@ -59,9 +59,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/file_stat.h"
-#include "dwarfs/util.h"
-#include "dwarfs/xattr.h"
+#include <dwarfs/file_stat.h>
+#include <dwarfs/util.h>
+#include <dwarfs/xattr.h>
 
 #include "test_helpers.h"
 

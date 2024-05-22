@@ -31,10 +31,10 @@
 #include <folly/gen/String.h>
 #include <folly/portability/Windows.h>
 
-#include "dwarfs/safe_main.h"
-#include "dwarfs/tool.h"
-#include "dwarfs/util.h"
-#include "dwarfs_tool_main.h"
+#include <dwarfs/safe_main.h>
+#include <dwarfs/tool.h>
+#include <dwarfs/util.h>
+#include <dwarfs_tool_main.h>
 
 namespace {
 

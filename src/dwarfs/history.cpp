@@ -26,9 +26,9 @@
 
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
-#include "dwarfs/history.h"
-#include "dwarfs/library_dependencies.h"
-#include "dwarfs/version.h"
+#include <dwarfs/history.h>
+#include <dwarfs/library_dependencies.h>
+#include <dwarfs/version.h>
 
 namespace dwarfs {
 

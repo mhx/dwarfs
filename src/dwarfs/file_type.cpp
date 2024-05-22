@@ -21,7 +21,7 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/file_type.h"
+#include <dwarfs/file_type.h>
 
 namespace dwarfs {
 

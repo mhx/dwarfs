@@ -38,9 +38,9 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-#include "dwarfs/logger.h"
-#include "dwarfs/terminal.h"
-#include "dwarfs/util.h"
+#include <dwarfs/logger.h>
+#include <dwarfs/terminal.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 

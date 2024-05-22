@@ -23,7 +23,7 @@
 #include <ostream>
 #include <sstream>
 
-#include "dwarfs/inode_fragments.h"
+#include <dwarfs/inode_fragments.h>
 
 namespace dwarfs {
 

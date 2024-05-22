@@ -23,7 +23,7 @@
 
 #include <boost/program_options.hpp>
 
-#include "dwarfs/types.h"
+#include <dwarfs/types.h>
 
 namespace dwarfs {
 

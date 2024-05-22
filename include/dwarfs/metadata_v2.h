@@ -36,7 +36,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "dwarfs/metadata_types.h"
+#include <dwarfs/metadata_types.h>
 
 namespace dwarfs {
 

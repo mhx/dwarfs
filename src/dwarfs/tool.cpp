@@ -23,15 +23,15 @@
 
 #include <fmt/format.h>
 
-#include "dwarfs/logger.h"
-#include "dwarfs/tool.h"
-#include "dwarfs/version.h"
+#include <dwarfs/logger.h>
+#include <dwarfs/tool.h>
+#include <dwarfs/version.h>
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-#include "dwarfs/iolayer.h"
-#include "dwarfs/pager.h"
-#include "dwarfs/render_manpage.h"
-#include "dwarfs/terminal.h"
+#include <dwarfs/iolayer.h>
+#include <dwarfs/pager.h>
+#include <dwarfs/render_manpage.h>
+#include <dwarfs/terminal.h>
 #endif
 
 namespace po = boost::program_options;
