@@ -22,6 +22,10 @@
 #include <lz4.h>
 #include <lz4hc.h>
 
+#include <fmt/format.h>
+
+#include <folly/Conv.h>
+
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>

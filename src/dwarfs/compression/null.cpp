@@ -19,6 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cassert>
+
+#include <fmt/format.h>
+
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
