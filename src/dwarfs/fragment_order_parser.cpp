@@ -25,7 +25,9 @@
 
 #include <fmt/format.h>
 
-#include <folly/gen/String.h>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/fragment_order_parser.h>
 #include <dwarfs/option_map.h>
@@ -45,10 +47,8 @@ const std::map<std::string_view, file_order_mode> order_choices{
 } // namespace
 
 std::string fragment_order_parser::choices() {
-  // TODO: C++23
-  // auto tools = std::views::keys(order_choices) | std::views::join_with(", ");
-  using namespace folly::gen;
-  return from(order_choices) | get<0>() | unsplit<std::string>(", ");
+  return ranges::views::keys(order_choices) | ranges::views::join(", ") |
+         ranges::to<std::string>();
 }
 
 // TODO: find a common syntax for these options so we don't need
