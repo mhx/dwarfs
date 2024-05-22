@@ -32,6 +32,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <range/v3/view/drop.hpp>
+
 #include <dwarfs/checksum.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/file_scanner.h>
@@ -455,11 +457,10 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup&& lookup) {
     auto& hlv = kv.second;
     if (hlv.size() > 1) {
       auto& fv = lookup(hlv.front());
-      // TODO: for (auto p : hlv | std::views::drop(1))
-      std::for_each(hlv.begin() + 1, hlv.end(), [&fv](auto p) {
+      for (auto p : ranges::views::drop(hlv, 1)) {
         p->set_inode(fv.front()->get_inode());
         fv.push_back(p);
-      });
+      }
     }
   }
 
