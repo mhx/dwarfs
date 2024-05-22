@@ -54,7 +54,12 @@ class inode;
 class mmif;
 class os_access;
 class progress;
+
+namespace internal {
+
 class global_entry_data;
+
+}
 
 class entry_visitor {
  public:
@@ -87,8 +92,8 @@ class entry : public entry_interface {
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
   void pack(thrift::metadata::inode_data& entry_v2,
-            global_entry_data const& data) const;
-  void update(global_entry_data& data) const;
+            internal::global_entry_data const& data) const;
+  void update(internal::global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
   virtual void scan(os_access const& os, progress& prog) = 0;
   file_stat const& status() const { return stat_; }
@@ -171,10 +176,10 @@ class dir : public entry {
   void walk(std::function<void(const entry*)> const& f) const override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
-  void
-  pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
+  void pack(thrift::metadata::metadata& mv2,
+            internal::global_entry_data const& data) const;
   void pack_entry(thrift::metadata::metadata& mv2,
-                  global_entry_data const& data) const;
+                  internal::global_entry_data const& data) const;
   void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
   void remove_empty_dirs(progress& prog);

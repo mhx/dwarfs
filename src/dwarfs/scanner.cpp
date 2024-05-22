@@ -49,11 +49,11 @@
 #include <dwarfs/file_scanner.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fragment_chunkable.h>
-#include <dwarfs/global_entry_data.h>
 #include <dwarfs/history.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
+#include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/metadata_freezer.h>
 #include <dwarfs/mmif.h>
@@ -149,7 +149,7 @@ class pipe_set_inode_visitor : public visitor_base {
 
 class names_and_symlinks_visitor : public visitor_base {
  public:
-  explicit names_and_symlinks_visitor(global_entry_data& data)
+  explicit names_and_symlinks_visitor(internal::global_entry_data& data)
       : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
@@ -168,7 +168,7 @@ class names_and_symlinks_visitor : public visitor_base {
   }
 
  private:
-  global_entry_data& data_;
+  internal::global_entry_data& data_;
 };
 
 class save_directories_visitor : public visitor_base {
@@ -179,7 +179,8 @@ class save_directories_visitor : public visitor_base {
 
   void visit(dir* p) override { directories_.at(p->inode_num().value()) = p; }
 
-  void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
+  void
+  pack(thrift::metadata::metadata& mv2, internal::global_entry_data& ge_data) {
     for (auto p : directories_) {
       if (!p->has_parent()) {
         p->set_entry_index(mv2.dir_entries()->size());
@@ -681,7 +682,7 @@ void scanner_<LoggerPolicy>::scan(
     }
   }
 
-  global_entry_data ge_data(options_);
+  internal::global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
   feature_set features;
 

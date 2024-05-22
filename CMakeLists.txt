@@ -653,7 +653,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/fragment_category.cpp
   src/dwarfs/fragment_chunkable.cpp
   src/dwarfs/fragment_order_parser.cpp
-  src/dwarfs/global_entry_data.cpp
+  src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/inode_element_view.cpp
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp

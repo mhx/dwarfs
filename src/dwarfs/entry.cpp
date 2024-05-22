@@ -29,8 +29,8 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
-#include <dwarfs/global_entry_data.h>
 #include <dwarfs/inode.h>
+#include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/nilsimsa.h>
 #include <dwarfs/options.h>
@@ -146,7 +146,7 @@ void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
 
-void entry::update(global_entry_data& data) const {
+void entry::update(internal::global_entry_data& data) const {
   data.add_uid(stat_.uid);
   data.add_gid(stat_.gid);
   data.add_mode(stat_.mode);
@@ -156,7 +156,7 @@ void entry::update(global_entry_data& data) const {
 }
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
-                 global_entry_data const& data) const {
+                 internal::global_entry_data const& data) const {
   entry_v2.mode_index() = data.get_mode_index(stat_.mode);
   entry_v2.owner_index() = data.get_uid_index(stat_.uid);
   entry_v2.group_index() = data.get_gid_index(stat_.gid);
@@ -330,7 +330,7 @@ void dir::sort() {
 void dir::scan(os_access const&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
-                     global_entry_data const& data) const {
+                     internal::global_entry_data const& data) const {
   auto& de = mv2.dir_entries()->emplace_back();
   de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
   de.inode_num() = DWARFS_NOTHROW(inode_num().value());
@@ -338,7 +338,7 @@ void dir::pack_entry(thrift::metadata::metadata& mv2,
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
-               global_entry_data const& data) const {
+               internal::global_entry_data const& data) const {
   thrift::metadata::directory d;
   if (has_parent()) {
     auto pd = std::dynamic_pointer_cast<dir>(parent());

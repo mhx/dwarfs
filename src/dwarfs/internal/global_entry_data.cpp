@@ -22,10 +22,10 @@
 #include <folly/gen/Base.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/global_entry_data.h>
+#include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/options.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 template <typename T, typename U>
 std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
@@ -137,4 +137,4 @@ void global_entry_data::add_ctime(uint64_t time) {
   }
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

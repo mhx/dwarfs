@@ -34,6 +34,8 @@ namespace dwarfs {
 
 struct scanner_options;
 
+namespace internal {
+
 class global_entry_data {
  public:
   using uid_type = file_stat::uid_type;
@@ -111,5 +113,7 @@ class global_entry_data {
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
   scanner_options const& options_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs
