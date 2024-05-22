@@ -21,42 +21,17 @@
 
 #pragma once
 
-#include <string>
-#include <string_view>
-#include <unordered_map>
+#include <utility>
 
-#include <dwarfs/conv.h>
+#include <folly/Conv.h>
+// #include <boost/lexical_cast.hpp>
 
 namespace dwarfs {
 
-class option_map {
- public:
-  explicit option_map(std::string_view spec);
-
-  const std::string& choice() const { return choice_; }
-
-  bool has_options() const { return !opt_.empty(); }
-
-  template <typename T>
-  T get(const std::string& key, const T& default_value = T()) {
-    auto i = opt_.find(key);
-
-    if (i != opt_.end()) {
-      std::string val = i->second;
-      opt_.erase(i);
-      return to<T>(val);
-    }
-
-    return default_value;
-  }
-
-  size_t get_size(const std::string& key, size_t default_value = 0);
-
-  void report();
-
- private:
-  std::unordered_map<std::string, std::string> opt_;
-  std::string choice_;
-};
+template <typename T, typename U>
+T to(U&& s) {
+  return folly::to<T>(std::forward<U>(s));
+  // return boost::lexical_cast<T>(std::forward<U>(s));
+}
 
 } // namespace dwarfs

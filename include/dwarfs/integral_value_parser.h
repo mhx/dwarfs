@@ -30,9 +30,9 @@
 
 #include <fmt/format.h>
 
-#include <folly/Conv.h>
 #include <folly/String.h>
 
+#include <dwarfs/conv.h>
 #include <dwarfs/match.h>
 
 namespace dwarfs {
@@ -49,7 +49,7 @@ class integral_value_parser {
       : valid_{std::in_place_type<std::function<bool(T)>>, check} {}
 
   T parse(std::string_view arg) const {
-    auto val = folly::to<T>(arg);
+    auto val = to<T>(arg);
 
     valid_ | match{
                  [](std::monostate const&) {},
@@ -78,9 +78,7 @@ class integral_value_parser {
     return val;
   }
 
-  std::string to_string(T const& val) const {
-    return folly::to<std::string>(val);
-  }
+  std::string to_string(T const& val) const { return to<std::string>(val); }
 
  private:
   std::variant<std::monostate, std::pair<T, T>, std::set<T>,

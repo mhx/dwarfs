@@ -22,19 +22,30 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <boost/lexical_cast.hpp>
+
+#include <folly/Conv.h>
+
 #include <dwarfs/integral_value_parser.h>
 
 using namespace dwarfs;
+
+namespace {
+
+auto throws_conversion_error() {
+  return testing::AnyOf(testing::Throws<folly::ConversionError>(),
+                        testing::Throws<boost::bad_lexical_cast>());
+}
+
+} // namespace
 
 TEST(integral_value_parser_test, basic_check) {
   integral_value_parser<int16_t> p;
 
   EXPECT_EQ(42, p.parse("42"));
   EXPECT_EQ(-13, p.parse("-13"));
-  EXPECT_THAT([&] { p.parse("42a"); },
-              testing::Throws<folly::ConversionError>());
-  EXPECT_THAT([&] { p.parse("40000"); },
-              testing::Throws<folly::ConversionError>());
+  EXPECT_THAT([&] { p.parse("42a"); }, throws_conversion_error());
+  EXPECT_THAT([&] { p.parse("40000"); }, throws_conversion_error());
 }
 
 TEST(integral_value_parser_test, range_check) {
