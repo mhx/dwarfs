@@ -33,10 +33,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <folly/small_vector.h>
-
 #include <dwarfs/entry_interface.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/small_vector.h>
 
 namespace dwarfs {
 
@@ -151,7 +150,7 @@ class file : public entry {
 
  private:
   struct data {
-    using hash_type = folly::small_vector<char, 16>;
+    using hash_type = small_vector<char, 16>;
     hash_type hash;
     uint32_t refcount{1};
     std::optional<uint32_t> inode_num;

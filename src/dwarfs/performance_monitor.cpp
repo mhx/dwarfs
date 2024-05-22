@@ -137,7 +137,7 @@ class performance_monitor_impl : public performance_monitor {
     timer_id id;
     time_type start;
     time_type end;
-    folly::small_vector<uint64_t, kNumInlineContext> context;
+    small_vector<uint64_t, kNumInlineContext> context;
   };
 
   explicit performance_monitor_impl(

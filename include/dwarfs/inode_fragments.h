@@ -27,9 +27,8 @@
 #include <string>
 #include <unordered_map>
 
-#include <folly/small_vector.h>
-
 #include <dwarfs/fragment_category.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
@@ -57,7 +56,7 @@ class single_inode_fragment {
  private:
   fragment_category category_;
   file_off_t length_;
-  folly::small_vector<thrift::metadata::chunk, 1> chunks_;
+  small_vector<thrift::metadata::chunk, 1> chunks_;
 };
 
 class inode_fragments {
@@ -105,7 +104,7 @@ class inode_fragments {
   std::unordered_map<fragment_category, file_off_t> get_category_sizes() const;
 
  private:
-  folly::small_vector<single_inode_fragment, 1> fragments_;
+  small_vector<single_inode_fragment, 1> fragments_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, inode_fragments const& frag) {

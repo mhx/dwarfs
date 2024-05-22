@@ -28,11 +28,10 @@
 #include <tuple>
 #include <vector>
 
-#include <folly/small_vector.h>
-
 #include <dwarfs/inode_fragments.h>
 #include <dwarfs/nilsimsa.h>
 #include <dwarfs/object.h>
+#include <dwarfs/small_vector.h>
 #include <dwarfs/sortable_span.h>
 
 namespace dwarfs {
@@ -50,7 +49,7 @@ struct inode_options;
 
 class inode : public object {
  public:
-  using files_vector = folly::small_vector<file*, 1>;
+  using files_vector = small_vector<file*, 1>;
 
   virtual void set_files(files_vector&& fv) = 0;
   virtual void populate(size_t size) = 0;

@@ -39,7 +39,6 @@
 
 #include <folly/Demangle.h>
 #include <folly/String.h>
-#include <folly/small_vector.h>
 #include <folly/sorted_vector_types.h>
 
 #include <dwarfs/categorizer.h>

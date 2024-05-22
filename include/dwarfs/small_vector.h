@@ -21,19 +21,13 @@
 
 #pragma once
 
-#include <folly/portability/IOVec.h>
-
-#include <dwarfs/block_range.h>
-#include <dwarfs/small_vector.h>
+#include <folly/small_vector.h>
+// #include <boost/container/small_vector.hpp>
 
 namespace dwarfs {
 
-struct iovec_read_buf {
-  // This covers more than 95% of reads
-  static constexpr size_t inline_storage = 16;
-
-  small_vector<struct ::iovec, inline_storage> buf;
-  small_vector<block_range, inline_storage> ranges;
-};
+template <typename T, size_t N>
+using small_vector = folly::small_vector<T, N>;
+// using small_vector = boost::container::small_vector<T, N>;
 
 } // namespace dwarfs

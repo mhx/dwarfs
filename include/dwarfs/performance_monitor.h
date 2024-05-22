@@ -31,7 +31,7 @@
 #include <string>
 #include <unordered_set>
 
-#include <folly/small_vector.h>
+#include <dwarfs/small_vector.h>
 
 namespace dwarfs {
 
@@ -95,7 +95,7 @@ class performance_monitor_proxy {
     performance_monitor::timer_id id_;
     performance_monitor::time_type start_;
     std::optional<
-        folly::small_vector<uint64_t, performance_monitor::kNumInlineContext>>
+        small_vector<uint64_t, performance_monitor::kNumInlineContext>>
         context_;
   };
 

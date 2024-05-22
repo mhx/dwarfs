@@ -30,7 +30,8 @@
 #include <vector>
 
 #include <folly/container/EvictingCacheMap.h>
-#include <folly/small_vector.h>
+
+#include <dwarfs/small_vector.h>
 
 namespace dwarfs {
 
@@ -153,7 +154,7 @@ class basic_offset_cache {
     std::span<file_offset_type const> offsets() const { return offsets_; }
 
    private:
-    folly::small_vector<file_offset_type, max_inline_offsets> offsets_;
+    small_vector<file_offset_type, max_inline_offsets> offsets_;
     chunk_index_type first_index_{0};
   };
 
