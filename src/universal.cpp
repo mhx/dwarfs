@@ -28,8 +28,11 @@
 #include <vector>
 
 #include <folly/String.h>
-#include <folly/gen/String.h>
 #include <folly/portability/Windows.h>
+
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/safe_main.h>
 #include <dwarfs/tool.h>
@@ -85,11 +88,8 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // nope, just print the help
 
-  using namespace folly::gen;
-
-  // TODO: C++23
-  // auto tools = std::views::keys(functions) | std::views::join_with(", ");
-  auto tools = from(functions) | get<0>() | unsplit(", ");
+  auto tools = ranges::views::keys(functions) | ranges::views::join(", ") |
+               ranges::to<std::string>;
 
   // clang-format off
   std::cout << tool_header("dwarfs-universal")

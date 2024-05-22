@@ -816,7 +816,8 @@ if(WITH_UNIVERSAL_BINARY)
   add_executable(dwarfsuniversal src/universal.cpp)
   list(APPEND BINARY_TARGETS dwarfsuniversal)
 
-  target_link_libraries(dwarfsuniversal PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+  target_link_libraries(dwarfsuniversal PRIVATE
+          mkdwarfs_main dwarfsck_main dwarfsextract_main range-v3::range-v3)
   set_target_properties(dwarfsuniversal PROPERTIES
           RUNTIME_OUTPUT_DIRECTORY universal
           OUTPUT_NAME dwarfs-universal)
