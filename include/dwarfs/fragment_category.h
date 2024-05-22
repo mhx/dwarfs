@@ -27,8 +27,6 @@
 #include <limits>
 #include <ostream>
 
-#include <folly/hash/Hash.h>
-
 #include <fmt/format.h>
 
 namespace dwarfs {
@@ -96,9 +94,7 @@ class fragment_category {
 
   auto operator<=>(fragment_category const&) const = default;
 
-  size_t hash() const {
-    return folly::hash::hash_combine(value_, subcategory_);
-  }
+  size_t hash() const;
 
  private:
   value_type value_{uninitialized};
