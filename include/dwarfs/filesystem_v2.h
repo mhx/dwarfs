@@ -37,7 +37,6 @@
 #include <nlohmann/json.hpp>
 
 #include "dwarfs/block_range.h"
-#include "dwarfs/fstypes.h"
 #include "dwarfs/metadata_types.h"
 #include "dwarfs/options.h"
 #include "dwarfs/types.h"
