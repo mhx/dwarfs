@@ -34,8 +34,11 @@
 #include <fmt/format.h>
 
 #include <folly/Function.h>
-#include <folly/String.h>
-#include <folly/gen/String.h>
+
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/all.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <dwarfs/block_merger.h>
 #include <dwarfs/terminal.h>
@@ -194,12 +197,13 @@ class multi_queue_block_merger_impl : public block_merger_base,
         continue;
       }
 
-      auto const queued_sizes = folly::join(
-          ", ", folly::gen::from(q) | folly::gen::map([this](auto const& blk) {
-                  return blk.has_value()
-                             ? std::to_string(this->block_size(*blk))
-                             : "&";
-                }) | folly::gen::as<std::vector<std::string>>());
+      auto const queued_sizes =
+          ranges::views::all(q) |
+          ranges::views::transform([this](auto const& blk) {
+            return blk.has_value() ? std::to_string(this->block_size(*blk))
+                                   : "&";
+          }) |
+          ranges::views::join(", ") | ranges::to<std::string>();
 
       auto const text =
           fmt::format("blocks({}): {} -> {}", src, q.size(), queued_sizes);
