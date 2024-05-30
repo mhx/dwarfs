@@ -1,5 +1,18 @@
 # Change Log
 
+## Version 0.9.10 - 2024-05-30
+
+- (fix) When cloning LZMA compressor objects, the LZMA filter options
+  of the cloned instance would still point to an options object in the
+  original instance. This could lead to LZMA errors when initializing
+  a new compressor. Fixes github #224.
+
+- (fix) Fetch range-v3 if no suitable version is found. Fixes github #221.
+
+- (fix) Filter rules did not work correctly when input is root dir
+
+- (fix) `duf` reports odd sizes due to using `bsize` instead of `frsize`
+
 ## Version 0.9.9 - 2024-04-30
 
 - (fix) A bug introduced by an optimization to skip hashing of large
