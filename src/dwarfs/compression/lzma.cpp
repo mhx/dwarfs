@@ -142,8 +142,10 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
                                 const lzma_filter* filters) const {
   lzma_stream s = LZMA_STREAM_INIT;
 
-  if (lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64)) {
-    DWARFS_THROW(runtime_error, "lzma_stream_encoder");
+  if (auto ret = lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64);
+      ret != LZMA_OK) {
+    DWARFS_THROW(runtime_error, fmt::format("lzma_stream_encoder: {}",
+                                            lzma_error_string(ret)));
   }
 
   lzma_action action = LZMA_FINISH;
@@ -205,9 +207,10 @@ class lzma_block_decompressor final : public block_decompressor::impl {
       , uncompressed_size_(get_uncompressed_size(data, size)) {
     stream_.next_in = data;
     stream_.avail_in = size;
-    if (lzma_stream_decoder(&stream_, UINT64_MAX, LZMA_CONCATENATED) !=
-        LZMA_OK) {
-      DWARFS_THROW(runtime_error, "lzma_stream_decoder");
+    if (auto ret = lzma_stream_decoder(&stream_, UINT64_MAX, LZMA_CONCATENATED);
+        ret != LZMA_OK) {
+      DWARFS_THROW(runtime_error, fmt::format("lzma_stream_decoder: {}",
+                                              lzma_error_string(ret)));
     }
     try {
       decompressed_.reserve(uncompressed_size_);
@@ -294,8 +297,10 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_stream_flags footer_flags;
 
-  if (lzma_stream_footer_decode(&footer_flags, data + pos) != LZMA_OK) {
-    DWARFS_THROW(runtime_error, "lzma_stream_footer_decode()");
+  if (auto ret = lzma_stream_footer_decode(&footer_flags, data + pos);
+      ret != LZMA_OK) {
+    DWARFS_THROW(runtime_error, fmt::format("lzma_stream_footer_decode: {}",
+                                            lzma_error_string(ret)));
   }
 
   lzma_vli index_size = footer_flags.backward_size;
@@ -306,8 +311,9 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
   pos -= index_size;
   lzma_index* index = NULL;
 
-  if (lzma_index_decoder(&s, &index, UINT64_MAX) != LZMA_OK) {
-    DWARFS_THROW(runtime_error, "lzma_index_decoder()");
+  if (auto ret = lzma_index_decoder(&s, &index, UINT64_MAX); ret != LZMA_OK) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("lzma_index_decoder: {}", lzma_error_string(ret)));
   }
 
   s.avail_in = index_size;
