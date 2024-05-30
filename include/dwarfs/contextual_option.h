@@ -55,8 +55,11 @@ class contextual_option {
   contextual_option() = default;
   explicit contextual_option(value_type const& def)
       : default_{def} {}
+  explicit contextual_option(value_type&& def)
+      : default_{std::move(def)} {}
 
   void set_default(value_type const& val) { default_ = val; }
+  void set_default(value_type&& val) { default_ = std::move(val); }
 
   bool add_contextual(
       context_type const& ctx, value_type const& val,
