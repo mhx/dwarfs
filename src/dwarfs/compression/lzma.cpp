@@ -116,14 +116,15 @@ class lzma_block_compressor final : public block_compressor::impl {
   }
 
   lzma_options_lzma opt_lzma_;
-  std::array<lzma_filter, 3> filters_;
+  lzma_vli binary_vli_;
   std::string description_;
 };
 
 lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
                                              const std::string& binary_mode,
                                              unsigned dict_size)
-    : description_{
+    : binary_vli_{get_vli(binary_mode)}
+    , description_{
           fmt::format("lzma [level={}, dict_size={}{}{}]", level, dict_size,
                       extreme ? ", extreme" : "",
                       binary_mode.empty() ? "" : ", binary=" + binary_mode)} {
@@ -134,13 +135,6 @@ lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
   if (dict_size > 0) {
     opt_lzma_.dict_size = 1 << dict_size;
   }
-
-  filters_[0].id = get_vli(binary_mode);
-  filters_[0].options = NULL;
-  filters_[1].id = LZMA_FILTER_LZMA2;
-  filters_[1].options = &opt_lzma_;
-  filters_[2].id = LZMA_VLI_UNKNOWN;
-  filters_[2].options = NULL;
 }
 
 std::vector<uint8_t>
@@ -184,10 +178,15 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 std::vector<uint8_t>
 lzma_block_compressor::compress(const std::vector<uint8_t>& data,
                                 std::string const* /*metadata*/) const {
-  std::vector<uint8_t> best = compress(data, &filters_[1]);
+  auto lzma_opts = opt_lzma_;
+  std::array<lzma_filter, 3> filters{{{binary_vli_, NULL},
+                                      {LZMA_FILTER_LZMA2, &lzma_opts},
+                                      {LZMA_VLI_UNKNOWN, NULL}}};
 
-  if (filters_[0].id != LZMA_VLI_UNKNOWN) {
-    std::vector<uint8_t> compressed = compress(data, &filters_[0]);
+  std::vector<uint8_t> best = compress(data, &filters[1]);
+
+  if (filters[0].id != LZMA_VLI_UNKNOWN) {
+    std::vector<uint8_t> compressed = compress(data, &filters[0]);
 
     if (compressed.size() < best.size()) {
       best.swap(compressed);
