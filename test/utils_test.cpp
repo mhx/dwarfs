@@ -243,7 +243,7 @@ find_file_position(cache_type::inode_type const inode,
     upd.add_offset(++chunk_index, chunk_offset);
   }
 
-  if (ent) {
+  if (cache) {
     ent->update(upd, chunk_index, chunk_offset, *it);
     cache->set(inode, ent);
   }
