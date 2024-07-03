@@ -93,7 +93,7 @@ jobs:
       - name: Install packages
         run: |
           brew install  \
-          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog pkg-config ccache
+          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog ccache
 
       - name: Checkout
         uses: actions/checkout@v4
