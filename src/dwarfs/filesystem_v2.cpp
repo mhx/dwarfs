@@ -623,6 +623,21 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
                                         filesystem_writer& writer,
                                         category_resolver const& cat_resolver,
                                         rewrite_options const& opts) const {
+  LOG_VERBOSE << "rewriting filesystem...";
+  LOG_VERBOSE << "  recompressing blocks: " << opts.recompress_block;
+  LOG_VERBOSE << "  recompressing metadata: " << opts.recompress_metadata;
+  LOG_VERBOSE << "  recompressing categories: "
+              << (opts.recompress_categories.empty() ? "all"
+                                                     : fmt::format(
+                                                           "{}{}",
+                                                           opts.recompress_categories_exclude
+                                                               ? "all except "
+                                                               : "",
+                                                           fmt::join(
+                                                               opts.recompress_categories,
+                                                               ", ")));
+  LOG_VERBOSE << "  enable history: " << opts.enable_history;
+
   filesystem_parser parser(mm_, image_offset_);
 
   if (opts.recompress_block) {
@@ -703,7 +718,7 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
     switch (s->type()) {
     case section_type::BLOCK: {
       std::optional<fragment_category::value_type> cat;
-      bool recompress_block{true};
+      bool recompress_block{false};
 
       if (opts.recompress_block) {
         auto catstr = meta_.get_block_category(block_no);

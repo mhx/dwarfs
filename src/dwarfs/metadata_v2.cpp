@@ -1305,6 +1305,7 @@ thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
 
   auto meta = meta_.thaw();
 
+#if 0
   if (auto opts = meta.options()) {
     if (opts->packed_chunk_table().value()) {
       meta.chunk_table() = chunk_table_;
@@ -1327,6 +1328,7 @@ thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
     opts->packed_directories() = false;
     opts->packed_shared_files_table() = false;
   }
+#endif
 
   return meta;
 }
@@ -1338,7 +1340,8 @@ std::string metadata_<LoggerPolicy>::serialize_as_json(bool simple) const {
     apache::thrift::SimpleJSONSerializer serializer;
     serializer.serialize(unpack_metadata(), &json);
   } else {
-    apache::thrift::JSONSerializer serializer;
+    // apache::thrift::JSONSerializer serializer;
+    apache::thrift::BinarySerializer serializer;
     serializer.serialize(unpack_metadata(), &json);
   }
   return json;

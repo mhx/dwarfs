@@ -810,9 +810,10 @@ add_library(dwarfsextract_main src/dwarfsextract_main.cpp)
 
 add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
+add_executable(playground src/playground.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
 add_executable(dwarfsextract src/dwarfsextract.cpp)
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract playground)
 
 if(WITH_UNIVERSAL_BINARY)
   add_executable(dwarfsuniversal src/universal.cpp)
@@ -1256,6 +1257,7 @@ target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer "$<LINK_
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor PkgConfig::LIBARCHIVE)
 target_link_libraries(dwarfsbench_main PRIVATE dwarfs_extractor)
+target_link_libraries(playground PRIVATE dwarfs_reader dwarfs_writer)
 
 target_link_libraries(mkdwarfs PRIVATE mkdwarfs_main)
 target_link_libraries(dwarfsck PRIVATE dwarfsck_main)
