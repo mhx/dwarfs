@@ -444,28 +444,27 @@ endif()
 add_library(dwarfs_folly_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Dwarf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfImpl.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfLineNumberVM.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfSection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Elf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/ElfCache.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/LineReader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SignalHandler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/StackTrace.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeCommon.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeSse42.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SimpleSimdStringUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/io/FsUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfSection.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/LineReader.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Dwarf.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfImpl.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfLineNumberVM.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/DwarfUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Elf.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/ElfCache.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SignalHandler.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/StackTrace.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SymbolizePrinter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/SymbolizedFrame.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/symbolizer/Symbolizer.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/TestUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/FsUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
@@ -494,6 +493,7 @@ add_library(dwarfs_folly_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
@@ -1228,8 +1228,8 @@ endif(NOT STATIC_BUILD_DO_NOT_USE)
 if(DWARFS_USE_EXCEPTION_TRACER)
   add_library(
     dwarfs_folly_exception_tracer_base_lite
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/ExceptionTracer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/experimental/exception_tracer/StackTrace.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/exception_tracer/ExceptionTracer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/exception_tracer/StackTrace.cpp
   )
   set_property(TARGET dwarfs_folly_exception_tracer_base_lite PROPERTY CXX_STANDARD 20)
   apply_folly_compile_options_to_target(dwarfs_folly_exception_tracer_base_lite)
