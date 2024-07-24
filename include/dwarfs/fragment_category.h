@@ -121,7 +121,7 @@ operator<<(std::ostream& os, fragment_category const& cat) {
 template <>
 struct fmt::formatter<dwarfs::fragment_category> : formatter<std::string> {
   template <typename FormatContext>
-  auto format(dwarfs::fragment_category const& cat, FormatContext& ctx) {
+  auto format(dwarfs::fragment_category const& cat, FormatContext& ctx) const {
     if (cat) {
       if (cat.has_subcategory()) {
         return formatter<std::string>::format(

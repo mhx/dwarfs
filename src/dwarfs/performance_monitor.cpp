@@ -39,6 +39,9 @@
 #include <folly/stats/Histogram.h>
 
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <dwarfs/file_access.h>
 #include <dwarfs/performance_monitor.h>

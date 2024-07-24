@@ -23,6 +23,9 @@
 #include <vector>
 
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <folly/String.h>
 
