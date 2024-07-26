@@ -139,7 +139,7 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
 
   for (unsigned i = 0; i < iters; ++i) {
     dwarfs::test::test_logger lgr;
-    dwarfs::progress prog([](dwarfs::progress const&, bool) {}, 1000);
+    dwarfs::progress prog;
     auto blkmgr = std::make_shared<dwarfs::block_manager>();
 
     std::vector<std::shared_ptr<dwarfs::block_data>> written;

@@ -30,10 +30,15 @@
 
 namespace dwarfs {
 
-progress::progress(folly::Function<void(progress&, bool)>&& func,
-                   unsigned interval_ms)
+progress::progress() {}
+
+progress::progress(update_function_type func)
+    : progress(std::move(func), std::chrono::seconds(1)) {}
+
+progress::progress(update_function_type func,
+                   std::chrono::microseconds interval)
     : running_(true)
-    , thread_([this, interval_ms, func = std::move(func)]() mutable {
+    , thread_([this, interval, func = std::move(func)]() mutable {
       folly::setThreadName("progress");
 #ifdef _WIN32
       ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
@@ -41,21 +46,23 @@ progress::progress(folly::Function<void(progress&, bool)>&& func,
       std::unique_lock lock(running_mx_);
       while (running_) {
         func(*this, false);
-        cond_.wait_for(lock, std::chrono::milliseconds(interval_ms));
+        cond_.wait_for(lock, interval);
       }
       func(*this, true);
     }) {
 }
 
 progress::~progress() noexcept {
-  try {
-    {
-      std::lock_guard lock(running_mx_);
-      running_ = false;
+  if (running_) {
+    try {
+      {
+        std::lock_guard lock(running_mx_);
+        running_ = false;
+      }
+      cond_.notify_all();
+      thread_.join();
+    } catch (...) {
     }
-    cond_.notify_all();
-    thread_.join();
-  } catch (...) {
   }
 }
 

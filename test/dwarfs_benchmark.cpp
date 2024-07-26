@@ -120,7 +120,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   auto os = test::os_access_mock::create_test_instance();
 
   worker_group wg(lgr, *os, "writer", 4);
-  progress prog([](const progress&, bool) {}, 1000);
+  progress prog;
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 

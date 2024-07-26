@@ -78,7 +78,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
 
   std::unique_ptr<progress> local_prog;
   if (!prog) {
-    local_prog = std::make_unique<progress>([](const progress&, bool) {}, 1000);
+    local_prog = std::make_unique<progress>();
     prog = local_prog.get();
   }
 
@@ -161,7 +161,7 @@ void basic_end_to_end_test(std::string const& compressor,
     input->set_access_fail("/somedir/ipsum.py");
   }
 
-  auto prog = progress([](const progress&, bool) {}, 1000);
+  progress prog;
 
   auto scr = std::make_shared<test::script_mock>();
 
@@ -928,7 +928,7 @@ class filter_test
       debug_filter_output(oss, exclude, pe, mode);
     };
 
-    progress prog([](const progress&, bool) {}, 1000);
+    progress prog;
     worker_group wg(lgr, *input, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});

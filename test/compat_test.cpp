@@ -1115,7 +1115,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   worker_group wg(lgr, os, "rewriter", 2);
   block_compressor bc("null");
-  progress prog([](const progress&, bool) {}, 1000);
+  progress prog;
   std::ostringstream rewritten, idss;
 
   auto rewrite_fs = [&](auto& fsw, auto const& mm) {

@@ -26,14 +26,13 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iosfwd>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
 #include <vector>
-
-#include <folly/Function.h>
 
 #include <dwarfs/speedometer.h>
 #include <dwarfs/terminal.h>
@@ -63,10 +62,15 @@ class progress {
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
 
-  using status_function_type =
-      folly::Function<std::string(progress const&, size_t) const>;
+  using update_function_type = std::function<void(progress&, bool)>;
 
-  progress(folly::Function<void(progress&, bool)>&& func, unsigned interval_ms);
+  using status_function_type =
+      std::function<std::string(progress const&, size_t)>;
+
+  progress();
+  explicit progress(update_function_type func);
+  progress(update_function_type func, std::chrono::microseconds interval);
+
   ~progress() noexcept;
 
   void set_status_function(status_function_type status_fun);
@@ -149,7 +153,7 @@ class progress {
   void add_context(std::shared_ptr<context> const& ctx) const;
 
   mutable std::mutex running_mx_;
-  bool running_;
+  bool running_{false};
   mutable std::mutex mx_;
   std::condition_variable cond_;
   std::shared_ptr<status_function_type> status_fun_;

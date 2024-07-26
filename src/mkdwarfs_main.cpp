@@ -369,6 +369,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace folly::gen;
+  using namespace std::chrono_literals;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
@@ -1062,10 +1063,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  unsigned interval_ms =
+  auto interval =
       pg_mode == console_writer::NONE || pg_mode == console_writer::SIMPLE
-          ? 2000
-          : 200;
+          ? 2000ms
+          : 200ms;
 
   filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
@@ -1088,7 +1089,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
-  folly::Function<void(progress&, bool)> updater;
+  progress::update_function_type updater;
 
   if (options.debug_filter_function) {
     updater = [](progress&, bool) {};
@@ -1096,7 +1097,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     updater = [&](progress& p, bool last) { lgr.update(p, last); };
   }
 
-  progress prog(std::move(updater), interval_ms);
+  progress prog(std::move(updater), interval);
 
   // No more streaming to iol.err after this point as this would
   // cause a race with the progress thread.
