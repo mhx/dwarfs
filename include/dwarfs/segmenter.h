@@ -22,10 +22,9 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <vector>
-
-#include <folly/Function.h>
 
 namespace dwarfs {
 
@@ -48,8 +47,8 @@ class segmenter {
     unsigned block_size_bits{22};
   };
 
-  using block_ready_cb = folly::Function<void(std::shared_ptr<block_data>,
-                                              size_t logical_block_num)>;
+  using block_ready_cb = std::function<void(std::shared_ptr<block_data>,
+                                            size_t logical_block_num)>;
 
   segmenter(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
             config const& cfg, compression_constraints const& cc,
