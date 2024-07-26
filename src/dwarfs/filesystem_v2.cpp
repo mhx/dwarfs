@@ -425,6 +425,8 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
   int getattr(inode_view entry, file_stat* stbuf) const override;
+  file_stat getattr(inode_view entry, std::error_code& ec) const override;
+  file_stat getattr(inode_view entry) const override;
   int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
   std::optional<std::pair<inode_view, std::string>>
@@ -495,6 +497,8 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(find_inode)
   PERFMON_CLS_TIMER_DECL(find_inode_name)
   PERFMON_CLS_TIMER_DECL(getattr)
+  PERFMON_CLS_TIMER_DECL(getattr_ec)
+  PERFMON_CLS_TIMER_DECL(getattr_throw)
   PERFMON_CLS_TIMER_DECL(access)
   PERFMON_CLS_TIMER_DECL(opendir)
   PERFMON_CLS_TIMER_DECL(readdir)
@@ -575,6 +579,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(find_inode)
     PERFMON_CLS_TIMER_INIT(find_inode_name)
     PERFMON_CLS_TIMER_INIT(getattr)
+    PERFMON_CLS_TIMER_INIT(getattr_ec)
+    PERFMON_CLS_TIMER_INIT(getattr_throw)
     PERFMON_CLS_TIMER_INIT(access)
     PERFMON_CLS_TIMER_INIT(opendir)
     PERFMON_CLS_TIMER_INIT(readdir)
@@ -1047,6 +1053,20 @@ int filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                        file_stat* stbuf) const {
   PERFMON_CLS_SCOPED_SECTION(getattr)
   return meta_.getattr(entry, stbuf);
+}
+
+template <typename LoggerPolicy>
+file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
+                                             std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr_ec)
+  return call_int_error<file_stat>(
+      [&](auto& stbuf) { return getattr(entry, &stbuf); }, ec);
+}
+
+template <typename LoggerPolicy>
+file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr_throw)
+  return call_ec_throw([&](std::error_code& ec) { return getattr(entry, ec); });
 }
 
 template <typename LoggerPolicy>
