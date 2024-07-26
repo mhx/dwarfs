@@ -26,7 +26,7 @@
 
 #include <fmt/format.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class block_merger_base {
  public:
@@ -112,4 +112,4 @@ class block_merger {
   virtual void finish(source_type src) = 0;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

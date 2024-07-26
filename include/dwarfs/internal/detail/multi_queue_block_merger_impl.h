@@ -40,10 +40,10 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
 
-#include <dwarfs/block_merger.h>
+#include <dwarfs/internal/block_merger.h>
 #include <dwarfs/terminal.h>
 
-namespace dwarfs::detail {
+namespace dwarfs::internal::detail {
 
 template <typename SourceT, typename BlockT, typename BlockPolicy>
 class multi_queue_block_merger_impl : public block_merger_base,
@@ -312,4 +312,4 @@ class multi_queue_block_merger_impl : public block_merger_base,
   on_block_merged_callback_type on_block_merged_callback_;
 };
 
-} // namespace dwarfs::detail
+} // namespace dwarfs::internal::detail

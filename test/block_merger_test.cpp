@@ -36,7 +36,7 @@
 #include <folly/String.h>
 #include <folly/Synchronized.h>
 
-#include <dwarfs/multi_queue_block_merger.h>
+#include <dwarfs/internal/multi_queue_block_merger.h>
 
 using namespace dwarfs;
 
@@ -107,10 +107,10 @@ class sized_block_merger_policy {
 template <typename BlockT>
 struct timed_release_block {
   std::chrono::steady_clock::time_point when;
-  merged_block_holder<BlockT> holder;
+  internal::merged_block_holder<BlockT> holder;
 
   timed_release_block(std::chrono::steady_clock::time_point when,
-                      merged_block_holder<BlockT>&& holder)
+                      internal::merged_block_holder<BlockT>&& holder)
       : when{when}
       , holder{std::move(holder)} {}
 
@@ -266,7 +266,7 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
   synchronized<std::vector<timed_release_block<BlockT>>> merged_queue;
   std::vector<BlockT> merged;
 
-  auto merge_cb = [&](merged_block_holder<BlockT> holder) {
+  auto merge_cb = [&](internal::merged_block_holder<BlockT> holder) {
     merged.emplace_back(std::move(holder.value()));
 
     if (use_merged_queue) {
@@ -306,7 +306,7 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
     while (running || !merged_queue.rlock()->empty()) {
       auto now = std::chrono::steady_clock::now();
       std::chrono::steady_clock::time_point next;
-      std::vector<merged_block_holder<BlockT>> holders;
+      std::vector<internal::merged_block_holder<BlockT>> holders;
 
       merged_queue.withWLock([&](auto&& q) {
         while (!q.empty()) {
@@ -326,7 +326,7 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
       });
 
       if constexpr (PartialRelease) {
-        std::vector<merged_block_holder<BlockT>> partial;
+        std::vector<internal::merged_block_holder<BlockT>> partial;
 
         for (auto& h : holders) {
           if (partial_release_repeat_dist(partial_rng) > 0) {
@@ -467,7 +467,7 @@ block_merger_test(size_t const max_runs) {
 } // namespace
 
 TEST(block_merger, random) {
-  using merger_type = dwarfs::multi_queue_block_merger<size_t, block>;
+  using merger_type = dwarfs::internal::multi_queue_block_merger<size_t, block>;
 
   auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
 
@@ -477,8 +477,8 @@ TEST(block_merger, random) {
 
 TEST(block_merger, random_sized) {
   using merger_type =
-      dwarfs::multi_queue_block_merger<size_t, sized_block,
-                                       sized_block_merger_policy>;
+      dwarfs::internal::multi_queue_block_merger<size_t, sized_block,
+                                                 sized_block_merger_policy>;
 
   auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
 
@@ -488,8 +488,8 @@ TEST(block_merger, random_sized) {
 
 TEST(block_merger, random_sized_partial) {
   using merger_type =
-      dwarfs::multi_queue_block_merger<size_t, sized_block,
-                                       sized_block_merger_policy>;
+      dwarfs::internal::multi_queue_block_merger<size_t, sized_block,
+                                                 sized_block_merger_policy>;
 
   auto [passes, fails] = block_merger_test<merger_type, true>(max_runs_partial);
 

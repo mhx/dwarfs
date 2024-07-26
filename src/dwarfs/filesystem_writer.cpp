@@ -39,8 +39,8 @@
 #include <dwarfs/compression_metadata_requirements.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/internal/multi_queue_block_merger.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/multi_queue_block_merger.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
 #include <dwarfs/worker_group.h>
@@ -556,9 +556,8 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   size_t size() const override { return image_size_; }
 
  private:
-  using block_merger_type =
-      multi_queue_block_merger<fragment_category, std::unique_ptr<fsblock>,
-                               fsblock_merger_policy>;
+  using block_merger_type = internal::multi_queue_block_merger<
+      fragment_category, std::unique_ptr<fsblock>, fsblock_merger_policy>;
   using block_holder_type = block_merger_type::block_holder_type;
 
   block_compressor const&

@@ -27,10 +27,10 @@
 
 #include <folly/Function.h>
 
-#include <dwarfs/block_merger.h>
-#include <dwarfs/detail/multi_queue_block_merger_impl.h>
+#include <dwarfs/internal/block_merger.h>
+#include <dwarfs/internal/detail/multi_queue_block_merger_impl.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class block_merger_whole_block_policy {
  public:
@@ -152,4 +152,4 @@ class multi_queue_block_merger : public block_merger<SourceT, BlockT> {
   std::unique_ptr<state> state_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
