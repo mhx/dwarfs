@@ -29,8 +29,9 @@
 #include <variant>
 
 #include <fmt/format.h>
-
-#include <folly/String.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <dwarfs/conv.h>
 #include <dwarfs/match.h>
@@ -64,7 +65,7 @@ class integral_value_parser {
                    if (auto it = choices.find(val); it == choices.end()) {
                      throw std::range_error(
                          fmt::format("invalid value {}, must be one of [{}]",
-                                     val, folly::join(", ", choices)));
+                                     val, fmt::join(choices, ", ")));
                    }
                  },
                  [val](std::function<bool(T)> const& check) {
