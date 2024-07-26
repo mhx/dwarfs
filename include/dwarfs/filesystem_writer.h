@@ -23,13 +23,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <ostream>
 #include <span>
 #include <utility>
 #include <vector>
-
-#include <folly/Function.h>
 
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/fragment_category.h>
@@ -48,7 +47,7 @@ class worker_group;
 
 class filesystem_writer {
  public:
-  using physical_block_cb_type = folly::Function<void(size_t)>;
+  using physical_block_cb_type = std::function<void(size_t)>;
 
   filesystem_writer(
       std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
