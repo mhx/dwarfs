@@ -90,7 +90,6 @@
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/metadata_v2.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
