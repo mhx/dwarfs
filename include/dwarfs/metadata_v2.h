@@ -32,8 +32,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/Expected.h>
-
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/metadata_types.h>
@@ -128,11 +126,6 @@ class metadata_v2 {
     return impl_->readlink(iv, buf, mode);
   }
 
-  folly::Expected<std::string, int>
-  readlink(inode_view iv, readlink_mode mode) const {
-    return impl_->readlink(iv, mode);
-  }
-
   int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
 
   std::optional<chunk_range> get_chunks(int inode) const {
@@ -207,9 +200,6 @@ class metadata_v2 {
 
     virtual int
     readlink(inode_view iv, std::string* buf, readlink_mode mode) const = 0;
-
-    virtual folly::Expected<std::string, int>
-    readlink(inode_view iv, readlink_mode mode) const = 0;
 
     virtual int statvfs(vfs_stat* stbuf) const = 0;
 

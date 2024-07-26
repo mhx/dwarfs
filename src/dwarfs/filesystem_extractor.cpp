@@ -364,9 +364,10 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     ::archive_entry_copy_stat(ae, &st);
 
     if (inode.is_symlink()) {
-      std::string link;
-      if (fs.readlink(inode, &link) != 0) {
-        LOG_ERROR << "readlink() failed";
+      std::error_code ec;
+      auto link = fs.readlink(inode, ec);
+      if (ec) {
+        LOG_ERROR << "readlink() failed: " << ec.message();
       }
       if (opts.progress) {
         bytes_written += link.size();

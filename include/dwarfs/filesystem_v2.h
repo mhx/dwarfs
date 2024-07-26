@@ -30,6 +30,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #include <folly/Expected.h>
@@ -37,6 +38,7 @@
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/block_range.h>
+#include <dwarfs/file_stat.h>
 #include <dwarfs/metadata_types.h>
 #include <dwarfs/options.h>
 #include <dwarfs/types.h>
@@ -44,7 +46,6 @@
 namespace dwarfs {
 
 struct iovec_read_buf;
-struct file_stat;
 struct vfs_stat;
 
 class category_resolver;
@@ -139,9 +140,17 @@ class filesystem_v2 {
     return impl_->readlink(entry, buf, mode);
   }
 
-  folly::Expected<std::string, int>
-  readlink(inode_view entry,
-           readlink_mode mode = readlink_mode::preferred) const {
+  std::string
+  readlink(inode_view entry, readlink_mode mode, std::error_code& ec) const {
+    return impl_->readlink(entry, mode, ec);
+  }
+
+  std::string readlink(inode_view entry, std::error_code& ec) const {
+    return impl_->readlink(entry, readlink_mode::preferred, ec);
+  }
+
+  std::string readlink(inode_view entry,
+                       readlink_mode mode = readlink_mode::preferred) const {
     return impl_->readlink(entry, mode);
   }
 
@@ -229,7 +238,9 @@ class filesystem_v2 {
     virtual size_t dirsize(directory_view dir) const = 0;
     virtual int
     readlink(inode_view entry, std::string* buf, readlink_mode mode) const = 0;
-    virtual folly::Expected<std::string, int>
+    virtual std::string readlink(inode_view entry, readlink_mode mode,
+                                 std::error_code& ec) const = 0;
+    virtual std::string
     readlink(inode_view entry, readlink_mode mode) const = 0;
     virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;

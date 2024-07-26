@@ -499,9 +499,6 @@ class metadata_ final : public metadata_v2::impl {
   int readlink(inode_view iv, std::string* buf,
                readlink_mode mode) const override;
 
-  folly::Expected<std::string, int>
-  readlink(inode_view iv, readlink_mode mode) const override;
-
   int statvfs(vfs_stat* stbuf) const override;
 
   std::optional<chunk_range> get_chunks(int inode) const override;
@@ -1693,16 +1690,6 @@ int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf,
   }
 
   return -EINVAL;
-}
-
-template <typename LoggerPolicy>
-folly::Expected<std::string, int>
-metadata_<LoggerPolicy>::readlink(inode_view iv, readlink_mode mode) const {
-  if (iv.is_symlink()) {
-    return link_value(iv, mode);
-  }
-
-  return folly::makeUnexpected(-EINVAL);
 }
 
 template <typename LoggerPolicy>

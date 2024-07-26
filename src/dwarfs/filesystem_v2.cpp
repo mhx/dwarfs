@@ -75,6 +75,28 @@ void check_section_logger(logger& lgr, fs_section const& section) {
   }
 }
 
+template <typename Fn>
+auto call_ec_throw(Fn&& fn) {
+  std::error_code ec;
+  auto result = std::forward<Fn>(fn)(ec);
+  if (ec) {
+    throw std::system_error(ec);
+  }
+  return result;
+}
+
+template <typename R, typename Fn>
+R call_int_error(Fn&& fn, std::error_code& ec) {
+  R res;
+  auto err = std::forward<Fn>(fn)(res);
+  if (err < 0) {
+    ec = std::error_code{-err, std::system_category()};
+  } else {
+    ec.clear();
+  }
+  return res;
+}
+
 class filesystem_parser {
  private:
   static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
@@ -410,8 +432,9 @@ class filesystem_ final : public filesystem_v2::impl {
   size_t dirsize(directory_view dir) const override;
   int readlink(inode_view entry, std::string* buf,
                readlink_mode mode) const override;
-  folly::Expected<std::string, int>
-  readlink(inode_view entry, readlink_mode mode) const override;
+  std::string readlink(inode_view entry, readlink_mode mode,
+                       std::error_code& ec) const override;
+  std::string readlink(inode_view entry, readlink_mode mode) const override;
   int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
   ssize_t read(uint32_t inode, char* buf, size_t size,
@@ -447,6 +470,8 @@ class filesystem_ final : public filesystem_v2::impl {
  private:
   filesystem_info const& get_info() const;
   void check_section(fs_section const& section) const;
+  std::string
+  readlink_ec(inode_view entry, readlink_mode mode, std::error_code& ec) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   os_access const& os_;
@@ -469,7 +494,8 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(dirsize)
   PERFMON_CLS_TIMER_DECL(readlink)
-  PERFMON_CLS_TIMER_DECL(readlink_expected)
+  PERFMON_CLS_TIMER_DECL(readlink_ec)
+  PERFMON_CLS_TIMER_DECL(readlink_throw)
   PERFMON_CLS_TIMER_DECL(statvfs)
   PERFMON_CLS_TIMER_DECL(open)
   PERFMON_CLS_TIMER_DECL(read)
@@ -547,7 +573,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readdir)
     PERFMON_CLS_TIMER_INIT(dirsize)
     PERFMON_CLS_TIMER_INIT(readlink)
-    PERFMON_CLS_TIMER_INIT(readlink_expected)
+    PERFMON_CLS_TIMER_INIT(readlink_ec)
+    PERFMON_CLS_TIMER_INIT(readlink_throw)
     PERFMON_CLS_TIMER_INIT(statvfs)
     PERFMON_CLS_TIMER_INIT(open)
     PERFMON_CLS_TIMER_INIT(read)
@@ -1049,11 +1076,27 @@ int filesystem_<LoggerPolicy>::readlink(inode_view entry, std::string* buf,
 }
 
 template <typename LoggerPolicy>
-folly::Expected<std::string, int>
-filesystem_<LoggerPolicy>::readlink(inode_view entry,
-                                    readlink_mode mode) const {
-  PERFMON_CLS_SCOPED_SECTION(readlink_expected)
-  return meta_.readlink(entry, mode);
+std::string
+filesystem_<LoggerPolicy>::readlink_ec(inode_view entry, readlink_mode mode,
+                                       std::error_code& ec) const {
+  return call_int_error<std::string>(
+      [&](auto& buf) { return meta_.readlink(entry, &buf, mode); }, ec);
+}
+
+template <typename LoggerPolicy>
+std::string
+filesystem_<LoggerPolicy>::readlink(inode_view entry, readlink_mode mode,
+                                    std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink_ec)
+  return readlink_ec(entry, mode, ec);
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::readlink(inode_view entry,
+                                                readlink_mode mode) const {
+  PERFMON_CLS_SCOPED_SECTION(readlink_throw)
+  return call_ec_throw(
+      [&](std::error_code& ec) { return readlink_ec(entry, mode, ec); });
 }
 
 template <typename LoggerPolicy>

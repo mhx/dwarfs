@@ -85,7 +85,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
 
     if (verbose) {
       if (iv.is_symlink()) {
-        auto target = fs.readlink(iv).value();
+        auto target = fs.readlink(iv);
         utf8_sanitize(target);
         name += " -> " + target;
       }

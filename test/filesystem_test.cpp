@@ -102,17 +102,30 @@ TEST(filesystem, metadata_symlink_win) {
     EXPECT_EQ(-EINVAL, fs.readlink(*i3, &buffer));
   }
 
-  // also test expected interface
+  // also test error_code interface
   {
-    auto r = fs.readlink(*i1, readlink_mode::unix);
-    EXPECT_TRUE(r);
-    EXPECT_EQ("subdir/test.txt", *r);
+    std::error_code ec;
+    auto r = fs.readlink(*i1, readlink_mode::unix, ec);
+    EXPECT_FALSE(ec);
+    EXPECT_EQ("subdir/test.txt", r);
   }
 
   {
-    auto r = fs.readlink(*i3);
-    EXPECT_FALSE(r);
-    EXPECT_EQ(-EINVAL, r.error());
+    std::error_code ec;
+    auto r = fs.readlink(*i3, ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(EINVAL, ec.value());
+  }
+
+  // also test throwing interface
+  {
+    auto r = fs.readlink(*i1, readlink_mode::unix);
+    EXPECT_EQ("subdir/test.txt", r);
+  }
+
+  {
+    EXPECT_THAT([&] { fs.readlink(*i3); },
+                ::testing::Throws<std::system_error>());
   }
 }
 
@@ -172,17 +185,19 @@ TEST(filesystem, metadata_symlink_unix) {
     EXPECT_EQ(-EINVAL, fs.readlink(*i3, &buffer));
   }
 
-  // also test expected interface
+  // also test error_code interface
   {
-    auto r = fs.readlink(*i1, readlink_mode::unix);
-    EXPECT_TRUE(r);
-    EXPECT_EQ("subdir/test.txt", *r);
+    std::error_code ec;
+    auto r = fs.readlink(*i1, readlink_mode::unix, ec);
+    EXPECT_FALSE(ec);
+    EXPECT_EQ("subdir/test.txt", r);
   }
 
   {
-    auto r = fs.readlink(*i3);
-    EXPECT_FALSE(r);
-    EXPECT_EQ(-EINVAL, r.error());
+    std::error_code ec;
+    auto r = fs.readlink(*i3, ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(EINVAL, ec.value());
   }
 }
 
