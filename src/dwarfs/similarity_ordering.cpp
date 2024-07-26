@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <variant>
 
+#include <folly/Function.h>
 #include <folly/container/Enumerate.h>
 #include <folly/experimental/Bits.h>
 
