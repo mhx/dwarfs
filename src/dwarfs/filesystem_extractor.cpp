@@ -272,9 +272,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
         sem.wait(bs);
 
-        if (auto ranges = fs.readv(fd, bs, pos)) {
+        std::error_code ec;
+        auto ranges = fs.readv(fd, bs, pos, ec);
+
+        if (!ec) {
           archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
-                            ranges = std::move(*ranges), ae, pos, remain, bs,
+                            ranges = std::move(ranges), ae, pos, remain, bs,
                             size, path, &bytes_written, bytes_total]() mutable {
             try {
               if (pos == 0) {
@@ -311,8 +314,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
           });
         } else {
           LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
-                    << " from  inode [" << fd
-                    << "]: " << ::strerror(-ranges.error());
+                    << " from  inode [" << fd << "]: " << ec.message();
           break;
         }
 

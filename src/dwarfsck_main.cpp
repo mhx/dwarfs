@@ -118,18 +118,19 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
         return;
       }
 
-      auto ranges = fs.readv(iv.inode_num(), st.size);
+      std::error_code ec;
+      auto ranges = fs.readv(iv.inode_num(), st.size, ec);
 
-      if (!ranges) {
+      if (ec) {
         LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "
-                  << std::strerror(-ranges.error());
+                  << ec.message();
         return;
       }
 
       wg.add_job([&, de, iv, ranges = std::move(ranges)]() mutable {
         checksum cs(algo);
 
-        for (auto& fut : ranges.value()) {
+        for (auto& fut : ranges) {
           try {
             auto range = fut.get();
             cs.update(range.data(), range.size());

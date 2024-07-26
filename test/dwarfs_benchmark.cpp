@@ -256,7 +256,7 @@ class filesystem : public ::benchmark::Fixture {
 
     for (auto _ : state) {
       auto x = fs->readv(i, st.size);
-      for (auto& f : *x) {
+      for (auto& f : x) {
         auto r = f.get().size();
         ::benchmark::DoNotOptimize(r);
       }

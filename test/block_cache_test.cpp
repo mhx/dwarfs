@@ -252,13 +252,14 @@ TEST_P(options_test, cache_stress) {
     threads.emplace_back([&, preqs = &reqs] {
       for (auto const& req : *preqs) {
         auto fh = fs.open(req.inode);
-        auto range = fs.readv(fh, req.size, req.offset);
-        if (!range) {
-          std::cerr << "read failed: " << range.error() << std::endl;
+        std::error_code ec;
+        auto ranges = fs.readv(fh, req.size, req.offset, ec);
+        if (ec) {
+          std::cerr << "read failed: " << ec.message() << std::endl;
           std::terminate();
         }
         try {
-          for (auto& b : range.value()) {
+          for (auto& b : ranges) {
             b.get();
           }
         } catch (std::exception const& e) {

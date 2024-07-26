@@ -33,8 +33,6 @@
 #include <system_error>
 #include <utility>
 
-#include <folly/Expected.h>
-
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/block_range.h>
@@ -168,9 +166,20 @@ class filesystem_v2 {
     return impl_->readv(inode, buf, size, offset);
   }
 
-  folly::Expected<std::vector<std::future<block_range>>, int>
+  std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset = 0) const {
     return impl_->readv(inode, size, offset);
+  }
+
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, std::error_code& ec) const {
+    return impl_->readv(inode, size, 0, ec);
+  }
+
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        std::error_code& ec) const {
+    return impl_->readv(inode, size, offset, ec);
   }
 
   std::optional<std::span<uint8_t const>> header() const {
@@ -248,8 +257,11 @@ class filesystem_v2 {
     read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                           file_off_t offset) const = 0;
-    virtual folly::Expected<std::vector<std::future<block_range>>, int>
+    virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
+    virtual std::vector<std::future<block_range>>
+    readv(uint32_t inode, size_t size, file_off_t offset,
+          std::error_code& ec) const = 0;
     virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;

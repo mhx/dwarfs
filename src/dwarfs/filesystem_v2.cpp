@@ -441,8 +441,11 @@ class filesystem_ final : public filesystem_v2::impl {
                file_off_t offset) const override;
   ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                 file_off_t offset) const override;
-  folly::Expected<std::vector<std::future<block_range>>, int>
+  std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset) const override;
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        std::error_code& ec) const override;
   std::optional<std::span<uint8_t const>> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
@@ -472,6 +475,9 @@ class filesystem_ final : public filesystem_v2::impl {
   void check_section(fs_section const& section) const;
   std::string
   readlink_ec(inode_view entry, readlink_mode mode, std::error_code& ec) const;
+  std::vector<std::future<block_range>>
+  readv_ec(uint32_t inode, size_t size, file_off_t offset,
+           std::error_code& ec) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   os_access const& os_;
@@ -501,6 +507,7 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(read)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
   PERFMON_CLS_TIMER_DECL(readv_future)
+  PERFMON_CLS_TIMER_DECL(readv_future_throw)
 };
 
 template <typename LoggerPolicy>
@@ -579,7 +586,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(open)
     PERFMON_CLS_TIMER_INIT(read)
     PERFMON_CLS_TIMER_INIT(readv_iovec)
-    PERFMON_CLS_TIMER_INIT(readv_future) // clang-format on
+    PERFMON_CLS_TIMER_INIT(readv_future)
+    PERFMON_CLS_TIMER_INIT(readv_future_throw) // clang-format on
 {
   block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
   filesystem_parser parser(mm_, image_offset_);
@@ -1133,14 +1141,37 @@ ssize_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
 }
 
 template <typename LoggerPolicy>
-folly::Expected<std::vector<std::future<block_range>>, int>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, size_t size,
+                                    file_off_t offset,
+                                    std::error_code& ec) const {
+  if (auto chunks = meta_.get_chunks(inode)) {
+    if (auto ranges = ir_.readv(inode, size, offset, *chunks)) {
+      ec.clear();
+      return std::move(ranges).value();
+    } else {
+      ec = std::error_code(-ranges.error(), std::system_category());
+    }
+  }
+  ec = std::make_error_code(std::errc::bad_file_descriptor);
+  return {};
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size, file_off_t offset,
+                                 std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
+  return readv_ec(inode, size, offset, ec);
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
                                  file_off_t offset) const {
-  PERFMON_CLS_SCOPED_SECTION(readv_future)
-  if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(inode, size, offset, *chunks);
-  }
-  return folly::makeUnexpected(-EBADF);
+  PERFMON_CLS_SCOPED_SECTION(readv_future_throw)
+  return call_ec_throw(
+      [&](std::error_code& ec) { return readv_ec(inode, size, offset, ec); });
 }
 
 template <typename LoggerPolicy>

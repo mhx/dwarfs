@@ -2389,10 +2389,13 @@ TEST(mkdwarfs_test, filesystem_read_error) {
     EXPECT_EQ(-EBADF, fs.readv(iv->inode_num(), buf, 42, 0));
   }
   {
-    auto res = fs.readv(iv->inode_num(), 42, 0);
-    EXPECT_FALSE(res);
-    EXPECT_EQ(-EBADF, res.error());
+    std::error_code ec;
+    auto res = fs.readv(iv->inode_num(), 42, ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(EBADF, ec.value());
   }
+  EXPECT_THAT([&] { fs.readv(iv->inode_num(), 42); },
+              ::testing::Throws<std::system_error>());
 }
 
 class segmenter_repeating_sequence_test : public testing::TestWithParam<char> {
