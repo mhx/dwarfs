@@ -35,7 +35,6 @@
 #include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/options.h>
-#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 
@@ -43,14 +42,14 @@ class block_compressor;
 class block_data;
 class logger;
 class progress;
-class worker_group;
+class thread_pool;
 
 class filesystem_writer {
  public:
   using physical_block_cb_type = std::function<void(size_t)>;
 
   filesystem_writer(
-      std::ostream& os, logger& lgr, worker_group& wg, progress& prog,
+      std::ostream& os, logger& lgr, thread_pool& pool, progress& prog,
       block_compressor const& schema_bc, block_compressor const& metadata_bc,
       block_compressor const& history_bc,
       filesystem_writer_options const& options = filesystem_writer_options(),

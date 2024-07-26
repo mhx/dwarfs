@@ -40,12 +40,12 @@
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/error.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
-#include <dwarfs/worker_group.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -334,4 +334,4 @@ worker_group::worker_group(logger& lgr, os_access const& os,
                                        logger_policies>(
           lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

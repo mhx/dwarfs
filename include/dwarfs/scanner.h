@@ -39,11 +39,11 @@ class os_access;
 class progress;
 class script;
 class segmenter_factory;
-class worker_group;
+class thread_pool;
 
 class scanner {
  public:
-  scanner(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
+  scanner(logger& lgr, thread_pool& pool, std::shared_ptr<segmenter_factory> sf,
           std::shared_ptr<entry_factory> ef,
           std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
           const scanner_options& options);

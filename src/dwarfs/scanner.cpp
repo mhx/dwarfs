@@ -54,6 +54,7 @@
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
 #include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/metadata_freezer.h>
 #include <dwarfs/mmif.h>
@@ -64,9 +65,9 @@
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/string_table.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
-#include <dwarfs/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
@@ -285,7 +286,8 @@ std::string status_string(progress const& p, size_t width) {
 template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
-  scanner_(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
+  scanner_(logger& lgr, internal::worker_group& wg,
+           std::shared_ptr<segmenter_factory> sf,
            std::shared_ptr<entry_factory> ef,
            std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
            const scanner_options& options);
@@ -313,7 +315,7 @@ class scanner_ final : public scanner::impl {
                   std::function<void(std::ostream&)> dumper) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  worker_group& wg_;
+  internal::worker_group& wg_;
   scanner_options const& options_;
   std::shared_ptr<segmenter_factory> segmenter_factory_;
   std::shared_ptr<entry_factory> entry_factory_;
@@ -322,7 +324,7 @@ class scanner_ final : public scanner::impl {
 };
 
 template <typename LoggerPolicy>
-scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
+scanner_<LoggerPolicy>::scanner_(logger& lgr, internal::worker_group& wg,
                                  std::shared_ptr<segmenter_factory> sf,
                                  std::shared_ptr<entry_factory> ef,
                                  std::shared_ptr<os_access const> os,
@@ -733,8 +735,10 @@ void scanner_<LoggerPolicy>::scan(
 
   {
     size_t const num_threads = options_.num_segmenter_workers;
-    worker_group wg_ordering(LOG_GET_LOGGER, *os_, "ordering", num_threads);
-    worker_group wg_blockify(LOG_GET_LOGGER, *os_, "blockify", num_threads);
+    internal::worker_group wg_ordering(LOG_GET_LOGGER, *os_, "ordering",
+                                       num_threads);
+    internal::worker_group wg_blockify(LOG_GET_LOGGER, *os_, "blockify",
+                                       num_threads);
 
     fsw.configure(frag_info.categories, num_threads);
 
@@ -1005,13 +1009,13 @@ void scanner_<LoggerPolicy>::scan(
            << ")";
 }
 
-scanner::scanner(logger& lgr, worker_group& wg,
+scanner::scanner(logger& lgr, thread_pool& pool,
                  std::shared_ptr<segmenter_factory> sf,
                  std::shared_ptr<entry_factory> ef,
                  std::shared_ptr<os_access const> os,
                  std::shared_ptr<script> scr, const scanner_options& options)
     : impl_(make_unique_logging_object<impl, scanner_, logger_policies>(
-          lgr, wg, std::move(sf), std::move(ef), std::move(os), std::move(scr),
-          options)) {}
+          lgr, pool.get_worker_group(), std::move(sf), std::move(ef),
+          std::move(os), std::move(scr), options)) {}
 
 } // namespace dwarfs

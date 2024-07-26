@@ -29,6 +29,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -36,7 +37,6 @@
 #include <dwarfs/options.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
-#include <dwarfs/worker_group.h>
 #include <dwarfs_tool_main.h>
 
 namespace po = boost::program_options;
@@ -105,7 +105,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     dwarfs::filesystem_v2 fs(
         lgr, *iol.os, std::make_shared<dwarfs::mmap>(filesystem), fsopts);
 
-    worker_group wg(lgr, *iol.os, "reader", num_readers);
+    internal::worker_group wg(lgr, *iol.os, "reader", num_readers);
 
     fs.walk([&](auto entry) {
       auto inode_data = entry.inode();

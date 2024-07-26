@@ -24,11 +24,11 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/inode_element_view.h>
 #include <dwarfs/inode_ordering.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/promise_receiver.h>
 #include <dwarfs/similarity_ordering.h>
-#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 
@@ -54,12 +54,14 @@ class inode_ordering_ final : public inode_ordering::impl {
   void
   by_similarity(sortable_inode_span& sp, fragment_category cat) const override;
   void
-  by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
-              sortable_inode_span& sp, fragment_category cat) const override;
+  by_nilsimsa(internal::worker_group& wg,
+              similarity_ordering_options const& opts, sortable_inode_span& sp,
+              fragment_category cat) const override;
 
  private:
   void
-  by_nilsimsa_impl(worker_group& wg, similarity_ordering_options const& opts,
+  by_nilsimsa_impl(internal::worker_group& wg,
+                   similarity_ordering_options const& opts,
                    std::span<std::shared_ptr<inode> const> inodes,
                    std::vector<uint32_t>& index, fragment_category cat) const;
 
@@ -158,7 +160,7 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa(
-    worker_group& wg, similarity_ordering_options const& opts,
+    internal::worker_group& wg, similarity_ordering_options const& opts,
     sortable_inode_span& sp, fragment_category cat) const {
   auto raw = sp.raw();
   auto& index = sp.index();
@@ -188,7 +190,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
-    worker_group& wg, similarity_ordering_options const& opts,
+    internal::worker_group& wg, similarity_ordering_options const& opts,
     std::span<std::shared_ptr<inode> const> inodes,
     std::vector<uint32_t>& index, fragment_category cat) const {
   auto ev = inode_element_view(inodes, index, cat);

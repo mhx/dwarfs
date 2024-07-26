@@ -33,7 +33,12 @@ class inode_manager;
 class logger;
 class os_access;
 class progress;
+
+namespace internal {
+
 class worker_group;
+
+}
 
 struct inode_options;
 
@@ -46,7 +51,7 @@ class file_scanner {
     bool debug_inode_create{false};
   };
 
-  file_scanner(logger& lgr, worker_group& wg, os_access const& os,
+  file_scanner(logger& lgr, internal::worker_group& wg, os_access const& os,
                inode_manager& im, progress& prog, options const& opts);
 
   void scan(file* p) { impl_->scan(p); }

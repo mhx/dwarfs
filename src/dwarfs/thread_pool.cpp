@@ -19,33 +19,29 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/thread_pool.h>
 
-#include "test_helpers.h"
-#include "test_logger.h"
+namespace dwarfs {
 
-using namespace dwarfs;
+thread_pool::thread_pool() = default;
+thread_pool::~thread_pool() = default;
 
-TEST(worker_group_test, set_thread_affinity_env) {
-  test::test_logger lgr;
-  test::os_access_mock os;
+thread_pool::thread_pool(logger& lgr, os_access const& os,
+                         const char* group_name, size_t num_workers,
+                         size_t max_queue_len, int niceness)
+    : wg_{std::make_unique<internal::worker_group>(
+          lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
 
-  os.setenv("DWARFS_WORKER_GROUP_AFFINITY", "lemon=0,1:lime=2,3");
+void thread_pool::stop() { wg_->stop(); }
 
-  os.set_affinity_calls.clear();
-  internal::worker_group wg_lemon(lgr, os, "lemon", 2);
-  ASSERT_EQ(2, os.set_affinity_calls.size());
-  EXPECT_EQ(std::vector<int>({0, 1}), std::get<1>(os.set_affinity_calls[0]));
+void thread_pool::wait() { wg_->wait(); }
 
-  os.set_affinity_calls.clear();
-  internal::worker_group wg_lime(lgr, os, "lime", 3);
-  ASSERT_EQ(3, os.set_affinity_calls.size());
-  EXPECT_EQ(std::vector<int>({2, 3}), std::get<1>(os.set_affinity_calls[0]));
+bool thread_pool::running() const { return wg_->running(); }
 
-  os.set_affinity_calls.clear();
-  internal::worker_group wg_apple(lgr, os, "apple", 1);
-  EXPECT_EQ(0, os.set_affinity_calls.size());
+folly::Expected<std::chrono::nanoseconds, std::error_code>
+thread_pool::get_cpu_time() const {
+  return wg_->get_cpu_time();
 }
+
+} // namespace dwarfs

@@ -44,6 +44,7 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/inode_reader_v2.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/metadata_v2.h>
 #include <dwarfs/mmif.h>
@@ -51,7 +52,6 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
-#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 
@@ -788,7 +788,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
+  internal::worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {

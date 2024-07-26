@@ -49,6 +49,7 @@
 #include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
 
 #include "filter_test_data.h"
@@ -74,7 +75,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt) {
   // force multithreading
-  worker_group wg(lgr, *input, "worker", 4);
+  thread_pool pool(lgr, *input, "worker", 4);
 
   std::unique_ptr<progress> local_prog;
   if (!prog) {
@@ -92,12 +93,12 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
 
   auto sf = std::make_shared<segmenter_factory>(lgr, *prog, sf_cfg);
 
-  scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);
+  scanner s(lgr, pool, sf, entry_factory::create(), input, scr, options);
 
   std::ostringstream oss;
 
   block_compressor bc(compression);
-  filesystem_writer fsw(oss, lgr, wg, *prog, bc, bc, bc);
+  filesystem_writer fsw(oss, lgr, pool, *prog, bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
@@ -929,14 +930,14 @@ class filter_test
     };
 
     progress prog;
-    worker_group wg(lgr, *input, "worker", 1);
+    thread_pool pool(lgr, *input, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});
-    scanner s(lgr, wg, sf, entry_factory::create(), input, scr, options);
+    scanner s(lgr, pool, sf, entry_factory::create(), input, scr, options);
 
     block_compressor bc("null");
     std::ostringstream null;
-    filesystem_writer fsw(null, lgr, wg, prog, bc, bc, bc);
+    filesystem_writer fsw(null, lgr, pool, prog, bc, bc, bc);
     s.scan(fsw, std::filesystem::path("/"), prog);
 
     return oss.str();

@@ -46,11 +46,11 @@
 #include <dwarfs/block_cache.h>
 #include <dwarfs/cached_block.h>
 #include <dwarfs/fs_section.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
-#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 
@@ -226,11 +226,11 @@ class block_cache_ final : public block_cache::impl {
       , os_{os}
       , options_(options) {
     if (options.init_workers) {
-      wg_ = worker_group(lgr, os_, "blkcache",
-                         std::max(options.num_workers > 0
-                                      ? options.num_workers
-                                      : folly::hardware_concurrency(),
-                                  static_cast<size_t>(1)));
+      wg_ = internal::worker_group(lgr, os_, "blkcache",
+                                   std::max(options.num_workers > 0
+                                                ? options.num_workers
+                                                : folly::hardware_concurrency(),
+                                            static_cast<size_t>(1)));
     }
   }
 
@@ -342,7 +342,7 @@ class block_cache_ final : public block_cache::impl {
       wg_.stop();
     }
 
-    wg_ = worker_group(LOG_GET_LOGGER, os_, "blkcache", num);
+    wg_ = internal::worker_group(LOG_GET_LOGGER, os_, "blkcache", num);
   }
 
   void set_tidy_config(cache_tidy_config const& cfg) override {
@@ -777,7 +777,7 @@ class block_cache_ final : public block_cache::impl {
   mutable folly::Histogram<size_t> active_set_size_{1, 0, 1024};
 
   mutable std::shared_mutex mx_wg_;
-  mutable worker_group wg_;
+  mutable internal::worker_group wg_;
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
   LOG_PROXY_DECL(LoggerPolicy);

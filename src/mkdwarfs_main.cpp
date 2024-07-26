@@ -86,6 +86,7 @@
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/terminal.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
@@ -1269,9 +1270,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   block_compressor metadata_bc(metadata_compression);
   block_compressor history_bc(history_compression);
 
-  worker_group wg_compress(lgr, *iol.os, "compress", num_workers,
-                           std::numeric_limits<size_t>::max(),
-                           compress_niceness);
+  thread_pool compress_pool(lgr, *iol.os, "compress", num_workers,
+                            std::numeric_limits<size_t>::max(),
+                            compress_niceness);
 
   std::unique_ptr<filesystem_writer> fsw;
 
@@ -1285,7 +1286,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
     fsw = std::make_unique<filesystem_writer>(
-        fsw_os, lgr, wg_compress, prog, schema_bc, metadata_bc, history_bc,
+        fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc, history_bc,
         fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
     categorized_option<block_compressor> compression_opt;
@@ -1340,15 +1341,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   try {
     if (recompress) {
       input_filesystem->rewrite(prog, *fsw, *cat_resolver, rw_opts);
-      wg_compress.wait();
+      compress_pool.wait();
     } else {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
 
-      worker_group wg_scanner(lgr, *iol.os, "scanner", num_scanner_workers);
+      thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      scanner s(lgr, wg_scanner, std::move(sf), entry_factory::create(), iol.os,
-                std::move(script), options);
+      scanner s(lgr, scanner_pool, std::move(sf), entry_factory::create(),
+                iol.os, std::move(script), options);
 
       s.scan(*fsw, path, prog, input_list, iol.file);
 
@@ -1361,7 +1362,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!options.debug_filter_function) {
     LOG_INFO << "compression CPU time: "
-             << time_with_unit(wg_compress.get_cpu_time().value_or(
+             << time_with_unit(compress_pool.get_cpu_time().value_or(
                     std::chrono::nanoseconds(0)));
   }
 

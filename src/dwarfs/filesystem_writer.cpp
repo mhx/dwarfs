@@ -40,10 +40,11 @@
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/internal/multi_queue_block_merger.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
-#include <dwarfs/worker_group.h>
 
 namespace dwarfs {
 
@@ -107,8 +108,8 @@ class fsblock {
           std::span<uint8_t const> data, compression_type data_comp_type,
           std::shared_ptr<compression_progress> pctx);
 
-  void
-  compress(worker_group& wg, std::optional<std::string> meta = std::nullopt) {
+  void compress(internal::worker_group& wg,
+                std::optional<std::string> meta = std::nullopt) {
     impl_->compress(wg, std::move(meta));
   }
   void wait_until_compressed() { impl_->wait_until_compressed(); }
@@ -127,7 +128,7 @@ class fsblock {
     virtual ~impl() = default;
 
     virtual void
-    compress(worker_group& wg, std::optional<std::string> meta) = 0;
+    compress(internal::worker_group& wg, std::optional<std::string> meta) = 0;
     virtual void wait_until_compressed() = 0;
     virtual section_type type() const = 0;
     virtual compression_type compression() const = 0;
@@ -180,7 +181,8 @@ class raw_fsblock : public fsblock::impl {
       , pctx_{std::move(pctx)}
       , set_block_cb_{std::move(set_block_cb)} {}
 
-  void compress(worker_group& wg, std::optional<std::string> meta) override {
+  void compress(internal::worker_group& wg,
+                std::optional<std::string> meta) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
@@ -285,8 +287,8 @@ class compressed_fsblock : public fsblock::impl {
       , pctx_{std::move(pctx)}
       , sec_{std::move(sec)} {}
 
-  void
-  compress(worker_group& wg, std::optional<std::string> /* meta */) override {
+  void compress(internal::worker_group& wg,
+                std::optional<std::string> /* meta */) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
@@ -342,7 +344,8 @@ class rewritten_fsblock : public fsblock::impl {
       , pctx_{std::move(pctx)}
       , data_comp_type_{data_comp_type} {}
 
-  void compress(worker_group& wg, std::optional<std::string> meta) override {
+  void compress(internal::worker_group& wg,
+                std::optional<std::string> meta) override {
     std::promise<void> prom;
     future_ = prom.get_future();
 
@@ -514,7 +517,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
  public:
   using physical_block_cb_type = filesystem_writer::physical_block_cb_type;
 
-  filesystem_writer_(logger& lgr, std::ostream& os, worker_group& wg,
+  filesystem_writer_(logger& lgr, std::ostream& os, internal::worker_group& wg,
                      progress& prog, block_compressor const& schema_bc,
                      block_compressor const& metadata_bc,
                      block_compressor const& history_bc,
@@ -583,7 +586,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   std::ostream& os_;
   size_t image_size_{0};
   std::istream* header_;
-  worker_group& wg_;
+  internal::worker_group& wg_;
   progress& prog_;
   std::optional<block_compressor> default_bc_;
   std::unordered_map<fragment_category::value_type, block_compressor> bc_;
@@ -608,7 +611,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
 //       into something that gets passed a (section_type, category) pair?
 template <typename LoggerPolicy>
 filesystem_writer_<LoggerPolicy>::filesystem_writer_(
-    logger& lgr, std::ostream& os, worker_group& wg, progress& prog,
+    logger& lgr, std::ostream& os, internal::worker_group& wg, progress& prog,
     block_compressor const& schema_bc, block_compressor const& metadata_bc,
     block_compressor const& history_bc,
     filesystem_writer_options const& options, std::istream* header)
@@ -1092,7 +1095,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 } // namespace
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
-                                     worker_group& wg, progress& prog,
+                                     thread_pool& pool, progress& prog,
                                      block_compressor const& schema_bc,
                                      block_compressor const& metadata_bc,
                                      block_compressor const& history_bc,
@@ -1100,7 +1103,7 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      std::istream* header)
     : impl_(
           make_unique_logging_object<impl, filesystem_writer_, logger_policies>(
-              lgr, os, wg, prog, schema_bc, metadata_bc, history_bc, options,
-              header)) {}
+              lgr, os, pool.get_worker_group(), prog, schema_bc, metadata_bc,
+              history_bc, options, header)) {}
 
 } // namespace dwarfs

@@ -40,6 +40,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_v2.h>
+#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -49,7 +50,6 @@
 #include <dwarfs/program_options_helpers.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
-#include <dwarfs/worker_group.h>
 #include <dwarfs_tool_main.h>
 
 namespace dwarfs {
@@ -104,7 +104,7 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
                  std::string const& algo, size_t num_workers) {
   LOG_PROXY(debug_logger_policy, lgr);
 
-  worker_group wg{lgr, *iol.os, "checksum", num_workers};
+  internal::worker_group wg{lgr, *iol.os, "checksum", num_workers};
   std::mutex mx;
 
   fs.walk_data_order([&](auto const& de) {

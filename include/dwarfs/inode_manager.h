@@ -40,7 +40,12 @@ class logger;
 class os_access;
 class progress;
 class script;
+
+namespace internal {
+
 class worker_group;
+
+}
 
 struct inode_options;
 
@@ -80,14 +85,14 @@ class inode_manager {
     return impl_->fragment_category_info();
   }
 
-  void scan_background(worker_group& wg, os_access const& os,
+  void scan_background(internal::worker_group& wg, os_access const& os,
                        std::shared_ptr<inode> ino, file* p) const {
     impl_->scan_background(wg, os, std::move(ino), p);
   }
 
   bool has_invalid_inodes() const { return impl_->has_invalid_inodes(); }
 
-  void try_scan_invalid(worker_group& wg, os_access const& os) {
+  void try_scan_invalid(internal::worker_group& wg, os_access const& os) {
     impl_->try_scan_invalid(wg, os);
   }
 
@@ -96,7 +101,7 @@ class inode_manager {
   sortable_inode_span sortable_span() const { return impl_->sortable_span(); }
 
   sortable_inode_span
-  ordered_span(fragment_category cat, worker_group& wg) const {
+  ordered_span(fragment_category cat, internal::worker_group& wg) const {
     return impl_->ordered_span(cat, wg);
   }
 
@@ -109,14 +114,16 @@ class inode_manager {
     virtual void for_each_inode_in_order(
         std::function<void(std::shared_ptr<inode> const&)> const& fn) const = 0;
     virtual fragment_infos fragment_category_info() const = 0;
-    virtual void scan_background(worker_group& wg, os_access const& os,
-                                 std::shared_ptr<inode> ino, file* p) const = 0;
+    virtual void
+    scan_background(internal::worker_group& wg, os_access const& os,
+                    std::shared_ptr<inode> ino, file* p) const = 0;
     virtual bool has_invalid_inodes() const = 0;
-    virtual void try_scan_invalid(worker_group& wg, os_access const& os) = 0;
+    virtual void
+    try_scan_invalid(internal::worker_group& wg, os_access const& os) = 0;
     virtual void dump(std::ostream& os) const = 0;
     virtual sortable_inode_span sortable_span() const = 0;
     virtual sortable_inode_span
-    ordered_span(fragment_category cat, worker_group& wg) const = 0;
+    ordered_span(fragment_category cat, internal::worker_group& wg) const = 0;
   };
 
  private:

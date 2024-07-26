@@ -37,8 +37,8 @@
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/string_table.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
-#include <dwarfs/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 
@@ -119,18 +119,18 @@ std::string make_filesystem(::benchmark::State const& state) {
   test::test_logger lgr;
   auto os = test::os_access_mock::create_test_instance();
 
-  worker_group wg(lgr, *os, "writer", 4);
+  thread_pool pool(lgr, *os, "writer", 4);
   progress prog;
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 
-  scanner s(lgr, wg, sf, entry_factory::create(), os,
+  scanner s(lgr, pool, sf, entry_factory::create(), os,
             std::make_shared<test::script_mock>(), options);
 
   std::ostringstream oss;
 
   block_compressor bc("null");
-  filesystem_writer fsw(oss, lgr, wg, prog, bc, bc, bc);
+  filesystem_writer fsw(oss, lgr, pool, prog, bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, "", prog);

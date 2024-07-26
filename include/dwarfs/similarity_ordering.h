@@ -32,7 +32,12 @@ namespace dwarfs {
 
 class logger;
 class progress;
+
+namespace internal {
+
 class worker_group;
+
+} // namespace internal
 
 class similarity_element_view {
  public:
@@ -67,7 +72,7 @@ class similarity_ordering {
  public:
   using index_value_type = uint32_t;
 
-  similarity_ordering(logger& lgr, progress& prog, worker_group& wg,
+  similarity_ordering(logger& lgr, progress& prog, internal::worker_group& wg,
                       similarity_ordering_options const& opts);
 
   void order_nilsimsa(

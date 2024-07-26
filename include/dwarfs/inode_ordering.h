@@ -29,7 +29,12 @@ namespace dwarfs {
 
 class logger;
 class progress;
+
+namespace internal {
+
 class worker_group;
+
+} // namespace internal
 
 struct inode_options;
 struct similarity_ordering_options;
@@ -52,7 +57,8 @@ class inode_ordering {
     impl_->by_similarity(sp, cat);
   }
 
-  void by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+  void by_nilsimsa(internal::worker_group& wg,
+                   similarity_ordering_options const& opts,
                    sortable_inode_span& sp, fragment_category cat) const {
     impl_->by_nilsimsa(wg, opts, sp, cat);
   }
@@ -67,7 +73,8 @@ class inode_ordering {
     virtual void
     by_similarity(sortable_inode_span& sp, fragment_category cat) const = 0;
     virtual void
-    by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+    by_nilsimsa(internal::worker_group& wg,
+                similarity_ordering_options const& opts,
                 sortable_inode_span& sp, fragment_category cat) const = 0;
   };
 

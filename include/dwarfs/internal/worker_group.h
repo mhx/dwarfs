@@ -36,6 +36,8 @@ namespace dwarfs {
 class logger;
 class os_access;
 
+namespace internal {
+
 /**
  * A group of worker threads
  *
@@ -104,4 +106,5 @@ class worker_group {
   std::unique_ptr<impl> impl_;
 };
 
+} // namespace internal
 } // namespace dwarfs
