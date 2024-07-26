@@ -97,6 +97,16 @@ R call_int_error(Fn&& fn, std::error_code& ec) {
   return res;
 }
 
+template <typename Fn>
+void call_int_error(Fn&& fn, std::error_code& ec) {
+  auto err = std::forward<Fn>(fn)();
+  if (err < 0) {
+    ec = std::error_code{-err, std::system_category()};
+  } else {
+    ec.clear();
+  }
+}
+
 class filesystem_parser {
  private:
   static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
@@ -428,6 +438,8 @@ class filesystem_ final : public filesystem_v2::impl {
   file_stat getattr(inode_view entry, std::error_code& ec) const override;
   file_stat getattr(inode_view entry) const override;
   int access(inode_view entry, int mode, uid_t uid, gid_t gid) const override;
+  void access(inode_view entry, int mode, uid_t uid, gid_t gid,
+              std::error_code& ec) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
   std::optional<std::pair<inode_view, std::string>>
   readdir(directory_view dir, size_t offset) const override;
@@ -475,6 +487,7 @@ class filesystem_ final : public filesystem_v2::impl {
  private:
   filesystem_info const& get_info() const;
   void check_section(fs_section const& section) const;
+  file_stat getattr_ec(inode_view entry, std::error_code& ec) const;
   std::string
   readlink_ec(inode_view entry, readlink_mode mode, std::error_code& ec) const;
   std::vector<std::future<block_range>>
@@ -500,6 +513,7 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(getattr_ec)
   PERFMON_CLS_TIMER_DECL(getattr_throw)
   PERFMON_CLS_TIMER_DECL(access)
+  PERFMON_CLS_TIMER_DECL(access_ec)
   PERFMON_CLS_TIMER_DECL(opendir)
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(dirsize)
@@ -582,6 +596,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(getattr_ec)
     PERFMON_CLS_TIMER_INIT(getattr_throw)
     PERFMON_CLS_TIMER_INIT(access)
+    PERFMON_CLS_TIMER_INIT(access_ec)
     PERFMON_CLS_TIMER_INIT(opendir)
     PERFMON_CLS_TIMER_INIT(readdir)
     PERFMON_CLS_TIMER_INIT(dirsize)
@@ -1056,17 +1071,24 @@ int filesystem_<LoggerPolicy>::getattr(inode_view entry,
 }
 
 template <typename LoggerPolicy>
+file_stat filesystem_<LoggerPolicy>::getattr_ec(inode_view entry,
+                                                std::error_code& ec) const {
+  return call_int_error<file_stat>(
+      [&](auto& stbuf) { return meta_.getattr(entry, &stbuf); }, ec);
+}
+
+template <typename LoggerPolicy>
 file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                              std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(getattr_ec)
-  return call_int_error<file_stat>(
-      [&](auto& stbuf) { return getattr(entry, &stbuf); }, ec);
+  return getattr_ec(entry, ec);
 }
 
 template <typename LoggerPolicy>
 file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(getattr_throw)
-  return call_ec_throw([&](std::error_code& ec) { return getattr(entry, ec); });
+  return call_ec_throw(
+      [&](std::error_code& ec) { return getattr_ec(entry, ec); });
 }
 
 template <typename LoggerPolicy>
@@ -1074,6 +1096,13 @@ int filesystem_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
                                       gid_t gid) const {
   PERFMON_CLS_SCOPED_SECTION(access)
   return meta_.access(entry, mode, uid, gid);
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::access(inode_view entry, int mode, uid_t uid,
+                                       gid_t gid, std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(access_ec)
+  call_int_error([&] { return meta_.access(entry, mode, uid, gid); }, ec);
 }
 
 template <typename LoggerPolicy>
