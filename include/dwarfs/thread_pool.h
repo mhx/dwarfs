@@ -24,8 +24,7 @@
 #include <chrono>
 #include <limits>
 #include <memory>
-
-#include <folly/Expected.h>
+#include <system_error>
 
 namespace dwarfs {
 
@@ -62,8 +61,8 @@ class thread_pool {
   void stop();
   void wait();
   bool running() const;
-  folly::Expected<std::chrono::nanoseconds, std::error_code>
-  get_cpu_time() const;
+  std::chrono::nanoseconds get_cpu_time() const;
+  std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const;
 
   internal::worker_group* operator->() { return wg_.get(); }
   internal::worker_group& get_worker_group() { return *wg_; }

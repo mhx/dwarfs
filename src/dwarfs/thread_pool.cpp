@@ -39,9 +39,23 @@ void thread_pool::wait() { wg_->wait(); }
 
 bool thread_pool::running() const { return wg_->running(); }
 
-folly::Expected<std::chrono::nanoseconds, std::error_code>
-thread_pool::get_cpu_time() const {
-  return wg_->get_cpu_time();
+std::chrono::nanoseconds thread_pool::get_cpu_time(std::error_code& ec) const {
+  auto rv = wg_->get_cpu_time();
+  if (rv) {
+    ec.clear();
+    return rv.value();
+  }
+  ec = rv.error();
+  return {};
+}
+
+std::chrono::nanoseconds thread_pool::get_cpu_time() const {
+  std::error_code ec;
+  auto rv = get_cpu_time(ec);
+  if (ec) {
+    throw std::system_error(ec);
+  }
+  return rv;
 }
 
 } // namespace dwarfs

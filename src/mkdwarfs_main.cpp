@@ -1361,9 +1361,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (!options.debug_filter_function) {
-    LOG_INFO << "compression CPU time: "
-             << time_with_unit(compress_pool.get_cpu_time().value_or(
-                    std::chrono::nanoseconds(0)));
+    std::error_code ec;
+    auto cpu_time = compress_pool.get_cpu_time(ec);
+    if (ec) {
+      LOG_WARN << "could not measure CPU time: " << ec.message();
+    } else {
+      LOG_INFO << "compression CPU time: " << time_with_unit(cpu_time);
+    }
   }
 
   {
