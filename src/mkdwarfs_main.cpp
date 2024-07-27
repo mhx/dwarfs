@@ -30,6 +30,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -50,11 +51,13 @@
 #include <folly/FileUtil.h>
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
-#include <folly/gen/String.h>
 #include <folly/portability/SysStat.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
@@ -369,7 +372,6 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
-  using namespace folly::gen;
   using namespace std::chrono_literals;
 
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
@@ -407,27 +409,27 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
 
-  auto progress_desc = "progress mode (" +
-                       (from(progress_modes) | get<0>() | unsplit(", ")) + ")";
+  auto progress_desc = fmt::format(
+      "progress mode ({})", fmt::join(progress_modes | std::views::keys, ", "));
 
   auto debug_filter_desc =
-      "show effect of filter rules without producing an image (" +
-      (from(debug_filter_modes) | get<0>() | unsplit(", ")) + ")";
+      fmt::format("show effect of filter rules without producing an image ({})",
+                  fmt::join(debug_filter_modes | std::views::keys, ", "));
 
-  auto resolution_desc = "time resolution in seconds or (" +
-                         (from(time_resolutions) | get<0>() | unsplit(", ")) +
-                         ")";
+  auto resolution_desc =
+      fmt::format("time resolution in seconds or ({})",
+                  fmt::join(time_resolutions | std::views::keys, ", "));
 
   auto hash_list = checksum::available_algorithms();
 
-  auto file_hash_desc = "choice of file hashing function (none, " +
-                        (from(hash_list) | unsplit(", ")) + ")";
+  auto file_hash_desc = fmt::format(
+      "choice of file hashing function (none, {})", fmt::join(hash_list, ", "));
 
   auto& catreg = categorizer_registry::instance();
 
-  auto categorize_desc = "enable categorizers in the given order (" +
-                         (from(catreg.categorizer_names()) | unsplit(", ")) +
-                         ")";
+  auto categorize_desc =
+      fmt::format("enable categorizers in the given order ({})",
+                  fmt::join(catreg.categorizer_names(), ", "));
 
   auto lvl_def_val = [](auto opt) {
     return fmt::format("arg (={})", levels[default_level].*opt);

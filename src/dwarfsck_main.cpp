@@ -30,9 +30,11 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <folly/String.h>
-#include <folly/gen/String.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
@@ -160,13 +162,11 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
 } // namespace
 
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
-  using namespace folly::gen;
-
   const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
 
   auto algo_list = checksum::available_algorithms();
-  auto checksum_desc = "print checksums for all files (" +
-                       (from(algo_list) | unsplit(", ")) + ")";
+  auto checksum_desc = fmt::format("print checksums for all files ({})",
+                                   fmt::join(algo_list, ", "));
 
   sys_string input, export_metadata;
   std::string image_offset, checksum_algo;
