@@ -21,18 +21,29 @@
 
 #pragma once
 
-#include <folly/portability/IOVec.h>
+#ifndef _WIN32
+#include <sys/uio.h>
+#endif
 
 #include <dwarfs/block_range.h>
 #include <dwarfs/small_vector.h>
 
 namespace dwarfs {
 
+#ifdef _WIN32
+struct dwarfs_iovec {
+  void* iov_base;
+  size_t iov_len;
+};
+#else
+using dwarfs_iovec = struct ::iovec;
+#endif
+
 struct iovec_read_buf {
   // This covers more than 95% of reads
   static constexpr size_t inline_storage = 16;
 
-  small_vector<struct ::iovec, inline_storage> buf;
+  small_vector<dwarfs_iovec, inline_storage> buf;
   small_vector<block_range, inline_storage> ranges;
 };
 
