@@ -126,10 +126,6 @@ class inode_view
 };
 
 class directory_view {
-  using DirView = ::apache::thrift::frozen::View<thrift::metadata::directory>;
-  using Meta =
-      ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
-
   template <typename T>
   friend class internal::metadata_;
 
