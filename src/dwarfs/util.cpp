@@ -23,7 +23,9 @@
 #include <array>
 #include <charconv>
 #include <clocale>
+#include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 #if __has_include(<utf8cpp/utf8.h>)
 #include <utf8cpp/utf8.h>
@@ -35,6 +37,8 @@
 
 #include <folly/Conv.h>
 #include <folly/String.h>
+#include <folly/portability/Fcntl.h>
+#include <folly/portability/Windows.h>
 
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
@@ -361,6 +365,16 @@ std::string_view basename(std::string_view path) {
     return path;
   }
   return path.substr(pos + 1);
+}
+
+void ensure_binary_mode(std::ostream& os [[maybe_unused]]) {
+#ifdef _WIN32
+  if (&os == &std::cout) {
+    _setmode(_fileno(stdout), _O_BINARY);
+  } else if (&os == &std::cerr) {
+    _setmode(_fileno(stderr), _O_BINARY);
+  }
+#endif
 }
 
 } // namespace dwarfs

@@ -33,7 +33,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#ifndef WIN32
+#ifndef _WIN32
 #if __has_include(<boost/process/v2/environment.hpp>)
 #define BOOST_PROCESS_VERSION 2
 #include <boost/process/v2/environment.hpp>
@@ -48,6 +48,7 @@
 #include <folly/Conv.h>
 #include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
+#include <folly/portability/Fcntl.h>
 
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
@@ -290,7 +291,7 @@ void checked_reply_err(LogProxy& log_, fuse_req_t req, T&& f) {
 #endif
 
 void check_fusermount(dwarfs_userdata& userdata) {
-#ifndef WIN32
+#ifndef _WIN32
 
 #if FUSE_USE_VERSION >= 30
   static constexpr std::string_view const fusermount_name = "fusermount3";

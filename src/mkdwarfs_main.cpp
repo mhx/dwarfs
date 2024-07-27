@@ -1142,9 +1142,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       os.emplace<std::unique_ptr<output_stream>>(std::move(stream));
     } else {
-#ifdef _WIN32
-      ::_setmode(::_fileno(stdout), _O_BINARY);
-#endif
+      ensure_binary_mode(iol.out);
     }
   } else {
     os.emplace<std::ostringstream>();

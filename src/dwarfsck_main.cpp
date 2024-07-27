@@ -296,11 +296,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     if (print_header) {
       if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
-#ifdef _WIN32
-        if (&iol.out == &std::cout) {
-          ::_setmode(::_fileno(stdout), _O_BINARY);
-        }
-#endif
+        ensure_binary_mode(iol.out);
         iol.out.write(reinterpret_cast<char const*>(hdr->data()), hdr->size());
         if (iol.out.bad() || iol.out.fail()) {
           LOG_ERROR << "error writing header";

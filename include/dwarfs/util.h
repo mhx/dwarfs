@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <iosfwd>
 #include <span>
 #include <string>
 #include <string_view>
@@ -74,5 +75,7 @@ bool getenv_is_enabled(char const* var);
 void setup_default_locale();
 
 std::string_view basename(std::string_view path);
+
+void ensure_binary_mode(std::ostream& os);
 
 } // namespace dwarfs
