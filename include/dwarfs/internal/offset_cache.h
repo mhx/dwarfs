@@ -33,7 +33,7 @@
 
 #include <dwarfs/small_vector.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 template <typename InodeT, typename FileOffsetT, typename ChunkIndexT,
           size_t ChunkIndexInterval, size_t UpdaterMaxInlineOffsets>
@@ -201,4 +201,4 @@ class basic_offset_cache {
   std::mutex mutable mx_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
