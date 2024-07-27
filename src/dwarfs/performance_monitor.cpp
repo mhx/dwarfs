@@ -137,6 +137,11 @@ class performance_monitor_impl : public performance_monitor {
         , end{end}
         , context{ctx.begin(), ctx.end()} {}
 
+    // TODO: workaround for older boost small_vector
+    std::span<uint64_t const> context_span() const {
+      return std::span{context.data(), context.size()};
+    }
+
     timer_id id;
     time_type start;
     time_type end;
@@ -286,7 +291,7 @@ class performance_monitor_impl : public performance_monitor {
 
         for (auto const& ev : *evs) {
           events.emplace_back(ev.id, it->second, 'B', ev.start - start_time_,
-                              ev.context);
+                              ev.context_span());
           events.emplace_back(ev.id, it->second, 'E', ev.end - start_time_);
         }
       }

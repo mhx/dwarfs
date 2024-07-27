@@ -151,7 +151,10 @@ class basic_offset_cache {
 
     chunk_index_type first_index() const { return first_index_; }
 
-    std::span<file_offset_type const> offsets() const { return offsets_; }
+    std::span<file_offset_type const> offsets() const {
+      // TODO: workaround for older boost small_vector
+      return std::span(offsets_.data(), offsets_.size());
+    }
 
    private:
     small_vector<file_offset_type, max_inline_offsets> offsets_;

@@ -47,7 +47,10 @@ class single_inode_fragment {
 
   void add_chunk(size_t block, size_t offset, size_t size);
 
-  std::span<thrift::metadata::chunk const> chunks() const { return chunks_; }
+  std::span<thrift::metadata::chunk const> chunks() const {
+    // TODO: workaround for older boost small_vector
+    return std::span(chunks_.data(), chunks_.size());
+  }
 
   void extend(file_off_t length) { length_ += length; }
 
@@ -71,7 +74,10 @@ class inode_fragments {
     return fragments_.emplace_back(category, length);
   }
 
-  std::span<single_inode_fragment const> span() const { return fragments_; }
+  std::span<single_inode_fragment const> span() const {
+    // TODO: workaround for older boost small_vector
+    return std::span(fragments_.data(), fragments_.size());
+  }
 
   single_inode_fragment const& back() const { return fragments_.back(); }
   single_inode_fragment& back() { return fragments_.back(); }

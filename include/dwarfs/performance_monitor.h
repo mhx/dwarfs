@@ -86,7 +86,10 @@ class performance_monitor_proxy {
     ~section_timer() {
       if (mon_) {
         mon_->add_sample(id_, start_,
-                         context_ ? *context_ : std::span<uint64_t const>{});
+                         context_
+                             // TODO: workaround for older boost small_vector
+                             ? std::span{context_->data(), context_->size()}
+                             : std::span<uint64_t const>{});
       }
     }
 
