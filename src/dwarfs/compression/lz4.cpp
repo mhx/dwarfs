@@ -24,9 +24,8 @@
 
 #include <fmt/format.h>
 
-#include <folly/Conv.h>
-
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
@@ -38,9 +37,9 @@ namespace {
 struct lz4_compression_policy {
   static size_t compress(const void* src, void* dest, size_t size,
                          size_t destsize, int /*level*/) {
-    return folly::to<size_t>(LZ4_compress_default(
-        reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dest),
-        folly::to<int>(size), folly::to<int>(destsize)));
+    return to<size_t>(LZ4_compress_default(reinterpret_cast<const char*>(src),
+                                           reinterpret_cast<char*>(dest),
+                                           to<int>(size), to<int>(destsize)));
   }
 
   static std::string describe(int /*level*/) { return "lz4"; }
@@ -49,9 +48,9 @@ struct lz4_compression_policy {
 struct lz4hc_compression_policy {
   static size_t compress(const void* src, void* dest, size_t size,
                          size_t destsize, int level) {
-    return folly::to<size_t>(LZ4_compress_HC(
-        reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dest),
-        folly::to<int>(size), folly::to<int>(destsize), level));
+    return to<size_t>(LZ4_compress_HC(reinterpret_cast<const char*>(src),
+                                      reinterpret_cast<char*>(dest),
+                                      to<int>(size), to<int>(destsize), level));
   }
 
   static std::string describe(int level) {
@@ -73,8 +72,8 @@ class lz4_block_compressor final : public block_compressor::impl {
   std::vector<uint8_t>
   compress(const std::vector<uint8_t>& data,
            std::string const* /*metadata*/) const override {
-    std::vector<uint8_t> compressed(
-        sizeof(uint32_t) + LZ4_compressBound(folly::to<int>(data.size())));
+    std::vector<uint8_t> compressed(sizeof(uint32_t) +
+                                    LZ4_compressBound(to<int>(data.size())));
     *reinterpret_cast<uint32_t*>(&compressed[0]) = data.size();
     auto csize =
         Policy::compress(&data[0], &compressed[sizeof(uint32_t)], data.size(),

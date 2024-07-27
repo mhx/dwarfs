@@ -34,7 +34,8 @@
 #include <variant>
 #include <vector>
 
-#include <folly/Conv.h>
+#include <fmt/format.h>
+
 #include <folly/String.h>
 #include <folly/portability/Windows.h>
 #include <folly/system/HardwareConcurrency.h>
@@ -73,7 +74,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
 
     for (size_t i = 0; i < num_workers; ++i) {
       workers_.emplace_back([this, niceness, group_name, i] {
-        folly::setThreadName(folly::to<std::string>(group_name, i + 1));
+        folly::setThreadName(fmt::format("{}{}", group_name, i + 1));
         set_thread_niceness(niceness);
         do_work(niceness > 10);
       });

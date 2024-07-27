@@ -4,6 +4,7 @@
     "boost-asio",
     "boost-chrono",
     "boost-context",
+    "boost-convert",
     "boost-crc",
     "boost-filesystem",
     "boost-iostreams",

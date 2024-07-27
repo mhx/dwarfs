@@ -34,7 +34,8 @@ namespace {
 
 auto throws_conversion_error() {
   return testing::AnyOf(testing::Throws<folly::ConversionError>(),
-                        testing::Throws<boost::bad_lexical_cast>());
+                        testing::Throws<boost::bad_lexical_cast>(),
+                        testing::Throws<std::bad_optional_access>());
 }
 
 } // namespace

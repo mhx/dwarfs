@@ -45,7 +45,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/Conv.h>
 #include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 #include <folly/portability/Fcntl.h>
@@ -83,6 +82,7 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
+#include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
@@ -1553,12 +1553,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                          : kDefaultBlockSize;
     opts.readahead =
         opts.readahead_str ? parse_size_with_unit(opts.readahead_str) : 0;
-    opts.workers = opts.workers_str ? folly::to<size_t>(opts.workers_str) : 2;
+    opts.workers = opts.workers_str ? to<size_t>(opts.workers_str) : 2;
     opts.lock_mode =
         opts.mlock_str ? parse_mlock_mode(opts.mlock_str) : mlock_mode::NONE;
-    opts.decompress_ratio = opts.decompress_ratio_str
-                                ? folly::to<double>(opts.decompress_ratio_str)
-                                : 0.8;
+    opts.decompress_ratio =
+        opts.decompress_ratio_str ? to<double>(opts.decompress_ratio_str) : 0.8;
 
     if (opts.cache_tidy_strategy_str) {
       if (auto it = cache_tidy_strategy_map.find(opts.cache_tidy_strategy_str);
@@ -1593,10 +1592,9 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  opts.seq_detector_threshold =
-      opts.seq_detector_thresh_str
-          ? folly::to<size_t>(opts.seq_detector_thresh_str)
-          : kDefaultSeqDetectorThreshold;
+  opts.seq_detector_threshold = opts.seq_detector_thresh_str
+                                    ? to<size_t>(opts.seq_detector_thresh_str)
+                                    : kDefaultSeqDetectorThreshold;
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (userdata.opts.is_man) {

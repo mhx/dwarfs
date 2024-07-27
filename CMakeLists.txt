@@ -604,6 +604,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
   src/dwarfs/checksum.cpp
+  src/dwarfs/conv.cpp
   src/dwarfs/error.cpp
   src/dwarfs/features.cpp
   src/dwarfs/file_access_generic.cpp

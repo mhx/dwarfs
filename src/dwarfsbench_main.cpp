@@ -23,9 +23,9 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/Conv.h>
 #include <folly/String.h>
 
+#include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
@@ -99,8 +99,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.lock_mode = parse_mlock_mode(lock_mode_str);
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
-    fsopts.block_cache.decompress_ratio =
-        folly::to<double>(decompress_ratio_str);
+    fsopts.block_cache.decompress_ratio = to<double>(decompress_ratio_str);
 
     dwarfs::filesystem_v2 fs(
         lgr, *iol.os, std::make_shared<dwarfs::mmap>(filesystem), fsopts);

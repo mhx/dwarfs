@@ -21,17 +21,63 @@
 
 #pragma once
 
+#include <concepts>
+#include <optional>
+#include <type_traits>
 #include <utility>
 
-#include <folly/Conv.h>
-// #include <boost/lexical_cast.hpp>
+#include <boost/convert.hpp>
+#include <boost/convert/spirit.hpp>
 
 namespace dwarfs {
 
+namespace detail {
+
+std::optional<bool> str_to_bool(std::string_view s);
+
+} // namespace detail
+
+template <typename T, typename U>
+std::optional<T> tryTo(U&& s)
+  requires(!std::same_as<T, bool> && !std::convertible_to<U, T>)
+{
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+  if (auto r = boost::convert<T>(std::forward<U>(s), boost::cnv::spirit())) {
+    return r.value();
+  }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+  return std::nullopt;
+}
+
+template <typename T, typename U>
+std::optional<bool> tryTo(U&& s)
+  requires(std::same_as<T, bool> && std::is_arithmetic_v<U>)
+{
+  return s != U{};
+}
+
+template <typename T>
+std::optional<bool> tryTo(std::string_view s)
+  requires std::same_as<T, bool>
+{
+  return detail::str_to_bool(s);
+}
+
+template <typename T, typename U>
+std::optional<T> tryTo(U&& s)
+  requires(std::convertible_to<U, T>)
+{
+  return std::forward<U>(s);
+}
+
 template <typename T, typename U>
 T to(U&& s) {
-  return folly::to<T>(std::forward<U>(s));
-  // return boost::lexical_cast<T>(std::forward<U>(s));
+  return tryTo<T>(std::forward<U>(s)).value();
 }
 
 } // namespace dwarfs
