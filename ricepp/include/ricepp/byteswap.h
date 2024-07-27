@@ -57,7 +57,7 @@ template <std::unsigned_integral T>
   }
 #elif defined(_MSC_VER)
   static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
-  if constexpr (std::is_constant_evaluated()) {
+  if (std::is_constant_evaluated()) {
     return byteswap_fallback(value);
   } else {
     if constexpr (sizeof(T) == 2) {
