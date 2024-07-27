@@ -40,7 +40,6 @@
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
 #include <folly/stats/Histogram.h>
-#include <folly/system/HardwareConcurrency.h>
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/block_cache.h>
@@ -51,6 +50,7 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs {
 
@@ -229,7 +229,7 @@ class block_cache_ final : public block_cache::impl {
       wg_ = internal::worker_group(lgr, os_, "blkcache",
                                    std::max(options.num_workers > 0
                                                 ? options.num_workers
-                                                : folly::hardware_concurrency(),
+                                                : hardware_concurrency(),
                                             static_cast<size_t>(1)));
     }
   }

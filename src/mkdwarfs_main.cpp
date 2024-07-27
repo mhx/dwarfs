@@ -51,7 +51,6 @@
 #include <folly/String.h>
 #include <folly/container/Enumerate.h>
 #include <folly/portability/SysStat.h>
-#include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
@@ -374,7 +373,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace std::chrono_literals;
 
-  const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
+  const size_t num_cpu = std::max(hardware_concurrency(), 1u);
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
   static constexpr size_t const kDefaultBloomFilterSize{4};
 

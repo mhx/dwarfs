@@ -35,7 +35,6 @@
 #endif
 
 #include <folly/portability/Unistd.h>
-#include <folly/system/HardwareConcurrency.h>
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
@@ -161,7 +160,7 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
 } // namespace
 
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
-  const size_t num_cpu = std::max(folly::hardware_concurrency(), 1u);
+  const size_t num_cpu = std::max(hardware_concurrency(), 1u);
 
   auto algo_list = checksum::available_algorithms();
   auto checksum_desc = fmt::format("print checksums for all files ({})",

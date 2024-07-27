@@ -82,4 +82,6 @@ void ensure_binary_mode(std::ostream& os);
 std::string exception_str(std::exception const& e);
 std::string exception_str(std::exception_ptr const& e);
 
+unsigned int hardware_concurrency() noexcept;
+
 } // namespace dwarfs

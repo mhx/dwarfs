@@ -40,6 +40,7 @@
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Windows.h>
+#include <folly/system/HardwareConcurrency.h>
 
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
@@ -384,6 +385,10 @@ std::string exception_str(std::exception const& e) {
 
 std::string exception_str(std::exception_ptr const& e) {
   return folly::exceptionStr(e).toStdString();
+}
+
+unsigned int hardware_concurrency() noexcept {
+  return folly::hardware_concurrency();
 }
 
 } // namespace dwarfs

@@ -38,7 +38,6 @@
 
 #include <folly/String.h>
 #include <folly/portability/Windows.h>
-#include <folly/system/HardwareConcurrency.h>
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/error.h>
@@ -65,7 +64,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       , pending_(0)
       , max_queue_len_(max_queue_len) {
     if (num_workers < 1) {
-      num_workers = std::max(folly::hardware_concurrency(), 1u);
+      num_workers = std::max(hardware_concurrency(), 1u);
     }
 
     if (!group_name) {
