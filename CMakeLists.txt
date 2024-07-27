@@ -635,6 +635,7 @@ list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/fs_section.cpp
   src/dwarfs/internal/inode_reader_v2.cpp
   src/dwarfs/internal/metadata_v2.cpp
+  src/dwarfs/internal/metadata_types.cpp
   src/dwarfs/metadata_types.cpp
 )
 

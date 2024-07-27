@@ -374,7 +374,7 @@ class metadata_ final : public metadata_v2::impl {
       , global_(lgr, check_metadata_consistency(lgr, meta_,
                                                 options.check_consistency ||
                                                     force_consistency_check))
-      , root_(dir_entry_view::from_dir_entry_index(0, global_))
+      , root_(internal::dir_entry_view_impl::from_dir_entry_index(0, global_))
       , LOG_PROXY_INIT(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
@@ -526,13 +526,14 @@ class metadata_ final : public metadata_v2::impl {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
         meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
-    return inode_view(meta_.inodes()[index], inode, meta_);
+    return inode_view{std::make_shared<internal::inode_view_impl>(
+        meta_.inodes()[index], inode, meta_)};
   }
 
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
-    return dir_entry_view::from_dir_entry_index(self_index, parent_index,
-                                                global_);
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index(
+        self_index, parent_index, global_)};
   }
 
   // This represents the order in which inodes are stored in inodes
@@ -1454,16 +1455,16 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
   auto range = dir.entry_range();
 
-  auto it = std::lower_bound(range.begin(), range.end(), name,
-                             [&](auto ix, std::string_view name) {
-                               return dir_entry_view::name(ix, global_) < name;
-                             });
+  auto it = std::lower_bound(
+      range.begin(), range.end(), name, [&](auto ix, std::string_view name) {
+        return internal::dir_entry_view_impl::name(ix, global_) < name;
+      });
 
   std::optional<inode_view> rv;
 
   if (it != range.end()) {
-    if (dir_entry_view::name(*it, global_) == name) {
-      rv = dir_entry_view::inode(*it, global_);
+    if (internal::dir_entry_view_impl::name(*it, global_) == name) {
+      rv = inode_view{internal::dir_entry_view_impl::inode(*it, global_)};
     }
   }
 
@@ -1551,12 +1552,12 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
   stbuf->blocks = (stbuf->size + 511) / 512;
   stbuf->uid = iv.getuid();
   stbuf->gid = iv.getgid();
-  stbuf->mtime = resolution * (timebase + iv.mtime_offset());
+  stbuf->mtime = resolution * (timebase + iv.raw().mtime_offset());
   if (mtime_only) {
     stbuf->atime = stbuf->ctime = stbuf->mtime;
   } else {
-    stbuf->atime = resolution * (timebase + iv.atime_offset());
-    stbuf->ctime = resolution * (timebase + iv.ctime_offset());
+    stbuf->atime = resolution * (timebase + iv.raw().atime_offset());
+    stbuf->ctime = resolution * (timebase + iv.raw().ctime_offset());
   }
   stbuf->nlink = options_.enable_nlink && stbuf->is_regular_file()
                      ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
@@ -1601,8 +1602,10 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
     }
 
     auto index = dir.first_entry() + offset;
-    auto inode = dir_entry_view::inode(index, global_);
-    return std::pair(inode, dir_entry_view::name(index, global_));
+    auto inode =
+        inode_view{internal::dir_entry_view_impl::inode(index, global_)};
+    return std::pair(inode,
+                     internal::dir_entry_view_impl::name(index, global_));
   }
 
   return std::nullopt;
