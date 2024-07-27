@@ -40,7 +40,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_v2.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -48,6 +47,7 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/program_options_helpers.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
@@ -104,7 +104,7 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
                  std::string const& algo, size_t num_workers) {
   LOG_PROXY(debug_logger_policy, lgr);
 
-  internal::worker_group wg{lgr, *iol.os, "checksum", num_workers};
+  thread_pool pool{lgr, *iol.os, "checksum", num_workers};
   std::mutex mx;
 
   fs.walk_data_order([&](auto const& de) {
@@ -127,31 +127,34 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
         return;
       }
 
-      wg.add_job([&, de, iv, ranges = std::move(ranges)]() mutable {
-        checksum cs(algo);
+      pool.add_job(
+          [&, de, iv,
+           ranges = std::make_shared<decltype(ranges)>(std::move(ranges))]() {
+            checksum cs(algo);
 
-        for (auto& fut : ranges) {
-          try {
-            auto range = fut.get();
-            cs.update(range.data(), range.size());
-          } catch (std::exception const& e) {
-            LOG_ERROR << "error reading data from inode " << iv.inode_num()
-                      << ": " << e.what();
-            return;
-          }
-        }
+            for (auto& fut : *ranges) {
+              try {
+                auto range = fut.get();
+                cs.update(range.data(), range.size());
+              } catch (std::exception const& e) {
+                LOG_ERROR << "error reading data from inode " << iv.inode_num()
+                          << ": " << e.what();
+                return;
+              }
+            }
 
-        auto output = fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
+            auto output =
+                fmt::format("{}  {}\n", cs.hexdigest(), de.unix_path());
 
-        {
-          std::lock_guard lock(mx);
-          iol.out << output;
-        }
-      });
+            {
+              std::lock_guard lock(mx);
+              iol.out << output;
+            }
+          });
     }
   });
 
-  wg.wait();
+  pool.wait();
 }
 
 } // namespace
