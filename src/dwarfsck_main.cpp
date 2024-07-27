@@ -34,7 +34,6 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <folly/String.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
@@ -350,7 +349,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
   } catch (std::exception const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
+    iol.err << exception_str(e) << "\n";
     return 1;
   }
 

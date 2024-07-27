@@ -45,6 +45,7 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/progress.h>
+#include <dwarfs/util.h>
 
 template <typename T, typename U>
 class fmt::formatter<std::pair<T, U>> {
@@ -289,7 +290,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
         cs.finalize(&start_hash);
       } catch (...) {
         LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
-                  << folly::exceptionStr(std::current_exception())
+                  << exception_str(std::current_exception())
                   << ", creating empty file";
         ++prog_.errors;
         p->set_invalid();
@@ -422,7 +423,7 @@ void file_scanner_<LoggerPolicy>::hash_file(file* p) {
       mm = os_.map_file(p->fs_path(), size);
     } catch (...) {
       LOG_ERROR << "failed to map file " << p->path_as_string() << ": "
-                << folly::exceptionStr(std::current_exception())
+                << exception_str(std::current_exception())
                 << ", creating empty file";
       ++prog_.errors;
       p->set_invalid();

@@ -38,7 +38,6 @@
 #include <fmt/format.h>
 
 #include <folly/Demangle.h>
-#include <folly/String.h>
 #include <folly/sorted_vector_types.h>
 
 #include <dwarfs/categorizer.h>
@@ -60,6 +59,7 @@
 #include <dwarfs/script.h>
 #include <dwarfs/similarity.h>
 #include <dwarfs/similarity_ordering.h>
+#include <dwarfs/util.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
@@ -737,8 +737,7 @@ void inode_manager_<LoggerPolicy>::try_scan_invalid(internal::worker_group& wg,
 
       for (auto const& [fp, ep] : errors) {
         LOG_ERROR << "failed to map file \"" << fp->path_as_string()
-                  << "\": " << folly::exceptionStr(ep)
-                  << ", creating empty inode";
+                  << "\": " << exception_str(ep) << ", creating empty inode";
         ++prog_.errors;
       }
     }

@@ -301,7 +301,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
           std::visit([](auto&& j) { j(); }, job);
         } catch (...) {
           LOG_FATAL << "exception thrown in worker thread: "
-                    << folly::exceptionStr(std::current_exception());
+                    << exception_str(std::current_exception());
         }
 #ifdef _WIN32
         if (is_background) {

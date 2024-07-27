@@ -1356,7 +1356,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       options.inode.categorizer_mgr.reset();
     }
   } catch (std::exception const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    LOG_ERROR << exception_str(e);
     return 1;
   }
 

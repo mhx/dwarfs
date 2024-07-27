@@ -300,14 +300,14 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
               }
               sem.post(bs);
             } catch (archive_error const& e) {
-              LOG_ERROR << folly::exceptionStr(e);
+              LOG_ERROR << exception_str(e);
               ++hard_error;
             } catch (...) {
               if (opts.continue_on_error) {
-                LOG_WARN << folly::exceptionStr(std::current_exception());
+                LOG_WARN << exception_str(std::current_exception());
                 ++soft_error;
               } else {
-                LOG_ERROR << folly::exceptionStr(std::current_exception());
+                LOG_ERROR << exception_str(std::current_exception());
                 ++hard_error;
               }
               archive_entry_free(ae);
@@ -328,7 +328,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         try {
           check_result(::archive_write_header(a_, ae));
         } catch (...) {
-          LOG_ERROR << folly::exceptionStr(std::current_exception());
+          LOG_ERROR << exception_str(std::current_exception());
           hard_error = true;
         }
       });

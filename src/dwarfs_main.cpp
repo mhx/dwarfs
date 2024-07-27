@@ -263,10 +263,10 @@ auto checked_call(LogProxy& log_, T&& f) -> decltype(std::forward<T>(f)()) {
   try {
     return std::forward<T>(f)();
   } catch (dwarfs::system_error const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    LOG_ERROR << exception_str(e);
     return e.get_errno();
   } catch (std::exception const& e) {
-    LOG_ERROR << folly::exceptionStr(e);
+    LOG_ERROR << exception_str(e);
     return EIO;
   }
 }
@@ -1580,10 +1580,10 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
   } catch (std::filesystem::filesystem_error const& e) {
-    iol.err << folly::exceptionStr(e) << "\n";
+    iol.err << exception_str(e) << "\n";
     return 1;
   } catch (std::exception const& e) {
-    iol.err << "error: " << folly::exceptionStr(e) << "\n";
+    iol.err << "error: " << exception_str(e) << "\n";
     return 1;
   }
 
@@ -1620,7 +1620,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       load_filesystem<prod_logger_policy>(userdata);
     }
   } catch (std::exception const& e) {
-    LOG_ERROR << "error initializing file system: " << folly::exceptionStr(e);
+    LOG_ERROR << "error initializing file system: " << exception_str(e);
     return 1;
   }
 

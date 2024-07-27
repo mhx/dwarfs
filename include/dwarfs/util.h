@@ -23,6 +23,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <iosfwd>
 #include <span>
@@ -77,5 +78,8 @@ void setup_default_locale();
 std::string_view basename(std::string_view path);
 
 void ensure_binary_mode(std::ostream& os);
+
+std::string exception_str(std::exception const& e);
+std::string exception_str(std::exception_ptr const& e);
 
 } // namespace dwarfs

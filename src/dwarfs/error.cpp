@@ -26,8 +26,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/String.h>
-
 #ifdef DWARFS_USE_EXCEPTION_TRACER
 #include <folly/experimental/exception_tracer/ExceptionTracer.h>
 #endif
@@ -86,8 +84,8 @@ void dump_exceptions() {
 
 void handle_nothrow(char const* expr, char const* file, int line) {
   std::cerr << "Expression `" << expr << "` threw `"
-            << folly::exceptionStr(std::current_exception()) << "` in " << file
-            << "(" << line << ")\n";
+            << exception_str(std::current_exception()) << "` in " << file << "("
+            << line << ")\n";
   do_terminate();
 }
 

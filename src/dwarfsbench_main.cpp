@@ -23,8 +23,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/String.h>
-
 #include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
@@ -118,10 +116,10 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
               fs.read(fh, buf.data(), buf.size());
             }
           } catch (std::exception const& e) {
-            iol.err << "error: " << folly::exceptionStr(e) << "\n";
+            iol.err << "error: " << exception_str(e) << "\n";
           } catch (...) {
-            iol.err << "error: "
-                    << folly::exceptionStr(std::current_exception()) << "\n";
+            iol.err << "error: " << exception_str(std::current_exception())
+                    << "\n";
             dump_exceptions();
           }
         });
@@ -130,7 +128,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
 
     pool.wait();
   } catch (std::exception const& e) {
-    iol.err << "error: " << folly::exceptionStr(e) << "\n";
+    iol.err << "error: " << exception_str(e) << "\n";
     return 1;
   }
 

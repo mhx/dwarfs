@@ -885,7 +885,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
         }
       }
     } catch (std::exception const& e) {
-      LOG_ERROR << folly::exceptionStr(e);
+      LOG_ERROR << exception_str(e);
       ++errors;
     }
   }
@@ -894,7 +894,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
     try {
       meta_.check_consistency();
     } catch (std::exception const& e) {
-      LOG_ERROR << folly::exceptionStr(e);
+      LOG_ERROR << exception_str(e);
       ++errors;
     }
   }

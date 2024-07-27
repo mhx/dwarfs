@@ -34,7 +34,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/ExceptionString.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
@@ -437,7 +436,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     return pe;
   } catch (const std::system_error& e) {
-    LOG_ERROR << "error reading entry: " << folly::exceptionStr(e);
+    LOG_ERROR << "error reading entry: " << exception_str(e);
     prog.errors++;
   }
 
@@ -514,7 +513,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
       prog.dirs_scanned++;
     } catch (const std::system_error& e) {
       LOG_ERROR << "cannot read directory `" << ppath
-                << "`: " << folly::exceptionStr(e);
+                << "`: " << exception_str(e);
       prog.errors++;
     }
   }
@@ -801,7 +800,7 @@ void scanner_<LoggerPolicy>::scan(
             } else {
               for (auto& [fp, e] : errors) {
                 LOG_ERROR << "failed to map file " << fp->path_as_string()
-                          << ": " << folly::exceptionStr(e)
+                          << ": " << exception_str(e)
                           << ", creating empty inode";
                 ++prog.errors;
               }

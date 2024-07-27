@@ -36,6 +36,7 @@
 #include <date/date.h>
 
 #include <folly/Conv.h>
+#include <folly/ExceptionString.h>
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Windows.h>
@@ -192,7 +193,7 @@ file_off_t parse_image_offset(std::string const& str) {
     auto ce = folly::makeConversionError(off.error(), str);
     DWARFS_THROW(runtime_error,
                  fmt::format("failed to parse image offset: {} ({})", str,
-                             folly::exceptionStr(ce)));
+                             exception_str(ce)));
   }
 
   if (off.value() < 0) {
@@ -375,6 +376,14 @@ void ensure_binary_mode(std::ostream& os [[maybe_unused]]) {
     _setmode(_fileno(stderr), _O_BINARY);
   }
 #endif
+}
+
+std::string exception_str(std::exception const& e) {
+  return folly::exceptionStr(e).toStdString();
+}
+
+std::string exception_str(std::exception_ptr const& e) {
+  return folly::exceptionStr(e).toStdString();
 }
 
 } // namespace dwarfs

@@ -23,7 +23,6 @@
 #include <cstdlib>
 #include <iostream>
 
-#include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
 #include <dwarfs/error.h>
@@ -43,8 +42,7 @@ int safe_main(std::function<int(void)> fn) {
 
     return fn();
   } catch (...) {
-    std::cerr << "ERROR: " << folly::exceptionStr(std::current_exception())
-              << "\n";
+    std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
     dump_exceptions();
   }
   return 1;

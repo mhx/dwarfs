@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/String.h>
 #include <folly/container/Enumerate.h>
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
@@ -41,6 +40,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/util.h>
 
 namespace dwarfs::internal {
 
@@ -345,7 +345,7 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t size,
     }
     return num_read;
   } catch (...) {
-    LOG_ERROR << folly::exceptionStr(std::current_exception());
+    LOG_ERROR << exception_str(std::current_exception());
   }
 
   return -EIO;
