@@ -33,6 +33,8 @@ thread_pool::thread_pool(logger& lgr, os_access const& os,
     : wg_{std::make_unique<internal::worker_group>(
           lgr, os, group_name, num_workers, max_queue_len, niceness)} {}
 
+bool thread_pool::add_job(job_type job) { return wg_->add_job(std::move(job)); }
+
 void thread_pool::stop() { wg_->stop(); }
 
 void thread_pool::wait() { wg_->wait(); }

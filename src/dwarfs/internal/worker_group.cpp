@@ -31,6 +31,7 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include <folly/Conv.h>
@@ -135,20 +136,18 @@ class basic_worker_group final : public worker_group::impl, private Policy {
    * \param job             The job to add to the dispatcher.
    */
   bool add_job(worker_group::job_t&& job) override {
-    if (running_) {
-      {
-        std::unique_lock lock(mx_);
-        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
-        jobs_.emplace(std::move(job));
-        ++pending_;
-      }
+    return add_job_impl(std::move(job));
+  }
 
-      cond_.notify_one();
-
-      return true;
-    }
-
-    return false;
+  /**
+   * Add a new move-only job to the worker group
+   *
+   * The new job will be dispatched to the first available worker thread.
+   *
+   * \param job             The job to add to the dispatcher.
+   */
+  bool add_moveonly_job(worker_group::moveonly_job_t&& job) override {
+    return add_job_impl(std::move(job));
   }
 
   /**
@@ -203,7 +202,26 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   }
 
  private:
-  using jobs_t = std::queue<worker_group::job_t>;
+  using any_job_t =
+      std::variant<worker_group::job_t, worker_group::moveonly_job_t>;
+  using jobs_t = std::queue<any_job_t>;
+
+  bool add_job_impl(any_job_t&& job) {
+    if (running_) {
+      {
+        std::unique_lock lock(mx_);
+        queue_.wait(lock, [this] { return jobs_.size() < max_queue_len_; });
+        jobs_.emplace(std::move(job));
+        ++pending_;
+      }
+
+      cond_.notify_one();
+
+      return true;
+    }
+
+    return false;
+  }
 
   void check_set_affinity_from_enviroment(const char* group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
@@ -249,7 +267,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     auto hthr = ::GetCurrentThread();
 #endif
     for (;;) {
-      worker_group::job_t job;
+      any_job_t job;
 
       {
         std::unique_lock lock(mx_);
@@ -279,7 +297,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
         }
 #endif
         try {
-          job();
+          std::visit([](auto&& j) { j(); }, job);
         } catch (...) {
           LOG_FATAL << "exception thrown in worker thread: "
                     << folly::exceptionStr(std::current_exception());

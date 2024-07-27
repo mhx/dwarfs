@@ -22,6 +22,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <system_error>
@@ -45,6 +46,8 @@ class worker_group;
  */
 class thread_pool {
  public:
+  using job_type = std::function<void()>;
+
   thread_pool();
   thread_pool(logger& lgr, os_access const& os, const char* group_name,
               size_t num_workers = 1,
@@ -57,6 +60,8 @@ class thread_pool {
   thread_pool& operator=(thread_pool&&) = default;
 
   explicit operator bool() const { return static_cast<bool>(wg_); }
+
+  bool add_job(job_type job);
 
   void stop();
   void wait();

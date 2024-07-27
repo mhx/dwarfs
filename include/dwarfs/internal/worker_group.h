@@ -22,7 +22,9 @@
 #pragma once
 
 #include <chrono>
+#include <concepts>
 #include <cstddef>
+#include <functional>
 #include <future>
 #include <limits>
 #include <memory>
@@ -47,7 +49,8 @@ namespace internal {
  */
 class worker_group {
  public:
-  using job_t = folly::Function<void()>;
+  using job_t = std::function<void()>;
+  using moveonly_job_t = folly::Function<void()>;
 
   /**
    * Create a worker group
@@ -71,7 +74,17 @@ class worker_group {
   void stop() { impl_->stop(); }
   void wait() { impl_->wait(); }
   bool running() const { return impl_->running(); }
+
   bool add_job(job_t&& job) { return impl_->add_job(std::move(job)); }
+  bool add_job(moveonly_job_t&& job) {
+    return impl_->add_moveonly_job(std::move(job));
+  }
+
+  template <std::invocable T>
+  bool add_job(T&& job) {
+    return add_job(moveonly_job_t{std::forward<T>(job)});
+  }
+
   size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
   folly::Expected<std::chrono::nanoseconds, std::error_code>
@@ -95,6 +108,7 @@ class worker_group {
     virtual void wait() = 0;
     virtual bool running() const = 0;
     virtual bool add_job(job_t&& job) = 0;
+    virtual bool add_moveonly_job(moveonly_job_t&& job) = 0;
     virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
     virtual folly::Expected<std::chrono::nanoseconds, std::error_code>

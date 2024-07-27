@@ -29,12 +29,12 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
+#include <dwarfs/thread_pool.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
@@ -105,12 +105,12 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     dwarfs::filesystem_v2 fs(
         lgr, *iol.os, std::make_shared<dwarfs::mmap>(filesystem), fsopts);
 
-    internal::worker_group wg(lgr, *iol.os, "reader", num_readers);
+    thread_pool pool(lgr, *iol.os, "reader", num_readers);
 
     fs.walk([&](auto entry) {
       auto inode_data = entry.inode();
       if (inode_data.is_regular_file()) {
-        wg.add_job([&fs, &iol, inode_data] {
+        pool.add_job([&fs, &iol, inode_data] {
           try {
             file_stat stbuf;
             if (fs.getattr(inode_data, &stbuf) == 0) {
@@ -129,7 +129,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     });
 
-    wg.wait();
+    pool.wait();
   } catch (std::exception const& e) {
     iol.err << "error: " << folly::exceptionStr(e) << "\n";
     return 1;
