@@ -41,8 +41,12 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 template <typename T>
 class metadata_;
+
+}
 
 class dir_entry_view;
 class logger;
@@ -89,7 +93,7 @@ class inode_view
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
   template <typename T>
-  friend class metadata_;
+  friend class internal::metadata_;
 
   friend class dir_entry_view;
 
@@ -127,7 +131,7 @@ class directory_view {
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
   template <typename T>
-  friend class metadata_;
+  friend class internal::metadata_;
 
   friend class dir_entry_view;
 
@@ -159,7 +163,7 @@ class dir_entry_view {
       ::apache::thrift::frozen::View<thrift::metadata::dir_entry>;
 
   template <typename T>
-  friend class metadata_;
+  friend class internal::metadata_;
 
  public:
   std::string name() const;
@@ -216,7 +220,7 @@ class chunk_range {
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
   template <typename T>
-  friend class metadata_;
+  friend class internal::metadata_;
 
  public:
   class iterator

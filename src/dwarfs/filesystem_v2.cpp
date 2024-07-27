@@ -43,10 +43,10 @@
 #include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
-#include <dwarfs/inode_reader_v2.h>
+#include <dwarfs/internal/inode_reader_v2.h>
+#include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/metadata_v2.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
@@ -357,7 +357,7 @@ get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
   return buffer;
 }
 
-metadata_v2
+internal::metadata_v2
 make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
@@ -408,11 +408,11 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  return metadata_v2(lgr,
-                     get_section_data(mm, schema_it->second.front(),
-                                      schema_buffer, force_buffers),
-                     meta_section_range, options, inode_offset,
-                     force_consistency_check, perfmon);
+  return internal::metadata_v2(lgr,
+                               get_section_data(mm, schema_it->second.front(),
+                                                schema_buffer, force_buffers),
+                               meta_section_range, options, inode_offset,
+                               force_consistency_check, perfmon);
 }
 
 template <typename LoggerPolicy>
@@ -497,8 +497,8 @@ class filesystem_ final : public filesystem_v2::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   os_access const& os_;
   std::shared_ptr<mmif> mm_;
-  metadata_v2 meta_;
-  inode_reader_v2 ir_;
+  internal::metadata_v2 meta_;
+  internal::inode_reader_v2 ir_;
   mutable std::mutex mx_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
@@ -662,7 +662,8 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = inode_reader_v2(lgr, std::move(cache), options.inode_reader, perfmon);
+  ir_ = internal::inode_reader_v2(lgr, std::move(cache), options.inode_reader,
+                                  perfmon);
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     for (auto& section : it->second) {

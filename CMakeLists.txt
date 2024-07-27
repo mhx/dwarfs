@@ -633,9 +633,9 @@ list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/cached_block.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/fs_section.cpp
-  src/dwarfs/inode_reader_v2.cpp
+  src/dwarfs/internal/inode_reader_v2.cpp
+  src/dwarfs/internal/metadata_v2.cpp
   src/dwarfs/metadata_types.cpp
-  src/dwarfs/metadata_v2.cpp
 )
 
 list(APPEND LIBDWARFS_WRITER_SRC

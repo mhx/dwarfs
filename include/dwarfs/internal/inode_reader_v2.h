@@ -41,6 +41,8 @@ struct inode_reader_options;
 struct iovec_read_buf;
 class performance_monitor;
 
+namespace internal {
+
 class inode_reader_v2 {
  public:
   inode_reader_v2() = default;
@@ -101,4 +103,6 @@ class inode_reader_v2 {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace internal
 } // namespace dwarfs

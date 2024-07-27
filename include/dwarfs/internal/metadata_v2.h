@@ -51,6 +51,8 @@ namespace thrift::metadata {
 class metadata;
 }
 
+namespace internal {
+
 class metadata_v2 {
  public:
   metadata_v2() = default;
@@ -224,4 +226,6 @@ class metadata_v2 {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace internal
 } // namespace dwarfs

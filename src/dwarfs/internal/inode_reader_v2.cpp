@@ -35,14 +35,14 @@
 
 #include <dwarfs/block_cache.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/inode_reader_v2.h>
+#include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/offset_cache.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -405,4 +405,4 @@ inode_reader_v2::inode_reader_v2(
                                        logger_policies>(
           lgr, std::move(bc), opts, std::move(perfmon))) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

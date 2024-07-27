@@ -48,8 +48,8 @@
 #include <dwarfs/features.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/metadata_v2.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/string_table.h>
@@ -61,7 +61,7 @@
 
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace fs = std::filesystem;
 
@@ -1799,4 +1799,4 @@ metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
           lgr, schema, data, options, inode_offset, force_consistency_check,
           std::move(perfmon))) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
