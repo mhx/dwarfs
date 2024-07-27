@@ -281,7 +281,7 @@ jobs:
             build_type: gcc-release-ninja
           - arch: arm64v8
             dist: ubuntu-2204
-            build_type: clang-release-ninja
+            build_type: gcc-debug-ninja
 
     runs-on:
       - self-hosted
