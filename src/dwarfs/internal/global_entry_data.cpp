@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/gen/Base.h>
+#include <ranges>
 
 #include <dwarfs/error.h>
 #include <dwarfs/internal/global_entry_data.h>
@@ -29,10 +29,12 @@ namespace dwarfs::internal {
 
 template <typename T, typename U>
 std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
-  using namespace folly::gen;
-  std::vector<std::pair<T, U>> pairs(map.begin(), map.end());
-  return from(pairs) | orderBy([](auto const& p) { return p.second; }) |
-         get<0>() | as<std::vector>();
+  std::vector<std::pair<T, U>> pairs{map.begin(), map.end()};
+  std::ranges::sort(pairs, [](auto const& p1, auto const& p2) {
+    return p1.second < p2.second;
+  });
+  auto view = std::views::keys(pairs);
+  return std::vector<T>{view.begin(), view.end()};
 }
 
 auto global_entry_data::get_uids() const -> std::vector<uid_type> {
@@ -58,9 +60,13 @@ auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
 }
 
 void global_entry_data::index(map_type<std::string, uint32_t>& map) {
-  using namespace folly::gen;
-  uint32_t ix = 0;
-  from(map) | get<0>() | order | [&](std::string const& s) { map[s] = ix++; };
+  auto keys = std::views::all(map) | std::views::keys;
+  std::vector<std::string_view> tmp{keys.begin(), keys.end()};
+  std::ranges::sort(tmp);
+  std::decay_t<decltype(map)>::mapped_type ix{0};
+  for (auto& s : tmp) {
+    map[s] = ix++;
+  }
 }
 
 uint64_t global_entry_data::get_time_offset(uint64_t time) const {

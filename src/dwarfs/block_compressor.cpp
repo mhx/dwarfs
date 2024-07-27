@@ -23,8 +23,7 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
-
-#include <folly/gen/Base.h>
+#include <ranges>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
@@ -104,10 +103,14 @@ compression_registry::make_decompressor(compression_type type,
 void compression_registry::for_each_algorithm(
     std::function<void(compression_type, compression_info const&)> const& fn)
     const {
-  using namespace folly::gen;
+  auto view = std::views::keys(factories_);
+  std::vector<compression_type> types{view.begin(), view.end()};
 
-  from(factories_) | get<0>() | order |
-      [this, &fn](compression_type type) { fn(type, *factories_.at(type)); };
+  std::ranges::sort(types);
+
+  for (auto type : types) {
+    fn(type, *factories_.at(type));
+  }
 }
 
 compression_registry::compression_registry() = default;

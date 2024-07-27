@@ -410,15 +410,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
 
   auto progress_desc = fmt::format(
-      "progress mode ({})", fmt::join(progress_modes | std::views::keys, ", "));
+      "progress mode ({})", fmt::join(std::views::keys(progress_modes), ", "));
 
   auto debug_filter_desc =
       fmt::format("show effect of filter rules without producing an image ({})",
-                  fmt::join(debug_filter_modes | std::views::keys, ", "));
+                  fmt::join(std::views::keys(debug_filter_modes), ", "));
 
   auto resolution_desc =
       fmt::format("time resolution in seconds or ({})",
-                  fmt::join(time_resolutions | std::views::keys, ", "));
+                  fmt::join(std::views::keys(time_resolutions), ", "));
 
   auto hash_list = checksum::available_algorithms();
 
