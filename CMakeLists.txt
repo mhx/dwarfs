@@ -999,8 +999,12 @@ if(WITH_BENCHMARKS)
     list(APPEND BINARY_TARGETS dwarfs_benchmark)
 
     add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
-    target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
+    target_link_libraries(multiversioning_benchmark PRIVATE benchmark::benchmark)
     list(APPEND BINARY_TARGETS multiversioning_benchmark)
+
+    add_executable(converter_benchmark test/converter_benchmark.cpp)
+    target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
+    list(APPEND BINARY_TARGETS converter_benchmark)
   endif()
 
   add_library(dwarfs_follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
