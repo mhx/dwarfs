@@ -43,14 +43,17 @@
 #include <dwarfs/filesystem_extractor.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
+#include <dwarfs/internal/worker_group.h>
+
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
@@ -242,7 +245,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   ::archive_entry* spare = nullptr;
 
-  internal::worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
+  worker_group archiver(LOG_GET_LOGGER, os_, "archiver", 1);
   cache_semaphore sem;
 
   LOG_DEBUG << "extractor semaphore size: " << opts.max_queued_bytes
@@ -423,9 +426,11 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   return true;
 }
 
+} // namespace internal
+
 filesystem_extractor::filesystem_extractor(logger& lgr, os_access const& os)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
-                                       filesystem_extractor_, logger_policies>(
-          lgr, os)) {}
+                                       internal::filesystem_extractor_,
+                                       logger_policies>(lgr, os)) {}
 
 } // namespace dwarfs

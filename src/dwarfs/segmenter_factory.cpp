@@ -24,6 +24,8 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 class segmenter_factory_ final : public segmenter_factory::impl {
  public:
   segmenter_factory_(logger& lgr, progress& prog,
@@ -36,7 +38,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
 
   segmenter create(fragment_category cat, size_t cat_size,
                    compression_constraints const& cc,
-                   std::shared_ptr<internal::block_manager> blkmgr,
+                   std::shared_ptr<block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
     segmenter::config cfg;
 
@@ -65,11 +67,13 @@ class segmenter_factory_ final : public segmenter_factory::impl {
   segmenter_factory::config cfg_;
 };
 
+} // namespace internal
+
 segmenter_factory::segmenter_factory(
     logger& lgr, progress& prog, std::shared_ptr<categorizer_manager> catmgr,
     config const& cfg)
-    : impl_(std::make_unique<segmenter_factory_>(lgr, prog, std::move(catmgr),
-                                                 cfg)) {}
+    : impl_(std::make_unique<internal::segmenter_factory_>(
+          lgr, prog, std::move(catmgr), cfg)) {}
 
 segmenter_factory::segmenter_factory(logger& lgr, progress& prog,
                                      config const& cfg)

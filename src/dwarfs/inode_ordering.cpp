@@ -24,13 +24,16 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/inode_element_view.h>
 #include <dwarfs/inode_ordering.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/promise_receiver.h>
 #include <dwarfs/similarity_ordering.h>
 
+#include <dwarfs/internal/worker_group.h>
+
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
@@ -39,6 +42,8 @@ bool inode_less_by_size(inode const* a, inode const* b) {
   auto sb = b->size();
   return sa > sb || (sa == sb && a->any()->less_revpath(*b->any()));
 }
+
+} // namespace
 
 template <typename LoggerPolicy>
 class inode_ordering_ final : public inode_ordering::impl {
@@ -54,14 +59,12 @@ class inode_ordering_ final : public inode_ordering::impl {
   void
   by_similarity(sortable_inode_span& sp, fragment_category cat) const override;
   void
-  by_nilsimsa(internal::worker_group& wg,
-              similarity_ordering_options const& opts, sortable_inode_span& sp,
-              fragment_category cat) const override;
+  by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
+              sortable_inode_span& sp, fragment_category cat) const override;
 
  private:
   void
-  by_nilsimsa_impl(internal::worker_group& wg,
-                   similarity_ordering_options const& opts,
+  by_nilsimsa_impl(worker_group& wg, similarity_ordering_options const& opts,
                    std::span<std::shared_ptr<inode> const> inodes,
                    std::vector<uint32_t>& index, fragment_category cat) const;
 
@@ -160,7 +163,7 @@ void inode_ordering_<LoggerPolicy>::by_similarity(sortable_inode_span& sp,
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa(
-    internal::worker_group& wg, similarity_ordering_options const& opts,
+    worker_group& wg, similarity_ordering_options const& opts,
     sortable_inode_span& sp, fragment_category cat) const {
   auto raw = sp.raw();
   auto& index = sp.index();
@@ -190,7 +193,7 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa(
 
 template <typename LoggerPolicy>
 void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
-    internal::worker_group& wg, similarity_ordering_options const& opts,
+    worker_group& wg, similarity_ordering_options const& opts,
     std::span<std::shared_ptr<inode> const> inodes,
     std::vector<uint32_t>& index, fragment_category cat) const {
   auto ev = inode_element_view(inodes, index, cat);
@@ -202,11 +205,11 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
   future.get().swap(index);
 }
 
-} // namespace
+} // namespace internal
 
 inode_ordering::inode_ordering(logger& lgr, progress& prog,
                                inode_options const& opts)
-    : impl_(make_unique_logging_object<impl, inode_ordering_, logger_policies>(
-          lgr, prog, opts)) {}
+    : impl_(make_unique_logging_object<impl, internal::inode_ordering_,
+                                       logger_policies>(lgr, prog, opts)) {}
 
 } // namespace dwarfs

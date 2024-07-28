@@ -47,14 +47,17 @@
 #include <dwarfs/cyclic_hash.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
-#include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/block_manager.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/segmenter.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/block_manager.h>
+
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
@@ -567,7 +570,7 @@ class active_block : private GranularityPolicy {
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
-      , data_{std::make_shared<internal::block_data>()} {
+      , data_{std::make_shared<block_data>()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_->reserve(this->frames_to_bytes(capacity_in_frames_));
@@ -583,9 +586,7 @@ class active_block : private GranularityPolicy {
     return size_in_frames() == capacity_in_frames_;
   }
 
-  DWARFS_FORCE_INLINE std::shared_ptr<internal::block_data> data() const {
-    return data_;
-  }
+  DWARFS_FORCE_INLINE std::shared_ptr<block_data> data() const { return data_; }
 
   DWARFS_FORCE_INLINE void
   append_bytes(std::span<uint8_t const> data, bloom_filter& global_filter);
@@ -630,7 +631,7 @@ class active_block : private GranularityPolicy {
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
   repeating_collisions_map_type& repeating_collisions_;
-  std::shared_ptr<internal::block_data> data_;
+  std::shared_ptr<block_data> data_;
 };
 
 class segmenter_progress : public progress::context {
@@ -678,8 +679,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
  public:
   template <typename... PolicyArgs>
-  segmenter_(logger& lgr, progress& prog,
-             std::shared_ptr<internal::block_manager> blkmgr,
+  segmenter_(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
              segmenter::config const& cfg, size_t total_size,
              segmenter::block_ready_cb block_ready, PolicyArgs&&... args)
       : SegmentingPolicy(std::forward<PolicyArgs>(args)...)
@@ -764,7 +764,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
-  std::shared_ptr<internal::block_manager> blkmgr_;
+  std::shared_ptr<block_manager> blkmgr_;
   segmenter::config const cfg_;
   segmenter::block_ready_cb block_ready_;
   std::shared_ptr<segmenter_progress> pctx_;
@@ -1289,7 +1289,7 @@ struct variable_granularity_segmenter_ {
 template <template <typename> typename SegmentingPolicy>
 std::unique_ptr<segmenter::impl>
 create_segmenter2(logger& lgr, progress& prog,
-                  std::shared_ptr<internal::block_manager> blkmgr,
+                  std::shared_ptr<block_manager> blkmgr,
                   segmenter::config const& cfg,
                   compression_constraints const& cc, size_t total_size,
                   segmenter::block_ready_cb block_ready) {
@@ -1328,7 +1328,7 @@ create_segmenter2(logger& lgr, progress& prog,
 
 std::unique_ptr<segmenter::impl>
 create_segmenter(logger& lgr, progress& prog,
-                 std::shared_ptr<internal::block_manager> blkmgr,
+                 std::shared_ptr<block_manager> blkmgr,
                  segmenter::config const& cfg,
                  compression_constraints const& cc, size_t total_size,
                  segmenter::block_ready_cb block_ready) {
@@ -1351,11 +1351,13 @@ create_segmenter(logger& lgr, progress& prog,
 
 } // namespace
 
+} // namespace internal
+
 segmenter::segmenter(logger& lgr, progress& prog,
                      std::shared_ptr<internal::block_manager> blkmgr,
                      config const& cfg, compression_constraints const& cc,
                      size_t total_size, block_ready_cb block_ready)
-    : impl_(create_segmenter(lgr, prog, std::move(blkmgr), cfg, cc, total_size,
-                             std::move(block_ready))) {}
+    : impl_(internal::create_segmenter(lgr, prog, std::move(blkmgr), cfg, cc,
+                                       total_size, std::move(block_ready))) {}
 
 } // namespace dwarfs

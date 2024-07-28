@@ -39,58 +39,9 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 using namespace std::placeholders;
-
-namespace po = boost::program_options;
-
-std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
-                            fragment_category cat) {
-  return category_prefix(mgr.get(), cat);
-}
-
-std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
-                            fragment_category cat) {
-  return category_prefix(mgr.get(), cat);
-}
-
-std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
-                            fragment_category::value_type cat) {
-  return category_prefix(mgr.get(), cat);
-}
-
-std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
-                            fragment_category::value_type cat) {
-  return category_prefix(mgr.get(), cat);
-}
-
-std::string category_prefix(categorizer_manager const* mgr,
-                            fragment_category::value_type cat) {
-  return category_prefix(mgr, fragment_category(cat));
-}
-
-std::string
-category_prefix(categorizer_manager const* mgr, fragment_category cat) {
-  std::string prefix;
-  if (mgr) {
-    prefix = fmt::format(
-        "[{}{}] ", mgr->category_name(cat.value()),
-        cat.has_subcategory() ? fmt::format("/{}", cat.subcategory()) : "");
-  }
-  return prefix;
-}
-
-std::string
-categorizer::category_metadata(std::string_view, fragment_category) const {
-  return std::string();
-}
-
-void categorizer::set_metadata_requirements(std::string_view,
-                                            std::string requirements) {
-  if (!requirements.empty()) {
-    compression_metadata_requirements().parse(
-        nlohmann::json::parse(requirements));
-  }
-}
 
 class categorizer_manager_private : public categorizer_manager::impl {
  public:
@@ -213,11 +164,6 @@ bool categorizer_job_<LoggerPolicy>::best_result_found() const {
   return is_global_best_;
 }
 
-categorizer_job::categorizer_job() = default;
-
-categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
-    : impl_{std::move(impl)} {}
-
 template <typename LoggerPolicy>
 class categorizer_manager_ final : public categorizer_manager_private {
  public:
@@ -277,10 +223,6 @@ class categorizer_manager_ final : public categorizer_manager_private {
   std::vector<std::pair<std::string_view, size_t>> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
 };
-
-fragment_category categorizer_manager::default_category() {
-  return fragment_category(0);
-}
 
 template <typename LoggerPolicy>
 void categorizer_manager_<LoggerPolicy>::add(std::shared_ptr<categorizer> c) {
@@ -354,9 +296,71 @@ bool categorizer_manager_<LoggerPolicy>::deterministic_less(
   return categorizer->subcategory_less(a, b);
 }
 
+} // namespace internal
+
+namespace po = boost::program_options;
+
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(std::unique_ptr<categorizer_manager> const& mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr.get(), cat);
+}
+
+std::string category_prefix(categorizer_manager const* mgr,
+                            fragment_category::value_type cat) {
+  return category_prefix(mgr, fragment_category(cat));
+}
+
+std::string
+category_prefix(categorizer_manager const* mgr, fragment_category cat) {
+  std::string prefix;
+  if (mgr) {
+    prefix = fmt::format(
+        "[{}{}] ", mgr->category_name(cat.value()),
+        cat.has_subcategory() ? fmt::format("/{}", cat.subcategory()) : "");
+  }
+  return prefix;
+}
+
+std::string
+categorizer::category_metadata(std::string_view, fragment_category) const {
+  return std::string();
+}
+
+void categorizer::set_metadata_requirements(std::string_view,
+                                            std::string requirements) {
+  if (!requirements.empty()) {
+    compression_metadata_requirements().parse(
+        nlohmann::json::parse(requirements));
+  }
+}
+
+categorizer_job::categorizer_job() = default;
+
+categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
+    : impl_{std::move(impl)} {}
+
 categorizer_manager::categorizer_manager(logger& lgr)
-    : impl_(make_unique_logging_object<impl, categorizer_manager_,
+    : impl_(make_unique_logging_object<impl, internal::categorizer_manager_,
                                        logger_policies>(lgr)) {}
+
+fragment_category categorizer_manager::default_category() {
+  return fragment_category(0);
+}
 
 categorizer_registry& categorizer_registry::instance() {
   static categorizer_registry the_instance;
@@ -369,7 +373,7 @@ void categorizer_registry::register_factory(
 
   if (!factories_.emplace(name, std::move(factory)).second) {
     std::cerr << "categorizer factory name conflict (" << name << "\n";
-    ::abort();
+    std::abort();
   }
 }
 

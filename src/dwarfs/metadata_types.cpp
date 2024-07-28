@@ -27,11 +27,12 @@
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/internal/metadata_types.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/metadata_types.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/metadata_types.h>
 
 namespace dwarfs {
 

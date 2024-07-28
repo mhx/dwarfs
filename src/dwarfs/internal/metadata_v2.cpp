@@ -48,13 +48,14 @@
 #include <dwarfs/features.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/string_table.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
+
+#include <dwarfs/internal/metadata_v2.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>

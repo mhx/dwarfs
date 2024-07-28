@@ -28,9 +28,10 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fs_section.h>
-#include <dwarfs/internal/cached_block.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
+
+#include <dwarfs/internal/cached_block.h>
 
 namespace dwarfs::internal {
 

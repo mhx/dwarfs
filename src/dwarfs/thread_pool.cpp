@@ -19,8 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/thread_pool.h>
+
+#include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs {
 

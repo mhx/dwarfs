@@ -41,11 +41,6 @@
 #include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
-#include <dwarfs/internal/block_cache.h>
-#include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/inode_reader_v2.h>
-#include <dwarfs/internal/metadata_v2.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -53,7 +48,15 @@
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/block_cache.h>
+#include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/inode_reader_v2.h>
+#include <dwarfs/internal/metadata_v2.h>
+#include <dwarfs/internal/worker_group.h>
+
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
@@ -357,7 +360,7 @@ get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
   return buffer;
 }
 
-internal::metadata_v2
+metadata_v2
 make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
@@ -408,12 +411,14 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  return internal::metadata_v2(lgr,
-                               get_section_data(mm, schema_it->second.front(),
-                                                schema_buffer, force_buffers),
-                               meta_section_range, options, inode_offset,
-                               force_consistency_check, perfmon);
+  return metadata_v2(lgr,
+                     get_section_data(mm, schema_it->second.front(),
+                                      schema_buffer, force_buffers),
+                     meta_section_range, options, inode_offset,
+                     force_consistency_check, perfmon);
 }
+
+} // namespace
 
 template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
@@ -497,8 +502,8 @@ class filesystem_ final : public filesystem_v2::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   os_access const& os_;
   std::shared_ptr<mmif> mm_;
-  internal::metadata_v2 meta_;
-  internal::inode_reader_v2 ir_;
+  metadata_v2 meta_;
+  inode_reader_v2 ir_;
   mutable std::mutex mx_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
@@ -610,7 +615,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_future)
     PERFMON_CLS_TIMER_INIT(readv_future_throw) // clang-format on
 {
-  internal::block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
+  block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
   filesystem_parser parser(mm_, image_offset_);
 
   if (parser.has_index()) {
@@ -662,8 +667,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   cache.set_block_size(meta_.block_size());
 
-  ir_ = internal::inode_reader_v2(lgr, std::move(cache), options.inode_reader,
-                                  perfmon);
+  ir_ = inode_reader_v2(lgr, std::move(cache), options.inode_reader, perfmon);
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     for (auto& section : it->second) {
@@ -820,8 +824,7 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
                     << "), compressing using '"
                     << writer.get_compressor(s->type()).describe() << "'";
 
-        writer.write_history(
-            std::make_shared<internal::block_data>(hist.serialize()));
+        writer.write_history(std::make_shared<block_data>(hist.serialize()));
       } else {
         LOG_VERBOSE << "removing " << get_section_name(s->type());
       }
@@ -846,7 +849,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  internal::worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
+  worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
 
   while (auto sp = parser.next_section()) {
@@ -1231,7 +1234,7 @@ filesystem_<LoggerPolicy>::header() const {
   return header_;
 }
 
-} // namespace
+} // namespace internal
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::shared_ptr<mmif> mm)
@@ -1241,8 +1244,8 @@ filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::shared_ptr<mmif> mm,
                              const filesystem_options& options,
                              std::shared_ptr<performance_monitor const> perfmon)
-    : impl_(make_unique_logging_object<filesystem_v2::impl, filesystem_,
-                                       logger_policies>(
+    : impl_(make_unique_logging_object<filesystem_v2::impl,
+                                       internal::filesystem_, logger_policies>(
           lgr, os, std::move(mm), options, std::move(perfmon))) {}
 
 int filesystem_v2::identify(logger& lgr, os_access const& os,
@@ -1270,7 +1273,7 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 
 std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
-  return filesystem_parser(mm, image_offset).header();
+  return internal::filesystem_parser(mm, image_offset).header();
 }
 
 } // namespace dwarfs

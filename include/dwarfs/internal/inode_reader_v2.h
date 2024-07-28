@@ -29,8 +29,9 @@
 #include <folly/Expected.h>
 
 #include <dwarfs/block_range.h>
-#include <dwarfs/internal/metadata_types.h>
 #include <dwarfs/types.h>
+
+#include <dwarfs/internal/metadata_types.h>
 
 namespace dwarfs {
 

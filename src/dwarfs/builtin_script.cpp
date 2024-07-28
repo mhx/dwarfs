@@ -34,6 +34,8 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 struct filter_rule {
   enum class rule_type {
     include,
@@ -280,10 +282,12 @@ void builtin_script_<LoggerPolicy>::transform(entry_interface& ei) {
   }
 }
 
+} // namespace internal
+
 builtin_script::builtin_script(logger& lgr,
                                std::shared_ptr<file_access const> fa)
-    : impl_(make_unique_logging_object<impl, builtin_script_, logger_policies>(
-          lgr, std::move(fa))) {}
+    : impl_(make_unique_logging_object<impl, internal::builtin_script_,
+                                       logger_policies>(lgr, std::move(fa))) {}
 
 builtin_script::~builtin_script() = default;
 

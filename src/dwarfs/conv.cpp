@@ -23,8 +23,7 @@
 
 #include <dwarfs/conv.h>
 
-namespace dwarfs {
-namespace detail {
+namespace dwarfs::detail {
 
 std::optional<bool> str_to_bool(std::string_view s) {
   if (auto r = folly::tryTo<bool>(s)) {
@@ -33,5 +32,4 @@ std::optional<bool> str_to_bool(std::string_view s) {
   return std::nullopt;
 }
 
-} // namespace detail
-} // namespace dwarfs
+} // namespace dwarfs::detail

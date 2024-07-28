@@ -31,12 +31,15 @@
 #include <folly/experimental/Bits.h>
 
 #include <dwarfs/compiler.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/similarity_ordering.h>
 
+#include <dwarfs/internal/worker_group.h>
+
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
@@ -231,7 +234,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       basic_cluster<256, uint64_t, uint32_t, index_value_type>;
   using nilsimsa_cluster_tree_node = basic_cluster_tree_node<nilsimsa_cluster>;
 
-  similarity_ordering_(logger& lgr, progress& prog, internal::worker_group& wg,
+  similarity_ordering_(logger& lgr, progress& prog, worker_group& wg,
                        similarity_ordering_options const& opts)
       : LOG_PROXY_INIT(lgr)
       , prog_{prog}
@@ -297,7 +300,7 @@ class similarity_ordering_ final : public similarity_ordering::impl {
 
   LOG_PROXY_DECL(LoggerPolicy);
   progress& prog_;
-  internal::worker_group& wg_;
+  worker_group& wg_;
   similarity_ordering_options const opts_;
 };
 
@@ -650,10 +653,12 @@ void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
       });
 }
 
+} // namespace internal
+
 similarity_ordering::similarity_ordering(
     logger& lgr, progress& prog, internal::worker_group& wg,
     similarity_ordering_options const& opts)
-    : impl_(make_unique_logging_object<impl, similarity_ordering_,
+    : impl_(make_unique_logging_object<impl, internal::similarity_ordering_,
                                        logger_policies>(lgr, prog, wg, opts)) {}
 
 } // namespace dwarfs

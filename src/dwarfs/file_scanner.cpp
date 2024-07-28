@@ -38,13 +38,14 @@
 #include <dwarfs/format.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::detail {
 

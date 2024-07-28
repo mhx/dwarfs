@@ -43,14 +43,15 @@
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/fs_section.h>
-#include <dwarfs/internal/block_cache.h>
-#include <dwarfs/internal/cached_block.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/block_cache.h>
+#include <dwarfs/internal/cached_block.h>
+#include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::internal {
 

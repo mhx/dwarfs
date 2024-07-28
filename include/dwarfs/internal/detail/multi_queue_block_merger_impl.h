@@ -40,8 +40,9 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
 
-#include <dwarfs/internal/block_merger.h>
 #include <dwarfs/terminal.h>
+
+#include <dwarfs/internal/block_merger.h>
 
 namespace dwarfs::internal::detail {
 

@@ -30,7 +30,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/inode.h>
-#include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/nilsimsa.h>
 #include <dwarfs/options.h>
@@ -38,6 +37,8 @@
 #include <dwarfs/progress.h>
 #include <dwarfs/scanner_progress.h>
 #include <dwarfs/util.h>
+
+#include <dwarfs/internal/global_entry_data.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 

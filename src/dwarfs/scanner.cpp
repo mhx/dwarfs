@@ -50,10 +50,6 @@
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
-#include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/block_manager.h>
-#include <dwarfs/internal/global_entry_data.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/metadata_freezer.h>
 #include <dwarfs/mmif.h>
@@ -68,9 +64,16 @@
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 
+#include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/block_manager.h>
+#include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/worker_group.h>
+
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs {
+
+namespace internal {
 
 using namespace std::chrono_literals;
 
@@ -149,7 +152,7 @@ class pipe_set_inode_visitor : public visitor_base {
 
 class names_and_symlinks_visitor : public visitor_base {
  public:
-  explicit names_and_symlinks_visitor(internal::global_entry_data& data)
+  explicit names_and_symlinks_visitor(global_entry_data& data)
       : data_(data) {}
 
   void visit(file* p) override { data_.add_name(p->name()); }
@@ -168,7 +171,7 @@ class names_and_symlinks_visitor : public visitor_base {
   }
 
  private:
-  internal::global_entry_data& data_;
+  global_entry_data& data_;
 };
 
 class save_directories_visitor : public visitor_base {
@@ -179,8 +182,7 @@ class save_directories_visitor : public visitor_base {
 
   void visit(dir* p) override { directories_.at(p->inode_num().value()) = p; }
 
-  void
-  pack(thrift::metadata::metadata& mv2, internal::global_entry_data& ge_data) {
+  void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
     for (auto p : directories_) {
       if (!p->has_parent()) {
         p->set_entry_index(mv2.dir_entries()->size());
@@ -285,8 +287,7 @@ std::string status_string(progress const& p, size_t width) {
 template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
-  scanner_(logger& lgr, internal::worker_group& wg,
-           std::shared_ptr<segmenter_factory> sf,
+  scanner_(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
            std::shared_ptr<entry_factory> ef,
            std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
            const scanner_options& options);
@@ -314,7 +315,7 @@ class scanner_ final : public scanner::impl {
                   std::function<void(std::ostream&)> dumper) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  internal::worker_group& wg_;
+  worker_group& wg_;
   scanner_options const& options_;
   std::shared_ptr<segmenter_factory> segmenter_factory_;
   std::shared_ptr<entry_factory> entry_factory_;
@@ -323,7 +324,7 @@ class scanner_ final : public scanner::impl {
 };
 
 template <typename LoggerPolicy>
-scanner_<LoggerPolicy>::scanner_(logger& lgr, internal::worker_group& wg,
+scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
                                  std::shared_ptr<segmenter_factory> sf,
                                  std::shared_ptr<entry_factory> ef,
                                  std::shared_ptr<os_access const> os,
@@ -683,7 +684,7 @@ void scanner_<LoggerPolicy>::scan(
     }
   }
 
-  internal::global_entry_data ge_data(options_);
+  global_entry_data ge_data(options_);
   thrift::metadata::metadata mv2;
   feature_set features;
 
@@ -730,14 +731,12 @@ void scanner_<LoggerPolicy>::scan(
   //   which gets run on a worker groups; each batch keeps track of
   //   its CPU time and affects thread naming
 
-  auto blockmgr = std::make_shared<internal::block_manager>();
+  auto blockmgr = std::make_shared<block_manager>();
 
   {
     size_t const num_threads = options_.num_segmenter_workers;
-    internal::worker_group wg_ordering(LOG_GET_LOGGER, *os_, "ordering",
-                                       num_threads);
-    internal::worker_group wg_blockify(LOG_GET_LOGGER, *os_, "blockify",
-                                       num_threads);
+    worker_group wg_ordering(LOG_GET_LOGGER, *os_, "ordering", num_threads);
+    worker_group wg_blockify(LOG_GET_LOGGER, *os_, "blockify", num_threads);
 
     fsw.configure(frag_info.categories, num_threads);
 
@@ -989,15 +988,13 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
-  fsw.write_metadata_v2_schema(
-      std::make_shared<internal::block_data>(std::move(schema)));
-  fsw.write_metadata_v2(
-      std::make_shared<internal::block_data>(std::move(data)));
+  fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
+  fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
 
   if (options_.enable_history) {
     history hist(options_.history);
     hist.append(options_.command_line_arguments);
-    fsw.write_history(std::make_shared<internal::block_data>(hist.serialize()));
+    fsw.write_history(std::make_shared<block_data>(hist.serialize()));
   }
 
   LOG_INFO << "waiting for compression to finish...";
@@ -1010,13 +1007,16 @@ void scanner_<LoggerPolicy>::scan(
            << ")";
 }
 
+} // namespace internal
+
 scanner::scanner(logger& lgr, thread_pool& pool,
                  std::shared_ptr<segmenter_factory> sf,
                  std::shared_ptr<entry_factory> ef,
                  std::shared_ptr<os_access const> os,
                  std::shared_ptr<script> scr, const scanner_options& options)
-    : impl_(make_unique_logging_object<impl, scanner_, logger_policies>(
-          lgr, pool.get_worker_group(), std::move(sf), std::move(ef),
-          std::move(os), std::move(scr), options)) {}
+    : impl_(
+          make_unique_logging_object<impl, internal::scanner_, logger_policies>(
+              lgr, pool.get_worker_group(), std::move(sf), std::move(ef),
+              std::move(os), std::move(scr), options)) {}
 
 } // namespace dwarfs

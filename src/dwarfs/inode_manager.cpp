@@ -46,7 +46,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
-#include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/mmif.h>
@@ -61,14 +60,20 @@
 #include <dwarfs/similarity_ordering.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/worker_group.h>
+
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs {
+
+namespace internal {
 
 namespace {
 
 constexpr std::string_view const kScanContext{"[scanning] "};
 constexpr std::string_view const kCategorizeContext{"[categorizing] "};
+
+} // namespace
 
 class inode_ : public inode {
  public:
@@ -529,8 +534,6 @@ class inode_ : public inode {
       similarity_;
 };
 
-} // namespace
-
 template <typename LoggerPolicy>
 class inode_manager_ final : public inode_manager::impl {
  public:
@@ -607,13 +610,12 @@ class inode_manager_ final : public inode_manager::impl {
     return rv;
   }
 
-  void scan_background(internal::worker_group& wg, os_access const& os,
+  void scan_background(worker_group& wg, os_access const& os,
                        std::shared_ptr<inode> ino, file* p) const override;
 
   bool has_invalid_inodes() const override;
 
-  void
-  try_scan_invalid(internal::worker_group& wg, os_access const& os) override;
+  void try_scan_invalid(worker_group& wg, os_access const& os) override;
 
   void dump(std::ostream& os) const override;
 
@@ -621,8 +623,8 @@ class inode_manager_ final : public inode_manager::impl {
     return sortable_inode_span(inodes_);
   }
 
-  sortable_inode_span ordered_span(fragment_category cat,
-                                   internal::worker_group& wg) const override;
+  sortable_inode_span
+  ordered_span(fragment_category cat, worker_group& wg) const override;
 
  private:
   void update_prog(std::shared_ptr<inode> const& ino, file const* p) const {
@@ -653,7 +655,7 @@ class inode_manager_ final : public inode_manager::impl {
 };
 
 template <typename LoggerPolicy>
-void inode_manager_<LoggerPolicy>::scan_background(internal::worker_group& wg,
+void inode_manager_<LoggerPolicy>::scan_background(worker_group& wg,
                                                    os_access const& os,
                                                    std::shared_ptr<inode> ino,
                                                    file* p) const {
@@ -698,7 +700,7 @@ bool inode_manager_<LoggerPolicy>::has_invalid_inodes() const {
 }
 
 template <typename LoggerPolicy>
-void inode_manager_<LoggerPolicy>::try_scan_invalid(internal::worker_group& wg,
+void inode_manager_<LoggerPolicy>::try_scan_invalid(worker_group& wg,
                                                     os_access const& os) {
   LOG_VERBOSE << "trying to scan " << num_invalid_inodes_.load()
               << " invalid inodes...";
@@ -752,8 +754,7 @@ void inode_manager_<LoggerPolicy>::dump(std::ostream& os) const {
 
 template <typename LoggerPolicy>
 auto inode_manager_<LoggerPolicy>::ordered_span(
-    fragment_category cat,
-    internal::worker_group& wg) const -> sortable_inode_span {
+    fragment_category cat, worker_group& wg) const -> sortable_inode_span {
   auto prefix = category_prefix(opts_.categorizer_mgr, cat);
   auto opts = opts_.fragment_order.get(cat);
 
@@ -811,9 +812,11 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
   return span;
 }
 
+} // namespace internal
+
 inode_manager::inode_manager(logger& lgr, progress& prog,
                              inode_options const& opts)
-    : impl_(make_unique_logging_object<impl, inode_manager_, logger_policies>(
-          lgr, prog, opts)) {}
+    : impl_(make_unique_logging_object<impl, internal::inode_manager_,
+                                       logger_policies>(lgr, prog, opts)) {}
 
 } // namespace dwarfs

@@ -49,6 +49,8 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 namespace {
 
 class single_timer {
@@ -367,6 +369,8 @@ class performance_monitor_impl : public performance_monitor {
   std::shared_ptr<file_access const> fa_;
 };
 
+} // namespace internal
+
 performance_monitor_proxy::performance_monitor_proxy(
     std::shared_ptr<performance_monitor const> mon,
     std::string const& mon_namespace)
@@ -379,7 +383,7 @@ std::unique_ptr<performance_monitor> performance_monitor::create(
     std::optional<std::filesystem::path> trace_file) {
   return enabled_namespaces.empty()
              ? nullptr
-             : std::make_unique<performance_monitor_impl>(
+             : std::make_unique<internal::performance_monitor_impl>(
                    std::move(enabled_namespaces), std::move(fa),
                    std::move(trace_file));
 }

@@ -22,8 +22,9 @@
 #include <ranges>
 
 #include <dwarfs/error.h>
-#include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/options.h>
+
+#include <dwarfs/internal/global_entry_data.h>
 
 namespace dwarfs::internal {
 
