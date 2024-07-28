@@ -28,12 +28,13 @@
 namespace dwarfs {
 
 struct inode_options;
-struct similarity_ordering_options;
 
 class logger;
 class progress;
 
 namespace internal {
+
+struct similarity_ordering_options;
 
 class worker_group;
 

@@ -26,7 +26,7 @@
 #include <optional>
 #include <vector>
 
-#include <dwarfs/receiver.h>
+#include <dwarfs/internal/receiver.h>
 
 namespace dwarfs {
 
@@ -36,8 +36,6 @@ class progress;
 namespace internal {
 
 class worker_group;
-
-} // namespace internal
 
 class similarity_element_view {
  public:
@@ -95,5 +93,7 @@ class similarity_ordering {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

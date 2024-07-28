@@ -51,15 +51,15 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/progress.h>
-#include <dwarfs/promise_receiver.h>
 #include <dwarfs/script.h>
 #include <dwarfs/similarity.h>
-#include <dwarfs/similarity_ordering.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/inode_ordering.h>
+#include <dwarfs/internal/promise_receiver.h>
 #include <dwarfs/internal/scanner_progress.h>
+#include <dwarfs/internal/similarity_ordering.h>
 #include <dwarfs/internal/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>

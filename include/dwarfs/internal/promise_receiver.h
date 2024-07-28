@@ -23,9 +23,9 @@
 
 #include <future>
 
-#include <dwarfs/receiver.h>
+#include <dwarfs/internal/receiver.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 template <typename T>
 class promise_receiver : public receiver<T>::impl {
@@ -51,4 +51,4 @@ receiver<T> make_receiver(std::promise<T>&& p) {
   return promise_receiver<T>::create(std::move(p));
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

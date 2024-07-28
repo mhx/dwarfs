@@ -24,11 +24,11 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
-#include <dwarfs/promise_receiver.h>
-#include <dwarfs/similarity_ordering.h>
 
 #include <dwarfs/internal/inode_element_view.h>
 #include <dwarfs/internal/inode_ordering.h>
+#include <dwarfs/internal/promise_receiver.h>
+#include <dwarfs/internal/similarity_ordering.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::internal {

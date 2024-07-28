@@ -34,13 +34,11 @@
 #include <dwarfs/compiler.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>
-#include <dwarfs/similarity_ordering.h>
 
+#include <dwarfs/internal/similarity_ordering.h>
 #include <dwarfs/internal/worker_group.h>
 
-namespace dwarfs {
-
-namespace internal {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -654,12 +652,10 @@ void similarity_ordering_<LoggerPolicy>::order_nilsimsa(
       });
 }
 
-} // namespace internal
-
 similarity_ordering::similarity_ordering(
     logger& lgr, progress& prog, internal::worker_group& wg,
     similarity_ordering_options const& opts)
     : impl_(make_unique_logging_object<impl, internal::similarity_ordering_,
                                        logger_policies>(lgr, prog, wg, opts)) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

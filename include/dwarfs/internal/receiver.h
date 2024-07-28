@@ -23,7 +23,7 @@
 
 #include <memory>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 template <typename T, typename E = std::exception_ptr>
 class receiver {
@@ -51,4 +51,4 @@ class receiver {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
