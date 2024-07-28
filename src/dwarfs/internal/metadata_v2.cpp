@@ -494,7 +494,8 @@ class metadata_ final : public metadata_v2::impl {
     return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
   }
 
-  int access(inode_view iv, int mode, uid_t uid, gid_t gid) const override;
+  int access(inode_view iv, int mode, file_stat::uid_type uid,
+             file_stat::gid_type gid) const override;
 
   int open(inode_view iv) const override;
 
@@ -1614,8 +1615,9 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::access(inode_view iv, int mode, uid_t uid,
-                                    gid_t gid) const {
+int metadata_<LoggerPolicy>::access(inode_view iv, int mode,
+                                    file_stat::uid_type uid,
+                                    file_stat::gid_type gid) const {
   LOG_DEBUG << fmt::format("access([{}, {:o}, {}, {}], {:o}, {}, {})",
                            iv.inode_num(), iv.mode(), iv.getuid(), iv.getgid(),
                            mode, uid, gid);

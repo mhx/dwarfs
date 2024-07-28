@@ -456,7 +456,8 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
 
 template <typename LogProxy, typename Find>
 int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
-                     uid_t uid, gid_t gid, Find const& find) {
+                     file_stat::uid_type uid, file_stat::gid_type gid,
+                     Find const& find) {
   return checked_call(log_, [&] {
     if (auto entry = find()) {
       return userdata.fs.access(*entry, mode, uid, gid);

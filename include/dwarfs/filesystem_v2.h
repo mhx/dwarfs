@@ -124,12 +124,13 @@ class filesystem_v2 {
 
   file_stat getattr(inode_view entry) const { return impl_->getattr(entry); }
 
-  int access(inode_view entry, int mode, uid_t uid, gid_t gid) const {
+  int access(inode_view entry, int mode, file_stat::uid_type uid,
+             file_stat::gid_type gid) const {
     return impl_->access(entry, mode, uid, gid);
   }
 
-  void access(inode_view entry, int mode, uid_t uid, gid_t gid,
-              std::error_code& ec) const {
+  void access(inode_view entry, int mode, file_stat::uid_type uid,
+              file_stat::gid_type gid, std::error_code& ec) const {
     impl_->access(entry, mode, uid, gid, ec);
   }
 
@@ -252,10 +253,10 @@ class filesystem_v2 {
     virtual int getattr(inode_view entry, file_stat* stbuf) const = 0;
     virtual file_stat getattr(inode_view entry, std::error_code& ec) const = 0;
     virtual file_stat getattr(inode_view entry) const = 0;
-    virtual int
-    access(inode_view entry, int mode, uid_t uid, gid_t gid) const = 0;
-    virtual void access(inode_view entry, int mode, uid_t uid, gid_t gid,
-                        std::error_code& ec) const = 0;
+    virtual int access(inode_view entry, int mode, file_stat::uid_type uid,
+                       file_stat::gid_type gid) const = 0;
+    virtual void access(inode_view entry, int mode, file_stat::uid_type uid,
+                        file_stat::gid_type gid, std::error_code& ec) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
     virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;

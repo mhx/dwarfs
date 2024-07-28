@@ -120,7 +120,8 @@ class metadata_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int access(inode_view iv, int mode, uid_t uid, gid_t gid) const {
+  int access(inode_view iv, int mode, file_stat::uid_type uid,
+             file_stat::gid_type gid) const {
     return impl_->access(iv, mode, uid, gid);
   }
 
@@ -198,7 +199,8 @@ class metadata_v2 {
 
     virtual size_t dirsize(directory_view dir) const = 0;
 
-    virtual int access(inode_view iv, int mode, uid_t uid, gid_t gid) const = 0;
+    virtual int access(inode_view iv, int mode, file_stat::uid_type uid,
+                       file_stat::gid_type gid) const = 0;
 
     virtual int open(inode_view iv) const = 0;
 
