@@ -27,10 +27,11 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
-#include <dwarfs/fs_section.h>
 #include <dwarfs/mmif.h>
 
-namespace dwarfs {
+#include <dwarfs/internal/fs_section.h>
+
+namespace dwarfs::internal {
 
 namespace {
 
@@ -359,4 +360,4 @@ fs_section::impl const& fs_section_v2_lazy::section() const {
   return *sec_;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

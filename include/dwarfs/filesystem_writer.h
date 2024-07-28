@@ -32,22 +32,22 @@
 
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/fragment_category.h>
-#include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/options.h>
 
 namespace dwarfs {
 
-namespace internal {
-
-class block_data;
-
-} // namespace internal
-
 class block_compressor;
 class logger;
 class progress;
 class thread_pool;
+
+namespace internal {
+
+class block_data;
+class fs_section;
+
+} // namespace internal
 
 class filesystem_writer {
  public:
@@ -133,8 +133,9 @@ class filesystem_writer {
     impl_->write_section(type, compression, data, cat);
   }
 
-  void write_compressed_section(fs_section sec, std::span<uint8_t const> data) {
-    impl_->write_compressed_section(std::move(sec), data);
+  void write_compressed_section(internal::fs_section const& sec,
+                                std::span<uint8_t const> data) {
+    impl_->write_compressed_section(sec, data);
   }
 
   void flush() { impl_->flush(); }
@@ -179,8 +180,8 @@ class filesystem_writer {
     write_section(section_type type, compression_type compression,
                   std::span<uint8_t const> data,
                   std::optional<fragment_category::value_type> cat) = 0;
-    virtual void
-    write_compressed_section(fs_section sec, std::span<uint8_t const> data) = 0;
+    virtual void write_compressed_section(internal::fs_section const& sec,
+                                          std::span<uint8_t const> data) = 0;
     virtual void flush() = 0;
     virtual size_t size() const = 0;
   };

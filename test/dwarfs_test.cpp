@@ -42,7 +42,6 @@
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/filter_debug.h>
-#include <dwarfs/fs_section.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -51,6 +50,8 @@
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
+
+#include <dwarfs/internal/fs_section.h>
 
 #include "filter_test_data.h"
 #include "loremipsum.h"
@@ -1159,7 +1160,7 @@ TEST(section_index_regression, github183) {
     ASSERT_LT(index_pos, fsimage.size());
 
     test::mmap_mock mm(fsimage);
-    auto section = fs_section(mm, index_pos, 2);
+    auto section = internal::fs_section(mm, index_pos, 2);
 
     EXPECT_TRUE(section.check_fast(mm));
 

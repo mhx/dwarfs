@@ -38,7 +38,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer.h>
-#include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
@@ -50,6 +49,7 @@
 
 #include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/worker_group.h>

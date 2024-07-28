@@ -33,6 +33,8 @@ namespace dwarfs {
 
 class mmif;
 
+namespace internal {
+
 class fs_section {
  public:
   fs_section(mmif const& mm, size_t offset, int version);
@@ -92,5 +94,7 @@ class fs_section {
  private:
   std::shared_ptr<impl const> impl_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

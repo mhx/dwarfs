@@ -44,6 +44,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/multi_queue_block_merger.h>
 #include <dwarfs/internal/worker_group.h>
 
@@ -556,7 +557,7 @@ class filesystem_writer_ final : public filesystem_writer::impl {
   void write_section(section_type type, compression_type compression,
                      std::span<uint8_t const> data,
                      std::optional<fragment_category::value_type> cat) override;
-  void write_compressed_section(fs_section sec,
+  void write_compressed_section(fs_section const& sec,
                                 std::span<uint8_t const> data) override;
   void flush() override;
   size_t size() const override { return image_size_; }
@@ -922,7 +923,7 @@ void filesystem_writer_<LoggerPolicy>::write_section(
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write_compressed_section(
-    fs_section sec, std::span<uint8_t const> data) {
+    fs_section const& sec, std::span<uint8_t const> data) {
   {
     std::lock_guard lock(mx_);
 
@@ -930,7 +931,7 @@ void filesystem_writer_<LoggerPolicy>::write_compressed_section(
       pctx_ = prog_.create_context<compression_progress>();
     }
 
-    auto fsb = std::make_unique<fsblock>(std::move(sec), data, pctx_);
+    auto fsb = std::make_unique<fsblock>(sec, data, pctx_);
 
     fsb->set_block_no(section_number_++);
     fsb->compress(wg_);

@@ -29,10 +29,11 @@
 namespace dwarfs {
 
 class logger;
-class fs_section;
 class mmif;
 
 namespace internal {
+
+class fs_section;
 
 class cached_block {
  public:

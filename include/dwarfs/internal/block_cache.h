@@ -36,13 +36,14 @@ namespace dwarfs {
 struct block_cache_options;
 struct cache_tidy_config;
 
-class fs_section;
 class logger;
 class mmif;
 class os_access;
 class performance_monitor;
 
 namespace internal {
+
+class fs_section;
 
 class block_cache {
  public:
