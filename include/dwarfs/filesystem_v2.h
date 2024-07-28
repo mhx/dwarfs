@@ -155,7 +155,7 @@ class filesystem_v2 {
     return impl_->readlink(entry, mode);
   }
 
-  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
+  void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
 
   int open(inode_view entry) const { return impl_->open(entry); }
 
@@ -279,7 +279,7 @@ class filesystem_v2 {
                                  std::error_code& ec) const = 0;
     virtual std::string
     readlink(inode_view entry, readlink_mode mode) const = 0;
-    virtual int statvfs(vfs_stat* stbuf) const = 0;
+    virtual void statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual int open(inode_view entry, std::error_code& ec) const = 0;
     virtual size_t

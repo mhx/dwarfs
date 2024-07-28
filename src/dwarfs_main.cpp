@@ -849,20 +849,18 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata& userdata,
   return checked_call(log_, [&] {
     vfs_stat stbuf;
 
-    auto err = userdata.fs.statvfs(&stbuf);
+    userdata.fs.statvfs(&stbuf);
 
-    if (err == 0) {
-      ::memset(st, 0, sizeof(*st));
-      copy_vfs_stat(st, stbuf);
+    ::memset(st, 0, sizeof(*st));
+    copy_vfs_stat(st, stbuf);
 
 #ifndef _WIN32
-      if (stbuf.readonly) {
-        st->f_flag |= ST_RDONLY;
-      }
-#endif
+    if (stbuf.readonly) {
+      st->f_flag |= ST_RDONLY;
     }
+#endif
 
-    return err;
+    return 0;
   });
 }
 

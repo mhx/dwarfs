@@ -134,7 +134,7 @@ class metadata_v2 {
     return impl_->readlink(iv, mode, ec);
   }
 
-  int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
+  void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
 
   std::optional<chunk_range> get_chunks(int inode) const {
     return impl_->get_chunks(inode);
@@ -210,7 +210,7 @@ class metadata_v2 {
     virtual std::string
     readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const = 0;
 
-    virtual int statvfs(vfs_stat* stbuf) const = 0;
+    virtual void statvfs(vfs_stat* stbuf) const = 0;
 
     virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
 

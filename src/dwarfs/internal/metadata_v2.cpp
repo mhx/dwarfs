@@ -502,7 +502,7 @@ class metadata_ final : public metadata_v2::impl {
   std::string readlink(inode_view iv, readlink_mode mode,
                        std::error_code& ec) const override;
 
-  int statvfs(vfs_stat* stbuf) const override;
+  void statvfs(vfs_stat* stbuf) const override;
 
   std::optional<chunk_range> get_chunks(int inode) const override;
 
@@ -1712,7 +1712,7 @@ std::string metadata_<LoggerPolicy>::readlink(inode_view iv, readlink_mode mode,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
+void metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   ::memset(stbuf, 0, sizeof(*stbuf));
 
   // Make sure bsize and frsize are the same, as doing otherwise can confuse
@@ -1728,8 +1728,6 @@ int metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   stbuf->files = inode_count_;
   stbuf->readonly = true;
   stbuf->namemax = PATH_MAX;
-
-  return 0;
 }
 
 template <typename LoggerPolicy>

@@ -430,7 +430,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::string readlink(inode_view entry, readlink_mode mode,
                        std::error_code& ec) const override;
   std::string readlink(inode_view entry, readlink_mode mode) const override;
-  int statvfs(vfs_stat* stbuf) const override;
+  void statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
   int open(inode_view entry, std::error_code& ec) const override;
   size_t read(uint32_t inode, char* buf, size_t size,
@@ -1120,10 +1120,10 @@ std::string filesystem_<LoggerPolicy>::readlink(inode_view entry,
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
+void filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
   PERFMON_CLS_SCOPED_SECTION(statvfs)
   // TODO: not sure if that's the right abstraction...
-  return meta_.statvfs(stbuf);
+  meta_.statvfs(stbuf);
 }
 
 template <typename LoggerPolicy>

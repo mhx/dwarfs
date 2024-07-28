@@ -418,8 +418,8 @@ BENCHMARK_DEFINE_F(filesystem, readlink)(::benchmark::State& state) {
 BENCHMARK_DEFINE_F(filesystem, statvfs)(::benchmark::State& state) {
   for (auto _ : state) {
     vfs_stat buf;
-    auto r = fs->statvfs(&buf);
-    ::benchmark::DoNotOptimize(r);
+    fs->statvfs(&buf);
+    ::benchmark::DoNotOptimize(buf);
   }
 }
 
