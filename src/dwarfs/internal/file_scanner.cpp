@@ -34,7 +34,6 @@
 
 #include <dwarfs/checksum.h>
 #include <dwarfs/entry.h>
-#include <dwarfs/file_scanner.h>
 #include <dwarfs/format.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
@@ -45,14 +44,17 @@
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/worker_group.h>
 
-namespace dwarfs::detail {
+namespace dwarfs::internal {
 
 namespace {
 
 constexpr size_t const kLargeFileThreshold = 1024 * 1024;
 constexpr size_t const kLargeFileStartHashSize = 4096;
+
+} // namespace
 
 template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
@@ -679,12 +681,10 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << "\n}\n";
 }
 
-} // namespace
-
 file_scanner::file_scanner(logger& lgr, internal::worker_group& wg,
                            os_access const& os, inode_manager& im,
                            progress& prog, options const& opts)
     : impl_{make_unique_logging_object<impl, file_scanner_, logger_policies>(
           lgr, wg, os, im, prog, opts)} {}
 
-} // namespace dwarfs::detail
+} // namespace dwarfs::internal

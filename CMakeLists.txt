@@ -648,7 +648,6 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/chmod_transformer.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
-  src/dwarfs/file_scanner.cpp
   src/dwarfs/filesystem_block_category_resolver.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/filter_debug.cpp
@@ -660,6 +659,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_ordering.cpp
   src/dwarfs/internal/block_manager.cpp
+  src/dwarfs/internal/file_scanner.cpp
   src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/internal/metadata_freezer.cpp
   src/dwarfs/nilsimsa.cpp

@@ -42,7 +42,7 @@ class worker_group;
 
 struct inode_options;
 
-namespace detail {
+namespace internal {
 
 class file_scanner {
  public:
@@ -73,5 +73,6 @@ class file_scanner {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace detail
+} // namespace internal
+
 } // namespace dwarfs

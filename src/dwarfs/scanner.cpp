@@ -42,7 +42,6 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
-#include <dwarfs/file_scanner.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fragment_chunkable.h>
 #include <dwarfs/history.h>
@@ -64,6 +63,7 @@
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/metadata_freezer.h>
 #include <dwarfs/internal/string_table.h>
@@ -299,16 +299,15 @@ class scanner_ final : public scanner::impl {
 
  private:
   std::shared_ptr<entry> scan_tree(std::filesystem::path const& path,
-                                   progress& prog, detail::file_scanner& fs);
+                                   progress& prog, file_scanner& fs);
 
   std::shared_ptr<entry> scan_list(std::filesystem::path const& path,
                                    std::span<std::filesystem::path const> list,
-                                   progress& prog, detail::file_scanner& fs);
+                                   progress& prog, file_scanner& fs);
 
   std::shared_ptr<entry>
   add_entry(std::filesystem::path const& name, std::shared_ptr<dir> parent,
-            progress& prog, detail::file_scanner& fs,
-            bool debug_filter = false);
+            progress& prog, file_scanner& fs, bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
                   std::shared_ptr<file_access const> fa,
@@ -342,7 +341,7 @@ template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   std::shared_ptr<dir> parent, progress& prog,
-                                  detail::file_scanner& fs, bool debug_filter) {
+                                  file_scanner& fs, bool debug_filter) {
   try {
     auto pe = entry_factory_->create(*os_, name, parent);
     bool exclude = false;
@@ -472,7 +471,7 @@ void scanner_<LoggerPolicy>::dump_state(
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
-                                  progress& prog, detail::file_scanner& fs) {
+                                  progress& prog, file_scanner& fs) {
   auto root = entry_factory_->create(*os_, path);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
@@ -526,7 +525,7 @@ template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
                                   std::span<std::filesystem::path const> list,
-                                  progress& prog, detail::file_scanner& fs) {
+                                  progress& prog, file_scanner& fs) {
   if (script_ && script_->has_filter()) {
     DWARFS_THROW(runtime_error, "cannot use filters with file lists");
   }
@@ -615,11 +614,10 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(status_string);
 
   inode_manager im(LOG_GET_LOGGER, prog, options_.inode);
-  detail::file_scanner fs(
-      LOG_GET_LOGGER, wg_, *os_, im, prog,
-      {.hash_algo = options_.file_hash_algorithm,
-       .debug_inode_create = os_->getenv(kEnvVarDumpFilesRaw) ||
-                             os_->getenv(kEnvVarDumpFilesFinal)});
+  file_scanner fs(LOG_GET_LOGGER, wg_, *os_, im, prog,
+                  {.hash_algo = options_.file_hash_algorithm,
+                   .debug_inode_create = os_->getenv(kEnvVarDumpFilesRaw) ||
+                                         os_->getenv(kEnvVarDumpFilesFinal)});
 
   auto root =
       list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
