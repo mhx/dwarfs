@@ -50,7 +50,6 @@ class file;
 class link;
 class dir;
 class device;
-class inode;
 class mmif;
 class os_access;
 class progress;
@@ -58,8 +57,9 @@ class progress;
 namespace internal {
 
 class global_entry_data;
+class inode;
 
-}
+} // namespace internal
 
 class entry_visitor {
  public:
@@ -135,8 +135,8 @@ class file : public entry {
 
   type_t type() const override;
   std::string_view hash() const;
-  void set_inode(std::shared_ptr<inode> ino);
-  std::shared_ptr<inode> get_inode() const;
+  void set_inode(std::shared_ptr<internal::inode> ino);
+  std::shared_ptr<internal::inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
   void
@@ -163,7 +163,7 @@ class file : public entry {
   };
 
   std::shared_ptr<data> data_;
-  std::shared_ptr<inode> inode_;
+  std::shared_ptr<internal::inode> inode_;
 };
 
 class dir : public entry {

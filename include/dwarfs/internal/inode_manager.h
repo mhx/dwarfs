@@ -30,7 +30,8 @@
 #include <vector>
 
 #include <dwarfs/fragment_category.h>
-#include <dwarfs/inode.h>
+
+#include <dwarfs/internal/inode.h>
 
 namespace dwarfs {
 

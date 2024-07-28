@@ -653,14 +653,14 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/filter_debug.cpp
   src/dwarfs/fragment_category.cpp
   src/dwarfs/fragment_order_parser.cpp
-  src/dwarfs/inode_element_view.cpp
   src/dwarfs/inode_fragments.cpp
-  src/dwarfs/inode_ordering.cpp
   src/dwarfs/internal/block_manager.cpp
   src/dwarfs/internal/file_scanner.cpp
   src/dwarfs/internal/fragment_chunkable.cpp
   src/dwarfs/internal/global_entry_data.cpp
+  src/dwarfs/internal/inode_element_view.cpp
   src/dwarfs/internal/inode_manager.cpp
+  src/dwarfs/internal/inode_ordering.cpp
   src/dwarfs/internal/metadata_freezer.cpp
   src/dwarfs/internal/scanner_progress.cpp
   src/dwarfs/nilsimsa.cpp

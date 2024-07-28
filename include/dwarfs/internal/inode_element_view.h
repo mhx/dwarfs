@@ -28,7 +28,7 @@
 #include <dwarfs/nilsimsa.h>
 #include <dwarfs/similarity_ordering.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class inode;
 
@@ -56,4 +56,4 @@ class inode_element_view
   std::optional<fragment_category> cat_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

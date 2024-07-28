@@ -47,6 +47,8 @@ class progress;
 
 struct inode_options;
 
+namespace internal {
+
 class inode : public object {
  public:
   using files_vector = small_vector<file*, 1>;
@@ -78,5 +80,7 @@ class inode : public object {
 
 using sortable_inode_span =
     sortable_span<std::shared_ptr<inode> const, uint32_t>;
+
+} // namespace internal
 
 } // namespace dwarfs

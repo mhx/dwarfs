@@ -23,9 +23,12 @@
 
 #include <memory>
 
-#include <dwarfs/inode.h>
+#include <dwarfs/internal/inode.h>
 
 namespace dwarfs {
+
+struct inode_options;
+struct similarity_ordering_options;
 
 class logger;
 class progress;
@@ -33,11 +36,6 @@ class progress;
 namespace internal {
 
 class worker_group;
-
-} // namespace internal
-
-struct inode_options;
-struct similarity_ordering_options;
 
 class inode_ordering {
  public:
@@ -81,5 +79,7 @@ class inode_ordering {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

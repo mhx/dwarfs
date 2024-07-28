@@ -29,7 +29,6 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
-#include <dwarfs/inode.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/nilsimsa.h>
 #include <dwarfs/options.h>
@@ -38,6 +37,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/scanner_progress.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
@@ -197,7 +197,7 @@ std::string_view file::hash() const {
   return std::string_view(h.data(), h.size());
 }
 
-void file::set_inode(std::shared_ptr<inode> ino) {
+void file::set_inode(std::shared_ptr<internal::inode> ino) {
   if (inode_) {
     DWARFS_THROW(runtime_error, "inode already set for file");
   }
@@ -205,7 +205,7 @@ void file::set_inode(std::shared_ptr<inode> ino) {
   inode_ = std::move(ino);
 }
 
-std::shared_ptr<inode> file::get_inode() const { return inode_; }
+std::shared_ptr<internal::inode> file::get_inode() const { return inode_; }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 

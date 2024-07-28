@@ -22,18 +22,16 @@
 #include <algorithm>
 
 #include <dwarfs/entry.h>
-#include <dwarfs/inode_element_view.h>
-#include <dwarfs/inode_ordering.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/promise_receiver.h>
 #include <dwarfs/similarity_ordering.h>
 
+#include <dwarfs/internal/inode_element_view.h>
+#include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/worker_group.h>
 
-namespace dwarfs {
-
-namespace internal {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -205,11 +203,9 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
   future.get().swap(index);
 }
 
-} // namespace internal
-
 inode_ordering::inode_ordering(logger& lgr, progress& prog,
                                inode_options const& opts)
     : impl_(make_unique_logging_object<impl, internal::inode_ordering_,
                                        logger_policies>(lgr, prog, opts)) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

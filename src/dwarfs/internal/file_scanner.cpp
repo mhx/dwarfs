@@ -35,7 +35,6 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/format.h>
-#include <dwarfs/inode.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -44,6 +43,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/file_scanner.h>
+#include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/worker_group.h>
 

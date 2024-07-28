@@ -28,7 +28,6 @@
 #include <dwarfs/console_writer.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/entry_interface.h>
-#include <dwarfs/inode.h>
 #include <dwarfs/lazy_value.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>

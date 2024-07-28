@@ -24,10 +24,11 @@
 #include <fmt/format.h>
 
 #include <dwarfs/entry.h>
-#include <dwarfs/inode.h>
-#include <dwarfs/inode_element_view.h>
 
-namespace dwarfs {
+#include <dwarfs/internal/inode.h>
+#include <dwarfs/internal/inode_element_view.h>
+
+namespace dwarfs::internal {
 
 inode_element_view::inode_element_view(
     std::span<std::shared_ptr<inode> const> inodes,
@@ -88,4 +89,4 @@ nilsimsa::hash_type const& inode_element_view::get_bits(size_t i) const {
   return *hash_cache_[i];
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

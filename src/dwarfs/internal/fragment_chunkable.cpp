@@ -23,11 +23,11 @@
 
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry.h>
-#include <dwarfs/inode.h>
 #include <dwarfs/inode_fragments.h>
 #include <dwarfs/mmif.h>
 
 #include <dwarfs/internal/fragment_chunkable.h>
+#include <dwarfs/internal/inode.h>
 
 namespace dwarfs::internal {
 

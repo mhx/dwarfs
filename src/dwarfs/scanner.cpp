@@ -44,8 +44,6 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/history.h>
-#include <dwarfs/inode.h>
-#include <dwarfs/inode_ordering.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -64,7 +62,9 @@
 #include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/fragment_chunkable.h>
 #include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/inode_manager.h>
+#include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/metadata_freezer.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>

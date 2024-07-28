@@ -44,7 +44,6 @@
 #include <dwarfs/compiler.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
-#include <dwarfs/inode_ordering.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/mmif.h>
@@ -59,6 +58,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/inode_manager.h>
+#include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/scanner_progress.h>
 #include <dwarfs/internal/worker_group.h>
 
