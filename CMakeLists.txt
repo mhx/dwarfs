@@ -662,10 +662,10 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/internal/inode_manager.cpp
   src/dwarfs/internal/metadata_freezer.cpp
+  src/dwarfs/internal/scanner_progress.cpp
   src/dwarfs/nilsimsa.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
-  src/dwarfs/scanner_progress.cpp
   src/dwarfs/segmenter.cpp
   src/dwarfs/segmenter_factory.cpp
   src/dwarfs/similarity.cpp

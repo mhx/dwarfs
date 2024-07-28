@@ -19,29 +19,33 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/scanner_progress.h>
+#pragma once
 
-namespace dwarfs {
+#include <atomic>
+#include <string>
 
-scanner_progress::scanner_progress(std::string_view context, std::string file,
-                                   size_t size)
-    : scanner_progress(termcolor::YELLOW, context, file, size) {}
+#include <dwarfs/progress.h>
+#include <dwarfs/terminal.h>
 
-scanner_progress::scanner_progress(termcolor color, std::string_view context,
-                                   std::string file, size_t size)
-    : color_{color}
-    , context_{context}
-    , file_{std::move(file)}
-    , bytes_total_{size} {}
+namespace dwarfs::internal {
 
-auto scanner_progress::get_status() const -> status {
-  status st;
-  st.color = color_;
-  st.context = context_;
-  st.path.emplace(file_);
-  st.bytes_processed.emplace(bytes_processed.load());
-  st.bytes_total.emplace(bytes_total_);
-  return st;
-}
+class scanner_progress : public progress::context {
+ public:
+  using status = progress::context::status;
 
-} // namespace dwarfs
+  scanner_progress(std::string_view context, std::string file, size_t size);
+  scanner_progress(termcolor color, std::string_view context, std::string file,
+                   size_t size);
+
+  status get_status() const override;
+
+  std::atomic<size_t> bytes_processed{0};
+
+ private:
+  termcolor const color_;
+  std::string const context_;
+  std::string const file_;
+  size_t const bytes_total_;
+};
+
+} // namespace dwarfs::internal

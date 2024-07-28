@@ -35,10 +35,10 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/progress.h>
-#include <dwarfs/scanner_progress.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/scanner_progress.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
@@ -222,11 +222,11 @@ void file::scan(mmif* mm, progress& prog,
     checksum cs(*hash_alg);
 
     if (s > 0) {
-      std::shared_ptr<scanner_progress> pctx;
+      std::shared_ptr<internal::scanner_progress> pctx;
       auto const chunk_size = prog.hash.chunk_size.load();
 
       if (s >= 4 * chunk_size) {
-        pctx = prog.create_context<scanner_progress>(
+        pctx = prog.create_context<internal::scanner_progress>(
             termcolor::MAGENTA, kHashContext, path_as_string(), s);
       }
 
