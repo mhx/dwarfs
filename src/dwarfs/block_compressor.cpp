@@ -23,7 +23,10 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
-#include <ranges>
+
+#include <range/v3/algorithm/sort.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
@@ -103,10 +106,9 @@ compression_registry::make_decompressor(compression_type type,
 void compression_registry::for_each_algorithm(
     std::function<void(compression_type, compression_info const&)> const& fn)
     const {
-  auto view = std::views::keys(factories_);
-  std::vector<compression_type> types{view.begin(), view.end()};
+  auto types = factories_ | ranges::views::keys | ranges::to<std::vector>;
 
-  std::ranges::sort(types);
+  ranges::sort(types);
 
   for (auto type : types) {
     fn(type, *factories_.at(type));

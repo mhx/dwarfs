@@ -30,7 +30,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -57,6 +56,7 @@
 #endif
 
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
@@ -409,16 +409,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
 
-  auto progress_desc = fmt::format(
-      "progress mode ({})", fmt::join(std::views::keys(progress_modes), ", "));
+  auto progress_desc =
+      fmt::format("progress mode ({})",
+                  fmt::join(ranges::views::keys(progress_modes), ", "));
 
   auto debug_filter_desc =
       fmt::format("show effect of filter rules without producing an image ({})",
-                  fmt::join(std::views::keys(debug_filter_modes), ", "));
+                  fmt::join(ranges::views::keys(debug_filter_modes), ", "));
 
   auto resolution_desc =
       fmt::format("time resolution in seconds or ({})",
-                  fmt::join(std::views::keys(time_resolutions), ", "));
+                  fmt::join(ranges::views::keys(time_resolutions), ", "));
 
   auto hash_list = checksum::available_algorithms();
 

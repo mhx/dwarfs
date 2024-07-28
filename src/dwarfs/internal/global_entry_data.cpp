@@ -19,7 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ranges>
+#include <range/v3/algorithm/sort.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
@@ -31,11 +33,8 @@ namespace dwarfs::internal {
 template <typename T, typename U>
 std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
   std::vector<std::pair<T, U>> pairs{map.begin(), map.end()};
-  std::ranges::sort(pairs, [](auto const& p1, auto const& p2) {
-    return p1.second < p2.second;
-  });
-  auto view = std::views::keys(pairs);
-  return std::vector<T>{view.begin(), view.end()};
+  ranges::sort(pairs, ranges::less{}, &std::pair<T, U>::second);
+  return pairs | ranges::views::keys | ranges::to<std::vector>;
 }
 
 auto global_entry_data::get_uids() const -> std::vector<uid_type> {
@@ -61,12 +60,11 @@ auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
 }
 
 void global_entry_data::index(map_type<std::string, uint32_t>& map) {
-  auto keys = std::views::all(map) | std::views::keys;
-  std::vector<std::string_view> tmp{keys.begin(), keys.end()};
-  std::ranges::sort(tmp);
+  auto keys = map | ranges::views::keys | ranges::to<std::vector>;
+  ranges::sort(keys);
   std::decay_t<decltype(map)>::mapped_type ix{0};
-  for (auto& s : tmp) {
-    map[s] = ix++;
+  for (auto& k : keys) {
+    map[k] = ix++;
   }
 }
 

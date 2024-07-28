@@ -774,8 +774,9 @@ target_link_libraries(dwarfs_pcm_sample_transformer PUBLIC dwarfs_folly_lite)
 target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_compression_metadata)
 target_link_libraries(dwarfs_categorizer PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_common PUBLIC dwarfs_folly_lite)
-target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO xxHash::xxhash phmap)
+target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
+target_link_libraries(dwarfs_reader PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compression_metadata)
 target_link_libraries(dwarfs_writer PRIVATE phmap range-v3::range-v3)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
@@ -975,9 +976,9 @@ if(WITH_TESTS)
   target_link_libraries(tool_main_test PRIVATE
     mkdwarfs_main dwarfsck_main dwarfsbench_main dwarfsextract_main)
 
-  target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
-
+  target_link_libraries(block_cache_test PRIVATE mkdwarfs_main range-v3::range-v3)
   target_link_libraries(block_merger_test PRIVATE range-v3::range-v3)
+  target_link_libraries(chmod_transformer_test PRIVATE range-v3::range-v3)
   target_link_libraries(ricepp_compressor_test PRIVATE range-v3::range-v3)
 
   foreach(tgt fits_categorizer_test
