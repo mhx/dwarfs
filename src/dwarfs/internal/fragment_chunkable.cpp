@@ -23,12 +23,13 @@
 
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry.h>
-#include <dwarfs/fragment_chunkable.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_fragments.h>
 #include <dwarfs/mmif.h>
 
-namespace dwarfs {
+#include <dwarfs/internal/fragment_chunkable.h>
+
+namespace dwarfs::internal {
 
 fragment_chunkable::fragment_chunkable(inode const& ino,
                                        single_inode_fragment& frag,
@@ -64,4 +65,4 @@ void fragment_chunkable::release_until(size_t offset) {
   mm_.release_until(offset_ + offset);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

@@ -43,7 +43,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_writer.h>
-#include <dwarfs/fragment_chunkable.h>
 #include <dwarfs/history.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_ordering.h>
@@ -63,6 +62,7 @@
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/file_scanner.h>
+#include <dwarfs/internal/fragment_chunkable.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/metadata_freezer.h>

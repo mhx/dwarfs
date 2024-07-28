@@ -41,7 +41,6 @@
 #include <folly/sorted_vector_types.h>
 #include <folly/stats/Histogram.h>
 
-#include <dwarfs/chunkable.h>
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/cyclic_hash.h>
@@ -54,6 +53,7 @@
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
+#include <dwarfs/internal/chunkable.h>
 
 namespace dwarfs {
 

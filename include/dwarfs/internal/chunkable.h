@@ -28,6 +28,8 @@ namespace dwarfs {
 
 class file;
 
+namespace internal {
+
 class chunkable {
  public:
   virtual ~chunkable() = default;
@@ -39,5 +41,7 @@ class chunkable {
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
   virtual void release_until(size_t offset) = 0;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

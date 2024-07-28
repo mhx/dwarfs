@@ -28,18 +28,18 @@
 
 namespace dwarfs {
 
+struct compression_constraints;
+
+class logger;
+class progress;
+
 namespace internal {
 
 class block_data;
 class block_manager;
+class chunkable;
 
 } // namespace internal
-
-class chunkable;
-class logger;
-class progress;
-
-struct compression_constraints;
 
 class segmenter {
  public:
@@ -60,7 +60,9 @@ class segmenter {
             compression_constraints const& cc, size_t total_size,
             block_ready_cb block_ready);
 
-  void add_chunkable(chunkable& chkable) { impl_->add_chunkable(chkable); }
+  void add_chunkable(internal::chunkable& chkable) {
+    impl_->add_chunkable(chkable);
+  }
 
   void finish() { impl_->finish(); }
 
@@ -68,7 +70,7 @@ class segmenter {
    public:
     virtual ~impl() = default;
 
-    virtual void add_chunkable(chunkable& chkable) = 0;
+    virtual void add_chunkable(internal::chunkable& chkable) = 0;
     virtual void finish() = 0;
   };
 

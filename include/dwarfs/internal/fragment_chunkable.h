@@ -23,7 +23,7 @@
 
 #include <memory>
 
-#include <dwarfs/chunkable.h>
+#include <dwarfs/internal/chunkable.h>
 
 namespace dwarfs {
 
@@ -31,6 +31,8 @@ class categorizer_manager;
 class inode;
 class mmif;
 class single_inode_fragment;
+
+namespace internal {
 
 class fragment_chunkable : public chunkable {
  public:
@@ -53,5 +55,7 @@ class fragment_chunkable : public chunkable {
   mmif& mm_;
   categorizer_manager const* catmgr_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs
