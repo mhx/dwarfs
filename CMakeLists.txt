@@ -606,12 +606,12 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/checksum.cpp
   src/dwarfs/conv.cpp
   src/dwarfs/error.cpp
-  src/dwarfs/features.cpp
   src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_stat.cpp
   src/dwarfs/file_type.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
+  src/dwarfs/internal/features.cpp
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/worker_group.cpp
   src/dwarfs/library_dependencies.cpp

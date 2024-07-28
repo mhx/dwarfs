@@ -41,7 +41,6 @@
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
-#include <dwarfs/features.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_scanner.h>
 #include <dwarfs/filesystem_writer.h>
@@ -64,6 +63,7 @@
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
+#include <dwarfs/internal/features.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/metadata_freezer.h>
 #include <dwarfs/internal/string_table.h>

@@ -26,7 +26,7 @@
 
 #include <dwarfs/gen-cpp2/features_types.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class feature_set {
  public:
@@ -41,4 +41,4 @@ class feature_set {
   std::set<std::string> features_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

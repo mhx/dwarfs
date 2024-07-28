@@ -46,7 +46,6 @@
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/error.h>
-#include <dwarfs/features.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
@@ -55,6 +54,7 @@
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
+#include <dwarfs/internal/features.h>
 #include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/string_table.h>
 

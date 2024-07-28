@@ -24,9 +24,9 @@
 
 #include <thrift/lib/cpp/util/EnumUtils.h>
 
-#include <dwarfs/features.h>
+#include <dwarfs/internal/features.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -60,4 +60,4 @@ feature_set::get_unsupported(std::set<std::string> wanted_features) {
   return missing;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
