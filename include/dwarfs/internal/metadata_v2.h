@@ -42,6 +42,7 @@ namespace dwarfs {
 
 class logger;
 
+struct getattr_options;
 struct metadata_options;
 struct filesystem_info;
 struct file_stat;
@@ -107,6 +108,11 @@ class metadata_v2 {
 
   file_stat getattr(inode_view iv, std::error_code& ec) const {
     return impl_->getattr(iv, ec);
+  }
+
+  file_stat getattr(inode_view iv, getattr_options const& opts,
+                    std::error_code& ec) const {
+    return impl_->getattr(iv, opts, ec);
   }
 
   std::optional<directory_view> opendir(inode_view iv) const {
@@ -194,6 +200,8 @@ class metadata_v2 {
     find(int inode, const char* name) const = 0;
 
     virtual file_stat getattr(inode_view iv, std::error_code& ec) const = 0;
+    virtual file_stat getattr(inode_view iv, getattr_options const& opts,
+                              std::error_code& ec) const = 0;
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 

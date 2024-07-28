@@ -67,26 +67,31 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
   auto const uid_width = max_width(fs.get_all_uids());
   auto const gid_width = max_width(fs.get_all_gids());
 
-  file_stat::off_type max_inode_size{0};
-  fs.walk([&](auto const& de) {
-    auto st = fs.getattr(de.inode());
-    max_inode_size = std::max(max_inode_size, st.size);
-  });
+  size_t inode_size_width{0};
 
-  auto const inode_size_width = fmt::format("{:L}", max_inode_size).size();
+  if (verbose) {
+    file_stat::off_type max_inode_size{0};
+    fs.walk([&](auto const& de) {
+      auto st = fs.getattr(de.inode());
+      max_inode_size = std::max(max_inode_size, st.size);
+    });
+    inode_size_width = fmt::format("{:L}", max_inode_size).size();
+  }
 
   fs.walk([&](auto const& de) {
-    auto iv = de.inode();
-    auto st = fs.getattr(iv);
     auto name = de.unix_path();
     utf8_sanitize(name);
 
     if (verbose) {
+      auto iv = de.inode();
+
       if (iv.is_symlink()) {
         auto target = fs.readlink(iv);
         utf8_sanitize(target);
         name += " -> " + target;
       }
+
+      auto st = fs.getattr(iv);
 
       iol.out << fmt::format(
           "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%Y-%m-%d %H:%M} {8}\n", uid_width,

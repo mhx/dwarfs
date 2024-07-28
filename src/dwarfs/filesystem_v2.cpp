@@ -418,7 +418,11 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
   file_stat getattr(inode_view entry, std::error_code& ec) const override;
+  file_stat getattr(inode_view entry, getattr_options const& opts,
+                    std::error_code& ec) const override;
   file_stat getattr(inode_view entry) const override;
+  file_stat
+  getattr(inode_view entry, getattr_options const& opts) const override;
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const override;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
@@ -496,6 +500,8 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(find_inode_name)
   PERFMON_CLS_TIMER_DECL(getattr)
   PERFMON_CLS_TIMER_DECL(getattr_ec)
+  PERFMON_CLS_TIMER_DECL(getattr_opts)
+  PERFMON_CLS_TIMER_DECL(getattr_opts_ec)
   PERFMON_CLS_TIMER_DECL(access)
   PERFMON_CLS_TIMER_DECL(access_ec)
   PERFMON_CLS_TIMER_DECL(opendir)
@@ -580,6 +586,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(find_inode_name)
     PERFMON_CLS_TIMER_INIT(getattr)
     PERFMON_CLS_TIMER_INIT(getattr_ec)
+    PERFMON_CLS_TIMER_INIT(getattr_opts)
+    PERFMON_CLS_TIMER_INIT(getattr_opts_ec)
     PERFMON_CLS_TIMER_INIT(access)
     PERFMON_CLS_TIMER_INIT(access_ec)
     PERFMON_CLS_TIMER_INIT(opendir)
@@ -1062,6 +1070,23 @@ file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(getattr)
   return call_ec_throw(
       [&](std::error_code& ec) { return meta_.getattr(entry, ec); });
+}
+
+template <typename LoggerPolicy>
+file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
+                                             getattr_options const& opts,
+                                             std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr_opts_ec)
+  return meta_.getattr(entry, opts, ec);
+}
+
+template <typename LoggerPolicy>
+file_stat
+filesystem_<LoggerPolicy>::getattr(inode_view entry,
+                                   getattr_options const& opts) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr_opts)
+  return call_ec_throw(
+      [&](std::error_code& ec) { return meta_.getattr(entry, opts, ec); });
 }
 
 template <typename LoggerPolicy>

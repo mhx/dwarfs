@@ -401,6 +401,7 @@ class metadata_ final : public metadata_v2::impl {
       PERFMON_CLS_PROXY_INIT(perfmon, "metadata_v2")
       PERFMON_CLS_TIMER_INIT(find)
       PERFMON_CLS_TIMER_INIT(getattr)
+      PERFMON_CLS_TIMER_INIT(getattr_opts)
       PERFMON_CLS_TIMER_INIT(readdir)
       PERFMON_CLS_TIMER_INIT(reg_file_size)
       PERFMON_CLS_TIMER_INIT(unpack_metadata) // clang-format on
@@ -484,6 +485,8 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<inode_view> find(int inode, const char* name) const override;
 
   file_stat getattr(inode_view iv, std::error_code& ec) const override;
+  file_stat getattr(inode_view iv, getattr_options const& opts,
+                    std::error_code& ec) const override;
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
@@ -524,6 +527,8 @@ class metadata_ final : public metadata_v2::impl {
   using set_type = folly::F14ValueSet<K>;
 
   thrift::metadata::metadata unpack_metadata() const;
+
+  file_stat getattr_impl(inode_view iv, getattr_options const& opts) const;
 
   inode_view make_inode_view(uint32_t inode) const {
     // TODO: move compatibility details to metadata_types
@@ -833,6 +838,7 @@ class metadata_ final : public metadata_v2::impl {
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(getattr)
+  PERFMON_CLS_TIMER_DECL(getattr_opts)
   PERFMON_CLS_TIMER_DECL(readdir)
   PERFMON_CLS_TIMER_DECL(reg_file_size)
   PERFMON_CLS_TIMER_DECL(unpack_metadata)
@@ -1526,9 +1532,8 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 
 template <typename LoggerPolicy>
 file_stat
-metadata_<LoggerPolicy>::getattr(inode_view iv, std::error_code& /*ec*/) const {
-  PERFMON_CLS_SCOPED_SECTION(getattr)
-
+metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
+                                      getattr_options const& opts) const {
   file_stat stbuf;
 
   ::memset(&stbuf, 0, sizeof(stbuf));
@@ -1551,20 +1556,25 @@ metadata_<LoggerPolicy>::getattr(inode_view iv, std::error_code& /*ec*/) const {
     stbuf.mode &= READ_ONLY_MASK;
   }
 
-  stbuf.size = stbuf.is_directory() ? make_directory_view(iv).entry_count()
-                                    : file_size(iv, mode);
+  if (!opts.no_size) {
+    stbuf.size = stbuf.is_directory() ? make_directory_view(iv).entry_count()
+                                      : file_size(iv, mode);
+  }
+
   stbuf.ino = inode + inode_offset_;
   stbuf.blksize = options_.block_size;
   stbuf.blocks = (stbuf.size + 511) / 512;
   stbuf.uid = iv.getuid();
   stbuf.gid = iv.getgid();
   stbuf.mtime = resolution * (timebase + iv.raw().mtime_offset());
+
   if (mtime_only) {
     stbuf.atime = stbuf.ctime = stbuf.mtime;
   } else {
     stbuf.atime = resolution * (timebase + iv.raw().atime_offset());
     stbuf.ctime = resolution * (timebase + iv.raw().ctime_offset());
   }
+
   stbuf.nlink = options_.enable_nlink && stbuf.is_regular_file()
                     ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
                     : 1;
@@ -1574,6 +1584,21 @@ metadata_<LoggerPolicy>::getattr(inode_view iv, std::error_code& /*ec*/) const {
   }
 
   return stbuf;
+}
+
+template <typename LoggerPolicy>
+file_stat
+metadata_<LoggerPolicy>::getattr(inode_view iv, std::error_code& /*ec*/) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr)
+  return getattr_impl(iv, {});
+}
+
+template <typename LoggerPolicy>
+file_stat
+metadata_<LoggerPolicy>::getattr(inode_view iv, getattr_options const& opts,
+                                 std::error_code& /*ec*/) const {
+  PERFMON_CLS_SCOPED_SECTION(getattr_opts)
+  return getattr_impl(iv, opts);
 }
 
 template <typename LoggerPolicy>

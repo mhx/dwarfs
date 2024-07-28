@@ -120,6 +120,15 @@ class filesystem_v2 {
 
   file_stat getattr(inode_view entry) const { return impl_->getattr(entry); }
 
+  file_stat getattr(inode_view entry, getattr_options const& opts,
+                    std::error_code& ec) const {
+    return impl_->getattr(entry, opts, ec);
+  }
+
+  file_stat getattr(inode_view entry, getattr_options const& opts) const {
+    return impl_->getattr(entry, opts);
+  }
+
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const {
     return impl_->access(entry, mode, uid, gid);
@@ -266,7 +275,11 @@ class filesystem_v2 {
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
     virtual file_stat getattr(inode_view entry, std::error_code& ec) const = 0;
+    virtual file_stat getattr(inode_view entry, getattr_options const& opts,
+                              std::error_code& ec) const = 0;
     virtual file_stat getattr(inode_view entry) const = 0;
+    virtual file_stat
+    getattr(inode_view entry, getattr_options const& opts) const = 0;
     virtual bool access(inode_view entry, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid) const = 0;
     virtual void access(inode_view entry, int mode, file_stat::uid_type uid,

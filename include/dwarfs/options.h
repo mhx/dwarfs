@@ -65,6 +65,10 @@ struct cache_tidy_config {
   std::chrono::milliseconds expiry_time{std::chrono::seconds(60)};
 };
 
+struct getattr_options {
+  bool no_size{false};
+};
+
 struct metadata_options {
   bool enable_nlink{false};
   bool readonly{false};

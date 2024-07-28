@@ -262,7 +262,7 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   template <size_t N>
-  void getattr_bench(::benchmark::State& state,
+  void getattr_bench(::benchmark::State& state, getattr_options const& opts,
                      std::array<std::string_view, N> const& paths) {
     int i = 0;
     std::vector<inode_view> ent;
@@ -272,9 +272,15 @@ class filesystem : public ::benchmark::Fixture {
     }
 
     for (auto _ : state) {
-      auto r = fs->getattr(ent[i++ % N]);
+      auto r = fs->getattr(ent[i++ % N], opts);
       ::benchmark::DoNotOptimize(r);
     }
+  }
+
+  template <size_t N>
+  void getattr_bench(::benchmark::State& state,
+                     std::array<std::string_view, N> const& paths) {
+    getattr_bench(state, {}, paths);
   }
 
   std::unique_ptr<filesystem_v2> fs;
@@ -336,10 +342,21 @@ BENCHMARK_DEFINE_F(filesystem, getattr_dir)(::benchmark::State& state) {
   getattr_bench(state, paths);
 }
 
+BENCHMARK_DEFINE_F(filesystem, getattr_dir_nosize)(::benchmark::State& state) {
+  std::array<std::string_view, 2> paths{{"/", "/somedir"}};
+  getattr_bench(state, {.no_size = true}, paths);
+}
+
 BENCHMARK_DEFINE_F(filesystem, getattr_file)(::benchmark::State& state) {
   std::array<std::string_view, 4> paths{
       {"/foo.pl", "/bar.pl", "/baz.pl", "/somedir/ipsum.py"}};
   getattr_bench(state, paths);
+}
+
+BENCHMARK_DEFINE_F(filesystem, getattr_file_nosize)(::benchmark::State& state) {
+  std::array<std::string_view, 4> paths{
+      {"/foo.pl", "/bar.pl", "/baz.pl", "/somedir/ipsum.py"}};
+  getattr_bench(state, {.no_size = true}, paths);
 }
 
 BENCHMARK_DEFINE_F(filesystem, getattr_file_large)(::benchmark::State& state) {
@@ -347,14 +364,30 @@ BENCHMARK_DEFINE_F(filesystem, getattr_file_large)(::benchmark::State& state) {
   getattr_bench(state, paths);
 }
 
+BENCHMARK_DEFINE_F(filesystem, getattr_file_large_nosize)
+(::benchmark::State& state) {
+  std::array<std::string_view, 1> paths{{"/ipsum.txt"}};
+  getattr_bench(state, {.no_size = true}, paths);
+}
+
 BENCHMARK_DEFINE_F(filesystem, getattr_link)(::benchmark::State& state) {
   std::array<std::string_view, 2> paths{{"/somelink", "/somedir/bad"}};
   getattr_bench(state, paths);
 }
 
+BENCHMARK_DEFINE_F(filesystem, getattr_link_nosize)(::benchmark::State& state) {
+  std::array<std::string_view, 2> paths{{"/somelink", "/somedir/bad"}};
+  getattr_bench(state, {.no_size = true}, paths);
+}
+
 BENCHMARK_DEFINE_F(filesystem, getattr_dev)(::benchmark::State& state) {
   std::array<std::string_view, 2> paths{{"/somedir/null", "/somedir/zero"}};
   getattr_bench(state, paths);
+}
+
+BENCHMARK_DEFINE_F(filesystem, getattr_dev_nosize)(::benchmark::State& state) {
+  std::array<std::string_view, 2> paths{{"/somedir/null", "/somedir/zero"}};
+  getattr_bench(state, {.no_size = true}, paths);
 }
 
 BENCHMARK_DEFINE_F(filesystem, access_F_OK)(::benchmark::State& state) {
@@ -473,10 +506,16 @@ BENCHMARK_REGISTER_F(filesystem, find_inode)->Apply(PackParams);
 BENCHMARK_REGISTER_F(filesystem, find_inode_name)->Apply(PackParams);
 BENCHMARK_REGISTER_F(filesystem, find_path)->Apply(PackParams);
 BENCHMARK_REGISTER_F(filesystem, getattr_dir)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, getattr_dir_nosize)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, getattr_link)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, getattr_link_nosize)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, getattr_file)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, getattr_file_nosize)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, getattr_file_large)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, getattr_file_large_nosize)
+    ->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, getattr_dev)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, getattr_dev_nosize)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, access_F_OK)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, access_R_OK)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, opendir)->Apply(PackParamsNone);
