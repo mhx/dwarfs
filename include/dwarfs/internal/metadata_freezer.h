@@ -25,18 +25,20 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
-
 namespace dwarfs {
 
 namespace thrift::metadata {
 class metadata;
 }
 
+namespace internal {
+
 class metadata_freezer {
  public:
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
   freeze(const thrift::metadata::metadata& data);
 };
+
+} // namespace internal
 
 } // namespace dwarfs

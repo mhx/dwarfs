@@ -51,7 +51,6 @@
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/metadata_freezer.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
@@ -67,6 +66,7 @@
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/global_entry_data.h>
+#include <dwarfs/internal/metadata_freezer.h>
 #include <dwarfs/internal/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>

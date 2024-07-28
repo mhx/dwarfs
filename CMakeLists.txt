@@ -661,7 +661,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/inode_ordering.cpp
   src/dwarfs/internal/block_manager.cpp
   src/dwarfs/internal/global_entry_data.cpp
-  src/dwarfs/metadata_freezer.cpp
+  src/dwarfs/internal/metadata_freezer.cpp
   src/dwarfs/nilsimsa.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp

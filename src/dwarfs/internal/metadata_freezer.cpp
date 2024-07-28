@@ -22,13 +22,14 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
-#include <dwarfs/metadata_freezer.h>
+#include <dwarfs/internal/metadata_freezer.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
+#include <dwarfs/gen-cpp2/metadata_types.h>
 
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -65,4 +66,4 @@ metadata_freezer::freeze(const thrift::metadata::metadata& data) {
   return freeze_to_buffer(data);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
