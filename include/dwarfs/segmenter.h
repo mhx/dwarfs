@@ -31,10 +31,10 @@ namespace dwarfs {
 namespace internal {
 
 class block_data;
+class block_manager;
 
 } // namespace internal
 
-class block_manager;
 class chunkable;
 class logger;
 class progress;
@@ -55,9 +55,10 @@ class segmenter {
   using block_ready_cb = std::function<void(
       std::shared_ptr<internal::block_data>, size_t logical_block_num)>;
 
-  segmenter(logger& lgr, progress& prog, std::shared_ptr<block_manager> blkmgr,
-            config const& cfg, compression_constraints const& cc,
-            size_t total_size, block_ready_cb block_ready);
+  segmenter(logger& lgr, progress& prog,
+            std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,
+            compression_constraints const& cc, size_t total_size,
+            block_ready_cb block_ready);
 
   void add_chunkable(chunkable& chkable) { impl_->add_chunkable(chkable); }
 

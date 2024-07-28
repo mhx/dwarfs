@@ -36,7 +36,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
 
   segmenter create(fragment_category cat, size_t cat_size,
                    compression_constraints const& cc,
-                   std::shared_ptr<block_manager> blkmgr,
+                   std::shared_ptr<internal::block_manager> blkmgr,
                    segmenter::block_ready_cb block_ready) const override {
     segmenter::config cfg;
 

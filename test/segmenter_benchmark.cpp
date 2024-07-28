@@ -24,10 +24,10 @@
 
 #include <folly/Benchmark.h>
 
-#include <dwarfs/block_manager.h>
 #include <dwarfs/chunkable.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/block_manager.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/segmenter.h>
 
@@ -140,7 +140,7 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
   for (unsigned i = 0; i < iters; ++i) {
     dwarfs::test::test_logger lgr;
     dwarfs::progress prog;
-    auto blkmgr = std::make_shared<dwarfs::block_manager>();
+    auto blkmgr = std::make_shared<dwarfs::internal::block_manager>();
 
     std::vector<std::shared_ptr<dwarfs::internal::block_data>> written;
 

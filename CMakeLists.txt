@@ -641,7 +641,6 @@ list(APPEND LIBDWARFS_READER_SRC
 )
 
 list(APPEND LIBDWARFS_WRITER_SRC
-  src/dwarfs/block_manager.cpp
   src/dwarfs/builtin_script.cpp
   src/dwarfs/categorizer.cpp
   src/dwarfs/category_parser.cpp
@@ -660,6 +659,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_ordering.cpp
+  src/dwarfs/internal/block_manager.cpp
   src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/metadata_freezer.cpp
   src/dwarfs/nilsimsa.cpp

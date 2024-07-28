@@ -21,9 +21,9 @@
 
 #include <cassert>
 
-#include <dwarfs/block_manager.h>
+#include <dwarfs/internal/block_manager.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 size_t block_manager::get_logical_block() const {
   size_t block_no;
@@ -72,4 +72,4 @@ block_manager::get_written_block_categories() const {
   return result;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

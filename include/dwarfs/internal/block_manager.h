@@ -28,7 +28,7 @@
 #include <dwarfs/fragment_category.h>
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class block_manager {
  public:
@@ -48,4 +48,4 @@ class block_manager {
       block_map_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

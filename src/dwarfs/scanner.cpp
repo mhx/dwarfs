@@ -38,7 +38,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_manager.h>
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
@@ -52,6 +51,7 @@
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
 #include <dwarfs/internal/block_data.h>
+#include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
@@ -730,7 +730,7 @@ void scanner_<LoggerPolicy>::scan(
   //   which gets run on a worker groups; each batch keeps track of
   //   its CPU time and affects thread naming
 
-  auto blockmgr = std::make_shared<block_manager>();
+  auto blockmgr = std::make_shared<internal::block_manager>();
 
   {
     size_t const num_threads = options_.num_segmenter_workers;
