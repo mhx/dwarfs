@@ -28,8 +28,6 @@
 #include <folly/String.h>
 #include <folly/container/F14Map.h>
 
-#include <fmt/format.h>
-
 #include <nlohmann/json.hpp>
 
 #include <range/v3/view/drop.hpp>
@@ -37,6 +35,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/file_scanner.h>
+#include <dwarfs/format.h>
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/internal/worker_group.h>
@@ -46,16 +45,6 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/util.h>
-
-template <typename T, typename U>
-class fmt::formatter<std::pair<T, U>> {
- public:
-  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-  template <typename Context>
-  constexpr auto format(std::pair<T, U> const& foo, Context& ctx) const {
-    return fmt::format_to(ctx.out(), "({}, {})", foo.first, foo.second);
-  }
-};
 
 namespace dwarfs::detail {
 
