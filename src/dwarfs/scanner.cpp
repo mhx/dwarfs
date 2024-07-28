@@ -647,7 +647,7 @@ void scanner_<LoggerPolicy>::scan(
   wg_.wait();
 
   LOG_INFO << "scanning CPU time: "
-           << time_with_unit(wg_.get_cpu_time().value_or(0ns));
+           << time_with_unit(wg_.try_get_cpu_time().value_or(0ns));
 
   dump_state(kEnvVarDumpFilesRaw, "raw files", fa,
              [&fs](auto& os) { fs.dump(os); });
@@ -827,10 +827,10 @@ void scanner_<LoggerPolicy>::scan(
     wg_ordering.wait();
 
     LOG_INFO << "total ordering CPU time: "
-             << time_with_unit(wg_ordering.get_cpu_time().value_or(0ns));
+             << time_with_unit(wg_ordering.try_get_cpu_time().value_or(0ns));
 
     LOG_INFO << "total segmenting CPU time: "
-             << time_with_unit(wg_blockify.get_cpu_time().value_or(0ns));
+             << time_with_unit(wg_blockify.try_get_cpu_time().value_or(0ns));
   }
 
   // seg.finish();

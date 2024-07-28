@@ -28,9 +28,9 @@
 #include <future>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
-#include <folly/Expected.h>
 #include <folly/Function.h>
 
 namespace dwarfs {
@@ -87,10 +87,15 @@ class worker_group {
 
   size_t size() const { return impl_->size(); }
   size_t queue_size() const { return impl_->queue_size(); }
-  folly::Expected<std::chrono::nanoseconds, std::error_code>
-  get_cpu_time() const {
-    return impl_->get_cpu_time();
+
+  std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const {
+    return impl_->get_cpu_time(ec);
   }
+
+  std::optional<std::chrono::nanoseconds> try_get_cpu_time() const {
+    return impl_->try_get_cpu_time();
+  }
+
   bool set_affinity(std::vector<int> const& cpus) {
     return impl_->set_affinity(cpus);
   }
@@ -111,8 +116,10 @@ class worker_group {
     virtual bool add_moveonly_job(moveonly_job_t&& job) = 0;
     virtual size_t size() const = 0;
     virtual size_t queue_size() const = 0;
-    virtual folly::Expected<std::chrono::nanoseconds, std::error_code>
-    get_cpu_time() const = 0;
+    virtual std::chrono::nanoseconds
+    get_cpu_time(std::error_code& ec) const = 0;
+    virtual std::optional<std::chrono::nanoseconds>
+    try_get_cpu_time() const = 0;
     virtual bool set_affinity(std::vector<int> const& cpus) = 0;
   };
 

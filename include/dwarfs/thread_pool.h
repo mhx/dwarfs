@@ -25,6 +25,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <system_error>
 
 namespace dwarfs {
@@ -66,6 +67,7 @@ class thread_pool {
   void stop();
   void wait();
   bool running() const;
+  std::optional<std::chrono::nanoseconds> try_get_cpu_time() const;
   std::chrono::nanoseconds get_cpu_time() const;
   std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const;
 

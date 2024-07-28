@@ -168,20 +168,26 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     return jobs_.size();
   }
 
-  folly::Expected<std::chrono::nanoseconds, std::error_code>
-  get_cpu_time() const override {
+  std::chrono::nanoseconds get_cpu_time(std::error_code& ec) const override {
+    ec.clear();
+
     std::lock_guard lock(mx_);
     std::chrono::nanoseconds t{};
 
     for (auto const& w : workers_) {
-      std::error_code ec;
       t += os_.thread_get_cpu_time(w.get_id(), ec);
       if (ec) {
-        return folly::makeUnexpected(ec);
+        return {};
       }
     }
 
     return t;
+  }
+
+  std::optional<std::chrono::nanoseconds> try_get_cpu_time() const override {
+    std::error_code ec;
+    auto t = get_cpu_time(ec);
+    return ec ? std::nullopt : std::make_optional(t);
   }
 
   bool set_affinity(std::vector<int> const& cpus) override {
