@@ -854,8 +854,10 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   auto inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
 
+  std::error_code ec;
   std::vector<char> buf(st.size);
-  auto rv = fs.read(inode, &buf[0], st.size, 0);
+  auto rv = fs.read(inode, &buf[0], st.size, ec);
+  EXPECT_FALSE(ec);
   EXPECT_EQ(rv, st.size);
   EXPECT_EQ(format_sh, std::string(buf.begin(), buf.end()));
 

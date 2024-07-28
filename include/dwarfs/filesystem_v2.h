@@ -159,13 +159,33 @@ class filesystem_v2 {
 
   int open(inode_view entry) const { return impl_->open(entry); }
 
-  ssize_t
+  size_t
   read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
     return impl_->read(inode, buf, size, offset);
   }
 
-  ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                file_off_t offset = 0) const {
+  size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
+              std::error_code& ec) const {
+    return impl_->read(inode, buf, size, offset, ec);
+  }
+
+  size_t
+  read(uint32_t inode, char* buf, size_t size, std::error_code& ec) const {
+    return impl_->read(inode, buf, size, 0, ec);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, std::error_code& ec) const {
+    return impl_->readv(inode, buf, size, offset, ec);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               std::error_code& ec) const {
+    return impl_->readv(inode, buf, size, 0, ec);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
   }
 
@@ -257,10 +277,14 @@ class filesystem_v2 {
     readlink(inode_view entry, readlink_mode mode) const = 0;
     virtual int statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
-    virtual ssize_t
+    virtual size_t
     read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
-    virtual ssize_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-                          file_off_t offset) const = 0;
+    virtual size_t read(uint32_t inode, char* buf, size_t size,
+                        file_off_t offset, std::error_code& ec) const = 0;
+    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+                         file_off_t offset, std::error_code& ec) const = 0;
+    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+                         file_off_t offset) const = 0;
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
     virtual std::vector<std::future<block_range>>

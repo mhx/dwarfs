@@ -532,7 +532,7 @@ TEST(dwarfsextract_test, perfmon) {
   auto errs = t.err();
   EXPECT_GT(outs.size(), 100);
   EXPECT_FALSE(errs.empty());
-  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future]"));
+  EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readv_future_ec]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.getattr]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.open]"));
   EXPECT_THAT(errs, ::testing::HasSubstr("[filesystem_v2.readlink_ec]"));
@@ -2379,11 +2379,21 @@ TEST(mkdwarfs_test, filesystem_read_error) {
   EXPECT_EQ(-1, fs.open(*iv));
   {
     char buf[1];
-    EXPECT_EQ(-EBADF, fs.read(iv->inode_num(), buf, sizeof(buf), 0));
+    std::error_code ec;
+    auto num = fs.read(iv->inode_num(), buf, sizeof(buf), ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(0, num);
+    EXPECT_EQ(EBADF, ec.value());
+    EXPECT_THAT([&] { fs.read(iv->inode_num(), buf, sizeof(buf)); },
+                ::testing::Throws<std::system_error>());
   }
   {
     iovec_read_buf buf;
-    EXPECT_EQ(-EBADF, fs.readv(iv->inode_num(), buf, 42, 0));
+    std::error_code ec;
+    auto num = fs.readv(iv->inode_num(), buf, 42, ec);
+    EXPECT_EQ(0, num);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(EBADF, ec.value());
   }
   {
     std::error_code ec;

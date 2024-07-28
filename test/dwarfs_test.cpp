@@ -259,8 +259,10 @@ void basic_end_to_end_test(std::string const& compressor,
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
 
+  std::error_code ec;
   std::vector<char> buf(st.size);
-  ssize_t rv = fs.read(inode, &buf[0], st.size, 0);
+  auto rv = fs.read(inode, &buf[0], st.size, ec);
+  EXPECT_FALSE(ec);
   EXPECT_EQ(rv, st.size);
   EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.size));
 
@@ -422,7 +424,6 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
-  std::error_code ec;
   fs.access(*entry, R_OK, 1337, 0, ec);
   EXPECT_EQ(set_uid ? EACCES : 0, ec.value());
   EXPECT_EQ(set_uid, !fs.access(*entry, R_OK, 1337, 0));
@@ -799,7 +800,7 @@ TEST_P(compression_regression, github45) {
     EXPECT_GE(inode, 0);
 
     std::vector<char> buf(st.size);
-    ssize_t rv = fs.read(inode, &buf[0], st.size, 0);
+    auto rv = fs.read(inode, &buf[0], st.size);
     EXPECT_EQ(rv, st.size);
     EXPECT_EQ(std::string(buf.begin(), buf.end()), contents);
   };
@@ -1202,10 +1203,13 @@ TEST(section_index_regression, github183) {
 
   EXPECT_NO_THROW(inode = fs.open(*entry));
 
+  std::error_code ec;
   std::vector<char> buf(st.size);
-  auto rv = fs.read(inode, &buf[0], st.size, 0);
+  auto rv = fs.read(inode, &buf[0], st.size, ec);
 
-  EXPECT_EQ(rv, -EIO);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(rv, 0);
+  EXPECT_EQ(ec.value(), EIO);
 
   std::stringstream idss;
   EXPECT_THROW(filesystem_v2::identify(lgr, *input, mm, idss, 3),

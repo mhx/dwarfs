@@ -659,14 +659,15 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       return EIO;
     }
 
+    std::error_code ec;
     iovec_read_buf buf;
-    ssize_t rv = userdata.fs.readv(ino, buf, size, off);
+    auto num = userdata.fs.readv(ino, buf, size, off, ec);
 
-    LOG_DEBUG << "readv(" << ino << ", " << size << ", " << off << ") -> " << rv
-              << " [size = " << buf.buf.size() << "]";
+    LOG_DEBUG << "readv(" << ino << ", " << size << ", " << off << ") -> "
+              << num << " [size = " << buf.buf.size() << "]: " << ec.message();
 
-    if (rv < 0) {
-      return -rv;
+    if (ec) {
+      return -ec.value();
     }
 
     return -fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
