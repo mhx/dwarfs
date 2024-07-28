@@ -125,7 +125,9 @@ class metadata_v2 {
     impl_->access(iv, mode, uid, gid, ec);
   }
 
-  int open(inode_view iv) const { return impl_->open(iv); }
+  int open(inode_view iv, std::error_code& ec) const {
+    return impl_->open(iv, ec);
+  }
 
   std::string
   readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const {
@@ -203,7 +205,7 @@ class metadata_v2 {
     virtual void access(inode_view iv, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid, std::error_code& ec) const = 0;
 
-    virtual int open(inode_view iv) const = 0;
+    virtual int open(inode_view iv, std::error_code& ec) const = 0;
 
     virtual std::string
     readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const = 0;

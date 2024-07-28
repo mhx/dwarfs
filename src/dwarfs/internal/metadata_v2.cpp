@@ -497,7 +497,7 @@ class metadata_ final : public metadata_v2::impl {
   void access(inode_view iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const override;
 
-  int open(inode_view iv) const override;
+  int open(inode_view iv, std::error_code& ec) const override;
 
   std::string readlink(inode_view iv, readlink_mode mode,
                        std::error_code& ec) const override;
@@ -1689,12 +1689,14 @@ void metadata_<LoggerPolicy>::access(inode_view iv, int mode,
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::open(inode_view iv) const {
+int metadata_<LoggerPolicy>::open(inode_view iv, std::error_code& ec) const {
   if (iv.is_regular_file()) {
+    ec.clear();
     return iv.inode_num();
   }
 
-  return -1;
+  ec = std::make_error_code(std::errc::invalid_argument);
+  return 0;
 }
 
 template <typename LoggerPolicy>

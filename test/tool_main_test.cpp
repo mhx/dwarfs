@@ -2376,7 +2376,14 @@ TEST(mkdwarfs_test, filesystem_read_error) {
   auto iv = fs.find("/somedir");
   ASSERT_TRUE(iv);
   EXPECT_TRUE(iv->is_directory());
-  EXPECT_EQ(-1, fs.open(*iv));
+  EXPECT_THAT([&] { fs.open(*iv); }, ::testing::Throws<std::system_error>());
+  {
+    std::error_code ec;
+    auto res = fs.open(*iv, ec);
+    EXPECT_TRUE(ec);
+    EXPECT_EQ(EINVAL, ec.value());
+    EXPECT_EQ(0, res);
+  }
   {
     char buf[1];
     std::error_code ec;

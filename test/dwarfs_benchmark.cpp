@@ -427,7 +427,8 @@ BENCHMARK_DEFINE_F(filesystem, open)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    auto r = fs->open(entries[i++ % NUM_ENTRIES]);
+    std::error_code ec;
+    auto r = fs->open(entries[i++ % NUM_ENTRIES], ec);
     ::benchmark::DoNotOptimize(r);
   }
 }

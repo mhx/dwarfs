@@ -432,6 +432,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::string readlink(inode_view entry, readlink_mode mode) const override;
   int statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
+  int open(inode_view entry, std::error_code& ec) const override;
   size_t read(uint32_t inode, char* buf, size_t size,
               file_off_t offset) const override;
   size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
@@ -504,6 +505,7 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(readlink_ec)
   PERFMON_CLS_TIMER_DECL(statvfs)
   PERFMON_CLS_TIMER_DECL(open)
+  PERFMON_CLS_TIMER_DECL(open_ec)
   PERFMON_CLS_TIMER_DECL(read)
   PERFMON_CLS_TIMER_DECL(read_ec)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
@@ -587,6 +589,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readlink_ec)
     PERFMON_CLS_TIMER_INIT(statvfs)
     PERFMON_CLS_TIMER_INIT(open)
+    PERFMON_CLS_TIMER_INIT(open_ec)
     PERFMON_CLS_TIMER_INIT(read)
     PERFMON_CLS_TIMER_INIT(read_ec)
     PERFMON_CLS_TIMER_INIT(readv_iovec)
@@ -1124,9 +1127,17 @@ int filesystem_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
 }
 
 template <typename LoggerPolicy>
+int filesystem_<LoggerPolicy>::open(inode_view entry,
+                                    std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(open_ec)
+  return meta_.open(entry, ec);
+}
+
+template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::open(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(open)
-  return meta_.open(entry);
+  return call_ec_throw(
+      [&](std::error_code& ec) { return meta_.open(entry, ec); });
 }
 
 template <typename LoggerPolicy>
