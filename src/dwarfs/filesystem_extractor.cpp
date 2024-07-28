@@ -37,6 +37,7 @@
 #include <folly/ExceptionString.h>
 #include <folly/ScopeGuard.h>
 #include <folly/portability/Fcntl.h>
+#include <folly/portability/Unistd.h>
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/file_stat.h>
