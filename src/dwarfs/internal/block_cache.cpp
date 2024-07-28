@@ -42,9 +42,9 @@
 #include <folly/stats/Histogram.h>
 #include <folly/system/ThreadName.h>
 
-#include <dwarfs/block_cache.h>
 #include <dwarfs/cached_block.h>
 #include <dwarfs/fs_section.h>
+#include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
@@ -52,7 +52,9 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/util.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
+
+namespace {
 
 class sequential_access_detector {
  public:
@@ -791,6 +793,8 @@ class block_cache_ final : public block_cache::impl {
   cache_tidy_config tidy_config_;
 };
 
+} // namespace
+
 block_cache::block_cache(logger& lgr, os_access const& os,
                          std::shared_ptr<mmif> mm,
                          const block_cache_options& options,
@@ -798,4 +802,4 @@ block_cache::block_cache(logger& lgr, os_access const& os,
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
           lgr, os, std::move(mm), options, std::move(perfmon))) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

@@ -32,7 +32,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_cache.h>
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_data.h>
 #include <dwarfs/categorizer.h>
@@ -43,6 +42,7 @@
 #include <dwarfs/fs_section.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
+#include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/worker_group.h>
@@ -610,7 +610,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_future)
     PERFMON_CLS_TIMER_INIT(readv_future_throw) // clang-format on
 {
-  block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
+  internal::block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
   filesystem_parser parser(mm_, image_offset_);
 
   if (parser.has_index()) {

@@ -42,6 +42,8 @@ class mmif;
 class os_access;
 class performance_monitor;
 
+namespace internal {
+
 class block_cache {
  public:
   block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
@@ -81,4 +83,6 @@ class block_cache {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace internal
 } // namespace dwarfs

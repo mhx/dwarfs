@@ -32,8 +32,8 @@
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
 
-#include <dwarfs/block_cache.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/offset_cache.h>
 #include <dwarfs/iovec_read_buf.h>
