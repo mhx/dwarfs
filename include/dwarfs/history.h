@@ -35,6 +35,8 @@
 
 namespace dwarfs {
 
+// TODO: don't expose thrift types in the public API
+
 class history {
  public:
   explicit history(history_config const& cfg = {});
