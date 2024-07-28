@@ -30,13 +30,18 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/version.h>
 
+#include <dwarfs/gen-cpp2/history_types.h>
+
 namespace dwarfs {
 
 history::history(history_config const& cfg)
-    : cfg_{cfg} {}
+    : history_{std::make_unique<thrift::history::history>()}
+    , cfg_{cfg} {}
+
+history::~history() = default;
 
 void history::parse(std::span<uint8_t const> data) {
-  history_.entries()->clear();
+  history_->entries()->clear();
   parse_append(data);
 }
 
@@ -44,13 +49,13 @@ void history::parse_append(std::span<uint8_t const> data) {
   folly::Range<const uint8_t*> range{data.data(), data.size()};
   thrift::history::history tmp;
   apache::thrift::CompactSerializer::deserialize(range, tmp);
-  history_.entries()->insert(history_.entries()->end(),
-                             std::make_move_iterator(tmp.entries()->begin()),
-                             std::make_move_iterator(tmp.entries()->end()));
+  history_->entries()->insert(history_->entries()->end(),
+                              std::make_move_iterator(tmp.entries()->begin()),
+                              std::make_move_iterator(tmp.entries()->end()));
 }
 
 void history::append(std::optional<std::vector<std::string>> args) {
-  auto& histent = history_.entries()->emplace_back();
+  auto& histent = history_->entries()->emplace_back();
   auto& version = histent.version().value();
   version.major() = PRJ_VERSION_MAJOR;
   version.minor() = PRJ_VERSION_MINOR;
@@ -72,19 +77,21 @@ void history::append(std::optional<std::vector<std::string>> args) {
   histent.library_versions() = deps.as_set();
 }
 
+size_t history::size() const { return history_->entries()->size(); }
+
 std::vector<uint8_t> history::serialize() const {
   std::string buf;
-  ::apache::thrift::CompactSerializer::serialize(history_, &buf);
+  ::apache::thrift::CompactSerializer::serialize(*history_, &buf);
   return std::vector<uint8_t>(buf.begin(), buf.end());
 }
 
 void history::dump(std::ostream& os) const {
-  if (!history_.entries()->empty()) {
-    size_t const iwidth{std::to_string(history_.entries()->size()).size()};
+  if (!history_->entries()->empty()) {
+    size_t const iwidth{std::to_string(history_->entries()->size()).size()};
     size_t i{1};
 
     os << "History:\n";
-    for (auto const& histent : *history_.entries()) {
+    for (auto const& histent : *history_->entries()) {
       os << "  " << fmt::format("{:>{}}:", i++, iwidth);
 
       if (histent.timestamp().has_value()) {
@@ -118,7 +125,7 @@ void history::dump(std::ostream& os) const {
 nlohmann::json history::as_json() const {
   nlohmann::json dyn;
 
-  for (auto const& histent : *history_.entries()) {
+  for (auto const& histent : *history_->entries()) {
     auto& entry = dyn.emplace_back();
 
     auto const& version = histent.version().value();

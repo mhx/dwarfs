@@ -22,6 +22,7 @@
 #pragma once
 
 #include <iosfwd>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -31,26 +32,30 @@
 
 #include <dwarfs/options.h>
 
-#include <dwarfs/gen-cpp2/history_types.h>
-
 namespace dwarfs {
 
-// TODO: don't expose thrift types in the public API
+namespace thrift::history {
+
+class history;
+
+} // namespace thrift::history
 
 class history {
  public:
   explicit history(history_config const& cfg = {});
+  ~history();
 
   void parse(std::span<uint8_t const> data);
   void parse_append(std::span<uint8_t const> data);
-  thrift::history::history const& get() const { return history_; }
+  thrift::history::history const& get() const { return *history_; }
   void append(std::optional<std::vector<std::string>> args);
+  size_t size() const;
   std::vector<uint8_t> serialize() const;
   void dump(std::ostream& os) const;
   nlohmann::json as_json() const;
 
  private:
-  thrift::history::history history_;
+  std::unique_ptr<thrift::history::history> history_;
   history_config const cfg_;
 };
 

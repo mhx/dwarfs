@@ -1397,7 +1397,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
-    EXPECT_EQ(0, fs.get_history().get().entries()->size());
+    EXPECT_EQ(0, fs.get_history().size());
     EXPECT_EQ(1, fs.info_as_json(2).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
   }
