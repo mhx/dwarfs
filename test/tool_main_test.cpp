@@ -1093,19 +1093,19 @@ TEST(mkdwarfs_test, metadata_access) {
     auto iv = fs.find("/access");
     ASSERT_TRUE(iv);
 
-    EXPECT_EQ(0, fs.access(*iv, F_OK, 1, 1));
+    EXPECT_TRUE(fs.access(*iv, F_OK, 1, 1));
 
-    EXPECT_EQ(EACCES, fs.access(*iv, R_OK, 1, 1));
-    EXPECT_EQ(0, fs.access(*iv, W_OK, 1, 1));
-    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 1));
+    EXPECT_FALSE(fs.access(*iv, R_OK, 1, 1));
+    EXPECT_TRUE(fs.access(*iv, W_OK, 1, 1));
+    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 1));
 
-    EXPECT_EQ(0, fs.access(*iv, R_OK, 1, 3333));
-    EXPECT_EQ(0, fs.access(*iv, W_OK, 1, 3333));
-    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 3333));
+    EXPECT_TRUE(fs.access(*iv, R_OK, 1, 3333));
+    EXPECT_TRUE(fs.access(*iv, W_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 3333));
 
-    EXPECT_EQ(0, fs.access(*iv, R_OK, 222, 7));
-    EXPECT_EQ(0, fs.access(*iv, W_OK, 222, 7));
-    EXPECT_EQ(0, fs.access(*iv, x_ok, 222, 7));
+    EXPECT_TRUE(fs.access(*iv, R_OK, 222, 7));
+    EXPECT_TRUE(fs.access(*iv, W_OK, 222, 7));
+    EXPECT_TRUE(fs.access(*iv, x_ok, 222, 7));
   }
 
   {
@@ -1114,19 +1114,19 @@ TEST(mkdwarfs_test, metadata_access) {
     auto iv = fs.find("/access");
     ASSERT_TRUE(iv);
 
-    EXPECT_EQ(0, fs.access(*iv, F_OK, 1, 1));
+    EXPECT_TRUE(fs.access(*iv, F_OK, 1, 1));
 
-    EXPECT_EQ(EACCES, fs.access(*iv, R_OK, 1, 1));
-    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 1, 1));
-    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 1));
+    EXPECT_FALSE(fs.access(*iv, R_OK, 1, 1));
+    EXPECT_FALSE(fs.access(*iv, W_OK, 1, 1));
+    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 1));
 
-    EXPECT_EQ(0, fs.access(*iv, R_OK, 1, 3333));
-    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 1, 3333));
-    EXPECT_EQ(EACCES, fs.access(*iv, x_ok, 1, 3333));
+    EXPECT_TRUE(fs.access(*iv, R_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(*iv, W_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 3333));
 
-    EXPECT_EQ(0, fs.access(*iv, R_OK, 222, 7));
-    EXPECT_EQ(EACCES, fs.access(*iv, W_OK, 222, 7));
-    EXPECT_EQ(0, fs.access(*iv, x_ok, 222, 7));
+    EXPECT_TRUE(fs.access(*iv, R_OK, 222, 7));
+    EXPECT_FALSE(fs.access(*iv, W_OK, 222, 7));
+    EXPECT_TRUE(fs.access(*iv, x_ok, 222, 7));
   }
 }
 

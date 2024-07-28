@@ -420,10 +420,13 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   st1 = fs.getattr(*entry);
   EXPECT_EQ(access_fail ? 0 : 10000, st1.size);
-  EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
-  EXPECT_EQ(set_uid ? EACCES : 0, fs.access(*entry, R_OK, 1337, 0));
+  std::error_code ec;
+  fs.access(*entry, R_OK, 1337, 0, ec);
+  EXPECT_EQ(set_uid ? EACCES : 0, ec.value());
+  EXPECT_EQ(set_uid, !fs.access(*entry, R_OK, 1337, 0));
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
     std::map<std::string, file_stat> entries;
@@ -1296,65 +1299,65 @@ TEST(filesystem, root_access_github204) {
   static constexpr int const x_ok{X_OK};
 #endif
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, x_ok, 1000, 100));
-  EXPECT_EQ(0, fs.access(*group, x_ok, 1000, 100));
-  EXPECT_EQ(0, fs.access(*user, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(*other, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(*group, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(*user, x_ok, 1000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 0));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 0));
 
-  EXPECT_EQ(0, fs.access(*other, x_ok, 1000, 0));
-  EXPECT_EQ(0, fs.access(*group, x_ok, 1000, 0));
-  EXPECT_EQ(0, fs.access(*user, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(*other, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(*group, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(*user, x_ok, 1000, 0));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 100));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(*group, R_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 100));
 
-  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, x_ok, 2000, 100));
-  EXPECT_EQ(0, fs.access(*group, x_ok, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 100));
+  EXPECT_TRUE(fs.access(*other, x_ok, 2000, 100));
+  EXPECT_TRUE(fs.access(*group, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, R_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 200));
+  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 200));
 
-  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 200));
 
-  EXPECT_EQ(0, fs.access(*other, x_ok, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 200));
+  EXPECT_TRUE(fs.access(*other, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 200));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*other, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*group, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*user, R_OK, 0, 0));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*other, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*group, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*user, W_OK, 0, 0));
 
-  EXPECT_EQ(0, fs.access(*other, x_ok, 0, 0));
-  EXPECT_EQ(0, fs.access(*group, x_ok, 0, 0));
-  EXPECT_EQ(0, fs.access(*user, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(*other, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(*group, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(*user, x_ok, 0, 0));
 
   other = fs.find("/other/file");
   group = fs.find("/group/file");
@@ -1364,63 +1367,63 @@ TEST(filesystem, root_access_github204) {
   EXPECT_TRUE(group);
   EXPECT_TRUE(user);
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 100));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 100));
 
-  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 1000, 100));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 1000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 1000, 100));
+  EXPECT_FALSE(fs.access(*other, x_ok, 1000, 100));
+  EXPECT_FALSE(fs.access(*group, x_ok, 1000, 100));
+  EXPECT_FALSE(fs.access(*user, x_ok, 1000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 0));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 1000, 0));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 0));
 
-  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 1000, 0));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 1000, 0));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 1000, 0));
+  EXPECT_FALSE(fs.access(*other, x_ok, 1000, 0));
+  EXPECT_FALSE(fs.access(*group, x_ok, 1000, 0));
+  EXPECT_FALSE(fs.access(*user, x_ok, 1000, 0));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 100));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(*group, R_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 100));
 
-  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 100));
 
-  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 100));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(*other, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 100));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, R_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, R_OK, 2000, 200));
+  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 200));
 
-  EXPECT_EQ(EACCES, fs.access(*other, W_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, W_OK, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 200));
 
-  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 2000, 200));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(*other, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 200));
 
-  EXPECT_EQ(0, fs.access(*other, R_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*group, R_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*user, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*other, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*group, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*user, R_OK, 0, 0));
 
-  EXPECT_EQ(0, fs.access(*other, W_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*group, W_OK, 0, 0));
-  EXPECT_EQ(0, fs.access(*user, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*other, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*group, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(*user, W_OK, 0, 0));
 
-  EXPECT_EQ(EACCES, fs.access(*other, x_ok, 0, 0));
-  EXPECT_EQ(EACCES, fs.access(*group, x_ok, 0, 0));
-  EXPECT_EQ(EACCES, fs.access(*user, x_ok, 0, 0));
+  EXPECT_FALSE(fs.access(*other, x_ok, 0, 0));
+  EXPECT_FALSE(fs.access(*group, x_ok, 0, 0));
+  EXPECT_FALSE(fs.access(*user, x_ok, 0, 0));
 }

@@ -849,7 +849,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     EXPECT_EQ(1616013816, st.ctime);
   }
 
-  EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 0));
 
   auto inode = fs.open(*entry);
   EXPECT_GE(inode, 0);

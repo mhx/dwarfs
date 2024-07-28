@@ -459,7 +459,9 @@ int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
                      Find const& find) {
   return checked_call(log_, [&] {
     if (auto entry = find()) {
-      return userdata.fs.access(*entry, mode, uid, gid);
+      std::error_code ec;
+      userdata.fs.access(*entry, mode, uid, gid, ec);
+      return ec.value();
     }
     return ENOENT;
   });

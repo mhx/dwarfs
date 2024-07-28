@@ -441,8 +441,8 @@ class filesystem_ final : public filesystem_v2::impl {
   std::optional<inode_view> find(int inode, const char* name) const override;
   file_stat getattr(inode_view entry, std::error_code& ec) const override;
   file_stat getattr(inode_view entry) const override;
-  int access(inode_view entry, int mode, file_stat::uid_type uid,
-             file_stat::gid_type gid) const override;
+  bool access(inode_view entry, int mode, file_stat::uid_type uid,
+              file_stat::gid_type gid) const override;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
@@ -1080,11 +1080,13 @@ file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
-int filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
-                                      file_stat::uid_type uid,
-                                      file_stat::gid_type gid) const {
+bool filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
+                                       file_stat::uid_type uid,
+                                       file_stat::gid_type gid) const {
   PERFMON_CLS_SCOPED_SECTION(access)
-  return meta_.access(entry, mode, uid, gid);
+  std::error_code ec;
+  meta_.access(entry, mode, uid, gid, ec);
+  return !ec;
 }
 
 template <typename LoggerPolicy>
@@ -1093,7 +1095,7 @@ void filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
                                        file_stat::gid_type gid,
                                        std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(access_ec)
-  call_int_error([&] { return meta_.access(entry, mode, uid, gid); }, ec);
+  meta_.access(entry, mode, uid, gid, ec);
 }
 
 template <typename LoggerPolicy>

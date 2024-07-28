@@ -494,8 +494,8 @@ class metadata_ final : public metadata_v2::impl {
     return 2 + dir.entry_count(); // adds '.' and '..', which we fake in ;-)
   }
 
-  int access(inode_view iv, int mode, file_stat::uid_type uid,
-             file_stat::gid_type gid) const override;
+  void access(inode_view iv, int mode, file_stat::uid_type uid,
+              file_stat::gid_type gid, std::error_code& ec) const override;
 
   int open(inode_view iv) const override;
 
@@ -1618,16 +1618,18 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::access(inode_view iv, int mode,
-                                    file_stat::uid_type uid,
-                                    file_stat::gid_type gid) const {
+void metadata_<LoggerPolicy>::access(inode_view iv, int mode,
+                                     file_stat::uid_type uid,
+                                     file_stat::gid_type gid,
+                                     std::error_code& ec) const {
   LOG_DEBUG << fmt::format("access([{}, {:o}, {}, {}], {:o}, {}, {})",
                            iv.inode_num(), iv.mode(), iv.getuid(), iv.getgid(),
                            mode, uid, gid);
 
   if (mode == F_OK) {
     // easy; we're only interested in the file's existance
-    return 0;
+    ec.clear();
+    return;
   }
 
   int access_mode = 0;
@@ -1679,7 +1681,11 @@ int metadata_<LoggerPolicy>::access(inode_view iv, int mode,
     }
   }
 
-  return (access_mode & mode) == mode ? 0 : EACCES;
+  if ((access_mode & mode) == mode) {
+    ec.clear();
+  } else {
+    ec = std::make_error_code(std::errc::permission_denied);
+  }
 }
 
 template <typename LoggerPolicy>
