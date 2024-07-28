@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <span>
@@ -31,12 +32,20 @@
 #include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
 
-#include <dwarfs/gen-cpp2/metadata_types.h>
-
 namespace dwarfs {
 
 class single_inode_fragment {
  public:
+  struct chunk {
+    using block_type = uint32_t;
+    using offset_type = uint32_t;
+    using size_type = uint32_t;
+
+    block_type block;
+    offset_type offset;
+    size_type size;
+  };
+
   single_inode_fragment(fragment_category category, file_off_t length)
       : category_{category}
       , length_{length} {}
@@ -47,7 +56,7 @@ class single_inode_fragment {
 
   void add_chunk(size_t block, size_t offset, size_t size);
 
-  std::span<thrift::metadata::chunk const> chunks() const {
+  std::span<chunk const> chunks() const {
     // TODO: workaround for older boost small_vector
     return std::span(chunks_.data(), chunks_.size());
   }
@@ -59,7 +68,7 @@ class single_inode_fragment {
  private:
   fragment_category category_;
   file_off_t length_;
-  small_vector<thrift::metadata::chunk, 1> chunks_;
+  small_vector<chunk, 1> chunks_;
 };
 
 class inode_fragments {

@@ -23,6 +23,8 @@
 #include <ostream>
 #include <sstream>
 
+#include <folly/Conv.h>
+
 #include <dwarfs/inode_fragments.h>
 
 namespace dwarfs {
@@ -31,19 +33,18 @@ void single_inode_fragment::add_chunk(size_t block, size_t offset,
                                       size_t size) {
   if (!chunks_.empty()) {
     auto& last = chunks_.back();
-    if (last.block() == block &&
-        last.offset().value() + last.size().value() == offset) [[unlikely]] {
+    if (last.block == block && last.offset + last.size == offset) [[unlikely]] {
       // merge chunks
-      last.size() = last.size().value() + size;
+      last.size += size;
       return;
     }
   }
 
-  thrift::metadata::chunk c;
-  c.block() = block;
-  c.offset() = offset;
-  c.size() = size;
-  chunks_.push_back(std::move(c));
+  chunks_.push_back({
+      .block = folly::to<chunk::block_type>(block),
+      .offset = folly::to<chunk::offset_type>(offset),
+      .size = folly::to<chunk::size_type>(size),
+  });
 }
 
 bool single_inode_fragment::chunks_are_consistent() const {
@@ -51,9 +52,9 @@ bool single_inode_fragment::chunks_are_consistent() const {
     return false;
   }
 
-  auto total_chunks_len = std::accumulate(
-      chunks_.begin(), chunks_.end(), file_off_t{0},
-      [](auto acc, auto const& c) { return acc + c.get_size(); });
+  auto total_chunks_len =
+      std::accumulate(chunks_.begin(), chunks_.end(), file_off_t{0},
+                      [](auto acc, auto const& c) { return acc + c.size; });
 
   return total_chunks_len == length_;
 }
