@@ -26,7 +26,7 @@
 
 #include <dwarfs/compiler.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class rsync_hash {
  public:
@@ -68,4 +68,4 @@ class rsync_hash {
   int32_t len_{0};
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
