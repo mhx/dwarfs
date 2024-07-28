@@ -27,13 +27,17 @@
 
 namespace dwarfs {
 
+namespace internal {
+
 class cached_block;
+
+} // namespace internal
 
 class block_range {
  public:
   block_range(uint8_t const* data, size_t offset, size_t size);
-  block_range(std::shared_ptr<cached_block const> block, size_t offset,
-              size_t size);
+  block_range(std::shared_ptr<internal::cached_block const> block,
+              size_t offset, size_t size);
 
   auto data() const { return span_.data(); }
   auto begin() const { return span_.begin(); }
@@ -42,7 +46,7 @@ class block_range {
 
  private:
   std::span<uint8_t const> span_;
-  std::shared_ptr<cached_block const> block_;
+  std::shared_ptr<internal::cached_block const> block_;
 };
 
 } // namespace dwarfs

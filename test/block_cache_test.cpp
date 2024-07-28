@@ -33,9 +33,9 @@
 #include <folly/container/Enumerate.h>
 
 #include <dwarfs/block_range.h>
-#include <dwarfs/cached_block.h>
 #include <dwarfs/error.h>
 #include <dwarfs/filesystem_v2.h>
+#include <dwarfs/internal/cached_block.h>
 #include <dwarfs_tool_main.h>
 
 #include "mmap_mock.h"
@@ -46,7 +46,7 @@ using namespace dwarfs;
 
 namespace {
 
-class mock_cached_block : public cached_block {
+class mock_cached_block : public internal::cached_block {
  public:
   mock_cached_block() = default;
   mock_cached_block(std::span<uint8_t const> span)

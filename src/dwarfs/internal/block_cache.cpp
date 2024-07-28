@@ -42,9 +42,9 @@
 #include <folly/stats/Histogram.h>
 #include <folly/system/ThreadName.h>
 
-#include <dwarfs/cached_block.h>
 #include <dwarfs/fs_section.h>
 #include <dwarfs/internal/block_cache.h>
+#include <dwarfs/internal/cached_block.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
@@ -146,7 +146,7 @@ class block_request {
 
   size_t end() const { return end_; }
 
-  void fulfill(std::shared_ptr<cached_block const> block) {
+  void fulfill(std::shared_ptr<internal::cached_block const> block) {
     promise_.set_value(block_range(std::move(block), begin_, end_ - begin_));
   }
 
@@ -160,7 +160,8 @@ class block_request {
 
 class block_request_set {
  public:
-  block_request_set(std::shared_ptr<cached_block> block, size_t block_no)
+  block_request_set(std::shared_ptr<internal::cached_block> block,
+                    size_t block_no)
       : range_end_(0)
       , block_(std::move(block))
       , block_no_(block_no) {}
@@ -196,14 +197,14 @@ class block_request_set {
 
   bool empty() const { return queue_.empty(); }
 
-  std::shared_ptr<cached_block> block() const { return block_; }
+  std::shared_ptr<internal::cached_block> block() const { return block_; }
 
   size_t block_no() const { return block_no_; }
 
  private:
   std::vector<block_request> queue_;
   size_t range_end_;
-  std::shared_ptr<cached_block> block_;
+  std::shared_ptr<internal::cached_block> block_;
   const size_t block_no_;
 };
 
@@ -327,7 +328,8 @@ class block_cache_ final : public block_cache::impl {
     cache_.~lru_type();
     new (&cache_) lru_type(max_blocks);
     cache_.setPruneHook(
-        [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
+        [this](size_t block_no,
+               std::shared_ptr<internal::cached_block>&& block) {
           LOG_DEBUG << "evicting block " << block_no
                     << " from cache, decompression ratio = "
                     << double(block->range_end()) /
@@ -552,9 +554,10 @@ class block_cache_ final : public block_cache::impl {
   void create_cached_block(size_t block_no, std::promise<block_range>&& promise,
                            size_t offset, size_t range_end) const {
     try {
-      std::shared_ptr<cached_block> block = cached_block::create(
-          LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
-          options_.mm_release, options_.disable_block_integrity_check);
+      std::shared_ptr<internal::cached_block> block =
+          internal::cached_block::create(
+              LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
+              options_.mm_release, options_.disable_block_integrity_check);
       blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
@@ -582,7 +585,7 @@ class block_cache_ final : public block_cache::impl {
     tidy_thread_.join();
   }
 
-  void update_block_stats(cached_block const& cb) {
+  void update_block_stats(internal::cached_block const& cb) {
     if (cb.range_end() < cb.uncompressed_size()) {
       partially_decompressed_.fetch_add(1, std::memory_order_relaxed);
     }
@@ -725,16 +728,16 @@ class block_cache_ final : public block_cache::impl {
           std::cv_status::timeout) {
         switch (tidy_config_.strategy) {
         case cache_tidy_strategy::EXPIRY_TIME:
-          remove_block_if(
-              [tp = std::chrono::steady_clock::now() -
-                    tidy_config_.expiry_time](cached_block const& blk) {
-                return blk.last_used_before(tp);
-              });
+          remove_block_if([tp = std::chrono::steady_clock::now() -
+                                tidy_config_.expiry_time](
+                              internal::cached_block const& blk) {
+            return blk.last_used_before(tp);
+          });
           break;
 
         case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
           std::vector<uint8_t> tmp;
-          remove_block_if([&tmp](cached_block const& blk) {
+          remove_block_if([&tmp](internal::cached_block const& blk) {
             return blk.any_pages_swapped_out(tmp);
           });
         } break;
@@ -747,7 +750,7 @@ class block_cache_ final : public block_cache::impl {
   }
 
   using lru_type =
-      folly::EvictingCacheMap<size_t, std::shared_ptr<cached_block>>;
+      folly::EvictingCacheMap<size_t, std::shared_ptr<internal::cached_block>>;
 
   mutable std::mutex mx_;
   mutable lru_type cache_;

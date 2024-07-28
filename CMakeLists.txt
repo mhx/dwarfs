@@ -630,10 +630,10 @@ list(APPEND LIBDWARFS_COMMON_SRC
 
 list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/block_range.cpp
-  src/dwarfs/cached_block.cpp
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/fs_section.cpp
   src/dwarfs/internal/block_cache.cpp
+  src/dwarfs/internal/cached_block.cpp
   src/dwarfs/internal/inode_reader_v2.cpp
   src/dwarfs/internal/metadata_types.cpp
   src/dwarfs/internal/metadata_v2.cpp

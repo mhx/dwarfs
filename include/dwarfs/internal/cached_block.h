@@ -32,6 +32,8 @@ class logger;
 class fs_section;
 class mmif;
 
+namespace internal {
+
 class cached_block {
  public:
   static std::unique_ptr<cached_block>
@@ -49,5 +51,7 @@ class cached_block {
   last_used_before(std::chrono::steady_clock::time_point tp) const = 0;
   virtual bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const = 0;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

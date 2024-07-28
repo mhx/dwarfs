@@ -26,13 +26,15 @@
 #endif
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/cached_block.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fs_section.h>
+#include <dwarfs/internal/cached_block.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
+
+namespace {
 
 template <typename LoggerPolicy>
 class cached_block_ final : public cached_block {
@@ -127,6 +129,8 @@ class cached_block_ final : public cached_block {
   std::chrono::steady_clock::time_point last_access_;
 };
 
+} // namespace
+
 std::unique_ptr<cached_block>
 cached_block::create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
                      bool release, bool disable_integrity_check) {
@@ -135,4 +139,4 @@ cached_block::create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
       lgr, b, std::move(mm), release, disable_integrity_check);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

@@ -22,8 +22,8 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_range.h>
-#include <dwarfs/cached_block.h>
 #include <dwarfs/error.h>
+#include <dwarfs/internal/cached_block.h>
 
 namespace dwarfs {
 
@@ -34,7 +34,7 @@ block_range::block_range(uint8_t const* data, size_t offset, size_t size)
   }
 }
 
-block_range::block_range(std::shared_ptr<cached_block const> block,
+block_range::block_range(std::shared_ptr<internal::cached_block const> block,
                          size_t offset, size_t size)
     : span_{block->data() + offset, size}
     , block_{std::move(block)} {
