@@ -442,6 +442,14 @@ if(DWARFS_GIT_BUILD)
 endif()
 
 add_library(dwarfs_folly_lite
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Demangle.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Dwarf.cpp
@@ -457,53 +465,45 @@ add_library(dwarfs_folly_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeCommon.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeSse42.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SimpleSimdStringUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/FsUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/CString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeLeak.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/PThread.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/QuantileEstimator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/HardwareConcurrency.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/HardwareConcurrency.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Demangle.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
 )
 
 list(APPEND FOLLY_BENCHMARK_LITE_SRC
@@ -611,8 +611,8 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/file_stat.cpp
   src/dwarfs/file_type.cpp
   src/dwarfs/fstypes.cpp
-  src/dwarfs/internal/worker_group.cpp
   src/dwarfs/history.cpp
+  src/dwarfs/internal/worker_group.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/mmap.cpp
@@ -622,9 +622,9 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/performance_monitor.cpp
   src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
+  src/dwarfs/thread_pool.cpp
   src/dwarfs/util.cpp
   src/dwarfs/wcwidth.c
-  src/dwarfs/thread_pool.cpp
   src/dwarfs/xattr.cpp
 )
 
@@ -635,8 +635,8 @@ list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/fs_section.cpp
   src/dwarfs/internal/block_cache.cpp
   src/dwarfs/internal/inode_reader_v2.cpp
-  src/dwarfs/internal/metadata_v2.cpp
   src/dwarfs/internal/metadata_types.cpp
+  src/dwarfs/internal/metadata_v2.cpp
   src/dwarfs/metadata_types.cpp
 )
 
@@ -645,8 +645,8 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/builtin_script.cpp
   src/dwarfs/categorizer.cpp
   src/dwarfs/category_parser.cpp
-  src/dwarfs/chmod_transformer.cpp
   src/dwarfs/chmod_entry_transformer.cpp
+  src/dwarfs/chmod_transformer.cpp
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry.cpp
   src/dwarfs/file_scanner.cpp
@@ -656,11 +656,11 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/fragment_category.cpp
   src/dwarfs/fragment_chunkable.cpp
   src/dwarfs/fragment_order_parser.cpp
-  src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/inode_element_view.cpp
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/inode_manager.cpp
   src/dwarfs/inode_ordering.cpp
+  src/dwarfs/internal/global_entry_data.cpp
   src/dwarfs/metadata_freezer.cpp
   src/dwarfs/nilsimsa.cpp
   src/dwarfs/progress.cpp
@@ -1049,21 +1049,22 @@ endif()
 
 add_library(
   dwarfs_thrift_lite
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/Protocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/CompactProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/BinaryProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/DebugProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocolCommon.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocol.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/protocol/TProtocolException.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/util/VarintUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/gen/module_types_cpp.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/Frozen.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/FrozenUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/gen/module_types_cpp.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/BinaryProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/CompactProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/DebugProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocol.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocolCommon.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/Protocol.cpp
   ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
-  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp)
+  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp
+)
 
 set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD 20)
 target_link_libraries(dwarfs_thrift_lite PUBLIC dwarfs_folly_lite)
