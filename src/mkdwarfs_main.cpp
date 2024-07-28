@@ -49,13 +49,14 @@
 
 #include <folly/FileUtil.h>
 #include <folly/String.h>
-#include <folly/container/Enumerate.h>
 #include <folly/portability/SysStat.h>
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
@@ -717,7 +718,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                            metadata_hdr, l_mc, "Size/Step  Order")
             << "  " << sep << "\n";
 
-    for (auto const& [i, l] : folly::enumerate(levels)) {
+    for (auto const& [i, l] : ranges::views::enumerate(levels)) {
       iol.out << fmt::format("  {:1d}      {:2d}     {:{}s}  {:{}s}  {:{}s}"
                              "  {:2d} / {:1d}    {:{}s}",
                              i, l.block_size_bits, l.data_compression, l_dc,

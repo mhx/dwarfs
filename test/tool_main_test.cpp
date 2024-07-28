@@ -36,9 +36,10 @@
 
 #include <folly/FileUtil.h>
 #include <folly/String.h>
-#include <folly/container/Enumerate.h>
 
 #include <nlohmann/json.hpp>
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/history.h>
@@ -1964,7 +1965,8 @@ TEST(dwarfsck_test, check_fail) {
         auto info = fs.info_as_json(3);
         ASSERT_EQ(1, info.count("sections"));
         ASSERT_EQ(section_offsets.size(), info["sections"].size());
-        for (auto const& [i, section] : folly::enumerate(info["sections"])) {
+        for (auto const& [i, section] :
+             ranges::views::enumerate(info["sections"])) {
           EXPECT_EQ(section["checksum_ok"].get<bool>(), i != index)
               << type << ", " << index;
         }

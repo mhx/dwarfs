@@ -30,7 +30,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <folly/container/Enumerate.h>
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/block_range.h>
 #include <dwarfs/error.h>
@@ -247,7 +247,7 @@ TEST_P(options_test, cache_stress) {
   std::vector<std::thread> threads;
   std::vector<size_t> success(num_threads);
 
-  for (auto const& [i, reqs] : folly::enumerate(data)) {
+  for (auto const& [i, reqs] : ranges::views::enumerate(data)) {
     auto& succ = success[i];
     // TODO: preqs is a workaround for older Clang versions
     threads.emplace_back([&, preqs = &reqs] {
@@ -276,7 +276,7 @@ TEST_P(options_test, cache_stress) {
     t.join();
   }
 
-  for (auto const& [i, reqs] : folly::enumerate(success)) {
+  for (auto const& [i, reqs] : ranges::views::enumerate(success)) {
     EXPECT_EQ(reqs, num_read_reqs) << i;
   }
 }

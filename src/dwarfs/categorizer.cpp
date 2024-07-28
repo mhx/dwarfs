@@ -27,9 +27,10 @@
 #include <fmt/format.h>
 
 #include <folly/String.h>
-#include <folly/container/Enumerate.h>
 
 #include <nlohmann/json.hpp>
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/categorizer.h>
 #include <dwarfs/compiler.h>
@@ -97,7 +98,7 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
 
   bool global_best = true;
 
-  for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
+  for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
     if (auto p = dynamic_cast<random_access_categorizer*>(cat.get())) {
       if (auto c = p->categorize(path_, data, cat_mapper_)) {
         best_ = c;
@@ -119,7 +120,7 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
   }
 
   if (seq_jobs_.empty()) [[unlikely]] {
-    for (auto&& [index, cat] : folly::enumerate(mgr_.categorizers())) {
+    for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
       if (index_ >= 0 && static_cast<int>(index) >= index_) {
         break;
       }

@@ -38,11 +38,12 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-#include <folly/container/Enumerate.h>
 #include <folly/container/F14Set.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 #include <folly/stats/Histogram.h>
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/features.h>
@@ -342,7 +343,7 @@ get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
   std::map<size_t, category_info> catinfo;
 
   if (auto blockcat = meta.block_categories()) {
-    for (auto [block, category] : folly::enumerate(blockcat.value())) {
+    for (auto [block, category] : ranges::views::enumerate(blockcat.value())) {
       auto& ci = catinfo[category];
       ++ci.count;
       ci.compressed_size += fsinfo.compressed_block_sizes.at(block);

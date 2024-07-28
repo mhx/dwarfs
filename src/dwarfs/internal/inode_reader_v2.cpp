@@ -28,9 +28,10 @@
 #include <utility>
 #include <vector>
 
-#include <folly/container/Enumerate.h>
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/fstypes.h>
 #include <dwarfs/iovec_read_buf.h>
@@ -172,9 +173,9 @@ template <typename LoggerPolicy>
 void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
                                        const std::string& indent,
                                        chunk_range chunks) const {
-  for (auto chunk : folly::enumerate(chunks)) {
-    os << indent << "  [" << chunk.index << "] -> (block=" << chunk->block()
-       << ", offset=" << chunk->offset() << ", size=" << chunk->size() << ")\n";
+  for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
+    os << indent << "  [" << index << "] -> (block=" << chunk.block()
+       << ", offset=" << chunk.offset() << ", size=" << chunk.size() << ")\n";
   }
 }
 

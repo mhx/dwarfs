@@ -28,7 +28,7 @@
 
 #include <fmt/format.h>
 
-#include <folly/container/Enumerate.h>
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/chmod_transformer.h>
 
@@ -5121,7 +5121,7 @@ constexpr std::array<random_test, 5000> const random_tests{{
 } // namespace
 
 TEST(chmod_transformer, random) {
-  for (auto const& [i, t] : folly::enumerate(random_tests)) {
+  for (auto const& [i, t] : ranges::views::enumerate(random_tests)) {
     chmod_transformer ct{t.spec, t.umask};
     EXPECT_EQ_MODE(ct.transform(t.mode, false), t.expected)
         << "test " << i << ": " << t.spec << ", " << t.umask << ", " << t.mode

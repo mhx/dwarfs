@@ -33,7 +33,6 @@
 #include <sys/time.h>
 #endif
 
-#include <folly/container/Enumerate.h>
 #include <folly/lang/Bits.h>
 #include <folly/portability/Unistd.h>
 #include <folly/stats/Histogram.h>
@@ -42,6 +41,8 @@
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/file_access.h>
 #include <dwarfs/performance_monitor.h>
@@ -334,7 +335,7 @@ class performance_monitor_impl : public performance_monitor {
       if (!ev.args.empty()) {
         auto ctx_names = t.context();
         os << ",\n    \"args\": {";
-        for (auto [i, arg] : folly::enumerate(ev.args)) {
+        for (auto [i, arg] : ranges::views::enumerate(ev.args)) {
           if (i > 0) {
             os << ", ";
           }

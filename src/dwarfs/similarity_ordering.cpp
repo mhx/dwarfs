@@ -27,8 +27,9 @@
 #include <variant>
 
 #include <folly/Function.h>
-#include <folly/container/Enumerate.h>
 #include <folly/experimental/Bits.h>
+
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/logger.h>
@@ -596,7 +597,7 @@ void similarity_ordering_<LoggerPolicy>::collect_rec(
     // TODO: order children, probably do this as a separate (parallel)
     //       step before collecting
 
-    for (auto const& [i, cn] : folly::enumerate(node.children())) {
+    for (auto const& [i, cn] : ranges::views::enumerate(node.children())) {
       LOG_TRACE << opts_.context << indent << "[" << i << "] "
                 << cn.description();
       collect_rec(cn, ev, dup, ordered, indent + "  ");

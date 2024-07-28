@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/container/Enumerate.h>
+#include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/filesystem_block_category_resolver.h>
 
@@ -28,7 +28,7 @@ namespace dwarfs {
 filesystem_block_category_resolver::filesystem_block_category_resolver(
     std::vector<std::string> categories)
     : categories_{std::move(categories)} {
-  for (auto const& [i, name] : folly::enumerate(categories_)) {
+  for (auto const& [i, name] : ranges::views::enumerate(categories_)) {
     if (!category_map_.emplace(name, i).second) {
       throw std::runtime_error(
           fmt::format("duplicate category name: '{}'", name));
