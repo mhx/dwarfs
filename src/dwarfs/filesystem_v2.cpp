@@ -33,7 +33,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/block_data.h>
 #include <dwarfs/categorizer.h>
 #include <dwarfs/category_resolver.h>
 #include <dwarfs/error.h>
@@ -43,6 +42,7 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/internal/block_cache.h>
+#include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/worker_group.h>
@@ -820,7 +820,8 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
                     << "), compressing using '"
                     << writer.get_compressor(s->type()).describe() << "'";
 
-        writer.write_history(std::make_shared<block_data>(hist.serialize()));
+        writer.write_history(
+            std::make_shared<internal::block_data>(hist.serialize()));
       } else {
         LOG_VERBOSE << "removing " << get_section_name(s->type());
       }

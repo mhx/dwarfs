@@ -41,7 +41,6 @@
 #include <folly/sorted_vector_types.h>
 #include <folly/stats/Histogram.h>
 
-#include <dwarfs/block_data.h>
 #include <dwarfs/block_manager.h>
 #include <dwarfs/chunkable.h>
 #include <dwarfs/compiler.h>
@@ -49,6 +48,7 @@
 #include <dwarfs/cyclic_hash.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
+#include <dwarfs/internal/block_data.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/progress.h>
 #include <dwarfs/segmenter.h>
@@ -567,7 +567,7 @@ class active_block : private GranularityPolicy {
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
-      , data_{std::make_shared<block_data>()} {
+      , data_{std::make_shared<internal::block_data>()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_->reserve(this->frames_to_bytes(capacity_in_frames_));
@@ -583,7 +583,9 @@ class active_block : private GranularityPolicy {
     return size_in_frames() == capacity_in_frames_;
   }
 
-  DWARFS_FORCE_INLINE std::shared_ptr<block_data> data() const { return data_; }
+  DWARFS_FORCE_INLINE std::shared_ptr<internal::block_data> data() const {
+    return data_;
+  }
 
   DWARFS_FORCE_INLINE void
   append_bytes(std::span<uint8_t const> data, bloom_filter& global_filter);
@@ -628,7 +630,7 @@ class active_block : private GranularityPolicy {
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
   repeating_collisions_map_type& repeating_collisions_;
-  std::shared_ptr<block_data> data_;
+  std::shared_ptr<internal::block_data> data_;
 };
 
 class segmenter_progress : public progress::context {

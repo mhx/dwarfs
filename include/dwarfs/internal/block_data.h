@@ -25,7 +25,7 @@
 #include <string_view>
 #include <vector>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class block_data {
  public:
@@ -51,4 +51,4 @@ class block_data {
   std::vector<uint8_t> vec_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

@@ -38,8 +38,13 @@
 
 namespace dwarfs {
 
-class block_compressor;
+namespace internal {
+
 class block_data;
+
+} // namespace internal
+
+class block_compressor;
 class logger;
 class progress;
 class thread_pool;
@@ -87,7 +92,8 @@ class filesystem_writer {
 
   // TODO: check which write_block() API is actually used
 
-  void write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
+  void write_block(fragment_category cat,
+                   std::shared_ptr<internal::block_data>&& data,
                    physical_block_cb_type physical_block_cb,
                    std::optional<std::string> meta = std::nullopt) {
     impl_->write_block(cat, std::move(data), std::move(physical_block_cb),
@@ -97,20 +103,20 @@ class filesystem_writer {
   void finish_category(fragment_category cat) { impl_->finish_category(cat); }
 
   void write_block(fragment_category::value_type cat,
-                   std::shared_ptr<block_data>&& data,
+                   std::shared_ptr<internal::block_data>&& data,
                    std::optional<std::string> meta = std::nullopt) {
     impl_->write_block(cat, std::move(data), std::move(meta));
   }
 
-  void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) {
+  void write_metadata_v2_schema(std::shared_ptr<internal::block_data>&& data) {
     impl_->write_metadata_v2_schema(std::move(data));
   }
 
-  void write_metadata_v2(std::shared_ptr<block_data>&& data) {
+  void write_metadata_v2(std::shared_ptr<internal::block_data>&& data) {
     impl_->write_metadata_v2(std::move(data));
   }
 
-  void write_history(std::shared_ptr<block_data>&& data) {
+  void write_history(std::shared_ptr<internal::block_data>&& data) {
     impl_->write_history(std::move(data));
   }
 
@@ -152,18 +158,20 @@ class filesystem_writer {
     configure(std::vector<fragment_category> const& expected_categories,
               size_t max_active_slots) = 0;
     virtual void copy_header(std::span<uint8_t const> header) = 0;
-    virtual void
-    write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
-                physical_block_cb_type physical_block_cb,
-                std::optional<std::string> meta) = 0;
+    virtual void write_block(fragment_category cat,
+                             std::shared_ptr<internal::block_data>&& data,
+                             physical_block_cb_type physical_block_cb,
+                             std::optional<std::string> meta) = 0;
     virtual void finish_category(fragment_category cat) = 0;
     virtual void write_block(fragment_category::value_type cat,
-                             std::shared_ptr<block_data>&& data,
+                             std::shared_ptr<internal::block_data>&& data,
                              std::optional<std::string> meta) = 0;
     virtual void
-    write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
-    virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
-    virtual void write_history(std::shared_ptr<block_data>&& data) = 0;
+    write_metadata_v2_schema(std::shared_ptr<internal::block_data>&& data) = 0;
+    virtual void
+    write_metadata_v2(std::shared_ptr<internal::block_data>&& data) = 0;
+    virtual void
+    write_history(std::shared_ptr<internal::block_data>&& data) = 0;
     virtual void check_block_compression(
         compression_type compression, std::span<uint8_t const> data,
         std::optional<fragment_category::value_type> cat) = 0;

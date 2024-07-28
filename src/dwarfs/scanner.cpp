@@ -38,7 +38,6 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_data.h>
 #include <dwarfs/block_manager.h>
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry.h>
@@ -52,6 +51,7 @@
 #include <dwarfs/inode.h>
 #include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
+#include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/logger.h>
@@ -989,13 +989,15 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
-  fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
-  fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
+  fsw.write_metadata_v2_schema(
+      std::make_shared<internal::block_data>(std::move(schema)));
+  fsw.write_metadata_v2(
+      std::make_shared<internal::block_data>(std::move(data)));
 
   if (options_.enable_history) {
     history hist(options_.history);
     hist.append(options_.command_line_arguments);
-    fsw.write_history(std::make_shared<block_data>(hist.serialize()));
+    fsw.write_history(std::make_shared<internal::block_data>(hist.serialize()));
   }
 
   LOG_INFO << "waiting for compression to finish...";
