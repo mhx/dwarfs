@@ -511,7 +511,12 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
                        std::string* str, Find const& find) {
   return checked_call(log_, [&] {
     if (auto entry = find()) {
-      return userdata.fs.readlink(*entry, str, readlink_mode::unix);
+      std::error_code ec;
+      auto link = userdata.fs.readlink(*entry, readlink_mode::unix, ec);
+      if (!ec) {
+        *str = link;
+      }
+      return ec.value();
     }
     return ENOENT;
   });

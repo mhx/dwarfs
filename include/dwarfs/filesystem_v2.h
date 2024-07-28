@@ -141,11 +141,6 @@ class filesystem_v2 {
 
   size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
 
-  int readlink(inode_view entry, std::string* buf,
-               readlink_mode mode = readlink_mode::preferred) const {
-    return impl_->readlink(entry, buf, mode);
-  }
-
   std::string
   readlink(inode_view entry, readlink_mode mode, std::error_code& ec) const {
     return impl_->readlink(entry, mode, ec);
@@ -256,8 +251,6 @@ class filesystem_v2 {
     virtual std::optional<std::pair<inode_view, std::string>>
     readdir(directory_view dir, size_t offset) const = 0;
     virtual size_t dirsize(directory_view dir) const = 0;
-    virtual int
-    readlink(inode_view entry, std::string* buf, readlink_mode mode) const = 0;
     virtual std::string readlink(inode_view entry, readlink_mode mode,
                                  std::error_code& ec) const = 0;
     virtual std::string

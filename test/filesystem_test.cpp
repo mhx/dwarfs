@@ -67,9 +67,8 @@ TEST(filesystem, metadata_symlink_win) {
 
   // readlink_mode::preferred (default)
   {
-    std::string buf1, buf2;
-    EXPECT_EQ(0, fs.readlink(*i1, &buf1));
-    EXPECT_EQ(0, fs.readlink(*i2, &buf2));
+    auto buf1 = fs.readlink(*i1);
+    auto buf2 = fs.readlink(*i2);
 
 #if defined(_WIN32)
     EXPECT_EQ("subdir\\test.txt", buf1);
@@ -81,28 +80,19 @@ TEST(filesystem, metadata_symlink_win) {
   }
 
   {
-    std::string buffer;
-    EXPECT_EQ(0, fs.readlink(*i1, &buffer, readlink_mode::raw));
+    auto buffer = fs.readlink(*i1, readlink_mode::raw);
     EXPECT_EQ("subdir\\test.txt", buffer);
-    EXPECT_EQ(0, fs.readlink(*i2, &buffer, readlink_mode::raw));
+    buffer = fs.readlink(*i2, readlink_mode::raw);
     EXPECT_EQ("..\\subdir\\test.txt", buffer);
   }
 
   {
-    std::string buffer;
-    EXPECT_EQ(0, fs.readlink(*i1, &buffer, readlink_mode::unix));
+    auto buffer = fs.readlink(*i1, readlink_mode::unix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    EXPECT_EQ(0, fs.readlink(*i2, &buffer, readlink_mode::unix));
+    buffer = fs.readlink(*i2, readlink_mode::unix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
-  // test error case
-  {
-    std::string buffer;
-    EXPECT_EQ(-EINVAL, fs.readlink(*i3, &buffer));
-  }
-
-  // also test error_code interface
   {
     std::error_code ec;
     auto r = fs.readlink(*i1, readlink_mode::unix, ec);
@@ -150,9 +140,8 @@ TEST(filesystem, metadata_symlink_unix) {
 
   // readlink_mode::preferred (default)
   {
-    std::string buf1, buf2;
-    EXPECT_EQ(0, fs.readlink(*i1, &buf1));
-    EXPECT_EQ(0, fs.readlink(*i2, &buf2));
+    auto buf1 = fs.readlink(*i1);
+    auto buf2 = fs.readlink(*i2);
 
 #if defined(_WIN32)
     EXPECT_EQ("subdir\\test.txt", buf1);
@@ -164,28 +153,19 @@ TEST(filesystem, metadata_symlink_unix) {
   }
 
   {
-    std::string buffer;
-    EXPECT_EQ(0, fs.readlink(*i1, &buffer, readlink_mode::raw));
+    auto buffer = fs.readlink(*i1, readlink_mode::raw);
     EXPECT_EQ("subdir/test.txt", buffer);
-    EXPECT_EQ(0, fs.readlink(*i2, &buffer, readlink_mode::raw));
+    buffer = fs.readlink(*i2, readlink_mode::raw);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
-    std::string buffer;
-    EXPECT_EQ(0, fs.readlink(*i1, &buffer, readlink_mode::unix));
+    auto buffer = fs.readlink(*i1, readlink_mode::unix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    EXPECT_EQ(0, fs.readlink(*i2, &buffer, readlink_mode::unix));
+    buffer = fs.readlink(*i2, readlink_mode::unix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
-  // test error case
-  {
-    std::string buffer;
-    EXPECT_EQ(-EINVAL, fs.readlink(*i3, &buffer));
-  }
-
-  // also test error_code interface
   {
     std::error_code ec;
     auto r = fs.readlink(*i1, readlink_mode::unix, ec);

@@ -127,8 +127,9 @@ class metadata_v2 {
 
   int open(inode_view iv) const { return impl_->open(iv); }
 
-  int readlink(inode_view iv, std::string* buf, readlink_mode mode) const {
-    return impl_->readlink(iv, buf, mode);
+  std::string
+  readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const {
+    return impl_->readlink(iv, mode, ec);
   }
 
   int statvfs(vfs_stat* stbuf) const { return impl_->statvfs(stbuf); }
@@ -204,8 +205,8 @@ class metadata_v2 {
 
     virtual int open(inode_view iv) const = 0;
 
-    virtual int
-    readlink(inode_view iv, std::string* buf, readlink_mode mode) const = 0;
+    virtual std::string
+    readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const = 0;
 
     virtual int statvfs(vfs_stat* stbuf) const = 0;
 

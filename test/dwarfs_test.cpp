@@ -276,8 +276,7 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 2002 : 2002);
   EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
-  std::string link;
-  EXPECT_EQ(fs.readlink(*entry, &link), 0);
+  auto link = fs.readlink(*entry);
   EXPECT_EQ(link, "somedir/ipsum.py");
 
   EXPECT_FALSE(fs.find("/somedir/nope"));
@@ -288,7 +287,7 @@ void basic_end_to_end_test(std::string const& compressor,
   st = fs.getattr(*entry);
   EXPECT_EQ(st.size, 6);
 
-  EXPECT_EQ(fs.readlink(*entry, &link), 0);
+  link = fs.readlink(*entry);
   EXPECT_EQ(link, "../foo");
 
   entry = fs.find("/somedir/pipe");

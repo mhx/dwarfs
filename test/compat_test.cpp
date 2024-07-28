@@ -861,8 +861,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
   entry = fs.find("/foo/bad");
   ASSERT_TRUE(entry);
-  std::string link;
-  EXPECT_EQ(fs.readlink(*entry, &link, readlink_mode::raw), 0);
+  auto link = fs.readlink(*entry, readlink_mode::raw);
   EXPECT_EQ(link, "../foo");
 
   entry = fs.find(0, "foo");

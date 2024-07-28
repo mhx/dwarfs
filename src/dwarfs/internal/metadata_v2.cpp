@@ -499,8 +499,8 @@ class metadata_ final : public metadata_v2::impl {
 
   int open(inode_view iv) const override;
 
-  int readlink(inode_view iv, std::string* buf,
-               readlink_mode mode) const override;
+  std::string readlink(inode_view iv, readlink_mode mode,
+                       std::error_code& ec) const override;
 
   int statvfs(vfs_stat* stbuf) const override;
 
@@ -1698,14 +1698,15 @@ int metadata_<LoggerPolicy>::open(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::readlink(inode_view iv, std::string* buf,
-                                      readlink_mode mode) const {
+std::string metadata_<LoggerPolicy>::readlink(inode_view iv, readlink_mode mode,
+                                              std::error_code& ec) const {
   if (iv.is_symlink()) {
-    buf->assign(link_value(iv, mode));
-    return 0;
+    ec.clear();
+    return link_value(iv, mode);
   }
 
-  return -EINVAL;
+  ec = std::make_error_code(std::errc::invalid_argument);
+  return {};
 }
 
 template <typename LoggerPolicy>
