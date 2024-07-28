@@ -27,7 +27,7 @@
 
 #include <dwarfs/file_stat.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class chmod_transformer {
  public:
@@ -51,4 +51,4 @@ class chmod_transformer {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

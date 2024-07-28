@@ -20,12 +20,13 @@
  */
 
 #include <dwarfs/chmod_entry_transformer.h>
-#include <dwarfs/chmod_transformer.h>
 #include <dwarfs/entry_interface.h>
+
+#include <dwarfs/internal/chmod_transformer.h>
 
 namespace dwarfs {
 
-namespace {
+namespace internal {
 
 class chmod_entry_transformer : public entry_transformer {
  public:
@@ -43,12 +44,12 @@ class chmod_entry_transformer : public entry_transformer {
   chmod_transformer transformer_;
 };
 
-} // namespace
+} // namespace internal
 
 std::unique_ptr<entry_transformer>
 create_chmod_entry_transformer(std::string_view spec,
                                file_stat::mode_type umask) {
-  return std::make_unique<chmod_entry_transformer>(spec, umask);
+  return std::make_unique<internal::chmod_entry_transformer>(spec, umask);
 }
 
 } // namespace dwarfs

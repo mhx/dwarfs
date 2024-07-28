@@ -25,9 +25,9 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/chmod_transformer.h>
+#include <dwarfs/internal/chmod_transformer.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace fs = std::filesystem;
 
@@ -341,4 +341,4 @@ chmod_transformer_::transform(mode_type mode, bool isdir) const {
 chmod_transformer::chmod_transformer(std::string_view spec, mode_type umask)
     : impl_{std::make_unique<chmod_transformer_>(spec, umask)} {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

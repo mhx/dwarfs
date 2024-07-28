@@ -30,7 +30,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
-#include <dwarfs/chmod_transformer.h>
+#include <dwarfs/internal/chmod_transformer.h>
 
 using namespace dwarfs;
 namespace fs = std::filesystem;
@@ -78,7 +78,7 @@ std::ostream& operator<<(std::ostream& os, octal_mode const& mode) {
 
 TEST(chmod_transformer, basic) {
   {
-    chmod_transformer ct{"u+x", 0022};
+    internal::chmod_transformer ct{"u+x", 0022};
     EXPECT_EQ_MODE(ct.transform(0644, false), 0744);
     EXPECT_EQ_MODE(ct.transform(0755, false), 0755);
     EXPECT_EQ_MODE(ct.transform(0644, true), 0744);
@@ -86,7 +86,7 @@ TEST(chmod_transformer, basic) {
   }
 
   {
-    chmod_transformer ct{"Fu+x", 0022};
+    internal::chmod_transformer ct{"Fu+x", 0022};
     EXPECT_EQ_MODE(ct.transform(0644, false), 0744);
     EXPECT_EQ_MODE(ct.transform(0755, false), 0755);
     EXPECT_EQ_MODE(ct.transform(0644, true), std::nullopt);
@@ -94,7 +94,7 @@ TEST(chmod_transformer, basic) {
   }
 
   {
-    chmod_transformer ct{"Du+x", 0022};
+    internal::chmod_transformer ct{"Du+x", 0022};
     EXPECT_EQ_MODE(ct.transform(0644, false), std::nullopt);
     EXPECT_EQ_MODE(ct.transform(0755, false), std::nullopt);
     EXPECT_EQ_MODE(ct.transform(0644, true), 0744);
@@ -104,7 +104,7 @@ TEST(chmod_transformer, basic) {
 
 namespace {
 
-using mode_type = chmod_transformer::mode_type;
+using mode_type = internal::chmod_transformer::mode_type;
 
 struct random_test {
   std::string_view spec;
@@ -5122,7 +5122,7 @@ constexpr std::array<random_test, 5000> const random_tests{{
 
 TEST(chmod_transformer, random) {
   for (auto const& [i, t] : ranges::views::enumerate(random_tests)) {
-    chmod_transformer ct{t.spec, t.umask};
+    internal::chmod_transformer ct{t.spec, t.umask};
     EXPECT_EQ_MODE(ct.transform(t.mode, false), t.expected)
         << "test " << i << ": " << t.spec << ", " << t.umask << ", " << t.mode
         << ", " << t.expected;
