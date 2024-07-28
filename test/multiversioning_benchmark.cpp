@@ -28,7 +28,8 @@
 #include <benchmark/benchmark.h>
 
 #include <dwarfs/compiler.h>
-#include <dwarfs/nilsimsa.h>
+
+#include <dwarfs/internal/nilsimsa.h>
 
 #include "test_helpers.h"
 #include "test_strings.h"
@@ -81,7 +82,7 @@ void nilsimsa_update(::benchmark::State& state) {
   std::vector<uint8_t> data(kNumData);
   std::generate(begin(data), end(data), std::ref(rng));
 
-  dwarfs::nilsimsa s;
+  dwarfs::internal::nilsimsa s;
 
   for (auto _ : state) {
     s.update(data.data(), data.size());

@@ -25,9 +25,9 @@
 
 #include <folly/Hash.h>
 
-#include <dwarfs/similarity.h>
+#include <dwarfs/internal/similarity.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 /**
  * Simple locality sensitive hashing function
@@ -93,4 +93,4 @@ void similarity::update(uint8_t const* data, size_t size) {
 
 uint32_t similarity::finalize() const { return impl_->finalize(); }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

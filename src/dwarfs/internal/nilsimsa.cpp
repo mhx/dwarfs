@@ -19,10 +19,9 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/compiler.h>
-#include <dwarfs/nilsimsa.h>
+#include <dwarfs/internal/nilsimsa.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -187,4 +186,4 @@ void nilsimsa::update(uint8_t const* data, size_t size) {
 
 void nilsimsa::finalize(hash_type& hash) const { impl_->finalize(hash); }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

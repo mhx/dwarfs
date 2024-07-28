@@ -25,8 +25,8 @@
 #include <span>
 
 #include <dwarfs/fragment_category.h>
-#include <dwarfs/nilsimsa.h>
 
+#include <dwarfs/internal/nilsimsa.h>
 #include <dwarfs/internal/similarity_ordering.h>
 
 namespace dwarfs::internal {

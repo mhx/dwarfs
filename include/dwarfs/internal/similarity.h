@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <span>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class similarity {
  public:
@@ -45,4 +45,4 @@ class similarity {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

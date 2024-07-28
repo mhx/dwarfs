@@ -29,7 +29,7 @@
 
 #include <dwarfs/compiler.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 class nilsimsa {
  public:
@@ -51,4 +51,4 @@ class nilsimsa {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

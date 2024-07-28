@@ -29,10 +29,11 @@
 #include <vector>
 
 #include <dwarfs/inode_fragments.h>
-#include <dwarfs/nilsimsa.h>
 #include <dwarfs/object.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/sortable_span.h>
+
+#include <dwarfs/internal/nilsimsa.h>
 
 namespace dwarfs {
 

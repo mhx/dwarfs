@@ -662,14 +662,14 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/internal/inode_manager.cpp
   src/dwarfs/internal/inode_ordering.cpp
   src/dwarfs/internal/metadata_freezer.cpp
+  src/dwarfs/internal/nilsimsa.cpp
   src/dwarfs/internal/scanner_progress.cpp
+  src/dwarfs/internal/similarity.cpp
   src/dwarfs/internal/similarity_ordering.cpp
-  src/dwarfs/nilsimsa.cpp
   src/dwarfs/progress.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/segmenter.cpp
   src/dwarfs/segmenter_factory.cpp
-  src/dwarfs/similarity.cpp
 )
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
