@@ -613,6 +613,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/history.cpp
   src/dwarfs/internal/features.cpp
   src/dwarfs/internal/string_table.cpp
+  src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
@@ -624,7 +625,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/terminal.cpp
   src/dwarfs/thread_pool.cpp
   src/dwarfs/util.cpp
-  src/dwarfs/wcwidth.c
   src/dwarfs/xattr.cpp
 )
 
