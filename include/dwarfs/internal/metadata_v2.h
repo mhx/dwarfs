@@ -105,8 +105,8 @@ class metadata_v2 {
     return impl_->find(inode, name);
   }
 
-  int getattr(inode_view iv, file_stat* stbuf) const {
-    return impl_->getattr(iv, stbuf);
+  file_stat getattr(inode_view iv, std::error_code& ec) const {
+    return impl_->getattr(iv, ec);
   }
 
   std::optional<directory_view> opendir(inode_view iv) const {
@@ -190,7 +190,7 @@ class metadata_v2 {
     virtual std::optional<inode_view>
     find(int inode, const char* name) const = 0;
 
-    virtual int getattr(inode_view iv, file_stat* stbuf) const = 0;
+    virtual file_stat getattr(inode_view iv, std::error_code& ec) const = 0;
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 

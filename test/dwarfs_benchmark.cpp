@@ -224,8 +224,7 @@ class filesystem : public ::benchmark::Fixture {
 
   void read_bench(::benchmark::State& state, const char* file) {
     auto iv = fs->find(file);
-    file_stat st;
-    fs->getattr(*iv, &st);
+    auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
     std::string buf;
     buf.resize(st.size);
@@ -238,8 +237,7 @@ class filesystem : public ::benchmark::Fixture {
 
   void readv_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    file_stat st;
-    fs->getattr(*iv, &st);
+    auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
@@ -251,8 +249,7 @@ class filesystem : public ::benchmark::Fixture {
 
   void readv_future_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    file_stat st;
-    fs->getattr(*iv, &st);
+    auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
@@ -275,8 +272,7 @@ class filesystem : public ::benchmark::Fixture {
     }
 
     for (auto _ : state) {
-      file_stat buf;
-      auto r = fs->getattr(ent[i++ % N], &buf);
+      auto r = fs->getattr(ent[i++ % N]);
       ::benchmark::DoNotOptimize(r);
     }
   }

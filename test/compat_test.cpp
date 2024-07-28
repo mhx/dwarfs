@@ -836,10 +836,9 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/format.sh");
-  file_stat st;
 
   ASSERT_TRUE(entry);
-  EXPECT_EQ(0, fs.getattr(*entry, &st));
+  auto st = fs.getattr(*entry);
   EXPECT_EQ(94, st.size);
   EXPECT_EQ(S_IFREG | 0755, st.mode);
   EXPECT_EQ(1000, st.uid);
@@ -953,8 +952,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     std::vector<int> inodes;
 
     (fs.*mp)([&](dir_entry_view e) {
-      file_stat stbuf;
-      ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
+      auto stbuf = fs.getattr(e.inode());
       inodes.push_back(stbuf.ino);
       EXPECT_TRUE(entries.emplace(e.unix_path(), stbuf).second);
     });
@@ -1268,8 +1266,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
     EXPECT_EQ(33333, v->getuid()) << path;
     EXPECT_EQ(44444, v->getgid()) << path;
 
-    file_stat st;
-    EXPECT_EQ(0, fs.getattr(*v, &st)) << path;
+    auto st = fs.getattr(*v);
     EXPECT_EQ(33333, st.uid) << path;
     EXPECT_EQ(44444, st.gid) << path;
   }

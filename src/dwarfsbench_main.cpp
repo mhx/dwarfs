@@ -109,12 +109,10 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
       if (inode_data.is_regular_file()) {
         pool.add_job([&fs, &iol, inode_data] {
           try {
-            file_stat stbuf;
-            if (fs.getattr(inode_data, &stbuf) == 0) {
-              std::vector<char> buf(stbuf.size);
-              int fh = fs.open(inode_data);
-              fs.read(fh, buf.data(), buf.size());
-            }
+            auto stbuf = fs.getattr(inode_data);
+            std::vector<char> buf(stbuf.size);
+            int fh = fs.open(inode_data);
+            fs.read(fh, buf.data(), buf.size());
           } catch (std::exception const& e) {
             iol.err << "error: " << exception_str(e) << "\n";
           } catch (...) {

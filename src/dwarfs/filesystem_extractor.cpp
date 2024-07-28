@@ -347,11 +347,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     auto inode = entry.inode();
 
     auto ae = ::archive_entry_new();
-    file_stat stbuf;
-
-    if (fs.getattr(inode, &stbuf) != 0) {
-      DWARFS_THROW(runtime_error, "getattr() failed");
-    }
+    auto stbuf = fs.getattr(inode);
 
     struct stat st;
 

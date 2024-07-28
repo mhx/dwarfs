@@ -374,8 +374,7 @@ build_with_args(std::vector<std::string> opt_args = {}) {
 std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
   std::set<uint64_t> times;
   fs.walk([&](auto const& e) {
-    file_stat st;
-    fs.getattr(e.inode(), &st);
+    auto st = fs.getattr(e.inode());
     times.insert(st.atime);
     times.insert(st.ctime);
     times.insert(st.mtime);
@@ -386,8 +385,7 @@ std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
 std::set<uint64_t> get_all_fs_uids(filesystem_v2 const& fs) {
   std::set<uint64_t> uids;
   fs.walk([&](auto const& e) {
-    file_stat st;
-    fs.getattr(e.inode(), &st);
+    auto st = fs.getattr(e.inode());
     uids.insert(st.uid);
   });
   return uids;
@@ -396,8 +394,7 @@ std::set<uint64_t> get_all_fs_uids(filesystem_v2 const& fs) {
 std::set<uint64_t> get_all_fs_gids(filesystem_v2 const& fs) {
   std::set<uint64_t> gids;
   fs.walk([&](auto const& e) {
-    file_stat st;
-    fs.getattr(e.inode(), &st);
+    auto st = fs.getattr(e.inode());
     gids.insert(st.gid);
   });
   return gids;
@@ -878,11 +875,7 @@ TEST(mkdwarfs_test, metadata_path) {
 
   std::map<size_t, dir_entry_view> entries;
   fs.walk([&](auto e) {
-    file_stat stat;
-    if (fs.getattr(e.inode(), &stat) != 0) {
-      throw std::runtime_error(
-          fmt::format("getattr() failed for {}", e.path()));
-    }
+    auto stat = fs.getattr(e.inode());
     if (stat.is_regular_file()) {
       entries.emplace(stat.size, e);
     }
@@ -1010,8 +1003,9 @@ TEST(mkdwarfs_test, metadata_specials) {
   auto iv = fs.find("/block");
   ASSERT_TRUE(iv);
 
-  file_stat stat;
-  EXPECT_EQ(0, fs.getattr(*iv, &stat));
+  std::error_code ec;
+  auto stat = fs.getattr(*iv, ec);
+  EXPECT_FALSE(ec);
 
   EXPECT_TRUE(stat.is_device());
   EXPECT_EQ(77, stat.rdev);
@@ -1035,8 +1029,9 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
   auto iv = fs.find("/suid");
   ASSERT_TRUE(iv);
 
-  file_stat stat;
-  EXPECT_EQ(0, fs.getattr(*iv, &stat));
+  std::error_code ec;
+  auto stat = fs.getattr(*iv, ec);
+  EXPECT_FALSE(ec);
   EXPECT_EQ(3300, stat.atime);
   EXPECT_EQ(2220, stat.mtime);
   EXPECT_EQ(1080, stat.ctime);
@@ -2549,11 +2544,8 @@ TEST_P(map_file_error_test, delayed) {
     ASSERT_TRUE(small_link2);
     EXPECT_EQ(large_link1->inode_num(), large_link2->inode_num());
     EXPECT_EQ(small_link1->inode_num(), small_link2->inode_num());
-    file_stat st;
-    ASSERT_EQ(0, fs.getattr(*large_link1, &st));
-    EXPECT_EQ(0, st.size);
-    ASSERT_EQ(0, fs.getattr(*small_link1, &st));
-    EXPECT_EQ(0, st.size);
+    EXPECT_EQ(0, fs.getattr(*large_link1).size);
+    EXPECT_EQ(0, fs.getattr(*small_link1).size);
   }
 
   std::unordered_map<fs::path, std::string, fs_path_hash> actual_files;
@@ -2561,8 +2553,7 @@ TEST_P(map_file_error_test, delayed) {
     auto iv = dev.inode();
     if (iv.is_regular_file()) {
       std::string data;
-      file_stat stat;
-      ASSERT_EQ(0, fs.getattr(iv, &stat));
+      auto stat = fs.getattr(iv);
       data.resize(stat.size);
       ASSERT_EQ(data.size(), fs.read(iv.inode_num(), data.data(), data.size()));
       ASSERT_TRUE(actual_files.emplace(dev.fs_path(), std::move(data)).second);
@@ -2694,8 +2685,7 @@ TEST(block_cache, sequential_access_detector) {
         auto iv = fs.find(pstr.c_str());
         ASSERT_TRUE(iv);
         ASSERT_TRUE(iv->is_regular_file());
-        file_stat st;
-        ASSERT_EQ(0, fs.getattr(*iv, &st));
+        auto st = fs.getattr(*iv);
         ASSERT_EQ(data.size(), st.size);
         std::string buffer;
         buffer.resize(data.size());
@@ -2799,8 +2789,7 @@ TEST(file_scanner, large_file_handling) {
   for (size_t i = 0; i < data.size(); ++i) {
     auto iv = fs.find(fmt::format("f{}", i).c_str());
     ASSERT_TRUE(iv) << i;
-    file_stat st;
-    ASSERT_EQ(0, fs.getattr(*iv, &st)) << i;
+    auto st = fs.getattr(*iv);
     std::string buffer;
     buffer.resize(st.size);
     auto nread = fs.read(iv->inode_num(), buffer.data(), st.size);

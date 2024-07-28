@@ -246,10 +246,9 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/foo.pl");
-  file_stat st;
 
   ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  auto st = fs.getattr(*entry);
   EXPECT_EQ(st.size, 23456);
   EXPECT_EQ(st.uid, set_uid ? 0 : 1337);
   EXPECT_EQ(st.gid, 0);
@@ -268,7 +267,7 @@ void basic_end_to_end_test(std::string const& compressor,
   entry = fs.find("/somelink");
 
   ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  st = fs.getattr(*entry);
   EXPECT_EQ(st.size, 16);
   EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
   EXPECT_EQ(st.gid, set_gid ? 0 : 100);
@@ -286,7 +285,7 @@ void basic_end_to_end_test(std::string const& compressor,
   entry = fs.find("/somedir/bad");
 
   ASSERT_TRUE(entry);
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  st = fs.getattr(*entry);
   EXPECT_EQ(st.size, 6);
 
   EXPECT_EQ(fs.readlink(*entry, &link), 0);
@@ -296,7 +295,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   if (with_specials) {
     ASSERT_TRUE(entry);
-    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    st = fs.getattr(*entry);
     EXPECT_EQ(st.size, 0);
     EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
     EXPECT_EQ(st.gid, set_gid ? 0 : 100);
@@ -313,7 +312,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   if (with_devices) {
     ASSERT_TRUE(entry);
-    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    st = fs.getattr(*entry);
     EXPECT_EQ(st.size, 0);
     EXPECT_EQ(st.uid, 0);
     EXPECT_EQ(st.gid, 0);
@@ -327,7 +326,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   if (with_devices) {
     ASSERT_TRUE(entry);
-    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    st = fs.getattr(*entry);
     EXPECT_EQ(st.size, 0);
     EXPECT_EQ(st.uid, 0);
     EXPECT_EQ(st.gid, 0);
@@ -394,9 +393,8 @@ void basic_end_to_end_test(std::string const& compressor,
 
   EXPECT_EQ(entry->inode_num(), e2->inode_num());
 
-  file_stat st1, st2;
-  ASSERT_EQ(0, fs.getattr(*entry, &st1));
-  ASSERT_EQ(0, fs.getattr(*e2, &st2));
+  auto st1 = fs.getattr(*entry);
+  auto st2 = fs.getattr(*e2);
 
   EXPECT_EQ(st1.ino, st2.ino);
   if (enable_nlink) {
@@ -413,14 +411,14 @@ void basic_end_to_end_test(std::string const& compressor,
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
   EXPECT_GT(entry->inode_num(), 0);
-  ASSERT_EQ(0, fs.getattr(*entry, &st1));
+  st1 = fs.getattr(*entry);
   EXPECT_EQ(23456, st1.size);
   e2 = fs.find(0, "somedir");
   ASSERT_TRUE(e2);
-  ASSERT_EQ(0, fs.getattr(*e2, &st2));
+  st2 = fs.getattr(*e2);
   entry = fs.find(st2.ino, "ipsum.py");
   ASSERT_TRUE(entry);
-  ASSERT_EQ(0, fs.getattr(*entry, &st1));
+  st1 = fs.getattr(*entry);
   EXPECT_EQ(access_fail ? 0 : 10000, st1.size);
   EXPECT_EQ(0, fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
@@ -432,8 +430,7 @@ void basic_end_to_end_test(std::string const& compressor,
     std::vector<int> inodes;
 
     (fs.*mp)([&](dir_entry_view e) {
-      file_stat stbuf;
-      ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
+      auto stbuf = fs.getattr(e.inode());
       inodes.push_back(stbuf.ino);
       auto path = e.path();
       if (!path.empty()) {
@@ -647,8 +644,7 @@ TEST_P(packing_test, regression_empty_fs) {
 
   fs.walk([&](dir_entry_view e) {
     ++num;
-    file_stat stbuf;
-    ASSERT_EQ(0, fs.getattr(e.inode(), &stbuf));
+    auto stbuf = fs.getattr(e.inode());
     EXPECT_TRUE(stbuf.is_directory());
   });
 
@@ -792,10 +788,9 @@ TEST_P(compression_regression, github45) {
 
   auto check_file = [&](char const* name, std::string const& contents) {
     auto entry = fs.find(name);
-    file_stat st;
 
     ASSERT_TRUE(entry);
-    EXPECT_EQ(fs.getattr(*entry, &st), 0);
+    auto st = fs.getattr(*entry);
     EXPECT_EQ(st.size, file_size);
 
     int inode = fs.open(*entry);
@@ -1087,10 +1082,8 @@ TEST(filesystem, uid_gid_32bit) {
   EXPECT_TRUE(iv16);
   EXPECT_TRUE(iv32);
 
-  file_stat st16, st32;
-
-  EXPECT_EQ(0, fs.getattr(*iv16, &st16));
-  EXPECT_EQ(0, fs.getattr(*iv32, &st32));
+  auto st16 = fs.getattr(*iv16);
+  auto st32 = fs.getattr(*iv32);
 
   EXPECT_EQ(60000, st16.uid);
   EXPECT_EQ(65535, st16.gid);
@@ -1125,11 +1118,9 @@ TEST(filesystem, uid_gid_count) {
   EXPECT_TRUE(iv50000);
   EXPECT_TRUE(iv99999);
 
-  file_stat st00000, st50000, st99999;
-
-  EXPECT_EQ(0, fs.getattr(*iv00000, &st00000));
-  EXPECT_EQ(0, fs.getattr(*iv50000, &st50000));
-  EXPECT_EQ(0, fs.getattr(*iv99999, &st99999));
+  auto st00000 = fs.getattr(*iv00000);
+  auto st50000 = fs.getattr(*iv50000);
+  auto st99999 = fs.getattr(*iv99999);
 
   EXPECT_EQ(50000, st00000.uid);
   EXPECT_EQ(250000, st00000.gid);
@@ -1203,8 +1194,7 @@ TEST(section_index_regression, github183) {
 
   ASSERT_TRUE(entry);
 
-  file_stat st;
-  EXPECT_EQ(fs.getattr(*entry, &st), 0);
+  auto st = fs.getattr(*entry);
 
   int inode{-1};
 
@@ -1266,10 +1256,8 @@ TEST(file_scanner, file_start_hash) {
   EXPECT_TRUE(link1);
   EXPECT_TRUE(link2);
 
-  file_stat st1, st2;
-
-  EXPECT_EQ(0, fs.getattr(*link1, &st1));
-  EXPECT_EQ(0, fs.getattr(*link2, &st2));
+  auto st1 = fs.getattr(*link1);
+  auto st2 = fs.getattr(*link2);
 
   EXPECT_EQ(st1.ino, st2.ino);
   EXPECT_EQ(st1.nlink, 2);

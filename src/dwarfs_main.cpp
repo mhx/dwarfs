@@ -368,10 +368,10 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       return ENOENT;
     }
 
-    file_stat stbuf;
-    auto err = userdata.fs.getattr(*entry, &stbuf);
+    std::error_code ec;
+    auto stbuf = userdata.fs.getattr(*entry, ec);
 
-    if (err == 0) {
+    if (!ec) {
       struct ::fuse_entry_param e;
 
       ::memset(&e.attr, 0, sizeof(e.attr));
@@ -386,7 +386,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       fuse_reply_entry(req, &e);
     }
 
-    return err;
+    return ec.value();
   });
 }
 #endif
@@ -401,16 +401,15 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
       return ENOENT;
     }
 
-    file_stat stbuf;
+    std::error_code ec;
+    auto stbuf = userdata.fs.getattr(*entry, ec);
 
-    auto err = userdata.fs.getattr(*entry, &stbuf);
-
-    if (err == 0) {
+    if (!ec) {
       ::memset(st, 0, sizeof(*st));
       copy_file_stat(st, stbuf);
     }
 
-    return err;
+    return ec.value();
   });
 }
 
@@ -769,7 +768,6 @@ int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
   }
 
   file_off_t lastoff = fs.dirsize(*dir);
-  file_stat stbuf;
   native_stat st;
 
   ::memset(&st, 0, sizeof(st));
@@ -780,7 +778,13 @@ int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
 
     auto [entry, name] = *res;
 
-    fs.getattr(entry, &stbuf);
+    std::error_code ec;
+    auto stbuf = fs.getattr(entry, ec);
+
+    if (ec) {
+      return ec.value();
+    }
+
     copy_file_stat(&st, stbuf);
 
     if (!policy.add_entry(name, st, off)) {

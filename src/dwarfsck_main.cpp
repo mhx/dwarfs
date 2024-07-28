@@ -69,8 +69,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
 
   file_stat::off_type max_inode_size{0};
   fs.walk([&](auto const& de) {
-    file_stat st;
-    fs.getattr(de.inode(), &st);
+    auto st = fs.getattr(de.inode());
     max_inode_size = std::max(max_inode_size, st.size);
   });
 
@@ -78,8 +77,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
 
   fs.walk([&](auto const& de) {
     auto iv = de.inode();
-    file_stat st;
-    fs.getattr(iv, &st);
+    auto st = fs.getattr(iv);
     auto name = de.unix_path();
     utf8_sanitize(name);
 
@@ -111,14 +109,15 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
     auto iv = de.inode();
 
     if (iv.is_regular_file()) {
-      file_stat st;
+      std::error_code ec;
+      auto st = fs.getattr(iv, ec);
 
-      if (fs.getattr(de.inode(), &st) != 0) {
-        LOG_ERROR << "failed to get attributes for inode " << iv.inode_num();
+      if (ec) {
+        LOG_ERROR << "failed to get attributes for inode " << iv.inode_num()
+                  << ": " << ec.message();
         return;
       }
 
-      std::error_code ec;
       auto ranges = fs.readv(iv.inode_num(), st.size, ec);
 
       if (ec) {

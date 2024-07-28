@@ -483,7 +483,7 @@ class metadata_ final : public metadata_v2::impl {
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
 
-  int getattr(inode_view iv, file_stat* stbuf) const override;
+  file_stat getattr(inode_view iv, std::error_code& ec) const override;
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
@@ -1525,10 +1525,13 @@ metadata_<LoggerPolicy>::find(int inode, const char* name) const {
 }
 
 template <typename LoggerPolicy>
-int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
+file_stat
+metadata_<LoggerPolicy>::getattr(inode_view iv, std::error_code& /*ec*/) const {
   PERFMON_CLS_SCOPED_SECTION(getattr)
 
-  ::memset(stbuf, 0, sizeof(*stbuf));
+  file_stat stbuf;
+
+  ::memset(&stbuf, 0, sizeof(stbuf));
 
   auto mode = iv.mode();
   auto timebase = meta_.timestamp_base();
@@ -1542,35 +1545,35 @@ int metadata_<LoggerPolicy>::getattr(inode_view iv, file_stat* stbuf) const {
     }
   }
 
-  stbuf->mode = mode;
+  stbuf.mode = mode;
 
   if (options_.readonly) {
-    stbuf->mode &= READ_ONLY_MASK;
+    stbuf.mode &= READ_ONLY_MASK;
   }
 
-  stbuf->size = stbuf->is_directory() ? make_directory_view(iv).entry_count()
-                                      : file_size(iv, mode);
-  stbuf->ino = inode + inode_offset_;
-  stbuf->blksize = options_.block_size;
-  stbuf->blocks = (stbuf->size + 511) / 512;
-  stbuf->uid = iv.getuid();
-  stbuf->gid = iv.getgid();
-  stbuf->mtime = resolution * (timebase + iv.raw().mtime_offset());
+  stbuf.size = stbuf.is_directory() ? make_directory_view(iv).entry_count()
+                                    : file_size(iv, mode);
+  stbuf.ino = inode + inode_offset_;
+  stbuf.blksize = options_.block_size;
+  stbuf.blocks = (stbuf.size + 511) / 512;
+  stbuf.uid = iv.getuid();
+  stbuf.gid = iv.getgid();
+  stbuf.mtime = resolution * (timebase + iv.raw().mtime_offset());
   if (mtime_only) {
-    stbuf->atime = stbuf->ctime = stbuf->mtime;
+    stbuf.atime = stbuf.ctime = stbuf.mtime;
   } else {
-    stbuf->atime = resolution * (timebase + iv.raw().atime_offset());
-    stbuf->ctime = resolution * (timebase + iv.raw().ctime_offset());
+    stbuf.atime = resolution * (timebase + iv.raw().atime_offset());
+    stbuf.ctime = resolution * (timebase + iv.raw().ctime_offset());
   }
-  stbuf->nlink = options_.enable_nlink && stbuf->is_regular_file()
-                     ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                     : 1;
+  stbuf.nlink = options_.enable_nlink && stbuf.is_regular_file()
+                    ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
+                    : 1;
 
-  if (stbuf->is_device()) {
-    stbuf->rdev = get_device_id(inode);
+  if (stbuf.is_device()) {
+    stbuf.rdev = get_device_id(inode);
   }
 
-  return 0;
+  return stbuf;
 }
 
 template <typename LoggerPolicy>
