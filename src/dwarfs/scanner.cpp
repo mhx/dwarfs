@@ -58,7 +58,6 @@
 #include <dwarfs/scanner.h>
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
-#include <dwarfs/string_table.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
@@ -67,6 +66,7 @@
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/metadata_freezer.h>
+#include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>

@@ -36,9 +36,10 @@
 #include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
-#include <dwarfs/string_table.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
+
+#include <dwarfs/internal/string_table.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 
@@ -139,11 +140,11 @@ std::string make_filesystem(::benchmark::State const& state) {
 }
 
 template <typename T>
-auto make_frozen_string_table(T const& strings,
-                              string_table::pack_options const& options) {
+auto make_frozen_string_table(
+    T const& strings, internal::string_table::pack_options const& options) {
   using namespace apache::thrift::frozen;
   std::string tmp;
-  auto tbl = string_table::pack(strings, options);
+  auto tbl = internal::string_table::pack(strings, options);
   freezeToString(tbl, tmp);
   return mapFrozen<thrift::metadata::string_table>(std::move(tmp));
 }
@@ -157,7 +158,7 @@ auto make_frozen_legacy_string_table(std::vector<std::string>&& strings) {
 
 void frozen_legacy_string_table_lookup(::benchmark::State& state) {
   auto data = make_frozen_legacy_string_table(test::test_string_vector());
-  string_table table(data);
+  internal::string_table table(data);
   int i = 0;
   std::string str;
 
@@ -168,10 +169,10 @@ void frozen_legacy_string_table_lookup(::benchmark::State& state) {
 
 void frozen_string_table_lookup(::benchmark::State& state) {
   auto data = make_frozen_string_table(
-      test::test_strings,
-      string_table::pack_options(state.range(0), state.range(1), true));
+      test::test_strings, internal::string_table::pack_options(
+                              state.range(0), state.range(1), true));
   test::test_logger lgr;
-  string_table table(lgr, "bench", data);
+  internal::string_table table(lgr, "bench", data);
   int i = 0;
   std::string str;
 

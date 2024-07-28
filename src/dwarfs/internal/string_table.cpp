@@ -28,9 +28,10 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/string_table.h>
 
-namespace dwarfs {
+#include <dwarfs/internal/string_table.h>
+
+namespace dwarfs::internal {
 
 class legacy_string_table : public string_table::impl {
  public:
@@ -307,4 +308,4 @@ string_table::pack(std::span<std::string_view const> input,
   return pack_generic(input, options);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

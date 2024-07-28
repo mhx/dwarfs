@@ -612,6 +612,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/file_type.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
+  src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/worker_group.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
@@ -620,7 +621,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
   src/dwarfs/performance_monitor.cpp
-  src/dwarfs/string_table.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/thread_pool.cpp
   src/dwarfs/util.cpp

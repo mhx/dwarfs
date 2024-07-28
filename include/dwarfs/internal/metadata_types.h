@@ -33,7 +33,8 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
-#include <dwarfs/string_table.h>
+
+#include <dwarfs/internal/string_table.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 

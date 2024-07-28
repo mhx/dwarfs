@@ -34,6 +34,8 @@ namespace dwarfs {
 
 class logger;
 
+namespace internal {
+
 class string_table {
  public:
   using LegacyTableView =
@@ -102,5 +104,7 @@ class string_table {
 
   std::unique_ptr<impl const> impl_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs
