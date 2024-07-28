@@ -1172,7 +1172,7 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor
   target_link_libraries(${tgt} PRIVATE fmt::fmt)
 
   if(WIN32)
-    target_link_libraries(${tgt} PRIVATE ntdll.lib)
+    target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
   endif()
 endforeach()
 
