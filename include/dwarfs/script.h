@@ -22,30 +22,21 @@
 #pragma once
 
 #include <memory>
-#include <vector>
+#include <span>
 
 namespace dwarfs {
 
 class entry_interface;
-class inode;
-class options_interface;
 
 class script {
  public:
-  using inode_ptr = std::shared_ptr<inode>;
-  using inode_vector = std::vector<inode_ptr>;
-
   virtual ~script() = default;
 
-  virtual bool has_configure() const = 0;
   virtual bool has_filter() const = 0;
   virtual bool has_transform() const = 0;
-  virtual bool has_order() const = 0;
 
-  virtual void configure(options_interface const& oi) = 0;
   virtual bool filter(entry_interface const& ei) = 0;
   virtual void transform(entry_interface& ei) = 0;
-  virtual void order(inode_vector& iv) = 0;
 };
 
 } // namespace dwarfs

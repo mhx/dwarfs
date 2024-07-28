@@ -81,7 +81,6 @@
 #include <dwarfs/match.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
-#include <dwarfs/options_interface.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/program_options_helpers.h>
 #include <dwarfs/progress.h>

@@ -291,19 +291,13 @@ builtin_script::builtin_script(logger& lgr,
 
 builtin_script::~builtin_script() = default;
 
-bool builtin_script::has_configure() const { return false; }
 bool builtin_script::has_filter() const { return impl_->has_filter(); }
 bool builtin_script::has_transform() const { return impl_->has_transform(); }
-bool builtin_script::has_order() const { return false; }
-
-void builtin_script::configure(options_interface const&) { assert(false); }
 
 bool builtin_script::filter(entry_interface const& ei) {
   return impl_->filter(ei);
 }
 
 void builtin_script::transform(entry_interface& ei) { impl_->transform(ei); }
-
-void builtin_script::order(inode_vector&) { assert(false); }
 
 } // namespace dwarfs

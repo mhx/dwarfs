@@ -26,7 +26,6 @@
 #include <memory>
 #include <string>
 
-#include <dwarfs/inode.h>
 #include <dwarfs/script.h>
 
 namespace dwarfs {
@@ -43,24 +42,22 @@ class builtin_script : public script {
   void set_root_path(std::filesystem::path const& path) {
     impl_->set_root_path(path);
   }
+
   void add_filter_rule(std::string const& rule) {
     impl_->add_filter_rule(rule);
   }
+
   void add_filter_rules(std::istream& is) { impl_->add_filter_rules(is); }
 
   void add_transformer(std::unique_ptr<entry_transformer>&& xfm) {
     impl_->add_transformer(std::move(xfm));
   }
 
-  bool has_configure() const override;
   bool has_filter() const override;
   bool has_transform() const override;
-  bool has_order() const override;
 
-  void configure(options_interface const& oi) override;
   bool filter(entry_interface const& ei) override;
   void transform(entry_interface& ei) override;
-  void order(inode_vector& iv) override;
 
   class impl {
    public:
