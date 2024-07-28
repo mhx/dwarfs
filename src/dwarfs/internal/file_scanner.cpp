@@ -36,7 +36,6 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/format.h>
 #include <dwarfs/inode.h>
-#include <dwarfs/inode_manager.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -45,6 +44,7 @@
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/file_scanner.h>
+#include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::internal {
@@ -59,7 +59,7 @@ constexpr size_t const kLargeFileStartHashSize = 4096;
 template <typename LoggerPolicy>
 class file_scanner_ final : public file_scanner::impl {
  public:
-  file_scanner_(logger& lgr, internal::worker_group& wg, os_access const& os,
+  file_scanner_(logger& lgr, worker_group& wg, os_access const& os,
                 inode_manager& im, progress& prog,
                 file_scanner::options const& opts);
 
@@ -119,7 +119,7 @@ class file_scanner_ final : public file_scanner::impl {
   void dump_map(std::ostream& os, std::string_view name, T const& map) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
-  internal::worker_group& wg_;
+  worker_group& wg_;
   os_access const& os_;
   inode_manager& im_;
   progress& prog_;
@@ -188,8 +188,7 @@ class file_scanner_ final : public file_scanner::impl {
 //   it should happen rarely enough to not be a problem.
 
 template <typename LoggerPolicy>
-file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr,
-                                           internal::worker_group& wg,
+file_scanner_<LoggerPolicy>::file_scanner_(logger& lgr, worker_group& wg,
                                            os_access const& os,
                                            inode_manager& im, progress& prog,
                                            file_scanner::options const& opts)
@@ -681,9 +680,9 @@ void file_scanner_<LoggerPolicy>::dump(std::ostream& os) const {
   os << "\n}\n";
 }
 
-file_scanner::file_scanner(logger& lgr, internal::worker_group& wg,
-                           os_access const& os, inode_manager& im,
-                           progress& prog, options const& opts)
+file_scanner::file_scanner(logger& lgr, worker_group& wg, os_access const& os,
+                           inode_manager& im, progress& prog,
+                           options const& opts)
     : impl_{make_unique_logging_object<impl, file_scanner_, logger_policies>(
           lgr, wg, os, im, prog, opts)} {}
 

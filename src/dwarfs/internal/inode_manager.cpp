@@ -44,7 +44,6 @@
 #include <dwarfs/compiler.h>
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
-#include <dwarfs/inode_manager.h>
 #include <dwarfs/inode_ordering.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
@@ -60,13 +59,12 @@
 #include <dwarfs/similarity_ordering.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/worker_group.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
-namespace dwarfs {
-
-namespace internal {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -814,11 +812,9 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
   return span;
 }
 
-} // namespace internal
-
 inode_manager::inode_manager(logger& lgr, progress& prog,
                              inode_options const& opts)
     : impl_(make_unique_logging_object<impl, internal::inode_manager_,
                                        logger_policies>(lgr, prog, opts)) {}
 
-} // namespace dwarfs
+} // namespace dwarfs::internal
