@@ -987,6 +987,29 @@ TEST_P(tools_test, end_to_end) {
           EXPECT_TRUE(info.count("gid"));
           EXPECT_TRUE(info.count("mode"));
         }
+
+        auto perfmon =
+            dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
+#if DWARFS_PERFMON_ENABLED
+        EXPECT_THAT(perfmon, ::testing::HasSubstr("[fuse.op_init]"));
+        EXPECT_THAT(perfmon, ::testing::HasSubstr("p99 latency"));
+#else
+        EXPECT_THAT(perfmon,
+                    ::testing::StartsWith("no performance monitor support"));
+#endif
+
+        EXPECT_THAT(
+            [&] { dwarfs::getxattr(mountpoint, "user.something.nonexistent"); },
+            ::testing::Throws<std::system_error>());
+
+        std::error_code ec;
+        dwarfs::getxattr(mountpoint, "user.something.nonexistent", ec);
+        EXPECT_TRUE(ec);
+#ifdef __APPLE__
+        EXPECT_EQ(ec.value(), ENOATTR);
+#else
+        EXPECT_EQ(ec.value(), ENODATA);
+#endif
       }
 
       EXPECT_TRUE(runner.unmount()) << runner.cmdline();
@@ -1054,6 +1077,15 @@ TEST_P(tools_test, end_to_end) {
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
             << runner.cmdline();
+#endif
+        auto perfmon =
+            dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
+#if DWARFS_PERFMON_ENABLED
+        EXPECT_THAT(perfmon,
+                    ::testing::StartsWith("performance monitor is disabled"));
+#else
+        EXPECT_THAT(perfmon,
+                    ::testing::StartsWith("no performance monitor support"));
 #endif
       }
 
