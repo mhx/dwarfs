@@ -90,6 +90,8 @@ constexpr size_t const offset_cache_updater_max_inline_offsets = 4;
 constexpr size_t const offset_cache_size = 64;
 constexpr size_t const readahead_cache_size = 64;
 
+} // namespace
+
 template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
@@ -295,6 +297,7 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     size_t const copyoff = it->offset() + offset;
     size_t copysize = chunksize - offset;
 
+    // TODO: should this rather be an assertion?
     if (copysize == 0) {
       LOG_ERROR << "invalid zero-sized chunk";
       ec = std::make_error_code(std::errc::invalid_argument);
@@ -412,8 +415,6 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
 
   return rv;
 }
-
-} // namespace
 
 inode_reader_v2::inode_reader_v2(
     logger& lgr, block_cache&& bc, inode_reader_options const& opts,
