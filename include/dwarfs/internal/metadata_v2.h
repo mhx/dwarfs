@@ -142,8 +142,8 @@ class metadata_v2 {
 
   void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
 
-  std::optional<chunk_range> get_chunks(int inode) const {
-    return impl_->get_chunks(inode);
+  chunk_range get_chunks(int inode, std::error_code& ec) const {
+    return impl_->get_chunks(inode, ec);
   }
 
   size_t block_size() const { return impl_->block_size(); }
@@ -220,7 +220,7 @@ class metadata_v2 {
 
     virtual void statvfs(vfs_stat* stbuf) const = 0;
 
-    virtual std::optional<chunk_range> get_chunks(int inode) const = 0;
+    virtual chunk_range get_chunks(int inode, std::error_code& ec) const = 0;
 
     virtual size_t block_size() const = 0;
 

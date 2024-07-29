@@ -43,6 +43,11 @@ struct iovec_read_buf {
   // This covers more than 95% of reads
   static constexpr size_t inline_storage = 16;
 
+  void clear() {
+    buf.clear();
+    ranges.clear();
+  }
+
   small_vector<dwarfs_iovec, inline_storage> buf;
   small_vector<block_range, inline_storage> ranges;
 };

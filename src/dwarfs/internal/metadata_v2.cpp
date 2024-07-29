@@ -507,7 +507,7 @@ class metadata_ final : public metadata_v2::impl {
 
   void statvfs(vfs_stat* stbuf) const override;
 
-  std::optional<chunk_range> get_chunks(int inode) const override;
+  chunk_range get_chunks(int inode, std::error_code& ec) const override;
 
   size_t block_size() const override { return meta_.block_size(); }
 
@@ -646,27 +646,29 @@ class metadata_ final : public metadata_v2::impl {
     return inode;
   }
 
-  std::optional<chunk_range> get_chunk_range(int inode) const {
-    std::optional<chunk_range> rv;
-
+  chunk_range get_chunk_range(int inode, std::error_code& ec) const {
     inode = file_inode_to_chunk_index(inode);
 
     if (inode >= 0 &&
-        inode < (static_cast<int>(meta_.chunk_table().size()) - 1)) {
+        (inode + 1) < static_cast<int>(meta_.chunk_table().size())) {
+      ec.clear();
       uint32_t begin = chunk_table_lookup(inode);
       uint32_t end = chunk_table_lookup(inode + 1);
-      rv = chunk_range(meta_, begin, end);
+      return chunk_range(meta_, begin, end);
     }
 
-    return rv;
+    ec = make_error_code(std::errc::invalid_argument);
+    return {};
   }
 
   size_t reg_file_size(inode_view iv) const {
     PERFMON_CLS_SCOPED_SECTION(reg_file_size)
-    auto cr = get_chunk_range(iv.inode_num());
-    DWARFS_CHECK(cr, "invalid chunk range");
+    std::error_code ec;
+    auto cr = get_chunk_range(iv.inode_num(), ec);
+    DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
+                                  ec.message()));
     return std::accumulate(
-        cr->begin(), cr->end(), static_cast<size_t>(0),
+        cr.begin(), cr.end(), static_cast<size_t>(0),
         [](size_t s, chunk_view cv) { return s + cv.size(); });
   }
 
@@ -925,9 +927,11 @@ void metadata_<LoggerPolicy>::dump(
 
   switch (posix_file_type::from_mode(mode)) {
   case posix_file_type::regular: {
-    auto cr = get_chunk_range(inode);
-    DWARFS_CHECK(cr, "invalid chunk range");
-    os << " [" << cr->begin_ << ", " << cr->end_ << "]";
+    std::error_code ec;
+    auto cr = get_chunk_range(inode, ec);
+    DWARFS_CHECK(!ec,
+                 fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+    os << " [" << cr.begin_ << ", " << cr.end_ << "]";
     os << " " << file_size(iv, mode) << "\n";
     if (detail_level > 4) {
       icb(indent + "  ", inode);
@@ -1756,19 +1760,23 @@ void metadata_<LoggerPolicy>::statvfs(vfs_stat* stbuf) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<chunk_range>
-metadata_<LoggerPolicy>::get_chunks(int inode) const {
-  return get_chunk_range(inode - inode_offset_);
+chunk_range
+metadata_<LoggerPolicy>::get_chunks(int inode, std::error_code& ec) const {
+  return get_chunk_range(inode - inode_offset_, ec);
 }
 
 template <typename LoggerPolicy>
 nlohmann::json metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
   nlohmann::json obj;
 
-  auto chunk_range = get_chunk_range(iv.inode_num());
+  if (iv.is_regular_file()) {
+    std::error_code ec;
+    auto chunk_range = get_chunk_range(iv.inode_num(), ec);
 
-  if (chunk_range) {
-    for (auto const& chunk : *chunk_range) {
+    DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
+                                  ec.message()));
+
+    for (auto const& chunk : chunk_range) {
       nlohmann::json& chk = obj["chunks"].emplace_back();
 
       chk["block"] = chunk.block();

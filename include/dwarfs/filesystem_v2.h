@@ -172,6 +172,29 @@ class filesystem_v2 {
     return impl_->open(entry, ec);
   }
 
+  std::string read_string(uint32_t inode) const {
+    return impl_->read_string(inode);
+  }
+
+  std::string read_string(uint32_t inode, std::error_code& ec) const {
+    return impl_->read_string(inode, ec);
+  }
+
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset = 0) const {
+    return impl_->read_string(inode, size, offset);
+  }
+
+  std::string
+  read_string(uint32_t inode, size_t size, std::error_code& ec) const {
+    return impl_->read_string(inode, size, 0, ec);
+  }
+
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          std::error_code& ec) const {
+    return impl_->read_string(inode, size, offset, ec);
+  }
+
   size_t
   read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
     return impl_->read(inode, buf, size, offset);
@@ -187,6 +210,14 @@ class filesystem_v2 {
     return impl_->read(inode, buf, size, 0, ec);
   }
 
+  size_t readv(uint32_t inode, iovec_read_buf& buf) const {
+    return impl_->readv(inode, buf);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const {
+    return impl_->readv(inode, buf, ec);
+  }
+
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, std::error_code& ec) const {
     return impl_->readv(inode, buf, size, offset, ec);
@@ -200,6 +231,15 @@ class filesystem_v2 {
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
+  }
+
+  std::vector<std::future<block_range>> readv(uint32_t inode) const {
+    return impl_->readv(inode);
+  }
+
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, std::error_code& ec) const {
+    return impl_->readv(inode, ec);
   }
 
   std::vector<std::future<block_range>>
@@ -295,14 +335,29 @@ class filesystem_v2 {
     virtual void statvfs(vfs_stat* stbuf) const = 0;
     virtual int open(inode_view entry) const = 0;
     virtual int open(inode_view entry, std::error_code& ec) const = 0;
+    virtual std::string read_string(uint32_t inode) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, std::error_code& ec) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, size_t size, file_off_t offset) const = 0;
+    virtual std::string
+    read_string(uint32_t inode, size_t size, file_off_t offset,
+                std::error_code& ec) const = 0;
     virtual size_t
     read(uint32_t inode, char* buf, size_t size, file_off_t offset) const = 0;
     virtual size_t read(uint32_t inode, char* buf, size_t size,
                         file_off_t offset, std::error_code& ec) const = 0;
+    virtual size_t readv(uint32_t inode, iovec_read_buf& buf) const = 0;
+    virtual size_t
+    readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const = 0;
     virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                          file_off_t offset, std::error_code& ec) const = 0;
     virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                          file_off_t offset) const = 0;
+    virtual std::vector<std::future<block_range>>
+    readv(uint32_t inode) const = 0;
+    virtual std::vector<std::future<block_range>>
+    readv(uint32_t inode, std::error_code& ec) const = 0;
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
     virtual std::vector<std::future<block_range>>

@@ -2390,7 +2390,7 @@ TEST(mkdwarfs_test, filesystem_read_error) {
     auto num = fs.read(iv->inode_num(), buf, sizeof(buf), ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(0, num);
-    EXPECT_EQ(EBADF, ec.value());
+    EXPECT_EQ(EINVAL, ec.value());
     EXPECT_THAT([&] { fs.read(iv->inode_num(), buf, sizeof(buf)); },
                 ::testing::Throws<std::system_error>());
   }
@@ -2400,13 +2400,13 @@ TEST(mkdwarfs_test, filesystem_read_error) {
     auto num = fs.readv(iv->inode_num(), buf, 42, ec);
     EXPECT_EQ(0, num);
     EXPECT_TRUE(ec);
-    EXPECT_EQ(EBADF, ec.value());
+    EXPECT_EQ(EINVAL, ec.value());
   }
   {
     std::error_code ec;
     auto res = fs.readv(iv->inode_num(), 42, ec);
     EXPECT_TRUE(ec);
-    EXPECT_EQ(EBADF, ec.value());
+    EXPECT_EQ(EINVAL, ec.value());
   }
   EXPECT_THAT([&] { fs.readv(iv->inode_num(), 42); },
               ::testing::Throws<std::system_error>());

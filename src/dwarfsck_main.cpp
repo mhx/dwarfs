@@ -115,15 +115,7 @@ void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
 
     if (iv.is_regular_file()) {
       std::error_code ec;
-      auto st = fs.getattr(iv, ec);
-
-      if (ec) {
-        LOG_ERROR << "failed to get attributes for inode " << iv.inode_num()
-                  << ": " << ec.message();
-        return;
-      }
-
-      auto ranges = fs.readv(iv.inode_num(), st.size, ec);
+      auto ranges = fs.readv(iv.inode_num(), ec);
 
       if (ec) {
         LOG_ERROR << "failed to read inode " << iv.inode_num() << ": "

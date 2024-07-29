@@ -104,6 +104,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "inode_reader_v2")
       PERFMON_CLS_TIMER_INIT(read, "offset", "size")
+      PERFMON_CLS_TIMER_INIT(read_string, "offset", "size")
       PERFMON_CLS_TIMER_INIT(readv_iovec, "offset", "size")
       PERFMON_CLS_TIMER_INIT(readv_future, "offset", "size") // clang-format on
       , offset_cache_{offset_cache_size}
@@ -122,6 +123,9 @@ class inode_reader_ final : public inode_reader_v2::impl {
     }
   }
 
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset,
+              chunk_range chunks, std::error_code& ec) const override;
   size_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
               chunk_range chunks, std::error_code& ec) const override;
   size_t
@@ -164,6 +168,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(read)
+  PERFMON_CLS_TIMER_DECL(read_string)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
   PERFMON_CLS_TIMER_DECL(readv_future)
   mutable offset_cache_type offset_cache_;
@@ -369,14 +374,37 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t size,
 }
 
 template <typename LoggerPolicy>
-std::vector<std::future<block_range>>
-inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
-                                   file_off_t offset, chunk_range chunks,
-                                   std::error_code& ec) const {
-  PERFMON_CLS_SCOPED_SECTION(readv_future)
+std::string
+inode_reader_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
+                                         file_off_t offset, chunk_range chunks,
+                                         std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(read_string)
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
-  return read_internal(inode, size, offset, chunks, ec);
+  auto ranges = read_internal(inode, size, offset, chunks, ec);
+
+  std::string res;
+
+  if (!ec) {
+    try {
+      std::vector<block_range> brs(ranges.size());
+      size_t size{0};
+      for (auto& r : ranges) {
+        auto br = r.get();
+        size += br.size();
+        brs.emplace_back(std::move(br));
+      }
+      res.reserve(size);
+      for (auto const& br : brs) {
+        res.append(reinterpret_cast<char const*>(br.data()), br.size());
+      }
+    } catch (...) {
+      LOG_ERROR << exception_str(std::current_exception());
+      ec = std::make_error_code(std::errc::io_error);
+    }
+  }
+
+  return res;
 }
 
 template <typename LoggerPolicy>
@@ -390,6 +418,17 @@ size_t inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
                        [&](size_t num_read, const block_range& br) {
                          ::memcpy(buf + num_read, br.data(), br.size());
                        });
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
+                                   file_off_t offset, chunk_range chunks,
+                                   std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
+  PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
+
+  return read_internal(inode, size, offset, chunks, ec);
 }
 
 template <typename LoggerPolicy>

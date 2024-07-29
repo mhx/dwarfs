@@ -42,6 +42,7 @@
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/filter_debug.h>
+#include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
@@ -262,6 +263,28 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 4001 : 4002);
   EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 4002 : 4002);
   EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 4003 : 4002);
+
+  {
+    std::error_code ec;
+    auto st2 = fs.getattr(*entry, {.no_size = true}, ec);
+    EXPECT_FALSE(ec);
+    EXPECT_EQ(st2.size, 0);
+    EXPECT_EQ(st2.uid, st.uid);
+    EXPECT_EQ(st2.gid, st.gid);
+    EXPECT_EQ(st2.atime, st.atime);
+    EXPECT_EQ(st2.mtime, st.mtime);
+    EXPECT_EQ(st2.ctime, st.ctime);
+  }
+
+  {
+    auto st3 = fs.getattr(*entry, {.no_size = true});
+    EXPECT_EQ(st3.size, 0);
+    EXPECT_EQ(st3.uid, st.uid);
+    EXPECT_EQ(st3.gid, st.gid);
+    EXPECT_EQ(st3.atime, st.atime);
+    EXPECT_EQ(st3.mtime, st.mtime);
+    EXPECT_EQ(st3.ctime, st.ctime);
+  }
 
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
@@ -806,10 +829,8 @@ TEST_P(compression_regression, github45) {
     int inode = fs.open(*entry);
     EXPECT_GE(inode, 0);
 
-    std::vector<char> buf(st.size);
-    auto rv = fs.read(inode, &buf[0], st.size);
-    EXPECT_EQ(rv, st.size);
-    EXPECT_EQ(std::string(buf.begin(), buf.end()), contents);
+    auto buf = fs.read_string(inode);
+    EXPECT_EQ(buf, contents);
   };
 
   check_file("random", random);
@@ -1437,4 +1458,269 @@ TEST(filesystem, root_access_github204) {
   EXPECT_FALSE(fs.access(*other, x_ok, 0, 0));
   EXPECT_FALSE(fs.access(*group, x_ok, 0, 0));
   EXPECT_FALSE(fs.access(*user, x_ok, 0, 0));
+}
+
+TEST(filesystem, read) {
+  test::test_logger lgr;
+  std::independent_bits_engine<std::mt19937_64,
+                               std::numeric_limits<uint8_t>::digits, uint16_t>
+      rng;
+
+  std::string contents;
+  contents.resize(76543);
+  std::generate(begin(contents), end(contents), std::ref(rng));
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add_dir("");
+  input->add_file("random", contents);
+
+  auto fsimage = build_dwarfs(lgr, input, "null", {.block_size_bits = 8});
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  filesystem_v2 fs(lgr, *input, mm, {.inode_reader = {.readahead = 64}});
+
+  auto iv = fs.find("/random");
+  EXPECT_TRUE(iv);
+
+  auto fh = fs.open(*iv);
+  uint32_t fh_invalid = 66666;
+
+  std::error_code ec;
+  std::vector<char> tmp(contents.size());
+  iovec_read_buf iov;
+  std::string_view cview(contents);
+
+  auto iov_to_str = [](iovec_read_buf const& iov) {
+    std::string result;
+    for (auto const& i : iov.buf) {
+      result.append(reinterpret_cast<char const*>(i.iov_base), i.iov_len);
+    }
+    return result;
+  };
+
+  auto fut_to_str = [](std::vector<std::future<block_range>>&& futs) {
+    std::string result;
+    for (auto& f : futs) {
+      auto br = f.get();
+      result.append(reinterpret_cast<char const*>(br.data()), br.size());
+    }
+    return result;
+  };
+
+  // --- read_string ---
+
+  EXPECT_EQ(fs.read_string(fh), cview);
+  EXPECT_EQ(fs.read_string(fh, ec), cview);
+  EXPECT_FALSE(ec);
+
+  EXPECT_THROW(fs.read_string(fh_invalid), std::system_error);
+  fs.read_string(fh_invalid, ec);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
+
+  // --- read ---
+
+  std::fill(begin(tmp), end(tmp), 0);
+  EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size()), cview.size());
+  EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview);
+
+  std::fill(begin(tmp), end(tmp), 0);
+  EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), ec), cview.size());
+  EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview);
+  EXPECT_FALSE(ec);
+
+  EXPECT_THROW(fs.read(fh_invalid, tmp.data(), tmp.size()), std::system_error);
+  fs.read(fh_invalid, tmp.data(), tmp.size(), ec);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
+
+  // --- readv ---
+
+  iov.clear();
+  EXPECT_EQ(fs.readv(fh, iov), cview.size());
+  EXPECT_EQ(iov_to_str(iov), cview);
+
+  iov.clear();
+  EXPECT_EQ(fs.readv(fh, iov, ec), cview.size());
+  EXPECT_EQ(iov_to_str(iov), cview);
+  EXPECT_FALSE(ec);
+
+  EXPECT_THROW(fs.readv(fh_invalid, iov), std::system_error);
+  fs.readv(fh_invalid, iov, ec);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
+
+  // --- readv (async) ---
+
+  EXPECT_EQ(fut_to_str(fs.readv(fh)), cview);
+
+  EXPECT_EQ(fut_to_str(fs.readv(fh, ec)), cview);
+  EXPECT_FALSE(ec);
+
+  EXPECT_THROW(fs.readv(fh_invalid), std::system_error);
+  fs.readv(fh_invalid, ec);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
+
+  for (size_t size : {0, 1, 2, 3, 512, 555, 33333}) {
+    // --- read_string ---
+
+    EXPECT_EQ(fs.read_string(fh, size), cview.substr(0, size)) << size;
+    EXPECT_EQ(fs.read_string(fh, size, ec), cview.substr(0, size)) << size;
+    EXPECT_FALSE(ec) << size;
+
+    EXPECT_THROW(fs.read_string(fh_invalid, size), std::system_error) << size;
+    fs.read_string(fh_invalid, size, ec);
+    EXPECT_TRUE(ec) << size;
+    EXPECT_EQ(ec.value(), EINVAL) << size;
+
+    // --- read ---
+
+    tmp.resize(size);
+    std::fill(begin(tmp), end(tmp), 0);
+    EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size()), size) << size;
+    EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview.substr(0, size))
+        << size;
+
+    std::fill(begin(tmp), end(tmp), 0);
+    EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), ec), size) << size;
+    EXPECT_EQ(std::string_view(tmp.data(), tmp.size()), cview.substr(0, size))
+        << size;
+    EXPECT_FALSE(ec) << size;
+
+    EXPECT_THROW(fs.read(fh_invalid, tmp.data(), tmp.size()), std::system_error)
+        << size;
+    fs.read(fh_invalid, tmp.data(), tmp.size(), ec);
+    EXPECT_TRUE(ec) << size;
+    EXPECT_EQ(ec.value(), EINVAL) << size;
+
+    // --- readv ---
+
+    iov.clear();
+    EXPECT_EQ(fs.readv(fh, iov, size), size) << size;
+    EXPECT_EQ(iov_to_str(iov), cview.substr(0, size)) << size;
+
+    iov.clear();
+    EXPECT_EQ(fs.readv(fh, iov, size, ec), size) << size;
+    EXPECT_EQ(iov_to_str(iov), cview.substr(0, size)) << size;
+    EXPECT_FALSE(ec) << size;
+
+    EXPECT_THROW(fs.readv(fh_invalid, iov, size), std::system_error) << size;
+    fs.readv(fh_invalid, iov, size, ec);
+    EXPECT_TRUE(ec) << size;
+    EXPECT_EQ(ec.value(), EINVAL) << size;
+
+    // --- readv (async) ---
+
+    EXPECT_EQ(fut_to_str(fs.readv(fh, size)), cview.substr(0, size)) << size;
+
+    EXPECT_EQ(fut_to_str(fs.readv(fh, size, ec)), cview.substr(0, size))
+        << size;
+    EXPECT_FALSE(ec) << size;
+
+    EXPECT_THROW(fs.readv(fh_invalid, size), std::system_error) << size;
+    fs.readv(fh_invalid, size, ec);
+    EXPECT_TRUE(ec) << size;
+    EXPECT_EQ(ec.value(), EINVAL) << size;
+
+    for (file_off_t off : {0, 1, 2, 3, 255, 256, 257, 33333}) {
+      // --- read_string ---
+
+      EXPECT_EQ(fs.read_string(fh, size, off), cview.substr(off, size))
+          << size << ":" << off;
+      EXPECT_EQ(fs.read_string(fh, size, off, ec), cview.substr(off, size))
+          << size << ":" << off;
+      EXPECT_FALSE(ec) << size << ":" << off;
+
+      EXPECT_THROW(fs.read_string(fh_invalid, size, off), std::system_error)
+          << size << ":" << off;
+      fs.read_string(fh_invalid, size, off, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+
+      // --- read ---
+
+      std::fill(begin(tmp), end(tmp), 0);
+      EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), off), size)
+          << size << ":" << off;
+      EXPECT_EQ(std::string_view(tmp.data(), tmp.size()),
+                cview.substr(off, size))
+          << size << ":" << off;
+
+      std::fill(begin(tmp), end(tmp), 0);
+      EXPECT_EQ(fs.read(fh, tmp.data(), tmp.size(), off, ec), size)
+          << size << ":" << off;
+      EXPECT_EQ(std::string_view(tmp.data(), tmp.size()),
+                cview.substr(off, size))
+          << size << ":" << off;
+      EXPECT_FALSE(ec) << size << ":" << off;
+
+      EXPECT_THROW(fs.read(fh_invalid, tmp.data(), tmp.size(), off),
+                   std::system_error)
+          << size << ":" << off;
+      fs.read(fh_invalid, tmp.data(), tmp.size(), off, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+
+      // --- readv ---
+
+      iov.clear();
+      EXPECT_EQ(fs.readv(fh, iov, size, off), size) << size << ":" << off;
+      EXPECT_EQ(iov_to_str(iov), cview.substr(off, size)) << size << ":" << off;
+
+      EXPECT_GE(iov.buf.size(), size / 256) << size << ":" << off;
+
+      iov.clear();
+      EXPECT_EQ(fs.readv(fh, iov, size, off, ec), size) << size << ":" << off;
+      EXPECT_EQ(iov_to_str(iov), cview.substr(off, size)) << size << ":" << off;
+      EXPECT_FALSE(ec) << size << ":" << off;
+
+      EXPECT_THROW(fs.readv(fh_invalid, iov, size, off), std::system_error)
+          << size << ":" << off;
+      fs.readv(fh_invalid, iov, size, off, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+
+      // --- readv (async) ---
+
+      EXPECT_EQ(fut_to_str(fs.readv(fh, size, off)), cview.substr(off, size))
+          << size << ":" << off;
+
+      EXPECT_EQ(fut_to_str(fs.readv(fh, size, off, ec)),
+                cview.substr(off, size))
+          << size << ":" << off;
+      EXPECT_FALSE(ec) << size << ":" << off;
+
+      EXPECT_THROW(fs.readv(fh_invalid, size, off), std::system_error)
+          << size << ":" << off;
+      fs.readv(fh_invalid, size, off, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+    }
+  }
+
+  // --- error/non-error cases ---
+
+  // read past end of file
+  EXPECT_EQ(fs.read_string(fh, 42, 76530), cview.substr(76530));
+  iov.clear();
+  EXPECT_EQ(fs.readv(fh, iov, 42, 76530), 13);
+  EXPECT_EQ(iov_to_str(iov), cview.substr(76530));
+
+  // offset past end of file
+  EXPECT_EQ(fs.read_string(fh, 42, 80000), std::string());
+  iov.clear();
+  EXPECT_EQ(fs.readv(fh, iov, 42, 80000), 0);
+  EXPECT_EQ(iov_to_str(iov), std::string());
+
+  // negative offset
+  fs.read_string(fh, 42, -1, ec);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
+  iov.clear();
+  EXPECT_EQ(fs.readv(fh, iov, 42, -1, ec), 0);
+  EXPECT_TRUE(ec);
+  EXPECT_EQ(ec.value(), EINVAL);
 }

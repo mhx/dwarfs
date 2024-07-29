@@ -236,25 +236,33 @@ class filesystem : public ::benchmark::Fixture {
     }
   }
 
+  void read_string_bench(::benchmark::State& state, const char* file) {
+    auto iv = fs->find(file);
+    auto i = fs->open(*iv);
+
+    for (auto _ : state) {
+      auto r = fs->read_string(i);
+      ::benchmark::DoNotOptimize(r);
+    }
+  }
+
   void readv_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
       iovec_read_buf buf;
-      auto r = fs->readv(i, buf, st.size);
+      auto r = fs->readv(i, buf);
       ::benchmark::DoNotOptimize(r);
     }
   }
 
   void readv_future_bench(::benchmark::State& state, char const* file) {
     auto iv = fs->find(file);
-    auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
-      auto x = fs->readv(i, st.size);
+      auto x = fs->readv(i);
       for (auto& f : x) {
         auto r = f.get().size();
         ::benchmark::DoNotOptimize(r);
@@ -475,6 +483,14 @@ BENCHMARK_DEFINE_F(filesystem, read_large)(::benchmark::State& state) {
   read_bench(state, "/ipsum.txt");
 }
 
+BENCHMARK_DEFINE_F(filesystem, read_string_small)(::benchmark::State& state) {
+  read_string_bench(state, "/somedir/ipsum.py");
+}
+
+BENCHMARK_DEFINE_F(filesystem, read_string_large)(::benchmark::State& state) {
+  read_string_bench(state, "/ipsum.txt");
+}
+
 BENCHMARK_DEFINE_F(filesystem, readv_small)(::benchmark::State& state) {
   readv_bench(state, "/somedir/ipsum.py");
 }
@@ -527,6 +543,8 @@ BENCHMARK_REGISTER_F(filesystem, statvfs)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, open)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, read_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, read_large)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, read_string_small)->Apply(PackParamsNone);
+BENCHMARK_REGISTER_F(filesystem, read_string_large)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_large)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_future_small)->Apply(PackParamsNone);

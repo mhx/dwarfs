@@ -438,14 +438,26 @@ class filesystem_ final : public filesystem_v2::impl {
   void statvfs(vfs_stat* stbuf) const override;
   int open(inode_view entry) const override;
   int open(inode_view entry, std::error_code& ec) const override;
+  std::string read_string(uint32_t inode) const override;
+  std::string read_string(uint32_t inode, std::error_code& ec) const override;
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset) const override;
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          std::error_code& ec) const override;
   size_t read(uint32_t inode, char* buf, size_t size,
               file_off_t offset) const override;
   size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
               std::error_code& ec) const override;
+  size_t readv(uint32_t inode, iovec_read_buf& buf) const override;
+  size_t readv(uint32_t inode, iovec_read_buf& buf,
+               std::error_code& ec) const override;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, std::error_code& ec) const override;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset) const override;
+  std::vector<std::future<block_range>> readv(uint32_t inode) const override;
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, std::error_code& ec) const override;
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset) const override;
   std::vector<std::future<block_range>>
@@ -478,11 +490,15 @@ class filesystem_ final : public filesystem_v2::impl {
  private:
   filesystem_info const& get_info() const;
   void check_section(fs_section const& section) const;
+  std::string read_string_ec(uint32_t inode, size_t size, file_off_t offset,
+                             std::error_code& ec) const;
+  size_t read_ec(uint32_t inode, char* buf, size_t size, file_off_t offset,
+                 std::error_code& ec) const;
+  size_t readv_ec(uint32_t inode, iovec_read_buf& buf, size_t size,
+                  file_off_t offset, std::error_code& ec) const;
   std::vector<std::future<block_range>>
   readv_ec(uint32_t inode, size_t size, file_off_t offset,
            std::error_code& ec) const;
-  size_t readv_ec(uint32_t inode, iovec_read_buf& buf, size_t size,
-                  file_off_t offset, std::error_code& ec) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   os_access const& os_;
@@ -513,6 +529,8 @@ class filesystem_ final : public filesystem_v2::impl {
   PERFMON_CLS_TIMER_DECL(statvfs)
   PERFMON_CLS_TIMER_DECL(open)
   PERFMON_CLS_TIMER_DECL(open_ec)
+  PERFMON_CLS_TIMER_DECL(read_string)
+  PERFMON_CLS_TIMER_DECL(read_string_ec)
   PERFMON_CLS_TIMER_DECL(read)
   PERFMON_CLS_TIMER_DECL(read_ec)
   PERFMON_CLS_TIMER_DECL(readv_iovec)
@@ -599,6 +617,8 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(statvfs)
     PERFMON_CLS_TIMER_INIT(open)
     PERFMON_CLS_TIMER_INIT(open_ec)
+    PERFMON_CLS_TIMER_INIT(read_string)
+    PERFMON_CLS_TIMER_INIT(read_string_ec)
     PERFMON_CLS_TIMER_INIT(read)
     PERFMON_CLS_TIMER_INIT(read_ec)
     PERFMON_CLS_TIMER_INIT(readv_iovec)
@@ -948,12 +968,15 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
 
   meta_.dump(os, detail_level, get_info(),
              [&](const std::string& indent, uint32_t inode) {
-               if (auto chunks = meta_.get_chunks(inode)) {
-                 os << indent << chunks->size() << " chunks in inode " << inode
+               std::error_code ec;
+               auto chunks = meta_.get_chunks(inode, ec);
+               if (!ec) {
+                 os << indent << chunks.size() << " chunks in inode " << inode
                     << "\n";
-                 ir_.dump(os, indent + "  ", *chunks);
+                 ir_.dump(os, indent + "  ", chunks);
                } else {
-                 LOG_ERROR << "error reading chunks for inode " << inode;
+                 LOG_ERROR << "error reading chunks for inode " << inode << ": "
+                           << ec.message();
                }
              });
 }
@@ -1169,15 +1192,58 @@ int filesystem_<LoggerPolicy>::open(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
-size_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
-                                       file_off_t offset) const {
-  PERFMON_CLS_SCOPED_SECTION(read)
-  if (auto chunks = meta_.get_chunks(inode)) {
-    return call_ec_throw([&](std::error_code& ec) {
-      return ir_.read(buf, inode, size, offset, *chunks, ec);
-    });
+std::string
+filesystem_<LoggerPolicy>::read_string_ec(uint32_t inode, size_t size,
+                                          file_off_t offset,
+                                          std::error_code& ec) const {
+  auto chunks = meta_.get_chunks(inode, ec);
+  if (!ec) {
+    return ir_.read_string(inode, size, offset, chunks, ec);
   }
-  throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
+  return {};
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode,
+                                                   std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(read_string_ec)
+  return read_string_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode) const {
+  PERFMON_CLS_SCOPED_SECTION(read_string)
+  return call_ec_throw([&](std::error_code& ec) {
+    return read_string_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+  });
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
+                                                   file_off_t offset,
+                                                   std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(read_string_ec)
+  return read_string_ec(inode, size, offset, ec);
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
+                                                   file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(read_string)
+  return call_ec_throw([&](std::error_code& ec) {
+    return read_string_ec(inode, size, offset, ec);
+  });
+}
+
+template <typename LoggerPolicy>
+size_t filesystem_<LoggerPolicy>::read_ec(uint32_t inode, char* buf,
+                                          size_t size, file_off_t offset,
+                                          std::error_code& ec) const {
+  auto chunks = meta_.get_chunks(inode, ec);
+  if (!ec) {
+    return ir_.read(buf, inode, size, offset, chunks, ec);
+  }
+  return 0;
 }
 
 template <typename LoggerPolicy>
@@ -1185,22 +1251,43 @@ size_t
 filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
                                 file_off_t offset, std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(read_ec)
-  if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.read(buf, inode, size, offset, *chunks, ec);
-  }
-  ec = std::make_error_code(std::errc::bad_file_descriptor);
-  return 0;
+  return read_ec(inode, buf, size, offset, ec);
+}
+
+template <typename LoggerPolicy>
+size_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
+                                       file_off_t offset) const {
+  PERFMON_CLS_SCOPED_SECTION(read)
+  return call_ec_throw([&](std::error_code& ec) {
+    return read_ec(inode, buf, size, offset, ec);
+  });
 }
 
 template <typename LoggerPolicy>
 size_t filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, iovec_read_buf& buf,
                                            size_t size, file_off_t offset,
                                            std::error_code& ec) const {
-  if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(buf, inode, size, offset, *chunks, ec);
+  auto chunks = meta_.get_chunks(inode, ec);
+  if (!ec) {
+    return ir_.readv(buf, inode, size, offset, chunks, ec);
   }
-  ec = std::make_error_code(std::errc::bad_file_descriptor);
   return 0;
+}
+
+template <typename LoggerPolicy>
+size_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
+                                        std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec_ec)
+  return readv_ec(inode, buf, std::numeric_limits<size_t>::max(), 0, ec);
+}
+
+template <typename LoggerPolicy>
+size_t
+filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec)
+  return call_ec_throw([&](std::error_code& ec) {
+    return readv_ec(inode, buf, std::numeric_limits<size_t>::max(), 0, ec);
+  });
 }
 
 template <typename LoggerPolicy>
@@ -1225,11 +1312,27 @@ std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, size_t size,
                                     file_off_t offset,
                                     std::error_code& ec) const {
-  if (auto chunks = meta_.get_chunks(inode)) {
-    return ir_.readv(inode, size, offset, *chunks, ec);
+  auto chunks = meta_.get_chunks(inode, ec);
+  if (!ec) {
+    return ir_.readv(inode, size, offset, chunks, ec);
   }
-  ec = std::make_error_code(std::errc::bad_file_descriptor);
   return {};
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv(uint32_t inode, std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future_ec)
+  return readv_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv(uint32_t inode) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
+  return call_ec_throw([&](std::error_code& ec) {
+    return readv_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+  });
 }
 
 template <typename LoggerPolicy>

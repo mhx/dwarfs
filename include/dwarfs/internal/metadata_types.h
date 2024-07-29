@@ -228,12 +228,14 @@ class chunk_range {
   chunk_view operator[](uint32_t index) const { return meta_->chunks()[index]; }
 
  private:
+  chunk_range() = default;
+
   chunk_range(Meta const& meta, uint32_t begin, uint32_t end)
       : meta_(&meta)
       , begin_(begin)
       , end_(end) {}
 
-  Meta const* meta_;
+  Meta const* meta_{nullptr};
   uint32_t begin_{0};
   uint32_t end_{0};
 };

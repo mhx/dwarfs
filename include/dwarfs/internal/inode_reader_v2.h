@@ -54,6 +54,11 @@ class inode_reader_v2 {
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          chunk_range chunks, std::error_code& ec) const {
+    return impl_->read_string(inode, size, offset, chunks, ec);
+  }
+
   size_t read(char* buf, uint32_t inode, size_t size, file_off_t offset,
               chunk_range chunks, std::error_code& ec) const {
     return impl_->read(buf, inode, size, offset, chunks, ec);
@@ -88,6 +93,9 @@ class inode_reader_v2 {
    public:
     virtual ~impl() = default;
 
+    virtual std::string
+    read_string(uint32_t inode, size_t size, file_off_t offset,
+                chunk_range chunks, std::error_code& ec) const = 0;
     virtual size_t
     read(char* buf, uint32_t inode, size_t size, file_off_t offset,
          chunk_range chunks, std::error_code& ec) const = 0;
