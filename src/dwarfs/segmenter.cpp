@@ -43,7 +43,6 @@
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/compression_constraints.h>
-#include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/segmenter.h>
@@ -54,6 +53,7 @@
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/chunkable.h>
 #include <dwarfs/internal/cyclic_hash.h>
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/progress.h>
 
 namespace dwarfs {

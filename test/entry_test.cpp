@@ -21,7 +21,9 @@
 
 #include <gtest/gtest.h>
 
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_factory.h>
+
+#include <dwarfs/internal/entry.h>
 
 #include "test_helpers.h"
 
@@ -37,11 +39,11 @@ struct entry_test : public ::testing::Test {
 #endif
       (1, fs::path::preferred_separator)};
   std::shared_ptr<test::os_access_mock> os;
-  std::unique_ptr<entry_factory> ef;
+  std::optional<entry_factory> ef;
 
   void SetUp() override {
     os = test::os_access_mock::create_test_instance();
-    ef = entry_factory::create();
+    ef.emplace();
   }
 
   void TearDown() override {
@@ -51,6 +53,8 @@ struct entry_test : public ::testing::Test {
 };
 
 TEST_F(entry_test, path) {
+  using entry = internal::entry;
+
   auto e1 = ef->create(*os, sep);
   auto e2 = ef->create(*os, fs::path("somelink"), e1);
   auto e3 = ef->create(*os, fs::path("somedir"), e1);

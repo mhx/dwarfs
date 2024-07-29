@@ -37,7 +37,7 @@
 namespace dwarfs {
 
 class categorizer_manager;
-class entry;
+class entry_interface;
 
 enum class mlock_mode { NONE, TRY, MUST };
 
@@ -139,7 +139,8 @@ struct scanner_options {
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
   bool no_create_timestamp{false};
-  std::optional<std::function<void(bool, entry const*)>> debug_filter_function;
+  std::optional<std::function<void(bool, entry_interface const&)>>
+      debug_filter_function;
   size_t num_segmenter_workers{1};
   bool enable_history{true};
   std::optional<std::vector<std::string>> command_line_arguments;

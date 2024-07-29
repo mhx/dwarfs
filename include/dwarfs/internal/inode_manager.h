@@ -35,8 +35,6 @@
 
 namespace dwarfs {
 
-class file;
-class inode;
 class logger;
 class os_access;
 class progress;
@@ -46,6 +44,7 @@ struct inode_options;
 
 namespace internal {
 
+class file;
 class worker_group;
 
 class inode_manager {

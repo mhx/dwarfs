@@ -42,7 +42,7 @@ class bench_chunkable : public dwarfs::internal::chunkable {
   bench_chunkable(std::vector<uint8_t> data)
       : data_{std::move(data)} {}
 
-  dwarfs::file const* get_file() const override { return nullptr; }
+  dwarfs::internal::file const* get_file() const override { return nullptr; }
 
   size_t size() const override { return data_.size(); }
 

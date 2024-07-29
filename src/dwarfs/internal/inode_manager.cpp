@@ -42,7 +42,6 @@
 
 #include <dwarfs/categorizer.h>
 #include <dwarfs/compiler.h>
-#include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
@@ -52,6 +51,7 @@
 #include <dwarfs/script.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/nilsimsa.h>

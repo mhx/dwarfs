@@ -26,7 +26,7 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer.h>
@@ -124,9 +124,10 @@ std::string make_filesystem(::benchmark::State const& state) {
   writer_progress prog;
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
+  auto ef = std::make_shared<entry_factory>();
 
-  scanner s(lgr, pool, sf, entry_factory::create(), os,
-            std::make_shared<test::script_mock>(), options);
+  scanner s(lgr, pool, sf, ef, os, std::make_shared<test::script_mock>(),
+            options);
 
   std::ostringstream oss;
 

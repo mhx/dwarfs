@@ -21,10 +21,10 @@
 
 #include <algorithm>
 
-#include <dwarfs/entry.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/inode_element_view.h>
 #include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/promise_receiver.h>

@@ -66,7 +66,7 @@
 #include <dwarfs/chmod_entry_transformer.h>
 #include <dwarfs/console_writer.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_block_category_resolver.h>
@@ -906,8 +906,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
       options.debug_filter_function =
-          [&iol, mode = it->second](bool exclude, entry const* pe) {
-            debug_filter_output(iol.out, exclude, pe, mode);
+          [&iol, mode = it->second](bool exclude, entry_interface const& ei) {
+            debug_filter_output(iol.out, exclude, ei, mode);
           };
       no_progress = true;
     } else {
@@ -1346,10 +1346,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       auto sf = std::make_shared<segmenter_factory>(
           lgr, prog, options.inode.categorizer_mgr, sf_config);
 
+      auto ef = std::make_shared<entry_factory>();
+
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      scanner s(lgr, scanner_pool, std::move(sf), entry_factory::create(),
-                iol.os, std::move(script), options);
+      scanner s(lgr, scanner_pool, std::move(sf), std::move(ef), iol.os,
+                std::move(script), options);
 
       s.scan(*fsw, path, prog, input_list, iol.file);
 

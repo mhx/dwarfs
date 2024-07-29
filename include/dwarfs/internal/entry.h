@@ -46,20 +46,18 @@ class metadata;
 
 } // namespace thrift::metadata
 
-class file;
-class link;
-class dir;
-class device;
 class mmif;
 class os_access;
 
 namespace internal {
 
+class file;
+class link;
+class dir;
+class device;
 class global_entry_data;
 class inode;
 class progress;
-
-} // namespace internal
 
 class entry_visitor {
  public:
@@ -92,10 +90,10 @@ class entry : public entry_interface {
   virtual void walk(std::function<void(entry*)> const& f);
   virtual void walk(std::function<void(const entry*)> const& f) const;
   void pack(thrift::metadata::inode_data& entry_v2,
-            internal::global_entry_data const& data) const;
-  void update(internal::global_entry_data& data) const;
+            global_entry_data const& data) const;
+  void update(global_entry_data& data) const;
   virtual void accept(entry_visitor& v, bool preorder = false) = 0;
-  virtual void scan(os_access const& os, internal::progress& prog) = 0;
+  virtual void scan(os_access const& os, progress& prog) = 0;
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
@@ -135,14 +133,14 @@ class file : public entry {
 
   type_t type() const override;
   std::string_view hash() const;
-  void set_inode(std::shared_ptr<internal::inode> ino);
-  std::shared_ptr<internal::inode> get_inode() const;
+  void set_inode(std::shared_ptr<inode> ino);
+  std::shared_ptr<inode> get_inode() const;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access const& os, internal::progress& prog) override;
-  void scan(mmif* mm, internal::progress& prog,
-            std::optional<std::string> const& hash_alg);
+  void scan(os_access const& os, progress& prog) override;
+  void
+  scan(mmif* mm, progress& prog, std::optional<std::string> const& hash_alg);
   void create_data();
-  void hardlink(file* other, internal::progress& prog);
+  void hardlink(file* other, progress& prog);
   uint32_t unique_file_id() const;
 
   void set_inode_num(uint32_t ino) override;
@@ -163,7 +161,7 @@ class file : public entry {
   };
 
   std::shared_ptr<data> data_;
-  std::shared_ptr<internal::inode> inode_;
+  std::shared_ptr<inode> inode_;
 };
 
 class dir : public entry {
@@ -176,13 +174,13 @@ class dir : public entry {
   void walk(std::function<void(const entry*)> const& f) const override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
-  void pack(thrift::metadata::metadata& mv2,
-            internal::global_entry_data const& data) const;
+  void
+  pack(thrift::metadata::metadata& mv2, global_entry_data const& data) const;
   void pack_entry(thrift::metadata::metadata& mv2,
-                  internal::global_entry_data const& data) const;
-  void scan(os_access const& os, internal::progress& prog) override;
+                  global_entry_data const& data) const;
+  void scan(os_access const& os, progress& prog) override;
   bool empty() const { return entries_.empty(); }
-  void remove_empty_dirs(internal::progress& prog);
+  void remove_empty_dirs(progress& prog);
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
   std::optional<uint32_t> const& inode_num() const override {
@@ -209,7 +207,7 @@ class link : public entry {
   type_t type() const override;
   const std::string& linkname() const;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access const& os, internal::progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
   std::optional<uint32_t> const& inode_num() const override {
@@ -231,7 +229,7 @@ class device : public entry {
 
   type_t type() const override;
   void accept(entry_visitor& v, bool preorder) override;
-  void scan(os_access const& os, internal::progress& prog) override;
+  void scan(os_access const& os, progress& prog) override;
   uint64_t device_id() const;
 
   void set_inode_num(uint32_t ino) override { inode_num_ = ino; }
@@ -243,14 +241,6 @@ class device : public entry {
   std::optional<uint32_t> inode_num_;
 };
 
-class entry_factory {
- public:
-  static std::unique_ptr<entry_factory> create();
+} // namespace internal
 
-  virtual ~entry_factory() = default;
-
-  virtual std::shared_ptr<entry>
-  create(os_access const& os, std::filesystem::path const& path,
-         std::shared_ptr<entry> parent = nullptr) = 0;
-};
 } // namespace dwarfs

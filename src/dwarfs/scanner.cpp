@@ -39,7 +39,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/categorizer.h>
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_writer.h>
@@ -58,6 +58,7 @@
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/fragment_chunkable.h>
@@ -356,7 +357,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     }
 
     if (debug_filter) {
-      (*options_.debug_filter_function)(exclude, pe.get());
+      (*options_.debug_filter_function)(exclude, *pe);
     }
 
     if (exclude) {

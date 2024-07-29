@@ -25,7 +25,7 @@
 
 namespace dwarfs {
 
-class entry;
+class entry_interface;
 
 enum class debug_filter_mode {
   OFF,
@@ -37,7 +37,7 @@ enum class debug_filter_mode {
   ALL
 };
 
-void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
-                         debug_filter_mode mode);
+void debug_filter_output(std::ostream& os, bool exclude,
+                         entry_interface const& ei, debug_filter_mode mode);
 
 } // namespace dwarfs

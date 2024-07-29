@@ -22,10 +22,10 @@
 #include <fmt/format.h>
 
 #include <dwarfs/categorizer.h>
-#include <dwarfs/entry.h>
 #include <dwarfs/inode_fragments.h>
 #include <dwarfs/mmif.h>
 
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/fragment_chunkable.h>
 #include <dwarfs/internal/inode.h>
 

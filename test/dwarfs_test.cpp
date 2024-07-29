@@ -36,7 +36,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/builtin_script.h>
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/filesystem_v2.h>
@@ -95,8 +95,9 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   sf_cfg.bloom_filter_size.set_default(cfg.bloom_filter_size);
 
   auto sf = std::make_shared<segmenter_factory>(lgr, *prog, sf_cfg);
+  auto ef = std::make_shared<entry_factory>();
 
-  scanner s(lgr, pool, sf, entry_factory::create(), input, scr, options);
+  scanner s(lgr, pool, sf, ef, input, scr, options);
 
   std::ostringstream oss;
 
@@ -929,15 +930,17 @@ class filter_test
 
     scanner_options options;
     options.remove_empty_dirs = false;
-    options.debug_filter_function = [&](bool exclude, entry const* pe) {
-      debug_filter_output(oss, exclude, pe, mode);
+    options.debug_filter_function = [&](bool exclude,
+                                        entry_interface const& ei) {
+      debug_filter_output(oss, exclude, ei, mode);
     };
 
     writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});
-    scanner s(lgr, pool, sf, entry_factory::create(), input, scr, options);
+    auto ef = std::make_shared<entry_factory>();
+    scanner s(lgr, pool, sf, ef, input, scr, options);
 
     block_compressor bc("null");
     std::ostringstream null;

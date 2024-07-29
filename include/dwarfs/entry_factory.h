@@ -21,27 +21,40 @@
 
 #pragma once
 
-#include <span>
-#include <string_view>
+#include <filesystem>
+#include <memory>
 
 namespace dwarfs {
 
+class os_access;
+
 namespace internal {
 
-class file;
-
-class chunkable {
- public:
-  virtual ~chunkable() = default;
-
-  virtual file const* get_file() const = 0;
-  virtual size_t size() const = 0;
-  virtual std::string description() const = 0;
-  virtual std::span<uint8_t const> span() const = 0;
-  virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
-  virtual void release_until(size_t offset) = 0;
-};
+class entry;
 
 } // namespace internal
+
+class entry_factory {
+ public:
+  entry_factory();
+
+  std::shared_ptr<internal::entry>
+  create(os_access const& os, std::filesystem::path const& path,
+         std::shared_ptr<internal::entry> parent = nullptr) {
+    return impl_->create(os, path, parent);
+  }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual std::shared_ptr<internal::entry>
+    create(os_access const& os, std::filesystem::path const& path,
+           std::shared_ptr<internal::entry> parent) = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
+};
 
 } // namespace dwarfs

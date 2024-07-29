@@ -41,7 +41,6 @@ namespace thrift::metadata {
 class chunk;
 }
 
-class file;
 class mmif;
 class os_access;
 class progress;
@@ -49,6 +48,8 @@ class progress;
 struct inode_options;
 
 namespace internal {
+
+class file;
 
 class inode : public object {
  public:

@@ -21,13 +21,13 @@
 
 #include <ostream>
 
-#include <dwarfs/entry.h>
+#include <dwarfs/entry_interface.h>
 #include <dwarfs/filter_debug.h>
 
 namespace dwarfs {
 
-void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
-                         debug_filter_mode mode) {
+void debug_filter_output(std::ostream& os, bool exclude,
+                         entry_interface const& ei, debug_filter_mode mode) {
   if (exclude ? mode == debug_filter_mode::INCLUDED or
                     mode == debug_filter_mode::INCLUDED_FILES
               : mode == debug_filter_mode::EXCLUDED or
@@ -39,7 +39,7 @@ void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
                           mode == debug_filter_mode::INCLUDED_FILES or
                           mode == debug_filter_mode::EXCLUDED_FILES;
 
-  if (files_only and pe->type() == entry::E_DIR) {
+  if (files_only and ei.is_directory()) {
     return;
   }
 
@@ -49,7 +49,7 @@ void debug_filter_output(std::ostream& os, bool exclude, entry const* pe,
     prefix = exclude ? "- " : "+ ";
   }
 
-  os << prefix << pe->unix_dpath() << "\n";
+  os << prefix << ei.unix_dpath() << "\n";
 }
 
 } // namespace dwarfs

@@ -26,7 +26,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/checksum.h>
-#include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/mmif.h>
@@ -34,6 +33,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/progress.h>
@@ -41,7 +41,7 @@
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
 namespace {
 
@@ -146,7 +146,7 @@ void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
 
-void entry::update(internal::global_entry_data& data) const {
+void entry::update(global_entry_data& data) const {
   data.add_uid(stat_.uid);
   data.add_gid(stat_.gid);
   data.add_mode(stat_.mode);
@@ -156,7 +156,7 @@ void entry::update(internal::global_entry_data& data) const {
 }
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
-                 internal::global_entry_data const& data) const {
+                 global_entry_data const& data) const {
   entry_v2.mode_index() = data.get_mode_index(stat_.mode);
   entry_v2.owner_index() = data.get_uid_index(stat_.uid);
   entry_v2.group_index() = data.get_gid_index(stat_.gid);
@@ -196,7 +196,7 @@ std::string_view file::hash() const {
   return std::string_view(h.data(), h.size());
 }
 
-void file::set_inode(std::shared_ptr<internal::inode> ino) {
+void file::set_inode(std::shared_ptr<inode> ino) {
   if (inode_) {
     DWARFS_THROW(runtime_error, "inode already set for file");
   }
@@ -204,28 +204,28 @@ void file::set_inode(std::shared_ptr<internal::inode> ino) {
   inode_ = std::move(ino);
 }
 
-std::shared_ptr<internal::inode> file::get_inode() const { return inode_; }
+std::shared_ptr<inode> file::get_inode() const { return inode_; }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void file::scan(os_access const& /*os*/, internal::progress& /*prog*/) {
+void file::scan(os_access const& /*os*/, progress& /*prog*/) {
   DWARFS_THROW(runtime_error, "file::scan() without hash_alg is not used");
 }
 
-void file::scan(mmif* mm, internal::progress& prog,
+void file::scan(mmif* mm, progress& prog,
                 std::optional<std::string> const& hash_alg) {
   size_t s = size();
 
   if (hash_alg) {
-    internal::progress::scan_updater supd(prog.hash, s);
+    progress::scan_updater supd(prog.hash, s);
     checksum cs(*hash_alg);
 
     if (s > 0) {
-      std::shared_ptr<internal::scanner_progress> pctx;
+      std::shared_ptr<scanner_progress> pctx;
       auto const chunk_size = prog.hash.chunk_size.load();
 
       if (s >= 4 * chunk_size) {
-        pctx = prog.create_context<internal::scanner_progress>(
+        pctx = prog.create_context<scanner_progress>(
             termcolor::MAGENTA, kHashContext, path_as_string(), s);
       }
 
@@ -271,7 +271,7 @@ void file::create_data() {
   data_ = std::make_shared<data>();
 }
 
-void file::hardlink(file* other, internal::progress& prog) {
+void file::hardlink(file* other, progress& prog) {
   assert(!data_);
   assert(other->data_);
   prog.hardlink_size += size();
@@ -327,10 +327,10 @@ void dir::sort() {
             });
 }
 
-void dir::scan(os_access const&, internal::progress&) {}
+void dir::scan(os_access const&, progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
-                     internal::global_entry_data const& data) const {
+                     global_entry_data const& data) const {
   auto& de = mv2.dir_entries()->emplace_back();
   de.name_index() = has_parent() ? data.get_name_index(name()) : 0;
   de.inode_num() = DWARFS_NOTHROW(inode_num().value());
@@ -338,7 +338,7 @@ void dir::pack_entry(thrift::metadata::metadata& mv2,
 }
 
 void dir::pack(thrift::metadata::metadata& mv2,
-               internal::global_entry_data const& data) const {
+               global_entry_data const& data) const {
   thrift::metadata::directory d;
   if (has_parent()) {
     auto pd = std::dynamic_pointer_cast<dir>(parent());
@@ -360,7 +360,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
   }
 }
 
-void dir::remove_empty_dirs(internal::progress& prog) {
+void dir::remove_empty_dirs(progress& prog) {
   auto last = std::remove_if(entries_.begin(), entries_.end(),
                              [&](std::shared_ptr<entry> const& e) {
                                if (auto d = dynamic_cast<dir*>(e.get())) {
@@ -420,7 +420,7 @@ const std::string& link::linkname() const { return link_; }
 
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void link::scan(os_access const& os, internal::progress& prog) {
+void link::scan(os_access const& os, progress& prog) {
   link_ = u8string_to_string(os.read_symlink(fs_path()).u8string());
   prog.original_size += size();
   prog.symlink_size += size();
@@ -438,47 +438,8 @@ entry::type_t device::type() const {
 
 void device::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void device::scan(os_access const&, internal::progress&) {}
+void device::scan(os_access const&, progress&) {}
 
 uint64_t device::device_id() const { return status().rdev; }
 
-class entry_factory_ : public entry_factory {
- public:
-  std::shared_ptr<entry>
-  create(os_access const& os, std::filesystem::path const& path,
-         std::shared_ptr<entry> parent) override {
-    // TODO: just use `path` directly (need to fix test helpers, tho)?
-    std::filesystem::path p =
-        parent ? parent->fs_path() / path.filename() : path;
-
-    auto st = os.symlink_info(p);
-
-    switch (st.type()) {
-    case posix_file_type::regular:
-      return std::make_shared<file>(path, std::move(parent), st);
-
-    case posix_file_type::directory:
-      return std::make_shared<dir>(path, std::move(parent), st);
-
-    case posix_file_type::symlink:
-      return std::make_shared<link>(path, std::move(parent), st);
-
-    case posix_file_type::character:
-    case posix_file_type::block:
-    case posix_file_type::fifo:
-    case posix_file_type::socket:
-      return std::make_shared<device>(path, std::move(parent), st);
-
-    default:
-      // TODO: warn
-      break;
-    }
-
-    return nullptr;
-  }
-};
-
-std::unique_ptr<entry_factory> entry_factory::create() {
-  return std::make_unique<entry_factory_>();
-}
-} // namespace dwarfs
+} // namespace dwarfs::internal

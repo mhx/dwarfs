@@ -33,7 +33,6 @@
 #include <range/v3/view/drop.hpp>
 
 #include <dwarfs/checksum.h>
-#include <dwarfs/entry.h>
 #include <dwarfs/format.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
@@ -41,6 +40,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/inode_manager.h>

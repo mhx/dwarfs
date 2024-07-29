@@ -646,7 +646,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/category_parser.cpp
   src/dwarfs/chmod_entry_transformer.cpp
   src/dwarfs/console_writer.cpp
-  src/dwarfs/entry.cpp
+  src/dwarfs/entry_factory.cpp
   src/dwarfs/filesystem_block_category_resolver.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/filter_debug.cpp
@@ -655,6 +655,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/inode_fragments.cpp
   src/dwarfs/internal/block_manager.cpp
   src/dwarfs/internal/chmod_transformer.cpp
+  src/dwarfs/internal/entry.cpp
   src/dwarfs/internal/file_scanner.cpp
   src/dwarfs/internal/fragment_chunkable.cpp
   src/dwarfs/internal/global_entry_data.cpp

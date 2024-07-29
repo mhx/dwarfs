@@ -23,8 +23,7 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/entry.h>
-
+#include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/inode_element_view.h>
 
