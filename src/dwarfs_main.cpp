@@ -899,7 +899,7 @@ int op_statfs(char const* path, native_statvfs* st) {
 template <typename LogProxy, typename Find>
 int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
                        std::string_view name, std::string& value,
-                       size_t& extra_size, Find const& find) {
+                       size_t& extra_size [[maybe_unused]], Find const& find) {
   return checked_call(log_, [&] {
     auto entry = find();
 
