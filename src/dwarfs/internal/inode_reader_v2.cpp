@@ -244,6 +244,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   auto offset = read_offset;
 
   if (offset < 0) {
+    // This is exactly how lseek(2) behaves when seeking before the start of
+    // the file.
     ec = std::make_error_code(std::errc::invalid_argument);
     return ranges;
   }
@@ -290,7 +292,8 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   }
 
   if (it == end) {
-    // offset beyond EOF; TODO: check if this should rather be -EINVAL
+    // Offset behind end of file. This is exactly how lseek(2) and read(2)
+    // behave when seeking behind the end of the file and reading past EOF.
     ec.clear();
     return ranges;
   }
@@ -302,13 +305,7 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
     size_t const copyoff = it->offset() + offset;
     size_t copysize = chunksize - offset;
 
-    // TODO: should this rather be an assertion?
-    if (copysize == 0) {
-      LOG_ERROR << "invalid zero-sized chunk";
-      ec = std::make_error_code(std::errc::invalid_argument);
-      ranges.clear();
-      break;
-    }
+    DWARFS_CHECK(copysize > 0, "unexpected zero-sized chunk");
 
     if (num_read + copysize > size) {
       copysize = size - num_read;
