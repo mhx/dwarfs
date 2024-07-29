@@ -39,13 +39,14 @@
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/multi_queue_block_merger.h>
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs {
@@ -1100,7 +1101,7 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 } // namespace internal
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
-                                     thread_pool& pool, progress& prog,
+                                     thread_pool& pool, writer_progress& prog,
                                      block_compressor const& schema_bc,
                                      block_compressor const& metadata_bc,
                                      block_compressor const& history_bc,
@@ -1108,7 +1109,7 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      std::istream* header)
     : impl_(make_unique_logging_object<impl, internal::filesystem_writer_,
                                        logger_policies>(
-          lgr, os, pool.get_worker_group(), prog, schema_bc, metadata_bc,
-          history_bc, options, header)) {}
+          lgr, os, pool.get_worker_group(), prog.get_internal(), schema_bc,
+          metadata_bc, history_bc, options, header)) {}
 
 } // namespace dwarfs

@@ -30,9 +30,11 @@
 #include <dwarfs/entry_interface.h>
 #include <dwarfs/lazy_value.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer_progress.h>
+
+#include <dwarfs/internal/progress.h>
 
 namespace dwarfs {
 
@@ -74,8 +76,8 @@ std::string progress_bar(size_t width, double frac, bool unicode) {
 }
 
 void output_context_line(terminal const& term, std::ostream& os,
-                         progress::context& ctx, size_t width, bool unicode_bar,
-                         bool colored) {
+                         internal::progress::context& ctx, size_t width,
+                         bool unicode_bar, bool colored) {
   auto st = ctx.get_status();
   size_t progress_w = 0;
   size_t speed_w = 0;
@@ -199,7 +201,7 @@ std::string_view console_writer::get_newline() const {
   return pg_mode_ != NONE ? "\x1b[K\n" : "\n";
 }
 
-void console_writer::update(progress& p, bool last) {
+void console_writer::update(writer_progress& prog, bool last) {
   if (pg_mode_ == NONE && !last) {
     return;
   }
@@ -212,7 +214,7 @@ void console_writer::update(progress& p, bool last) {
 
   bool fancy = pg_mode_ == ASCII || pg_mode_ == UNICODE;
 
-  auto update_chunk_size = [](progress::scan_progress& sp) {
+  auto update_chunk_size = [](internal::progress::scan_progress& sp) {
     if (auto usec = sp.usec.load(); usec > 10'000) {
       auto bytes = sp.bytes.load();
       auto bytes_per_second = (bytes << 20) / usec;
@@ -222,6 +224,8 @@ void console_writer::update(progress& p, bool last) {
       sp.bytes_per_sec.store(bytes_per_second);
     }
   };
+
+  auto& p = prog.get_internal();
 
   update_chunk_size(p.hash);
   update_chunk_size(p.similarity);
@@ -340,7 +344,7 @@ void console_writer::update(progress& p, bool last) {
 
     ++counter_;
 
-    std::vector<std::shared_ptr<progress::context>> ctxs;
+    std::vector<std::shared_ptr<internal::progress::context>> ctxs;
 
     if (w >= 60) {
       ctxs = p.get_active_contexts();

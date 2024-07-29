@@ -33,11 +33,11 @@
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/string_table.h>
 
@@ -121,7 +121,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   auto os = test::os_access_mock::create_test_instance();
 
   thread_pool pool(lgr, *os, "writer", 4);
-  progress prog;
+  writer_progress prog;
 
   auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
 

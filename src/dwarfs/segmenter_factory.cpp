@@ -28,7 +28,7 @@ namespace internal {
 
 class segmenter_factory_ final : public segmenter_factory::impl {
  public:
-  segmenter_factory_(logger& lgr, progress& prog,
+  segmenter_factory_(logger& lgr, writer_progress& prog,
                      std::shared_ptr<categorizer_manager> catmgr,
                      const segmenter_factory::config& cfg)
       : lgr_{lgr}
@@ -62,7 +62,7 @@ class segmenter_factory_ final : public segmenter_factory::impl {
 
  private:
   logger& lgr_;
-  progress& prog_;
+  writer_progress& prog_;
   std::shared_ptr<categorizer_manager> catmgr_;
   segmenter_factory::config cfg_;
 };
@@ -70,12 +70,12 @@ class segmenter_factory_ final : public segmenter_factory::impl {
 } // namespace internal
 
 segmenter_factory::segmenter_factory(
-    logger& lgr, progress& prog, std::shared_ptr<categorizer_manager> catmgr,
-    config const& cfg)
+    logger& lgr, writer_progress& prog,
+    std::shared_ptr<categorizer_manager> catmgr, config const& cfg)
     : impl_(std::make_unique<internal::segmenter_factory_>(
           lgr, prog, std::move(catmgr), cfg)) {}
 
-segmenter_factory::segmenter_factory(logger& lgr, progress& prog,
+segmenter_factory::segmenter_factory(logger& lgr, writer_progress& prog,
                                      config const& cfg)
     : segmenter_factory(lgr, prog, nullptr, cfg) {}
 

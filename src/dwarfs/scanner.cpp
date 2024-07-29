@@ -48,13 +48,13 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
@@ -66,6 +66,7 @@
 #include <dwarfs/internal/inode_manager.h>
 #include <dwarfs/internal/inode_ordering.h>
 #include <dwarfs/internal/metadata_freezer.h>
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>
 
@@ -293,7 +294,7 @@ class scanner_ final : public scanner::impl {
            const scanner_options& options);
 
   void scan(filesystem_writer& fsw, std::filesystem::path const& path,
-            progress& prog,
+            writer_progress& wprog,
             std::optional<std::span<std::filesystem::path const>> list,
             std::shared_ptr<file_access const> fa) override;
 
@@ -604,9 +605,12 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(
-    filesystem_writer& fsw, const std::filesystem::path& path, progress& prog,
+    filesystem_writer& fsw, const std::filesystem::path& path,
+    writer_progress& wprog,
     std::optional<std::span<std::filesystem::path const>> list,
     std::shared_ptr<file_access const> fa) {
+  auto& prog = wprog.get_internal();
+
   if (!options_.debug_filter_function) {
     LOG_INFO << "scanning " << path;
   }

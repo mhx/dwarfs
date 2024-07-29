@@ -39,7 +39,7 @@ namespace dwarfs {
 
 class block_compressor;
 class logger;
-class progress;
+class writer_progress;
 class thread_pool;
 
 namespace internal {
@@ -54,7 +54,7 @@ class filesystem_writer {
   using physical_block_cb_type = std::function<void(size_t)>;
 
   filesystem_writer(
-      std::ostream& os, logger& lgr, thread_pool& pool, progress& prog,
+      std::ostream& os, logger& lgr, thread_pool& pool, writer_progress& prog,
       block_compressor const& schema_bc, block_compressor const& metadata_bc,
       block_compressor const& history_bc,
       filesystem_writer_options const& options = filesystem_writer_options(),

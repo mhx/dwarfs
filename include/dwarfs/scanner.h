@@ -36,7 +36,7 @@ class file_access;
 class filesystem_writer;
 class logger;
 class os_access;
-class progress;
+class writer_progress;
 class script;
 class segmenter_factory;
 class thread_pool;
@@ -49,7 +49,8 @@ class scanner {
           const scanner_options& options);
 
   void scan(
-      filesystem_writer& fsw, const std::filesystem::path& path, progress& prog,
+      filesystem_writer& fsw, const std::filesystem::path& path,
+      writer_progress& prog,
       std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
       std::shared_ptr<file_access const> fa = nullptr) {
     impl_->scan(fsw, path, prog, list, fa);
@@ -61,7 +62,7 @@ class scanner {
 
     virtual void
     scan(filesystem_writer& fsw, const std::filesystem::path& path,
-         progress& prog,
+         writer_progress& prog,
          std::optional<std::span<std::filesystem::path const>> list,
          std::shared_ptr<file_access const> fa) = 0;
   };

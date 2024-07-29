@@ -21,42 +21,47 @@
 
 #pragma once
 
-#include <atomic>
-#include <cstddef>
+#include <chrono>
+#include <condition_variable>
 #include <functional>
-#include <iosfwd>
+#include <memory>
 #include <mutex>
-#include <string>
-
-#include <dwarfs/logger.h>
+#include <thread>
 
 namespace dwarfs {
 
-class terminal;
-class writer_progress;
+namespace internal {
 
-class console_writer : public stream_logger {
+class progress;
+
+} // namespace internal
+
+class writer_progress {
  public:
-  enum display_mode { NORMAL, REWRITE };
-  enum progress_mode { NONE, SIMPLE, ASCII, UNICODE };
+  using update_function_type = std::function<void(writer_progress&, bool)>;
 
-  console_writer(std::shared_ptr<terminal const> term, std::ostream& os,
-                 progress_mode pg_mode, display_mode mode = NORMAL,
-                 logger_options const& options = {});
+  writer_progress();
+  explicit writer_progress(update_function_type func);
+  writer_progress(update_function_type func,
+                  std::chrono::microseconds interval);
 
-  void update(writer_progress& prog, bool last);
+  writer_progress(const writer_progress&) = delete;
+  writer_progress& operator=(const writer_progress&) = delete;
+  writer_progress(writer_progress&&) = delete;
+  writer_progress& operator=(writer_progress&&) = delete;
+
+  ~writer_progress() noexcept;
+
+  size_t errors() const;
+
+  internal::progress& get_internal() const { return *prog_; }
 
  private:
-  void preamble(std::ostream& os) override;
-  void postamble(std::ostream& os) override;
-  std::string_view get_newline() const override;
-  void rewind(std::ostream& os, int next_rewind_lines);
-
-  std::string statebuf_;
-  int rewind_lines_{0};
-  double frac_;
-  std::atomic<size_t> counter_{0};
-  progress_mode const pg_mode_;
-  display_mode const mode_;
+  std::unique_ptr<internal::progress> prog_;
+  mutable std::mutex running_mx_;
+  bool running_{false};
+  std::condition_variable cond_;
+  std::thread thread_;
 };
+
 } // namespace dwarfs

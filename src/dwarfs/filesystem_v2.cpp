@@ -44,14 +44,15 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/metadata_v2.h>
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs {
@@ -470,7 +471,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<file_stat::gid_type> get_all_gids() const override {
     return meta_.get_all_gids();
   }
-  void rewrite(progress& prog, filesystem_writer& writer,
+  void rewrite(writer_progress& prog, filesystem_writer& writer,
                category_resolver const& cat_resolver,
                rewrite_options const& opts) const override;
 
@@ -670,7 +671,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::rewrite(progress& prog,
+void filesystem_<LoggerPolicy>::rewrite(writer_progress& prog,
                                         filesystem_writer& writer,
                                         category_resolver const& cat_resolver,
                                         rewrite_options const& opts) const {
@@ -693,9 +694,11 @@ void filesystem_<LoggerPolicy>::rewrite(progress& prog,
     }
   }
 
-  prog.original_size = mm_->size();
-  prog.filesystem_size = mm_->size();
-  prog.block_count = num_blocks();
+  auto& iprog = prog.get_internal();
+
+  iprog.original_size = mm_->size();
+  iprog.filesystem_size = mm_->size();
+  iprog.block_count = num_blocks();
 
   if (header_) {
     writer.copy_header(*header_);

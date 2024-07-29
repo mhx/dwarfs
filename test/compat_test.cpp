@@ -45,9 +45,9 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
+#include <dwarfs/writer_progress.h>
 
 #include "mmap_mock.h"
 #include "test_helpers.h"
@@ -1114,7 +1114,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   thread_pool pool(lgr, os, "rewriter", 2);
   block_compressor bc("null");
-  progress prog;
+  writer_progress prog;
   std::ostringstream rewritten, idss;
 
   auto rewrite_fs = [&](auto& fsw, auto const& mm) {

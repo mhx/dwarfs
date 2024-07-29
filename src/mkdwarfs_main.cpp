@@ -83,7 +83,6 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/program_options_helpers.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
@@ -91,6 +90,7 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer_progress.h>
 #include <dwarfs_tool_main.h>
 
 namespace po = boost::program_options;
@@ -1092,15 +1092,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
-  progress::update_function_type updater;
+  writer_progress::update_function_type updater;
 
   if (options.debug_filter_function) {
-    updater = [](progress&, bool) {};
+    updater = [](writer_progress&, bool) {};
   } else {
-    updater = [&](progress& p, bool last) { lgr.update(p, last); };
+    updater = [&](writer_progress& p, bool last) { lgr.update(p, last); };
   }
 
-  progress prog(std::move(updater), interval);
+  writer_progress prog(std::move(updater), interval);
 
   // No more streaming to iol.err after this point as this would
   // cause a race with the progress thread.
@@ -1393,12 +1393,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
+  auto errors = prog.errors();
+
   if (!options.debug_filter_function) {
     std::ostringstream err;
 
-    if (prog.errors) {
-      err << "with " << prog.errors << " error";
-      if (prog.errors > 1) {
+    if (errors) {
+      err << "with " << errors << " error";
+      if (errors > 1) {
         err << "s";
       }
     } else {
@@ -1409,7 +1411,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
        << err.str();
   }
 
-  return prog.errors > 0 ? 2 : 0;
+  return errors > 0 ? 2 : 0;
 }
 
 int mkdwarfs_main(int argc, sys_char** argv) {

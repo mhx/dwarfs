@@ -31,7 +31,7 @@ namespace dwarfs {
 struct compression_constraints;
 
 class logger;
-class progress;
+class writer_progress;
 
 namespace internal {
 
@@ -55,7 +55,7 @@ class segmenter {
   using block_ready_cb = std::function<void(
       std::shared_ptr<internal::block_data>, size_t logical_block_num)>;
 
-  segmenter(logger& lgr, progress& prog,
+  segmenter(logger& lgr, writer_progress& prog,
             std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,
             compression_constraints const& cc, size_t total_size,
             block_ready_cb block_ready);

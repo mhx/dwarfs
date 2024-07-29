@@ -20,51 +20,14 @@
  */
 
 #include <algorithm>
-#include <chrono>
 #include <utility>
 
-#include <folly/portability/Windows.h>
-#include <folly/system/ThreadName.h>
+#include <dwarfs/internal/progress.h>
 
-#include <dwarfs/progress.h>
+namespace dwarfs::internal {
 
-namespace dwarfs {
-
-progress::progress() {}
-
-progress::progress(update_function_type func)
-    : progress(std::move(func), std::chrono::seconds(1)) {}
-
-progress::progress(update_function_type func,
-                   std::chrono::microseconds interval)
-    : running_(true)
-    , thread_([this, interval, func = std::move(func)]() mutable {
-      folly::setThreadName("progress");
-#ifdef _WIN32
-      ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-#endif
-      std::unique_lock lock(running_mx_);
-      while (running_) {
-        func(*this, false);
-        cond_.wait_for(lock, interval);
-      }
-      func(*this, true);
-    }) {
-}
-
-progress::~progress() noexcept {
-  if (running_) {
-    try {
-      {
-        std::lock_guard lock(running_mx_);
-        running_ = false;
-      }
-      cond_.notify_all();
-      thread_.join();
-    } catch (...) {
-    }
-  }
-}
+progress::progress() = default;
+progress::~progress() = default;
 
 void progress::add_context(std::shared_ptr<context> const& ctx) const {
   std::lock_guard lock(mx_);
@@ -115,4 +78,4 @@ std::string progress::status(size_t max_len) {
   return std::string();
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

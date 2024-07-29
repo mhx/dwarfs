@@ -39,12 +39,12 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/file_scanner.h>
 #include <dwarfs/internal/inode.h>
 #include <dwarfs/internal/inode_manager.h>
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/worker_group.h>
 
 namespace dwarfs::internal {

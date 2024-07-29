@@ -23,7 +23,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -31,7 +30,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <thread>
 #include <vector>
 
 #include <dwarfs/speedometer.h>
@@ -40,6 +38,8 @@
 namespace dwarfs {
 
 class object;
+
+namespace internal {
 
 class progress {
  public:
@@ -62,16 +62,11 @@ class progress {
     speedometer<uint64_t> speed{std::chrono::seconds(5)};
   };
 
-  using update_function_type = std::function<void(progress&, bool)>;
-
   using status_function_type =
       std::function<std::string(progress const&, size_t)>;
 
   progress();
-  explicit progress(update_function_type func);
-  progress(update_function_type func, std::chrono::microseconds interval);
-
-  ~progress() noexcept;
+  ~progress();
 
   void set_status_function(status_function_type status_fun);
 
@@ -152,13 +147,11 @@ class progress {
  private:
   void add_context(std::shared_ptr<context> const& ctx) const;
 
-  mutable std::mutex running_mx_;
-  bool running_{false};
   mutable std::mutex mx_;
-  std::condition_variable cond_;
   std::shared_ptr<status_function_type> status_fun_;
   std::vector<std::weak_ptr<context>> mutable contexts_;
-  std::thread thread_;
 };
+
+} // namespace internal
 
 } // namespace dwarfs

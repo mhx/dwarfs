@@ -53,7 +53,7 @@ class logger;
 class mmif;
 class os_access;
 class performance_monitor;
-class progress;
+class writer_progress;
 
 class filesystem_v2 {
  public:
@@ -249,7 +249,7 @@ class filesystem_v2 {
     return impl_->get_all_gids();
   }
 
-  void rewrite(progress& prog, filesystem_writer& writer,
+  void rewrite(writer_progress& prog, filesystem_writer& writer,
                category_resolver const& cat_resolver,
                rewrite_options const& opts) const {
     return impl_->rewrite(prog, writer, cat_resolver, opts);
@@ -318,7 +318,7 @@ class filesystem_v2 {
     virtual std::vector<std::string> get_all_block_categories() const = 0;
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
-    virtual void rewrite(progress& prog, filesystem_writer& writer,
+    virtual void rewrite(writer_progress& prog, filesystem_writer& writer,
                          category_resolver const& cat_resolver,
                          rewrite_options const& opts) const = 0;
   };

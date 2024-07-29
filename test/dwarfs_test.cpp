@@ -45,13 +45,14 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/progress.h>
 
 #include "filter_test_data.h"
 #include "loremipsum.h"
@@ -72,15 +73,16 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              segmenter::config const& cfg = segmenter::config(),
              scanner_options const& options = scanner_options(),
-             progress* prog = nullptr, std::shared_ptr<script> scr = nullptr,
+             writer_progress* prog = nullptr,
+             std::shared_ptr<script> scr = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt) {
   // force multithreading
   thread_pool pool(lgr, *input, "worker", 4);
 
-  std::unique_ptr<progress> local_prog;
+  std::unique_ptr<writer_progress> local_prog;
   if (!prog) {
-    local_prog = std::make_unique<progress>();
+    local_prog = std::make_unique<writer_progress>();
     prog = local_prog.get();
   }
 
@@ -163,11 +165,12 @@ void basic_end_to_end_test(std::string const& compressor,
     input->set_access_fail("/somedir/ipsum.py");
   }
 
-  progress prog;
+  writer_progress wprog;
 
   auto scr = std::make_shared<test::script_mock>();
 
-  auto fsimage = build_dwarfs(lgr, input, compressor, cfg, options, &prog, scr);
+  auto fsimage =
+      build_dwarfs(lgr, input, compressor, cfg, options, &wprog, scr);
 
   EXPECT_EQ(14, scr->filter_calls.size());
   EXPECT_EQ(15, scr->transform_calls.size());
@@ -179,6 +182,8 @@ void basic_end_to_end_test(std::string const& compressor,
                     file_order == file_order_mode::NILSIMSA;
 
   size_t const num_fail_empty = access_fail ? 1 : 0;
+
+  auto& prog = wprog.get_internal();
 
   EXPECT_EQ(8, prog.files_found);
   EXPECT_EQ(8, prog.files_scanned);
@@ -928,7 +933,7 @@ class filter_test
       debug_filter_output(oss, exclude, pe, mode);
     };
 
-    progress prog;
+    writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
     auto sf = std::make_shared<segmenter_factory>(lgr, prog,
                                                   segmenter_factory::config{});

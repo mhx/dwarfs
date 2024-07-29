@@ -33,8 +33,8 @@
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/progress.h>
 
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/similarity_ordering.h>
 #include <dwarfs/internal/worker_group.h>
 

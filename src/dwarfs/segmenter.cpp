@@ -46,14 +46,15 @@
 #include <dwarfs/entry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/segmenter.h>
 #include <dwarfs/util.h>
+#include <dwarfs/writer_progress.h>
 
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/block_manager.h>
 #include <dwarfs/internal/chunkable.h>
 #include <dwarfs/internal/cyclic_hash.h>
+#include <dwarfs/internal/progress.h>
 
 namespace dwarfs {
 
@@ -1353,11 +1354,12 @@ create_segmenter(logger& lgr, progress& prog,
 
 } // namespace internal
 
-segmenter::segmenter(logger& lgr, progress& prog,
+segmenter::segmenter(logger& lgr, writer_progress& prog,
                      std::shared_ptr<internal::block_manager> blkmgr,
                      config const& cfg, compression_constraints const& cc,
                      size_t total_size, block_ready_cb block_ready)
-    : impl_(internal::create_segmenter(lgr, prog, std::move(blkmgr), cfg, cc,
-                                       total_size, std::move(block_ready))) {}
+    : impl_(internal::create_segmenter(lgr, prog.get_internal(),
+                                       std::move(blkmgr), cfg, cc, total_size,
+                                       std::move(block_ready))) {}
 
 } // namespace dwarfs

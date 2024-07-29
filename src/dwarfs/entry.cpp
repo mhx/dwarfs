@@ -32,11 +32,11 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/progress.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/inode.h>
+#include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/scanner_progress.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
@@ -208,16 +208,16 @@ std::shared_ptr<internal::inode> file::get_inode() const { return inode_; }
 
 void file::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void file::scan(os_access const& /*os*/, progress& /*prog*/) {
+void file::scan(os_access const& /*os*/, internal::progress& /*prog*/) {
   DWARFS_THROW(runtime_error, "file::scan() without hash_alg is not used");
 }
 
-void file::scan(mmif* mm, progress& prog,
+void file::scan(mmif* mm, internal::progress& prog,
                 std::optional<std::string> const& hash_alg) {
   size_t s = size();
 
   if (hash_alg) {
-    progress::scan_updater supd(prog.hash, s);
+    internal::progress::scan_updater supd(prog.hash, s);
     checksum cs(*hash_alg);
 
     if (s > 0) {
@@ -271,7 +271,7 @@ void file::create_data() {
   data_ = std::make_shared<data>();
 }
 
-void file::hardlink(file* other, progress& prog) {
+void file::hardlink(file* other, internal::progress& prog) {
   assert(!data_);
   assert(other->data_);
   prog.hardlink_size += size();
@@ -327,7 +327,7 @@ void dir::sort() {
             });
 }
 
-void dir::scan(os_access const&, progress&) {}
+void dir::scan(os_access const&, internal::progress&) {}
 
 void dir::pack_entry(thrift::metadata::metadata& mv2,
                      internal::global_entry_data const& data) const {
@@ -360,7 +360,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
   }
 }
 
-void dir::remove_empty_dirs(progress& prog) {
+void dir::remove_empty_dirs(internal::progress& prog) {
   auto last = std::remove_if(entries_.begin(), entries_.end(),
                              [&](std::shared_ptr<entry> const& e) {
                                if (auto d = dynamic_cast<dir*>(e.get())) {
@@ -420,7 +420,7 @@ const std::string& link::linkname() const { return link_; }
 
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void link::scan(os_access const& os, progress& prog) {
+void link::scan(os_access const& os, internal::progress& prog) {
   link_ = u8string_to_string(os.read_symlink(fs_path()).u8string());
   prog.original_size += size();
   prog.symlink_size += size();
@@ -438,7 +438,7 @@ entry::type_t device::type() const {
 
 void device::accept(entry_visitor& v, bool) { v.visit(this); }
 
-void device::scan(os_access const&, progress&) {}
+void device::scan(os_access const&, internal::progress&) {}
 
 uint64_t device::device_id() const { return status().rdev; }
 
