@@ -45,8 +45,6 @@ using namespace dwarfs;
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
-namespace {} // namespace
-
 template <typename Base>
 class fits_categorizer_fixture : public Base {
  protected:
