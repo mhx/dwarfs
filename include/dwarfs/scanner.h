@@ -43,9 +43,8 @@ class thread_pool;
 
 class scanner {
  public:
-  scanner(logger& lgr, thread_pool& pool, std::shared_ptr<segmenter_factory> sf,
-          std::shared_ptr<entry_factory> ef,
-          std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
+  scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
+          entry_factory& ef, os_access const& os, std::shared_ptr<script> scr,
           const scanner_options& options);
 
   void scan(

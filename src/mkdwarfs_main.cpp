@@ -1274,7 +1274,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                             std::numeric_limits<size_t>::max(),
                             compress_niceness);
 
-  std::unique_ptr<filesystem_writer> fsw;
+  std::optional<filesystem_writer> fsw;
 
   try {
     std::ostream& fsw_os =
@@ -1285,9 +1285,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw = std::make_unique<filesystem_writer>(
-        fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc, history_bc,
-        fswopts, header_ifs ? &header_ifs->is() : nullptr);
+    fsw.emplace(fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc,
+                history_bc, fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,
@@ -1343,15 +1342,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       input_filesystem->rewrite(prog, *fsw, *cat_resolver, rw_opts);
       compress_pool.wait();
     } else {
-      auto sf = std::make_shared<segmenter_factory>(
-          lgr, prog, options.inode.categorizer_mgr, sf_config);
-
-      auto ef = std::make_shared<entry_factory>();
+      segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr, sf_config);
+      entry_factory ef;
 
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      scanner s(lgr, scanner_pool, std::move(sf), std::move(ef), iol.os,
-                std::move(script), options);
+      scanner s(lgr, scanner_pool, sf, ef, *iol.os, std::move(script), options);
 
       s.scan(*fsw, path, prog, input_list, iol.file);
 

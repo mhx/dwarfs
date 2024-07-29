@@ -289,9 +289,8 @@ std::string status_string(progress const& p, size_t width) {
 template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
-  scanner_(logger& lgr, worker_group& wg, std::shared_ptr<segmenter_factory> sf,
-           std::shared_ptr<entry_factory> ef,
-           std::shared_ptr<os_access const> os, std::shared_ptr<script> scr,
+  scanner_(logger& lgr, worker_group& wg, segmenter_factory& sf,
+           entry_factory& ef, os_access const& os, std::shared_ptr<script> scr,
            const scanner_options& options);
 
   void scan(filesystem_writer& fsw, std::filesystem::path const& path,
@@ -318,26 +317,25 @@ class scanner_ final : public scanner::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
   scanner_options const& options_;
-  std::shared_ptr<segmenter_factory> segmenter_factory_;
-  std::shared_ptr<entry_factory> entry_factory_;
-  std::shared_ptr<os_access const> os_;
+  segmenter_factory& segmenter_factory_;
+  entry_factory& entry_factory_;
+  os_access const& os_;
   std::shared_ptr<script> script_;
 };
 
 template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
-                                 std::shared_ptr<segmenter_factory> sf,
-                                 std::shared_ptr<entry_factory> ef,
-                                 std::shared_ptr<os_access const> os,
+                                 segmenter_factory& sf, entry_factory& ef,
+                                 os_access const& os,
                                  std::shared_ptr<script> scr,
                                  const scanner_options& options)
     : LOG_PROXY_INIT(lgr)
     , wg_{wg}
     , options_{options}
-    , segmenter_factory_{std::move(sf)}
-    , entry_factory_{std::move(ef)}
-    , os_(std::move(os))
-    , script_(std::move(scr)) {}
+    , segmenter_factory_{sf}
+    , entry_factory_{ef}
+    , os_{os}
+    , script_{std::move(scr)} {}
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
@@ -345,7 +343,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   std::shared_ptr<dir> parent, progress& prog,
                                   file_scanner& fs, bool debug_filter) {
   try {
-    auto pe = entry_factory_->create(*os_, name, parent);
+    auto pe = entry_factory_.create(os_, name, parent);
     bool exclude = false;
 
     if (script_) {
@@ -371,7 +369,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     if (pe) {
       switch (pe->type()) {
       case entry::E_FILE:
-        if (pe->size() > 0 && os_->access(pe->fs_path(), R_OK)) {
+        if (pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
           LOG_ERROR << "cannot access " << pe->path_as_string()
                     << ", creating empty file";
           pe->override_size(0);
@@ -402,7 +400,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
         // prog.current.store(pe.get());
         prog.dirs_found++;
         if (!debug_filter) {
-          pe->scan(*os_, prog);
+          pe->scan(os_, prog);
         }
         break;
 
@@ -416,7 +414,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       case entry::E_LINK:
         prog.symlinks_found++;
         if (!debug_filter) {
-          pe->scan(*os_, prog);
+          pe->scan(os_, prog);
         }
         prog.symlinks_scanned++;
         break;
@@ -425,7 +423,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       case entry::E_OTHER:
         prog.specials_found++;
         if (!debug_filter) {
-          pe->scan(*os_, prog);
+          pe->scan(os_, prog);
         }
         break;
 
@@ -450,7 +448,7 @@ void scanner_<LoggerPolicy>::dump_state(
     std::string_view env_var, std::string_view what,
     std::shared_ptr<file_access const> fa,
     std::function<void(std::ostream&)> dumper) const {
-  if (auto dumpfile = os_->getenv(env_var)) {
+  if (auto dumpfile = os_.getenv(env_var)) {
     if (fa) {
       LOG_VERBOSE << "dumping " << what << " to " << *dumpfile;
       std::error_code ec;
@@ -474,7 +472,7 @@ template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
-  auto root = entry_factory_->create(*os_, path);
+  auto root = entry_factory_.create(os_, path);
   bool const debug_filter = options_.debug_filter_function.has_value();
 
   if (root->type() != entry::E_DIR) {
@@ -498,7 +496,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
     auto ppath = parent->fs_path();
 
     try {
-      auto d = os_->opendir(ppath);
+      auto d = os_.opendir(ppath);
       std::filesystem::path name;
       std::vector<std::shared_ptr<entry>> subdirs;
 
@@ -534,7 +532,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
   auto ti = LOG_TIMED_INFO;
 
-  auto root = entry_factory_->create(*os_, path);
+  auto root = entry_factory_.create(os_, path);
 
   if (root->type() != entry::E_DIR) {
     DWARFS_THROW(runtime_error,
@@ -619,10 +617,10 @@ void scanner_<LoggerPolicy>::scan(
   prog.set_status_function(status_string);
 
   inode_manager im(LOG_GET_LOGGER, prog, options_.inode);
-  file_scanner fs(LOG_GET_LOGGER, wg_, *os_, im, prog,
+  file_scanner fs(LOG_GET_LOGGER, wg_, os_, im, prog,
                   {.hash_algo = options_.file_hash_algorithm,
-                   .debug_inode_create = os_->getenv(kEnvVarDumpFilesRaw) ||
-                                         os_->getenv(kEnvVarDumpFilesFinal)});
+                   .debug_inode_create = os_.getenv(kEnvVarDumpFilesRaw) ||
+                                         os_.getenv(kEnvVarDumpFilesFinal)});
 
   auto root =
       list ? scan_list(path, *list, prog, fs) : scan_tree(path, prog, fs);
@@ -668,7 +666,7 @@ void scanner_<LoggerPolicy>::scan(
   // the file vectors are populated
   if (im.has_invalid_inodes()) {
     LOG_INFO << "trying to recover any invalid inodes...";
-    im.try_scan_invalid(wg_, *os_);
+    im.try_scan_invalid(wg_, os_);
     wg_.wait();
   }
 
@@ -738,8 +736,8 @@ void scanner_<LoggerPolicy>::scan(
 
   {
     size_t const num_threads = options_.num_segmenter_workers;
-    worker_group wg_ordering(LOG_GET_LOGGER, *os_, "ordering", num_threads);
-    worker_group wg_blockify(LOG_GET_LOGGER, *os_, "blockify", num_threads);
+    worker_group wg_ordering(LOG_GET_LOGGER, os_, "ordering", num_threads);
+    worker_group wg_blockify(LOG_GET_LOGGER, os_, "blockify", num_threads);
 
     fsw.configure(frag_info.categories, num_threads);
 
@@ -763,7 +761,7 @@ void scanner_<LoggerPolicy>::scan(
         auto span = im.ordered_span(category, wg_ordering);
         auto tv = LOG_CPU_TIMED_VERBOSE;
 
-        auto seg = segmenter_factory_->create(
+        auto seg = segmenter_factory_.create(
             category, cat_size, cc, blockmgr,
             [category, meta, blockmgr, &fsw](auto block,
                                              auto logical_block_num) {
@@ -785,7 +783,7 @@ void scanner_<LoggerPolicy>::scan(
           auto f = ino->any();
 
           if (auto size = f->size(); size > 0 && !f->is_invalid()) {
-            auto [mm, _, errors] = ino->mmap_any(*os_);
+            auto [mm, _, errors] = ino->mmap_any(os_);
 
             if (mm) {
               file_off_t offset{0};
@@ -947,7 +945,7 @@ void scanner_<LoggerPolicy>::scan(
   mv2.gids() = ge_data.get_gids();
   mv2.modes() = ge_data.get_modes();
   mv2.timestamp_base() = ge_data.get_timestamp_base();
-  mv2.block_size() = segmenter_factory_->get_block_size();
+  mv2.block_size() = segmenter_factory_.get_block_size();
   mv2.total_fs_size() = prog.original_size;
   mv2.total_hardlink_size() = prog.hardlink_size;
   mv2.options() = fsopts;
@@ -1012,14 +1010,12 @@ void scanner_<LoggerPolicy>::scan(
 
 } // namespace internal
 
-scanner::scanner(logger& lgr, thread_pool& pool,
-                 std::shared_ptr<segmenter_factory> sf,
-                 std::shared_ptr<entry_factory> ef,
-                 std::shared_ptr<os_access const> os,
+scanner::scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
+                 entry_factory& ef, os_access const& os,
                  std::shared_ptr<script> scr, const scanner_options& options)
     : impl_(
           make_unique_logging_object<impl, internal::scanner_, logger_policies>(
-              lgr, pool.get_worker_group(), std::move(sf), std::move(ef),
-              std::move(os), std::move(scr), options)) {}
+              lgr, pool.get_worker_group(), sf, ef, os, std::move(scr),
+              options)) {}
 
 } // namespace dwarfs

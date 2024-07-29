@@ -123,10 +123,10 @@ std::string make_filesystem(::benchmark::State const& state) {
   thread_pool pool(lgr, *os, "writer", 4);
   writer_progress prog;
 
-  auto sf = std::make_shared<segmenter_factory>(lgr, prog, cfg);
-  auto ef = std::make_shared<entry_factory>();
+  segmenter_factory sf(lgr, prog, cfg);
+  entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, os, std::make_shared<test::script_mock>(),
+  scanner s(lgr, pool, sf, ef, *os, std::make_shared<test::script_mock>(),
             options);
 
   std::ostringstream oss;

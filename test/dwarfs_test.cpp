@@ -94,10 +94,10 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   sf_cfg.max_active_blocks.set_default(cfg.max_active_blocks);
   sf_cfg.bloom_filter_size.set_default(cfg.bloom_filter_size);
 
-  auto sf = std::make_shared<segmenter_factory>(lgr, *prog, sf_cfg);
-  auto ef = std::make_shared<entry_factory>();
+  segmenter_factory sf(lgr, *prog, sf_cfg);
+  entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, input, scr, options);
+  scanner s(lgr, pool, sf, ef, *input, scr, options);
 
   std::ostringstream oss;
 
@@ -937,10 +937,9 @@ class filter_test
 
     writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
-    auto sf = std::make_shared<segmenter_factory>(lgr, prog,
-                                                  segmenter_factory::config{});
-    auto ef = std::make_shared<entry_factory>();
-    scanner s(lgr, pool, sf, ef, input, scr, options);
+    segmenter_factory sf(lgr, prog, segmenter_factory::config{});
+    entry_factory ef;
+    scanner s(lgr, pool, sf, ef, *input, scr, options);
 
     block_compressor bc("null");
     std::ostringstream null;
