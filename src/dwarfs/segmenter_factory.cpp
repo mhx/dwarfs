@@ -79,4 +79,12 @@ segmenter_factory::segmenter_factory(logger& lgr, writer_progress& prog,
                                      config const& cfg)
     : segmenter_factory(lgr, prog, nullptr, cfg) {}
 
+segmenter_factory::segmenter_factory(logger& lgr, writer_progress& prog)
+    : segmenter_factory(lgr, prog, config{}) {}
+
+segmenter_factory::segmenter_factory(
+    logger& lgr, writer_progress& prog,
+    std::shared_ptr<categorizer_manager> catmgr)
+    : segmenter_factory(lgr, prog, std::move(catmgr), config{}) {}
+
 } // namespace dwarfs

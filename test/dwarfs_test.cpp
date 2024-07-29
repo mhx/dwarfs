@@ -937,7 +937,7 @@ class filter_test
 
     writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
-    segmenter_factory sf(lgr, prog, segmenter_factory::config{});
+    segmenter_factory sf(lgr, prog);
     entry_factory ef;
     scanner s(lgr, pool, sf, ef, *input, scr, options);
 

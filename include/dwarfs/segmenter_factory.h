@@ -44,11 +44,13 @@ class segmenter_factory {
     unsigned block_size_bits{22};
   };
 
+  segmenter_factory(logger& lgr, writer_progress& prog);
+  segmenter_factory(logger& lgr, writer_progress& prog, config const& cfg);
+  segmenter_factory(logger& lgr, writer_progress& prog,
+                    std::shared_ptr<categorizer_manager> catmgr);
   segmenter_factory(logger& lgr, writer_progress& prog,
                     std::shared_ptr<categorizer_manager> catmgr,
                     config const& cfg);
-
-  segmenter_factory(logger& lgr, writer_progress& prog, config const& cfg);
 
   segmenter create(fragment_category cat, size_t cat_size,
                    compression_constraints const& cc,
