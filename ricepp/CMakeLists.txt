@@ -192,6 +192,9 @@ if(WITH_TESTS)
   endif()
 
   if(NOT CMAKE_CROSSCOMPILING)
-    gtest_discover_tests(ricepp_test DISCOVERY_TIMEOUT 120)
+    gtest_discover_tests(ricepp_test
+      DISCOVERY_TIMEOUT 120
+      PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw"
+    )
   endif()
 endif()

@@ -123,20 +123,14 @@ cmake ../dwarfs/ $CMAKE_ARGS
 
 $BUILD_TOOL
 
-if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
-  export LLVM_PROFILE_FILE="$PWD/profile/%32m.profraw"
-fi
-
 ctest --output-on-failure -j$(nproc)
 
 if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
-  unset LLVM_PROFILE_FILE
-  rm -rf /tmp-runner/coverage
-  mkdir -p /tmp-runner/coverage
+  rm -f /tmp-runner/dwarfs-coverage.txt
   llvm-profdata-$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
-  for binary in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do
-    llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata $binary >/tmp-runner/coverage/$(basename $binary).txt
-  done
+  llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata \
+    $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
+    >/tmp-runner/dwarfs-coverage.txt
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then

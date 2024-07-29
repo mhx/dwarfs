@@ -991,7 +991,10 @@ if(WITH_TESTS)
   endforeach()
 
   foreach(tgt ${TEST_TARGETS})
-    gtest_discover_tests(${tgt} DISCOVERY_TIMEOUT 120)
+    gtest_discover_tests(${tgt}
+      DISCOVERY_TIMEOUT 120
+      PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profile/%32m.profraw"
+    )
   endforeach()
 endif()
 
@@ -1401,6 +1404,8 @@ add_custom_target(
         build.ninja .ninja_deps
         Makefile compile_commands.json
         artifacts.env
+        default.profraw
+        profile
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
 )
