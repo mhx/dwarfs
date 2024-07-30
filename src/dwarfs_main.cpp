@@ -1327,12 +1327,14 @@ int run_fuse(struct fuse_args& args,
   int err = 1;
 
 #if DWARFS_FUSE_LOWLEVEL
+  print_with_timestamp(userdata.iol.err, "calling fuse_session_new");
   if (auto session =
           fuse_session_new(&args, &fsops, sizeof(fsops), &userdata)) {
     if (fuse_set_signal_handlers(session) == 0) {
+      print_with_timestamp(userdata.iol.err, "calling fuse_session_mount");
       if (fuse_session_mount(session, fuse_opts.mountpoint) == 0) {
+        print_with_timestamp(userdata.iol.err, "calling fuse_daemonize");
         if (fuse_daemonize(fuse_opts.foreground) == 0) {
-          print_with_timestamp(userdata.iol.err, "calling fuse_session_loop");
           if (fuse_opts.singlethread) {
             err = fuse_session_loop(session);
           } else {
@@ -1353,6 +1355,8 @@ int run_fuse(struct fuse_args& args,
 
   ::free(fuse_opts.mountpoint);
 #else
+  print_with_timestamp(userdata.iol.err, "calling fuse_main");
+
   err = fuse_main(args.argc, args.argv, &fsops, &userdata);
 
   if (err != 0) {
