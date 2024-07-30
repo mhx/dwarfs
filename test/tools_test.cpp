@@ -914,18 +914,6 @@ TEST_P(tools_test, end_to_end) {
     break;
   }
 
-  std::vector<std::string> all_options{
-      "-s",
-#ifndef _WIN32
-      "-oenable_nlink",
-      "-oreadonly",
-#endif
-      "-omlock=try",
-      "-ono_cache_image",
-      "-ocache_files",
-      "-otidy_strategy=time",
-  };
-
   unicode_symlink = mountpoint / unicode_symlink_name;
 
   if (skip_fuse_tests()) {
@@ -1041,6 +1029,18 @@ TEST_P(tools_test, end_to_end) {
                        << err;
     }
 
+    std::vector<std::string> all_options{
+        "-s",
+#ifndef _WIN32
+        "-oenable_nlink",
+        "-oreadonly",
+#endif
+        "-omlock=try",
+        "-ono_cache_image",
+        "-ocache_files",
+        "-otidy_strategy=time",
+    };
+
     unsigned const combinations = 1 << all_options.size();
 
     for (unsigned bitmask = 0; bitmask < combinations; ++bitmask) {
@@ -1048,20 +1048,22 @@ TEST_P(tools_test, end_to_end) {
 #ifndef _WIN32
       bool enable_nlink{false};
       bool readonly{false};
+#endif
 
       for (size_t i = 0; i < all_options.size(); ++i) {
         if ((1 << i) & bitmask) {
           auto const& opt = all_options[i];
+#ifndef _WIN32
           if (opt == "-oreadonly") {
             readonly = true;
           }
           if (opt == "-oenable_nlink") {
             enable_nlink = true;
           }
+#endif
           args.push_back(opt);
         }
       }
-#endif
 
       args.push_back("-otidy_interval=1s");
       args.push_back("-otidy_max_age=2s");
