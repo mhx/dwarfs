@@ -22,6 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <cerrno>
 #include <chrono>
 #include <concepts>
 #include <filesystem>
@@ -163,14 +164,27 @@ bool read_file(fs::path const& path, std::string& out) {
   return true;
 }
 
+std::error_code get_last_error_code() {
+#ifdef _WIN32
+  return std::error_code(::GetLastError(), std::system_category());
+#else
+  return std::error_code(errno, std::generic_category());
+#endif
+}
+
 bool read_file(fs::path const& path, std::string& out, std::error_code& ec) {
   auto res = folly::readFile(path.string().c_str(), out);
   if (!res) {
-#ifdef _WIN32
-    ec = std::error_code(::GetLastError(), std::system_category());
-#else
-    ec = std::error_code(errno, std::generic_category());
-#endif
+    ec = get_last_error_code();
+  }
+  return res;
+}
+
+bool write_file(fs::path const& path, std::string_view data,
+                std::error_code& ec) {
+  auto res = folly::writeFile(data, path.string().c_str());
+  if (!res) {
+    ec = get_last_error_code();
   }
   return res;
 }
@@ -1364,6 +1378,26 @@ TEST_P(tools_test, mutating_and_error_ops) {
       std::error_code ec;
       auto tmp = fs::read_symlink(mountpoint / "doesnotexist", ec);
       EXPECT_EC_UNIX_WIN(ec, ENOENT, ERROR_FILE_NOT_FOUND);
+    }
+
+    // Open non-existent file for writing
+    {
+      auto p = mountpoint / "nonexistent";
+      EXPECT_FALSE(fs::exists(p));
+      std::error_code ec;
+      EXPECT_FALSE(write_file(p, "hello", ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
+    }
+
+    // Open existing file for writing
+    {
+      auto p = mountpoint / "format.sh";
+      EXPECT_TRUE(fs::exists(p));
+      std::error_code ec;
+      EXPECT_FALSE(write_file(p, "hello", ec));
+      EXPECT_TRUE(ec);
+      EXPECT_EC_UNIX_WIN(ec, EACCES, ERROR_ACCESS_DENIED);
     }
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
