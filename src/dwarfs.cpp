@@ -22,6 +22,23 @@
 #include <dwarfs/safe_main.h>
 #include <dwarfs_tool_main.h>
 
+#include <fmt/chrono.h>
+#include <iostream>
+#include <string_view>
+#include <chrono>
+
+void print_with_timestamp(std::ostream& os, std::string_view msg) {
+  auto now = std::chrono::system_clock::now();
+
+  os << fmt::format("{:%H:%M:%S}.{:06d} ", now,
+                     std::chrono::duration_cast<std::chrono::microseconds>(
+                         now.time_since_epoch())
+                         .count() %
+                         1000000)
+     << msg << "\n";
+}
+
 int SYS_MAIN(int argc, dwarfs::sys_char** argv) {
+  print_with_timestamp(std::cerr, "dwarfs starting");
   return dwarfs::safe_main([&] { return dwarfs::dwarfs_main(argc, argv); });
 }

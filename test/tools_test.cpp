@@ -56,7 +56,9 @@
 #include <folly/experimental/TestUtil.h>
 #include <folly/portability/Unistd.h>
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <nlohmann/json.hpp>
 
@@ -88,6 +90,23 @@ auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
 auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
 auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
 auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
+
+class scoped_timer {
+ public:
+  scoped_timer(std::string name)
+      : name_{std::move(name)}, start_{std::chrono::steady_clock::now()} {}
+
+  ~scoped_timer() {
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = end - start_;
+    std::cerr << fmt::format("scoped_timer: {}: {}\n", name_,
+                             std::chrono::duration_cast<std::chrono::milliseconds>(elapsed));
+  }
+
+ private:
+  std::string name_;
+  std::chrono::steady_clock::time_point start_;
+};
 
 class scoped_no_leak_check {
  public:
@@ -135,6 +154,7 @@ pid_t get_dwarfs_pid(fs::path const& path) {
 
 bool wait_until_file_ready(fs::path const& path,
                            std::chrono::milliseconds timeout) {
+  scoped_timer st(fmt::format("wait_until_file_ready: {}", path.filename()));
   auto end = std::chrono::steady_clock::now() + timeout;
   std::error_code ec;
   while (!fs::exists(path, ec)) {
@@ -371,6 +391,8 @@ class subprocess {
       : prog_{prog} {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
 
+    scoped_timer st(fmt::format("subprocess: {}", cmdline()));
+
     ignore_sigpipe();
 
     try {
@@ -389,6 +411,7 @@ class subprocess {
   }
 
   ~subprocess() {
+    scoped_timer st(fmt::format("subprocess dtor: {}", cmdline()));
     if (pt_) {
       std::cerr << "subprocess still running in destructor: " << cmdline()
                 << "\n";
@@ -406,6 +429,7 @@ class subprocess {
   }
 
   void run() {
+    scoped_timer st(fmt::format("subprocess run: {}", cmdline()));
     ios_.run();
     c_.wait();
     outs_ = out_.get();
@@ -541,6 +565,7 @@ class driver_runner {
   driver_runner(fs::path const& driver, bool tool_arg, fs::path const& image,
                 fs::path const& mountpoint, Args&&... args)
       : mountpoint_{mountpoint} {
+    scoped_timer st("driver_runner ctor");
     setup_mountpoint(mountpoint);
 #ifdef _WIN32
     process_ =
@@ -569,6 +594,7 @@ class driver_runner {
                 fs::path const& image, fs::path const& mountpoint,
                 Args&&... args)
       : mountpoint_{mountpoint} {
+    scoped_timer st("driver_runner foreground ctor");
     setup_mountpoint(mountpoint);
     process_ = std::make_unique<subprocess>(driver, make_tool_arg(tool_arg),
                                             image, mountpoint,
@@ -583,6 +609,7 @@ class driver_runner {
   }
 
   bool unmount() {
+    scoped_timer st("driver_runner unmount");
 #ifdef _WIN32
     static constexpr int const kSigIntExitCode{-1073741510};
 #elif !defined(__APPLE__)
@@ -699,6 +726,7 @@ class driver_runner {
 #endif
 
   static void setup_mountpoint(fs::path const& mp) {
+    scoped_timer st("setup_mountpoint");
     if (fs::exists(mp)) {
       fs::remove(mp);
     }
@@ -920,10 +948,10 @@ TEST_P(tools_test, end_to_end) {
       "-oenable_nlink",
       "-oreadonly",
 #endif
-      "-omlock=try",
-      "-ono_cache_image",
-      "-ocache_files",
-      "-otidy_strategy=time",
+      // "-omlock=try",
+      // "-ono_cache_image",
+      // "-ocache_files",
+      // "-otidy_strategy=time",
   };
 
   unicode_symlink = mountpoint / unicode_symlink_name;

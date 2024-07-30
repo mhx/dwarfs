@@ -43,6 +43,7 @@
 #endif
 #endif
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 #include <folly/String.h>
@@ -188,6 +189,17 @@ struct options {
 };
 
 static_assert(std::is_standard_layout_v<options>);
+
+void print_with_timestamp(std::ostream& os, std::string_view msg) {
+  auto now = std::chrono::system_clock::now();
+
+  os << fmt::format("{:%H:%M:%S}.{:06d} ", now,
+                     std::chrono::duration_cast<std::chrono::microseconds>(
+                         now.time_since_epoch())
+                         .count() %
+                         1000000)
+     << msg << "\n";
+}
 
 struct dwarfs_userdata {
   explicit dwarfs_userdata(iolayer const& iol)
@@ -1320,6 +1332,7 @@ int run_fuse(struct fuse_args& args,
     if (fuse_set_signal_handlers(session) == 0) {
       if (fuse_session_mount(session, fuse_opts.mountpoint) == 0) {
         if (fuse_daemonize(fuse_opts.foreground) == 0) {
+          print_with_timestamp(userdata.iol.err, "calling fuse_session_loop");
           if (fuse_opts.singlethread) {
             err = fuse_session_loop(session);
           } else {
@@ -1349,6 +1362,8 @@ int run_fuse(struct fuse_args& args,
 
   fuse_opt_free_args(&args);
 
+  print_with_timestamp(userdata.iol.err, "dwarfs exiting");
+
   return err;
 }
 
@@ -1368,8 +1383,11 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 
   int err = 1;
 
+  print_with_timestamp(userdata.iol.err, "calling fuse_mount");
   if (auto ch = fuse_mount(mountpoint, &args)) {
+    print_with_timestamp(userdata.iol.err, "calling fuse_lowlevel_new");
     if (auto se = fuse_lowlevel_new(&args, &fsops, sizeof(fsops), &userdata)) {
+      print_with_timestamp(userdata.iol.err, "calling fuse_session_daemonize");
       if (fuse_daemonize(fg) != -1) {
         if (fuse_set_signal_handlers(se) != -1) {
           fuse_session_add_chan(se, ch);
@@ -1387,6 +1405,8 @@ int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
 
   ::free(mountpoint);
   fuse_opt_free_args(&args);
+
+  print_with_timestamp(userdata.iol.err, "dwarfs exiting");
 
   return err;
 }
@@ -1472,6 +1492,8 @@ void load_filesystem(dwarfs_userdata& userdata) {
 } // namespace
 
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
+  print_with_timestamp(iol.err, "dwarfs_main starting");
+
 #ifdef _WIN32
   std::vector<std::string> argv_strings;
   std::vector<char*> argv_copy;
