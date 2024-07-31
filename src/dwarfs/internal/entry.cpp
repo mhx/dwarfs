@@ -52,19 +52,25 @@ constexpr char const kLocalPathSeparator{
     static_cast<char>(fs::path::preferred_separator)};
 
 bool is_root_path(std::string_view path) {
-#if _WIN32
+#ifdef _WIN32
   return path == "/" || path == "\\";
 #else
   return path == "/";
 #endif
 }
 
+std::string entry_name(fs::path const& path, bool has_parent) {
+  if (has_parent) {
+    return u8string_to_string(path.filename().u8string());
+  }
+  return u8string_to_string(path.u8string());
+}
+
 } // namespace
 
 entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
-    : name_{u8string_to_string(parent ? path.filename().u8string()
-                                      : path.u8string())}
+    : name_{entry_name(path, static_cast<bool>(parent))}
     , parent_{std::move(parent)}
     , stat_{st} {}
 
