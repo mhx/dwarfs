@@ -110,7 +110,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
         pool.add_job([&fs, &iol, inode_data] {
           try {
             auto stbuf = fs.getattr(inode_data);
-            std::vector<char> buf(stbuf.size);
+            std::vector<char> buf(stbuf.size());
             int fh = fs.open(inode_data);
             fs.read(fh, buf.data(), buf.size());
           } catch (std::exception const& e) {

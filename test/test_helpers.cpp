@@ -49,18 +49,19 @@ namespace {
 
 file_stat make_file_stat(simplestat const& ss) {
   file_stat rv;
-  ::memset(&rv, 0, sizeof(rv));
-  rv.valid_fields = file_stat::all_valid;
-  rv.ino = ss.ino;
-  rv.nlink = ss.nlink;
-  rv.mode = ss.mode;
-  rv.uid = ss.uid;
-  rv.gid = ss.gid;
-  rv.rdev = ss.rdev;
-  rv.size = ss.size;
-  rv.atime = ss.atime;
-  rv.mtime = ss.mtime;
-  rv.ctime = ss.ctime;
+  rv.set_dev(0);
+  rv.set_ino(ss.ino);
+  rv.set_nlink(ss.nlink);
+  rv.set_mode(ss.mode);
+  rv.set_uid(ss.uid);
+  rv.set_gid(ss.gid);
+  rv.set_rdev(ss.rdev);
+  rv.set_size(ss.size);
+  rv.set_blocks(0);
+  rv.set_blksize(0);
+  rv.set_atime(ss.atime);
+  rv.set_mtime(ss.mtime);
+  rv.set_ctime(ss.ctime);
   return rv;
 }
 

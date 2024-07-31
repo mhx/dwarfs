@@ -228,10 +228,11 @@ class filesystem : public ::benchmark::Fixture {
     auto st = fs->getattr(*iv);
     auto i = fs->open(*iv);
     std::string buf;
-    buf.resize(st.size);
+    auto size = st.size();
+    buf.resize(size);
 
     for (auto _ : state) {
-      auto r = fs->read(i, buf.data(), st.size);
+      auto r = fs->read(i, buf.data(), size);
       ::benchmark::DoNotOptimize(r);
     }
   }

@@ -229,14 +229,14 @@ TEST_P(options_test, cache_stress) {
       auto iv = inodes[inode_dist(rng)];
       auto stat = fs.getattr(iv);
       if (stat.is_regular_file()) {
-        auto offset = rng() % stat.size;
-        auto size = rng() % (stat.size - offset);
+        auto offset = rng() % stat.size();
+        auto size = rng() % (stat.size() - offset);
         reqs.push_back({iv, offset, size});
 
         while (reqs.size() < num_read_reqs &&
-               offset + size < static_cast<size_t>(stat.size / 2)) {
-          offset += rng() % (stat.size - (offset + size));
-          size = rng() % (stat.size - offset);
+               offset + size < static_cast<size_t>(stat.size() / 2)) {
+          offset += rng() % (stat.size() - (offset + size));
+          size = rng() % (stat.size() - offset);
           reqs.push_back({iv, offset, size});
         }
       }

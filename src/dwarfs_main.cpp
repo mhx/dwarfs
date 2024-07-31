@@ -375,7 +375,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       struct ::fuse_entry_param e;
 
       ::memset(&e.attr, 0, sizeof(e.attr));
-      copy_file_stat(&e.attr, stbuf);
+      stbuf.copy_to(&e.attr);
       e.generation = 1;
       e.ino = e.attr.st_ino;
       e.attr_timeout = std::numeric_limits<double>::max();
@@ -406,7 +406,7 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
 
     if (!ec) {
       ::memset(st, 0, sizeof(*st));
-      copy_file_stat(st, stbuf);
+      stbuf.copy_to(st);
     }
 
     return ec.value();
@@ -793,7 +793,7 @@ int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
       return ec.value();
     }
 
-    copy_file_stat(&st, stbuf);
+    stbuf.copy_to(&st);
 
     if (!policy.add_entry(name, st, off)) {
       break;

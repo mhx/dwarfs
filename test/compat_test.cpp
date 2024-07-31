@@ -807,9 +807,8 @@ std::vector<std::string> headers_v2{
 file_stat make_stat(posix_file_type::value type, file_stat::perms_type perms,
                     file_stat::off_type size) {
   file_stat st;
-  std::memset(&st, 0, sizeof(st));
-  st.mode = type | perms;
-  st.size = size;
+  st.set_mode(type | perms);
+  st.set_size(size);
   return st;
 }
 
@@ -839,14 +838,14 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
   ASSERT_TRUE(entry);
   auto st = fs.getattr(*entry);
-  EXPECT_EQ(94, st.size);
-  EXPECT_EQ(S_IFREG | 0755, st.mode);
-  EXPECT_EQ(1000, st.uid);
-  EXPECT_EQ(100, st.gid);
-  EXPECT_EQ(1606256045, st.mtime);
+  EXPECT_EQ(94, st.size());
+  EXPECT_EQ(S_IFREG | 0755, st.mode());
+  EXPECT_EQ(1000, st.uid());
+  EXPECT_EQ(100, st.gid());
+  EXPECT_EQ(1606256045, st.mtime());
   if (has_ac_time) {
-    EXPECT_EQ(1616013831, st.atime);
-    EXPECT_EQ(1616013816, st.ctime);
+    EXPECT_EQ(1616013831, st.atime());
+    EXPECT_EQ(1616013816, st.ctime());
   }
 
   EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 0));
@@ -855,10 +854,10 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   EXPECT_GE(inode, 0);
 
   std::error_code ec;
-  std::vector<char> buf(st.size);
-  auto rv = fs.read(inode, &buf[0], st.size, ec);
+  std::vector<char> buf(st.size());
+  auto rv = fs.read(inode, &buf[0], st.size(), ec);
   EXPECT_FALSE(ec);
-  EXPECT_EQ(rv, st.size);
+  EXPECT_EQ(rv, st.size());
   EXPECT_EQ(format_sh, std::string(buf.begin(), buf.end()));
 
   entry = fs.find("/foo/bad");
@@ -944,8 +943,10 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     for (auto special : {"dev/null", "dev/zero", "foo/pipe"}) {
       ref_entries.erase(special);
     }
-    ref_entries["dev"].size -= 2;
-    ref_entries["foo"].size -= 1;
+    auto& dev = ref_entries["dev"];
+    auto& foo = ref_entries["foo"];
+    dev.set_size(dev.size() - 2);
+    foo.set_size(foo.size() - 1);
   }
 
   for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
@@ -954,7 +955,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
     (fs.*mp)([&](dir_entry_view e) {
       auto stbuf = fs.getattr(e.inode());
-      inodes.push_back(stbuf.ino);
+      inodes.push_back(stbuf.ino());
       EXPECT_TRUE(entries.emplace(e.unix_path(), stbuf).second);
     });
 
@@ -964,15 +965,15 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
       auto it = ref_entries.find(p);
       EXPECT_TRUE(it != ref_entries.end()) << p;
       if (it != ref_entries.end()) {
-        EXPECT_EQ(it->second.mode, st.mode) << p;
+        EXPECT_EQ(it->second.mode(), st.mode()) << p;
         if (st.type() == posix_file_type::character) {
-          EXPECT_EQ(0, st.uid) << p;
-          EXPECT_EQ(0, st.gid) << p;
+          EXPECT_EQ(0, st.uid()) << p;
+          EXPECT_EQ(0, st.gid()) << p;
         } else {
-          EXPECT_EQ(1000, st.uid) << p;
-          EXPECT_EQ(100, st.gid) << p;
+          EXPECT_EQ(1000, st.uid()) << p;
+          EXPECT_EQ(100, st.gid()) << p;
         }
-        EXPECT_EQ(it->second.size, st.size) << p;
+        EXPECT_EQ(it->second.size(), st.size()) << p;
       }
     }
   }
@@ -1015,12 +1016,12 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     if (ri != ref_entries.end()) {
       auto const& st = ri->second;
 
-      EXPECT_EQ(kv["mode"], fmt::format("{0:o}", st.mode & 0777));
+      EXPECT_EQ(kv["mode"], fmt::format("{0:o}", st.mode() & 0777));
       EXPECT_EQ(std::stoi(kv["uid"]), kv["type"] == "char" ? 0 : 1000);
       EXPECT_EQ(std::stoi(kv["gid"]), kv["type"] == "char" ? 0 : 100);
 
       if (kv["type"] == "file") {
-        EXPECT_EQ(std::stoi(kv["size"]), st.size);
+        EXPECT_EQ(std::stoi(kv["size"]), st.size());
       }
     }
   }
@@ -1268,8 +1269,8 @@ TEST_P(set_uidgid_test, read_legacy_image) {
     EXPECT_EQ(44444, v->getgid()) << path;
 
     auto st = fs.getattr(*v);
-    EXPECT_EQ(33333, st.uid) << path;
-    EXPECT_EQ(44444, st.gid) << path;
+    EXPECT_EQ(33333, st.uid()) << path;
+    EXPECT_EQ(44444, st.gid()) << path;
   }
 }
 

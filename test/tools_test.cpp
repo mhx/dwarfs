@@ -772,8 +772,8 @@ bool check_readonly(fs::path const& p, bool readonly) {
 
 size_t num_hardlinks(fs::path const& p) {
 #ifdef _WIN32
-  auto stat = dwarfs::make_file_stat(p);
-  return stat.nlink;
+  dwarfs::file_stat stat(p);
+  return stat.nlink();
 #else
   return fs::hard_link_count(p);
 #endif

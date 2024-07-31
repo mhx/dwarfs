@@ -354,9 +354,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     ::memset(&st, 0, sizeof(st));
 #ifdef _WIN32
-    copy_file_stat<false>(&st, stbuf);
+    stbuf.copy_to_without_block_info(&st);
 #else
-    copy_file_stat<true>(&st, stbuf);
+    stbuf.copy_to(&st);
 #endif
 
 #ifdef _WIN32

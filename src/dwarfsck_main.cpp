@@ -73,7 +73,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
     file_stat::off_type max_inode_size{0};
     fs.walk([&](auto const& de) {
       auto st = fs.getattr(de.inode());
-      max_inode_size = std::max(max_inode_size, st.size);
+      max_inode_size = std::max(max_inode_size, st.size());
     });
     inode_size_width = fmt::format("{:L}", max_inode_size).size();
   }
@@ -96,7 +96,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
       iol.out << fmt::format(
           "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%Y-%m-%d %H:%M} {8}\n", uid_width,
           gid_width, inode_size_width, iv.mode_string(), iv.getuid(),
-          iv.getgid(), st.size, fmt::localtime(st.mtime), name);
+          iv.getgid(), st.size(), fmt::localtime(st.mtime()), name);
     } else if (!name.empty()) {
       iol.out << name << "\n";
     }

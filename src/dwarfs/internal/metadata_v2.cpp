@@ -1540,9 +1540,7 @@ metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
                                       getattr_options const& opts) const {
   file_stat stbuf;
 
-  ::memset(&stbuf, 0, sizeof(stbuf));
-
-  stbuf.valid_fields = file_stat::all_valid;
+  stbuf.set_dev(0); // TODO: should we make this configurable?
 
   auto mode = iv.mode();
   auto timebase = meta_.timestamp_base();
@@ -1556,38 +1554,37 @@ metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
     }
   }
 
-  stbuf.mode = mode;
-
   if (options_.readonly) {
-    stbuf.mode &= READ_ONLY_MASK;
+    mode &= READ_ONLY_MASK;
   }
+
+  stbuf.set_mode(mode);
 
   if (!opts.no_size) {
-    stbuf.size = stbuf.is_directory() ? make_directory_view(iv).entry_count()
-                                      : file_size(iv, mode);
+    stbuf.set_size(stbuf.is_directory() ? make_directory_view(iv).entry_count()
+                                        : file_size(iv, mode));
+    stbuf.set_blocks((stbuf.size_unchecked() + 511) / 512);
   }
 
-  stbuf.ino = inode + inode_offset_;
-  stbuf.blksize = options_.block_size;
-  stbuf.blocks = (stbuf.size + 511) / 512;
-  stbuf.uid = iv.getuid();
-  stbuf.gid = iv.getgid();
-  stbuf.mtime = resolution * (timebase + iv.raw().mtime_offset());
+  stbuf.set_ino(inode + inode_offset_);
+  stbuf.set_blksize(options_.block_size);
+  stbuf.set_uid(iv.getuid());
+  stbuf.set_gid(iv.getgid());
+  stbuf.set_mtime(resolution * (timebase + iv.raw().mtime_offset()));
 
   if (mtime_only) {
-    stbuf.atime = stbuf.ctime = stbuf.mtime;
+    stbuf.set_atime(stbuf.mtime_unchecked());
+    stbuf.set_ctime(stbuf.mtime_unchecked());
   } else {
-    stbuf.atime = resolution * (timebase + iv.raw().atime_offset());
-    stbuf.ctime = resolution * (timebase + iv.raw().ctime_offset());
+    stbuf.set_atime(resolution * (timebase + iv.raw().atime_offset()));
+    stbuf.set_ctime(resolution * (timebase + iv.raw().ctime_offset()));
   }
 
-  stbuf.nlink = options_.enable_nlink && stbuf.is_regular_file()
-                    ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
-                    : 1;
+  stbuf.set_nlink(options_.enable_nlink && stbuf.is_regular_file()
+                      ? DWARFS_NOTHROW(nlinks_.at(inode - file_inode_offset_))
+                      : 1);
 
-  if (stbuf.is_device()) {
-    stbuf.rdev = get_device_id(inode);
-  }
+  stbuf.set_rdev(stbuf.is_device() ? get_device_id(inode) : 0);
 
   return stbuf;
 }

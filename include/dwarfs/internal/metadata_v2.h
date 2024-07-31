@@ -45,7 +45,6 @@ class logger;
 struct getattr_options;
 struct metadata_options;
 struct filesystem_info;
-struct file_stat;
 struct vfs_stat;
 
 class performance_monitor;

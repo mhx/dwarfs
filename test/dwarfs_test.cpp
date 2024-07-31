@@ -257,56 +257,56 @@ void basic_end_to_end_test(std::string const& compressor,
 
   ASSERT_TRUE(entry);
   auto st = fs.getattr(*entry);
-  EXPECT_EQ(st.size, 23456);
-  EXPECT_EQ(st.uid, set_uid ? 0 : 1337);
-  EXPECT_EQ(st.gid, 0);
-  EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 4001 : 4002);
-  EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 4002 : 4002);
-  EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 4003 : 4002);
+  EXPECT_EQ(st.size(), 23456);
+  EXPECT_EQ(st.uid(), set_uid ? 0 : 1337);
+  EXPECT_EQ(st.gid(), 0);
+  EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 4001 : 4002);
+  EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 4002 : 4002);
+  EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 4003 : 4002);
 
   {
     std::error_code ec;
     auto st2 = fs.getattr(*entry, {.no_size = true}, ec);
     EXPECT_FALSE(ec);
-    EXPECT_EQ(st2.size, 0);
-    EXPECT_EQ(st2.uid, st.uid);
-    EXPECT_EQ(st2.gid, st.gid);
-    EXPECT_EQ(st2.atime, st.atime);
-    EXPECT_EQ(st2.mtime, st.mtime);
-    EXPECT_EQ(st2.ctime, st.ctime);
+    EXPECT_THROW(st2.size(), runtime_error);
+    EXPECT_EQ(st2.uid(), st.uid());
+    EXPECT_EQ(st2.gid(), st.gid());
+    EXPECT_EQ(st2.atime(), st.atime());
+    EXPECT_EQ(st2.mtime(), st.mtime());
+    EXPECT_EQ(st2.ctime(), st.ctime());
   }
 
   {
     auto st3 = fs.getattr(*entry, {.no_size = true});
-    EXPECT_EQ(st3.size, 0);
-    EXPECT_EQ(st3.uid, st.uid);
-    EXPECT_EQ(st3.gid, st.gid);
-    EXPECT_EQ(st3.atime, st.atime);
-    EXPECT_EQ(st3.mtime, st.mtime);
-    EXPECT_EQ(st3.ctime, st.ctime);
+    EXPECT_THROW(st3.size(), runtime_error);
+    EXPECT_EQ(st3.uid(), st.uid());
+    EXPECT_EQ(st3.gid(), st.gid());
+    EXPECT_EQ(st3.atime(), st.atime());
+    EXPECT_EQ(st3.mtime(), st.mtime());
+    EXPECT_EQ(st3.ctime(), st.ctime());
   }
 
   int inode = fs.open(*entry);
   EXPECT_GE(inode, 0);
 
   std::error_code ec;
-  std::vector<char> buf(st.size);
-  auto rv = fs.read(inode, &buf[0], st.size, ec);
+  std::vector<char> buf(st.size());
+  auto rv = fs.read(inode, &buf[0], st.size(), ec);
   EXPECT_FALSE(ec);
-  EXPECT_EQ(rv, st.size);
-  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.size));
+  EXPECT_EQ(rv, st.size());
+  EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.size()));
 
   entry = fs.find("/somelink");
 
   ASSERT_TRUE(entry);
   st = fs.getattr(*entry);
-  EXPECT_EQ(st.size, 16);
-  EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
-  EXPECT_EQ(st.gid, set_gid ? 0 : 100);
-  EXPECT_EQ(st.rdev, 0);
-  EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 2001 : 2002);
-  EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 2002 : 2002);
-  EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 2003 : 2002);
+  EXPECT_EQ(st.size(), 16);
+  EXPECT_EQ(st.uid(), set_uid ? 0 : 1000);
+  EXPECT_EQ(st.gid(), set_gid ? 0 : 100);
+  EXPECT_EQ(st.rdev(), 0);
+  EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 2001 : 2002);
+  EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 2002 : 2002);
+  EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
   auto link = fs.readlink(*entry);
   EXPECT_EQ(link, "somedir/ipsum.py");
@@ -317,7 +317,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   ASSERT_TRUE(entry);
   st = fs.getattr(*entry);
-  EXPECT_EQ(st.size, 6);
+  EXPECT_EQ(st.size(), 6);
 
   link = fs.readlink(*entry);
   EXPECT_EQ(link, "../foo");
@@ -327,14 +327,14 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_specials) {
     ASSERT_TRUE(entry);
     st = fs.getattr(*entry);
-    EXPECT_EQ(st.size, 0);
-    EXPECT_EQ(st.uid, set_uid ? 0 : 1000);
-    EXPECT_EQ(st.gid, set_gid ? 0 : 100);
+    EXPECT_EQ(st.size(), 0);
+    EXPECT_EQ(st.uid(), set_uid ? 0 : 1000);
+    EXPECT_EQ(st.gid(), set_gid ? 0 : 100);
     EXPECT_EQ(st.type(), posix_file_type::fifo);
-    EXPECT_EQ(st.rdev, 0);
-    EXPECT_EQ(st.atime, set_time ? 4711 : keep_all_times ? 8001 : 8002);
-    EXPECT_EQ(st.mtime, set_time ? 4711 : keep_all_times ? 8002 : 8002);
-    EXPECT_EQ(st.ctime, set_time ? 4711 : keep_all_times ? 8003 : 8002);
+    EXPECT_EQ(st.rdev(), 0);
+    EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 8001 : 8002);
+    EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 8002 : 8002);
+    EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 8003 : 8002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -344,11 +344,11 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_devices) {
     ASSERT_TRUE(entry);
     st = fs.getattr(*entry);
-    EXPECT_EQ(st.size, 0);
-    EXPECT_EQ(st.uid, 0);
-    EXPECT_EQ(st.gid, 0);
+    EXPECT_EQ(st.size(), 0);
+    EXPECT_EQ(st.uid(), 0);
+    EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
-    EXPECT_EQ(st.rdev, 259);
+    EXPECT_EQ(st.rdev(), 259);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -358,20 +358,20 @@ void basic_end_to_end_test(std::string const& compressor,
   if (with_devices) {
     ASSERT_TRUE(entry);
     st = fs.getattr(*entry);
-    EXPECT_EQ(st.size, 0);
-    EXPECT_EQ(st.uid, 0);
-    EXPECT_EQ(st.gid, 0);
+    EXPECT_EQ(st.size(), 0);
+    EXPECT_EQ(st.uid(), 0);
+    EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
-    EXPECT_EQ(st.rdev, 261);
-    EXPECT_EQ(st.atime, set_time         ? 4711
-                        : keep_all_times ? 4000010001
-                                         : 4000020002);
-    EXPECT_EQ(st.mtime, set_time         ? 4711
-                        : keep_all_times ? 4000020002
-                                         : 4000020002);
-    EXPECT_EQ(st.ctime, set_time         ? 4711
-                        : keep_all_times ? 4000030003
-                                         : 4000020002);
+    EXPECT_EQ(st.rdev(), 261);
+    EXPECT_EQ(st.atime(), set_time         ? 4711
+                          : keep_all_times ? 4000010001
+                                           : 4000020002);
+    EXPECT_EQ(st.mtime(), set_time         ? 4711
+                          : keep_all_times ? 4000020002
+                                           : 4000020002);
+    EXPECT_EQ(st.ctime(), set_time         ? 4711
+                          : keep_all_times ? 4000030003
+                                           : 4000020002);
   } else {
     EXPECT_FALSE(entry);
   }
@@ -427,10 +427,10 @@ void basic_end_to_end_test(std::string const& compressor,
   auto st1 = fs.getattr(*entry);
   auto st2 = fs.getattr(*e2);
 
-  EXPECT_EQ(st1.ino, st2.ino);
+  EXPECT_EQ(st1.ino(), st2.ino());
   if (enable_nlink) {
-    EXPECT_EQ(2, st1.nlink);
-    EXPECT_EQ(2, st2.nlink);
+    EXPECT_EQ(2, st1.nlink());
+    EXPECT_EQ(2, st2.nlink());
   }
 
   entry = fs.find("/");
@@ -443,14 +443,14 @@ void basic_end_to_end_test(std::string const& compressor,
   ASSERT_TRUE(entry);
   EXPECT_GT(entry->inode_num(), 0);
   st1 = fs.getattr(*entry);
-  EXPECT_EQ(23456, st1.size);
+  EXPECT_EQ(23456, st1.size());
   e2 = fs.find(0, "somedir");
   ASSERT_TRUE(e2);
   st2 = fs.getattr(*e2);
-  entry = fs.find(st2.ino, "ipsum.py");
+  entry = fs.find(st2.ino(), "ipsum.py");
   ASSERT_TRUE(entry);
   st1 = fs.getattr(*entry);
-  EXPECT_EQ(access_fail ? 0 : 10000, st1.size);
+  EXPECT_EQ(access_fail ? 0 : 10000, st1.size());
   EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 100));
   entry = fs.find(0, "baz.pl");
   ASSERT_TRUE(entry);
@@ -464,7 +464,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
     (fs.*mp)([&](dir_entry_view e) {
       auto stbuf = fs.getattr(e.inode());
-      inodes.push_back(stbuf.ino);
+      inodes.push_back(stbuf.ino());
       auto path = e.path();
       if (!path.empty()) {
         path = "/" + path;
@@ -477,14 +477,14 @@ void basic_end_to_end_test(std::string const& compressor,
 
     for (auto const& [p, st] : entries) {
       auto ref = input->symlink_info(p);
-      EXPECT_EQ(ref.mode, st.mode) << p;
-      EXPECT_EQ(set_uid ? 0 : ref.uid, st.uid) << p;
-      EXPECT_EQ(set_gid ? 0 : ref.gid, st.gid) << p;
+      EXPECT_EQ(ref.mode(), st.mode()) << p;
+      EXPECT_EQ(set_uid ? 0 : ref.uid(), st.uid()) << p;
+      EXPECT_EQ(set_gid ? 0 : ref.gid(), st.gid()) << p;
       if (!st.is_directory()) {
         if (input->access(p, R_OK) == 0) {
-          EXPECT_EQ(ref.size, st.size) << p;
+          EXPECT_EQ(ref.size(), st.size()) << p;
         } else {
-          EXPECT_EQ(0, st.size) << p;
+          EXPECT_EQ(0, st.size()) << p;
         }
       }
     }
@@ -824,7 +824,7 @@ TEST_P(compression_regression, github45) {
 
     ASSERT_TRUE(entry);
     auto st = fs.getattr(*entry);
-    EXPECT_EQ(st.size, file_size);
+    EXPECT_EQ(st.size(), file_size);
 
     int inode = fs.open(*entry);
     EXPECT_GE(inode, 0);
@@ -1117,10 +1117,10 @@ TEST(filesystem, uid_gid_32bit) {
   auto st16 = fs.getattr(*iv16);
   auto st32 = fs.getattr(*iv32);
 
-  EXPECT_EQ(60000, st16.uid);
-  EXPECT_EQ(65535, st16.gid);
-  EXPECT_EQ(65536, st32.uid);
-  EXPECT_EQ(4294967295, st32.gid);
+  EXPECT_EQ(60000, st16.uid());
+  EXPECT_EQ(65535, st16.gid());
+  EXPECT_EQ(65536, st32.uid());
+  EXPECT_EQ(4294967295, st32.gid());
 }
 
 TEST(filesystem, uid_gid_count) {
@@ -1154,12 +1154,12 @@ TEST(filesystem, uid_gid_count) {
   auto st50000 = fs.getattr(*iv50000);
   auto st99999 = fs.getattr(*iv99999);
 
-  EXPECT_EQ(50000, st00000.uid);
-  EXPECT_EQ(250000, st00000.gid);
-  EXPECT_EQ(100000, st50000.uid);
-  EXPECT_EQ(300000, st50000.gid);
-  EXPECT_EQ(149999, st99999.uid);
-  EXPECT_EQ(349999, st99999.gid);
+  EXPECT_EQ(50000, st00000.uid());
+  EXPECT_EQ(250000, st00000.gid());
+  EXPECT_EQ(100000, st50000.uid());
+  EXPECT_EQ(300000, st50000.gid());
+  EXPECT_EQ(149999, st99999.uid());
+  EXPECT_EQ(349999, st99999.gid());
 }
 
 TEST(section_index_regression, github183) {
@@ -1233,8 +1233,8 @@ TEST(section_index_regression, github183) {
   EXPECT_NO_THROW(inode = fs.open(*entry));
 
   std::error_code ec;
-  std::vector<char> buf(st.size);
-  auto rv = fs.read(inode, &buf[0], st.size, ec);
+  std::vector<char> buf(st.size());
+  auto rv = fs.read(inode, &buf[0], st.size(), ec);
 
   EXPECT_TRUE(ec);
   EXPECT_EQ(rv, 0);
@@ -1294,9 +1294,9 @@ TEST(file_scanner, file_start_hash) {
   auto st1 = fs.getattr(*link1);
   auto st2 = fs.getattr(*link2);
 
-  EXPECT_EQ(st1.ino, st2.ino);
-  EXPECT_EQ(st1.nlink, 2);
-  EXPECT_EQ(st2.nlink, 2);
+  EXPECT_EQ(st1.ino(), st2.ino());
+  EXPECT_EQ(st1.nlink(), 2);
+  EXPECT_EQ(st2.nlink(), 2);
 }
 
 TEST(filesystem, root_access_github204) {

@@ -98,9 +98,11 @@ void perms_to_stream(std::ostream& os, file_stat::mode_type mode) {
 
 } // namespace
 
+file_stat::file_stat() = default;
+
 #ifdef _WIN32
 
-file_stat make_file_stat(fs::path const& path) {
+file_stat::file_stat(fs::path const& path) {
   std::error_code ec;
   auto status = fs::symlink_status(path, ec);
 
@@ -108,11 +110,9 @@ file_stat make_file_stat(fs::path const& path) {
     status = fs::status(path, ec);
   }
 
-  file_stat rv;
-
   if (ec) {
-    rv.exception = std::make_exception_ptr(std::system_error(ec));
-    return rv;
+    exception_ = std::make_exception_ptr(std::system_error(ec));
+    return;
   }
 
   if (status.type() == fs::file_type::not_found ||
@@ -125,10 +125,10 @@ file_stat make_file_stat(fs::path const& path) {
                              u8string_to_string(path.u8string())));
   }
 
-  rv.valid_fields = file_stat::mode_valid;
-  rv.mode = file_status_to_mode(status);
-  rv.blksize = 0;
-  rv.blocks = 0;
+  valid_fields_ = file_stat::mode_valid;
+  mode_ = file_status_to_mode(status);
+  blksize_ = 0;
+  blocks_ = 0;
 
   auto wps = path.wstring();
 
@@ -136,21 +136,21 @@ file_stat make_file_stat(fs::path const& path) {
     ::WIN32_FILE_ATTRIBUTE_DATA info;
     if (::GetFileAttributesExW(wps.c_str(), GetFileExInfoStandard, &info) ==
         0) {
-      rv.exception = std::make_exception_ptr(std::system_error(
+      exception_ = std::make_exception_ptr(std::system_error(
           ::GetLastError(), std::system_category(), "GetFileAttributesExW"));
     } else {
-      rv.valid_fields = file_stat::all_valid;
-      rv.dev = 0;
-      rv.ino = 0;
-      rv.nlink = 0;
-      rv.uid = 0;
-      rv.gid = 0;
-      rv.rdev = 0;
-      rv.size =
+      valid_fields_ = file_stat::all_valid;
+      dev_ = 0;
+      ino_ = 0;
+      nlink_ = 0;
+      uid_ = 0;
+      gid_ = 0;
+      rdev_ = 0;
+      size_ =
           (static_cast<uint64_t>(info.nFileSizeHigh) << 32) + info.nFileSizeLow;
-      rv.atime = time_from_filetime(info.ftLastAccessTime);
-      rv.mtime = time_from_filetime(info.ftLastWriteTime);
-      rv.ctime = time_from_filetime(info.ftCreationTime);
+      atime_ = time_from_filetime(info.ftLastAccessTime);
+      mtime_ = time_from_filetime(info.ftLastWriteTime);
+      ctime_ = time_from_filetime(info.ftCreationTime);
     }
   } else {
     struct ::__stat64 st;
@@ -165,83 +165,78 @@ file_stat make_file_stat(fs::path const& path) {
           ::BY_HANDLE_FILE_INFORMATION info;
           if (::GetFileInformationByHandle(hdl, &info)) {
             if (::CloseHandle(hdl)) {
-              rv.valid_fields |= file_stat::ino_valid | file_stat::nlink_valid;
-              rv.ino = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
-                       info.nFileIndexLow;
-              rv.nlink = info.nNumberOfLinks;
+              valid_fields_ |= file_stat::ino_valid | file_stat::nlink_valid;
+              ino_ = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
+                     info.nFileIndexLow;
+              nlink_ = info.nNumberOfLinks;
             } else {
-              rv.exception = std::make_exception_ptr(std::system_error(
+              exception_ = std::make_exception_ptr(std::system_error(
                   ::GetLastError(), std::system_category(), "CloseHandle"));
             }
           } else {
-            rv.exception = std::make_exception_ptr(
+            exception_ = std::make_exception_ptr(
                 std::system_error(::GetLastError(), std::system_category(),
                                   "GetFileInformationByHandle"));
             ::CloseHandle(hdl);
           }
         } else {
-          rv.exception = std::make_exception_ptr(std::system_error(
+          exception_ = std::make_exception_ptr(std::system_error(
               ::GetLastError(), std::system_category(), "CreateFileW"));
         }
       } else {
-        rv.valid_fields |= file_stat::ino_valid | file_stat::nlink_valid;
-        rv.ino = st.st_ino;
-        rv.nlink = st.st_nlink;
+        valid_fields_ |= file_stat::ino_valid | file_stat::nlink_valid;
+        ino_ = st.st_ino;
+        nlink_ = st.st_nlink;
       }
 
-      rv.valid_fields |= file_stat::dev_valid | file_stat::uid_valid |
-                         file_stat::gid_valid | file_stat::rdev_valid |
-                         file_stat::size_valid | file_stat::atime_valid |
-                         file_stat::mtime_valid | file_stat::ctime_valid;
-      rv.dev = st.st_dev;
-      rv.uid = st.st_uid;
-      rv.gid = st.st_gid;
-      rv.rdev = st.st_rdev;
-      rv.size = st.st_size;
-      rv.atime = st.st_atime;
-      rv.mtime = st.st_mtime;
-      rv.ctime = st.st_ctime;
+      valid_fields_ |= file_stat::dev_valid | file_stat::uid_valid |
+                       file_stat::gid_valid | file_stat::rdev_valid |
+                       file_stat::size_valid | file_stat::atime_valid |
+                       file_stat::mtime_valid | file_stat::ctime_valid;
+      dev_ = st.st_dev;
+      uid_ = st.st_uid;
+      gid_ = st.st_gid;
+      rdev_ = st.st_rdev;
+      size_ = st.st_size;
+      atime_ = st.st_atime;
+      mtime_ = st.st_mtime;
+      ctime_ = st.st_ctime;
     } else {
-      rv.exception = std::make_exception_ptr(
+      exception_ = std::make_exception_ptr(
           std::system_error(errno, std::generic_category(), "_stat64"));
     }
   }
-
-  return rv;
 }
 
 #else
 
-file_stat make_file_stat(fs::path const& path) {
+file_stat::file_stat(fs::path const& path) {
   struct ::stat st;
 
   if (::lstat(path.string().c_str(), &st) != 0) {
     throw std::system_error(errno, std::generic_category(), "lstat");
   }
 
-  file_stat rv;
-  rv.valid_fields = file_stat::all_valid;
-  rv.dev = st.st_dev;
-  rv.ino = st.st_ino;
-  rv.nlink = st.st_nlink;
-  rv.mode = st.st_mode;
-  rv.uid = st.st_uid;
-  rv.gid = st.st_gid;
-  rv.rdev = st.st_rdev;
-  rv.size = st.st_size;
-  rv.blksize = st.st_blksize;
-  rv.blocks = st.st_blocks;
+  valid_fields_ = file_stat::all_valid;
+  dev_ = st.st_dev;
+  ino_ = st.st_ino;
+  nlink_ = st.st_nlink;
+  mode_ = st.st_mode;
+  uid_ = st.st_uid;
+  gid_ = st.st_gid;
+  rdev_ = st.st_rdev;
+  size_ = st.st_size;
+  blksize_ = st.st_blksize;
+  blocks_ = st.st_blocks;
 #ifdef __APPLE__
-  rv.atime = st.st_atimespec.tv_sec;
-  rv.mtime = st.st_mtimespec.tv_sec;
-  rv.ctime = st.st_ctimespec.tv_sec;
+  atime_ = st.st_atimespec.tv_sec;
+  mtime_ = st.st_mtimespec.tv_sec;
+  ctime_ = st.st_ctimespec.tv_sec;
 #else
-  rv.atime = st.st_atim.tv_sec;
-  rv.mtime = st.st_mtim.tv_sec;
-  rv.ctime = st.st_ctim.tv_sec;
+  atime_ = st.st_atim.tv_sec;
+  mtime_ = st.st_mtim.tv_sec;
+  ctime_ = st.st_ctim.tv_sec;
 #endif
-
-  return rv;
 }
 
 #endif
@@ -265,15 +260,181 @@ std::string file_stat::perm_string(mode_type mode) {
 }
 
 void file_stat::ensure_valid(valid_fields_type fields) const {
-  if ((valid_fields & fields) != fields) {
-    if (exception) {
-      std::rethrow_exception(exception);
+  if ((valid_fields_ & fields) != fields) {
+    if (exception_) {
+      std::rethrow_exception(exception_);
     } else {
       DWARFS_THROW(runtime_error,
                    fmt::format("missing stat fields: {:#x} (have: {:#x})",
-                               fields, valid_fields));
+                               fields, valid_fields_));
     }
   }
+}
+
+std::filesystem::file_status file_stat::status() const {
+  ensure_valid(mode_valid);
+  return file_mode_to_status(mode_);
+};
+
+posix_file_type::value file_stat::type() const {
+  ensure_valid(mode_valid);
+  return static_cast<posix_file_type::value>(mode_ & posix_file_type::mask);
+};
+
+file_stat::perms_type file_stat::permissions() const {
+  ensure_valid(mode_valid);
+  return mode_ & 07777;
+};
+
+void file_stat::set_permissions(perms_type perms) {
+  mode_ = type() | (perms & 07777);
+}
+
+bool file_stat::is_directory() const {
+  return type() == posix_file_type::directory;
+}
+
+bool file_stat::is_regular_file() const {
+  return type() == posix_file_type::regular;
+}
+
+bool file_stat::is_symlink() const {
+  return type() == posix_file_type::symlink;
+}
+
+bool file_stat::is_device() const {
+  auto t = type();
+  return t == posix_file_type::block || t == posix_file_type::character;
+}
+
+file_stat::dev_type file_stat::dev() const {
+  ensure_valid(dev_valid);
+  return dev_;
+}
+
+void file_stat::set_dev(dev_type dev) {
+  valid_fields_ |= dev_valid;
+  dev_ = dev;
+}
+
+file_stat::ino_type file_stat::ino() const {
+  ensure_valid(ino_valid);
+  return ino_;
+}
+
+void file_stat::set_ino(ino_type ino) {
+  valid_fields_ |= ino_valid;
+  ino_ = ino;
+}
+
+file_stat::nlink_type file_stat::nlink() const {
+  ensure_valid(nlink_valid);
+  return nlink_;
+}
+
+void file_stat::set_nlink(nlink_type nlink) {
+  valid_fields_ |= nlink_valid;
+  nlink_ = nlink;
+}
+
+file_stat::mode_type file_stat::mode() const {
+  ensure_valid(mode_valid);
+  return mode_;
+}
+
+void file_stat::set_mode(mode_type mode) {
+  valid_fields_ |= mode_valid;
+  mode_ = mode;
+}
+
+file_stat::uid_type file_stat::uid() const {
+  ensure_valid(uid_valid);
+  return uid_;
+}
+
+void file_stat::set_uid(uid_type uid) {
+  valid_fields_ |= uid_valid;
+  uid_ = uid;
+}
+
+file_stat::gid_type file_stat::gid() const {
+  ensure_valid(gid_valid);
+  return gid_;
+}
+
+void file_stat::set_gid(gid_type gid) {
+  valid_fields_ |= gid_valid;
+  gid_ = gid;
+}
+
+file_stat::dev_type file_stat::rdev() const {
+  ensure_valid(rdev_valid);
+  return rdev_;
+}
+
+void file_stat::set_rdev(dev_type rdev) {
+  valid_fields_ |= rdev_valid;
+  rdev_ = rdev;
+}
+
+file_stat::off_type file_stat::size() const {
+  ensure_valid(size_valid);
+  return size_;
+}
+
+void file_stat::set_size(off_type size) {
+  valid_fields_ |= size_valid;
+  size_ = size;
+}
+
+file_stat::blksize_type file_stat::blksize() const {
+  ensure_valid(blksize_valid);
+  return blksize_;
+}
+
+void file_stat::set_blksize(blksize_type blksize) {
+  valid_fields_ |= blksize_valid;
+  blksize_ = blksize;
+}
+
+file_stat::blkcnt_type file_stat::blocks() const {
+  ensure_valid(blocks_valid);
+  return blocks_;
+}
+
+void file_stat::set_blocks(blkcnt_type blocks) {
+  valid_fields_ |= blocks_valid;
+  blocks_ = blocks;
+}
+
+file_stat::time_type file_stat::atime() const {
+  ensure_valid(atime_valid);
+  return atime_;
+}
+
+void file_stat::set_atime(time_type atime) {
+  valid_fields_ |= atime_valid;
+  atime_ = atime;
+}
+
+file_stat::time_type file_stat::mtime() const {
+  ensure_valid(mtime_valid);
+  return mtime_;
+}
+
+void file_stat::set_mtime(time_type mtime) {
+  valid_fields_ |= mtime_valid;
+  mtime_ = mtime;
+}
+
+file_stat::time_type file_stat::ctime() const {
+  ensure_valid(ctime_valid);
+  return ctime_;
+}
+
+void file_stat::set_ctime(time_type ctime) {
+  valid_fields_ |= ctime_valid;
+  ctime_ = ctime;
 }
 
 } // namespace dwarfs
