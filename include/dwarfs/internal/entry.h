@@ -84,7 +84,7 @@ class entry : public entry_interface {
   std::string unix_dpath() const override;
   std::string const& name() const override { return name_; }
   bool less_revpath(entry const& rhs) const;
-  size_t size() const override { return stat_.size; }
+  size_t size() const override;
   virtual type_t type() const = 0;
   bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
@@ -97,8 +97,8 @@ class entry : public entry_interface {
   file_stat const& status() const { return stat_; }
   void set_entry_index(uint32_t index) { entry_index_ = index; }
   std::optional<uint32_t> const& entry_index() const { return entry_index_; }
-  uint64_t raw_inode_num() const { return stat_.ino; }
-  uint64_t num_hard_links() const { return stat_.nlink; }
+  uint64_t raw_inode_num() const;
+  uint64_t num_hard_links() const;
   virtual void set_inode_num(uint32_t ino) = 0;
   virtual std::optional<uint32_t> const& inode_num() const = 0;
 
@@ -116,7 +116,7 @@ class entry : public entry_interface {
   uint64_t get_ctime() const override;
   void set_ctime(uint64_t ctime) override;
 
-  void override_size(size_t size) { stat_.size = size; }
+  void override_size(size_t size);
 
  private:
   std::u8string u8name() const;

@@ -147,6 +147,9 @@ void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
 
 void entry::update(global_entry_data& data) const {
+  stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
+                     file_stat::mode_valid | file_stat::atime_valid |
+                     file_stat::mtime_valid | file_stat::ctime_valid);
   data.add_uid(stat_.uid);
   data.add_gid(stat_.gid);
   data.add_mode(stat_.mode);
@@ -157,6 +160,9 @@ void entry::update(global_entry_data& data) const {
 
 void entry::pack(thrift::metadata::inode_data& entry_v2,
                  global_entry_data const& data) const {
+  stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
+                     file_stat::mode_valid | file_stat::atime_valid |
+                     file_stat::mtime_valid | file_stat::ctime_valid);
   entry_v2.mode_index() = data.get_mode_index(stat_.mode);
   entry_v2.owner_index() = data.get_uid_index(stat_.uid);
   entry_v2.group_index() = data.get_gid_index(stat_.gid);
@@ -165,31 +171,81 @@ void entry::pack(thrift::metadata::inode_data& entry_v2,
   entry_v2.ctime_offset() = data.get_ctime_offset(stat_.ctime);
 }
 
+size_t entry::size() const {
+  stat_.ensure_valid(file_stat::size_valid);
+  return stat_.size;
+}
+
+uint64_t entry::raw_inode_num() const {
+  stat_.ensure_valid(file_stat::ino_valid);
+  return stat_.ino;
+}
+
+uint64_t entry::num_hard_links() const {
+  stat_.ensure_valid(file_stat::nlink_valid);
+  return stat_.nlink;
+}
+
+void entry::override_size(size_t size) {
+  stat_.size = size;
+  stat_.valid_fields |= file_stat::size_valid;
+}
+
 entry::type_t file::type() const { return E_FILE; }
 
 auto entry::get_permissions() const -> mode_type { return stat_.permissions(); }
 
 void entry::set_permissions(mode_type perm) { stat_.set_permissions(perm); }
 
-auto entry::get_uid() const -> uid_type { return stat_.uid; }
+auto entry::get_uid() const -> uid_type {
+  stat_.ensure_valid(file_stat::uid_valid);
+  return stat_.uid;
+}
 
-void entry::set_uid(uid_type uid) { stat_.uid = uid; }
+void entry::set_uid(uid_type uid) {
+  stat_.uid = uid;
+  stat_.valid_fields |= file_stat::uid_valid;
+}
 
-auto entry::get_gid() const -> gid_type { return stat_.gid; }
+auto entry::get_gid() const -> gid_type {
+  stat_.ensure_valid(file_stat::gid_valid);
+  return stat_.gid;
+}
 
-void entry::set_gid(gid_type gid) { stat_.gid = gid; }
+void entry::set_gid(gid_type gid) {
+  stat_.gid = gid;
+  stat_.valid_fields |= file_stat::gid_valid;
+}
 
-uint64_t entry::get_atime() const { return stat_.atime; }
+uint64_t entry::get_atime() const {
+  stat_.ensure_valid(file_stat::atime_valid);
+  return stat_.atime;
+}
 
-void entry::set_atime(uint64_t atime) { stat_.atime = atime; }
+void entry::set_atime(uint64_t atime) {
+  stat_.atime = atime;
+  stat_.valid_fields |= file_stat::atime_valid;
+}
 
-uint64_t entry::get_mtime() const { return stat_.mtime; }
+uint64_t entry::get_mtime() const {
+  stat_.ensure_valid(file_stat::mtime_valid);
+  return stat_.mtime;
+}
 
-void entry::set_mtime(uint64_t mtime) { stat_.mtime = mtime; }
+void entry::set_mtime(uint64_t mtime) {
+  stat_.mtime = mtime;
+  stat_.valid_fields |= file_stat::mtime_valid;
+}
 
-uint64_t entry::get_ctime() const { return stat_.ctime; }
+uint64_t entry::get_ctime() const {
+  stat_.ensure_valid(file_stat::ctime_valid);
+  return stat_.ctime;
+}
 
-void entry::set_ctime(uint64_t ctime) { stat_.ctime = ctime; }
+void entry::set_ctime(uint64_t ctime) {
+  stat_.ctime = ctime;
+  stat_.valid_fields |= file_stat::ctime_valid;
+}
 
 std::string_view file::hash() const {
   auto& h = data_->hash;

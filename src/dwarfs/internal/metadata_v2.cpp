@@ -1542,6 +1542,8 @@ metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
 
   ::memset(&stbuf, 0, sizeof(stbuf));
 
+  stbuf.valid_fields = file_stat::all_valid;
+
   auto mode = iv.mode();
   auto timebase = meta_.timestamp_base();
   auto inode = iv.inode_num();

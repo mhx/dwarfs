@@ -101,7 +101,19 @@ void perms_to_stream(std::ostream& os, file_stat::mode_type mode) {
 #ifdef _WIN32
 
 file_stat make_file_stat(fs::path const& path) {
-  auto status = fs::symlink_status(path);
+  std::error_code ec;
+  auto status = fs::symlink_status(path, ec);
+
+  if (ec) {
+    status = fs::status(path, ec);
+  }
+
+  file_stat rv;
+
+  if (ec) {
+    rv.exception = std::make_exception_ptr(std::system_error(ec));
+    return rv;
+  }
 
   if (status.type() == fs::file_type::not_found ||
       status.type() == fs::file_type::unknown) {
@@ -113,7 +125,7 @@ file_stat make_file_stat(fs::path const& path) {
                              u8string_to_string(path.u8string())));
   }
 
-  file_stat rv;
+  rv.valid_fields = file_stat::mode_valid;
   rv.mode = file_status_to_mode(status);
   rv.blksize = 0;
   rv.blocks = 0;
@@ -124,64 +136,75 @@ file_stat make_file_stat(fs::path const& path) {
     ::WIN32_FILE_ATTRIBUTE_DATA info;
     if (::GetFileAttributesExW(wps.c_str(), GetFileExInfoStandard, &info) ==
         0) {
-      throw std::system_error(::GetLastError(), std::system_category(),
-                              "GetFileAttributesExW");
+      rv.exception = std::make_exception_ptr(std::system_error(
+          ::GetLastError(), std::system_category(), "GetFileAttributesExW"));
+    } else {
+      rv.valid_fields = file_stat::all_valid;
+      rv.dev = 0;
+      rv.ino = 0;
+      rv.nlink = 0;
+      rv.uid = 0;
+      rv.gid = 0;
+      rv.rdev = 0;
+      rv.size =
+          (static_cast<uint64_t>(info.nFileSizeHigh) << 32) + info.nFileSizeLow;
+      rv.atime = time_from_filetime(info.ftLastAccessTime);
+      rv.mtime = time_from_filetime(info.ftLastWriteTime);
+      rv.ctime = time_from_filetime(info.ftCreationTime);
     }
-    rv.dev = 0;
-    rv.ino = 0;
-    rv.nlink = 0;
-    rv.uid = 0;
-    rv.gid = 0;
-    rv.rdev = 0;
-    rv.size =
-        (static_cast<uint64_t>(info.nFileSizeHigh) << 32) + info.nFileSizeLow;
-    rv.atime = time_from_filetime(info.ftLastAccessTime);
-    rv.mtime = time_from_filetime(info.ftLastWriteTime);
-    rv.ctime = time_from_filetime(info.ftCreationTime);
   } else {
     struct ::__stat64 st;
 
-    if (::_wstat64(wps.c_str(), &st) != 0) {
-      throw std::system_error(errno, std::generic_category(), "_stat64");
-    }
+    if (::_wstat64(wps.c_str(), &st) == 0) {
+      if (status.type() == fs::file_type::regular) {
+        ::HANDLE hdl =
+            ::CreateFileW(wps.c_str(), 0, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
 
-    if (status.type() == fs::file_type::regular) {
-      ::HANDLE hdl =
-          ::CreateFileW(wps.c_str(), 0, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-
-      if (hdl == INVALID_HANDLE_VALUE) {
-        throw std::system_error(::GetLastError(), std::system_category(),
-                                fmt::format("CreateFileW({})", path.string()));
+        if (hdl != INVALID_HANDLE_VALUE) {
+          ::BY_HANDLE_FILE_INFORMATION info;
+          if (::GetFileInformationByHandle(hdl, &info)) {
+            if (::CloseHandle(hdl)) {
+              rv.valid_fields |= file_stat::ino_valid | file_stat::nlink_valid;
+              rv.ino = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
+                       info.nFileIndexLow;
+              rv.nlink = info.nNumberOfLinks;
+            } else {
+              rv.exception = std::make_exception_ptr(std::system_error(
+                  ::GetLastError(), std::system_category(), "CloseHandle"));
+            }
+          } else {
+            rv.exception = std::make_exception_ptr(
+                std::system_error(::GetLastError(), std::system_category(),
+                                  "GetFileInformationByHandle"));
+            ::CloseHandle(hdl);
+          }
+        } else {
+          rv.exception = std::make_exception_ptr(std::system_error(
+              ::GetLastError(), std::system_category(), "CreateFileW"));
+        }
+      } else {
+        rv.valid_fields |= file_stat::ino_valid | file_stat::nlink_valid;
+        rv.ino = st.st_ino;
+        rv.nlink = st.st_nlink;
       }
 
-      ::BY_HANDLE_FILE_INFORMATION info;
-      if (!::GetFileInformationByHandle(hdl, &info)) {
-        throw std::system_error(::GetLastError(), std::system_category(),
-                                "GetFileInformationByHandle");
-      }
-
-      if (!::CloseHandle(hdl)) {
-        throw std::system_error(::GetLastError(), std::system_category(),
-                                "CloseHandle");
-      }
-
-      rv.ino = (static_cast<uint64_t>(info.nFileIndexHigh) << 32) +
-               info.nFileIndexLow;
-      rv.nlink = info.nNumberOfLinks;
+      rv.valid_fields |= file_stat::dev_valid | file_stat::uid_valid |
+                         file_stat::gid_valid | file_stat::rdev_valid |
+                         file_stat::size_valid | file_stat::atime_valid |
+                         file_stat::mtime_valid | file_stat::ctime_valid;
+      rv.dev = st.st_dev;
+      rv.uid = st.st_uid;
+      rv.gid = st.st_gid;
+      rv.rdev = st.st_rdev;
+      rv.size = st.st_size;
+      rv.atime = st.st_atime;
+      rv.mtime = st.st_mtime;
+      rv.ctime = st.st_ctime;
     } else {
-      rv.ino = st.st_ino;
-      rv.nlink = st.st_nlink;
+      rv.exception = std::make_exception_ptr(
+          std::system_error(errno, std::generic_category(), "_stat64"));
     }
-
-    rv.dev = st.st_dev;
-    rv.uid = st.st_uid;
-    rv.gid = st.st_gid;
-    rv.rdev = st.st_rdev;
-    rv.size = st.st_size;
-    rv.atime = st.st_atime;
-    rv.mtime = st.st_mtime;
-    rv.ctime = st.st_ctime;
   }
 
   return rv;
@@ -197,6 +220,7 @@ file_stat make_file_stat(fs::path const& path) {
   }
 
   file_stat rv;
+  rv.valid_fields = file_stat::all_valid;
   rv.dev = st.st_dev;
   rv.ino = st.st_ino;
   rv.nlink = st.st_nlink;
@@ -238,6 +262,18 @@ std::string file_stat::perm_string(mode_type mode) {
   std::ostringstream oss;
   perms_to_stream(oss, mode);
   return oss.str();
+}
+
+void file_stat::ensure_valid(valid_fields_type fields) const {
+  if ((valid_fields & fields) != fields) {
+    if (exception) {
+      std::rethrow_exception(exception);
+    } else {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("missing stat fields: {:#x} (have: {:#x})",
+                               fields, valid_fields));
+    }
+  }
 }
 
 } // namespace dwarfs

@@ -50,6 +50,7 @@ namespace {
 file_stat make_file_stat(simplestat const& ss) {
   file_stat rv;
   ::memset(&rv, 0, sizeof(rv));
+  rv.valid_fields = file_stat::all_valid;
   rv.ino = ss.ino;
   rv.nlink = ss.nlink;
   rv.mode = ss.mode;
