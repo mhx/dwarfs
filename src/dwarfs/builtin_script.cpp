@@ -36,6 +36,8 @@ namespace dwarfs {
 
 namespace internal {
 
+namespace fs = std::filesystem;
+
 struct filter_rule {
   enum class rule_type {
     include,
@@ -60,7 +62,7 @@ class builtin_script_ : public builtin_script::impl {
  public:
   builtin_script_(logger& lgr, std::shared_ptr<file_access const> fa);
 
-  void set_root_path(std::filesystem::path const& path) override;
+  void set_root_path(fs::path const& path) override;
   void add_filter_rule(std::string const& rule) override;
   void add_filter_rules(std::istream& is) override;
 
@@ -189,7 +191,7 @@ builtin_script_<LoggerPolicy>::builtin_script_(
 
 template <typename LoggerPolicy>
 void builtin_script_<LoggerPolicy>::set_root_path(
-    std::filesystem::path const& path) {
+    fs::path const& path) {
   // TODO: this whole thing needs to be windowsized
   root_path_ = u8string_to_string(path.u8string());
 
