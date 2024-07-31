@@ -428,7 +428,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
         break;
 
       default:
-        LOG_ERROR << "unsupported entry type: " << int(pe->type());
+        LOG_ERROR << "unsupported entry type: " << int(pe->type()) << " ("
+                  << pe->fs_path() << ")";
         prog.errors++;
         break;
       }
@@ -436,7 +437,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     return pe;
   } catch (const std::system_error& e) {
-    LOG_ERROR << "error reading entry: " << exception_str(e);
+    LOG_ERROR << fmt::format("error reading entry (path={}): {}", name.string(),
+                             exception_str(e));
     prog.errors++;
   }
 
