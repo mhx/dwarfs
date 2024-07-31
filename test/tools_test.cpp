@@ -368,25 +368,12 @@ class subprocess {
  public:
   template <subprocess_arg... Args>
   subprocess(std::filesystem::path const& prog, Args&&... args)
-      : prog_{prog} {
-    (append_arg(cmdline_, std::forward<Args>(args)), ...);
+      : subprocess(nullptr, prog, std::forward<Args>(args)...) {}
 
-    ignore_sigpipe();
-
-    try {
-      // std::cerr << "running: " << cmdline() << "\n";
-      c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
-                     bp::std_out > out_, bp::std_err > err_, ios_
-#ifdef _WIN32
-                     ,
-                     new_process_group()
-#endif
-      );
-    } catch (...) {
-      std::cerr << "failed to create subprocess: " << cmdline() << "\n";
-      throw;
-    }
-  }
+  template <subprocess_arg... Args>
+  subprocess(boost::asio::io_service& ios, std::filesystem::path const& prog,
+             Args&&... args)
+      : subprocess(&ios, prog, std::forward<Args>(args)...) {}
 
   ~subprocess() {
     if (pt_) {
@@ -406,7 +393,15 @@ class subprocess {
   }
 
   void run() {
-    ios_.run();
+    if (!ios_) {
+      throw std::runtime_error("processes with external io_service must be run "
+                               "externally and then waited for");
+    }
+    ios_->run();
+    wait();
+  }
+
+  void wait() {
     c_.wait();
     outs_ = out_.get();
     errs_ = err_.get();
@@ -419,7 +414,7 @@ class subprocess {
     pt_ = std::make_unique<std::thread>([this] { run(); });
   }
 
-  void wait() {
+  void wait_background() {
     if (!pt_) {
       throw std::runtime_error("no process running in background");
     }
@@ -466,6 +461,34 @@ class subprocess {
   }
 
  private:
+  template <subprocess_arg... Args>
+  subprocess(boost::asio::io_service* ios, std::filesystem::path const& prog,
+             Args&&... args)
+      : prog_{prog} {
+    (append_arg(cmdline_, std::forward<Args>(args)), ...);
+
+    ignore_sigpipe();
+
+    if (!ios) {
+      ios_ = std::make_unique<boost::asio::io_service>();
+      ios = ios_.get();
+    }
+
+    try {
+      // std::cerr << "running: " << cmdline() << "\n";
+      c_ = bp::child(prog.string(), bp::args(cmdline_), bp::std_in.close(),
+                     bp::std_out > out_, bp::std_err > err_, *ios
+#ifdef _WIN32
+                     ,
+                     new_process_group()
+#endif
+      );
+    } catch (...) {
+      std::cerr << "failed to create subprocess: " << cmdline() << "\n";
+      throw;
+    }
+  }
+
   static void append_arg(std::vector<std::string>& args, fs::path const& arg) {
     args.emplace_back(arg.string());
   }
@@ -481,7 +504,7 @@ class subprocess {
   }
 
   bp::child c_;
-  boost::asio::io_service ios_;
+  std::unique_ptr<boost::asio::io_service> ios_;
   std::future<std::string> out_;
   std::future<std::string> err_;
   std::string outs_;
@@ -613,7 +636,7 @@ class driver_runner {
       }
       bool rv{true};
       if (process_) {
-        process_->wait();
+        process_->wait_background();
         auto ec = process_->exit_code();
         if (ec != 0) {
           std::cerr << "driver failed to unmount:\nout:\n"
@@ -630,7 +653,7 @@ class driver_runner {
       if (process_) {
 #endif
         process_->interrupt();
-        process_->wait();
+        process_->wait_background();
         auto ec = process_->exit_code();
         bool is_expected_exit_code = ec == 0 || ec == kSigIntExitCode;
         if (!is_expected_exit_code) {
