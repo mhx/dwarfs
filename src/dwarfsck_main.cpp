@@ -323,10 +323,16 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
         if (!quiet && !list_files && checksum_algo.empty()) {
+          fsinfo_options opts;
+
+          opts.block_access = no_check ? block_access_level::no_verify
+                                       : block_access_level::unrestricted;
+          opts.features = filesystem_v2::features_for_level(detail);
+
           if (output_json) {
-            iol.out << fs.info_as_json(detail) << "\n";
+            iol.out << fs.info_as_json(opts) << "\n";
           } else {
-            fs.dump(iol.out, detail);
+            fs.dump(iol.out, opts);
           }
         }
 

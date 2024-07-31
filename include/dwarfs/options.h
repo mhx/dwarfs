@@ -24,9 +24,14 @@
 #include <chrono>
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <iosfwd>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_set>
 #include <vector>
 
@@ -67,6 +72,78 @@ struct cache_tidy_config {
 
 struct getattr_options {
   bool no_size{false};
+};
+
+enum class block_access_level {
+  no_access,
+  no_verify,
+  unrestricted,
+};
+
+inline auto operator<=>(block_access_level lhs, block_access_level rhs) {
+  return static_cast<std::underlying_type_t<block_access_level>>(lhs) <=>
+         static_cast<std::underlying_type_t<block_access_level>>(rhs);
+}
+
+enum class fsinfo_feature {
+  version,
+  history,
+  metadata_summary,
+  metadata_details,
+  metadata_full_dump,
+  frozen_analysis,
+  frozen_layout,
+  directory_tree,
+  section_details,
+  chunk_details,
+  num_fsinfo_feature_bits,
+};
+
+class fsinfo_features {
+ public:
+  constexpr fsinfo_features() = default;
+  constexpr fsinfo_features(std::initializer_list<fsinfo_feature> features) {
+    for (auto f : features) {
+      set(f);
+    }
+  }
+
+  constexpr bool has(fsinfo_feature f) const {
+    return features_ & (1 << static_cast<size_t>(f));
+  }
+
+  constexpr void set(fsinfo_feature f) {
+    features_ |= (1 << static_cast<size_t>(f));
+  }
+
+  constexpr void clear(fsinfo_feature f) {
+    features_ &= ~(1 << static_cast<size_t>(f));
+  }
+
+  constexpr void reset() { features_ = 0; }
+
+  constexpr fsinfo_features& operator|=(fsinfo_features const& other) {
+    features_ |= other.features_;
+    return *this;
+  }
+
+  constexpr fsinfo_features& operator|=(fsinfo_feature f) {
+    set(f);
+    return *this;
+  }
+
+  constexpr bool operator&(fsinfo_feature f) const { return has(f); }
+
+ private:
+  // can be upgraded to std::bitset if needed and when it's constexpr
+  uint64_t features_{0};
+  static_assert(static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits) <=
+                std::numeric_limits<uint64_t>::digits);
+};
+
+struct fsinfo_options {
+  fsinfo_features features;
+  block_access_level block_access{block_access_level::unrestricted};
 };
 
 struct metadata_options {

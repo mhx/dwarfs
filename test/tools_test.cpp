@@ -1006,8 +1006,10 @@ TEST_P(tools_test, end_to_end) {
         for (auto const& [path, ref] : xattr_tests) {
           EXPECT_EQ(dwarfs::listxattr(path), ref) << runner.cmdline();
 
-          auto info =
-              nlohmann::json::parse(dwarfs::getxattr(path, kInodeInfoXattr));
+          auto xattr = dwarfs::getxattr(path, kInodeInfoXattr);
+          nlohmann::json info;
+          EXPECT_NO_THROW(info = nlohmann::json::parse(xattr))
+              << runner.cmdline() << ", " << xattr;
           EXPECT_TRUE(info.count("uid"));
           EXPECT_TRUE(info.count("gid"));
           EXPECT_TRUE(info.count("mode"));
@@ -1556,7 +1558,8 @@ TEST_P(tools_test, categorize) {
                                          image_recompressed, "--json");
   ASSERT_TRUE(json_info);
 
-  auto info = nlohmann::json::parse(*json_info);
+  nlohmann::json info;
+  EXPECT_NO_THROW(info = nlohmann::json::parse(*json_info)) << *json_info;
 
   EXPECT_EQ(info["block_size"], 65'536);
   EXPECT_EQ(info["image_offset"], 0);

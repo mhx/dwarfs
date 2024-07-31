@@ -76,6 +76,8 @@ class filesystem_v2 {
   static std::optional<std::span<uint8_t const>>
   header(std::shared_ptr<mmif> mm, file_off_t image_offset);
 
+  static fsinfo_features features_for_level(int level);
+
   int check(filesystem_check_level level, size_t num_threads = 0) const {
     return impl_->check(level, num_threads);
   }
@@ -88,6 +90,18 @@ class filesystem_v2 {
 
   nlohmann::json info_as_json(int detail_level) const {
     return impl_->info_as_json(detail_level);
+  }
+
+  void dump(std::ostream& os, fsinfo_options const& opts) const {
+    impl_->dump(os, opts);
+  }
+
+  std::string dump(fsinfo_options const& opts) const {
+    return impl_->dump(opts);
+  }
+
+  nlohmann::json info_as_json(fsinfo_options const& opts) const {
+    return impl_->info_as_json(opts);
   }
 
   nlohmann::json metadata_as_json() const { return impl_->metadata_as_json(); }
@@ -304,6 +318,9 @@ class filesystem_v2 {
     virtual void dump(std::ostream& os, int detail_level) const = 0;
     virtual std::string dump(int detail_level) const = 0;
     virtual nlohmann::json info_as_json(int detail_level) const = 0;
+    virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
+    virtual std::string dump(fsinfo_options const& opts) const = 0;
+    virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json metadata_as_json() const = 0;
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;
     virtual void

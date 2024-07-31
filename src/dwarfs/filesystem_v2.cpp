@@ -61,6 +61,28 @@ namespace internal {
 
 namespace {
 
+constexpr std::array level_features{
+    /* 0 */ fsinfo_features(),
+    /* 1 */
+    fsinfo_features(
+        {fsinfo_feature::version, fsinfo_feature::metadata_summary}),
+    /* 2 */
+    fsinfo_features({fsinfo_feature::frozen_analysis, fsinfo_feature::history}),
+    /* 3 */
+    fsinfo_features(
+        {fsinfo_feature::metadata_details, fsinfo_feature::section_details}),
+    /* 4 */
+    fsinfo_features(
+        {fsinfo_feature::directory_tree, fsinfo_feature::frozen_layout}),
+    /* 5 */ fsinfo_features({fsinfo_feature::chunk_details}),
+    /* 6 */ fsinfo_features({fsinfo_feature::metadata_full_dump}),
+    /* 7 */ fsinfo_features({}),
+};
+
+fsinfo_options fsinfo_opts_for_level(int level) {
+  return fsinfo_options{.features = filesystem_v2::features_for_level(level)};
+}
+
 void check_section_logger(logger& lgr, fs_section const& section) {
   LOG_PROXY(debug_logger_policy, lgr);
 
@@ -410,6 +432,9 @@ class filesystem_ final : public filesystem_v2::impl {
   void dump(std::ostream& os, int detail_level) const override;
   std::string dump(int detail_level) const override;
   nlohmann::json info_as_json(int detail_level) const override;
+  void dump(std::ostream& os, fsinfo_options const& opts) const override;
+  std::string dump(fsinfo_options const& opts) const override;
+  nlohmann::json info_as_json(fsinfo_options const& opts) const override;
   nlohmann::json metadata_as_json() const override;
   std::string serialize_metadata_as_json(bool simple) const override;
   void walk(std::function<void(dir_entry_view)> const& func) const override;
@@ -488,7 +513,7 @@ class filesystem_ final : public filesystem_v2::impl {
                rewrite_options const& opts) const override;
 
  private:
-  filesystem_info const& get_info() const;
+  filesystem_info const* get_info(fsinfo_options const& opts) const;
   void check_section(fs_section const& section) const;
   std::string read_string_ec(uint32_t inode, size_t size, file_off_t offset,
                              std::error_code& ec) const;
@@ -508,6 +533,8 @@ class filesystem_ final : public filesystem_v2::impl {
   mutable std::mutex mx_;
   std::vector<uint8_t> meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
+  mutable block_access_level fsinfo_block_access_level_{
+      block_access_level::no_access};
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
   history history_;
   file_off_t const image_offset_;
@@ -545,10 +572,11 @@ void filesystem_<LoggerPolicy>::check_section(fs_section const& section) const {
 }
 
 template <typename LoggerPolicy>
-filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
+filesystem_info const*
+filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
   std::lock_guard lock(mx_);
 
-  if (!fsinfo_) {
+  if (!fsinfo_ || opts.block_access > fsinfo_block_access_level_) {
     filesystem_parser parser(mm_, image_offset_);
     filesystem_info info;
 
@@ -561,11 +589,17 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
         ++info.block_count;
         info.compressed_block_size += s->length();
         info.compressed_block_sizes.push_back(s->length());
-        try {
-          auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
-          info.uncompressed_block_size += uncompressed_size;
-          info.uncompressed_block_sizes.push_back(uncompressed_size);
-        } catch (std::exception const&) {
+        if (opts.block_access >= block_access_level::unrestricted) {
+          try {
+            auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
+            info.uncompressed_block_size += uncompressed_size;
+            info.uncompressed_block_sizes.push_back(uncompressed_size);
+          } catch (std::exception const&) {
+            info.uncompressed_block_size += s->length();
+            info.uncompressed_block_size_is_estimate = true;
+            info.uncompressed_block_sizes.push_back(std::nullopt);
+          }
+        } else {
           info.uncompressed_block_size += s->length();
           info.uncompressed_block_size_is_estimate = true;
           info.uncompressed_block_sizes.push_back(std::nullopt);
@@ -583,9 +617,10 @@ filesystem_info const& filesystem_<LoggerPolicy>::get_info() const {
     }
 
     fsinfo_ = std::make_unique<filesystem_info>(info);
+    fsinfo_block_access_level_ = opts.block_access;
   }
 
-  return *fsinfo_;
+  return fsinfo_.get();
 }
 
 template <typename LoggerPolicy>
@@ -921,9 +956,25 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
+  dump(os, fsinfo_opts_for_level(detail_level));
+}
+
+template <typename LoggerPolicy>
+std::string filesystem_<LoggerPolicy>::dump(int detail_level) const {
+  return dump(fsinfo_opts_for_level(detail_level));
+}
+
+template <typename LoggerPolicy>
+nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
+  return info_as_json(fsinfo_opts_for_level(detail_level));
+}
+
+template <typename LoggerPolicy>
+void filesystem_<LoggerPolicy>::dump(std::ostream& os,
+                                     fsinfo_options const& opts) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  if (detail_level > 0) {
+  if (opts.features.has(fsinfo_feature::version)) {
     os << "DwarFS version " << parser.version();
     if (auto off = parser.image_offset(); off > 0) {
       os << " at offset " << off;
@@ -933,7 +984,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
 
   size_t block_no{0};
 
-  if (detail_level > 2) {
+  if (opts.features.has(fsinfo_feature::section_details)) {
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
@@ -962,34 +1013,34 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
     }
   }
 
-  if (detail_level > 1) {
+  if (opts.features.has(fsinfo_feature::history)) {
     history_.dump(os);
   }
 
-  meta_.dump(os, detail_level, get_info(),
-             [&](const std::string& indent, uint32_t inode) {
-               std::error_code ec;
-               auto chunks = meta_.get_chunks(inode, ec);
-               if (!ec) {
-                 os << indent << chunks.size() << " chunks in inode " << inode
-                    << "\n";
-                 ir_.dump(os, indent + "  ", chunks);
-               } else {
-                 LOG_ERROR << "error reading chunks for inode " << inode << ": "
-                           << ec.message();
-               }
-             });
+  meta_.dump(
+      os, opts, get_info(opts), [&](const std::string& indent, uint32_t inode) {
+        std::error_code ec;
+        auto chunks = meta_.get_chunks(inode, ec);
+        if (!ec) {
+          os << indent << chunks.size() << " chunks in inode " << inode << "\n";
+          ir_.dump(os, indent + "  ", chunks);
+        } else {
+          LOG_ERROR << "error reading chunks for inode " << inode << ": "
+                    << ec.message();
+        }
+      });
 }
 
 template <typename LoggerPolicy>
-std::string filesystem_<LoggerPolicy>::dump(int detail_level) const {
+std::string filesystem_<LoggerPolicy>::dump(fsinfo_options const& opts) const {
   std::ostringstream oss;
-  dump(oss, detail_level);
+  dump(oss, opts);
   return oss.str();
 }
 
 template <typename LoggerPolicy>
-nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
+nlohmann::json
+filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
   filesystem_parser parser(mm_, image_offset_);
 
   nlohmann::json info{
@@ -1002,11 +1053,11 @@ nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
       {"image_offset", parser.image_offset()},
   };
 
-  if (detail_level > 1) {
+  if (opts.features.has(fsinfo_feature::history)) {
     info["history"] = history_.as_json();
   }
 
-  if (detail_level > 2) {
+  if (opts.features.has(fsinfo_feature::section_details)) {
     size_t block_no{0};
 
     while (auto sp = parser.next_section()) {
@@ -1036,7 +1087,7 @@ nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
     }
   }
 
-  info.update(meta_.info_as_json(detail_level, get_info()));
+  info.update(meta_.info_as_json(opts, get_info(opts)));
 
   return info;
 }
@@ -1398,6 +1449,18 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return internal::filesystem_parser(mm, image_offset).header();
+}
+
+fsinfo_features filesystem_v2::features_for_level(int level) {
+  fsinfo_features features;
+
+  level = std::min<int>(level, internal::level_features.size() - 1);
+
+  for (int i = 0; i <= level; ++i) {
+    features |= internal::level_features[i];
+  }
+
+  return features;
 }
 
 } // namespace dwarfs

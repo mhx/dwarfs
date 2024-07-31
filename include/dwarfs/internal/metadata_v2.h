@@ -45,6 +45,7 @@ class logger;
 struct getattr_options;
 struct metadata_options;
 struct filesystem_info;
+struct fsinfo_options;
 struct vfs_stat;
 
 class performance_monitor;
@@ -69,14 +70,15 @@ class metadata_v2 {
   void check_consistency() const { impl_->check_consistency(); }
 
   void
-  dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
+  dump(std::ostream& os, fsinfo_options const& opts,
+       filesystem_info const* fsinfo,
        std::function<void(const std::string&, uint32_t)> const& icb) const {
-    impl_->dump(os, detail_level, fsinfo, icb);
+    impl_->dump(os, opts, fsinfo, icb);
   }
 
-  nlohmann::json
-  info_as_json(int detail_level, filesystem_info const& fsinfo) const {
-    return impl_->info_as_json(detail_level, fsinfo);
+  nlohmann::json info_as_json(fsinfo_options const& opts,
+                              filesystem_info const* fsinfo) const {
+    return impl_->info_as_json(opts, fsinfo);
   }
 
   nlohmann::json as_json() const { return impl_->as_json(); }
@@ -176,11 +178,13 @@ class metadata_v2 {
     virtual void check_consistency() const = 0;
 
     virtual void dump(
-        std::ostream& os, int detail_level, filesystem_info const& fsinfo,
+        std::ostream& os, fsinfo_options const& opts,
+        filesystem_info const* fsinfo,
         std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
 
     virtual nlohmann::json
-    info_as_json(int detail_level, filesystem_info const& fsinfo) const = 0;
+    info_as_json(fsinfo_options const& opts,
+                 filesystem_info const* fsinfo) const = 0;
 
     virtual nlohmann::json as_json() const = 0;
     virtual std::string serialize_as_json(bool simple) const = 0;

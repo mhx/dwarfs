@@ -140,7 +140,7 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
 
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
-                    size_t total_size, int detail) {
+                    size_t total_size, fsinfo_options const& opts) {
   using namespace ::apache::thrift::frozen;
   null_logger lgr;
 
@@ -305,7 +305,7 @@ void analyze_frozen(std::ostream& os,
     os << u.second;
   }
 
-  if (detail > 3) {
+  if (opts.features.has(fsinfo_feature::frozen_layout)) {
     l->print(os, 0);
     os << '\n';
   }
@@ -332,25 +332,31 @@ void parse_metadata_options(
 
 struct category_info {
   size_t count{0};
-  size_t compressed_size{0};
-  size_t uncompressed_size{0};
+  std::optional<size_t> compressed_size;
+  std::optional<size_t> uncompressed_size;
   bool uncompressed_size_is_estimate{false};
 };
 
 std::map<size_t, category_info>
 get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
-                  filesystem_info const& fsinfo) {
+                  filesystem_info const* fsinfo) {
   std::map<size_t, category_info> catinfo;
 
   if (auto blockcat = meta.block_categories()) {
     for (auto [block, category] : ranges::views::enumerate(blockcat.value())) {
       auto& ci = catinfo[category];
       ++ci.count;
-      ci.compressed_size += fsinfo.compressed_block_sizes.at(block);
-      if (auto size = fsinfo.uncompressed_block_sizes.at(block)) {
-        ci.uncompressed_size += *size;
-      } else {
-        ci.uncompressed_size_is_estimate = true;
+      if (fsinfo) {
+        if (!ci.compressed_size) {
+          ci.compressed_size = 0;
+          ci.uncompressed_size = 0;
+        }
+        *ci.compressed_size += fsinfo->compressed_block_sizes.at(block);
+        if (auto size = fsinfo->uncompressed_block_sizes.at(block)) {
+          *ci.uncompressed_size += *size;
+        } else {
+          ci.uncompressed_size_is_estimate = true;
+        }
       }
     }
   }
@@ -457,12 +463,13 @@ class metadata_ final : public metadata_v2::impl {
 
   void check_consistency() const override;
 
-  void dump(std::ostream& os, int detail_level, filesystem_info const& fsinfo,
+  void dump(std::ostream& os, fsinfo_options const& opts,
+            filesystem_info const* fsinfo,
             std::function<void(const std::string&, uint32_t)> const& icb)
       const override;
 
-  nlohmann::json
-  info_as_json(int detail_level, filesystem_info const& fsinfo) const override;
+  nlohmann::json info_as_json(fsinfo_options const& opts,
+                              filesystem_info const* fsinfo) const override;
 
   nlohmann::json as_json() const override;
   std::string serialize_as_json(bool simple) const override;
@@ -610,10 +617,10 @@ class metadata_ final : public metadata_v2::impl {
   // TODO: see if we really need to pass the extra dir_entry_view in
   //       addition to directory_view
   void dump(std::ostream& os, const std::string& indent, dir_entry_view entry,
-            int detail_level,
+            fsinfo_options const& opts,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
-            dir_entry_view entry, int detail_level,
+            dir_entry_view entry, fsinfo_options const& opts,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
   nlohmann::json as_json(dir_entry_view entry) const;
@@ -913,7 +920,7 @@ void metadata_<LoggerPolicy>::check_consistency() const {
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, dir_entry_view entry,
-    int detail_level,
+    fsinfo_options const& opts,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto iv = entry.inode();
   auto mode = iv.mode();
@@ -933,14 +940,13 @@ void metadata_<LoggerPolicy>::dump(
                  fmt::format("get_chunk_range({}): {}", inode, ec.message()));
     os << " [" << cr.begin_ << ", " << cr.end_ << "]";
     os << " " << file_size(iv, mode) << "\n";
-    if (detail_level > 4) {
+    if (opts.features.has(fsinfo_feature::chunk_details)) {
       icb(indent + "  ", inode);
     }
   } break;
 
   case posix_file_type::directory:
-    dump(os, indent + "  ", make_directory_view(iv), entry, detail_level,
-         std::move(icb));
+    dump(os, indent + "  ", make_directory_view(iv), entry, opts, icb);
     break;
 
   case posix_file_type::symlink:
@@ -967,8 +973,8 @@ void metadata_<LoggerPolicy>::dump(
 
 template <typename LoggerPolicy>
 nlohmann::json
-metadata_<LoggerPolicy>::info_as_json(int detail_level,
-                                      filesystem_info const& fsinfo) const {
+metadata_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
+                                      filesystem_info const* fsinfo) const {
   nlohmann::json info;
   vfs_stat stbuf;
   statvfs(&stbuf);
@@ -982,21 +988,25 @@ metadata_<LoggerPolicy>::info_as_json(int detail_level,
         fmt::format("{:%Y-%m-%dT%H:%M:%S}", fmt::localtime(ts.value()));
   }
 
-  if (detail_level > 0) {
+  if (opts.features.has(fsinfo_feature::metadata_summary)) {
     info["block_size"] = meta_.block_size();
-    info["block_count"] = fsinfo.block_count;
+    if (fsinfo) {
+      info["block_count"] = fsinfo->block_count;
+    }
     info["inode_count"] = stbuf.files;
     if (auto ps = meta_.preferred_path_separator()) {
       info["preferred_path_separator"] = std::string(1, static_cast<char>(*ps));
     }
     info["original_filesystem_size"] = stbuf.blocks;
-    info["compressed_block_size"] = fsinfo.compressed_block_size;
-    if (!fsinfo.uncompressed_block_size_is_estimate) {
-      info["uncompressed_block_size"] = fsinfo.uncompressed_block_size;
-    }
-    info["compressed_metadata_size"] = fsinfo.compressed_metadata_size;
-    if (!fsinfo.uncompressed_metadata_size_is_estimate) {
-      info["uncompressed_metadata_size"] = fsinfo.uncompressed_metadata_size;
+    if (fsinfo) {
+      info["compressed_block_size"] = fsinfo->compressed_block_size;
+      if (!fsinfo->uncompressed_block_size_is_estimate) {
+        info["uncompressed_block_size"] = fsinfo->uncompressed_block_size;
+      }
+      info["compressed_metadata_size"] = fsinfo->compressed_metadata_size;
+      if (!fsinfo->uncompressed_metadata_size_is_estimate) {
+        info["uncompressed_metadata_size"] = fsinfo->uncompressed_metadata_size;
+      }
     }
 
     if (auto opt = meta_.options()) {
@@ -1020,16 +1030,18 @@ metadata_<LoggerPolicy>::info_as_json(int detail_level,
         std::string name{catnames[category]};
         categories[name] = {
             {"block_count", ci.count},
-            {"compressed_size", ci.compressed_size},
         };
-        if (!ci.uncompressed_size_is_estimate) {
-          categories[name]["uncompressed_size"] = ci.uncompressed_size;
+        if (ci.compressed_size) {
+          categories[name]["compressed_size"] = ci.compressed_size.value();
+        }
+        if (ci.uncompressed_size && !ci.uncompressed_size_is_estimate) {
+          categories[name]["uncompressed_size"] = ci.uncompressed_size.value();
         }
       }
     }
   }
 
-  if (detail_level > 2) {
+  if (opts.features.has(fsinfo_feature::metadata_details)) {
     nlohmann::json meta;
 
     meta["symlink_inode_offset"] = symlink_inode_offset_;
@@ -1068,7 +1080,7 @@ metadata_<LoggerPolicy>::info_as_json(int detail_level,
     info["meta"] = std::move(meta);
   }
 
-  if (detail_level > 3) {
+  if (opts.features.has(fsinfo_feature::directory_tree)) {
     info["root"] = as_json(root_);
   }
 
@@ -1079,7 +1091,7 @@ metadata_<LoggerPolicy>::info_as_json(int detail_level,
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
-    dir_entry_view entry, int detail_level,
+    dir_entry_view entry, fsinfo_options const& opts,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto count = dir.entry_count();
   auto first = dir.first_entry();
@@ -1087,14 +1099,14 @@ void metadata_<LoggerPolicy>::dump(
   os << " (" << count << " entries, parent=" << dir.parent_entry() << ")\n";
 
   for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, make_dir_entry_view(first + i, entry.self_index()),
-         detail_level, icb);
+    dump(os, indent, make_dir_entry_view(first + i, entry.self_index()), opts,
+         icb);
   }
 }
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, int detail_level, filesystem_info const& fsinfo,
+    std::ostream& os, fsinfo_options const& opts, filesystem_info const* fsinfo,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   vfs_stat stbuf;
   statvfs(&stbuf);
@@ -1111,39 +1123,44 @@ void metadata_<LoggerPolicy>::dump(
     os << "created on: " << str << "\n";
   }
 
-  if (detail_level > 0) {
+  if (opts.features.has(fsinfo_feature::metadata_summary)) {
     os << "block size: " << size_with_unit(stbuf.bsize) << "\n";
-    os << "block count: " << fsinfo.block_count << "\n";
+    if (fsinfo) {
+      os << "block count: " << fsinfo->block_count << "\n";
+    }
     os << "inode count: " << stbuf.files << "\n";
     if (auto ps = meta_.preferred_path_separator()) {
       os << "preferred path separator: " << static_cast<char>(*ps) << "\n";
     }
     os << "original filesystem size: " << size_with_unit(stbuf.blocks) << "\n";
-    os << "compressed block size: "
-       << size_with_unit(fsinfo.compressed_block_size);
-    if (!fsinfo.uncompressed_block_size_is_estimate) {
-      os << fmt::format(" ({0:.2f}%)", (100.0 * fsinfo.compressed_block_size) /
-                                           fsinfo.uncompressed_block_size);
+    if (fsinfo) {
+      os << "compressed block size: "
+         << size_with_unit(fsinfo->compressed_block_size);
+      if (!fsinfo->uncompressed_block_size_is_estimate) {
+        os << fmt::format(" ({0:.2f}%)",
+                          (100.0 * fsinfo->compressed_block_size) /
+                              fsinfo->uncompressed_block_size);
+      }
+      os << "\n";
+      os << "uncompressed block size: ";
+      if (fsinfo->uncompressed_block_size_is_estimate) {
+        os << "(at least) ";
+      }
+      os << size_with_unit(fsinfo->uncompressed_block_size) << "\n";
+      os << "compressed metadata size: "
+         << size_with_unit(fsinfo->compressed_metadata_size);
+      if (!fsinfo->uncompressed_metadata_size_is_estimate) {
+        os << fmt::format(" ({0:.2f}%)",
+                          (100.0 * fsinfo->compressed_metadata_size) /
+                              fsinfo->uncompressed_metadata_size);
+      }
+      os << "\n";
+      os << "uncompressed metadata size: ";
+      if (fsinfo->uncompressed_metadata_size_is_estimate) {
+        os << "(at least) ";
+      }
+      os << size_with_unit(fsinfo->uncompressed_metadata_size) << "\n";
     }
-    os << "\n";
-    os << "uncompressed block size: ";
-    if (fsinfo.uncompressed_block_size_is_estimate) {
-      os << "(at least) ";
-    }
-    os << size_with_unit(fsinfo.uncompressed_block_size) << "\n";
-    os << "compressed metadata size: "
-       << size_with_unit(fsinfo.compressed_metadata_size);
-    if (!fsinfo.uncompressed_metadata_size_is_estimate) {
-      os << fmt::format(" ({0:.2f}%)",
-                        (100.0 * fsinfo.compressed_metadata_size) /
-                            fsinfo.uncompressed_metadata_size);
-    }
-    os << "\n";
-    os << "uncompressed metadata size: ";
-    if (fsinfo.uncompressed_metadata_size_is_estimate) {
-      os << "(at least) ";
-    }
-    os << size_with_unit(fsinfo.uncompressed_metadata_size) << "\n";
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
       parse_metadata_options(meta_, [&](auto const& name, bool value) {
@@ -1163,15 +1180,20 @@ void metadata_<LoggerPolicy>::dump(
       os << "categories:\n";
       for (auto const& [category, ci] : catinfo) {
         os << "  " << catnames[category] << ": " << ci.count << " blocks";
-        if (ci.uncompressed_size_is_estimate ||
-            ci.uncompressed_size != ci.compressed_size) {
-          os << ", " << size_with_unit(ci.compressed_size) << " compressed";
-        }
-        if (!ci.uncompressed_size_is_estimate) {
-          os << ", " << size_with_unit(ci.uncompressed_size) << " uncompressed";
-          if (ci.uncompressed_size != ci.compressed_size) {
-            os << fmt::format(" ({0:.2f}%)", (100.0 * ci.compressed_size) /
-                                                 ci.uncompressed_size);
+        if (ci.compressed_size) {
+          if (ci.uncompressed_size_is_estimate ||
+              ci.uncompressed_size.value() != ci.compressed_size.value()) {
+            os << ", " << size_with_unit(ci.compressed_size.value())
+               << " compressed";
+          }
+          if (!ci.uncompressed_size_is_estimate) {
+            os << ", " << size_with_unit(ci.uncompressed_size.value())
+               << " uncompressed";
+            if (ci.uncompressed_size.value() != ci.compressed_size.value()) {
+              os << fmt::format(" ({0:.2f}%)",
+                                (100.0 * ci.compressed_size.value()) /
+                                    ci.uncompressed_size.value());
+            }
           }
         }
         os << "\n";
@@ -1179,11 +1201,11 @@ void metadata_<LoggerPolicy>::dump(
     }
   }
 
-  if (detail_level > 1) {
-    analyze_frozen(os, meta_, data_.size(), detail_level);
+  if (opts.features.has(fsinfo_feature::frozen_analysis)) {
+    analyze_frozen(os, meta_, data_.size(), opts);
   }
 
-  if (detail_level > 2) {
+  if (opts.features.has(fsinfo_feature::metadata_details)) {
     os << "symlink_inode_offset: " << symlink_inode_offset_ << "\n";
     os << "file_inode_offset: " << file_inode_offset_ << "\n";
     os << "dev_inode_offset: " << dev_inode_offset_ << "\n";
@@ -1216,12 +1238,12 @@ void metadata_<LoggerPolicy>::dump(
     analyze_chunks(os);
   }
 
-  if (detail_level > 5) {
+  if (opts.features.has(fsinfo_feature::metadata_full_dump)) {
     os << ::apache::thrift::debugString(meta_.thaw()) << '\n';
   }
 
-  if (detail_level > 3) {
-    dump(os, "", root_, detail_level, icb);
+  if (opts.features.has(fsinfo_feature::directory_tree)) {
+    dump(os, "", root_, opts, icb);
   }
 }
 
