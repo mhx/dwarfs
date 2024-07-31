@@ -43,11 +43,13 @@
 
 namespace dwarfs::internal {
 
+namespace fs = std::filesystem;
+
 namespace {
 
 constexpr std::string_view const kHashContext{"[hashing] "};
 constexpr char const kLocalPathSeparator{
-    static_cast<char>(std::filesystem::path::preferred_separator)};
+    static_cast<char>(fs::path::preferred_separator)};
 
 bool is_root_path(std::string_view path) {
 #if _WIN32
@@ -59,7 +61,7 @@ bool is_root_path(std::string_view path) {
 
 } // namespace
 
-entry::entry(std::filesystem::path const& path, std::shared_ptr<entry> parent,
+entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
     : name_{u8string_to_string(parent ? path.filename().u8string()
                                       : path.u8string())}
@@ -80,12 +82,12 @@ void entry::set_name(const std::string& name) { name_ = name; }
 
 std::u8string entry::u8name() const { return string_to_u8string(name_); }
 
-std::filesystem::path entry::fs_path() const {
+fs::path entry::fs_path() const {
   if (auto parent = parent_.lock()) {
     return parent->fs_path() / u8name();
   }
 
-  return std::filesystem::path(u8name());
+  return fs::path(u8name());
 }
 
 std::string entry::path_as_string() const {
@@ -436,7 +438,7 @@ void dir::remove_empty_dirs(progress& prog) {
   lookup_.reset();
 }
 
-std::shared_ptr<entry> dir::find(std::filesystem::path const& path) {
+std::shared_ptr<entry> dir::find(fs::path const& path) {
   auto name = u8string_to_string(path.filename().u8string());
 
   if (!lookup_ && entries_.size() >= 16) {
