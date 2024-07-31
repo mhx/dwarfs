@@ -38,6 +38,13 @@ namespace internal {
 
 namespace fs = std::filesystem;
 
+namespace {
+
+constexpr char const kLocalPathSeparator{
+    static_cast<char>(fs::path::preferred_separator)};
+
+}
+
 struct filter_rule {
   enum class rule_type {
     include,
@@ -190,13 +197,20 @@ builtin_script_<LoggerPolicy>::builtin_script_(
     , fa_{std::move(fa)} {}
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::set_root_path(
-    fs::path const& path) {
+void builtin_script_<LoggerPolicy>::set_root_path(fs::path const& path) {
   // TODO: this whole thing needs to be windowsized
   root_path_ = u8string_to_string(path.u8string());
 
-  if (root_path_ == "/") {
-    root_path_.clear();
+  if constexpr (kLocalPathSeparator != '/') {
+    // Both '/' and '\\' are, surprisingly, valid path separators on Windows,
+    // and invalid characters in filenames. So on Windows, it's a lossless
+    // transformation to replace all '\\' with '/'.
+    std::replace(root_path_.begin(), root_path_.end(), kLocalPathSeparator,
+                 '/');
+  }
+
+  if (root_path_.ends_with('/')) {
+    root_path_.pop_back();
   }
 }
 

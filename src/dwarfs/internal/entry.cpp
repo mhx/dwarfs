@@ -118,12 +118,14 @@ std::string entry::unix_dpath() const {
     return "/";
   }
 
-  if (type() == E_DIR && !p.empty()) {
+  if (type() == E_DIR && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
     p += '/';
   }
 
   if (auto parent = parent_.lock()) {
     return parent->unix_dpath() + p;
+  } else if constexpr (kLocalPathSeparator != '/') {
+    std::replace(p.begin(), p.end(), kLocalPathSeparator, '/');
   }
 
   return p;
