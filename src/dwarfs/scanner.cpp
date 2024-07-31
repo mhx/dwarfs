@@ -369,7 +369,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     if (pe) {
       switch (pe->type()) {
       case entry::E_FILE:
-        if (pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
+        if (!debug_filter && pe->size() > 0 &&
+            os_.access(pe->fs_path(), R_OK)) {
           LOG_ERROR << "cannot access " << pe->path_as_string()
                     << ", creating empty file";
           pe->override_size(0);
