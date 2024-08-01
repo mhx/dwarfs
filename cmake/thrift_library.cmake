@@ -132,7 +132,7 @@ function(add_cpp2_thrift_library idlfile)
   endif()
 
   if(NOT _THRIFT_NO_LIBRARY)
-    add_library(${_THRIFT_TARGET} ${_THRIFT_LIB_SRC})
+    add_library(${_THRIFT_TARGET} OBJECT ${_THRIFT_LIB_SRC})
     target_include_directories(${_THRIFT_TARGET} PUBLIC
         ${CMAKE_CURRENT_BINARY_DIR}/thrift
         ${_THRIFT_GENERATED_DIR}/thrift
