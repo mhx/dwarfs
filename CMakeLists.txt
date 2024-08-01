@@ -477,11 +477,15 @@ add_library(dwarfs_folly_lite
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysMman.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysResource.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/QuantileEstimator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/TDigest.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/detail/DoubleRadixSort.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
