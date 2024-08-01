@@ -28,9 +28,10 @@
 #include <sstream>
 #include <vector>
 
-#include <folly/FileUtil.h>
-
 #include <gtest/gtest.h>
+
+// This needs to be included *after* gtest.h
+#include <folly/portability/Unistd.h>
 
 #include <fmt/format.h>
 
