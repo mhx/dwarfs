@@ -84,4 +84,6 @@ std::string exception_str(std::exception_ptr const& e);
 
 unsigned int hardware_concurrency() noexcept;
 
+int get_current_umask();
+
 } // namespace dwarfs

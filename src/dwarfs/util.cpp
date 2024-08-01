@@ -39,6 +39,7 @@
 #include <folly/ExceptionString.h>
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
+#include <folly/portability/SysStat.h>
 #include <folly/portability/Windows.h>
 #include <folly/system/HardwareConcurrency.h>
 
@@ -389,6 +390,15 @@ std::string exception_str(std::exception_ptr const& e) {
 
 unsigned int hardware_concurrency() noexcept {
   return folly::hardware_concurrency();
+}
+
+int get_current_umask() {
+  // I'm pretty certain these warnings by Flawfinder are false positives.
+  // After all, we're just doing a no-op by re-setting the original value
+  // in order to read it.
+  auto mask = ::umask(0077); /* Flawfinder: ignore */
+  ::umask(mask);             /* Flawfinder: ignore */
+  return mask;
 }
 
 } // namespace dwarfs

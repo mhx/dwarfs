@@ -48,7 +48,6 @@
 
 #include <folly/FileUtil.h>
 #include <folly/String.h>
-#include <folly/portability/SysStat.h>
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
@@ -961,11 +960,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       std::vector<std::string_view> chmod_exprs;
       folly::split(',', chmod_str, chmod_exprs);
 
-      // I'm pretty certain these warnings by Flawfinder are false positives.
-      // After all, we're just doing a no-op by re-setting the original value
-      // in order to read it.
-      auto mask = ::umask(0077); /* Flawfinder: ignore */
-      ::umask(mask);             /* Flawfinder: ignore */
+      auto mask = get_current_umask();
 
       for (auto expr : chmod_exprs) {
         bs->add_transformer(create_chmod_entry_transformer(expr, mask));
