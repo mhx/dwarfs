@@ -26,8 +26,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <archive.h>
-
 #include <folly/String.h>
 
 #include <dwarfs/filesystem_extractor.h>
@@ -134,7 +132,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.count("help") or !vm.count("input")) {
     library_dependencies deps;
     deps.add_common_libraries();
-    deps.add_library(::archive_version_string());
+    filesystem_extractor::add_library_dependencies(deps);
 
     iol.out << tool_header("dwarfsextract") << deps.as_string() << "\n\n"
             << usage << "\n"

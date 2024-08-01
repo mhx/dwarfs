@@ -1224,10 +1224,7 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
 endif()
 
-if(NOT STATIC_BUILD_DO_NOT_USE)
-  target_link_libraries(dwarfs_extractor PUBLIC PkgConfig::LIBARCHIVE)
-  # target_link_libraries(dwarfs_writer PkgConfig::LIBMAGIC)
-endif(NOT STATIC_BUILD_DO_NOT_USE)
+target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
 if(DWARFS_USE_EXCEPTION_TRACER)
   add_library(
@@ -1257,7 +1254,7 @@ endforeach()
 
 target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
-target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor PkgConfig::LIBARCHIVE)
+target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
 target_link_libraries(dwarfsbench_main PRIVATE dwarfs_extractor)
 
 target_link_libraries(mkdwarfs PRIVATE mkdwarfs_main)

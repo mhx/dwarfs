@@ -44,6 +44,7 @@
 #include <dwarfs/filesystem_extractor.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
@@ -429,5 +430,10 @@ filesystem_extractor::filesystem_extractor(logger& lgr, os_access const& os)
     : impl_(make_unique_logging_object<filesystem_extractor::impl,
                                        internal::filesystem_extractor_,
                                        logger_policies>(lgr, os)) {}
+
+void filesystem_extractor::add_library_dependencies(
+    library_dependencies& deps) {
+  deps.add_library(::archive_version_string());
+}
 
 } // namespace dwarfs
