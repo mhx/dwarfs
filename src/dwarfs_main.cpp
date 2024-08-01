@@ -33,6 +33,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <fcntl.h>
+
 #ifndef _WIN32
 #if __has_include(<boost/process/v2/environment.hpp>)
 #define BOOST_PROCESS_VERSION 2
@@ -46,7 +48,6 @@
 #include <fmt/format.h>
 
 #include <folly/experimental/symbolizer/SignalHandler.h>
-#include <folly/portability/Fcntl.h>
 
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
