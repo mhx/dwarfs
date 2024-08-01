@@ -233,7 +233,7 @@ if(WITH_MAN_PAGES)
 endif()
 
 if(NOT USE_PREFERRED_LIBS)
-  find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG QUIET)
+  find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG)
 endif()
 
 include(FetchContent)
@@ -249,7 +249,7 @@ if(NOT fmt_FOUND)
 endif()
 
 if(NOT USE_PREFERRED_LIBS)
-  find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG QUIET)
+  find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
 endif()
 
 if(NOT range-v3_FOUND)
