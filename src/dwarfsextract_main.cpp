@@ -26,8 +26,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <folly/String.h>
-
 #include <dwarfs/filesystem_extractor.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/iolayer.h>
@@ -38,6 +36,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/program_options_helpers.h>
+#include <dwarfs/string.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
@@ -156,9 +155,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     std::optional<std::filesystem::path> perfmon_trace_file;
 #if DWARFS_PERFMON_ENABLED
     if (!perfmon_str.empty()) {
-      folly::splitTo<std::string>(
-          ',', perfmon_str,
-          std::inserter(perfmon_enabled, perfmon_enabled.begin()));
+      split_to(perfmon_str, ',', perfmon_enabled);
     }
     if (!trace_file.empty()) {
       perfmon_trace_file = iol.os->canonical(trace_file);

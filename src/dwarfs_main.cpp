@@ -45,7 +45,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/String.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 #include <folly/portability/Fcntl.h>
 
@@ -95,6 +94,7 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/string.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
@@ -1431,9 +1431,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   std::optional<std::filesystem::path> perfmon_trace_file;
 #if DWARFS_PERFMON_ENABLED
   if (opts.perfmon_enabled_str) {
-    folly::splitTo<std::string>(
-        '+', opts.perfmon_enabled_str,
-        std::inserter(perfmon_enabled, perfmon_enabled.begin()));
+    split_to(opts.perfmon_enabled_str, '+', perfmon_enabled);
   }
   if (opts.perfmon_trace_file_str) {
     perfmon_trace_file = userdata.iol.os->canonical(std::filesystem::path(

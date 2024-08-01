@@ -1072,7 +1072,7 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
-  target_link_libraries(${tgt} PRIVATE dwarfs_folly_lite dwarfs_thrift_lite)
+  target_link_libraries(${tgt} PRIVATE dwarfs_folly_lite dwarfs_thrift_lite range-v3::range-v3)
 
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)

@@ -46,15 +46,12 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/program_options.hpp>
 
-#include <folly/String.h>
-
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
 #include <fmt/ranges.h>
 #endif
 
 #include <range/v3/view/enumerate.hpp>
-#include <range/v3/view/map.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
@@ -84,6 +81,7 @@
 #include <dwarfs/scanner.h>
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
+#include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool.h>
@@ -865,10 +863,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         rw_opts.recompress_categories_exclude = true;
         input.remove_prefix(1);
       }
-      folly::splitTo<std::string>(
-          ',', input,
-          std::inserter(rw_opts.recompress_categories,
-                        rw_opts.recompress_categories.end()));
+      rw_opts.recompress_categories =
+          split_to<std::unordered_set<std::string>>(input, ',');
     }
   }
 
@@ -956,8 +952,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         chmod_str = "ug-st,=Xr";
       }
 
-      std::vector<std::string_view> chmod_exprs;
-      folly::split(',', chmod_str, chmod_exprs);
+      auto chmod_exprs =
+          split_to<std::vector<std::string_view>>(chmod_str, ',');
 
       auto mask = get_current_umask();
 
@@ -1021,8 +1017,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       options.pack_symlinks = true;
       options.pack_symlinks_index = false;
     } else {
-      std::vector<std::string_view> pack_opts;
-      folly::split(',', pack_metadata, pack_opts);
+      auto pack_opts =
+          split_to<std::vector<std::string_view>>(pack_metadata, ',');
       for (auto const& opt : pack_opts) {
         if (opt == "chunk_table") {
           options.pack_chunk_table = true;
@@ -1156,8 +1152,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (!categorizer_list.value.empty()) {
-    std::vector<std::string> categorizers;
-    folly::split(',', categorizer_list.value, categorizers);
+    auto categorizers =
+        split_to<std::vector<std::string>>(categorizer_list.value, ',');
 
     options.inode.categorizer_mgr = std::make_shared<categorizer_manager>(lgr);
 

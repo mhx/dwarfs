@@ -26,10 +26,9 @@
 
 #include <fmt/format.h>
 
-#include <range/v3/view/split.hpp>
-
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
+#include <dwarfs/string.h>
 
 namespace dwarfs {
 
@@ -147,15 +146,13 @@ fsinfo_features fsinfo_features::for_level(int level) {
 fsinfo_features fsinfo_features::parse(std::string_view features) {
   fsinfo_features result;
 
-  for (auto const& f : features | ranges::views::split(',')) {
-    // TODO: This should be much simpler with C++23
-    std::string_view fsv(&*f.begin(), ranges::distance(f));
+  for (auto const& f : split_view<std::string_view>(features, ',')) {
     auto const it =
         std::find_if(fsinfo_feature_names.begin(), fsinfo_feature_names.end(),
-                     [&fsv](auto const& p) { return fsv == p.second; });
+                     [&f](auto const& p) { return f == p.second; });
 
     if (it == fsinfo_feature_names.end()) {
-      DWARFS_THROW(runtime_error, fmt::format("invalid feature: \"{}\"", fsv));
+      DWARFS_THROW(runtime_error, fmt::format("invalid feature: \"{}\"", f));
     }
 
     result |= it->first;
