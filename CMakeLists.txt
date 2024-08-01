@@ -767,7 +767,7 @@ add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC} ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_reader ${LIBDWARFS_READER_SRC})
 add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC} ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
-add_library(dwarfs_tool ${LIBDWARFS_TOOL_SRC})
+add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
 target_link_libraries(dwarfs_common PUBLIC dwarfs_folly_lite)
 target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
@@ -834,7 +834,7 @@ list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
         dwarfsextract_main)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
-  add_library(dwarfs_main src/dwarfs_main.cpp)
+  add_library(dwarfs_main OBJECT src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
   add_executable(dwarfs-bin src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
@@ -898,7 +898,7 @@ endif()
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
-  add_library(dwarfs_test_helpers
+  add_library(dwarfs_test_helpers OBJECT
     test/test_helpers.cpp
     test/test_iolayer.cpp
     test/test_strings.cpp
@@ -969,7 +969,7 @@ if(WITH_TESTS)
   )
 
   target_link_libraries(tool_main_test PRIVATE
-    mkdwarfs_main dwarfsck_main dwarfsbench_main dwarfsextract_main)
+    mkdwarfs_main dwarfsck_main dwarfsbench_main dwarfsextract_main range-v3::range-v3)
 
   target_link_libraries(block_cache_test PRIVATE mkdwarfs_main range-v3::range-v3)
   target_link_libraries(block_merger_test PRIVATE range-v3::range-v3)
@@ -1007,7 +1007,7 @@ if(WITH_BENCHMARKS)
     list(APPEND BINARY_TARGETS converter_benchmark)
   endif()
 
-  add_library(dwarfs_follybenchmark_lite ${FOLLY_BENCHMARK_LITE_SRC})
+  add_library(dwarfs_follybenchmark_lite OBJECT ${FOLLY_BENCHMARK_LITE_SRC})
   set_property(TARGET dwarfs_follybenchmark_lite PROPERTY CXX_STANDARD 20)
   apply_folly_compile_options_to_target(dwarfs_follybenchmark_lite)
   target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
@@ -1088,7 +1088,8 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
-  target_link_libraries(${tgt} PUBLIC Boost::boost dwarfs_folly_lite dwarfs_thrift_lite)
+  target_link_libraries(${tgt} PUBLIC Boost::boost)
+  target_link_libraries(${tgt} PRIVATE dwarfs_folly_lite dwarfs_thrift_lite)
 
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
@@ -1178,7 +1179,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Release)
 endif()
 
 add_library(
-  dwarfs_fsst
+  dwarfs_fsst OBJECT
   fsst/libfsst.cpp fsst/fsst_avx512.cpp fsst/fsst_avx512_unroll1.inc
   fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
   fsst/fsst_avx512_unroll4.inc)
@@ -1252,7 +1253,7 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
   endif()
 endforeach()
 
-target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer)
+target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer range-v3::range-v3)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
 target_link_libraries(dwarfsbench_main PRIVATE dwarfs_extractor)
