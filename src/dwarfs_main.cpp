@@ -94,6 +94,7 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool.h>
 #include <dwarfs/util.h>
@@ -1633,11 +1634,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  SCOPE_EXIT {
+  scope_exit perfmon_summary{[&] {
     if (userdata.perfmon) {
       userdata.perfmon->summarize(iol.err);
     }
-  };
+  }};
 
 #if FUSE_USE_VERSION >= 30
 #if DWARFS_FUSE_LOWLEVEL

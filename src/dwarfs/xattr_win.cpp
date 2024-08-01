@@ -28,8 +28,7 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include <folly/ScopeGuard.h>
-
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/xattr.h>
 
 extern "C" {
@@ -86,7 +85,7 @@ HANDLE open_file(std::filesystem::path const& path, bool writeable,
     return nullptr;
   }
 
-  SCOPE_EXIT { ::RtlFreeUnicodeString(&nt_path); };
+  scope_exit free_nt_path{[&] { ::RtlFreeUnicodeString(&nt_path); }};
 
   HANDLE fh;
   IO_STATUS_BLOCK iosb;
@@ -129,7 +128,7 @@ std::string getxattr(std::filesystem::path const& path, std::string const& name,
     return {};
   }
 
-  SCOPE_EXIT { ::NtClose(fh); };
+  scope_exit close_fh{[&] { ::NtClose(fh); }};
 
   CHAR getea_buf[kMaxGetEaBufferSize];
   ULONG getea_len =
@@ -184,7 +183,7 @@ listxattr(std::filesystem::path const& path, std::error_code& ec) {
     return {};
   }
 
-  SCOPE_EXIT { ::NtClose(fh); };
+  scope_exit close_fh{[&] { ::NtClose(fh); }};
 
   std::vector<std::string> names;
   std::vector<CHAR> ea_buf(kMaxFullEaBufferSize);

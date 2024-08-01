@@ -35,7 +35,6 @@
 #include <archive_entry.h>
 
 #include <folly/ExceptionString.h>
-#include <folly/ScopeGuard.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Unistd.h>
 #include <folly/system/ThreadName.h>
@@ -48,6 +47,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
@@ -239,7 +239,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
   auto lr = ::archive_entry_linkresolver_new();
 
-  SCOPE_EXIT { ::archive_entry_linkresolver_free(lr); };
+  scope_exit free_resolver{[&] { ::archive_entry_linkresolver_free(lr); }};
 
   if (auto fmt = ::archive_format(a_)) {
     ::archive_entry_linkresolver_set_strategy(lr, fmt);
@@ -329,7 +329,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       }
     } else {
       archiver.add_job([this, ae, &hard_error] {
-        SCOPE_EXIT { ::archive_entry_free(ae); };
+        scope_exit free_entry{[&] { ::archive_entry_free(ae); }};
         try {
           check_result(::archive_write_header(a_, ae));
         } catch (...) {

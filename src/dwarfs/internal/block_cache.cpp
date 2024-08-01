@@ -36,7 +36,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/ScopeGuard.h>
 #include <folly/container/EvictingCacheMap.h>
 #include <folly/container/F14Map.h>
 #include <folly/stats/Histogram.h>
@@ -46,6 +45,7 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/block_cache.h>
@@ -380,7 +380,7 @@ class block_cache_ final : public block_cache::impl {
 
     seq_access_detector_->touch(block_no);
 
-    SCOPE_EXIT {
+    scope_exit do_prefetch{[&] {
       if (auto next = seq_access_detector_->prefetch()) {
         sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
 
@@ -390,7 +390,7 @@ class block_cache_ final : public block_cache::impl {
                               std::numeric_limits<size_t>::max());
         }
       }
-    };
+    }};
 
     range_requests_.fetch_add(1, std::memory_order_relaxed);
 
