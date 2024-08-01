@@ -970,7 +970,9 @@ if(WITH_TESTS)
   target_link_libraries(block_cache_test PRIVATE mkdwarfs_main range-v3::range-v3)
   target_link_libraries(block_merger_test PRIVATE range-v3::range-v3)
   target_link_libraries(chmod_transformer_test PRIVATE range-v3::range-v3)
-  target_link_libraries(ricepp_compressor_test PRIVATE range-v3::range-v3)
+  if(ENABLE_RICEPP)
+    target_link_libraries(ricepp_compressor_test PRIVATE range-v3::range-v3)
+  endif()
 
   foreach(tgt fits_categorizer_test
               incompressible_categorizer_test
