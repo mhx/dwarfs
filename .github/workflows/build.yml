@@ -207,6 +207,7 @@ jobs:
         build_type:
           - gcc-debug-ninja
           - gcc-release-ninja
+          - gcc-release-shared-ninja
           - clang-release-ninja
         exclude:
           - arch: arm64v8
@@ -215,6 +216,9 @@ jobs:
           - arch: arm64v8
             dist: arch
             build_type: gcc-release-ninja
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-release-shared-ninja
           - arch: arm64v8
             dist: arch
             build_type: clang-release-ninja
