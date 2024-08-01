@@ -689,7 +689,7 @@ TEST_P(logging_test, end_to_end) {
 
     for (int detail = 0; detail <= 6; ++detail) {
       std::ostringstream os;
-      fs.dump(os, detail);
+      fs.dump(os, {.features = fsinfo_features::for_level(detail)});
       auto d = os.str();
       if (!dumps.empty()) {
         EXPECT_GT(d.size(), dumps.back().size()) << detail;
@@ -704,7 +704,8 @@ TEST_P(logging_test, end_to_end) {
     std::vector<std::string> infos;
 
     for (int detail = 0; detail <= 4; ++detail) {
-      auto info = fs.info_as_json(detail);
+      auto info =
+          fs.info_as_json({.features = fsinfo_features::for_level(detail)});
       auto i = info.dump();
       if (!infos.empty()) {
         EXPECT_GT(i.size(), infos.back().size()) << detail;
@@ -978,7 +979,7 @@ TEST(mkdwarfs_test, metadata_specials) {
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
-  fs.dump(oss, 9);
+  fs.dump(oss, {.features = fsinfo_features::all()});
   auto dump = oss.str();
 
   auto meta = fs.metadata_as_json();
@@ -1018,12 +1019,12 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
   auto fs = t.fs_from_stdout();
 
   std::ostringstream oss;
-  fs.dump(oss, 9);
+  fs.dump(oss, {.features = fsinfo_features::all()});
   auto dump = oss.str();
 
   EXPECT_THAT(dump, ::testing::HasSubstr("time resolution: 60 seconds"));
 
-  auto dyn = fs.info_as_json(9);
+  auto dyn = fs.info_as_json({.features = fsinfo_features::all()});
   EXPECT_EQ(60, dyn["time_resolution"].get<int>());
 
   auto iv = fs.find("/suid");
@@ -1310,6 +1311,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
   std::string const compression{GetParam()};
   std::string const image_file = "test.dwarfs";
   std::string image;
+  fsinfo_options const history_opts{.features = {fsinfo_feature::history}};
 
   {
     mkdwarfs_tester t;
@@ -1323,7 +1325,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_TRUE(img);
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
-    auto history = fs.info_as_json(2)["history"];
+    auto history = fs.info_as_json(history_opts)["history"];
     EXPECT_EQ(1, history.size());
   }
 
@@ -1340,7 +1342,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
-    auto history = fs.info_as_json(2)["history"];
+    auto history = fs.info_as_json(history_opts)["history"];
     EXPECT_EQ(2, history.size());
   }
 
@@ -1393,7 +1395,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
     EXPECT_EQ(0, fs.get_history().size());
-    EXPECT_EQ(1, fs.info_as_json(2).count("history"));
+    EXPECT_EQ(1, fs.info_as_json(history_opts).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
   }
 
@@ -1441,7 +1443,7 @@ TEST_P(mkdwarfs_build_options_test, basic) {
 
   auto fs = t.fs_from_file(image_file);
 
-  fs.dump(std::cout, 3);
+  fs.dump(std::cout, {.features = fsinfo_features::for_level(3)});
 }
 
 namespace {
@@ -1627,13 +1629,14 @@ TEST(mkdwarfs_test, pack_modes_random) {
         0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=" + mode_arg}))
         << t.err();
     auto fs = t.fs_from_stdout();
-    auto info = fs.info_as_json(2);
+    auto info = fs.info_as_json({.features = fsinfo_features::for_level(2)});
     std::set<std::string> ms(modes.begin(), modes.end());
     std::set<std::string> fsopt;
     for (auto const& opt : info["options"]) {
       fsopt.insert(opt.get<std::string>());
     }
-    auto ctx = mode_arg + "\n" + fs.dump(2);
+    auto ctx =
+        mode_arg + "\n" + fs.dump({.features = fsinfo_features::for_level(2)});
     EXPECT_EQ(ms.count("chunk_table"), fsopt.count("packed_chunk_table"))
         << ctx;
     EXPECT_EQ(ms.count("directories"), fsopt.count("packed_directories"))
@@ -1657,7 +1660,7 @@ TEST(mkdwarfs_test, pack_mode_none) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=none"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info = fs.info_as_json(2);
+  auto info = fs.info_as_json({.features = fsinfo_features::for_level(2)});
   std::set<std::string> fsopt;
   for (auto const& opt : info["options"]) {
     fsopt.insert(opt.get<std::string>());
@@ -1673,7 +1676,7 @@ TEST(mkdwarfs_test, pack_mode_all) {
   ASSERT_EQ(0, t.run({"-i", "/", "-o", "-", "-l1", "--pack-metadata=all"}))
       << t.err();
   auto fs = t.fs_from_stdout();
-  auto info = fs.info_as_json(2);
+  auto info = fs.info_as_json({.features = fsinfo_features::for_level(2)});
   std::set<std::string> expected = {"packed_chunk_table",
                                     "packed_directories",
                                     "packed_names",
@@ -1957,7 +1960,8 @@ TEST(dwarfsck_test, check_fail) {
                       ::testing::HasSubstr(
                           fmt::format("checksum error in section: {}", type)));
         }
-        auto info = fs.info_as_json(3);
+        auto info =
+            fs.info_as_json({.features = fsinfo_features::for_level(3)});
         ASSERT_EQ(1, info.count("sections"));
         ASSERT_EQ(section_offsets.size(), info["sections"].size());
         for (auto const& [i, section] :
@@ -1965,7 +1969,7 @@ TEST(dwarfsck_test, check_fail) {
           EXPECT_EQ(section["checksum_ok"].get<bool>(), i != index)
               << type << ", " << index;
         }
-        auto dump = fs.dump(3);
+        auto dump = fs.dump({.features = fsinfo_features::for_level(3)});
         EXPECT_THAT(dump, ::testing::HasSubstr("CHECKSUM ERROR"));
       }
     }
@@ -2547,7 +2551,7 @@ TEST_P(map_file_error_test, delayed) {
   EXPECT_EQ(2, t.run(args)) << t.err();
 
   auto fs = t.fs_from_file("test.dwarfs", {.metadata = {.enable_nlink = true}});
-  // fs.dump(std::cout, 2);
+  // fs.dump(std::cout, {.features = fsinfo_features::for_level(2)});
 
   {
     auto large_link1 = fs.find("/large_link1");
@@ -2687,7 +2691,7 @@ TEST(block_cache, sequential_access_detector) {
           image,
           {.block_cache = {.max_bytes = 256 * 1024,
                            .sequential_access_detector_threshold = thresh}});
-      auto info = fs.info_as_json(3);
+      auto info = fs.info_as_json({.features = fsinfo_features::for_level(3)});
       for (auto const& s : info["sections"]) {
         if (s["type"] == "BLOCK") {
           ++block_count;

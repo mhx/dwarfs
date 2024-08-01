@@ -108,19 +108,35 @@ class fsinfo_features {
     }
   }
 
+  static constexpr fsinfo_features all() { return fsinfo_features().set_all(); }
+
+  static fsinfo_features for_level(int level);
+
   constexpr bool has(fsinfo_feature f) const {
     return features_ & (1 << static_cast<size_t>(f));
   }
 
-  constexpr void set(fsinfo_feature f) {
+  constexpr fsinfo_features& set(fsinfo_feature f) {
     features_ |= (1 << static_cast<size_t>(f));
+    return *this;
   }
 
-  constexpr void clear(fsinfo_feature f) {
+  constexpr fsinfo_features& set_all() {
+    features_ = ~feature_type{} >>
+                (max_feature_bits -
+                 static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits));
+    return *this;
+  }
+
+  constexpr fsinfo_features& clear(fsinfo_feature f) {
     features_ &= ~(1 << static_cast<size_t>(f));
+    return *this;
   }
 
-  constexpr void reset() { features_ = 0; }
+  constexpr fsinfo_features& reset() {
+    features_ = 0;
+    return *this;
+  }
 
   constexpr fsinfo_features& operator|=(fsinfo_features const& other) {
     features_ |= other.features_;
@@ -136,9 +152,13 @@ class fsinfo_features {
 
  private:
   // can be upgraded to std::bitset if needed and when it's constexpr
-  uint64_t features_{0};
+  using feature_type = uint64_t;
+  static constexpr size_t max_feature_bits{
+      std::numeric_limits<feature_type>::digits};
+
+  feature_type features_{0};
   static_assert(static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits) <=
-                std::numeric_limits<uint64_t>::digits);
+                max_feature_bits);
 };
 
 struct fsinfo_options {

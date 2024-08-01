@@ -29,6 +29,28 @@
 
 namespace dwarfs {
 
+namespace {
+
+constexpr std::array level_features{
+    /* 0 */ fsinfo_features(),
+    /* 1 */
+    fsinfo_features(
+        {fsinfo_feature::version, fsinfo_feature::metadata_summary}),
+    /* 2 */
+    fsinfo_features({fsinfo_feature::frozen_analysis, fsinfo_feature::history}),
+    /* 3 */
+    fsinfo_features(
+        {fsinfo_feature::metadata_details, fsinfo_feature::section_details}),
+    /* 4 */
+    fsinfo_features(
+        {fsinfo_feature::directory_tree, fsinfo_feature::frozen_layout}),
+    /* 5 */ fsinfo_features({fsinfo_feature::chunk_details}),
+    /* 6 */ fsinfo_features({fsinfo_feature::metadata_full_dump}),
+    /* 7 */ fsinfo_features({}),
+};
+
+} // namespace
+
 std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
   std::string modestr{"unknown"};
 
@@ -73,6 +95,18 @@ mlock_mode parse_mlock_mode(std::string_view mode) {
     return mlock_mode::MUST;
   }
   DWARFS_THROW(runtime_error, fmt::format("invalid lock mode: {}", mode));
+}
+
+fsinfo_features fsinfo_features::for_level(int level) {
+  fsinfo_features features;
+
+  level = std::min<int>(level, level_features.size() - 1);
+
+  for (int i = 0; i <= level; ++i) {
+    features |= level_features[i];
+  }
+
+  return features;
 }
 
 } // namespace dwarfs

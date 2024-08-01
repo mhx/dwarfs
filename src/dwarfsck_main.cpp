@@ -327,7 +327,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
           opts.block_access = no_check ? block_access_level::no_verify
                                        : block_access_level::unrestricted;
-          opts.features = filesystem_v2::features_for_level(detail);
+          opts.features = fsinfo_features::for_level(detail);
 
           if (output_json) {
             iol.out << fs.info_as_json(opts) << "\n";

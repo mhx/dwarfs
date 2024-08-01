@@ -61,28 +61,6 @@ namespace internal {
 
 namespace {
 
-constexpr std::array level_features{
-    /* 0 */ fsinfo_features(),
-    /* 1 */
-    fsinfo_features(
-        {fsinfo_feature::version, fsinfo_feature::metadata_summary}),
-    /* 2 */
-    fsinfo_features({fsinfo_feature::frozen_analysis, fsinfo_feature::history}),
-    /* 3 */
-    fsinfo_features(
-        {fsinfo_feature::metadata_details, fsinfo_feature::section_details}),
-    /* 4 */
-    fsinfo_features(
-        {fsinfo_feature::directory_tree, fsinfo_feature::frozen_layout}),
-    /* 5 */ fsinfo_features({fsinfo_feature::chunk_details}),
-    /* 6 */ fsinfo_features({fsinfo_feature::metadata_full_dump}),
-    /* 7 */ fsinfo_features({}),
-};
-
-fsinfo_options fsinfo_opts_for_level(int level) {
-  return fsinfo_options{.features = filesystem_v2::features_for_level(level)};
-}
-
 void check_section_logger(logger& lgr, fs_section const& section) {
   LOG_PROXY(debug_logger_policy, lgr);
 
@@ -429,9 +407,6 @@ class filesystem_ final : public filesystem_v2::impl {
               std::shared_ptr<performance_monitor const> perfmon);
 
   int check(filesystem_check_level level, size_t num_threads) const override;
-  void dump(std::ostream& os, int detail_level) const override;
-  std::string dump(int detail_level) const override;
-  nlohmann::json info_as_json(int detail_level) const override;
   void dump(std::ostream& os, fsinfo_options const& opts) const override;
   std::string dump(fsinfo_options const& opts) const override;
   nlohmann::json info_as_json(fsinfo_options const& opts) const override;
@@ -955,21 +930,6 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 }
 
 template <typename LoggerPolicy>
-void filesystem_<LoggerPolicy>::dump(std::ostream& os, int detail_level) const {
-  dump(os, fsinfo_opts_for_level(detail_level));
-}
-
-template <typename LoggerPolicy>
-std::string filesystem_<LoggerPolicy>::dump(int detail_level) const {
-  return dump(fsinfo_opts_for_level(detail_level));
-}
-
-template <typename LoggerPolicy>
-nlohmann::json filesystem_<LoggerPolicy>::info_as_json(int detail_level) const {
-  return info_as_json(fsinfo_opts_for_level(detail_level));
-}
-
-template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os,
                                      fsinfo_options const& opts) const {
   filesystem_parser parser(mm_, image_offset_);
@@ -1436,7 +1396,7 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
                                          : filesystem_check_level::CHECKSUM,
                          num_readers);
 
-  fs.dump(output, detail_level);
+  fs.dump(output, {.features = fsinfo_features::for_level(detail_level)});
 
   return errors;
 }
@@ -1449,18 +1409,6 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return internal::filesystem_parser(mm, image_offset).header();
-}
-
-fsinfo_features filesystem_v2::features_for_level(int level) {
-  fsinfo_features features;
-
-  level = std::min<int>(level, internal::level_features.size() - 1);
-
-  for (int i = 0; i <= level; ++i) {
-    features |= internal::level_features[i];
-  }
-
-  return features;
 }
 
 } // namespace dwarfs

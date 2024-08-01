@@ -831,7 +831,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
   EXPECT_GT(json.size(), 1000) << json;
 
   std::ostringstream dumpss;
-  fs.dump(dumpss, 9);
+  fs.dump(dumpss, {.features = fsinfo_features::all()});
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/format.sh");

@@ -82,16 +82,6 @@ class filesystem_v2 {
     return impl_->check(level, num_threads);
   }
 
-  void dump(std::ostream& os, int detail_level) const {
-    impl_->dump(os, detail_level);
-  }
-
-  std::string dump(int detail_level) const { return impl_->dump(detail_level); }
-
-  nlohmann::json info_as_json(int detail_level) const {
-    return impl_->info_as_json(detail_level);
-  }
-
   void dump(std::ostream& os, fsinfo_options const& opts) const {
     impl_->dump(os, opts);
   }
@@ -315,9 +305,6 @@ class filesystem_v2 {
 
     virtual int
     check(filesystem_check_level level, size_t num_threads) const = 0;
-    virtual void dump(std::ostream& os, int detail_level) const = 0;
-    virtual std::string dump(int detail_level) const = 0;
-    virtual nlohmann::json info_as_json(int detail_level) const = 0;
     virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
     virtual std::string dump(fsinfo_options const& opts) const = 0;
     virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;

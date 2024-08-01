@@ -249,7 +249,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   std::ostringstream dumpss;
 
-  fs.dump(dumpss, 9);
+  fs.dump(dumpss, {.features = fsinfo_features::all()});
 
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
@@ -503,7 +503,8 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(json.size(), 1000) << json;
 
   for (int detail = 0; detail <= 5; ++detail) {
-    auto info = fs.info_as_json(detail);
+    auto info =
+        fs.info_as_json({.features = fsinfo_features::for_level(detail)});
 
     ASSERT_TRUE(info.count("version"));
     ASSERT_TRUE(info.count("image_offset"));
