@@ -248,6 +248,12 @@ if(NOT fmt_FOUND)
   FetchContent_MakeAvailable(fmt)
 endif()
 
+if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE)
+  set(DWARFS_FMT_LIB fmt::fmt)
+else()
+  set(DWARFS_FMT_LIB fmt::fmt-header-only)
+endif()
+
 if(NOT USE_PREFERRED_LIBS)
   find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
 endif()
@@ -1145,7 +1151,7 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
 
-  target_link_libraries(${tgt} PRIVATE fmt::fmt)
+  target_link_libraries(${tgt} PRIVATE ${DWARFS_FMT_LIB})
 
   if(WIN32)
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
