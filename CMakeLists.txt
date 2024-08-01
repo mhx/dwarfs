@@ -1375,17 +1375,22 @@ foreach(man_dir ${MAN_DIRS})
   install(DIRECTORY "${man_dir}" DESTINATION share/man)
 endforeach()
 
-# TODO: There's currently no point installing the library + headers, as these
-# have dependencies on the bundled folly/thrift/... which we don't install.
-if(FALSE)
-  if(NOT STATIC_BUILD_DO_NOT_USE)
-    install(
-      TARGETS dwarfs
-      RUNTIME DESTINATION bin
-      LIBRARY DESTINATION lib
-      ARCHIVE DESTINATION lib)
-    install(DIRECTORY include/dwarfs DESTINATION include)
-  endif()
+if(NOT STATIC_BUILD_DO_NOT_USE)
+  install(
+    TARGETS dwarfs_common
+            dwarfs_reader
+            dwarfs_writer
+            dwarfs_extractor
+            dwarfs_folly_lite
+            dwarfs_thrift_lite
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib)
+
+  install(
+    DIRECTORY include/dwarfs
+    DESTINATION include
+    PATTERN include/dwarfs/internal EXCLUDE
+  )
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
