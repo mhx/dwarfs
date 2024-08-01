@@ -19,10 +19,14 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <array>
 #include <ostream>
 #include <string>
 
 #include <fmt/format.h>
+
+#include <range/v3/view/split.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
@@ -46,8 +50,35 @@ constexpr std::array level_features{
         {fsinfo_feature::directory_tree, fsinfo_feature::frozen_layout}),
     /* 5 */ fsinfo_features({fsinfo_feature::chunk_details}),
     /* 6 */ fsinfo_features({fsinfo_feature::metadata_full_dump}),
-    /* 7 */ fsinfo_features({}),
 };
+
+constexpr std::array<std::pair<fsinfo_feature, std::string_view>,
+                     static_cast<int>(fsinfo_feature::num_fsinfo_feature_bits)>
+    fsinfo_feature_names{{
+#define FSINFO_FEATURE_PAIR_(f) {fsinfo_feature::f, #f}
+        FSINFO_FEATURE_PAIR_(version),
+        FSINFO_FEATURE_PAIR_(history),
+        FSINFO_FEATURE_PAIR_(metadata_summary),
+        FSINFO_FEATURE_PAIR_(metadata_details),
+        FSINFO_FEATURE_PAIR_(metadata_full_dump),
+        FSINFO_FEATURE_PAIR_(frozen_analysis),
+        FSINFO_FEATURE_PAIR_(frozen_layout),
+        FSINFO_FEATURE_PAIR_(directory_tree),
+        FSINFO_FEATURE_PAIR_(section_details),
+        FSINFO_FEATURE_PAIR_(chunk_details),
+#undef FSINFO_FEATURE_PAIR_
+    }};
+
+constexpr bool fsinfo_feature_names_in_order() {
+  for (size_t i = 0; i < fsinfo_feature_names.size(); ++i) {
+    if (fsinfo_feature_names[i].first != static_cast<fsinfo_feature>(i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static_assert(fsinfo_feature_names_in_order());
 
 } // namespace
 
@@ -97,6 +128,10 @@ mlock_mode parse_mlock_mode(std::string_view mode) {
   DWARFS_THROW(runtime_error, fmt::format("invalid lock mode: {}", mode));
 }
 
+int fsinfo_features::max_level() {
+  return static_cast<int>(level_features.size()) - 1;
+}
+
 fsinfo_features fsinfo_features::for_level(int level) {
   fsinfo_features features;
 
@@ -107,6 +142,53 @@ fsinfo_features fsinfo_features::for_level(int level) {
   }
 
   return features;
+}
+
+fsinfo_features fsinfo_features::parse(std::string_view features) {
+  fsinfo_features result;
+
+  for (auto const& f : features | ranges::views::split(',')) {
+    // TODO: This should be much simpler with C++23
+    std::string_view fsv(&*f.begin(), ranges::distance(f));
+    auto const it =
+        std::find_if(fsinfo_feature_names.begin(), fsinfo_feature_names.end(),
+                     [&fsv](auto const& p) { return fsv == p.second; });
+
+    if (it == fsinfo_feature_names.end()) {
+      DWARFS_THROW(runtime_error, fmt::format("invalid feature: \"{}\"", fsv));
+    }
+
+    result |= it->first;
+  }
+
+  return result;
+}
+
+std::string fsinfo_features::to_string() const {
+  std::string result;
+
+  for (size_t bit = 0; bit < num_feature_bits; ++bit) {
+    if (has(static_cast<fsinfo_feature>(bit))) {
+      if (!result.empty()) {
+        result += ',';
+      }
+      result += fsinfo_feature_names[bit].second;
+    }
+  }
+
+  return result;
+}
+
+std::vector<std::string_view> fsinfo_features::to_string_views() const {
+  std::vector<std::string_view> result;
+
+  for (size_t bit = 0; bit < num_feature_bits; ++bit) {
+    if (has(static_cast<fsinfo_feature>(bit))) {
+      result.push_back(fsinfo_feature_names[bit].second);
+    }
+  }
+
+  return result;
 }
 
 } // namespace dwarfs

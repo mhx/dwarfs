@@ -37,6 +37,7 @@
 #include <folly/portability/Unistd.h>
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_v2.h>
@@ -161,12 +162,16 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto algo_list = checksum::available_algorithms();
   auto checksum_desc = fmt::format("print checksums for all files ({})",
                                    fmt::join(algo_list, ", "));
+  auto detail_desc = fmt::format(
+      "detail level (0-{}, or feature list: {})", fsinfo_features::max_level(),
+      fmt::join(fsinfo_features::all().to_string_views(), ", "));
+  auto const detail_default{fsinfo_features::for_level(2).to_string()};
 
   sys_string input, export_metadata;
   std::string image_offset, checksum_algo;
   logger_options logopts;
   size_t num_workers;
-  int detail;
+  std::string detail;
   bool quiet{false};
   bool verbose{false};
   bool output_json{false};
@@ -182,8 +187,8 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&input),
         "input filesystem")
     ("detail,d",
-        po::value<int>(&detail)->default_value(2),
-        "detail level")
+        po::value<std::string>(&detail)->default_value(detail_default.c_str()),
+        detail_desc.c_str())
     ("quiet,q",
         po::value<bool>(&quiet)->zero_tokens(),
         "don't print anything unless an error occurs")
@@ -327,7 +332,11 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
           opts.block_access = no_check ? block_access_level::no_verify
                                        : block_access_level::unrestricted;
-          opts.features = fsinfo_features::for_level(detail);
+
+          auto numeric_detail = tryTo<int>(detail);
+          opts.features = numeric_detail.has_value()
+                              ? fsinfo_features::for_level(*numeric_detail)
+                              : fsinfo_features::parse(detail);
 
           if (output_json) {
             iol.out << fs.info_as_json(opts) << "\n";

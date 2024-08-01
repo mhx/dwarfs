@@ -110,7 +110,12 @@ class fsinfo_features {
 
   static constexpr fsinfo_features all() { return fsinfo_features().set_all(); }
 
+  static int max_level();
   static fsinfo_features for_level(int level);
+  static fsinfo_features parse(std::string_view str);
+
+  std::string to_string() const;
+  std::vector<std::string_view> to_string_views() const;
 
   constexpr bool has(fsinfo_feature f) const {
     return features_ & (1 << static_cast<size_t>(f));
@@ -155,10 +160,11 @@ class fsinfo_features {
   using feature_type = uint64_t;
   static constexpr size_t max_feature_bits{
       std::numeric_limits<feature_type>::digits};
+  static constexpr size_t num_feature_bits{
+      static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits)};
+  static_assert(num_feature_bits <= max_feature_bits);
 
   feature_type features_{0};
-  static_assert(static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits) <=
-                max_feature_bits);
 };
 
 struct fsinfo_options {

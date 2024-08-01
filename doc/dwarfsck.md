@@ -18,9 +18,9 @@ with a non-zero exit code.
   Path to the filesystem image.
 
 - `-d`, `--detail=`*value*:
-  Level of filesystem information detail. The default is 2. Higher values
-  mean more output. Values larger than 6 will currently not provide any
-  further detail.
+  Level of filesystem information detail. This can be a numeric level
+  between 0 and 6, or a comma-separated list of feature names. The
+  default corresponds to a level of 2.
 
 - `-q`, `--quiet`:
   Don't produce any output unless there is an error.
