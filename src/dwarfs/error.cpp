@@ -77,8 +77,6 @@ void dump_exceptions() {
   for (auto& exc : exceptions) {
     std::cerr << exc << "\n";
   }
-#else
-  std::cerr << "cannot dump exceptions\n";
 #endif
 }
 

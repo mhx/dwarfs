@@ -165,20 +165,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "-force_load <LIB_ITEM>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set(CMAKE_C_LINK_LIBRARY_USING_WHOLE_ARCHIVE
-    "LINKER:--push-state,--whole-archive"
-    "<LINK_ITEM>"
-    "LINKER:--pop-state"
-  )
-else()
-  message(FATAL_ERROR "WHOLE_ARCHIVE is unsupported on this platform")
-endif()
-
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
@@ -1033,13 +1019,6 @@ if(WITH_MAN_PAGES)
   add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
 endif()
 
-set(DWARFS_USE_EXCEPTION_TRACER OFF)
-if(NOT STATIC_BUILD_DO_NOT_USE)
-  if(TARGET folly_exception_tracer)
-    set(DWARFS_USE_EXCEPTION_TRACER ON)
-  endif()
-endif()
-
 if(DWARFS_GIT_BUILD)
   set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
 else()
@@ -1110,10 +1089,6 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
             $<$<BOOL:${FLAC_FOUND}>:DWARFS_HAVE_FLAC>
             $<$<BOOL:${ENABLE_RICEPP}>:DWARFS_HAVE_RICEPP>
   )
-
-  if(DWARFS_USE_EXCEPTION_TRACER)
-    target_compile_definitions(${tgt} PRIVATE DWARFS_USE_EXCEPTION_TRACER)
-  endif()
 
   if(ENABLE_PERFMON)
     target_compile_definitions(${tgt} PRIVATE DWARFS_PERFMON_ENABLED=1)
@@ -1227,30 +1202,8 @@ endif()
 
 target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
-if(DWARFS_USE_EXCEPTION_TRACER)
-  add_library(
-    dwarfs_folly_exception_tracer_base_lite
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/exception_tracer/ExceptionTracer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/exception_tracer/StackTrace.cpp
-  )
-  set_property(TARGET dwarfs_folly_exception_tracer_base_lite PROPERTY CXX_STANDARD 20)
-  apply_folly_compile_options_to_target(dwarfs_folly_exception_tracer_base_lite)
-  target_link_libraries(
-    dwarfs_folly_exception_tracer_base_lite
-    PUBLIC dwarfs_folly_lite
-  )
-endif()
-
 foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
-endforeach()
-
-foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
-  target_link_libraries(${tgt} PRIVATE dwarfs_common)
-  if(DWARFS_USE_EXCEPTION_TRACER)
-    target_link_libraries(${tgt} PRIVATE
-            "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_folly_exception_tracer_base_lite>")
-  endif()
 endforeach()
 
 target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer range-v3::range-v3)
