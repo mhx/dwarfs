@@ -46,7 +46,6 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/program_options.hpp>
 
-#include <folly/FileUtil.h>
 #include <folly/String.h>
 
 #include <fmt/format.h>

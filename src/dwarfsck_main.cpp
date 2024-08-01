@@ -34,8 +34,6 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <folly/portability/Unistd.h>
-
 #include <dwarfs/checksum.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>

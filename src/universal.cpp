@@ -27,7 +27,6 @@
 #include <string_view>
 #include <vector>
 
-#include <folly/String.h>
 #include <folly/portability/Windows.h>
 
 #include <range/v3/range/conversion.hpp>
