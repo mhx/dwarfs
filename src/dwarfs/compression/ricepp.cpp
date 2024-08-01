@@ -262,6 +262,8 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
 
 class ricepp_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::RICEPP};
+
   ricepp_compression_factory()
       : options_{
             fmt::format("block_size=[{}..{}]", 16, 512),
@@ -297,7 +299,6 @@ class ricepp_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::RICEPP,
-                             ricepp_compression_factory)
+REGISTER_COMPRESSION_FACTORY(ricepp_compression_factory)
 
 } // namespace dwarfs

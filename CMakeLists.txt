@@ -604,6 +604,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
   src/dwarfs/checksum.cpp
+  src/dwarfs/compression_metadata_requirements.cpp
   src/dwarfs/conv.cpp
   src/dwarfs/error.cpp
   src/dwarfs/file_access_generic.cpp
@@ -621,6 +622,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/option_map.cpp
   src/dwarfs/options.cpp
   src/dwarfs/os_access_generic.cpp
+  src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
   src/dwarfs/terminal.cpp
   src/dwarfs/thread_pool.cpp
@@ -761,25 +763,17 @@ endif()
 #   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
 # endif()
 
-add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC})
+add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC} ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_reader ${LIBDWARFS_READER_SRC})
-add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC})
+add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC} ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
-add_library(dwarfs_compression ${LIBDWARFS_COMPRESSION_SRC})
-add_library(dwarfs_categorizer ${LIBDWARFS_CATEGORIZER_SRC})
-add_library(dwarfs_compression_metadata src/dwarfs/compression_metadata_requirements.cpp)
-add_library(dwarfs_pcm_sample_transformer src/dwarfs/pcm_sample_transformer.cpp)
 add_library(dwarfs_tool ${LIBDWARFS_TOOL_SRC})
 
-target_link_libraries(dwarfs_compression_metadata PUBLIC dwarfs_folly_lite)
-target_link_libraries(dwarfs_pcm_sample_transformer PUBLIC dwarfs_folly_lite)
-target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_compression_metadata)
-target_link_libraries(dwarfs_categorizer PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_common PUBLIC dwarfs_folly_lite)
 target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
 target_link_libraries(dwarfs_reader PRIVATE range-v3::range-v3)
-target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compression_metadata)
+target_link_libraries(dwarfs_writer PUBLIC dwarfs_common)
 target_link_libraries(dwarfs_writer PRIVATE phmap range-v3::range-v3)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
@@ -798,10 +792,8 @@ target_compile_definitions(
   PRJ_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )
 
-target_link_libraries(dwarfs_categorizer PUBLIC dwarfs_folly_lite range-v3::range-v3)
-target_link_libraries(dwarfs_compression PUBLIC dwarfs_common dwarfs_compression_thrift dwarfs_pcm_sample_transformer)
 if(ENABLE_RICEPP)
-  target_link_libraries(dwarfs_compression PRIVATE ricepp)
+  target_link_libraries(dwarfs_common PRIVATE ricepp)
 endif()
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
@@ -988,7 +980,7 @@ if(WITH_TESTS)
               incompressible_categorizer_test
               pcmaudio_categorizer_test
               tool_main_test)
-    target_link_libraries(${tgt} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+    target_link_libraries(${tgt} PRIVATE dwarfs_writer)
   endforeach()
 
   foreach(tgt ${TEST_TARGETS})
@@ -1028,7 +1020,7 @@ endif()
 
 if(WITH_FUZZ)
   add_executable(fuzz_categorizers test/fuzz_categorizers.cpp)
-  target_link_libraries(fuzz_categorizers PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+  target_link_libraries(fuzz_categorizers PRIVATE dwarfs_writer)
   list(APPEND BINARY_TARGETS fuzz_categorizers)
 
   add_executable(fuzz_mkdwarfs test/fuzz_mkdwarfs.cpp)
@@ -1092,11 +1084,7 @@ add_cpp2_thrift_library(thrift/history.thrift
 add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
-target_link_libraries(dwarfs_categorizer PRIVATE dwarfs_metadata_thrift)
-
-foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor
-            dwarfs_compression dwarfs_categorizer dwarfs_tool
-            dwarfs_compression_metadata dwarfs_pcm_sample_transformer
+foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
@@ -1206,6 +1194,7 @@ target_link_libraries(
   Boost::boost
   Boost::chrono
   Boost::iostreams
+  dwarfs_compression_thrift
   dwarfs_metadata_thrift
   dwarfs_history_thrift
   dwarfs_features_thrift
@@ -1216,28 +1205,28 @@ target_link_libraries(
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
 # endif()
 
-target_link_libraries(dwarfs_categorizer PRIVATE libzstd_static)
-target_link_libraries(dwarfs_compression PRIVATE libzstd_static)
+target_link_libraries(dwarfs_common PRIVATE libzstd_static)
+target_link_libraries(dwarfs_writer PRIVATE libzstd_static)
 
 if(LIBLZ4_FOUND)
-  target_link_libraries(dwarfs_compression PRIVATE PkgConfig::LIBLZ4)
+  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBLZ4)
 endif()
 
 if(LIBLZMA_FOUND)
-  target_link_libraries(dwarfs_compression PRIVATE PkgConfig::LIBLZMA)
+  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBLZMA)
 endif()
 
 if(FLAC_FOUND)
-  target_link_libraries(dwarfs_compression PRIVATE PkgConfig::FLAC)
+  target_link_libraries(dwarfs_common PRIVATE PkgConfig::FLAC)
 endif()
 
 if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
-  target_link_libraries(dwarfs_compression PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
+  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
 endif()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
   target_link_libraries(dwarfs_extractor PUBLIC PkgConfig::LIBARCHIVE)
-  # target_link_libraries(dwarfs_categorizer PkgConfig::LIBMAGIC)
+  # target_link_libraries(dwarfs_writer PkgConfig::LIBMAGIC)
 endif(NOT STATIC_BUILD_DO_NOT_USE)
 
 if(DWARFS_USE_EXCEPTION_TRACER)
@@ -1260,14 +1249,13 @@ endforeach()
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_common)
-  target_link_libraries(${tgt} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_compression>")
   if(DWARFS_USE_EXCEPTION_TRACER)
     target_link_libraries(${tgt} PRIVATE
             "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_folly_exception_tracer_base_lite>")
   endif()
 endforeach()
 
-target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor PkgConfig::LIBARCHIVE)
 target_link_libraries(dwarfsbench_main PRIVATE dwarfs_extractor)
@@ -1278,7 +1266,7 @@ target_link_libraries(dwarfsextract PRIVATE dwarfsextract_main)
 target_link_libraries(dwarfsbench PRIVATE dwarfsbench_main)
 
 if(TARGET dwarfsuniversal)
-  target_link_libraries(dwarfsuniversal PRIVATE dwarfs_writer dwarfs_extractor "$<LINK_LIBRARY:WHOLE_ARCHIVE,dwarfs_categorizer>")
+  target_link_libraries(dwarfsuniversal PRIVATE dwarfs_writer dwarfs_extractor)
 endif()
 if(TARGET dwarfs_main)
   target_link_libraries(dwarfs_main PRIVATE dwarfs_reader)
@@ -1343,9 +1331,6 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                 static_libgflags)
   set_target_properties(static_libmagic PROPERTIES INTERFACE_LINK_LIBRARIES
                                                 static_libz)
-
-  target_link_libraries(dwarfs_categorizer PRIVATE static_libmagic)
-  target_link_libraries(dwarfs_compression PRIVATE static_libflac)
 
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
     if(PREFER_SYSTEM_LIBFMT)

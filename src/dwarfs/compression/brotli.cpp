@@ -174,6 +174,8 @@ class brotli_block_decompressor final : public block_decompressor::impl {
 
 class brotli_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::BROTLI};
+
   brotli_compression_factory()
       : options_{
             fmt::format("quality=[{}..{}]", BROTLI_MIN_QUALITY,
@@ -224,7 +226,6 @@ class brotli_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::BROTLI,
-                             brotli_compression_factory)
+REGISTER_COMPRESSION_FACTORY(brotli_compression_factory)
 
 } // namespace dwarfs

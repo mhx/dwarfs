@@ -485,6 +485,8 @@ class flac_block_decompressor final : public block_decompressor::impl {
 
 class flac_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::FLAC};
+
   flac_compression_factory()
       : options_{
             fmt::format("level=[0..8]"),
@@ -524,6 +526,6 @@ class flac_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::FLAC, flac_compression_factory)
+REGISTER_COMPRESSION_FACTORY(flac_compression_factory)
 
 } // namespace dwarfs

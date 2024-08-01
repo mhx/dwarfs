@@ -168,6 +168,8 @@ class lz4_block_decompressor final : public block_decompressor::impl {
 
 class lz4_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::LZ4};
+
   std::string_view name() const override { return "lz4"; }
 
   std::string_view description() const override {
@@ -200,6 +202,8 @@ class lz4_compression_factory : public compression_factory {
 
 class lz4hc_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::LZ4HC};
+
   lz4hc_compression_factory()
       : options_{fmt::format("level=[{}..{}]", 0, LZ4HC_CLEVEL_MAX)} {}
 
@@ -236,7 +240,7 @@ class lz4hc_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::LZ4, lz4_compression_factory)
-REGISTER_COMPRESSION_FACTORY(compression_type::LZ4HC, lz4hc_compression_factory)
+REGISTER_COMPRESSION_FACTORY(lz4_compression_factory)
+REGISTER_COMPRESSION_FACTORY(lz4hc_compression_factory)
 
 } // namespace dwarfs

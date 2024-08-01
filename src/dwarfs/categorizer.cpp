@@ -406,7 +406,16 @@ std::vector<std::string> categorizer_registry::categorizer_names() const {
   return rv;
 }
 
-categorizer_registry::categorizer_registry() = default;
+categorizer_registry::categorizer_registry() {
+  using namespace ::dwarfs::detail;
+
+  // binary_categorizer_factory_registrar(*this);
+  fits_categorizer_factory_registrar(*this);
+  incompressible_categorizer_factory_registrar(*this);
+  // libmagic_categorizer_factory_registrar(*this);
+  pcmaudio_categorizer_factory_registrar(*this);
+}
+
 categorizer_registry::~categorizer_registry() = default;
 
 } // namespace dwarfs

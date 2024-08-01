@@ -210,21 +210,8 @@ class categorizer_factory : public categorizer_info {
          boost::program_options::variables_map const& vm) const = 0;
 };
 
-namespace detail {
-
-template <typename T>
-class categorizer_factory_registrar {
- public:
-  categorizer_factory_registrar();
-};
-
-} // namespace detail
-
 class categorizer_registry {
  public:
-  template <typename T>
-  friend class detail::categorizer_factory_registrar;
-
   static categorizer_registry& instance();
 
   std::unique_ptr<categorizer>
@@ -235,29 +222,29 @@ class categorizer_registry {
 
   std::vector<std::string> categorizer_names() const;
 
+  void register_factory(std::unique_ptr<categorizer_factory const>&& factory);
+
  private:
   categorizer_registry();
   ~categorizer_registry();
-
-  void register_factory(std::unique_ptr<categorizer_factory const>&& factory);
 
   std::map<std::string, std::unique_ptr<categorizer_factory const>> factories_;
 };
 
 namespace detail {
 
-template <typename T>
-categorizer_factory_registrar<T>::categorizer_factory_registrar() {
-  ::dwarfs::categorizer_registry::instance().register_factory(
-      std::make_unique<T>());
-}
+void binary_categorizer_factory_registrar(categorizer_registry&);
+void fits_categorizer_factory_registrar(categorizer_registry&);
+void incompressible_categorizer_factory_registrar(categorizer_registry&);
+void libmagic_categorizer_factory_registrar(categorizer_registry&);
+void pcmaudio_categorizer_factory_registrar(categorizer_registry&);
 
 } // namespace detail
 
 #define REGISTER_CATEGORIZER_FACTORY(factory)                                  \
-  namespace {                                                                  \
-  ::dwarfs::detail::categorizer_factory_registrar<factory>                     \
-      the_##factory##_registrar;                                               \
+  void ::dwarfs::detail::factory##_registrar(                                  \
+      ::dwarfs::categorizer_registry& cr) {                                    \
+    cr.register_factory(std::make_unique<factory>());                          \
   }
 
 } // namespace dwarfs

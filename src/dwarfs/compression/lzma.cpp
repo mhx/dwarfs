@@ -347,6 +347,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
 class lzma_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::LZMA};
+
   std::string_view name() const override { return "lzma"; }
 
   std::string_view description() const override {
@@ -386,6 +388,6 @@ class lzma_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::LZMA, lzma_compression_factory)
+REGISTER_COMPRESSION_FACTORY(lzma_compression_factory)
 
 } // namespace dwarfs

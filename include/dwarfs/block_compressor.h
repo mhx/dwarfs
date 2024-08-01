@@ -176,19 +176,13 @@ class compression_factory : public compression_info {
 
 namespace detail {
 
-template <typename T>
-class compression_factory_registrar {
- public:
-  compression_factory_registrar(compression_type type);
-};
+template <compression_type T>
+struct compression_factory_registrar;
 
 } // namespace detail
 
 class compression_registry {
  public:
-  template <typename T>
-  friend class detail::compression_factory_registrar;
-
   static compression_registry& instance();
 
   std::unique_ptr<block_compressor::impl>
@@ -201,12 +195,12 @@ class compression_registry {
       std::function<void(compression_type, compression_info const&)> const& fn)
       const;
 
+  void register_factory(compression_type type,
+                        std::unique_ptr<compression_factory const>&& factory);
+
  private:
   compression_registry();
   ~compression_registry();
-
-  void register_factory(compression_type type,
-                        std::unique_ptr<compression_factory const>&& factory);
 
   std::unordered_map<compression_type,
                      std::unique_ptr<compression_factory const>>
@@ -216,19 +210,23 @@ class compression_registry {
 
 namespace detail {
 
-template <typename T>
-compression_factory_registrar<T>::compression_factory_registrar(
-    compression_type type) {
-  ::dwarfs::compression_registry::instance().register_factory(
-      type, std::make_unique<T>());
-}
+#define DWARFS_COMPRESSION_TYPE_ENUMERATION_(name, value)                      \
+  template <>                                                                  \
+  struct compression_factory_registrar<compression_type::name> {               \
+    static void reg(compression_registry&);                                    \
+  };
+#define DWARFS_NO_SEPARATOR_
+DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_ENUMERATION_,
+                             DWARFS_NO_SEPARATOR_)
+#undef DWARFS_COMPRESSION_TYPE_ENUMERATION_
+#undef DWARFS_NO_SEPARATOR_
 
 } // namespace detail
 
-#define REGISTER_COMPRESSION_FACTORY(type, factory)                            \
-  namespace {                                                                  \
-  ::dwarfs::detail::compression_factory_registrar<factory>                     \
-      the_##factory##_registrar(type);                                         \
+#define REGISTER_COMPRESSION_FACTORY(factory)                                  \
+  void ::dwarfs::detail::compression_factory_registrar<factory::type>::reg(    \
+      ::dwarfs::compression_registry& cr) {                                    \
+    cr.register_factory(factory::type, std::make_unique<factory>());           \
   }
 
 } // namespace dwarfs

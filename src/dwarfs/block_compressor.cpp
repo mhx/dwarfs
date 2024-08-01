@@ -115,7 +115,32 @@ void compression_registry::for_each_algorithm(
   }
 }
 
-compression_registry::compression_registry() = default;
+compression_registry::compression_registry() {
+  using namespace ::dwarfs::detail;
+  using enum compression_type;
+
+  compression_factory_registrar<NONE>::reg(*this);
+#ifdef DWARFS_HAVE_LIBBROTLI
+  compression_factory_registrar<BROTLI>::reg(*this);
+#endif
+#ifdef DWARFS_HAVE_FLAC
+  compression_factory_registrar<FLAC>::reg(*this);
+#endif
+#ifdef DWARFS_HAVE_LIBLZ4
+  compression_factory_registrar<LZ4>::reg(*this);
+  compression_factory_registrar<LZ4HC>::reg(*this);
+#endif
+#ifdef DWARFS_HAVE_LIBLZMA
+  compression_factory_registrar<LZMA>::reg(*this);
+#endif
+#ifdef DWARFS_HAVE_RICEPP
+  compression_factory_registrar<RICEPP>::reg(*this);
+#endif
+#ifdef DWARFS_HAVE_LIBZSTD
+  compression_factory_registrar<ZSTD>::reg(*this);
+#endif
+}
+
 compression_registry::~compression_registry() = default;
 
 } // namespace dwarfs

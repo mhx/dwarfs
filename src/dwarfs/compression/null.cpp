@@ -113,6 +113,8 @@ class null_block_decompressor final : public block_decompressor::impl {
 
 class null_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::NONE};
+
   std::string_view name() const override { return "null"; }
 
   std::string_view description() const override {
@@ -141,6 +143,6 @@ class null_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::NONE, null_compression_factory)
+REGISTER_COMPRESSION_FACTORY(null_compression_factory)
 
 } // namespace dwarfs

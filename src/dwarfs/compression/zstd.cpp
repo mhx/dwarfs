@@ -177,6 +177,8 @@ class zstd_block_decompressor final : public block_decompressor::impl {
 
 class zstd_compression_factory : public compression_factory {
  public:
+  static constexpr compression_type type{compression_type::ZSTD};
+
   zstd_compression_factory()
       : options_{
             fmt::format("level=[{}..{}]", ZSTD_MIN_LEVEL, ZSTD_maxCLevel())} {}
@@ -214,6 +216,6 @@ class zstd_compression_factory : public compression_factory {
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(compression_type::ZSTD, zstd_compression_factory)
+REGISTER_COMPRESSION_FACTORY(zstd_compression_factory)
 
 } // namespace dwarfs
