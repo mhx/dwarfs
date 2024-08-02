@@ -637,6 +637,7 @@ list(APPEND LIBDWARFS_READER_SRC
   src/dwarfs/filesystem_v2.cpp
   src/dwarfs/internal/block_cache.cpp
   src/dwarfs/internal/cached_block.cpp
+  src/dwarfs/internal/filesystem_parser.cpp
   src/dwarfs/internal/fs_section.cpp
   src/dwarfs/internal/inode_reader_v2.cpp
   src/dwarfs/internal/metadata_types.cpp
