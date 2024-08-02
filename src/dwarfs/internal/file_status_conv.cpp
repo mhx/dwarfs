@@ -23,7 +23,9 @@
 
 #include <dwarfs/file_type.h>
 
-namespace dwarfs {
+#include <dwarfs/internal/file_status_conv.h>
+
+namespace dwarfs::internal {
 
 namespace fs = std::filesystem;
 
@@ -98,4 +100,4 @@ uint16_t file_status_to_mode(std::filesystem::file_status status) {
          static_cast<uint16_t>(status.permissions());
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::internal

@@ -44,6 +44,8 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/file_status_conv.h>
+
 namespace dwarfs {
 
 namespace {
@@ -126,7 +128,7 @@ file_stat::file_stat(fs::path const& path) {
   }
 
   valid_fields_ = file_stat::mode_valid;
-  mode_ = file_status_to_mode(status);
+  mode_ = internal::file_status_to_mode(status);
   blksize_ = 0;
   blocks_ = 0;
 
@@ -273,7 +275,7 @@ void file_stat::ensure_valid(valid_fields_type fields) const {
 
 std::filesystem::file_status file_stat::status() const {
   ensure_valid(mode_valid);
-  return file_mode_to_status(mode_);
+  return internal::file_mode_to_status(mode_);
 };
 
 posix_file_type::value file_stat::type() const {

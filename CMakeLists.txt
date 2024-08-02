@@ -611,11 +611,11 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/error.cpp
   src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_stat.cpp
-  src/dwarfs/file_type.cpp
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
   src/dwarfs/internal/features.cpp
+  src/dwarfs/internal/file_status_conv.cpp
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
@@ -937,6 +937,7 @@ if(WITH_TESTS)
     tool_main_test
     tools_test
     utils_test
+    file_utils_test
     worker_group_test
   )
 

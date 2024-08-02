@@ -22,25 +22,11 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 
-namespace dwarfs {
+namespace dwarfs::internal {
 
-struct posix_file_type {
-  static constexpr uint16_t mask = 0170000;
+std::filesystem::file_status file_mode_to_status(uint16_t mode);
+uint16_t file_status_to_mode(std::filesystem::file_status status);
 
-  enum value : uint16_t {
-    socket = 0140000,
-    symlink = 0120000,
-    regular = 0100000,
-    block = 0060000,
-    directory = 0040000,
-    character = 0020000,
-    fifo = 0010000,
-  };
-
-  static constexpr value from_mode(uint16_t mode) {
-    return static_cast<value>(mode & mask);
-  }
-};
-
-} // namespace dwarfs
+} // namespace dwarfs::internal
