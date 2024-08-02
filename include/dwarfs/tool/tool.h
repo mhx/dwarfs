@@ -26,8 +26,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <dwarfs/tool/call_sys_main_iolayer.h>
-
 #ifdef DWARFS_BUILTIN_MANPAGE
 #include <dwarfs/tool/manpage.h>
 #endif

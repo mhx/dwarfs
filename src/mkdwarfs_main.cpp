@@ -82,7 +82,6 @@
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/tool/call_sys_main_iolayer.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
@@ -1401,18 +1400,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   return errors > 0 ? 2 : 0;
-}
-
-int mkdwarfs_main(int argc, sys_char** argv) {
-  return mkdwarfs_main(argc, argv, iolayer::system_default());
-}
-
-int mkdwarfs_main(std::span<std::string> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, mkdwarfs_main);
-}
-
-int mkdwarfs_main(std::span<std::string_view> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, mkdwarfs_main);
 }
 
 } // namespace dwarfs::tool

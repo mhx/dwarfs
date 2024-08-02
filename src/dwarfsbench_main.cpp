@@ -32,7 +32,6 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/tool/call_sys_main_iolayer.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
@@ -132,18 +131,6 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   return 0;
-}
-
-int dwarfsbench_main(int argc, sys_char** argv) {
-  return dwarfsbench_main(argc, argv, iolayer::system_default());
-}
-
-int dwarfsbench_main(std::span<std::string> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfsbench_main);
-}
-
-int dwarfsbench_main(std::span<std::string_view> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfsbench_main);
 }
 
 } // namespace dwarfs::tool

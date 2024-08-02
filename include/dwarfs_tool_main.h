@@ -21,10 +21,16 @@
 
 #pragma once
 
-#include <dwarfs/tool/tool_fwd.h>
+#include <dwarfs/tool/sys_char.h>
 
-DWARFS_TOOL_MAIN_DECL(mkdwarfs)
-DWARFS_TOOL_MAIN_DECL(dwarfsck)
-DWARFS_TOOL_MAIN_DECL(dwarfsextract)
-DWARFS_TOOL_MAIN_DECL(dwarfsbench)
-DWARFS_TOOL_MAIN_DECL(dwarfs)
+namespace dwarfs::tool {
+
+struct iolayer;
+
+int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol);
+int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol);
+int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol);
+int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol);
+int dwarfs_main(int argc, sys_char** argv, iolayer const& iol);
+
+} // namespace dwarfs::tool

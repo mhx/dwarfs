@@ -34,7 +34,7 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-#include <dwarfs/tool/safe_main.h>
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs_tool_main.h>
 
@@ -48,12 +48,12 @@ using namespace dwarfs::tool;
 #define EXE_EXT ""
 #endif
 
-std::map<std::string_view, int (*)(int, sys_char**)> const functions{
-    {"dwarfs", &dwarfs_main},
-    {"mkdwarfs", &mkdwarfs_main},
-    {"dwarfsck", &dwarfsck_main},
-    {"dwarfsextract", &dwarfsextract_main},
-    // {"dwarfsbench", &dwarfsbench_main},
+std::map<std::string_view, main_adapter::main_fn_type> const functions{
+    {"dwarfs", dwarfs_main},
+    {"mkdwarfs", mkdwarfs_main},
+    {"dwarfsck", dwarfsck_main},
+    {"dwarfsextract", dwarfsextract_main},
+    // {"dwarfsbench", dwarfsbench_main},
 };
 
 } // namespace
@@ -66,7 +66,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
   if (auto ext = path.extension().string(); ext.empty() || ext == EXE_EXT) {
     auto stem = path.stem().string();
     if (auto it = functions.find(stem); it != functions.end()) {
-      return safe_main([&] { return it->second(argc, argv); });
+      return main_adapter(it->second).safe(argc, argv);
     }
 
     // see if the stem has an appended version and try removing that
@@ -77,7 +77,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
           it != functions.end()) {
         std::cerr << "running " << stem << " as " << stem.substr(0, pos)
                   << "\n";
-        return safe_main([&] { return it->second(argc, argv); });
+        return main_adapter(it->second).safe(argc, argv);
       }
     }
   }
@@ -92,8 +92,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
         argv_copy.reserve(argc - 1);
         argv_copy.emplace_back(argv[0]);
         std::copy(argv + 2, argv + argc, std::back_inserter(argv_copy));
-        return safe_main(
-            [&] { return it->second(argc - 1, argv_copy.data()); });
+        return main_adapter(it->second).safe(argc - 1, argv_copy.data());
       }
     }
   }

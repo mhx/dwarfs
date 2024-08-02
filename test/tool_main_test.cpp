@@ -45,6 +45,7 @@
 #include <dwarfs/history.h>
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
@@ -119,7 +120,7 @@ class tool_main_test : public testing::Test {
 
 class tester_common {
  public:
-  using main_ptr_t = int (*)(std::span<std::string>, iolayer const&);
+  using main_ptr_t = tool::main_adapter::main_fn_type;
 
   tester_common(main_ptr_t mp, std::string toolname,
                 std::shared_ptr<test::os_access_mock> pos)
@@ -133,7 +134,7 @@ class tester_common {
 
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), toolname_);
-    return main_(args, iol->get());
+    return tool::main_adapter(main_)(args, iol->get());
   }
 
   int run(std::initializer_list<std::string> args) {
@@ -409,7 +410,7 @@ class mkdwarfs_main_test : public tool_main_test {
  public:
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), "mkdwarfs");
-    return mkdwarfs_main(args, iol->get());
+    return tool::main_adapter(tool::mkdwarfs_main)(args, iol->get());
   }
 };
 
@@ -417,7 +418,7 @@ class dwarfsck_main_test : public tool_main_test {
  public:
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), "dwarfsck");
-    return dwarfsck_main(args, iol->get());
+    return tool::main_adapter(tool::dwarfsck_main)(args, iol->get());
   }
 };
 
@@ -425,7 +426,7 @@ class dwarfsextract_main_test : public tool_main_test {
  public:
   int run(std::vector<std::string> args) {
     args.insert(args.begin(), "dwarfsextract");
-    return dwarfsextract_main(args, iol->get());
+    return tool::main_adapter(tool::dwarfsextract_main)(args, iol->get());
   }
 };
 

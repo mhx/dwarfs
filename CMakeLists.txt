@@ -683,8 +683,8 @@ list(APPEND LIBDWARFS_EXTRACTOR_SRC
 )
 
 list(APPEND LIBDWARFS_TOOL_SRC
-  src/dwarfs/tool/call_sys_main_iolayer.cpp
   src/dwarfs/tool/iolayer.cpp
+  src/dwarfs/tool/main_adapter.cpp
   src/dwarfs/tool/safe_main.cpp
   src/dwarfs/tool/sys_char.cpp
   src/dwarfs/tool/tool.cpp

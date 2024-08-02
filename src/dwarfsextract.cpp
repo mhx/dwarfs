@@ -19,10 +19,11 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/tool/safe_main.h>
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
 
-int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
-  return dwarfs::tool::safe_main(
-      [&] { return dwarfs::tool::dwarfsextract_main(argc, argv); });
+using namespace dwarfs::tool;
+
+int SYS_MAIN(int argc, sys_char** argv) {
+  return main_adapter(dwarfsextract_main).safe(argc, argv);
 }

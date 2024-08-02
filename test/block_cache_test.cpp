@@ -35,6 +35,7 @@
 #include <dwarfs/block_range.h>
 #include <dwarfs/error.h>
 #include <dwarfs/filesystem_v2.h>
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
 
 #include <dwarfs/internal/cached_block.h>
@@ -173,7 +174,7 @@ TEST_P(options_test, cache_stress) {
 
     std::vector<std::string> args{"mkdwarfs", "-i",   "/",  "-o",       "-",
                                   "-l3",      "-S16", "-C", compression};
-    EXPECT_EQ(0, mkdwarfs_main(args, iol.get()));
+    EXPECT_EQ(0, tool::main_adapter(tool::mkdwarfs_main)(args, iol.get()));
 
     mm = std::make_shared<test::mmap_mock>(iol.out());
   }

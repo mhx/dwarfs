@@ -21,17 +21,17 @@
 
 #include <vector>
 
-#include <dwarfs/tool/call_sys_main_iolayer.h>
-
-extern "C" int dwarfs_wcwidth(int ucs);
+#include <dwarfs/tool/iolayer.h>
+#include <dwarfs/tool/main_adapter.h>
+#include <dwarfs/tool/safe_main.h>
 
 namespace dwarfs::tool {
 
 namespace {
 
 template <typename T>
-int call_sys_main_iolayer_impl(std::span<T> args, iolayer const& iol,
-                               int (*main)(int, sys_char**, iolayer const&)) {
+int call_sys_main_iolayer(std::span<T> args, iolayer const& iol,
+                          main_adapter::main_fn_type main_fn) {
   std::vector<sys_string> argv;
   std::vector<sys_char*> argv_ptrs;
   argv.reserve(args.size());
@@ -40,19 +40,36 @@ int call_sys_main_iolayer_impl(std::span<T> args, iolayer const& iol,
     argv.emplace_back(string_to_sys_string(std::string(arg)));
     argv_ptrs.emplace_back(argv.back().data());
   }
-  return main(argv_ptrs.size(), argv_ptrs.data(), iol);
+  return main_fn(argv_ptrs.size(), argv_ptrs.data(), iol);
 }
 
 } // namespace
 
-int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&)) {
-  return call_sys_main_iolayer_impl(args, iol, main);
+int main_adapter::operator()(int argc, sys_char** argv) const {
+  return main_fn_(argc, argv, iolayer::system_default());
 }
 
-int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&)) {
-  return call_sys_main_iolayer_impl(args, iol, main);
+int main_adapter::operator()(std::span<std::string> args,
+                             iolayer const& iol) const {
+  return call_sys_main_iolayer(args, iol, main_fn_);
+}
+
+int main_adapter::operator()(std::span<std::string_view> args,
+                             iolayer const& iol) const {
+  return call_sys_main_iolayer(args, iol, main_fn_);
+}
+
+int main_adapter::safe(int argc, sys_char** argv) const {
+  return safe_main([&] { return (*this)(argc, argv); });
+}
+
+int main_adapter::safe(std::span<std::string> args, iolayer const& iol) const {
+  return safe_main([&] { return (*this)(args, iol); });
+}
+
+int main_adapter::safe(std::span<std::string_view> args,
+                       iolayer const& iol) const {
+  return safe_main([&] { return (*this)(args, iol); });
 }
 
 } // namespace dwarfs::tool

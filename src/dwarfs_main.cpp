@@ -96,7 +96,6 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
-#include <dwarfs/tool/call_sys_main_iolayer.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
@@ -1651,18 +1650,6 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #else
   return run_fuse(args, mountpoint, mt, fg, userdata);
 #endif
-}
-
-int dwarfs_main(int argc, sys_char** argv) {
-  return dwarfs_main(argc, argv, iolayer::system_default());
-}
-
-int dwarfs_main(std::span<std::string> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfs_main);
-}
-
-int dwarfs_main(std::span<std::string_view> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfs_main);
 }
 
 } // namespace dwarfs::tool

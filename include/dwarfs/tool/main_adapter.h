@@ -22,6 +22,8 @@
 #pragma once
 
 #include <span>
+#include <string>
+#include <string_view>
 
 #include <dwarfs/tool/sys_char.h>
 
@@ -29,10 +31,23 @@ namespace dwarfs::tool {
 
 struct iolayer;
 
-int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&));
+class main_adapter {
+ public:
+  using main_fn_type = int (*)(int, sys_char**, iolayer const&);
 
-int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&));
+  explicit main_adapter(main_fn_type main_fn)
+      : main_fn_(main_fn) {}
+
+  int operator()(int argc, sys_char** argv) const;
+  int operator()(std::span<std::string> args, iolayer const& iol) const;
+  int operator()(std::span<std::string_view> args, iolayer const& iol) const;
+
+  int safe(int argc, sys_char** argv) const;
+  int safe(std::span<std::string> args, iolayer const& iol) const;
+  int safe(std::span<std::string_view> args, iolayer const& iol) const;
+
+ private:
+  main_fn_type main_fn_{nullptr};
+};
 
 } // namespace dwarfs::tool

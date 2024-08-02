@@ -35,7 +35,6 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/string.h>
-#include <dwarfs/tool/call_sys_main_iolayer.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
@@ -228,18 +227,6 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   return rv;
-}
-
-int dwarfsextract_main(int argc, sys_char** argv) {
-  return dwarfsextract_main(argc, argv, iolayer::system_default());
-}
-
-int dwarfsextract_main(std::span<std::string> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfsextract_main);
-}
-
-int dwarfsextract_main(std::span<std::string_view> args, iolayer const& iol) {
-  return call_sys_main_iolayer(args, iol, dwarfsextract_main);
 }
 
 } // namespace dwarfs::tool
