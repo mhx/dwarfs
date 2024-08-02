@@ -68,6 +68,18 @@ int SYS_MAIN(int argc, sys_char** argv) {
     if (auto it = functions.find(stem); it != functions.end()) {
       return safe_main([&] { return it->second(argc, argv); });
     }
+
+    // see if the stem has an appended version and try removing that
+    if (auto pos = stem.find_first_of('-'); pos != std::string::npos &&
+                                            pos + 1 < stem.size() &&
+                                            std::isdigit(stem[pos + 1])) {
+      if (auto it = functions.find(stem.substr(0, pos));
+          it != functions.end()) {
+        std::cerr << "running " << stem << " as " << stem.substr(0, pos)
+                  << "\n";
+        return safe_main([&] { return it->second(argc, argv); });
+      }
+    }
   }
 
   // if not, see if we can find a --tool=... argument
