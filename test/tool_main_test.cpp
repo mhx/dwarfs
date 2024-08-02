@@ -31,6 +31,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <boost/algorithm/string.hpp>
+
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
@@ -1313,9 +1315,18 @@ class mkdwarfs_recompress_test
 
 TEST_P(mkdwarfs_recompress_test, recompress) {
   std::string const compression{GetParam()};
+  std::string compression_type = compression;
   std::string const image_file = "test.dwarfs";
   std::string image;
   fsinfo_options const history_opts{.features = {fsinfo_feature::history}};
+
+  if (auto pos = compression_type.find(':'); pos != std::string::npos) {
+    compression_type.erase(pos);
+  }
+  boost::algorithm::to_upper(compression_type);
+  if (compression_type == "NULL") {
+    compression_type = "NONE";
+  }
 
   {
     mkdwarfs_tester t;
@@ -1373,6 +1384,39 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
   }
+
+#ifdef DWARFS_HAVE_FLAC
+  {
+    auto t = tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--recompress=block",
+                        "--recompress-categories=!pcmaudio/waveform", "-C",
+                        "pcmaudio/metadata::flac:level=4"}))
+        << t.err();
+    EXPECT_THAT(t.err(),
+                ::testing::HasSubstr(fmt::format(
+                    "cannot compress {} compressed block with compressor 'flac "
+                    "[level=4]' because the following metadata requirements "
+                    "are not met: missing requirement 'bits_per_sample'",
+                    compression_type)));
+  }
+#endif
+
+#ifdef DWARFS_HAVE_RICEPP
+  {
+    auto t = tester(image);
+    EXPECT_EQ(1, t.run({"-i", image_file, "-o", "-", "--recompress=block",
+                        "--recompress-categories=!pcmaudio/waveform", "-C",
+                        "pcmaudio/metadata::ricepp"}))
+        << t.err();
+    EXPECT_THAT(
+        t.err(),
+        ::testing::HasSubstr(fmt::format(
+            "cannot compress {} compressed block with compressor 'ricepp "
+            "[block_size=128]' because the following metadata requirements are "
+            "not met: missing requirement 'bytes_per_sample'",
+            compression_type)));
+  }
+#endif
 
   {
     auto t = tester(image);
