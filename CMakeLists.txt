@@ -695,7 +695,7 @@ else()
 endif()
 
 if(WITH_MAN_OPTION)
-  list(APPEND LIBDWARFS_COMMON_SRC
+  list(APPEND LIBDWARFS_TOOL_SRC
     src/dwarfs/pager.cpp
     src/dwarfs/render_manpage.cpp
   )
@@ -714,9 +714,7 @@ if(WITH_MAN_OPTION)
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
     endif()
 
-    # TODO: this doesn't need to be in the common library -> just link to the
-    #       specific tool
-    list(APPEND LIBDWARFS_COMMON_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/${man}_manpage.cpp)
+    list(APPEND LIBDWARFS_TOOL_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/${man}_manpage.cpp)
   endforeach()
 endif()
 
@@ -797,22 +795,18 @@ target_compile_definitions(
 if(ENABLE_RICEPP)
   target_link_libraries(dwarfs_common PRIVATE ricepp)
 endif()
-target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
-add_library(mkdwarfs_main OBJECT src/mkdwarfs_main.cpp)
-add_library(dwarfsck_main OBJECT src/dwarfsck_main.cpp)
-add_library(dwarfsbench_main OBJECT src/dwarfsbench_main.cpp)
-add_library(dwarfsextract_main OBJECT src/dwarfsextract_main.cpp)
+foreach(tgt mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+  add_library(${tgt}_main OBJECT src/${tgt}_main.cpp)
 
-add_executable(mkdwarfs src/mkdwarfs.cpp)
-add_executable(dwarfsck src/dwarfsck.cpp)
-add_executable(dwarfsbench src/dwarfsbench.cpp)
-add_executable(dwarfsextract src/dwarfsextract.cpp)
-list(APPEND BINARY_TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+  add_executable(${tgt} src/${tgt}.cpp)
+
+  list(APPEND BINARY_TARGETS ${tgt})
+endforeach()
 
 if(WITH_UNIVERSAL_BINARY)
   add_executable(dwarfsuniversal src/universal.cpp)
