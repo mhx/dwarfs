@@ -19,30 +19,33 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <clocale>
+#include <cstdlib>
+#include <iostream>
 
-#include <string>
-#include <string_view>
+#include <folly/experimental/symbolizer/SignalHandler.h>
 
-#include <boost/program_options.hpp>
+#include <dwarfs/error.h>
+#include <dwarfs/terminal.h>
+#include <dwarfs/tool/safe_main.h>
+#include <dwarfs/util.h>
 
-#ifdef DWARFS_BUILTIN_MANPAGE
-#include <dwarfs/manpage.h>
+namespace dwarfs::tool {
+
+int safe_main(std::function<int(void)> fn) {
+  try {
+#ifndef _WIN32
+    folly::symbolizer::installFatalSignalHandler();
 #endif
+    setup_default_locale();
+    terminal::setup();
 
-namespace dwarfs {
+    return fn();
+  } catch (...) {
+    std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
+    dump_exceptions();
+  }
+  return 1;
+}
 
-struct logger_options;
-struct iolayer;
-
-std::string
-tool_header(std::string_view tool_name, std::string_view extra_info = "");
-
-void add_common_options(boost::program_options::options_description& opts,
-                        logger_options& logopts);
-
-#ifdef DWARFS_BUILTIN_MANPAGE
-void show_manpage(manpage::document doc, iolayer const& iol);
-#endif
-
-} // namespace dwarfs
+} // namespace dwarfs::tool

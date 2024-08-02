@@ -25,12 +25,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/pager.h>
-#include <dwarfs/render_manpage.h>
+#include <dwarfs/tool/pager.h>
+#include <dwarfs/tool/render_manpage.h>
 
 #include "test_helpers.h"
 
 using namespace dwarfs;
+using namespace dwarfs::tool;
 
 namespace {
 

@@ -37,7 +37,7 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/program_options_helpers.h>
 #include <dwarfs/string.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
@@ -107,7 +107,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ;
   // clang-format on
 
-  add_common_options(opts, logopts);
+  tool::add_common_options(opts, logopts);
 
   po::variables_map vm;
 
@@ -121,7 +121,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (vm.count("man")) {
-    show_manpage(manpage::get_dwarfsextract_manpage(), iol);
+    tool::show_manpage(tool::manpage::get_dwarfsextract_manpage(), iol);
     return 0;
   }
 #endif
@@ -133,7 +133,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     deps.add_common_libraries();
     filesystem_extractor::add_library_dependencies(deps);
 
-    iol.out << tool_header("dwarfsextract") << deps.as_string() << "\n\n"
+    iol.out << tool::tool_header("dwarfsextract") << deps.as_string() << "\n\n"
             << usage << "\n"
             << opts << "\n";
     return 0;

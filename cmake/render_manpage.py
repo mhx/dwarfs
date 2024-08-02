@@ -289,9 +289,9 @@ class ManpageRenderer(mistletoe.base_renderer.BaseRenderer):
 
     def render_document(self, token):
         rv = """#include <array>
-#include "dwarfs/manpage.h"
+#include <dwarfs/tool/manpage.h>
 
-namespace dwarfs::manpage {
+namespace dwarfs::tool::manpage {
 
 namespace {
 """
@@ -312,7 +312,7 @@ namespace {
 
 document get_{self.__document_name}_manpage() {{ return document_array; }}
 
-}} // namespace dwarfs::manpage
+}} // namespace dwarfs::tool::manpage
 """
         return rv
 

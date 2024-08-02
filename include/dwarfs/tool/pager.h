@@ -21,10 +21,25 @@
 
 #pragma once
 
-#include <functional>
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace dwarfs {
 
-int safe_main(std::function<int(void)> fn);
+class os_access;
+
+namespace tool {
+
+struct pager_program {
+  std::filesystem::path name;
+  std::vector<std::string> args;
+};
+
+std::optional<pager_program> find_pager_program(os_access const& os);
+void show_in_pager(pager_program const& pager, std::string text);
+
+} // namespace tool
 
 } // namespace dwarfs

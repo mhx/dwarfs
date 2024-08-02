@@ -21,21 +21,32 @@
 
 #pragma once
 
-#include <filesystem>
-#include <optional>
 #include <string>
-#include <vector>
+#include <string_view>
+
+#include <boost/program_options.hpp>
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+#include <dwarfs/tool/manpage.h>
+#endif
 
 namespace dwarfs {
 
-class os_access;
+struct logger_options;
+struct iolayer;
 
-struct pager_program {
-  std::filesystem::path name;
-  std::vector<std::string> args;
-};
+namespace tool {
 
-std::optional<pager_program> find_pager_program(os_access const& os);
-void show_in_pager(pager_program const& pager, std::string text);
+std::string
+tool_header(std::string_view tool_name, std::string_view extra_info = "");
+
+void add_common_options(boost::program_options::options_description& opts,
+                        logger_options& logopts);
+
+#ifdef DWARFS_BUILTIN_MANPAGE
+void show_manpage(manpage::document doc, iolayer const& iol);
+#endif
+
+} // namespace tool
 
 } // namespace dwarfs

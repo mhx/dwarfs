@@ -19,9 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/safe_main.h>
+#include <dwarfs/tool/safe_main.h>
 #include <dwarfs_tool_main.h>
 
 int SYS_MAIN(int argc, dwarfs::sys_char** argv) {
-  return dwarfs::safe_main([&] { return dwarfs::dwarfs_main(argc, argv); });
+  return dwarfs::tool::safe_main(
+      [&] { return dwarfs::dwarfs_main(argc, argv); });
 }

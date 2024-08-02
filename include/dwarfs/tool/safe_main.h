@@ -19,33 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <clocale>
-#include <cstdlib>
-#include <iostream>
+#pragma once
 
-#include <folly/experimental/symbolizer/SignalHandler.h>
+#include <functional>
 
-#include <dwarfs/error.h>
-#include <dwarfs/safe_main.h>
-#include <dwarfs/terminal.h>
-#include <dwarfs/util.h>
+namespace dwarfs::tool {
 
-namespace dwarfs {
+int safe_main(std::function<int(void)> fn);
 
-int safe_main(std::function<int(void)> fn) {
-  try {
-#ifndef _WIN32
-    folly::symbolizer::installFatalSignalHandler();
-#endif
-    setup_default_locale();
-    terminal::setup();
-
-    return fn();
-  } catch (...) {
-    std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
-    dump_exceptions();
-  }
-  return 1;
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::tool

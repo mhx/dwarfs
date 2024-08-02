@@ -618,6 +618,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
+  src/dwarfs/iolayer.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/mmap.cpp
@@ -683,9 +684,8 @@ list(APPEND LIBDWARFS_EXTRACTOR_SRC
 )
 
 list(APPEND LIBDWARFS_TOOL_SRC
-  src/dwarfs/iolayer.cpp
-  src/dwarfs/safe_main.cpp
-  src/dwarfs/tool.cpp
+  src/dwarfs/tool/safe_main.cpp
+  src/dwarfs/tool/tool.cpp
 )
 
 if(WIN32)
@@ -696,12 +696,13 @@ endif()
 
 if(WITH_MAN_OPTION)
   list(APPEND LIBDWARFS_TOOL_SRC
-    src/dwarfs/pager.cpp
-    src/dwarfs/render_manpage.cpp
+    src/dwarfs/tool/pager.cpp
+    src/dwarfs/tool/render_manpage.cpp
   )
 
   if(DWARFS_GIT_BUILD)
     include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool")
     set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR})
   else()
     set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -711,10 +712,10 @@ if(WITH_MAN_OPTION)
     if(DWARFS_GIT_BUILD)
       file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
       add_manpage_source(doc/${man}.md NAME ${man}
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/${man}_manpage.cpp)
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
     endif()
 
-    list(APPEND LIBDWARFS_TOOL_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/${man}_manpage.cpp)
+    list(APPEND LIBDWARFS_TOOL_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
   endforeach()
 endif()
 
@@ -1398,6 +1399,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     DIRECTORY include/dwarfs
     DESTINATION include
     PATTERN include/dwarfs/internal EXCLUDE
+    PATTERN include/dwarfs/tool EXCLUDE
   )
 endif()
 

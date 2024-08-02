@@ -33,7 +33,7 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
@@ -71,7 +71,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     ;
   // clang-format on
 
-  add_common_options(opts, logopts);
+  tool::add_common_options(opts, logopts);
 
   po::variables_map vm;
 
@@ -84,7 +84,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (vm.count("help") or !vm.count("filesystem")) {
-    iol.out << tool_header("dwarfsbench")
+    iol.out << tool::tool_header("dwarfsbench")
             << library_dependencies::common_as_string() << "\n\n"
             << opts << "\n";
     return 0;

@@ -97,7 +97,7 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
 #include <dwarfs/vfs_stat.h>
@@ -1165,8 +1165,8 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 #endif
 
 void usage(std::ostream& os, std::filesystem::path const& progname) {
-  os << tool_header("dwarfs",
-                    fmt::format(", fuse version {}", FUSE_USE_VERSION))
+  os << tool::tool_header("dwarfs",
+                          fmt::format(", fuse version {}", FUSE_USE_VERSION))
      << library_dependencies::common_as_string() << "\n\n"
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
@@ -1504,7 +1504,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (fuse_parse_cmdline(&args, &fuse_opts) == -1 || !fuse_opts.mountpoint) {
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (userdata.opts.is_man) {
-      show_manpage(manpage::get_dwarfs_manpage(), iol);
+      tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
       return 0;
     }
 #endif
@@ -1524,7 +1524,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) == -1 || !mountpoint) {
 #ifdef DWARFS_BUILTIN_MANPAGE
     if (userdata.opts.is_man) {
-      show_manpage(manpage::get_dwarfs_manpage(), iol);
+      tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
       return 0;
     }
 #endif
@@ -1609,7 +1609,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (userdata.opts.is_man) {
-    show_manpage(manpage::get_dwarfs_manpage(), iol);
+    tool::show_manpage(tool::manpage::get_dwarfs_manpage(), iol);
     return 0;
   }
 #endif

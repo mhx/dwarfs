@@ -84,7 +84,7 @@
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer_progress.h>
 #include <dwarfs_tool_main.h>
@@ -461,7 +461,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<unsigned>(&level)->default_value(default_level),
         "compression level (0=fast, 9=best, please see man page for details)")
     ;
-  add_common_options(basic_opts, logopts);
+  tool::add_common_options(basic_opts, logopts);
   basic_opts.add_options()
     ("long-help,H",
         "output full help message and exit")
@@ -679,7 +679,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (vm.count("man")) {
-    show_manpage(manpage::get_mkdwarfs_manpage(), iol);
+    tool::show_manpage(tool::manpage::get_mkdwarfs_manpage(), iol);
     return 0;
   }
 #endif
@@ -701,7 +701,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool_header("mkdwarfs")
+    iol.out << tool::tool_header("mkdwarfs")
             << library_dependencies::common_as_string() << "\n\n"
             << usage << opts << "\n"
             << "Compression level defaults:\n"
@@ -754,7 +754,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
       (!vm.count("output") and !vm.count("debug-filter"))) {
-    iol.out << tool_header("mkdwarfs")
+    iol.out << tool::tool_header("mkdwarfs")
             << library_dependencies::common_as_string() << "\n\n"
             << usage << "\n"
             << basic_opts << "\n";

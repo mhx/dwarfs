@@ -24,14 +24,14 @@
 #include <fmt/format.h>
 
 #include <dwarfs/logger.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/version.h>
 
 #ifdef DWARFS_BUILTIN_MANPAGE
 #include <dwarfs/iolayer.h>
-#include <dwarfs/pager.h>
-#include <dwarfs/render_manpage.h>
 #include <dwarfs/terminal.h>
+#include <dwarfs/tool/pager.h>
+#include <dwarfs/tool/render_manpage.h>
 #endif
 
 namespace po = boost::program_options;
@@ -46,7 +46,7 @@ void validate(boost::any& v, const std::vector<std::string>&,
 
 } // namespace boost
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 std::string
 tool_header(std::string_view tool_name, std::string_view extra_info) {
@@ -106,4 +106,4 @@ void show_manpage(manpage::document doc, iolayer const& iol) {
 }
 #endif
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

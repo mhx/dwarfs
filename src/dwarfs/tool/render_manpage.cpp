@@ -21,9 +21,9 @@
 
 #include <stdexcept>
 
-#include <dwarfs/render_manpage.h>
+#include <dwarfs/tool/render_manpage.h>
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 std::string render_manpage(manpage::document const doc, size_t const width,
                            bool const color) {
@@ -84,4 +84,4 @@ std::string render_manpage(manpage::document const doc, size_t const width,
   return out;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

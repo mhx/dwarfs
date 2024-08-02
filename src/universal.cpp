@@ -33,8 +33,8 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-#include <dwarfs/safe_main.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/safe_main.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
@@ -64,8 +64,9 @@ int SYS_MAIN(int argc, sys_char** argv) {
   // first, see if we are called as a copy/hardlink/symlink
 
   if (auto ext = path.extension().string(); ext.empty() || ext == EXE_EXT) {
-    if (auto it = functions.find(path.stem().string()); it != functions.end()) {
-      return safe_main([&] { return it->second(argc, argv); });
+    auto stem = path.stem().string();
+    if (auto it = functions.find(stem); it != functions.end()) {
+      return tool::safe_main([&] { return it->second(argc, argv); });
     }
   }
 
@@ -79,7 +80,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
         argv_copy.reserve(argc - 1);
         argv_copy.emplace_back(argv[0]);
         std::copy(argv + 2, argv + argc, std::back_inserter(argv_copy));
-        return safe_main(
+        return tool::safe_main(
             [&] { return it->second(argc - 1, argv_copy.data()); });
       }
     }
@@ -91,7 +92,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
                ranges::to<std::string>;
 
   // clang-format off
-  std::cout << tool_header("dwarfs-universal")
+  std::cout << tool::tool_header("dwarfs-universal")
             << "Command line options:\n"
             << "  --tool=<name>                     "
                  "which tool to run; available tools are:\n"

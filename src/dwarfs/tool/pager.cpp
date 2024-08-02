@@ -29,9 +29,9 @@
 #include <folly/portability/Unistd.h>
 
 #include <dwarfs/os_access.h>
-#include <dwarfs/pager.h>
+#include <dwarfs/tool/pager.h>
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 namespace {
 
@@ -86,4 +86,4 @@ void show_in_pager(pager_program const& pager, std::string text) {
   proc.wait();
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

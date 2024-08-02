@@ -47,7 +47,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/program_options_helpers.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/tool.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
@@ -223,7 +223,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     ;
   // clang-format on
 
-  add_common_options(opts, logopts);
+  tool::add_common_options(opts, logopts);
 
   po::positional_options_description pos;
   pos.add("input", -1);
@@ -244,7 +244,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_BUILTIN_MANPAGE
   if (vm.count("man")) {
-    show_manpage(manpage::get_dwarfsck_manpage(), iol);
+    tool::show_manpage(tool::manpage::get_dwarfsck_manpage(), iol);
     return 0;
   }
 #endif
@@ -252,7 +252,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
   if (vm.count("help") or !vm.count("input")) {
-    iol.out << tool_header("dwarfsck")
+    iol.out << tool::tool_header("dwarfsck")
             << library_dependencies::common_as_string() << "\n\n"
             << usage << "\n"
             << opts << "\n";

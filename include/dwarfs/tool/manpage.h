@@ -21,12 +21,31 @@
 
 #pragma once
 
-#include <string>
+#include <cstdint>
+#include <span>
+#include <string_view>
 
-#include <dwarfs/manpage.h>
+#include <fmt/color.h>
+#include <fmt/format.h>
 
-namespace dwarfs {
+namespace dwarfs::tool::manpage {
 
-std::string render_manpage(manpage::document doc, size_t width, bool color);
+struct element {
+  fmt::text_style style;
+  std::string_view text;
+};
 
-} // namespace dwarfs
+struct line {
+  uint32_t indent_first;
+  uint32_t indent_next;
+  std::span<element const> elements;
+};
+
+using document = std::span<line const>;
+
+document get_mkdwarfs_manpage();
+document get_dwarfs_manpage();
+document get_dwarfsck_manpage();
+document get_dwarfsextract_manpage();
+
+} // namespace dwarfs::tool::manpage
