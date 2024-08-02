@@ -805,7 +805,7 @@ if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
 endif(STATIC_BUILD_DO_NOT_USE)
 
-foreach(tgt mkdwarfs dwarfsck dwarfsbench dwarfsextract)
+foreach(tgt mkdwarfs dwarfsck dwarfsextract)
   add_library(${tgt}_main OBJECT src/${tgt}_main.cpp)
 
   add_executable(${tgt} src/${tgt}.cpp)
@@ -829,10 +829,9 @@ if(WITH_PXATTR)
   list(APPEND BINARY_TARGETS pxattr)
 endif()
 
-install(TARGETS mkdwarfs dwarfsck dwarfsbench dwarfsextract RUNTIME DESTINATION bin)
+install(TARGETS mkdwarfs dwarfsck dwarfsextract RUNTIME DESTINATION bin)
 
-list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsbench_main
-        dwarfsextract_main)
+list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsextract_main)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
   add_library(dwarfs_main OBJECT src/dwarfs_main.cpp)
@@ -970,7 +969,7 @@ if(WITH_TESTS)
   )
 
   target_link_libraries(tool_main_test PRIVATE
-    mkdwarfs_main dwarfsck_main dwarfsbench_main dwarfsextract_main range-v3::range-v3)
+    mkdwarfs_main dwarfsck_main dwarfsextract_main range-v3::range-v3)
 
   target_link_libraries(block_cache_test PRIVATE mkdwarfs_main range-v3::range-v3)
   target_link_libraries(block_merger_test PRIVATE range-v3::range-v3)
@@ -1226,12 +1225,10 @@ endforeach()
 target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer range-v3::range-v3)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
-target_link_libraries(dwarfsbench_main PRIVATE dwarfs_extractor)
 
 target_link_libraries(mkdwarfs PRIVATE mkdwarfs_main)
 target_link_libraries(dwarfsck PRIVATE dwarfsck_main)
 target_link_libraries(dwarfsextract PRIVATE dwarfsextract_main)
-target_link_libraries(dwarfsbench PRIVATE dwarfsbench_main)
 
 if(TARGET dwarfsuniversal)
   target_link_libraries(dwarfsuniversal PRIVATE dwarfs_writer dwarfs_extractor)

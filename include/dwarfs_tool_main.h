@@ -30,7 +30,6 @@ struct iolayer;
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol);
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol);
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol);
-int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol);
 int dwarfs_main(int argc, sys_char** argv, iolayer const& iol);
 
 } // namespace dwarfs::tool

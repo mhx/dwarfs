@@ -53,7 +53,6 @@ std::map<std::string_view, main_adapter::main_fn_type> const functions{
     {"mkdwarfs", mkdwarfs_main},
     {"dwarfsck", dwarfsck_main},
     {"dwarfsextract", dwarfsextract_main},
-    // {"dwarfsbench", dwarfsbench_main},
 };
 
 } // namespace
