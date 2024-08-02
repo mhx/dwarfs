@@ -99,8 +99,7 @@ int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.block_cache.num_workers = num_workers;
     fsopts.block_cache.decompress_ratio = to<double>(decompress_ratio_str);
 
-    dwarfs::filesystem_v2 fs(
-        lgr, *iol.os, std::make_shared<dwarfs::mmap>(filesystem), fsopts);
+    dwarfs::filesystem_v2 fs(lgr, *iol.os, filesystem, fsopts);
 
     thread_pool pool(lgr, *iol.os, "reader", num_readers);
 

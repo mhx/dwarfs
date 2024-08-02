@@ -59,6 +59,14 @@ class filesystem_v2 {
  public:
   filesystem_v2() = default;
 
+  filesystem_v2(logger& lgr, os_access const& os,
+                std::filesystem::path const& path);
+
+  filesystem_v2(logger& lgr, os_access const& os,
+                std::filesystem::path const& path,
+                filesystem_options const& options,
+                std::shared_ptr<performance_monitor const> perfmon = nullptr);
+
   filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm);
 
   filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,

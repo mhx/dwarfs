@@ -43,6 +43,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
+#include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer_progress.h>
@@ -1176,6 +1177,17 @@ filesystem_<LoggerPolicy>::header() const {
 }
 
 } // namespace internal
+
+filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
+                             std::filesystem::path const& path)
+    : filesystem_v2(lgr, os, os.map_file(os.canonical(path))) {}
+
+filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
+                             std::filesystem::path const& path,
+                             filesystem_options const& options,
+                             std::shared_ptr<performance_monitor const> perfmon)
+    : filesystem_v2(lgr, os, os.map_file(os.canonical(path)), options,
+                    std::move(perfmon)) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::shared_ptr<mmif> mm)

@@ -56,7 +56,7 @@ constexpr std::string_view kDash{"-"};
 } // namespace
 
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
-  sys_string filesystem, output, trace_file;
+  sys_string fs_image, output, trace_file;
   std::string format, cache_size_str, image_offset;
   logger_options logopts;
 #if DWARFS_PERFMON_ENABLED
@@ -70,7 +70,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   po::options_description opts("Command line options");
   opts.add_options()
     ("input,i",
-        po_sys_value<sys_string>(&filesystem),
+        po_sys_value<sys_string>(&fs_image),
         "input filesystem file")
     ("output,o",
         po_sys_value<sys_string>(&output),
@@ -164,9 +164,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<performance_monitor> perfmon = performance_monitor::create(
         perfmon_enabled, iol.file, perfmon_trace_file);
 
-    auto fs_path = iol.os->canonical(filesystem);
-
-    filesystem_v2 fs(lgr, *iol.os, iol.os->map_file(fs_path), fsopts, perfmon);
+    filesystem_v2 fs(lgr, *iol.os, fs_image, fsopts, perfmon);
     filesystem_extractor fsx(lgr, *iol.os);
 
     if (format.empty()) {

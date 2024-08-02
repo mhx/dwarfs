@@ -1159,14 +1159,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  std::unique_ptr<filesystem_v2> input_filesystem;
+  std::optional<filesystem_v2> input_filesystem;
   std::shared_ptr<category_resolver> cat_resolver;
 
   if (recompress) {
-    filesystem_options fsopts;
-    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    input_filesystem = std::make_unique<filesystem_v2>(
-        lgr, *iol.os, iol.os->map_file(path), fsopts);
+    input_filesystem.emplace(
+        lgr, *iol.os, path,
+        filesystem_options{.image_offset =
+                               filesystem_options::IMAGE_OFFSET_AUTO});
 
     LOG_INFO << "checking input filesystem...";
 

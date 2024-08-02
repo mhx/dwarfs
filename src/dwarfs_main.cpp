@@ -1462,9 +1462,8 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   LOG_DEBUG << "attempting to load filesystem from " << fsimage;
 
-  userdata.fs =
-      filesystem_v2(userdata.lgr, *userdata.iol.os,
-                    std::make_shared<mmap>(fsimage), fsopts, userdata.perfmon);
+  userdata.fs = filesystem_v2(userdata.lgr, *userdata.iol.os, fsimage, fsopts,
+                              userdata.perfmon);
 
   ti << "file system initialized";
 }
