@@ -27,19 +27,20 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/tool/call_sys_main_iolayer.h>
+#include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
 namespace po = boost::program_options;
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 int dwarfsbench_main(int argc, sys_char** argv, iolayer const& iol) {
   std::string filesystem, cache_size_str, lock_mode_str, decompress_ratio_str;
@@ -145,4 +146,4 @@ int dwarfsbench_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfsbench_main);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

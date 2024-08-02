@@ -39,19 +39,20 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_v2.h>
-#include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/program_options_helpers.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/tool/call_sys_main_iolayer.h>
+#include <dwarfs/tool/iolayer.h>
+#include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 namespace po = boost::program_options;
 
@@ -376,4 +377,4 @@ int dwarfsck_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfsck_main);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

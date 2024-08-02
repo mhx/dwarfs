@@ -19,10 +19,24 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/tool/safe_main.h>
-#include <dwarfs_tool_main.h>
+#pragma once
 
-int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
-  return dwarfs::tool::safe_main(
-      [&] { return dwarfs::tool::dwarfsck_main(argc, argv); });
+#include <boost/program_options.hpp>
+
+#include <dwarfs/types.h>
+
+namespace dwarfs::tool {
+
+#ifdef _WIN32
+template <typename T>
+auto po_sys_value(T* v) {
+  return boost::program_options::wvalue<T>(v);
 }
+#else
+template <typename T>
+auto po_sys_value(T* v) {
+  return boost::program_options::value<T>(v);
+}
+#endif
+
+} // namespace dwarfs::tool

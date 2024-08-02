@@ -23,11 +23,11 @@
 
 #include <boost/program_options.hpp>
 
-#include <dwarfs/program_options_helpers.h>
-#include <dwarfs/types.h>
+#include <dwarfs/tool/program_options_helpers.h>
+#include <dwarfs/tool/sys_char.h>
 #include <dwarfs/xattr.h>
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 namespace po = boost::program_options;
 namespace fs = std::filesystem;
@@ -124,8 +124,8 @@ int pxattr_main(int argc, sys_char** argv) {
   return 0;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool
 
-int SYS_MAIN(int argc, dwarfs::sys_char** argv) {
-  return dwarfs::pxattr_main(argc, argv);
+int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
+  return dwarfs::tool::pxattr_main(argc, argv);
 }

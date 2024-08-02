@@ -19,10 +19,23 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/tool/safe_main.h>
-#include <dwarfs_tool_main.h>
+#pragma once
 
-int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
-  return dwarfs::tool::safe_main(
-      [&] { return dwarfs::tool::dwarfsck_main(argc, argv); });
-}
+#include <string>
+
+namespace dwarfs::tool {
+
+#ifdef _WIN32
+#define SYS_MAIN wmain
+using sys_char = wchar_t;
+using sys_string = std::wstring;
+#else
+#define SYS_MAIN main
+using sys_char = char;
+using sys_string = std::string;
+#endif
+
+std::string sys_string_to_string(sys_string const& in);
+sys_string string_to_sys_string(std::string const& in);
+
+} // namespace dwarfs::tool

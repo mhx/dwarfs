@@ -34,8 +34,6 @@
 
 namespace dwarfs {
 
-struct iolayer;
-
 std::string time_with_unit(double sec);
 std::string time_with_unit(std::chrono::nanoseconds ns);
 std::string size_with_unit(size_t size);
@@ -52,15 +50,6 @@ inline std::u8string string_to_u8string(std::string const& in) {
 inline std::string u8string_to_string(std::u8string const& in) {
   return std::string(reinterpret_cast<char const*>(in.data()), in.size());
 }
-
-std::string sys_string_to_string(sys_string const& in);
-sys_string string_to_sys_string(std::string const& in);
-
-int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&));
-
-int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&));
 
 size_t utf8_display_width(char const* p, size_t len);
 size_t utf8_display_width(std::string const& str);

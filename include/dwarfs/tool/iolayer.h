@@ -19,26 +19,30 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
+#pragma once
 
-#include <dwarfs/file_access.h>
-#include <dwarfs/file_access_generic.h>
-#include <dwarfs/iolayer.h>
-#include <dwarfs/os_access_generic.h>
-#include <dwarfs/terminal.h>
+#include <iosfwd>
+#include <memory>
 
 namespace dwarfs {
 
-iolayer const& iolayer::system_default() {
-  static iolayer const iol{
-      .os = std::make_shared<os_access_generic>(),
-      .term = terminal::create(),
-      .file = create_file_access_generic(),
-      .in = std::cin,
-      .out = std::cout,
-      .err = std::cerr,
-  };
-  return iol;
-}
+class file_access;
+class os_access;
+class terminal;
+
+namespace tool {
+
+struct iolayer {
+  static iolayer const& system_default();
+
+  std::shared_ptr<os_access const> os;
+  std::shared_ptr<terminal const> term;
+  std::shared_ptr<file_access const> file;
+  std::istream& in;
+  std::ostream& out;
+  std::ostream& err;
+};
+
+} // namespace tool
 
 } // namespace dwarfs

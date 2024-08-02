@@ -618,7 +618,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
-  src/dwarfs/iolayer.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/mmap.cpp
@@ -684,7 +683,10 @@ list(APPEND LIBDWARFS_EXTRACTOR_SRC
 )
 
 list(APPEND LIBDWARFS_TOOL_SRC
+  src/dwarfs/tool/call_sys_main_iolayer.cpp
+  src/dwarfs/tool/iolayer.cpp
   src/dwarfs/tool/safe_main.cpp
+  src/dwarfs/tool/sys_char.cpp
   src/dwarfs/tool/tool.cpp
 )
 

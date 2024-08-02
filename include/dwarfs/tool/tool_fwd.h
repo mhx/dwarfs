@@ -19,10 +19,26 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/tool/safe_main.h>
-#include <dwarfs_tool_main.h>
+#pragma once
 
-int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
-  return dwarfs::tool::safe_main(
-      [&] { return dwarfs::tool::dwarfsck_main(argc, argv); });
+#include <iosfwd>
+#include <span>
+#include <string>
+#include <string_view>
+
+#include <dwarfs/tool/sys_char.h>
+#include <dwarfs/tool/tool_fwd.h>
+
+namespace dwarfs::tool {
+
+struct iolayer;
+
 }
+
+#define DWARFS_TOOL_MAIN_DECL(tool_name)                                       \
+  namespace dwarfs::tool {                                                     \
+  int tool_name##_main(std::span<std::string> args, iolayer const& iol);       \
+  int tool_name##_main(std::span<std::string_view> args, iolayer const& iol);  \
+  int tool_name##_main(int argc, sys_char** argv, iolayer const& iol);         \
+  int tool_name##_main(int argc, sys_char** argv);                             \
+  }

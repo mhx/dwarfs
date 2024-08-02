@@ -41,10 +41,10 @@
 #include <dwarfs/entry_interface.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/iolayer.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/script.h>
 #include <dwarfs/terminal.h>
+#include <dwarfs/tool/iolayer.h>
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
@@ -302,7 +302,7 @@ class test_iolayer {
                std::shared_ptr<file_access const> fa);
   ~test_iolayer();
 
-  iolayer const& get();
+  tool::iolayer const& get();
 
   std::string out() const;
   std::string err() const;
@@ -327,7 +327,7 @@ class test_iolayer {
   std::istringstream in_;
   std::ostringstream out_;
   std::ostringstream err_;
-  std::unique_ptr<iolayer> iol_;
+  std::unique_ptr<tool::iolayer> iol_;
   std::shared_ptr<terminal const> real_term_;
 };
 

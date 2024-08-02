@@ -28,8 +28,8 @@
 #include <dwarfs/version.h>
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-#include <dwarfs/iolayer.h>
 #include <dwarfs/terminal.h>
+#include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/pager.h>
 #include <dwarfs/tool/render_manpage.h>
 #endif

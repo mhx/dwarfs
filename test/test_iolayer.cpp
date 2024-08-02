@@ -315,10 +315,10 @@ test_iolayer::test_iolayer(std::shared_ptr<os_access const> os,
 
 test_iolayer::~test_iolayer() = default;
 
-iolayer const& test_iolayer::get() {
+tool::iolayer const& test_iolayer::get() {
   if (!iol_) {
     if (real_term_) {
-      iol_ = std::make_unique<iolayer>(iolayer{
+      iol_ = std::make_unique<tool::iolayer>(tool::iolayer{
           .os = os_,
           .term = real_term_,
           .file = fa_,
@@ -327,7 +327,7 @@ iolayer const& test_iolayer::get() {
           .err = std::cerr,
       });
     } else {
-      iol_ = std::make_unique<iolayer>(iolayer{
+      iol_ = std::make_unique<tool::iolayer>(tool::iolayer{
           .os = os_,
           .term = term_,
           .file = fa_,

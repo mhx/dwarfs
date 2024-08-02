@@ -21,22 +21,18 @@
 
 #pragma once
 
-#include <boost/program_options.hpp>
+#include <span>
 
-#include <dwarfs/types.h>
+#include <dwarfs/tool/sys_char.h>
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
-#ifdef _WIN32
-template <typename T>
-auto po_sys_value(T* v) {
-  return boost::program_options::wvalue<T>(v);
-}
-#else
-template <typename T>
-auto po_sys_value(T* v) {
-  return boost::program_options::value<T>(v);
-}
-#endif
+struct iolayer;
 
-} // namespace dwarfs
+int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
+                          int (*main)(int, sys_char**, iolayer const&));
+
+int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
+                          int (*main)(int, sys_char**, iolayer const&));
+
+} // namespace dwarfs::tool

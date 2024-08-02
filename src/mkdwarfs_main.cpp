@@ -70,20 +70,21 @@
 #include <dwarfs/filter_debug.h>
 #include <dwarfs/fragment_order_parser.h>
 #include <dwarfs/integral_value_parser.h>
-#include <dwarfs/iolayer.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/program_options_helpers.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/tool/call_sys_main_iolayer.h>
+#include <dwarfs/tool/iolayer.h>
+#include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer_progress.h>
@@ -91,7 +92,7 @@
 
 namespace po = boost::program_options;
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 namespace {
 
@@ -1414,4 +1415,4 @@ int mkdwarfs_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, mkdwarfs_main);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

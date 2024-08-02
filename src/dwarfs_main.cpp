@@ -87,7 +87,6 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/iolayer.h>
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -97,6 +96,8 @@
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
+#include <dwarfs/tool/call_sys_main_iolayer.h>
+#include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/version.h>
@@ -140,7 +141,7 @@ FARPROC WINAPI delay_hook(unsigned dliNotify, PDelayLoadInfo pdli) {
 extern "C" const PfnDliHook __pfnDliFailureHook2 = delay_hook;
 #endif
 
-namespace dwarfs {
+namespace dwarfs::tool {
 
 namespace {
 
@@ -1664,4 +1665,4 @@ int dwarfs_main(std::span<std::string_view> args, iolayer const& iol) {
   return call_sys_main_iolayer(args, iol, dwarfs_main);
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::tool

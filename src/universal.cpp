@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -35,12 +36,11 @@
 
 #include <dwarfs/tool/safe_main.h>
 #include <dwarfs/tool/tool.h>
-#include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
 
 namespace {
 
-using namespace dwarfs;
+using namespace dwarfs::tool;
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -66,7 +66,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
   if (auto ext = path.extension().string(); ext.empty() || ext == EXE_EXT) {
     auto stem = path.stem().string();
     if (auto it = functions.find(stem); it != functions.end()) {
-      return tool::safe_main([&] { return it->second(argc, argv); });
+      return safe_main([&] { return it->second(argc, argv); });
     }
   }
 
@@ -80,7 +80,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
         argv_copy.reserve(argc - 1);
         argv_copy.emplace_back(argv[0]);
         std::copy(argv + 2, argv + argc, std::back_inserter(argv_copy));
-        return tool::safe_main(
+        return safe_main(
             [&] { return it->second(argc - 1, argv_copy.data()); });
       }
     }
@@ -92,7 +92,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
                ranges::to<std::string>;
 
   // clang-format off
-  std::cout << tool::tool_header("dwarfs-universal")
+  std::cout << tool_header("dwarfs-universal")
             << "Command line options:\n"
             << "  --tool=<name>                     "
                  "which tool to run; available tools are:\n"

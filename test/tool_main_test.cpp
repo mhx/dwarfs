@@ -58,6 +58,8 @@ using namespace dwarfs;
 
 namespace fs = std::filesystem;
 
+using tool::iolayer;
+
 namespace {
 
 // TODO: this is a workaround for older Clang versions
@@ -167,7 +169,7 @@ auto constexpr default_fs_opts = filesystem_options{
 class mkdwarfs_tester : public tester_common {
  public:
   mkdwarfs_tester(std::shared_ptr<test::os_access_mock> pos)
-      : tester_common(mkdwarfs_main, "mkdwarfs", std::move(pos)) {}
+      : tester_common(tool::mkdwarfs_main, "mkdwarfs", std::move(pos)) {}
 
   mkdwarfs_tester()
       : mkdwarfs_tester(test::os_access_mock::create_test_instance()) {}
@@ -322,7 +324,7 @@ build_test_image(std::vector<std::string> extra_args = {},
 class dwarfsck_tester : public tester_common {
  public:
   dwarfsck_tester(std::shared_ptr<test::os_access_mock> pos)
-      : tester_common(dwarfsck_main, "dwarfsck", std::move(pos)) {}
+      : tester_common(tool::dwarfsck_main, "dwarfsck", std::move(pos)) {}
 
   dwarfsck_tester()
       : dwarfsck_tester(std::make_shared<test::os_access_mock>()) {}
@@ -342,7 +344,8 @@ class dwarfsck_tester : public tester_common {
 class dwarfsextract_tester : public tester_common {
  public:
   dwarfsextract_tester(std::shared_ptr<test::os_access_mock> pos)
-      : tester_common(dwarfsextract_main, "dwarfsextract", std::move(pos)) {}
+      : tester_common(tool::dwarfsextract_main, "dwarfsextract",
+                      std::move(pos)) {}
 
   dwarfsextract_tester()
       : dwarfsextract_tester(std::make_shared<test::os_access_mock>()) {}

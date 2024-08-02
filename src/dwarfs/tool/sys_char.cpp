@@ -19,10 +19,39 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/tool/safe_main.h>
-#include <dwarfs_tool_main.h>
+#include <algorithm>
 
-int SYS_MAIN(int argc, dwarfs::tool::sys_char** argv) {
-  return dwarfs::tool::safe_main(
-      [&] { return dwarfs::tool::dwarfsck_main(argc, argv); });
+#if __has_include(<utf8cpp/utf8.h>)
+#include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
+
+#include <dwarfs/tool/sys_char.h>
+
+namespace dwarfs::tool {
+
+std::string sys_string_to_string(sys_string const& in) {
+#ifdef _WIN32
+  std::u16string tmp(in.size(), 0);
+  std::transform(in.begin(), in.end(), tmp.begin(),
+                 [](sys_char c) { return static_cast<char16_t>(c); });
+  return utf8::utf16to8(tmp);
+#else
+  return in;
+#endif
 }
+
+sys_string string_to_sys_string(std::string const& in) {
+#ifdef _WIN32
+  auto tmp = utf8::utf8to16(in);
+  sys_string rv(tmp.size(), 0);
+  std::transform(tmp.begin(), tmp.end(), rv.begin(),
+                 [](char16_t c) { return static_cast<sys_char>(c); });
+  return rv;
+#else
+  return in;
+#endif
+}
+
+} // namespace dwarfs::tool

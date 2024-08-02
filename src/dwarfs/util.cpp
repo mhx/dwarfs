@@ -60,20 +60,6 @@ inline std::string trimmed(std::string in) {
   return in;
 }
 
-template <typename T>
-int call_sys_main_iolayer_impl(std::span<T> args, iolayer const& iol,
-                               int (*main)(int, sys_char**, iolayer const&)) {
-  std::vector<sys_string> argv;
-  std::vector<sys_char*> argv_ptrs;
-  argv.reserve(args.size());
-  argv_ptrs.reserve(args.size());
-  for (auto const& arg : args) {
-    argv.emplace_back(string_to_sys_string(std::string(arg)));
-    argv_ptrs.emplace_back(argv.back().data());
-  }
-  return main(argv_ptrs.size(), argv_ptrs.data(), iol);
-}
-
 } // namespace
 
 std::string size_with_unit(size_t size) {
@@ -203,39 +189,6 @@ file_off_t parse_image_offset(std::string const& str) {
   }
 
   return off.value();
-}
-
-std::string sys_string_to_string(sys_string const& in) {
-#ifdef _WIN32
-  std::u16string tmp(in.size(), 0);
-  std::transform(in.begin(), in.end(), tmp.begin(),
-                 [](sys_char c) { return static_cast<char16_t>(c); });
-  return utf8::utf16to8(tmp);
-#else
-  return in;
-#endif
-}
-
-sys_string string_to_sys_string(std::string const& in) {
-#ifdef _WIN32
-  auto tmp = utf8::utf8to16(in);
-  sys_string rv(tmp.size(), 0);
-  std::transform(tmp.begin(), tmp.end(), rv.begin(),
-                 [](char16_t c) { return static_cast<sys_char>(c); });
-  return rv;
-#else
-  return in;
-#endif
-}
-
-int call_sys_main_iolayer(std::span<std::string_view> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&)) {
-  return call_sys_main_iolayer_impl(args, iol, main);
-}
-
-int call_sys_main_iolayer(std::span<std::string> args, iolayer const& iol,
-                          int (*main)(int, sys_char**, iolayer const&)) {
-  return call_sys_main_iolayer_impl(args, iol, main);
 }
 
 size_t utf8_display_width(char const* p, size_t len) {
