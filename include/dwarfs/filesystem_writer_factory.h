@@ -21,34 +21,27 @@
 
 #pragma once
 
-#include <dwarfs/block_compressor.h>
-#include <dwarfs/fragment_category.h>
+#include <iosfwd>
+
+#include <dwarfs/filesystem_writer.h>
+#include <dwarfs/options.h>
 
 namespace dwarfs {
 
-namespace internal {
+class block_compressor;
+class logger;
+class writer_progress;
+class thread_pool;
 
-class filesystem_writer_detail;
-
-}
-
-class filesystem_writer {
+class filesystem_writer_factory {
  public:
-  explicit filesystem_writer(
-      std::unique_ptr<internal::filesystem_writer_detail> impl);
-
-  ~filesystem_writer();
-  filesystem_writer(filesystem_writer&&);
-  filesystem_writer& operator=(filesystem_writer&&);
-
-  void add_default_compressor(block_compressor bc);
-  void add_category_compressor(fragment_category::value_type cat,
-                               block_compressor bc);
-
-  internal::filesystem_writer_detail& get_internal() { return *impl_; }
-
- protected:
-  std::unique_ptr<internal::filesystem_writer_detail> impl_;
+  static filesystem_writer
+  create(std::ostream& os, logger& lgr, thread_pool& pool,
+         writer_progress& prog, block_compressor const& schema_bc,
+         block_compressor const& metadata_bc,
+         block_compressor const& history_bc,
+         filesystem_writer_options const& options = filesystem_writer_options(),
+         std::istream* header = nullptr);
 };
 
 } // namespace dwarfs

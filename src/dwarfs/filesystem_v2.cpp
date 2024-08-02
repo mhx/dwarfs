@@ -50,6 +50,7 @@
 #include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/filesystem_parser.h>
+#include <dwarfs/internal/filesystem_writer_detail.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/inode_reader_v2.h>
 #include <dwarfs/internal/metadata_v2.h>
@@ -287,7 +288,7 @@ class filesystem_ final : public filesystem_v2::impl {
   std::vector<file_stat::gid_type> get_all_gids() const override {
     return meta_.get_all_gids();
   }
-  void rewrite(writer_progress& prog, filesystem_writer& writer,
+  void rewrite(writer_progress& prog, filesystem_writer& fs_writer,
                category_resolver const& cat_resolver,
                rewrite_options const& opts) const override;
 
@@ -506,10 +507,11 @@ filesystem_<LoggerPolicy>::filesystem_(
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::rewrite(writer_progress& prog,
-                                        filesystem_writer& writer,
+                                        filesystem_writer& fs_writer,
                                         category_resolver const& cat_resolver,
                                         rewrite_options const& opts) const {
   filesystem_parser parser(mm_, image_offset_);
+  auto& writer = fs_writer.get_internal();
 
   if (opts.recompress_block) {
     size_t block_no{0};

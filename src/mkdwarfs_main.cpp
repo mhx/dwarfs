@@ -58,6 +58,7 @@
 #include <dwarfs/builtin_script.h>
 #include <dwarfs/categorizer.h>
 #include <dwarfs/category_parser.h>
+#include <dwarfs/checksum.h>
 #include <dwarfs/chmod_entry_transformer.h>
 #include <dwarfs/console_writer.h>
 #include <dwarfs/conv.h>
@@ -66,7 +67,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_block_category_resolver.h>
 #include <dwarfs/filesystem_v2.h>
-#include <dwarfs/filesystem_writer.h>
+#include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/filter_debug.h>
 #include <dwarfs/fragment_order_parser.h>
 #include <dwarfs/integral_value_parser.h>
@@ -1275,8 +1276,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw.emplace(fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc,
-                history_bc, fswopts, header_ifs ? &header_ifs->is() : nullptr);
+    fsw = filesystem_writer_factory::create(
+        fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc, history_bc,
+        fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
     categorized_option<block_compressor> compression_opt;
     contextual_option_parser cop("--compression", compression_opt, cp,

@@ -29,7 +29,7 @@
 #include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_v2.h>
-#include <dwarfs/filesystem_writer.h>
+#include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
@@ -132,7 +132,8 @@ std::string make_filesystem(::benchmark::State const& state) {
   std::ostringstream oss;
 
   block_compressor bc("null");
-  filesystem_writer fsw(oss, lgr, pool, prog, bc, bc, bc);
+  auto fsw =
+      filesystem_writer_factory::create(oss, lgr, pool, prog, bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, "", prog);

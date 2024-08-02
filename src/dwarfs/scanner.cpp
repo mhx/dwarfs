@@ -61,6 +61,7 @@
 #include <dwarfs/internal/entry.h>
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/file_scanner.h>
+#include <dwarfs/internal/filesystem_writer_detail.h>
 #include <dwarfs/internal/fragment_chunkable.h>
 #include <dwarfs/internal/global_entry_data.h>
 #include <dwarfs/internal/inode.h>
@@ -293,7 +294,7 @@ class scanner_ final : public scanner::impl {
            entry_factory& ef, os_access const& os, std::shared_ptr<script> scr,
            const scanner_options& options);
 
-  void scan(filesystem_writer& fsw, std::filesystem::path const& path,
+  void scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
             writer_progress& wprog,
             std::optional<std::span<std::filesystem::path const>> list,
             std::shared_ptr<file_access const> fa) override;
@@ -607,11 +608,12 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(
-    filesystem_writer& fsw, const std::filesystem::path& path,
+    filesystem_writer& fs_writer, const std::filesystem::path& path,
     writer_progress& wprog,
     std::optional<std::span<std::filesystem::path const>> list,
     std::shared_ptr<file_access const> fa) {
   auto& prog = wprog.get_internal();
+  auto& fsw = fs_writer.get_internal();
 
   if (!options_.debug_filter_function) {
     LOG_INFO << "scanning " << path;

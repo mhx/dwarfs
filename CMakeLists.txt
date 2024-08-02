@@ -612,6 +612,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_stat.cpp
   src/dwarfs/file_type.cpp
+  src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
   src/dwarfs/internal/features.cpp
@@ -653,7 +654,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/console_writer.cpp
   src/dwarfs/entry_factory.cpp
   src/dwarfs/filesystem_block_category_resolver.cpp
-  src/dwarfs/filesystem_writer.cpp
+  src/dwarfs/filesystem_writer_factory.cpp
   src/dwarfs/filter_debug.cpp
   src/dwarfs/fragment_category.cpp
   src/dwarfs/fragment_order_parser.cpp
