@@ -56,7 +56,6 @@ fs::file_status file_mode_to_status(uint16_t mode) {
     break;
   default:
     throw std::runtime_error(fmt::format("invalid file mode: {:#06x}", mode));
-    break;
   }
 
   return fs::file_status(ft, fs::perms(mode & 07777));
@@ -93,7 +92,6 @@ uint16_t file_status_to_mode(std::filesystem::file_status status) {
   default:
     throw std::runtime_error(
         fmt::format("invalid file type: {}", fmt::underlying(status.type())));
-    break;
   }
 
   return static_cast<uint16_t>(ft) |
