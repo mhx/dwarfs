@@ -65,9 +65,6 @@ class filesystem_writer_detail {
                            physical_block_cb_type physical_block_cb,
                            std::optional<std::string> meta = std::nullopt) = 0;
   virtual void finish_category(fragment_category cat) = 0;
-  virtual void write_block(fragment_category::value_type cat,
-                           std::shared_ptr<internal::block_data>&& data,
-                           std::optional<std::string> meta = std::nullopt) = 0;
   virtual void
   write_metadata_v2_schema(std::shared_ptr<internal::block_data>&& data) = 0;
   virtual void

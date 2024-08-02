@@ -548,9 +548,6 @@ class filesystem_writer_ final : public filesystem_writer_detail {
                    physical_block_cb_type physical_block_cb,
                    std::optional<std::string> meta) override;
   void finish_category(fragment_category cat) override;
-  void write_block(fragment_category::value_type cat,
-                   std::shared_ptr<block_data>&& data,
-                   std::optional<std::string> meta) override;
   void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) override;
   void write_metadata_v2(std::shared_ptr<block_data>&& data) override;
   void write_history(std::shared_ptr<block_data>&& data) override;
@@ -1029,14 +1026,6 @@ void filesystem_writer_<LoggerPolicy>::write_block(
     physical_block_cb_type physical_block_cb, std::optional<std::string> meta) {
   write_block_impl(cat, std::move(data), compressor_for_category(cat.value()),
                    std::move(meta), std::move(physical_block_cb));
-}
-
-template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write_block(
-    fragment_category::value_type cat, std::shared_ptr<block_data>&& data,
-    std::optional<std::string> meta) {
-  write_section_impl(section_type::BLOCK, std::move(data),
-                     compressor_for_category(cat), std::move(meta));
 }
 
 template <typename LoggerPolicy>
