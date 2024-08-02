@@ -923,6 +923,7 @@ if(WITH_TESTS)
     error_test
     file_access_test
     filesystem_test
+    filesystem_writer_test
     fits_categorizer_test
     fragment_category_test
     incompressible_categorizer_test
