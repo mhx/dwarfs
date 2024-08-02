@@ -439,7 +439,7 @@ if(DWARFS_GIT_BUILD)
   add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
 endif()
 
-add_library(dwarfs_folly_lite
+add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Demangle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
@@ -1044,7 +1044,7 @@ else()
 endif()
 
 add_library(
-  dwarfs_thrift_lite
+  dwarfs_thrift_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/protocol/TProtocolException.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/util/VarintUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
@@ -1070,6 +1070,8 @@ target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC
   ${THRIFT_GENERATED_DIR}
 )
 
+target_link_libraries(dwarfs_common PUBLIC dwarfs_thrift_lite dwarfs_folly_lite)
+
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
 add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
@@ -1086,7 +1088,7 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
-  target_link_libraries(${tgt} PRIVATE dwarfs_folly_lite dwarfs_thrift_lite range-v3::range-v3)
+  target_link_libraries(${tgt} PRIVATE range-v3::range-v3)
 
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
