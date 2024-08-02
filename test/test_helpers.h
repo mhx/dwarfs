@@ -38,11 +38,12 @@
 #include <variant>
 #include <vector>
 
+#include <dwarfs/entry_filter.h>
 #include <dwarfs/entry_interface.h>
+#include <dwarfs/entry_transformer.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/script.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/tool/iolayer.h>
 
@@ -185,27 +186,20 @@ class os_access_mock : public os_access {
   size_t map_file_delay_min_size_{0};
 };
 
-class script_mock : public script {
- public:
-  bool has_filter() const override { return true; }
-  bool has_transform() const override { return true; }
-
-  bool filter(entry_interface const& ei) override {
-    filter_calls.push_back({ei.unix_dpath(), ei.name(), ei.size(),
-                            ei.is_directory(), ei.get_permissions(),
-                            ei.get_uid(), ei.get_gid(), ei.get_atime(),
-                            ei.get_mtime(), ei.get_ctime()});
-    return true;
-  }
-
-  void transform(entry_interface& ei) override {
-    transform_calls.push_back({ei.unix_dpath(), ei.name(), ei.size(),
-                               ei.is_directory(), ei.get_permissions(),
-                               ei.get_uid(), ei.get_gid(), ei.get_atime(),
-                               ei.get_mtime(), ei.get_ctime()});
-  }
-
+struct filter_transformer_data {
   struct entry_data {
+    entry_data(entry_interface const& ei)
+        : path{ei.unix_dpath()}
+        , name{ei.name()}
+        , size{ei.size()}
+        , is_directory{ei.is_directory()}
+        , mode{ei.get_permissions()}
+        , uid{ei.get_uid()}
+        , gid{ei.get_gid()}
+        , atime{ei.get_atime()}
+        , mtime{ei.get_mtime()}
+        , ctime{ei.get_ctime()} {}
+
     std::string path;
     std::string name;
     size_t size;
@@ -220,6 +214,33 @@ class script_mock : public script {
 
   std::vector<entry_data> filter_calls;
   std::vector<entry_data> transform_calls;
+};
+
+class mock_filter : public entry_filter {
+ public:
+  mock_filter(std::shared_ptr<filter_transformer_data> data)
+      : data_{std::move(data)} {}
+
+  filter_action filter(entry_interface const& ei) const {
+    data_->filter_calls.emplace_back(ei);
+    return filter_action::keep;
+  }
+
+ private:
+  std::shared_ptr<filter_transformer_data> data_;
+};
+
+class mock_transformer : public entry_transformer {
+ public:
+  mock_transformer(std::shared_ptr<filter_transformer_data> data)
+      : data_{std::move(data)} {}
+
+  void transform(entry_interface& ei) {
+    data_->transform_calls.emplace_back(ei);
+  }
+
+ private:
+  std::shared_ptr<filter_transformer_data> data_;
 };
 
 class test_terminal : public terminal {

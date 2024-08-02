@@ -647,7 +647,6 @@ list(APPEND LIBDWARFS_READER_SRC
 )
 
 list(APPEND LIBDWARFS_WRITER_SRC
-  src/dwarfs/builtin_script.cpp
   src/dwarfs/categorizer.cpp
   src/dwarfs/category_parser.cpp
   src/dwarfs/chmod_entry_transformer.cpp
@@ -674,6 +673,7 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/internal/scanner_progress.cpp
   src/dwarfs/internal/similarity.cpp
   src/dwarfs/internal/similarity_ordering.cpp
+  src/dwarfs/rule_based_entry_filter.cpp
   src/dwarfs/scanner.cpp
   src/dwarfs/segmenter.cpp
   src/dwarfs/segmenter_factory.cpp

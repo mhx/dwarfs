@@ -31,21 +31,30 @@ namespace dwarfs {
 
 struct scanner_options;
 
+class entry_filter;
+class entry_transformer;
 class entry_factory;
 class file_access;
 class filesystem_writer;
 class logger;
 class os_access;
 class writer_progress;
-class script;
 class segmenter_factory;
 class thread_pool;
 
 class scanner {
  public:
   scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
-          entry_factory& ef, os_access const& os, std::shared_ptr<script> scr,
+          entry_factory& ef, os_access const& os,
           const scanner_options& options);
+
+  void add_filter(std::unique_ptr<entry_filter> filter) {
+    impl_->add_filter(std::move(filter));
+  }
+
+  void add_transformer(std::unique_ptr<entry_transformer> transformer) {
+    impl_->add_transformer(std::move(transformer));
+  }
 
   void scan(
       filesystem_writer& fsw, const std::filesystem::path& path,
@@ -58,6 +67,11 @@ class scanner {
   class impl {
    public:
     virtual ~impl() = default;
+
+    virtual void add_filter(std::unique_ptr<entry_filter> filter) = 0;
+
+    virtual void
+    add_transformer(std::unique_ptr<entry_transformer> transformer) = 0;
 
     virtual void
     scan(filesystem_writer& fsw, const std::filesystem::path& path,

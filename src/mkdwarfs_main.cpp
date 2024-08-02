@@ -55,7 +55,6 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
-#include <dwarfs/builtin_script.h>
 #include <dwarfs/categorizer.h>
 #include <dwarfs/category_parser.h>
 #include <dwarfs/checksum.h>
@@ -77,8 +76,8 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/rule_based_entry_filter.h>
 #include <dwarfs/scanner.h>
-#include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
@@ -928,42 +927,39 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       iol.term, iol.err, pg_mode,
       recompress ? console_writer::REWRITE : console_writer::NORMAL, logopts);
 
-  std::shared_ptr<script> script;
+  std::unique_ptr<rule_based_entry_filter> rule_filter;
 
-  if (!filter.empty() or vm.count("chmod")) {
-    auto bs = std::make_shared<builtin_script>(lgr, iol.file);
+  if (!filter.empty()) {
+    rule_filter = std::make_unique<rule_based_entry_filter>(lgr, iol.file);
 
-    if (!filter.empty()) {
-      bs->set_root_path(path);
+    rule_filter->set_root_path(path);
 
-      for (auto const& rule : filter) {
-        auto srule = sys_string_to_string(rule);
-        try {
-          bs->add_filter_rule(srule);
-        } catch (std::exception const& e) {
-          iol.err << "error: could not parse filter rule '" << srule
-                  << "': " << e.what() << "\n";
-          return 1;
-        }
+    for (auto const& rule : filter) {
+      auto srule = sys_string_to_string(rule);
+      try {
+        rule_filter->add_rule(srule);
+      } catch (std::exception const& e) {
+        iol.err << "error: could not parse filter rule '" << srule
+                << "': " << e.what() << "\n";
+        return 1;
       }
     }
+  }
 
-    if (vm.count("chmod")) {
-      if (chmod_str == "norm") {
-        chmod_str = "ug-st,=Xr";
-      }
+  std::vector<std::unique_ptr<entry_transformer>> transformers;
 
-      auto chmod_exprs =
-          split_to<std::vector<std::string_view>>(chmod_str, ',');
-
-      auto mask = get_current_umask();
-
-      for (auto expr : chmod_exprs) {
-        bs->add_transformer(create_chmod_entry_transformer(expr, mask));
-      }
+  if (vm.count("chmod")) {
+    if (chmod_str == "norm") {
+      chmod_str = "ug-st,=Xr";
     }
 
-    script = bs;
+    auto chmod_exprs = split_to<std::vector<std::string_view>>(chmod_str, ',');
+
+    auto mask = get_current_umask();
+
+    for (auto expr : chmod_exprs) {
+      transformers.push_back(create_chmod_entry_transformer(expr, mask));
+    }
   }
 
   if (vm.count("set-owner")) {
@@ -1339,7 +1335,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      scanner s(lgr, scanner_pool, sf, ef, *iol.os, std::move(script), options);
+      scanner s(lgr, scanner_pool, sf, ef, *iol.os, options);
+
+      if (rule_filter) {
+        s.add_filter(std::move(rule_filter));
+      }
+
+      for (auto& t : transformers) {
+        s.add_transformer(std::move(t));
+      }
 
       s.scan(*fsw, path, prog, input_list, iol.file);
 

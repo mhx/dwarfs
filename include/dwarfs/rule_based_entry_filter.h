@@ -24,53 +24,39 @@
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
-#include <string>
+#include <string_view>
 
-#include <dwarfs/script.h>
+#include <dwarfs/entry_filter.h>
+#include <dwarfs/file_stat.h>
 
 namespace dwarfs {
 
-class entry_transformer;
 class file_access;
 class logger;
 
-class builtin_script : public script {
+class rule_based_entry_filter : public entry_filter {
  public:
-  builtin_script(logger& lgr, std::shared_ptr<file_access const> fa);
-  ~builtin_script();
+  rule_based_entry_filter(logger& lgr, std::shared_ptr<file_access const> fa);
+  ~rule_based_entry_filter();
 
   void set_root_path(std::filesystem::path const& path) {
     impl_->set_root_path(path);
   }
 
-  void add_filter_rule(std::string const& rule) {
-    impl_->add_filter_rule(rule);
-  }
+  void add_rule(std::string_view rule) { impl_->add_rule(rule); }
 
-  void add_filter_rules(std::istream& is) { impl_->add_filter_rules(is); }
+  void add_rules(std::istream& is) { impl_->add_rules(is); }
 
-  void add_transformer(std::unique_ptr<entry_transformer>&& xfm) {
-    impl_->add_transformer(std::move(xfm));
-  }
-
-  bool has_filter() const override;
-  bool has_transform() const override;
-
-  bool filter(entry_interface const& ei) override;
-  void transform(entry_interface& ei) override;
+  filter_action filter(entry_interface const& ei) const override;
 
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual void set_root_path(std::filesystem::path const& path) = 0;
-    virtual void add_filter_rule(std::string const& rule) = 0;
-    virtual void add_filter_rules(std::istream& is) = 0;
-    virtual void add_transformer(std::unique_ptr<entry_transformer>&& xfm) = 0;
-    virtual bool filter(entry_interface const& ei) = 0;
-    virtual void transform(entry_interface& ei) = 0;
-    virtual bool has_filter() const = 0;
-    virtual bool has_transform() const = 0;
+    virtual void add_rule(std::string_view rule) = 0;
+    virtual void add_rules(std::istream& is) = 0;
+    virtual filter_action filter(entry_interface const& ei) const = 0;
   };
 
  private:

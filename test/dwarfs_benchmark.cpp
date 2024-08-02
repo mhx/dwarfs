@@ -126,8 +126,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   segmenter_factory sf(lgr, prog, cfg);
   entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, *os, std::make_shared<test::script_mock>(),
-            options);
+  scanner s(lgr, pool, sf, ef, *os, options);
 
   std::ostringstream oss;
 

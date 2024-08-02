@@ -38,7 +38,6 @@ namespace dwarfs {
 class logger;
 class os_access;
 class progress;
-class script;
 
 struct inode_options;
 

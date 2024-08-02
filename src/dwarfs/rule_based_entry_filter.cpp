@@ -25,11 +25,10 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/builtin_script.h>
 #include <dwarfs/entry_interface.h>
-#include <dwarfs/entry_transformer.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/rule_based_entry_filter.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
@@ -65,44 +64,34 @@ struct filter_rule {
 };
 
 template <typename LoggerPolicy>
-class builtin_script_ : public builtin_script::impl {
+class rule_based_entry_filter_ : public rule_based_entry_filter::impl {
  public:
-  builtin_script_(logger& lgr, std::shared_ptr<file_access const> fa);
+  rule_based_entry_filter_(logger& lgr, std::shared_ptr<file_access const> fa);
 
   void set_root_path(fs::path const& path) override;
-  void add_filter_rule(std::string const& rule) override;
-  void add_filter_rules(std::istream& is) override;
-
-  void add_transformer(std::unique_ptr<entry_transformer>&& xfm) override {
-    transformer_.emplace_back(std::move(xfm));
-  }
-
-  bool filter(entry_interface const& ei) override;
-  void transform(entry_interface& ei) override;
-
-  bool has_filter() const override { return !filter_.empty(); }
-  bool has_transform() const override { return !transformer_.empty(); }
+  void add_rule(std::string_view rule) override;
+  void add_rules(std::istream& is) override;
+  filter_action filter(entry_interface const& ei) const override;
 
  private:
-  void add_filter_rule(std::unordered_set<std::string>& seen_files,
-                       std::string const& rule);
+  void
+  add_rule(std::unordered_set<std::string>& seen_files, std::string_view rule);
 
-  void add_filter_rules(std::unordered_set<std::string>& seen_files,
-                        std::istream& is);
+  void add_rules(std::unordered_set<std::string>& seen_files, std::istream& is);
 
-  filter_rule compile_filter_rule(std::string const& rule);
+  filter_rule compile_filter_rule(std::string_view rule);
 
   LOG_PROXY_DECL(LoggerPolicy);
   std::string root_path_;
   std::vector<filter_rule> filter_;
-  std::vector<std::unique_ptr<entry_transformer>> transformer_;
   std::shared_ptr<file_access const> fa_;
 };
 
 template <typename LoggerPolicy>
-auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
-    -> filter_rule {
-  std::string r;
+auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
+    std::string_view rule_sv) -> filter_rule {
+  std::string rule{rule_sv};
+  std::string re;
   filter_rule::rule_type type;
 
   auto* p = rule.c_str();
@@ -125,15 +114,15 @@ auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
   bool floating = *p && *p != '/';
 
   if (floating) {
-    r += ".*/";
+    re += ".*/";
   }
 
   while (*p) {
     switch (*p) {
     case '\\':
-      r += *p++;
+      re += *p++;
       if (p) {
-        r += *p++;
+        re += *p++;
       }
       continue;
 
@@ -144,14 +133,14 @@ auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
       }
       switch (nstar) {
       case 1:
-        if (r.ends_with('/') and (*p == '/' or *p == '\0')) {
-          r += "[^/]+";
+        if (re.ends_with('/') and (*p == '/' or *p == '\0')) {
+          re += "[^/]+";
         } else {
-          r += "[^/]*";
+          re += "[^/]*";
         }
         break;
       case 2:
-        r += ".*";
+        re += ".*";
         break;
       default:
         throw std::runtime_error("too many *s");
@@ -160,7 +149,7 @@ auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
       continue;
 
     case '?':
-      r += "[^/]";
+      re += "[^/]";
       break;
 
     case '.':
@@ -172,32 +161,33 @@ auto builtin_script_<LoggerPolicy>::compile_filter_rule(std::string const& rule)
     case '{':
     case '}':
     case '|':
-      r += '\\';
-      r += *p;
+      re += '\\';
+      re += *p;
       break;
 
     default:
-      r += *p;
+      re += *p;
       break;
     }
 
     ++p;
   }
 
-  LOG_DEBUG << "'" << rule << "' -> '" << r << "' [floating=" << floating
+  LOG_DEBUG << "'" << rule << "' -> '" << re << "' [floating=" << floating
             << "]";
 
-  return filter_rule(type, floating, r, rule);
+  return filter_rule(type, floating, re, rule);
 }
 
 template <typename LoggerPolicy>
-builtin_script_<LoggerPolicy>::builtin_script_(
+rule_based_entry_filter_<LoggerPolicy>::rule_based_entry_filter_(
     logger& lgr, std::shared_ptr<file_access const> fa)
     : log_{lgr}
     , fa_{std::move(fa)} {}
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::set_root_path(fs::path const& path) {
+void rule_based_entry_filter_<LoggerPolicy>::set_root_path(
+    fs::path const& path) {
   // TODO: this whole thing needs to be windowsized
   root_path_ = u8string_to_string(path.u8string());
 
@@ -215,22 +205,29 @@ void builtin_script_<LoggerPolicy>::set_root_path(fs::path const& path) {
 }
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::add_filter_rule(std::string const& rule) {
+void rule_based_entry_filter_<LoggerPolicy>::add_rule(std::string_view rule) {
   std::unordered_set<std::string> seen_files;
-  add_filter_rule(seen_files, rule);
+  add_rule(seen_files, rule);
 }
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::add_filter_rules(std::istream& is) {
+void rule_based_entry_filter_<LoggerPolicy>::add_rules(std::istream& is) {
   std::unordered_set<std::string> seen_files;
-  add_filter_rules(seen_files, is);
+  add_rules(seen_files, is);
 }
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::add_filter_rule(
-    std::unordered_set<std::string>& seen_files, std::string const& rule) {
+void rule_based_entry_filter_<LoggerPolicy>::add_rule(
+    std::unordered_set<std::string>& seen_files, std::string_view rule) {
   if (rule.starts_with('.')) {
-    auto file = std::regex_replace(rule, std::regex("^. +"), "");
+    auto file_pos = rule.find_first_not_of(" \t", 1);
+
+    if (file_pos == std::string::npos) {
+      throw std::runtime_error(
+          fmt::format("no file specified in merge rule: {}", rule));
+    }
+
+    auto file = std::string(rule.substr(file_pos));
 
     if (!seen_files.emplace(file).second) {
       throw std::runtime_error(
@@ -238,7 +235,7 @@ void builtin_script_<LoggerPolicy>::add_filter_rule(
     }
 
     auto ifs = fa_->open_input(file);
-    add_filter_rules(seen_files, ifs->is());
+    add_rules(seen_files, ifs->is());
 
     seen_files.erase(file);
   } else {
@@ -247,7 +244,7 @@ void builtin_script_<LoggerPolicy>::add_filter_rule(
 }
 
 template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::add_filter_rules(
+void rule_based_entry_filter_<LoggerPolicy>::add_rules(
     std::unordered_set<std::string>& seen_files, std::istream& is) {
   std::string line;
 
@@ -258,12 +255,13 @@ void builtin_script_<LoggerPolicy>::add_filter_rules(
     if (line.find_first_not_of(" \t") == std::string::npos) {
       continue;
     }
-    add_filter_rule(seen_files, line);
+    add_rule(seen_files, line);
   }
 }
 
 template <typename LoggerPolicy>
-bool builtin_script_<LoggerPolicy>::filter(entry_interface const& ei) {
+filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
+    entry_interface const& ei) const {
   std::string path = ei.unix_dpath();
   std::string relpath = path;
 
@@ -278,42 +276,30 @@ bool builtin_script_<LoggerPolicy>::filter(entry_interface const& ei) {
                 << r.rule << "'";
       switch (r.type) {
       case filter_rule::rule_type::include:
-        return true;
+        return filter_action::keep;
 
       case filter_rule::rule_type::exclude:
-        return false;
+        return filter_action::remove;
       }
     }
   }
 
   LOG_TRACE << "[" << path << "] / [" << relpath << "] matched no rule";
 
-  return true;
-}
-
-template <typename LoggerPolicy>
-void builtin_script_<LoggerPolicy>::transform(entry_interface& ei) {
-  for (auto& xfm : transformer_) {
-    xfm->transform(ei);
-  }
+  return filter_action::keep;
 }
 
 } // namespace internal
 
-builtin_script::builtin_script(logger& lgr,
-                               std::shared_ptr<file_access const> fa)
-    : impl_(make_unique_logging_object<impl, internal::builtin_script_,
+rule_based_entry_filter::rule_based_entry_filter(
+    logger& lgr, std::shared_ptr<file_access const> fa)
+    : impl_(make_unique_logging_object<impl, internal::rule_based_entry_filter_,
                                        logger_policies>(lgr, std::move(fa))) {}
 
-builtin_script::~builtin_script() = default;
+rule_based_entry_filter::~rule_based_entry_filter() = default;
 
-bool builtin_script::has_filter() const { return impl_->has_filter(); }
-bool builtin_script::has_transform() const { return impl_->has_transform(); }
-
-bool builtin_script::filter(entry_interface const& ei) {
+filter_action rule_based_entry_filter::filter(entry_interface const& ei) const {
   return impl_->filter(ei);
 }
-
-void builtin_script::transform(entry_interface& ei) { impl_->transform(ei); }
 
 } // namespace dwarfs

@@ -21,6 +21,7 @@
 
 #include <dwarfs/chmod_entry_transformer.h>
 #include <dwarfs/entry_interface.h>
+#include <dwarfs/entry_transformer.h>
 
 #include <dwarfs/internal/chmod_transformer.h>
 

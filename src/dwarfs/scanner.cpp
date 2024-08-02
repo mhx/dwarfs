@@ -40,6 +40,8 @@
 
 #include <dwarfs/categorizer.h>
 #include <dwarfs/entry_factory.h>
+#include <dwarfs/entry_filter.h>
+#include <dwarfs/entry_transformer.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_writer.h>
@@ -49,7 +51,6 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/scanner.h>
-#include <dwarfs/script.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -291,8 +292,12 @@ template <typename LoggerPolicy>
 class scanner_ final : public scanner::impl {
  public:
   scanner_(logger& lgr, worker_group& wg, segmenter_factory& sf,
-           entry_factory& ef, os_access const& os, std::shared_ptr<script> scr,
+           entry_factory& ef, os_access const& os,
            const scanner_options& options);
+
+  void add_filter(std::unique_ptr<entry_filter> filter) override;
+
+  void add_transformer(std::unique_ptr<entry_transformer> transformer) override;
 
   void scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
             writer_progress& wprog,
@@ -321,22 +326,32 @@ class scanner_ final : public scanner::impl {
   segmenter_factory& segmenter_factory_;
   entry_factory& entry_factory_;
   os_access const& os_;
-  std::shared_ptr<script> script_;
+  std::vector<std::unique_ptr<entry_filter>> filters_;
+  std::vector<std::unique_ptr<entry_transformer>> transformers_;
 };
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::add_filter(std::unique_ptr<entry_filter> filter) {
+  filters_.push_back(std::move(filter));
+}
+
+template <typename LoggerPolicy>
+void scanner_<LoggerPolicy>::add_transformer(
+    std::unique_ptr<entry_transformer> transformer) {
+  transformers_.push_back(std::move(transformer));
+}
 
 template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
                                  segmenter_factory& sf, entry_factory& ef,
                                  os_access const& os,
-                                 std::shared_ptr<script> scr,
                                  const scanner_options& options)
     : LOG_PROXY_INIT(lgr)
     , wg_{wg}
     , options_{options}
     , segmenter_factory_{sf}
     , entry_factory_{ef}
-    , os_{os}
-    , script_{std::move(scr)} {}
+    , os_{os} {}
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
@@ -345,15 +360,10 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   file_scanner& fs, bool debug_filter) {
   try {
     auto pe = entry_factory_.create(os_, name, parent);
-    bool exclude = false;
-
-    if (script_) {
-      if (script_->has_filter() && !script_->filter(*pe)) {
-        exclude = true;
-      } else if (script_->has_transform()) {
-        script_->transform(*pe);
-      }
-    }
+    bool const exclude =
+        std::any_of(filters_.begin(), filters_.end(), [&pe](auto const& f) {
+          return f->filter(*pe) == filter_action::remove;
+        });
 
     if (debug_filter) {
       (*options_.debug_filter_function)(exclude, *pe);
@@ -367,74 +377,75 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
       return nullptr;
     }
 
-    if (pe) {
-      switch (pe->type()) {
-      case entry::E_FILE:
-        if (!debug_filter && pe->size() > 0 &&
-            os_.access(pe->fs_path(), R_OK)) {
-          LOG_ERROR << "cannot access " << pe->path_as_string()
-                    << ", creating empty file";
-          pe->override_size(0);
-          prog.errors++;
-        }
-        break;
+    for (auto const& t : transformers_) {
+      t->transform(*pe);
+    }
 
-      case entry::E_DEVICE:
-        if (!options_.with_devices) {
-          return nullptr;
-        }
-        break;
-
-      case entry::E_OTHER:
-        if (!options_.with_specials) {
-          return nullptr;
-        }
-        break;
-
-      default:
-        break;
-      }
-
-      parent->add(pe);
-
-      switch (pe->type()) {
-      case entry::E_DIR:
-        // prog.current.store(pe.get());
-        prog.dirs_found++;
-        if (!debug_filter) {
-          pe->scan(os_, prog);
-        }
-        break;
-
-      case entry::E_FILE:
-        prog.files_found++;
-        if (!debug_filter) {
-          fs.scan(dynamic_cast<file*>(pe.get()));
-        }
-        break;
-
-      case entry::E_LINK:
-        prog.symlinks_found++;
-        if (!debug_filter) {
-          pe->scan(os_, prog);
-        }
-        prog.symlinks_scanned++;
-        break;
-
-      case entry::E_DEVICE:
-      case entry::E_OTHER:
-        prog.specials_found++;
-        if (!debug_filter) {
-          pe->scan(os_, prog);
-        }
-        break;
-
-      default:
-        LOG_ERROR << "unsupported entry type: " << int(pe->type()) << " ("
-                  << pe->fs_path() << ")";
+    switch (pe->type()) {
+    case entry::E_FILE:
+      if (!debug_filter && pe->size() > 0 && os_.access(pe->fs_path(), R_OK)) {
+        LOG_ERROR << "cannot access " << pe->path_as_string()
+                  << ", creating empty file";
+        pe->override_size(0);
         prog.errors++;
-        break;
       }
+      break;
+
+    case entry::E_DEVICE:
+      if (!options_.with_devices) {
+        return nullptr;
+      }
+      break;
+
+    case entry::E_OTHER:
+      if (!options_.with_specials) {
+        return nullptr;
+      }
+      break;
+
+    default:
+      break;
+    }
+
+    parent->add(pe);
+
+    switch (pe->type()) {
+    case entry::E_DIR:
+      // prog.current.store(pe.get());
+      prog.dirs_found++;
+      if (!debug_filter) {
+        pe->scan(os_, prog);
+      }
+      break;
+
+    case entry::E_FILE:
+      prog.files_found++;
+      if (!debug_filter) {
+        fs.scan(dynamic_cast<file*>(pe.get()));
+      }
+      break;
+
+    case entry::E_LINK:
+      prog.symlinks_found++;
+      if (!debug_filter) {
+        pe->scan(os_, prog);
+      }
+      prog.symlinks_scanned++;
+      break;
+
+    case entry::E_DEVICE:
+    case entry::E_OTHER:
+      prog.specials_found++;
+      if (!debug_filter) {
+        pe->scan(os_, prog);
+      }
+      break;
+
+    default:
+      LOG_ERROR << "unsupported entry type: " << int(pe->type()) << " ("
+                << pe->fs_path() << ")";
+      prog.errors++;
+      break;
     }
 
     return pe;
@@ -484,8 +495,8 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
                  fmt::format("'{}' must be a directory", path.string()));
   }
 
-  if (script_ && script_->has_transform()) {
-    script_->transform(*root);
+  for (auto const& t : transformers_) {
+    t->transform(*root);
   }
 
   std::deque<std::shared_ptr<entry>> queue({root});
@@ -530,7 +541,7 @@ std::shared_ptr<entry>
 scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, file_scanner& fs) {
-  if (script_ && script_->has_filter()) {
+  if (!filters_.empty()) {
     DWARFS_THROW(runtime_error, "cannot use filters with file lists");
   }
 
@@ -543,8 +554,8 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
                  fmt::format("'{}' must be a directory", path.string()));
   }
 
-  if (script_ && script_->has_transform()) {
-    script_->transform(*root);
+  for (auto const& t : transformers_) {
+    t->transform(*root);
   }
 
   auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
@@ -1017,10 +1028,9 @@ void scanner_<LoggerPolicy>::scan(
 
 scanner::scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
                  entry_factory& ef, os_access const& os,
-                 std::shared_ptr<script> scr, const scanner_options& options)
+                 const scanner_options& options)
     : impl_(
           make_unique_logging_object<impl, internal::scanner_, logger_policies>(
-              lgr, pool.get_worker_group(), sf, ef, os, std::move(scr),
-              options)) {}
+              lgr, pool.get_worker_group(), sf, ef, os, options)) {}
 
 } // namespace dwarfs

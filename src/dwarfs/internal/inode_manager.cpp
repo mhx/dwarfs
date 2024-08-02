@@ -48,7 +48,6 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
-#include <dwarfs/script.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/entry.h>

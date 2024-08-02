@@ -21,22 +21,20 @@
 
 #pragma once
 
-#include <memory>
-#include <span>
-
 namespace dwarfs {
 
 class entry_interface;
 
-class script {
+enum class filter_action {
+  keep,
+  remove,
+};
+
+class entry_filter {
  public:
-  virtual ~script() = default;
+  virtual ~entry_filter() = default;
 
-  virtual bool has_filter() const = 0;
-  virtual bool has_transform() const = 0;
-
-  virtual bool filter(entry_interface const& ei) = 0;
-  virtual void transform(entry_interface& ei) = 0;
+  virtual filter_action filter(entry_interface const& ei) const = 0;
 };
 
 } // namespace dwarfs

@@ -36,7 +36,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/builtin_script.h>
 #include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
@@ -47,6 +46,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
+#include <dwarfs/rule_based_entry_filter.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
@@ -70,15 +70,17 @@ namespace {
 
 std::string const default_file_hash_algo{"xxh3-128"};
 
+// TODO: jeeeez, this is ugly :/
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              segmenter::config const& cfg = segmenter::config(),
              scanner_options const& options = scanner_options(),
              writer_progress* prog = nullptr,
-             std::shared_ptr<script> scr = nullptr,
+             std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
-                 std::nullopt) {
+                 std::nullopt,
+             std::unique_ptr<entry_filter> filter = nullptr) {
   // force multithreading
   thread_pool pool(lgr, *input, "worker", 4);
 
@@ -99,7 +101,16 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   segmenter_factory sf(lgr, *prog, sf_cfg);
   entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, *input, scr, options);
+  scanner s(lgr, pool, sf, ef, *input, options);
+
+  if (ftd) {
+    s.add_filter(std::make_unique<test::mock_filter>(ftd));
+    s.add_transformer(std::make_unique<test::mock_transformer>(ftd));
+  }
+
+  if (filter) {
+    s.add_filter(std::move(filter));
+  }
 
   std::ostringstream oss;
 
@@ -171,13 +182,13 @@ void basic_end_to_end_test(std::string const& compressor,
 
   writer_progress wprog;
 
-  auto scr = std::make_shared<test::script_mock>();
+  auto ftd = std::make_shared<test::filter_transformer_data>();
 
   auto fsimage =
-      build_dwarfs(lgr, input, compressor, cfg, options, &wprog, scr);
+      build_dwarfs(lgr, input, compressor, cfg, options, &wprog, ftd);
 
-  EXPECT_EQ(14, scr->filter_calls.size());
-  EXPECT_EQ(15, scr->transform_calls.size());
+  EXPECT_EQ(14, ftd->filter_calls.size());
+  EXPECT_EQ(15, ftd->transform_calls.size());
 
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
@@ -911,15 +922,15 @@ class filter_test
     : public testing::TestWithParam<dwarfs::test::filter_test_data> {
  public:
   test::test_logger lgr;
-  std::shared_ptr<builtin_script> scr;
+  std::unique_ptr<rule_based_entry_filter> rbf;
   std::shared_ptr<test::test_file_access> tfa;
   std::shared_ptr<test::os_access_mock> input;
 
   void SetUp() override {
     tfa = std::make_shared<test::test_file_access>();
 
-    scr = std::make_shared<builtin_script>(lgr, tfa);
-    scr->set_root_path("");
+    rbf = std::make_unique<rule_based_entry_filter>(lgr, tfa);
+    rbf->set_root_path("");
 
     input = std::make_shared<test::os_access_mock>();
 
@@ -943,7 +954,7 @@ class filter_test
 
   void set_filter_rules(test::filter_test_data const& spec) {
     std::istringstream iss(spec.filter());
-    scr->add_filter_rules(iss);
+    rbf->add_rules(iss);
   }
 
   std::string get_filter_debug_output(test::filter_test_data const& spec,
@@ -963,7 +974,9 @@ class filter_test
     thread_pool pool(lgr, *input, "worker", 1);
     segmenter_factory sf(lgr, prog);
     entry_factory ef;
-    scanner s(lgr, pool, sf, ef, *input, scr, options);
+    scanner s(lgr, pool, sf, ef, *input, options);
+
+    s.add_filter(std::move(rbf));
 
     block_compressor bc("null");
     std::ostringstream null;
@@ -975,7 +988,7 @@ class filter_test
   }
 
   void TearDown() override {
-    scr.reset();
+    rbf.reset();
     input.reset();
     tfa.reset();
   }
@@ -991,7 +1004,8 @@ TEST_P(filter_test, filesystem) {
   scanner_options options;
   options.remove_empty_dirs = true;
 
-  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr, scr);
+  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr,
+                              nullptr, std::nullopt, std::move(rbf));
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
