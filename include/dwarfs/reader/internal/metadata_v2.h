@@ -34,9 +34,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/metadata_types.h>
+#include <dwarfs/reader/metadata_types.h>
 
-#include <dwarfs/internal/metadata_types.h>
+#include <dwarfs/reader/internal/metadata_types.h>
 
 namespace dwarfs {
 

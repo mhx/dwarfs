@@ -43,10 +43,10 @@
 
 #include <range/v3/view/enumerate.hpp>
 
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/history.h>
-#include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>

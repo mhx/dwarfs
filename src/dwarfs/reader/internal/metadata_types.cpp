@@ -31,7 +31,7 @@
 #include <dwarfs/match.h>
 #include <dwarfs/util.h>
 
-#include <dwarfs/internal/metadata_types.h>
+#include <dwarfs/reader/internal/metadata_types.h>
 
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
 

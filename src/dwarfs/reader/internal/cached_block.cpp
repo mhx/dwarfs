@@ -30,8 +30,8 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 
-#include <dwarfs/internal/cached_block.h>
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/reader/internal/cached_block.h>
 
 namespace dwarfs::internal {
 

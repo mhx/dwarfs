@@ -28,10 +28,10 @@
 #include <system_error>
 #include <vector>
 
-#include <dwarfs/block_range.h>
+#include <dwarfs/reader/block_range.h>
 #include <dwarfs/types.h>
 
-#include <dwarfs/internal/metadata_types.h>
+#include <dwarfs/reader/internal/metadata_types.h>
 
 namespace dwarfs {
 

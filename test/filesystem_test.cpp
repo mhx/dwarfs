@@ -28,9 +28,9 @@
 
 #include <folly/Utility.h>
 
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/mmap.h>
+#include <dwarfs/reader/filesystem_v2.h>
 
 #include "mmap_mock.h"
 #include "test_helpers.h"

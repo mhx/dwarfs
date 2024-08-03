@@ -32,13 +32,13 @@
 
 #include <range/v3/view/enumerate.hpp>
 
-#include <dwarfs/block_range.h>
 #include <dwarfs/error.h>
-#include <dwarfs/filesystem_v2.h>
+#include <dwarfs/reader/block_range.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
 
-#include <dwarfs/internal/cached_block.h>
+#include <dwarfs/reader/internal/cached_block.h>
 
 #include "mmap_mock.h"
 #include "test_helpers.h"

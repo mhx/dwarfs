@@ -616,6 +616,7 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/history.cpp
   src/dwarfs/internal/features.cpp
   src/dwarfs/internal/file_status_conv.cpp
+  src/dwarfs/internal/fs_section.cpp
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
@@ -634,16 +635,15 @@ list(APPEND LIBDWARFS_COMMON_SRC
 )
 
 list(APPEND LIBDWARFS_READER_SRC
-  src/dwarfs/block_range.cpp
-  src/dwarfs/filesystem_v2.cpp
-  src/dwarfs/internal/block_cache.cpp
-  src/dwarfs/internal/cached_block.cpp
-  src/dwarfs/internal/filesystem_parser.cpp
-  src/dwarfs/internal/fs_section.cpp
-  src/dwarfs/internal/inode_reader_v2.cpp
-  src/dwarfs/internal/metadata_types.cpp
-  src/dwarfs/internal/metadata_v2.cpp
-  src/dwarfs/metadata_types.cpp
+  src/dwarfs/reader/block_range.cpp
+  src/dwarfs/reader/filesystem_v2.cpp
+  src/dwarfs/reader/internal/block_cache.cpp
+  src/dwarfs/reader/internal/cached_block.cpp
+  src/dwarfs/reader/internal/filesystem_parser.cpp
+  src/dwarfs/reader/internal/inode_reader_v2.cpp
+  src/dwarfs/reader/internal/metadata_types.cpp
+  src/dwarfs/reader/internal/metadata_v2.cpp
+  src/dwarfs/reader/metadata_types.cpp
 )
 
 list(APPEND LIBDWARFS_WRITER_SRC

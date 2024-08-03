@@ -24,10 +24,10 @@
 
 #include <gtest/gtest.h>
 
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_v2.h>
 
 #include "test_helpers.h"
 #include "test_logger.h"

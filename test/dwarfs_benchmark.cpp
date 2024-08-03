@@ -28,11 +28,11 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer_factory.h>
-#include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>

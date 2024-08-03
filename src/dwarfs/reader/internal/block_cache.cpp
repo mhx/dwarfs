@@ -48,10 +48,10 @@
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 
-#include <dwarfs/internal/block_cache.h>
-#include <dwarfs/internal/cached_block.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/reader/internal/block_cache.h>
+#include <dwarfs/reader/internal/cached_block.h>
 
 namespace dwarfs::internal {
 

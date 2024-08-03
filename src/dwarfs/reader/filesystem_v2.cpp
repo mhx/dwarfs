@@ -36,7 +36,6 @@
 #include <dwarfs/categorizer.h>
 #include <dwarfs/category_resolver.h>
 #include <dwarfs/error.h>
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
@@ -45,18 +44,19 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer_progress.h>
 
-#include <dwarfs/internal/block_cache.h>
 #include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/filesystem_parser.h>
 #include <dwarfs/internal/filesystem_writer_detail.h>
 #include <dwarfs/internal/fs_section.h>
-#include <dwarfs/internal/inode_reader_v2.h>
-#include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/progress.h>
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/reader/internal/block_cache.h>
+#include <dwarfs/reader/internal/filesystem_parser.h>
+#include <dwarfs/reader/internal/inode_reader_v2.h>
+#include <dwarfs/reader/internal/metadata_v2.h>
 
 namespace dwarfs {
 

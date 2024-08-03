@@ -29,7 +29,7 @@
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 
-#include <dwarfs/internal/filesystem_parser.h>
+#include <dwarfs/reader/internal/filesystem_parser.h>
 
 namespace dwarfs::internal {
 

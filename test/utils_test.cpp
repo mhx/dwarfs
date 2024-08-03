@@ -31,7 +31,7 @@
 #include <dwarfs/options.h>
 #include <dwarfs/util.h>
 
-#include <dwarfs/internal/offset_cache.h>
+#include <dwarfs/reader/internal/offset_cache.h>
 
 using namespace dwarfs;
 

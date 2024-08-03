@@ -25,7 +25,7 @@
 #include <sys/uio.h>
 #endif
 
-#include <dwarfs/block_range.h>
+#include <dwarfs/reader/block_range.h>
 #include <dwarfs/small_vector.h>
 
 namespace dwarfs {

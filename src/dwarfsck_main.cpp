@@ -38,12 +38,12 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>

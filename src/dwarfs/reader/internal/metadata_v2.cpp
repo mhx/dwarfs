@@ -55,8 +55,8 @@
 #include <dwarfs/vfs_stat.h>
 
 #include <dwarfs/internal/features.h>
-#include <dwarfs/internal/metadata_v2.h>
 #include <dwarfs/internal/string_table.h>
+#include <dwarfs/reader/internal/metadata_v2.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>

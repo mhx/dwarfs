@@ -34,15 +34,15 @@
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/fstypes.h>
-#include <dwarfs/iovec_read_buf.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/util.h>
 
-#include <dwarfs/internal/block_cache.h>
-#include <dwarfs/internal/inode_reader_v2.h>
-#include <dwarfs/internal/offset_cache.h>
+#include <dwarfs/reader/internal/block_cache.h>
+#include <dwarfs/reader/internal/inode_reader_v2.h>
+#include <dwarfs/reader/internal/offset_cache.h>
 
 namespace dwarfs::internal {
 

@@ -40,11 +40,11 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/filesystem_block_category_resolver.h>
 #include <dwarfs/filesystem_extractor.h>
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer_progress.h>

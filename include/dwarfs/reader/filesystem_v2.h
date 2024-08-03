@@ -35,10 +35,10 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/block_range.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/metadata_types.h>
 #include <dwarfs/options.h>
+#include <dwarfs/reader/block_range.h>
+#include <dwarfs/reader/metadata_types.h>
 #include <dwarfs/types.h>
 
 namespace dwarfs {

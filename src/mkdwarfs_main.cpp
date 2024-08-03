@@ -65,7 +65,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/filesystem_block_category_resolver.h>
-#include <dwarfs/filesystem_v2.h>
 #include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/filter_debug.h>
 #include <dwarfs/fragment_order_parser.h>
@@ -76,6 +75,7 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/rule_based_entry_filter.h>
 #include <dwarfs/scanner.h>
 #include <dwarfs/segmenter_factory.h>
