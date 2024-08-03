@@ -602,7 +602,9 @@ if(ENABLE_RICEPP)
   endif()
 endif()
 
-list(APPEND LIBDWARFS_COMMON_SRC
+list(APPEND
+  LIBDWARFS_COMMON_SRC
+
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
   src/dwarfs/checksum.cpp
@@ -614,12 +616,6 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/filesystem_writer.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
-  src/dwarfs/internal/features.cpp
-  src/dwarfs/internal/file_status_conv.cpp
-  src/dwarfs/internal/fs_section.cpp
-  src/dwarfs/internal/string_table.cpp
-  src/dwarfs/internal/wcwidth.c
-  src/dwarfs/internal/worker_group.cpp
   src/dwarfs/library_dependencies.cpp
   src/dwarfs/logger.cpp
   src/dwarfs/mmap.cpp
@@ -632,21 +628,33 @@ list(APPEND LIBDWARFS_COMMON_SRC
   src/dwarfs/thread_pool.cpp
   src/dwarfs/util.cpp
   src/dwarfs/xattr.cpp
+
+  src/dwarfs/internal/features.cpp
+  src/dwarfs/internal/file_status_conv.cpp
+  src/dwarfs/internal/fs_section.cpp
+  src/dwarfs/internal/string_table.cpp
+  src/dwarfs/internal/wcwidth.c
+  src/dwarfs/internal/worker_group.cpp
 )
 
-list(APPEND LIBDWARFS_READER_SRC
+list(APPEND
+  LIBDWARFS_READER_SRC
+
   src/dwarfs/reader/block_range.cpp
   src/dwarfs/reader/filesystem_v2.cpp
+  src/dwarfs/reader/metadata_types.cpp
+
   src/dwarfs/reader/internal/block_cache.cpp
   src/dwarfs/reader/internal/cached_block.cpp
   src/dwarfs/reader/internal/filesystem_parser.cpp
   src/dwarfs/reader/internal/inode_reader_v2.cpp
   src/dwarfs/reader/internal/metadata_types.cpp
   src/dwarfs/reader/internal/metadata_v2.cpp
-  src/dwarfs/reader/metadata_types.cpp
 )
 
-list(APPEND LIBDWARFS_WRITER_SRC
+list(APPEND
+  LIBDWARFS_WRITER_SRC
+
   src/dwarfs/categorizer.cpp
   src/dwarfs/category_parser.cpp
   src/dwarfs/chmod_entry_transformer.cpp
@@ -658,6 +666,12 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/fragment_category.cpp
   src/dwarfs/fragment_order_parser.cpp
   src/dwarfs/inode_fragments.cpp
+  src/dwarfs/rule_based_entry_filter.cpp
+  src/dwarfs/scanner.cpp
+  src/dwarfs/segmenter.cpp
+  src/dwarfs/segmenter_factory.cpp
+  src/dwarfs/writer_progress.cpp
+
   src/dwarfs/internal/block_manager.cpp
   src/dwarfs/internal/chmod_transformer.cpp
   src/dwarfs/internal/entry.cpp
@@ -673,11 +687,6 @@ list(APPEND LIBDWARFS_WRITER_SRC
   src/dwarfs/internal/scanner_progress.cpp
   src/dwarfs/internal/similarity.cpp
   src/dwarfs/internal/similarity_ordering.cpp
-  src/dwarfs/rule_based_entry_filter.cpp
-  src/dwarfs/scanner.cpp
-  src/dwarfs/segmenter.cpp
-  src/dwarfs/segmenter_factory.cpp
-  src/dwarfs/writer_progress.cpp
 )
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
@@ -774,12 +783,9 @@ add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC} ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
-target_link_libraries(dwarfs_common PUBLIC dwarfs_folly_lite)
-target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
-target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
-target_link_libraries(dwarfs_reader PRIVATE range-v3::range-v3)
-target_link_libraries(dwarfs_writer PUBLIC dwarfs_common)
-target_link_libraries(dwarfs_writer PRIVATE phmap range-v3::range-v3)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
+target_link_libraries(dwarfs_reader PUBLIC dwarfs_common PRIVATE range-v3::range-v3)
+target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PRIVATE phmap range-v3::range-v3)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
@@ -818,7 +824,7 @@ if(WITH_UNIVERSAL_BINARY)
   list(APPEND BINARY_TARGETS dwarfsuniversal)
 
   target_link_libraries(dwarfsuniversal PRIVATE
-          mkdwarfs_main dwarfsck_main dwarfsextract_main range-v3::range-v3)
+          mkdwarfs_main dwarfsck_main dwarfsextract_main)
   set_target_properties(dwarfsuniversal PROPERTIES
           RUNTIME_OUTPUT_DIRECTORY universal
           OUTPUT_NAME dwarfs-universal)
@@ -971,14 +977,9 @@ if(WITH_TESTS)
   )
 
   target_link_libraries(tool_main_test PRIVATE
-    mkdwarfs_main dwarfsck_main dwarfsextract_main range-v3::range-v3)
+    mkdwarfs_main dwarfsck_main dwarfsextract_main)
 
-  target_link_libraries(block_cache_test PRIVATE mkdwarfs_main range-v3::range-v3)
-  target_link_libraries(block_merger_test PRIVATE range-v3::range-v3)
-  target_link_libraries(chmod_transformer_test PRIVATE range-v3::range-v3)
-  if(ENABLE_RICEPP)
-    target_link_libraries(ricepp_compressor_test PRIVATE range-v3::range-v3)
-  endif()
+  target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
 
   foreach(tgt fits_categorizer_test
               incompressible_categorizer_test
@@ -1070,7 +1071,7 @@ target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC
   ${THRIFT_GENERATED_DIR}
 )
 
-target_link_libraries(dwarfs_common PUBLIC dwarfs_thrift_lite dwarfs_folly_lite)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
 
 add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
                         OUTPUT_PATH lib/thrift NO_LIBRARY)
@@ -1226,7 +1227,7 @@ foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
 endforeach()
 
-target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer range-v3::range-v3)
+target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
 
@@ -1395,8 +1396,6 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
             dwarfs_reader
             dwarfs_writer
             dwarfs_extractor
-            dwarfs_folly_lite
-            dwarfs_thrift_lite
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
 
