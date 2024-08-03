@@ -32,9 +32,9 @@
 
 #include <range/v3/view/enumerate.hpp>
 
-#include <dwarfs/internal/chmod_transformer.h>
+#include <dwarfs/writer/internal/chmod_transformer.h>
 
-using namespace dwarfs;
+using namespace dwarfs::writer;
 namespace fs = std::filesystem;
 
 namespace {

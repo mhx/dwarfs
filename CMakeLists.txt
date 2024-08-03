@@ -608,12 +608,12 @@ list(APPEND
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
   src/dwarfs/checksum.cpp
-  src/dwarfs/compression_metadata_requirements.cpp
   src/dwarfs/conv.cpp
   src/dwarfs/error.cpp
   src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_stat.cpp
   src/dwarfs/filesystem_writer.cpp
+  src/dwarfs/fragment_category.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
   src/dwarfs/library_dependencies.cpp
@@ -655,38 +655,38 @@ list(APPEND
 list(APPEND
   LIBDWARFS_WRITER_SRC
 
-  src/dwarfs/categorizer.cpp
-  src/dwarfs/category_parser.cpp
-  src/dwarfs/chmod_entry_transformer.cpp
-  src/dwarfs/console_writer.cpp
-  src/dwarfs/entry_factory.cpp
-  src/dwarfs/filesystem_block_category_resolver.cpp
-  src/dwarfs/filesystem_writer_factory.cpp
-  src/dwarfs/filter_debug.cpp
-  src/dwarfs/fragment_category.cpp
-  src/dwarfs/fragment_order_parser.cpp
-  src/dwarfs/inode_fragments.cpp
-  src/dwarfs/rule_based_entry_filter.cpp
-  src/dwarfs/scanner.cpp
-  src/dwarfs/segmenter.cpp
-  src/dwarfs/segmenter_factory.cpp
-  src/dwarfs/writer_progress.cpp
+  src/dwarfs/writer/categorizer.cpp
+  src/dwarfs/writer/category_parser.cpp
+  src/dwarfs/writer/chmod_entry_transformer.cpp
+  src/dwarfs/writer/compression_metadata_requirements.cpp
+  src/dwarfs/writer/console_writer.cpp
+  src/dwarfs/writer/entry_factory.cpp
+  src/dwarfs/writer/filesystem_block_category_resolver.cpp
+  src/dwarfs/writer/filesystem_writer_factory.cpp
+  src/dwarfs/writer/filter_debug.cpp
+  src/dwarfs/writer/fragment_order_parser.cpp
+  src/dwarfs/writer/inode_fragments.cpp
+  src/dwarfs/writer/rule_based_entry_filter.cpp
+  src/dwarfs/writer/scanner.cpp
+  src/dwarfs/writer/segmenter.cpp
+  src/dwarfs/writer/segmenter_factory.cpp
+  src/dwarfs/writer/writer_progress.cpp
 
-  src/dwarfs/internal/block_manager.cpp
-  src/dwarfs/internal/chmod_transformer.cpp
-  src/dwarfs/internal/entry.cpp
-  src/dwarfs/internal/file_scanner.cpp
-  src/dwarfs/internal/fragment_chunkable.cpp
-  src/dwarfs/internal/global_entry_data.cpp
-  src/dwarfs/internal/inode_element_view.cpp
-  src/dwarfs/internal/inode_manager.cpp
-  src/dwarfs/internal/inode_ordering.cpp
-  src/dwarfs/internal/metadata_freezer.cpp
-  src/dwarfs/internal/nilsimsa.cpp
-  src/dwarfs/internal/progress.cpp
-  src/dwarfs/internal/scanner_progress.cpp
-  src/dwarfs/internal/similarity.cpp
-  src/dwarfs/internal/similarity_ordering.cpp
+  src/dwarfs/writer/internal/block_manager.cpp
+  src/dwarfs/writer/internal/chmod_transformer.cpp
+  src/dwarfs/writer/internal/entry.cpp
+  src/dwarfs/writer/internal/file_scanner.cpp
+  src/dwarfs/writer/internal/fragment_chunkable.cpp
+  src/dwarfs/writer/internal/global_entry_data.cpp
+  src/dwarfs/writer/internal/inode_element_view.cpp
+  src/dwarfs/writer/internal/inode_manager.cpp
+  src/dwarfs/writer/internal/inode_ordering.cpp
+  src/dwarfs/writer/internal/metadata_freezer.cpp
+  src/dwarfs/writer/internal/nilsimsa.cpp
+  src/dwarfs/writer/internal/progress.cpp
+  src/dwarfs/writer/internal/scanner_progress.cpp
+  src/dwarfs/writer/internal/similarity.cpp
+  src/dwarfs/writer/internal/similarity_ordering.cpp
 )
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
@@ -763,10 +763,10 @@ endif()
 list(
   APPEND
   LIBDWARFS_CATEGORIZER_SRC
-  # src/dwarfs/categorizer/binary_categorizer.cpp
-  src/dwarfs/categorizer/fits_categorizer.cpp
-  src/dwarfs/categorizer/incompressible_categorizer.cpp
-  src/dwarfs/categorizer/pcmaudio_categorizer.cpp
+  # src/dwarfs/writer/categorizer/binary_categorizer.cpp
+  src/dwarfs/writer/categorizer/fits_categorizer.cpp
+  src/dwarfs/writer/categorizer/incompressible_categorizer.cpp
+  src/dwarfs/writer/categorizer/pcmaudio_categorizer.cpp
 )
 
 if(ENABLE_RICEPP)
@@ -774,7 +774,7 @@ if(ENABLE_RICEPP)
 endif()
 
 # if(LIBMAGIC_FOUND)
-#   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/categorizer/libmagic_categorizer.cpp)
+#   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/writer/categorizer/libmagic_categorizer.cpp)
 # endif()
 
 add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC} ${LIBDWARFS_COMPRESSION_SRC})

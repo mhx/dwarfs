@@ -26,18 +26,18 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/iovec_read_buf.h>
-#include <dwarfs/scanner.h>
-#include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
-#include <dwarfs/writer_progress.h>
+#include <dwarfs/writer/entry_factory.h>
+#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/segmenter_factory.h>
+#include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/string_table.h>
 
@@ -94,7 +94,7 @@ void PackParamsDirs(::benchmark::internal::Benchmark* b) {
 }
 
 std::string make_filesystem(::benchmark::State const& state) {
-  segmenter_factory::config cfg;
+  writer::segmenter_factory::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size.set_default(12);
@@ -121,18 +121,18 @@ std::string make_filesystem(::benchmark::State const& state) {
   auto os = test::os_access_mock::create_test_instance();
 
   thread_pool pool(lgr, *os, "writer", 4);
-  writer_progress prog;
+  writer::writer_progress prog;
 
-  segmenter_factory sf(lgr, prog, cfg);
-  entry_factory ef;
+  writer::segmenter_factory sf(lgr, prog, cfg);
+  writer::entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, *os, options);
+  writer::scanner s(lgr, pool, sf, ef, *os, options);
 
   std::ostringstream oss;
 
   block_compressor bc("null");
-  auto fsw =
-      filesystem_writer_factory::create(oss, lgr, pool, prog, bc, bc, bc);
+  auto fsw = writer::filesystem_writer_factory::create(oss, lgr, pool, prog, bc,
+                                                       bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, "", prog);

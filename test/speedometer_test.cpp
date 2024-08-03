@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/speedometer.h>
+#include <dwarfs/writer/internal/speedometer.h>
 
 using namespace dwarfs;
 
@@ -42,7 +42,7 @@ class mock_clock {
 };
 
 template <typename T>
-using test_speedometer = basic_speedometer<mock_clock, T>;
+using test_speedometer = writer::internal::basic_speedometer<mock_clock, T>;
 
 } // namespace
 

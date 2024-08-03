@@ -25,24 +25,26 @@
 #include <folly/Benchmark.h>
 
 #include <dwarfs/compression_constraints.h>
-#include <dwarfs/segmenter.h>
-#include <dwarfs/writer_progress.h>
+#include <dwarfs/writer/segmenter.h>
+#include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/block_manager.h>
-#include <dwarfs/internal/chunkable.h>
+#include <dwarfs/writer/internal/block_manager.h>
+#include <dwarfs/writer/internal/chunkable.h>
 
 #include "loremipsum.h"
 #include "test_logger.h"
 
 namespace {
 
-class bench_chunkable : public dwarfs::internal::chunkable {
+class bench_chunkable : public dwarfs::writer::internal::chunkable {
  public:
   bench_chunkable(std::vector<uint8_t> data)
       : data_{std::move(data)} {}
 
-  dwarfs::internal::file const* get_file() const override { return nullptr; }
+  dwarfs::writer::internal::file const* get_file() const override {
+    return nullptr;
+  }
 
   size_t size() const override { return data_.size(); }
 
@@ -122,7 +124,7 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
                         double dupe_fraction) {
   folly::BenchmarkSuspender suspender;
 
-  dwarfs::segmenter::config cfg;
+  dwarfs::writer::segmenter::config cfg;
   cfg.blockhash_window_size = window_size;
   cfg.window_increment_shift = 1;
   cfg.max_active_blocks = lookback;
@@ -140,12 +142,12 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
 
   for (unsigned i = 0; i < iters; ++i) {
     dwarfs::test::test_logger lgr;
-    dwarfs::writer_progress prog;
-    auto blkmgr = std::make_shared<dwarfs::internal::block_manager>();
+    dwarfs::writer::writer_progress prog;
+    auto blkmgr = std::make_shared<dwarfs::writer::internal::block_manager>();
 
     std::vector<std::shared_ptr<dwarfs::internal::block_data>> written;
 
-    dwarfs::segmenter seg(
+    dwarfs::writer::segmenter seg(
         lgr, prog, blkmgr, cfg, cc, total_size,
         [&written, blkmgr](std::shared_ptr<dwarfs::internal::block_data> blk,
                            auto logical_block_num) {

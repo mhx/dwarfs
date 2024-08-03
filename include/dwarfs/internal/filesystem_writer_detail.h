@@ -35,7 +35,9 @@
 #include <dwarfs/fragment_category.h>
 #include <dwarfs/fstypes.h>
 
-namespace dwarfs::internal {
+namespace dwarfs {
+
+namespace internal {
 
 class block_data;
 class fs_section;
@@ -59,17 +61,20 @@ class filesystem_writer_detail {
   virtual void
   configure(std::vector<fragment_category> const& expected_categories,
             size_t max_active_slots) = 0;
+  virtual void
+  configure_rewrite(size_t filesystem_size, size_t block_count) = 0;
   virtual void copy_header(std::span<uint8_t const> header) = 0;
   virtual void write_block(fragment_category cat,
-                           std::shared_ptr<internal::block_data>&& data,
+                           std::shared_ptr<dwarfs::internal::block_data>&& data,
                            physical_block_cb_type physical_block_cb,
                            std::optional<std::string> meta = std::nullopt) = 0;
   virtual void finish_category(fragment_category cat) = 0;
+  virtual void write_metadata_v2_schema(
+      std::shared_ptr<dwarfs::internal::block_data>&& data) = 0;
   virtual void
-  write_metadata_v2_schema(std::shared_ptr<internal::block_data>&& data) = 0;
+  write_metadata_v2(std::shared_ptr<dwarfs::internal::block_data>&& data) = 0;
   virtual void
-  write_metadata_v2(std::shared_ptr<internal::block_data>&& data) = 0;
-  virtual void write_history(std::shared_ptr<internal::block_data>&& data) = 0;
+  write_history(std::shared_ptr<dwarfs::internal::block_data>&& data) = 0;
   virtual void check_block_compression(
       compression_type compression, std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
@@ -77,10 +82,12 @@ class filesystem_writer_detail {
       section_type type, compression_type compression,
       std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
-  virtual void write_compressed_section(internal::fs_section const& sec,
+  virtual void write_compressed_section(dwarfs::internal::fs_section const& sec,
                                         std::span<uint8_t const> data) = 0;
   virtual void flush() = 0;
   virtual size_t size() const = 0;
 };
 
-} // namespace dwarfs::internal
+} // namespace internal
+
+} // namespace dwarfs

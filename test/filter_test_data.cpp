@@ -92,8 +92,8 @@ std::ostream& operator<<(std::ostream& os, filter_test_data const& data) {
   return os;
 }
 
-std::string
-filter_test_data::get_expected_filter_output(debug_filter_mode mode) const {
+std::string filter_test_data::get_expected_filter_output(
+    writer::debug_filter_mode mode) const {
   std::string expected;
 
   auto check_included = [&](auto const& stat, std::string const& path,
@@ -136,34 +136,36 @@ filter_test_data::get_expected_filter_output(debug_filter_mode mode) const {
       continue;
     }
 
+    using enum writer::debug_filter_mode;
+
     switch (mode) {
-    case debug_filter_mode::INCLUDED_FILES:
+    case INCLUDED_FILES:
       check_included_files(stat, path);
       break;
 
-    case debug_filter_mode::INCLUDED:
+    case INCLUDED:
       check_included(stat, path);
       break;
 
-    case debug_filter_mode::EXCLUDED_FILES:
+    case EXCLUDED_FILES:
       check_excluded_files(stat, path);
       break;
 
-    case debug_filter_mode::EXCLUDED:
+    case EXCLUDED:
       check_excluded(stat, path);
       break;
 
-    case debug_filter_mode::FILES:
+    case FILES:
       check_included_files(stat, path, "+ ");
       check_excluded_files(stat, path, "- ");
       break;
 
-    case debug_filter_mode::ALL:
+    case ALL:
       check_included(stat, path, "+ ");
       check_excluded(stat, path, "- ");
       break;
 
-    case debug_filter_mode::OFF:
+    case OFF:
       throw std::logic_error("invalid debug filter mode");
     }
   }

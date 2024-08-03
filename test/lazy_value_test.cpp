@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/lazy_value.h>
+#include <dwarfs/internal/lazy_value.h>
 
 using namespace dwarfs;
 

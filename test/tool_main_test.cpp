@@ -1597,13 +1597,13 @@ constexpr std::array<std::string_view, 6> const debug_filter_mode_names = {
     "included", "excluded", "included-files", "excluded-files", "files", "all",
 };
 
-const std::map<std::string_view, debug_filter_mode> debug_filter_modes{
-    {"included", debug_filter_mode::INCLUDED},
-    {"included-files", debug_filter_mode::INCLUDED_FILES},
-    {"excluded", debug_filter_mode::EXCLUDED},
-    {"excluded-files", debug_filter_mode::EXCLUDED_FILES},
-    {"files", debug_filter_mode::FILES},
-    {"all", debug_filter_mode::ALL},
+const std::map<std::string_view, writer::debug_filter_mode> debug_filter_modes{
+    {"included", writer::debug_filter_mode::INCLUDED},
+    {"included-files", writer::debug_filter_mode::INCLUDED_FILES},
+    {"excluded", writer::debug_filter_mode::EXCLUDED},
+    {"excluded-files", writer::debug_filter_mode::EXCLUDED_FILES},
+    {"files", writer::debug_filter_mode::FILES},
+    {"all", writer::debug_filter_mode::ALL},
 };
 
 } // namespace

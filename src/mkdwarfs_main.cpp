@@ -55,19 +55,10 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
-#include <dwarfs/categorizer.h>
-#include <dwarfs/category_parser.h>
 #include <dwarfs/checksum.h>
-#include <dwarfs/chmod_entry_transformer.h>
-#include <dwarfs/console_writer.h>
 #include <dwarfs/conv.h>
-#include <dwarfs/entry_factory.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
-#include <dwarfs/filesystem_block_category_resolver.h>
-#include <dwarfs/filesystem_writer_factory.h>
-#include <dwarfs/filter_debug.h>
-#include <dwarfs/fragment_order_parser.h>
 #include <dwarfs/integral_value_parser.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
@@ -76,9 +67,6 @@
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_v2.h>
-#include <dwarfs/rule_based_entry_filter.h>
-#include <dwarfs/scanner.h>
-#include <dwarfs/segmenter_factory.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
@@ -86,7 +74,19 @@
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
-#include <dwarfs/writer_progress.h>
+#include <dwarfs/writer/categorizer.h>
+#include <dwarfs/writer/category_parser.h>
+#include <dwarfs/writer/chmod_entry_transformer.h>
+#include <dwarfs/writer/console_writer.h>
+#include <dwarfs/writer/entry_factory.h>
+#include <dwarfs/writer/filesystem_block_category_resolver.h>
+#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filter_debug.h>
+#include <dwarfs/writer/fragment_order_parser.h>
+#include <dwarfs/writer/rule_based_entry_filter.h>
+#include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/segmenter_factory.h>
+#include <dwarfs/writer/writer_progress.h>
 #include <dwarfs_tool_main.h>
 
 namespace po = boost::program_options;
@@ -95,22 +95,23 @@ namespace dwarfs::tool {
 
 namespace {
 
-const std::map<std::string, console_writer::progress_mode> progress_modes{
-    {"none", console_writer::NONE},
-    {"simple", console_writer::SIMPLE},
-    {"ascii", console_writer::ASCII},
-    {"unicode", console_writer::UNICODE},
-};
+const std::map<std::string, writer::console_writer::progress_mode>
+    progress_modes{
+        {"none", writer::console_writer::NONE},
+        {"simple", writer::console_writer::SIMPLE},
+        {"ascii", writer::console_writer::ASCII},
+        {"unicode", writer::console_writer::UNICODE},
+    };
 
 const std::string default_progress_mode = "unicode";
 
-const std::map<std::string, debug_filter_mode> debug_filter_modes{
-    {"included", debug_filter_mode::INCLUDED},
-    {"included-files", debug_filter_mode::INCLUDED_FILES},
-    {"excluded", debug_filter_mode::EXCLUDED},
-    {"excluded-files", debug_filter_mode::EXCLUDED_FILES},
-    {"files", debug_filter_mode::FILES},
-    {"all", debug_filter_mode::ALL},
+const std::map<std::string, writer::debug_filter_mode> debug_filter_modes{
+    {"included", writer::debug_filter_mode::INCLUDED},
+    {"included-files", writer::debug_filter_mode::INCLUDED_FILES},
+    {"excluded", writer::debug_filter_mode::EXCLUDED},
+    {"excluded-files", writer::debug_filter_mode::EXCLUDED_FILES},
+    {"files", writer::debug_filter_mode::FILES},
+    {"all", writer::debug_filter_mode::ALL},
 };
 
 const std::map<std::string, uint32_t> time_resolutions{
@@ -373,7 +374,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
   static constexpr size_t const kDefaultBloomFilterSize{4};
 
-  segmenter_factory::config sf_config;
+  writer::segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
   std::string memory_limit, script_arg, schema_compression,
       metadata_compression, timestamp, time_resolution, progress_mode,
@@ -396,7 +397,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   integral_value_parser<unsigned> window_size_parser(0, 24);
   integral_value_parser<unsigned> window_step_parser(0, 8);
   integral_value_parser<unsigned> bloom_filter_size_parser(0, 10);
-  fragment_order_parser order_parser;
+  writer::fragment_order_parser order_parser;
   block_compressor_parser compressor_parser;
 
   scanner_options options;
@@ -421,7 +422,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto file_hash_desc = fmt::format(
       "choice of file hashing function (none, {})", fmt::join(hash_list, ", "));
 
-  auto& catreg = categorizer_registry::instance();
+  auto& catreg = writer::categorizer_registry::instance();
 
   auto categorize_desc =
       fmt::format("enable categorizers in the given order ({})",
@@ -900,7 +901,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
       options.debug_filter_function =
-          [&iol, mode = it->second](bool exclude, entry_interface const& ei) {
+          [&iol, mode = it->second](bool exclude,
+                                    writer::entry_interface const& ei) {
             debug_filter_output(iol.out, exclude, ei, mode);
           };
       no_progress = true;
@@ -923,14 +925,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto pg_mode = DWARFS_NOTHROW(progress_modes.at(progress_mode));
 
-  console_writer lgr(
-      iol.term, iol.err, pg_mode,
-      recompress ? console_writer::REWRITE : console_writer::NORMAL, logopts);
+  writer::console_writer lgr(iol.term, iol.err, pg_mode,
+                             recompress ? writer::console_writer::REWRITE
+                                        : writer::console_writer::NORMAL,
+                             logopts);
 
-  std::unique_ptr<rule_based_entry_filter> rule_filter;
+  std::unique_ptr<writer::rule_based_entry_filter> rule_filter;
 
   if (!filter.empty()) {
-    rule_filter = std::make_unique<rule_based_entry_filter>(lgr, iol.file);
+    rule_filter =
+        std::make_unique<writer::rule_based_entry_filter>(lgr, iol.file);
 
     rule_filter->set_root_path(path);
 
@@ -946,7 +950,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  std::vector<std::unique_ptr<entry_transformer>> transformers;
+  std::vector<std::unique_ptr<writer::entry_transformer>> transformers;
 
   if (vm.count("chmod")) {
     if (chmod_str == "norm") {
@@ -958,7 +962,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     auto mask = get_current_umask();
 
     for (auto expr : chmod_exprs) {
-      transformers.push_back(create_chmod_entry_transformer(expr, mask));
+      transformers.push_back(
+          writer::create_chmod_entry_transformer(expr, mask));
     }
   }
 
@@ -1053,10 +1058,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  auto interval =
-      pg_mode == console_writer::NONE || pg_mode == console_writer::SIMPLE
-          ? 2000ms
-          : 200ms;
+  auto interval = pg_mode == writer::console_writer::NONE ||
+                          pg_mode == writer::console_writer::SIMPLE
+                      ? 2000ms
+                      : 200ms;
 
   filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
@@ -1079,15 +1084,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_PROXY(debug_logger_policy, lgr);
 
-  writer_progress::update_function_type updater;
+  writer::writer_progress::update_function_type updater;
 
   if (options.debug_filter_function) {
-    updater = [](writer_progress&, bool) {};
+    updater = [](writer::writer_progress&, bool) {};
   } else {
-    updater = [&](writer_progress& p, bool last) { lgr.update(p, last); };
+    updater = [&](writer::writer_progress& p, bool last) {
+      lgr.update(p, last);
+    };
   }
 
-  writer_progress prog(std::move(updater), interval);
+  writer::writer_progress prog(std::move(updater), interval);
 
   // No more streaming to iol.err after this point as this would
   // cause a race with the progress thread.
@@ -1152,7 +1159,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     auto categorizers =
         split_to<std::vector<std::string>>(categorizer_list.value, ',');
 
-    options.inode.categorizer_mgr = std::make_shared<categorizer_manager>(lgr);
+    options.inode.categorizer_mgr =
+        std::make_shared<writer::categorizer_manager>(lgr);
 
     for (auto const& name : categorizers) {
       options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
@@ -1184,7 +1192,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       tv << "checked input filesystem";
     }
 
-    cat_resolver = std::make_shared<filesystem_block_category_resolver>(
+    cat_resolver = std::make_shared<writer::filesystem_block_category_resolver>(
         input_filesystem->get_all_block_categories());
 
     for (auto const& cat : rw_opts.recompress_categories) {
@@ -1197,12 +1205,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     cat_resolver = options.inode.categorizer_mgr;
   }
 
-  category_parser cp(cat_resolver);
+  writer::category_parser cp(cat_resolver);
 
   try {
     {
-      contextual_option_parser cop("--order", options.inode.fragment_order, cp,
-                                   order_parser);
+      writer::contextual_option_parser cop(
+          "--order", options.inode.fragment_order, cp, order_parser);
       cop.parse(defaults.order);
       cop.parse(order);
       categorizer_list.add_implicit_defaults(cop);
@@ -1210,9 +1218,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     {
-      contextual_option_parser cop("--max-lookback-blocks",
-                                   sf_config.max_active_blocks, cp,
-                                   max_lookback_parser);
+      writer::contextual_option_parser cop("--max-lookback-blocks",
+                                           sf_config.max_active_blocks, cp,
+                                           max_lookback_parser);
       sf_config.max_active_blocks.set_default(kDefaultMaxActiveBlocks);
       cop.parse(max_lookback_blocks);
       categorizer_list.add_implicit_defaults(cop);
@@ -1220,9 +1228,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     {
-      contextual_option_parser cop("--window-size",
-                                   sf_config.blockhash_window_size, cp,
-                                   window_size_parser);
+      writer::contextual_option_parser cop("--window-size",
+                                           sf_config.blockhash_window_size, cp,
+                                           window_size_parser);
       sf_config.blockhash_window_size.set_default(defaults.window_size);
       cop.parse(window_size);
       categorizer_list.add_implicit_defaults(cop);
@@ -1230,9 +1238,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     {
-      contextual_option_parser cop("--window-step",
-                                   sf_config.window_increment_shift, cp,
-                                   window_step_parser);
+      writer::contextual_option_parser cop("--window-step",
+                                           sf_config.window_increment_shift, cp,
+                                           window_step_parser);
       sf_config.window_increment_shift.set_default(defaults.window_step);
       cop.parse(window_step);
       categorizer_list.add_implicit_defaults(cop);
@@ -1240,9 +1248,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     {
-      contextual_option_parser cop("--bloom-filter-size",
-                                   sf_config.bloom_filter_size, cp,
-                                   bloom_filter_size_parser);
+      writer::contextual_option_parser cop("--bloom-filter-size",
+                                           sf_config.bloom_filter_size, cp,
+                                           bloom_filter_size_parser);
       sf_config.bloom_filter_size.set_default(kDefaultBloomFilterSize);
       cop.parse(bloom_filter_size);
       categorizer_list.add_implicit_defaults(cop);
@@ -1272,13 +1280,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw = filesystem_writer_factory::create(
+    fsw = writer::filesystem_writer_factory::create(
         fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc, history_bc,
         fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
-    categorized_option<block_compressor> compression_opt;
-    contextual_option_parser cop("--compression", compression_opt, cp,
-                                 compressor_parser);
+    writer::categorized_option<block_compressor> compression_opt;
+    writer::contextual_option_parser cop("--compression", compression_opt, cp,
+                                         compressor_parser);
     compression_opt.set_default(
         block_compressor(std::string(defaults.data_compression)));
     cop.parse(compression);
@@ -1327,15 +1335,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     if (recompress) {
-      input_filesystem->rewrite(prog, *fsw, *cat_resolver, rw_opts);
+      input_filesystem->rewrite(*fsw, *cat_resolver, rw_opts);
       compress_pool.wait();
     } else {
-      segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr, sf_config);
-      entry_factory ef;
+      writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
+                                   sf_config);
+      writer::entry_factory ef;
 
       thread_pool scanner_pool(lgr, *iol.os, "scanner", num_scanner_workers);
 
-      scanner s(lgr, scanner_pool, sf, ef, *iol.os, options);
+      writer::scanner s(lgr, scanner_pool, sf, ef, *iol.os, options);
 
       if (rule_filter) {
         s.add_filter(std::move(rule_filter));

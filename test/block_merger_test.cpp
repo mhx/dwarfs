@@ -36,9 +36,9 @@
 #include <folly/String.h>
 #include <folly/Synchronized.h>
 
-#include <dwarfs/internal/multi_queue_block_merger.h>
+#include <dwarfs/writer/internal/multi_queue_block_merger.h>
 
-using namespace dwarfs;
+using namespace dwarfs::writer;
 
 namespace {
 
@@ -467,7 +467,7 @@ block_merger_test(size_t const max_runs) {
 } // namespace
 
 TEST(block_merger, random) {
-  using merger_type = dwarfs::internal::multi_queue_block_merger<size_t, block>;
+  using merger_type = internal::multi_queue_block_merger<size_t, block>;
 
   auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
 
@@ -477,8 +477,8 @@ TEST(block_merger, random) {
 
 TEST(block_merger, random_sized) {
   using merger_type =
-      dwarfs::internal::multi_queue_block_merger<size_t, sized_block,
-                                                 sized_block_merger_policy>;
+      internal::multi_queue_block_merger<size_t, sized_block,
+                                         sized_block_merger_policy>;
 
   auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
 
@@ -488,8 +488,8 @@ TEST(block_merger, random_sized) {
 
 TEST(block_merger, random_sized_partial) {
   using merger_type =
-      dwarfs::internal::multi_queue_block_merger<size_t, sized_block,
-                                                 sized_block_merger_policy>;
+      internal::multi_queue_block_merger<size_t, sized_block,
+                                         sized_block_merger_policy>;
 
   auto [passes, fails] = block_merger_test<merger_type, true>(max_runs_partial);
 

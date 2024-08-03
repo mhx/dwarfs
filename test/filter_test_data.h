@@ -27,7 +27,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <dwarfs/filter_debug.h>
+#include <dwarfs/writer/filter_debug.h>
 
 namespace dwarfs::test {
 
@@ -45,7 +45,7 @@ class filter_test_data {
     return expected_files_;
   }
 
-  std::string get_expected_filter_output(debug_filter_mode mode) const;
+  std::string get_expected_filter_output(writer::debug_filter_mode mode) const;
 
  private:
   std::string test_name_;

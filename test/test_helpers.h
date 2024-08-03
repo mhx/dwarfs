@@ -38,14 +38,14 @@
 #include <variant>
 #include <vector>
 
-#include <dwarfs/entry_filter.h>
-#include <dwarfs/entry_interface.h>
-#include <dwarfs/entry_transformer.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/tool/iolayer.h>
+#include <dwarfs/writer/entry_filter.h>
+#include <dwarfs/writer/entry_interface.h>
+#include <dwarfs/writer/entry_transformer.h>
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
@@ -188,7 +188,7 @@ class os_access_mock : public os_access {
 
 struct filter_transformer_data {
   struct entry_data {
-    entry_data(entry_interface const& ei)
+    entry_data(writer::entry_interface const& ei)
         : path{ei.unix_dpath()}
         , name{ei.name()}
         , size{ei.size()}
@@ -216,26 +216,26 @@ struct filter_transformer_data {
   std::vector<entry_data> transform_calls;
 };
 
-class mock_filter : public entry_filter {
+class mock_filter : public writer::entry_filter {
  public:
   mock_filter(std::shared_ptr<filter_transformer_data> data)
       : data_{std::move(data)} {}
 
-  filter_action filter(entry_interface const& ei) const {
+  writer::filter_action filter(writer::entry_interface const& ei) const {
     data_->filter_calls.emplace_back(ei);
-    return filter_action::keep;
+    return writer::filter_action::keep;
   }
 
  private:
   std::shared_ptr<filter_transformer_data> data_;
 };
 
-class mock_transformer : public entry_transformer {
+class mock_transformer : public writer::entry_transformer {
  public:
   mock_transformer(std::shared_ptr<filter_transformer_data> data)
       : data_{std::move(data)} {}
 
-  void transform(entry_interface& ei) {
+  void transform(writer::entry_interface& ei) {
     data_->transform_calls.emplace_back(ei);
   }
 

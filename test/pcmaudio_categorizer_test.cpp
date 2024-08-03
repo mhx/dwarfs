@@ -31,8 +31,8 @@
 #include <folly/String.h>
 #include <folly/lang/Bits.h>
 
-#include <dwarfs/categorizer.h>
 #include <dwarfs/mmap.h>
+#include <dwarfs/writer/categorizer.h>
 
 #include "test_logger.h"
 
@@ -212,8 +212,8 @@ struct pcmfile_builder {
 TEST(pcmaudio_categorizer, requirements) {
   test::test_logger logger(logger::INFO);
   boost::program_options::variables_map vm;
-  auto& catreg = categorizer_registry::instance();
-  auto catmgr = categorizer_manager(logger);
+  auto& catreg = writer::categorizer_registry::instance();
+  auto catmgr = writer::categorizer_manager(logger);
 
   catmgr.add(catreg.create(logger, "pcmaudio", vm));
 
@@ -292,7 +292,7 @@ TEST(pcmaudio_categorizer, requirements) {
 class pcmaudio_error_test : public testing::Test {
  public:
   test::test_logger logger{logger::VERBOSE};
-  categorizer_manager catmgr{logger};
+  writer::categorizer_manager catmgr{logger};
 
   auto categorize(pcmfile_builder const& builder) {
     // std::cout << folly::hexDump(builder.data.data(), builder.data.size());
@@ -304,7 +304,7 @@ class pcmaudio_error_test : public testing::Test {
 
   void SetUp() override {
     boost::program_options::variables_map vm;
-    auto& catreg = categorizer_registry::instance();
+    auto& catreg = writer::categorizer_registry::instance();
     catmgr.add(catreg.create(logger, "pcmaudio", vm));
 
     catmgr.set_metadata_requirements(

@@ -35,14 +35,18 @@
 #include <unordered_set>
 #include <vector>
 
-#include <dwarfs/categorized_option.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/categorized_option.h>
 
 namespace dwarfs {
 
+namespace writer {
+
 class categorizer_manager;
 class entry_interface;
+
+} // namespace writer
 
 enum class mlock_mode { NONE, TRY, MUST };
 
@@ -216,8 +220,9 @@ struct file_order_options {
 
 struct inode_options {
   std::optional<size_t> max_similarity_scan_size;
-  std::shared_ptr<categorizer_manager> categorizer_mgr;
-  categorized_option<file_order_options> fragment_order{file_order_options()};
+  std::shared_ptr<writer::categorizer_manager> categorizer_mgr;
+  writer::categorized_option<file_order_options> fragment_order{
+      file_order_options()};
 };
 
 struct scanner_options {
@@ -242,7 +247,7 @@ struct scanner_options {
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
   bool no_create_timestamp{false};
-  std::optional<std::function<void(bool, entry_interface const&)>>
+  std::optional<std::function<void(bool, writer::entry_interface const&)>>
       debug_filter_function;
   size_t num_segmenter_workers{1};
   bool enable_history{true};

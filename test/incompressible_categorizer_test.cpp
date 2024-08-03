@@ -32,8 +32,8 @@
 
 #include <folly/String.h>
 
-#include <dwarfs/categorizer.h>
 #include <dwarfs/mmap.h>
+#include <dwarfs/writer/categorizer.h>
 
 #include "loremipsum.h"
 #include "test_logger.h"
@@ -77,7 +77,7 @@ class incompressible_categorizer_fixture : public Base {
   void create_catmgr() { create_catmgr({}); }
 
   void create_catmgr(std::vector<char const*> args) {
-    auto& catreg = categorizer_registry::instance();
+    auto& catreg = writer::categorizer_registry::instance();
 
     po::options_description opts;
     catreg.add_options(opts);
@@ -90,7 +90,7 @@ class incompressible_categorizer_fixture : public Base {
     po::store(parsed, vm);
     po::notify(vm);
 
-    catmgr = std::make_shared<categorizer_manager>(lgr);
+    catmgr = std::make_shared<writer::categorizer_manager>(lgr);
 
     catmgr->add(catreg.create(lgr, "incompressible", vm));
   }
@@ -107,7 +107,7 @@ class incompressible_categorizer_fixture : public Base {
     return job.result();
   }
 
-  std::shared_ptr<categorizer_manager> catmgr;
+  std::shared_ptr<writer::categorizer_manager> catmgr;
   test::test_logger lgr{logger::INFO};
 };
 

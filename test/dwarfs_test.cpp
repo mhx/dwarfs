@@ -36,25 +36,25 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/entry_factory.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
-#include <dwarfs/filesystem_writer_factory.h>
-#include <dwarfs/filter_debug.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/iovec_read_buf.h>
-#include <dwarfs/rule_based_entry_filter.h>
-#include <dwarfs/scanner.h>
-#include <dwarfs/segmenter_factory.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
-#include <dwarfs/writer_progress.h>
+#include <dwarfs/writer/entry_factory.h>
+#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filter_debug.h>
+#include <dwarfs/writer/rule_based_entry_filter.h>
+#include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/segmenter_factory.h>
+#include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/fs_section.h>
-#include <dwarfs/internal/progress.h>
+#include <dwarfs/writer/internal/progress.h>
 
 #include "filter_test_data.h"
 #include "loremipsum.h"
@@ -74,34 +74,34 @@ std::string const default_file_hash_algo{"xxh3-128"};
 std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
-             segmenter::config const& cfg = segmenter::config(),
+             writer::segmenter::config const& cfg = writer::segmenter::config(),
              scanner_options const& options = scanner_options(),
-             writer_progress* prog = nullptr,
+             writer::writer_progress* prog = nullptr,
              std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
                  std::nullopt,
-             std::unique_ptr<entry_filter> filter = nullptr) {
+             std::unique_ptr<writer::entry_filter> filter = nullptr) {
   // force multithreading
   thread_pool pool(lgr, *input, "worker", 4);
 
-  std::unique_ptr<writer_progress> local_prog;
+  std::unique_ptr<writer::writer_progress> local_prog;
   if (!prog) {
-    local_prog = std::make_unique<writer_progress>();
+    local_prog = std::make_unique<writer::writer_progress>();
     prog = local_prog.get();
   }
 
   // TODO: ugly hack :-)
-  segmenter_factory::config sf_cfg;
+  writer::segmenter_factory::config sf_cfg;
   sf_cfg.block_size_bits = cfg.block_size_bits;
   sf_cfg.blockhash_window_size.set_default(cfg.blockhash_window_size);
   sf_cfg.window_increment_shift.set_default(cfg.window_increment_shift);
   sf_cfg.max_active_blocks.set_default(cfg.max_active_blocks);
   sf_cfg.bloom_filter_size.set_default(cfg.bloom_filter_size);
 
-  segmenter_factory sf(lgr, *prog, sf_cfg);
-  entry_factory ef;
+  writer::segmenter_factory sf(lgr, *prog, sf_cfg);
+  writer::entry_factory ef;
 
-  scanner s(lgr, pool, sf, ef, *input, options);
+  writer::scanner s(lgr, pool, sf, ef, *input, options);
 
   if (ftd) {
     s.add_filter(std::make_unique<test::mock_filter>(ftd));
@@ -115,8 +115,8 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   std::ostringstream oss;
 
   block_compressor bc(compression);
-  auto fsw =
-      filesystem_writer_factory::create(oss, lgr, pool, *prog, bc, bc, bc);
+  auto fsw = writer::filesystem_writer_factory::create(oss, lgr, pool, *prog,
+                                                       bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
@@ -135,7 +135,7 @@ void basic_end_to_end_test(std::string const& compressor,
                            bool plain_names_table, bool plain_symlinks_table,
                            bool access_fail, size_t readahead,
                            std::optional<std::string> file_hash_algo) {
-  segmenter::config cfg;
+  writer::segmenter::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size = 10;
@@ -180,7 +180,7 @@ void basic_end_to_end_test(std::string const& compressor,
     input->set_access_fail("/somedir/ipsum.py");
   }
 
-  writer_progress wprog;
+  writer::writer_progress wprog;
 
   auto ftd = std::make_shared<test::filter_transformer_data>();
 
@@ -652,7 +652,7 @@ TEST_P(packing_test, regression_empty_fs) {
   auto [pack_chunk_table, pack_directories, pack_shared_files_table, pack_names,
         pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
 
-  segmenter::config cfg;
+  writer::segmenter::config cfg;
   scanner_options options;
 
   cfg.blockhash_window_size = 8;
@@ -729,7 +729,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, plain_tables_test,
                                             ::testing::Bool()));
 
 TEST(segmenter, regression_block_boundary) {
-  segmenter::config cfg;
+  writer::segmenter::config cfg;
 
   // make sure we don't actually segment anything
   cfg.blockhash_window_size = 12;
@@ -774,7 +774,7 @@ class compression_regression : public testing::TestWithParam<std::string> {};
 TEST_P(compression_regression, github45) {
   auto compressor = GetParam();
 
-  segmenter::config cfg;
+  writer::segmenter::config cfg;
 
   constexpr size_t block_size_bits = 18;
   constexpr size_t file_size = 1 << block_size_bits;
@@ -864,7 +864,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   test::test_logger lgr;
 
-  auto bmcfg = segmenter::config();
+  auto bmcfg = writer::segmenter::config();
   auto opts = scanner_options();
 
   file_order_options order_opts;
@@ -923,14 +923,14 @@ class filter_test
     : public testing::TestWithParam<dwarfs::test::filter_test_data> {
  public:
   test::test_logger lgr;
-  std::unique_ptr<rule_based_entry_filter> rbf;
+  std::unique_ptr<writer::rule_based_entry_filter> rbf;
   std::shared_ptr<test::test_file_access> tfa;
   std::shared_ptr<test::os_access_mock> input;
 
   void SetUp() override {
     tfa = std::make_shared<test::test_file_access>();
 
-    rbf = std::make_unique<rule_based_entry_filter>(lgr, tfa);
+    rbf = std::make_unique<writer::rule_based_entry_filter>(lgr, tfa);
     rbf->set_root_path("");
 
     input = std::make_shared<test::os_access_mock>();
@@ -959,7 +959,7 @@ class filter_test
   }
 
   std::string get_filter_debug_output(test::filter_test_data const& spec,
-                                      debug_filter_mode mode) {
+                                      writer::debug_filter_mode mode) {
     set_filter_rules(spec);
 
     std::ostringstream oss;
@@ -967,22 +967,22 @@ class filter_test
     scanner_options options;
     options.remove_empty_dirs = false;
     options.debug_filter_function = [&](bool exclude,
-                                        entry_interface const& ei) {
+                                        writer::entry_interface const& ei) {
       debug_filter_output(oss, exclude, ei, mode);
     };
 
-    writer_progress prog;
+    writer::writer_progress prog;
     thread_pool pool(lgr, *input, "worker", 1);
-    segmenter_factory sf(lgr, prog);
-    entry_factory ef;
-    scanner s(lgr, pool, sf, ef, *input, options);
+    writer::segmenter_factory sf(lgr, prog);
+    writer::entry_factory ef;
+    writer::scanner s(lgr, pool, sf, ef, *input, options);
 
     s.add_filter(std::move(rbf));
 
     block_compressor bc("null");
     std::ostringstream null;
-    auto fsw =
-        filesystem_writer_factory::create(null, lgr, pool, prog, bc, bc, bc);
+    auto fsw = writer::filesystem_writer_factory::create(null, lgr, pool, prog,
+                                                         bc, bc, bc);
     s.scan(fsw, std::filesystem::path("/"), prog);
 
     return oss.str();
@@ -1000,7 +1000,7 @@ TEST_P(filter_test, filesystem) {
 
   set_filter_rules(spec);
 
-  segmenter::config cfg;
+  writer::segmenter::config cfg;
 
   scanner_options options;
   options.remove_empty_dirs = true;
@@ -1026,47 +1026,53 @@ TEST_P(filter_test, filesystem) {
 
 TEST_P(filter_test, debug_filter_function_included) {
   auto spec = GetParam();
-  auto output = get_filter_debug_output(spec, debug_filter_mode::INCLUDED);
-  auto expected = spec.get_expected_filter_output(debug_filter_mode::INCLUDED);
+  auto output =
+      get_filter_debug_output(spec, writer::debug_filter_mode::INCLUDED);
+  auto expected =
+      spec.get_expected_filter_output(writer::debug_filter_mode::INCLUDED);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_included_files) {
   auto spec = GetParam();
   auto output =
-      get_filter_debug_output(spec, debug_filter_mode::INCLUDED_FILES);
-  auto expected =
-      spec.get_expected_filter_output(debug_filter_mode::INCLUDED_FILES);
+      get_filter_debug_output(spec, writer::debug_filter_mode::INCLUDED_FILES);
+  auto expected = spec.get_expected_filter_output(
+      writer::debug_filter_mode::INCLUDED_FILES);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_excluded) {
   auto spec = GetParam();
-  auto output = get_filter_debug_output(spec, debug_filter_mode::EXCLUDED);
-  auto expected = spec.get_expected_filter_output(debug_filter_mode::EXCLUDED);
+  auto output =
+      get_filter_debug_output(spec, writer::debug_filter_mode::EXCLUDED);
+  auto expected =
+      spec.get_expected_filter_output(writer::debug_filter_mode::EXCLUDED);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_excluded_files) {
   auto spec = GetParam();
   auto output =
-      get_filter_debug_output(spec, debug_filter_mode::EXCLUDED_FILES);
-  auto expected =
-      spec.get_expected_filter_output(debug_filter_mode::EXCLUDED_FILES);
+      get_filter_debug_output(spec, writer::debug_filter_mode::EXCLUDED_FILES);
+  auto expected = spec.get_expected_filter_output(
+      writer::debug_filter_mode::EXCLUDED_FILES);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_all) {
   auto spec = GetParam();
-  auto output = get_filter_debug_output(spec, debug_filter_mode::ALL);
-  auto expected = spec.get_expected_filter_output(debug_filter_mode::ALL);
+  auto output = get_filter_debug_output(spec, writer::debug_filter_mode::ALL);
+  auto expected =
+      spec.get_expected_filter_output(writer::debug_filter_mode::ALL);
   EXPECT_EQ(expected, output);
 }
 
 TEST_P(filter_test, debug_filter_function_files) {
   auto spec = GetParam();
-  auto output = get_filter_debug_output(spec, debug_filter_mode::FILES);
-  auto expected = spec.get_expected_filter_output(debug_filter_mode::FILES);
+  auto output = get_filter_debug_output(spec, writer::debug_filter_mode::FILES);
+  auto expected =
+      spec.get_expected_filter_output(writer::debug_filter_mode::FILES);
   EXPECT_EQ(expected, output);
 }
 
@@ -1076,7 +1082,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, filter_test,
 TEST(file_scanner, input_list) {
   test::test_logger lgr;
 
-  auto bmcfg = segmenter::config();
+  auto bmcfg = writer::segmenter::config();
   auto opts = scanner_options();
 
   file_order_options order_opts;
@@ -1185,7 +1191,7 @@ TEST(section_index_regression, github183) {
   static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
 
   test::test_logger lgr;
-  segmenter::config cfg{
+  writer::segmenter::config cfg{
       .block_size_bits = 10,
   };
   auto input = test::os_access_mock::create_test_instance();

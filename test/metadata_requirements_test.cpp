@@ -29,8 +29,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/compression_metadata_requirements.h>
 #include <dwarfs/map_util.h>
+#include <dwarfs/writer/compression_metadata_requirements.h>
 
 using namespace dwarfs;
 
@@ -41,10 +41,12 @@ TEST(metadata_requirements, dynamic_test) {
     "channels": ["set", [1, 2, 4]]
   })";
 
-  std::unique_ptr<compression_metadata_requirements<nlohmann::json>> req;
+  std::unique_ptr<writer::compression_metadata_requirements<nlohmann::json>>
+      req;
 
   ASSERT_NO_THROW(
-      req = std::make_unique<compression_metadata_requirements<nlohmann::json>>(
+      req = std::make_unique<
+          writer::compression_metadata_requirements<nlohmann::json>>(
           requirements));
   {
     std::string metadata = R"({
@@ -157,7 +159,7 @@ TEST(metadata_requirements, dynamic_test) {
 
 TEST(metadata_requirements, dynamic_test_error) {
   using namespace std::literals::string_literals;
-  using req_type = compression_metadata_requirements<nlohmann::json>;
+  using req_type = writer::compression_metadata_requirements<nlohmann::json>;
 
   EXPECT_THAT(
       [&] { req_type tmp(R"([])"s); },
@@ -300,7 +302,8 @@ struct fmt::formatter<test_enum> : ostream_formatter {};
 class metadata_requirements_test : public ::testing::Test {
  public:
   void SetUp() override {
-    req = std::make_unique<compression_metadata_requirements<test_metadata>>();
+    req = std::make_unique<
+        writer::compression_metadata_requirements<test_metadata>>();
     req->add_set("enum", &test_metadata::enum_value, parse_enum);
     req->add_set<std::string>("string", &test_metadata::string_value);
     req->add_range<int>("int16", &test_metadata::int16_value);
@@ -309,7 +312,7 @@ class metadata_requirements_test : public ::testing::Test {
 
   void TearDown() override { req.reset(); }
 
-  std::unique_ptr<compression_metadata_requirements<test_metadata>> req;
+  std::unique_ptr<writer::compression_metadata_requirements<test_metadata>> req;
 };
 
 TEST_F(metadata_requirements_test, static_test) {

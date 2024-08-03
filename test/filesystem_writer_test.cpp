@@ -25,9 +25,9 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/filesystem_writer_factory.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/writer_progress.h>
+#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/writer_progress.h>
 
 #include "test_helpers.h"
 #include "test_logger.h"
@@ -37,9 +37,11 @@ using namespace dwarfs;
 namespace fs = std::filesystem;
 
 TEST(filesystem_writer, compression_metadata_requirements) {
+  using writer::filesystem_writer_factory;
+
   test::test_logger lgr;
   auto os = test::os_access_mock::create_test_instance();
-  writer_progress prog;
+  writer::writer_progress prog;
   thread_pool pool(lgr, *os, "worker", 1);
   std::ostringstream devnull;
 
