@@ -57,7 +57,8 @@ namespace po = boost::program_options;
 
 namespace {
 
-void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
+void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
+                   bool verbose) {
   auto max_width = [](auto const& vec) {
     auto max = std::max_element(vec.begin(), vec.end());
     return std::to_string(*max).size();
@@ -102,7 +103,7 @@ void do_list_files(filesystem_v2& fs, iolayer const& iol, bool verbose) {
   });
 }
 
-void do_checksum(logger& lgr, filesystem_v2& fs, iolayer const& iol,
+void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
                  std::string const& algo, size_t num_workers) {
   LOG_PROXY(debug_logger_policy, lgr);
 
@@ -292,7 +293,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
     std::shared_ptr<mmif> mm = iol.os->map_file(input_path);
 
     if (print_header) {
-      if (auto hdr = filesystem_v2::header(mm, fsopts.image_offset)) {
+      if (auto hdr = reader::filesystem_v2::header(mm, fsopts.image_offset)) {
         ensure_binary_mode(iol.out);
         iol.out.write(reinterpret_cast<char const*>(hdr->data()), hdr->size());
         if (iol.out.bad() || iol.out.fail()) {
@@ -304,7 +305,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         return 2;
       }
     } else {
-      filesystem_v2 fs(lgr, *iol.os, mm, fsopts);
+      reader::filesystem_v2 fs(lgr, *iol.os, mm, fsopts);
 
       if (!export_metadata.empty()) {
         std::error_code ec;

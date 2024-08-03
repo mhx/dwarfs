@@ -26,7 +26,7 @@
 
 #include <dwarfs/reader/internal/cached_block.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 block_range::block_range(uint8_t const* data, size_t offset, size_t size)
     : span_{data + offset, size} {
@@ -49,4 +49,4 @@ block_range::block_range(std::shared_ptr<internal::cached_block const> block,
   }
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

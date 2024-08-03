@@ -283,17 +283,19 @@ class mkdwarfs_tester : public tester_common {
     }
   }
 
-  filesystem_v2 fs_from_data(std::string data,
-                             filesystem_options const& opt = default_fs_opts) {
+  reader::filesystem_v2
+  fs_from_data(std::string data,
+               filesystem_options const& opt = default_fs_opts) {
     if (!lgr) {
       lgr = std::make_unique<test::test_logger>();
     }
     auto mm = std::make_shared<test::mmap_mock>(std::move(data));
-    return filesystem_v2(*lgr, *os, mm, opt);
+    return reader::filesystem_v2(*lgr, *os, mm, opt);
   }
 
-  filesystem_v2 fs_from_file(std::string path,
-                             filesystem_options const& opt = default_fs_opts) {
+  reader::filesystem_v2
+  fs_from_file(std::string path,
+               filesystem_options const& opt = default_fs_opts) {
     auto fsimage = fa->get_file(path);
     if (!fsimage) {
       throw std::runtime_error("file not found: " + path);
@@ -301,7 +303,7 @@ class mkdwarfs_tester : public tester_common {
     return fs_from_data(std::move(fsimage.value()), opt);
   }
 
-  filesystem_v2
+  reader::filesystem_v2
   fs_from_stdout(filesystem_options const& opt = default_fs_opts) {
     return fs_from_data(out(), opt);
   }
@@ -365,7 +367,7 @@ class dwarfsextract_tester : public tester_common {
   }
 };
 
-std::tuple<std::optional<filesystem_v2>, mkdwarfs_tester>
+std::tuple<std::optional<reader::filesystem_v2>, mkdwarfs_tester>
 build_with_args(std::vector<std::string> opt_args = {}) {
   std::string const image_file = "test.dwarfs";
   mkdwarfs_tester t;
@@ -377,7 +379,7 @@ build_with_args(std::vector<std::string> opt_args = {}) {
   return {t.fs_from_file(image_file), std::move(t)};
 }
 
-std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
+std::set<uint64_t> get_all_fs_times(reader::filesystem_v2 const& fs) {
   std::set<uint64_t> times;
   fs.walk([&](auto const& e) {
     auto st = fs.getattr(e.inode());
@@ -388,7 +390,7 @@ std::set<uint64_t> get_all_fs_times(filesystem_v2 const& fs) {
   return times;
 }
 
-std::set<uint64_t> get_all_fs_uids(filesystem_v2 const& fs) {
+std::set<uint64_t> get_all_fs_uids(reader::filesystem_v2 const& fs) {
   std::set<uint64_t> uids;
   fs.walk([&](auto const& e) {
     auto st = fs.getattr(e.inode());
@@ -397,7 +399,7 @@ std::set<uint64_t> get_all_fs_uids(filesystem_v2 const& fs) {
   return uids;
 }
 
-std::set<uint64_t> get_all_fs_gids(filesystem_v2 const& fs) {
+std::set<uint64_t> get_all_fs_gids(reader::filesystem_v2 const& fs) {
   std::set<uint64_t> gids;
   fs.walk([&](auto const& e) {
     auto st = fs.getattr(e.inode());
@@ -880,7 +882,7 @@ TEST(mkdwarfs_test, metadata_path) {
   ASSERT_EQ(0, t.run("-l3 -i / -o -"));
   auto fs = t.fs_from_stdout();
 
-  std::map<size_t, dir_entry_view> entries;
+  std::map<size_t, reader::dir_entry_view> entries;
   fs.walk([&](auto e) {
     auto stat = fs.getattr(e.inode());
     if (stat.is_regular_file()) {
@@ -1989,8 +1991,8 @@ TEST(dwarfsck_test, check_fail) {
       test::test_logger lgr;
       test::os_access_mock os;
       auto make_fs = [&] {
-        return filesystem_v2{lgr, os,
-                             std::make_shared<test::mmap_mock>(corrupt_image)};
+        return reader::filesystem_v2{
+            lgr, os, std::make_shared<test::mmap_mock>(corrupt_image)};
       };
       if (is_metadata_section) {
         EXPECT_THAT([&] { make_fs(); },
@@ -2276,7 +2278,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
     return t;
   };
 
-  auto get_sizes_in_offset_order = [](filesystem_v2 const& fs) {
+  auto get_sizes_in_offset_order = [](reader::filesystem_v2 const& fs) {
     std::vector<std::pair<size_t, size_t>> tmp;
 
     for (auto size : sizes) {
@@ -2447,7 +2449,7 @@ TEST(mkdwarfs_test, filesystem_read_error) {
                 ::testing::Throws<std::system_error>());
   }
   {
-    iovec_read_buf buf;
+    reader::iovec_read_buf buf;
     std::error_code ec;
     auto num = fs.readv(iv->inode_num(), buf, 42, ec);
     EXPECT_EQ(0, num);

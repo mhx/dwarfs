@@ -176,7 +176,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     closefd(pipefd_[0]);
   }
 
-  bool extract(filesystem_v2 const& fs,
+  bool extract(reader::filesystem_v2 const& fs,
                filesystem_extractor_options const& opts) override;
 
  private:
@@ -234,7 +234,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
 template <typename LoggerPolicy>
 bool filesystem_extractor_<LoggerPolicy>::extract(
-    filesystem_v2 const& fs, filesystem_extractor_options const& opts) {
+    reader::filesystem_v2 const& fs, filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto lr = ::archive_entry_linkresolver_new();
@@ -264,7 +264,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   uint64_t const bytes_total{vfs.blocks};
 
   auto do_archive = [&](::archive_entry* ae,
-                        inode_view entry) { // TODO: inode vs. entry
+                        reader::inode_view entry) { // TODO: inode vs. entry
     if (auto size = ::archive_entry_size(ae);
         entry.is_regular_file() && size > 0) {
       auto fd = fs.open(entry);

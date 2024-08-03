@@ -44,7 +44,7 @@
 #include <dwarfs/reader/internal/inode_reader_v2.h>
 #include <dwarfs/reader/internal/offset_cache.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::reader::internal {
 
 namespace {
 
@@ -459,4 +459,4 @@ inode_reader_v2::inode_reader_v2(
                                        logger_policies>(
           lgr, std::move(bc), opts, std::move(perfmon))) {}
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::reader::internal

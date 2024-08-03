@@ -1159,7 +1159,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  std::optional<filesystem_v2> input_filesystem;
+  std::optional<reader::filesystem_v2> input_filesystem;
   std::shared_ptr<category_resolver> cat_resolver;
 
   if (recompress) {

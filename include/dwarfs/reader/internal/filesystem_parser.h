@@ -36,7 +36,7 @@ namespace dwarfs {
 
 class mmif;
 
-namespace internal {
+namespace reader::internal {
 
 class filesystem_parser {
  private:
@@ -48,7 +48,7 @@ class filesystem_parser {
   explicit filesystem_parser(std::shared_ptr<mmif> mm,
                              file_off_t image_offset = 0);
 
-  std::optional<fs_section> next_section();
+  std::optional<dwarfs::internal::fs_section> next_section();
 
   std::optional<std::span<uint8_t const>> header() const;
 
@@ -77,6 +77,6 @@ class filesystem_parser {
   std::vector<uint64_t> index_;
 };
 
-} // namespace internal
+} // namespace reader::internal
 
 } // namespace dwarfs

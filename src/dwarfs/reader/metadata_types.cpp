@@ -34,7 +34,7 @@
 
 #include <dwarfs/reader/internal/metadata_types.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 inode_view::mode_type inode_view::mode() const { return iv_->mode(); }
 
@@ -121,4 +121,4 @@ uint32_t directory_view::parent_inode() const {
   return ent;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

@@ -192,7 +192,7 @@ void dwarfs_initialize(::benchmark::State& state) {
   opts.metadata.enable_nlink = true;
 
   for (auto _ : state) {
-    auto fs = filesystem_v2(lgr, os, mm, opts);
+    auto fs = reader::filesystem_v2(lgr, os, mm, opts);
     ::benchmark::DoNotOptimize(fs);
   }
 }
@@ -207,7 +207,7 @@ class filesystem : public ::benchmark::Fixture {
     filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
-    fs = std::make_unique<filesystem_v2>(lgr, os, mm, opts);
+    fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
     entries.reserve(NUM_ENTRIES);
     for (int i = 0; entries.size() < NUM_ENTRIES; ++i) {
       if (auto e = fs->find(i)) {
@@ -252,7 +252,7 @@ class filesystem : public ::benchmark::Fixture {
     auto i = fs->open(*iv);
 
     for (auto _ : state) {
-      iovec_read_buf buf;
+      reader::iovec_read_buf buf;
       auto r = fs->readv(i, buf);
       ::benchmark::DoNotOptimize(r);
     }
@@ -275,7 +275,7 @@ class filesystem : public ::benchmark::Fixture {
   void getattr_bench(::benchmark::State& state, getattr_options const& opts,
                      std::array<std::string_view, N> const& paths) {
     int i = 0;
-    std::vector<inode_view> ent;
+    std::vector<reader::inode_view> ent;
     ent.reserve(paths.size());
     for (auto const& p : paths) {
       ent.emplace_back(*fs->find(p.data()));
@@ -293,8 +293,8 @@ class filesystem : public ::benchmark::Fixture {
     getattr_bench(state, {}, paths);
   }
 
-  std::unique_ptr<filesystem_v2> fs;
-  std::vector<inode_view> entries;
+  std::unique_ptr<reader::filesystem_v2> fs;
+  std::vector<reader::inode_view> entries;
 
  private:
   test::test_logger lgr;

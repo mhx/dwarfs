@@ -45,6 +45,10 @@ namespace internal {
 
 class fs_section;
 
+}
+
+namespace reader::internal {
+
 class block_cache {
  public:
   block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
@@ -53,7 +57,9 @@ class block_cache {
 
   size_t block_count() const { return impl_->block_count(); }
 
-  void insert(fs_section const& section) { impl_->insert(section); }
+  void insert(dwarfs::internal::fs_section const& section) {
+    impl_->insert(section);
+  }
 
   void set_block_size(size_t size) { impl_->set_block_size(size); }
 
@@ -73,7 +79,7 @@ class block_cache {
     virtual ~impl() = default;
 
     virtual size_t block_count() const = 0;
-    virtual void insert(fs_section const& section) = 0;
+    virtual void insert(dwarfs::internal::fs_section const& section) = 0;
     virtual void set_block_size(size_t size) = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_tidy_config(cache_tidy_config const& cfg) = 0;
@@ -85,5 +91,5 @@ class block_cache {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace internal
+} // namespace reader::internal
 } // namespace dwarfs

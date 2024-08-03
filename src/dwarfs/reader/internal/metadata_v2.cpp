@@ -63,8 +63,9 @@
 
 #include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::reader::internal {
 
+using namespace dwarfs::internal;
 namespace fs = std::filesystem;
 
 namespace {
@@ -1870,4 +1871,4 @@ metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
           lgr, schema, data, options, inode_offset, force_consistency_check,
           std::move(perfmon))) {}
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::reader::internal

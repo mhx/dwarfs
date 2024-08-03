@@ -42,7 +42,7 @@ namespace dwarfs {
 
 class logger;
 
-namespace internal {
+namespace reader::internal {
 
 template <typename T>
 class metadata_;
@@ -62,7 +62,7 @@ class global_metadata {
   uint32_t first_dir_entry(uint32_t ino) const;
   uint32_t parent_dir_entry(uint32_t ino) const;
 
-  string_table const& names() const { return names_; }
+  dwarfs::internal::string_table const& names() const { return names_; }
 
   std::vector<thrift::metadata::directory> const& directories() const {
     return directories_storage_;
@@ -72,7 +72,7 @@ class global_metadata {
   Meta const& meta_;
   std::vector<thrift::metadata::directory> const directories_storage_;
   thrift::metadata::directory const* const directories_;
-  string_table const names_;
+  dwarfs::internal::string_table const names_;
 };
 
 class inode_view_impl
@@ -240,6 +240,6 @@ class chunk_range {
   uint32_t end_{0};
 };
 
-} // namespace internal
+} // namespace reader::internal
 
 } // namespace dwarfs

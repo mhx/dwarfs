@@ -35,11 +35,15 @@ namespace internal {
 
 class fs_section;
 
+}
+
+namespace reader::internal {
+
 class cached_block {
  public:
   static std::unique_ptr<cached_block>
-  create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-         bool release, bool disable_integrity_check);
+  create(logger& lgr, dwarfs::internal::fs_section const& b,
+         std::shared_ptr<mmif> mm, bool release, bool disable_integrity_check);
 
   virtual ~cached_block() = default;
 
@@ -53,6 +57,6 @@ class cached_block {
   virtual bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const = 0;
 };
 
-} // namespace internal
+} // namespace reader::internal
 
 } // namespace dwarfs

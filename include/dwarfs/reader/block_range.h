@@ -25,7 +25,7 @@
 #include <memory>
 #include <span>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 namespace internal {
 
@@ -50,4 +50,4 @@ class block_range {
   std::shared_ptr<internal::cached_block const> block_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

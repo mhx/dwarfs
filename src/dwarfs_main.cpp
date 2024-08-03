@@ -202,7 +202,7 @@ struct dwarfs_userdata {
   std::filesystem::path progname;
   options opts;
   stream_logger lgr;
-  filesystem_v2 fs;
+  reader::filesystem_v2 fs;
   iolayer const& iol;
   std::shared_ptr<performance_monitor> perfmon;
   PERFMON_EXT_PROXY_DECL
@@ -514,7 +514,7 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
   return checked_call(log_, [&] {
     if (auto entry = find()) {
       std::error_code ec;
-      auto link = userdata.fs.readlink(*entry, readlink_mode::unix, ec);
+      auto link = userdata.fs.readlink(*entry, reader::readlink_mode::unix, ec);
       if (!ec) {
         *str = link;
       }
@@ -662,7 +662,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
     }
 
     std::error_code ec;
-    iovec_read_buf buf;
+    reader::iovec_read_buf buf;
     auto num = userdata.fs.readv(ino, buf, size, off, ec);
 
     LOG_DEBUG << "readv(" << ino << ", " << size << ", " << off << ") -> "
@@ -707,7 +707,7 @@ class readdir_lowlevel_policy {
     buf_.resize(size);
   }
 
-  auto find(filesystem_v2& fs) const { return fs.find(ino_); }
+  auto find(reader::filesystem_v2& fs) const { return fs.find(ino_); }
 
   bool keep_going() const { return written_ < buf_.size(); }
 
@@ -742,7 +742,7 @@ class readdir_policy {
       , buf_{buf}
       , filler_{filler} {}
 
-  auto find(filesystem_v2& fs) const { return fs.find(path_); }
+  auto find(reader::filesystem_v2& fs) const { return fs.find(path_); }
 
   bool keep_going() const { return true; }
 
@@ -761,7 +761,7 @@ class readdir_policy {
 #endif
 
 template <typename Policy, typename OnInode>
-int op_readdir_common(filesystem_v2& fs, Policy& policy, file_off_t off,
+int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
                       OnInode&& on_inode) {
   auto dirent = policy.find(fs);
 
@@ -822,7 +822,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 
   checked_reply_err(log_, req, [&] {
     readdir_lowlevel_policy policy{req, ino, size};
-    return op_readdir_common(userdata.fs, policy, off, [](inode_view) {});
+    return op_readdir_common(userdata.fs, policy, off, [](auto) {});
   });
 }
 #else
@@ -838,7 +838,7 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
 
   return -checked_call(log_, [&] {
     readdir_policy policy{path, buf, filler};
-    return op_readdir_common(userdata.fs, policy, off, [&](inode_view e) {
+    return op_readdir_common(userdata.fs, policy, off, [&](auto e) {
       PERFMON_SET_CONTEXT(e.inode_num())
     });
   });
@@ -1462,8 +1462,8 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   LOG_DEBUG << "attempting to load filesystem from " << fsimage;
 
-  userdata.fs = filesystem_v2(userdata.lgr, *userdata.iol.os, fsimage, fsopts,
-                              userdata.perfmon);
+  userdata.fs = reader::filesystem_v2(userdata.lgr, *userdata.iol.os, fsimage,
+                                      fsopts, userdata.perfmon);
 
   ti << "file system initialized";
 }

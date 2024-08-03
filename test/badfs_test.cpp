@@ -62,9 +62,9 @@ TEST_P(bad_fs, test) {
   int nerror = 0;
 
   try {
-    nerror = filesystem_v2::identify(lgr, os, std::make_shared<mmap>(filename),
-                                     oss, 9, 1, true,
-                                     filesystem_options::IMAGE_OFFSET_AUTO);
+    nerror = reader::filesystem_v2::identify(
+        lgr, os, std::make_shared<mmap>(filename), oss, 9, 1, true,
+        filesystem_options::IMAGE_OFFSET_AUTO);
   } catch (std::exception const&) {
     nerror = 1;
   }

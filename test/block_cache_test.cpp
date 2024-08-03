@@ -48,7 +48,7 @@ using namespace dwarfs;
 
 namespace {
 
-class mock_cached_block : public internal::cached_block {
+class mock_cached_block : public reader::internal::cached_block {
  public:
   mock_cached_block() = default;
   mock_cached_block(std::span<uint8_t const> span)
@@ -79,19 +79,19 @@ TEST(block_range, uncompressed) {
   std::iota(data.begin(), data.end(), 0);
 
   {
-    block_range range{data.data(), 0, data.size()};
+    reader::block_range range{data.data(), 0, data.size()};
     EXPECT_EQ(range.data(), data.data());
     EXPECT_EQ(range.size(), 100);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin()));
   }
 
   {
-    block_range range{data.data(), 10, 20};
+    reader::block_range range{data.data(), 10, 20};
     EXPECT_EQ(range.size(), 20);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
   }
 
-  EXPECT_THAT([] { block_range range(nullptr, 0, 0); },
+  EXPECT_THAT([] { reader::block_range range(nullptr, 0, 0); },
               ::testing::ThrowsMessage<dwarfs::runtime_error>(
                   ::testing::HasSubstr("block_range: block data is null")));
 }
@@ -102,7 +102,7 @@ TEST(block_range, compressed) {
 
   {
     auto block = std::make_shared<mock_cached_block>(data);
-    block_range range{block, 0, data.size()};
+    reader::block_range range{block, 0, data.size()};
     EXPECT_EQ(range.data(), data.data());
     EXPECT_EQ(range.size(), 100);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin()));
@@ -110,7 +110,7 @@ TEST(block_range, compressed) {
 
   {
     auto block = std::make_shared<mock_cached_block>(data);
-    block_range range{block, 10, 20};
+    reader::block_range range{block, 10, 20};
     EXPECT_EQ(range.size(), 20);
     EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
   }
@@ -118,7 +118,7 @@ TEST(block_range, compressed) {
   EXPECT_THAT(
       [] {
         auto block = std::make_shared<mock_cached_block>();
-        block_range range(block, 0, 0);
+        reader::block_range range(block, 0, 0);
       },
       ::testing::ThrowsMessage<dwarfs::runtime_error>(
           ::testing::HasSubstr("block_range: block data is null")));
@@ -126,7 +126,7 @@ TEST(block_range, compressed) {
   EXPECT_THAT(
       [&] {
         auto block = std::make_shared<mock_cached_block>(data);
-        block_range range(block, 100, 1);
+        reader::block_range range(block, 100, 1);
       },
       ::testing::ThrowsMessage<dwarfs::runtime_error>(
           ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
@@ -183,7 +183,7 @@ TEST_P(options_test, cache_stress) {
   filesystem_options opts{
       .block_cache = cache_opts,
   };
-  filesystem_v2 fs(lgr, *os, mm, opts);
+  reader::filesystem_v2 fs(lgr, *os, mm, opts);
 
   EXPECT_NO_THROW(
       fs.set_cache_tidy_config({.strategy = cache_tidy_strategy::NONE}));
@@ -210,14 +210,14 @@ TEST_P(options_test, cache_stress) {
       .expiry_time = std::chrono::milliseconds(2),
   });
 
-  std::vector<inode_view> inodes;
+  std::vector<reader::inode_view> inodes;
 
   fs.walk([&](auto e) { inodes.push_back(e.inode()); });
 
   std::uniform_int_distribution<size_t> inode_dist(0, inodes.size() - 1);
 
   struct read_request {
-    inode_view inode;
+    reader::inode_view inode;
     size_t offset;
     size_t size;
   };

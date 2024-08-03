@@ -35,7 +35,9 @@
 
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::reader::internal {
+
+using namespace dwarfs::internal;
 
 namespace {
 
@@ -750,4 +752,4 @@ void dir_entry_view_impl::append_to(std::filesystem::path& p) const {
   }
 }
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::reader::internal

@@ -812,7 +812,7 @@ file_stat make_stat(posix_file_type::value type, file_stat::perms_type perms,
   return st;
 }
 
-void check_compat(logger& lgr, filesystem_v2 const& fs,
+void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
                   std::string const& version) {
   bool has_devices = not(version == "0.2.0" or version == "0.2.3");
   bool has_ac_time = version == "0.2.0" or version == "0.2.3";
@@ -862,7 +862,7 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
   entry = fs.find("/foo/bad");
   ASSERT_TRUE(entry);
-  auto link = fs.readlink(*entry, readlink_mode::raw);
+  auto link = fs.readlink(*entry, reader::readlink_mode::raw);
   EXPECT_EQ(link, "../foo");
 
   entry = fs.find(0, "foo");
@@ -949,11 +949,12 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
     foo.set_size(foo.size() - 1);
   }
 
-  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
+  for (auto mp : {&reader::filesystem_v2::walk,
+                  &reader::filesystem_v2::walk_data_order}) {
     std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
 
-    (fs.*mp)([&](dir_entry_view e) {
+    (fs.*mp)([&](auto e) {
       auto stbuf = fs.getattr(e.inode());
       inodes.push_back(stbuf.ino());
       EXPECT_TRUE(entries.emplace(e.unix_path(), stbuf).second);
@@ -1033,7 +1034,8 @@ void check_compat(logger& lgr, filesystem_v2 const& fs,
 
 class compat_metadata : public testing::TestWithParam<std::string> {};
 
-void check_dynamic(std::string const& version, filesystem_v2 const& fs) {
+void check_dynamic(std::string const& version,
+                   reader::filesystem_v2 const& fs) {
   auto meta = fs.metadata_as_json();
   nlohmann::json ref;
   if (version == "0.2.0" or version == "0.2.3") {
@@ -1049,7 +1051,7 @@ TEST_P(compat_metadata, backwards_compat) {
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
   test::test_logger lgr;
   test::os_access_mock os;
-  filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename));
+  reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename));
   check_dynamic(version, fs);
 }
 
@@ -1071,7 +1073,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   opts.metadata.check_consistency = true;
 
   {
-    filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename), opts);
+    reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename), opts);
     check_compat(lgr, fs, version);
   }
 
@@ -1081,15 +1083,15 @@ TEST_P(compat_filesystem, backwards_compat) {
   ASSERT_TRUE(folly::readFile(filename.c_str(), fsdata));
 
   for (auto const& hdr : headers) {
-    filesystem_v2 fs(lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata),
-                     opts);
+    reader::filesystem_v2 fs(
+        lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
     check_compat(lgr, fs, version);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
-      filesystem_v2 fs(lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata),
-                       opts);
+      reader::filesystem_v2 fs(
+          lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
       check_compat(lgr, fs, version);
     }
   }
@@ -1121,7 +1123,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   auto rewrite_fs = [&](auto& fsw, auto const& mm) {
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    filesystem_v2 fs(lgr, os, mm, fsopts);
+    reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     filesystem_block_category_resolver resolver(fs.get_all_block_categories());
     fs.rewrite(prog, fsw, resolver, opts);
   };
@@ -1131,16 +1133,16 @@ TEST_P(rewrite, filesystem_rewrite) {
                                                  bc, bc);
     fsw.add_default_compressor(bc);
     auto mm = std::make_shared<mmap>(filename);
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(filesystem_v2::header(mm));
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
+    EXPECT_FALSE(reader::filesystem_v2::header(mm));
     rewrite_fs(fsw, mm);
   }
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(filesystem_v2::header(mm));
-    filesystem_v2 fs(lgr, os, mm);
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
+    EXPECT_FALSE(reader::filesystem_v2::header(mm));
+    reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 
@@ -1158,16 +1160,16 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(
         lgr, os, mm, idss, 0, 1, false, filesystem_options::IMAGE_OFFSET_AUTO));
-    auto hdr = filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
                                        rewritten.str().size());
     EXPECT_EQ(format_sh, std::string(reinterpret_cast<char const*>(hdr->data()),
                                      hdr->size()));
     filesystem_options fsopts;
     fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
-    filesystem_v2 fs(lgr, os, mm, fsopts);
+    reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     check_dynamic(version, fs);
   }
 
@@ -1184,7 +1186,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten2.str());
-    auto hdr = filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten2.str().data(),
                                        rewritten2.str().size());
     EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
@@ -1202,7 +1204,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten3.str());
-    auto hdr = filesystem_v2::header(mm);
+    auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten3.str().data(),
                                        rewritten3.str().size());
     EXPECT_EQ("D", std::string(reinterpret_cast<char const*>(hdr->data()),
@@ -1222,10 +1224,10 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten4.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(filesystem_v2::header(mm))
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
+    EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
-    filesystem_v2 fs(lgr, os, mm);
+    reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 
@@ -1242,10 +1244,10 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten5.str());
-    EXPECT_NO_THROW(filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(filesystem_v2::header(mm))
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
+    EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
-    filesystem_v2 fs(lgr, os, mm);
+    reader::filesystem_v2 fs(lgr, os, mm);
     check_dynamic(version, fs);
   }
 }
@@ -1262,7 +1264,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  filesystem_v2 fs(lgr, os, std::make_shared<mmap>(image));
+  reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(image));
 
   ASSERT_EQ(0, fs.check(filesystem_check_level::FULL));
 

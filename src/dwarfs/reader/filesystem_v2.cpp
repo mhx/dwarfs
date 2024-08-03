@@ -57,9 +57,11 @@
 #include <dwarfs/reader/internal/inode_reader_v2.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 namespace internal {
+
+using namespace dwarfs::internal;
 
 namespace {
 
@@ -1228,4 +1230,4 @@ filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return internal::filesystem_parser(mm, image_offset).header();
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

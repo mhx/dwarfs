@@ -54,7 +54,7 @@ namespace thrift::metadata {
 class metadata;
 }
 
-namespace internal {
+namespace reader::internal {
 
 class metadata_v2 {
  public:
@@ -245,5 +245,5 @@ class metadata_v2 {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace internal
+} // namespace reader::internal
 } // namespace dwarfs

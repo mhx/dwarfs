@@ -51,7 +51,7 @@ TEST(filesystem, metadata_symlink_win) {
   test::os_access_mock os;
 
   auto mm = std::make_shared<mmap>(test_dir / "winlink.dwarfs");
-  filesystem_v2 fs(lgr, os, mm);
+  reader::filesystem_v2 fs(lgr, os, mm);
 
   auto i1 = fs.find("link.txt");
   auto i2 = fs.find("dir/link.txt");
@@ -80,22 +80,22 @@ TEST(filesystem, metadata_symlink_win) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, readlink_mode::raw);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::raw);
     EXPECT_EQ("subdir\\test.txt", buffer);
-    buffer = fs.readlink(*i2, readlink_mode::raw);
+    buffer = fs.readlink(*i2, reader::readlink_mode::raw);
     EXPECT_EQ("..\\subdir\\test.txt", buffer);
   }
 
   {
-    auto buffer = fs.readlink(*i1, readlink_mode::unix);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::unix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, readlink_mode::unix);
+    buffer = fs.readlink(*i2, reader::readlink_mode::unix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, readlink_mode::unix, ec);
+    auto r = fs.readlink(*i1, reader::readlink_mode::unix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
@@ -109,7 +109,7 @@ TEST(filesystem, metadata_symlink_win) {
 
   // also test throwing interface
   {
-    auto r = fs.readlink(*i1, readlink_mode::unix);
+    auto r = fs.readlink(*i1, reader::readlink_mode::unix);
     EXPECT_EQ("subdir/test.txt", r);
   }
 
@@ -124,7 +124,7 @@ TEST(filesystem, metadata_symlink_unix) {
   test::os_access_mock os;
 
   auto mm = std::make_shared<mmap>(test_dir / "unixlink.dwarfs");
-  filesystem_v2 fs(lgr, os, mm);
+  reader::filesystem_v2 fs(lgr, os, mm);
 
   auto i1 = fs.find("link.txt");
   auto i2 = fs.find("dir/link.txt");
@@ -153,22 +153,22 @@ TEST(filesystem, metadata_symlink_unix) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, readlink_mode::raw);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::raw);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, readlink_mode::raw);
+    buffer = fs.readlink(*i2, reader::readlink_mode::raw);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
-    auto buffer = fs.readlink(*i1, readlink_mode::unix);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::unix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, readlink_mode::unix);
+    buffer = fs.readlink(*i2, reader::readlink_mode::unix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, readlink_mode::unix, ec);
+    auto r = fs.readlink(*i1, reader::readlink_mode::unix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
@@ -221,7 +221,7 @@ TEST(filesystem, find_image_offset) {
       [&](std::string data,
           filesystem_options const& opt = {
               .image_offset = filesystem_options::IMAGE_OFFSET_AUTO}) {
-        return filesystem_v2(
+        return reader::filesystem_v2(
             lgr, os, std::make_shared<test::mmap_mock>(std::move(data)), opt);
       };
 

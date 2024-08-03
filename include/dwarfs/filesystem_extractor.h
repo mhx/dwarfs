@@ -30,10 +30,15 @@
 
 namespace dwarfs {
 
-class filesystem_v2;
 class library_dependencies;
 class logger;
 class os_access;
+
+namespace reader {
+
+class filesystem_v2;
+
+}
 
 struct filesystem_extractor_options {
   size_t max_queued_bytes{4096};
@@ -62,9 +67,9 @@ class filesystem_extractor {
 
   void close() { return impl_->close(); }
 
-  bool
-  extract(filesystem_v2 const& fs, filesystem_extractor_options const& opts =
-                                       filesystem_extractor_options()) {
+  bool extract(reader::filesystem_v2 const& fs,
+               filesystem_extractor_options const& opts =
+                   filesystem_extractor_options()) {
     return impl_->extract(fs, opts);
   }
 
@@ -77,7 +82,7 @@ class filesystem_extractor {
     virtual void open_stream(std::ostream& os, std::string const& format) = 0;
     virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
-    virtual bool extract(filesystem_v2 const& fs,
+    virtual bool extract(reader::filesystem_v2 const& fs,
                          filesystem_extractor_options const& opts) = 0;
   };
 

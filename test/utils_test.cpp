@@ -192,7 +192,7 @@ TEST(utils, shorten_path_utf8) {
 namespace {
 
 using cache_type =
-    internal::basic_offset_cache<uint32_t, uint32_t, uint32_t, 4, 4>;
+    reader::internal::basic_offset_cache<uint32_t, uint32_t, uint32_t, 4, 4>;
 constexpr std::array<cache_type::file_offset_type, 32> const test_chunks{
     3, 15, 13, 1,  11, 6,  9,  15, 1,  16, 1,  13, 11, 16, 10, 14,
     4, 14, 4,  16, 8,  12, 16, 2,  16, 10, 15, 15, 2,  15, 5,  8,

@@ -32,7 +32,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 namespace internal {
 
@@ -133,4 +133,4 @@ class directory_view {
   internal::global_metadata const* g_;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

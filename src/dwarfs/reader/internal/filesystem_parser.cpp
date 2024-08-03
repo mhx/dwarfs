@@ -31,7 +31,9 @@
 
 #include <dwarfs/reader/internal/filesystem_parser.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::reader::internal {
+
+using namespace dwarfs::internal;
 
 file_off_t
 filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
@@ -208,4 +210,4 @@ void filesystem_parser::find_index() {
   }
 }
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::reader::internal

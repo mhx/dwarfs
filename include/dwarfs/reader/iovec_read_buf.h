@@ -28,7 +28,7 @@
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/small_vector.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
 #ifdef _WIN32
 struct dwarfs_iovec {
@@ -52,4 +52,4 @@ struct iovec_read_buf {
   small_vector<block_range, inline_storage> ranges;
 };
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

@@ -43,7 +43,6 @@
 
 namespace dwarfs {
 
-struct iovec_read_buf;
 struct vfs_stat;
 
 class category_resolver;
@@ -54,6 +53,10 @@ class mmif;
 class os_access;
 class performance_monitor;
 class writer_progress;
+
+namespace reader {
+
+struct iovec_read_buf;
 
 class filesystem_v2 {
  public:
@@ -394,4 +397,5 @@ class filesystem_v2 {
   std::unique_ptr<impl> impl_;
 };
 
+} // namespace reader
 } // namespace dwarfs

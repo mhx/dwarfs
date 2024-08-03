@@ -33,7 +33,9 @@
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/reader/internal/cached_block.h>
 
-namespace dwarfs::internal {
+namespace dwarfs::reader::internal {
+
+using namespace dwarfs::internal;
 
 namespace {
 
@@ -140,4 +142,4 @@ cached_block::create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
       lgr, b, std::move(mm), release, disable_integrity_check);
 }
 
-} // namespace dwarfs::internal
+} // namespace dwarfs::reader::internal

@@ -242,7 +242,7 @@ void basic_end_to_end_test(std::string const& compressor,
   opts.metadata.check_consistency = true;
   opts.inode_reader.readahead = readahead;
 
-  filesystem_v2 fs(lgr, *input, mm, opts);
+  reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
   // fs.dump(std::cerr, 9);
 
@@ -471,11 +471,12 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(set_uid ? EACCES : 0, ec.value());
   EXPECT_EQ(set_uid, !fs.access(*entry, R_OK, 1337, 0));
 
-  for (auto mp : {&filesystem_v2::walk, &filesystem_v2::walk_data_order}) {
+  for (auto mp : {&reader::filesystem_v2::walk,
+                  &reader::filesystem_v2::walk_data_order}) {
     std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
 
-    (fs.*mp)([&](dir_entry_view e) {
+    (fs.*mp)([&](reader::dir_entry_view e) {
       auto stbuf = fs.getattr(e.inode());
       inodes.push_back(stbuf.ino());
       auto path = e.path();
@@ -679,7 +680,7 @@ TEST_P(packing_test, regression_empty_fs) {
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
-  filesystem_v2 fs(lgr, *input, mm, opts);
+  reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -689,7 +690,7 @@ TEST_P(packing_test, regression_empty_fs) {
 
   size_t num = 0;
 
-  fs.walk([&](dir_entry_view e) {
+  fs.walk([&](reader::dir_entry_view e) {
     ++num;
     auto stbuf = fs.getattr(e.inode());
     EXPECT_TRUE(stbuf.is_directory());
@@ -752,7 +753,7 @@ TEST(segmenter, regression_block_boundary) {
 
     auto mm = std::make_shared<test::mmap_mock>(fsdata);
 
-    filesystem_v2 fs(lgr, *input, mm, opts);
+    reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
     vfs_stat vfsbuf;
     fs.statvfs(&vfsbuf);
@@ -806,7 +807,7 @@ TEST_P(compression_regression, github45) {
   auto mm = std::make_shared<test::mmap_mock>(fsdata);
 
   std::stringstream idss;
-  filesystem_v2::identify(lgr, *input, mm, idss, 3);
+  reader::filesystem_v2::identify(lgr, *input, mm, idss, 3);
 
   std::string line;
   std::regex const re("^SECTION num=\\d+, type=BLOCK, compression=(\\w+).*");
@@ -825,7 +826,7 @@ TEST_P(compression_regression, github45) {
   }
   EXPECT_EQ(1, compressions.count("NONE"));
 
-  filesystem_v2 fs(lgr, *input, mm, opts);
+  reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
@@ -1014,11 +1015,11 @@ TEST_P(filter_test, filesystem) {
   opts.metadata.enable_nlink = true;
   opts.metadata.check_consistency = true;
 
-  filesystem_v2 fs(lgr, *input, mm, opts);
+  reader::filesystem_v2 fs(lgr, *input, mm, opts);
 
   std::unordered_set<std::string> got;
 
-  fs.walk([&got](dir_entry_view e) { got.emplace(e.unix_path()); });
+  fs.walk([&got](reader::dir_entry_view e) { got.emplace(e.unix_path()); });
 
   EXPECT_EQ(spec.expected_files(), got);
 }
@@ -1093,11 +1094,11 @@ TEST(file_scanner, input_list) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm);
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   std::unordered_set<std::string> got;
 
-  fs.walk([&got](dir_entry_view e) { got.emplace(e.unix_path()); });
+  fs.walk([&got](reader::dir_entry_view e) { got.emplace(e.unix_path()); });
 
   std::unordered_set<std::string> expected{
       "",
@@ -1124,7 +1125,7 @@ TEST(filesystem, uid_gid_32bit) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm);
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   auto iv16 = fs.find("/foo16.txt");
   auto iv32 = fs.find("/foo32.txt");
@@ -1158,7 +1159,7 @@ TEST(filesystem, uid_gid_count) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm);
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   auto iv00000 = fs.find("/foo00000.txt");
   auto iv50000 = fs.find("/foo50000.txt");
@@ -1235,9 +1236,9 @@ TEST(section_index_regression, github183) {
 
   auto mm = std::make_shared<test::mmap_mock>(fsimage2);
 
-  filesystem_v2 fs;
+  reader::filesystem_v2 fs;
 
-  ASSERT_NO_THROW(fs = filesystem_v2(lgr, *input, mm));
+  ASSERT_NO_THROW(fs = reader::filesystem_v2(lgr, *input, mm));
   EXPECT_NO_THROW(fs.walk([](auto) {}));
 
   auto entry = fs.find("/foo.pl");
@@ -1259,7 +1260,7 @@ TEST(section_index_regression, github183) {
   EXPECT_EQ(ec.value(), EIO);
 
   std::stringstream idss;
-  EXPECT_THROW(filesystem_v2::identify(lgr, *input, mm, idss, 3),
+  EXPECT_THROW(reader::filesystem_v2::identify(lgr, *input, mm, idss, 3),
                dwarfs::runtime_error);
 }
 
@@ -1269,7 +1270,7 @@ TEST(filesystem, find_by_path) {
   auto fsimage = build_dwarfs(lgr, input, "null");
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm);
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   std::vector<std::string> paths;
   fs.walk([&](auto e) { paths.emplace_back(e.unix_path()); });
@@ -1301,7 +1302,8 @@ TEST(file_scanner, file_start_hash) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm, {.metadata = {.enable_nlink = true}});
+  reader::filesystem_v2 fs(lgr, *input, mm,
+                           {.metadata = {.enable_nlink = true}});
 
   auto link1 = fs.find("/hardlink1");
   auto link2 = fs.find("/hardlink2");
@@ -1333,7 +1335,7 @@ TEST(filesystem, root_access_github204) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm);
+  reader::filesystem_v2 fs(lgr, *input, mm);
 
   auto other = fs.find("/other");
   auto group = fs.find("/group");
@@ -1497,7 +1499,8 @@ TEST(filesystem, read) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_v2 fs(lgr, *input, mm, {.inode_reader = {.readahead = 64}});
+  reader::filesystem_v2 fs(lgr, *input, mm,
+                           {.inode_reader = {.readahead = 64}});
 
   auto iv = fs.find("/random");
   EXPECT_TRUE(iv);
@@ -1507,10 +1510,10 @@ TEST(filesystem, read) {
 
   std::error_code ec;
   std::vector<char> tmp(contents.size());
-  iovec_read_buf iov;
+  reader::iovec_read_buf iov;
   std::string_view cview(contents);
 
-  auto iov_to_str = [](iovec_read_buf const& iov) {
+  auto iov_to_str = [](reader::iovec_read_buf const& iov) {
     std::string result;
     for (auto const& i : iov.buf) {
       result.append(reinterpret_cast<char const*>(i.iov_base), i.iov_len);
@@ -1518,7 +1521,7 @@ TEST(filesystem, read) {
     return result;
   };
 
-  auto fut_to_str = [](std::vector<std::future<block_range>>&& futs) {
+  auto fut_to_str = [](std::vector<std::future<reader::block_range>>&& futs) {
     std::string result;
     for (auto& f : futs) {
       auto br = f.get();
