@@ -33,7 +33,6 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/categorizer.h>
 #include <dwarfs/category_resolver.h>
 #include <dwarfs/error.h>
 #include <dwarfs/filesystem_writer.h>
