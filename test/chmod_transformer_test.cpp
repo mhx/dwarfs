@@ -20,6 +20,8 @@
  */
 
 #include <array>
+#include <optional>
+#include <sstream>
 #include <string_view>
 
 #include <gtest/gtest.h>
@@ -75,6 +77,20 @@ std::ostream& operator<<(std::ostream& os, octal_mode const& mode) {
 } // namespace
 
 #define EXPECT_EQ_MODE(a, b) EXPECT_EQ(octal_mode{a}, octal_mode{b})
+
+TEST(chmod_transformer, octal_mode) {
+  std::ostringstream os;
+  os << octal_mode{07777};
+  EXPECT_EQ(os.str(), "07777 UGSrwxrwxrwx");
+
+  os.str("");
+  os << octal_mode{std::nullopt};
+  EXPECT_EQ(os.str(), "std::nullopt");
+
+  os.str("");
+  os << octal_mode{0644};
+  EXPECT_EQ(os.str(), "0644 ---rw-r--r--");
+}
 
 TEST(chmod_transformer, basic) {
   {
