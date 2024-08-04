@@ -1466,8 +1466,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   if (WITH_UNIVERSAL_BINARY)
     find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
-    set(UNIVERSAL_PACKED
-            "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
+    set(UNIVERSAL_PACKED "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
 
     # upx -9 is a good compromise between compression ratio and speed
     # also, anything above --best increases the startup time of the compressed
@@ -1547,12 +1546,9 @@ if(NOT "${PRJ_VERSION_FULL}" STREQUAL "")
   set(CPACK_PACKAGE_VERSION_MAJOR "${PRJ_VERSION_MAJOR}")
   set(CPACK_PACKAGE_VERSION_MINOR "${PRJ_VERSION_MINOR}")
   set(CPACK_PACKAGE_VERSION_PATCH "${PRJ_VERSION_PATCH}")
-  set(CPACK_SOURCE_PACKAGE_FILE_NAME
-      "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}")
-  set(CPACK_PACKAGE_FILE_NAME
-      "${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}")
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-      "dwarfs - A high compression read-only file system")
+  set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}")
+  set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}")
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "dwarfs - A high compression read-only file system")
   set(CPACK_PACKAGE_VENDOR "Marcus Holland-Moritz <github@mhxnet.de>")
   set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
