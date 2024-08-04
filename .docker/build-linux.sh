@@ -78,22 +78,25 @@ case "-$BUILD_TYPE-" in
   *-reldbg-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo"
     ;;
-  *-asan-*)
-    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=1"
-    ;;
-  *-tsan-*)
-    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_TSAN=1"
-    export TSAN_OPTIONS="suppressions=/workspace/tsan.supp"
-    ;;
-  *-ubsan-*)
-    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_UBSAN=1"
-    ;;
-  *-coverage-*)
-    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_COVERAGE=1"
-    ;;
   *)
     echo "missing build type: $BUILD_TYPE"
     exit 1
+esac
+
+case "-$BUILD_TYPE-" in
+  *-asan-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_ASAN=1"
+    ;;
+  *-tsan-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_TSAN=1"
+    export TSAN_OPTIONS="suppressions=/workspace/tsan.supp"
+    ;;
+  *-ubsan-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_UBSAN=1"
+    ;;
+  *-coverage-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_COVERAGE=1"
+    ;;
 esac
 
 if [[ "-$BUILD_TYPE-" == *-O2-* ]]; then

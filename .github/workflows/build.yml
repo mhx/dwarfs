@@ -225,16 +225,16 @@ jobs:
         include:
           - arch: amd64
             dist: ubuntu
-            build_type: clang-asan-ninja
+            build_type: clang-reldbg-asan-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: clang-tsan-ninja
+            build_type: clang-debug-tsan-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: clang-ubsan-ninja
+            build_type: clang-reldbg-ubsan-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: clang-coverage-ninja
+            build_type: clang-debug-coverage-ninja
           - arch: amd64
             dist: ubuntu
             build_type: oldgcc-debug-make
@@ -331,7 +331,7 @@ jobs:
             dwarfs-linux-build-${{ matrix.dist }}
 
       - name: Upload Coverage Data
-        if: matrix.build_type == 'clang-coverage-ninja'
+        if: matrix.build_type == 'clang-debug-coverage-ninja'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
