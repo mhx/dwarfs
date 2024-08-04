@@ -1404,6 +1404,10 @@ foreach(man_dir ${MAN_DIRS})
 endforeach()
 
 if(NOT STATIC_BUILD_DO_NOT_USE)
+  foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_rewrite)
+    set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
+  endforeach()
+
   install(
     TARGETS dwarfs_common
             dwarfs_reader
