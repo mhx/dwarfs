@@ -693,7 +693,7 @@ list(APPEND LIBDWARFS_REWRITE_SRC
 )
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
-  src/dwarfs/filesystem_extractor.cpp
+  src/dwarfs/utility/filesystem_extractor.cpp
 )
 
 list(APPEND LIBDWARFS_TOOL_SRC

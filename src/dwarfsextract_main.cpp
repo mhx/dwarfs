@@ -26,7 +26,6 @@
 
 #include <boost/program_options.hpp>
 
-#include <dwarfs/filesystem_extractor.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
@@ -39,6 +38,7 @@
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
+#include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs_tool_main.h>
 
 namespace po = boost::program_options;
@@ -131,7 +131,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.count("help") or !vm.count("input")) {
     library_dependencies deps;
     deps.add_common_libraries();
-    filesystem_extractor::add_library_dependencies(deps);
+    utility::filesystem_extractor::add_library_dependencies(deps);
 
     iol.out << tool::tool_header("dwarfsextract") << deps.as_string() << "\n\n"
             << usage << "\n"
@@ -165,7 +165,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
         perfmon_enabled, iol.file, perfmon_trace_file);
 
     reader::filesystem_v2 fs(lgr, *iol.os, fs_image, fsopts, perfmon);
-    filesystem_extractor fsx(lgr, *iol.os);
+    utility::filesystem_extractor fsx(lgr, *iol.os);
 
     if (format.empty()) {
       fsx.open_disk(iol.os->canonical(output));
@@ -192,7 +192,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
       }
     }
 
-    filesystem_extractor_options fsx_opts;
+    utility::filesystem_extractor_options fsx_opts;
 
     fsx_opts.max_queued_bytes = fsopts.block_cache.max_bytes;
     fsx_opts.continue_on_error = continue_on_error;

@@ -38,12 +38,12 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/file_stat.h>
-#include <dwarfs/filesystem_extractor.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
@@ -981,7 +981,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   }
 
   test::os_access_mock os;
-  filesystem_extractor ext(lgr, os);
+  utility::filesystem_extractor ext(lgr, os);
   std::ostringstream oss;
 
   EXPECT_NO_THROW(ext.open_stream(oss, "mtree"));

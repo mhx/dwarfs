@@ -40,6 +40,8 @@ class filesystem_v2;
 
 }
 
+namespace utility {
+
 struct filesystem_extractor_options {
   size_t max_queued_bytes{4096};
   bool continue_on_error{false};
@@ -89,5 +91,7 @@ class filesystem_extractor {
  private:
   std::unique_ptr<impl> impl_;
 };
+
+} // namespace utility
 
 } // namespace dwarfs
