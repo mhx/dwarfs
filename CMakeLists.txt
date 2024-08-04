@@ -1089,7 +1089,8 @@ add_cpp2_thrift_library(thrift/history.thrift
 add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
-foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_tool
+foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
+            dwarfs_extractor dwarfs_rewrite dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
@@ -1134,24 +1135,6 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_to
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
 
   add_dependencies(${tgt} dwarfs_metadata_thrift dwarfs_history_thrift)
-
-  if(ENABLE_ASAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=address
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=address)
-  endif()
-
-  if(ENABLE_TSAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=thread
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=thread)
-  endif()
-
-  if(ENABLE_UBSAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=undefined
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=undefined)
-  endif()
 
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -1202,6 +1185,31 @@ target_link_libraries(
   dwarfs_features_thrift
   dwarfs_fsst
 )
+
+foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_tool
+            dwarfs_extractor dwarfs_rewrite dwarfs_fsst dwarfs_test_helpers
+            dwarfs_folly_lite dwarfs_thrift_lite dwarfs_follybenchmark_lite
+            dwarfs_compression_thrift dwarfs_metadata_thrift
+            dwarfs_history_thrift dwarfs_features_thrift
+            ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+  if(ENABLE_ASAN)
+    target_compile_options(${tgt} PRIVATE -fsanitize=address
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=address)
+  endif()
+
+  if(ENABLE_TSAN)
+    target_compile_options(${tgt} PRIVATE -fsanitize=thread
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=thread)
+  endif()
+
+  if(ENABLE_UBSAN)
+    target_compile_options(${tgt} PRIVATE -fsanitize=undefined
+                                          -fno-omit-frame-pointer)
+    target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+  endif()
+endforeach()
 
 # if(LIBMAGIC_FOUND)
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
