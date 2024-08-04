@@ -189,6 +189,13 @@ bool filesystem_parser::has_checksums() const { return version_ >= 2; }
 
 bool filesystem_parser::has_index() const { return !index_.empty(); }
 
+size_t filesystem_parser::filesystem_size() const { return mm_->size(); }
+
+std::span<uint8_t const>
+filesystem_parser::section_data(fs_section const& s) const {
+  return s.data(*mm_);
+}
+
 void filesystem_parser::find_index() {
   uint64_t index_pos;
 

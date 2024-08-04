@@ -26,7 +26,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/thread_pool.h>
-#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/writer_progress.h>
 
 #include "test_helpers.h"
@@ -37,7 +37,7 @@ using namespace dwarfs;
 namespace fs = std::filesystem;
 
 TEST(filesystem_writer, compression_metadata_requirements) {
-  using writer::filesystem_writer_factory;
+  using writer::filesystem_writer;
 
   test::test_logger lgr;
   auto os = test::os_access_mock::create_test_instance();
@@ -47,16 +47,15 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   block_compressor bcnull("null");
 
-  EXPECT_NO_THROW(filesystem_writer_factory::create(devnull, lgr, pool, prog,
-                                                    bcnull, bcnull, bcnull));
+  EXPECT_NO_THROW(
+      filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcnull));
 
 #ifdef DWARFS_HAVE_FLAC
   block_compressor bcflac("flac:level=1");
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcflac,
-                                          bcnull, bcnull);
+        filesystem_writer(devnull, lgr, pool, prog, bcflac, bcnull, bcnull);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for schema compression because "
@@ -65,8 +64,7 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcnull,
-                                          bcflac, bcnull);
+        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcflac, bcnull);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for metadata compression because "
@@ -75,8 +73,7 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcnull,
-                                          bcnull, bcflac);
+        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcflac);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for history compression because "
@@ -89,8 +86,7 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcrice,
-                                          bcnull, bcnull);
+        filesystem_writer(devnull, lgr, pool, prog, bcrice, bcnull, bcnull);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for schema compression because "
@@ -99,8 +95,7 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcnull,
-                                          bcrice, bcnull);
+        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcrice, bcnull);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for metadata compression "
@@ -110,8 +105,7 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer_factory::create(devnull, lgr, pool, prog, bcnull,
-                                          bcnull, bcrice);
+        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcrice);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for history compression "

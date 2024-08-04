@@ -25,8 +25,8 @@
 #include <optional>
 #include <vector>
 
-#include <dwarfs/fragment_category.h>
 #include <dwarfs/gen-cpp2/metadata_types.h>
+#include <dwarfs/writer/fragment_category.h>
 
 namespace dwarfs::writer::internal {
 

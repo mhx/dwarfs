@@ -29,7 +29,7 @@
 
 #include <fmt/format.h>
 
-namespace dwarfs {
+namespace dwarfs::writer {
 
 class fragment_category {
  public:
@@ -116,12 +116,14 @@ operator<<(std::ostream& os, fragment_category const& cat) {
   return os;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::writer
 
 template <>
-struct fmt::formatter<dwarfs::fragment_category> : formatter<std::string> {
+struct fmt::formatter<dwarfs::writer::fragment_category>
+    : formatter<std::string> {
   template <typename FormatContext>
-  auto format(dwarfs::fragment_category const& cat, FormatContext& ctx) const {
+  auto format(dwarfs::writer::fragment_category const& cat,
+              FormatContext& ctx) const {
     if (cat) {
       if (cat.has_subcategory()) {
         return formatter<std::string>::format(
@@ -139,8 +141,8 @@ struct fmt::formatter<dwarfs::fragment_category> : formatter<std::string> {
 namespace std {
 
 template <>
-struct hash<dwarfs::fragment_category> {
-  std::size_t operator()(dwarfs::fragment_category const& k) const {
+struct hash<dwarfs::writer::fragment_category> {
+  std::size_t operator()(dwarfs::writer::fragment_category const& k) const {
     return k.hash();
   }
 };

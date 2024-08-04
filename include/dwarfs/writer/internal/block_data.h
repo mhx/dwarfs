@@ -19,14 +19,36 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/hash/Hash.h>
+#pragma once
 
-#include <dwarfs/fragment_category.h>
+#include <cstdint>
+#include <string_view>
+#include <vector>
 
-namespace dwarfs {
+namespace dwarfs::writer::internal {
 
-size_t fragment_category::hash() const {
-  return folly::hash::hash_combine(value_, subcategory_);
-}
+class block_data {
+ public:
+  block_data() = default;
+  explicit block_data(std::vector<uint8_t>&& vec)
+      : vec_{std::move(vec)} {}
+  explicit block_data(std::string_view str)
+      : vec_{str.begin(), str.end()} {}
 
-} // namespace dwarfs
+  std::vector<uint8_t> const& vec() const { return vec_; }
+  std::vector<uint8_t>& vec() { return vec_; }
+
+  void reserve(size_t size) { vec_.reserve(size); }
+
+  uint8_t const* data() const { return vec_.data(); }
+  uint8_t* data() { return vec_.data(); }
+
+  size_t size() const { return vec_.size(); }
+
+  bool empty() const { return vec_.empty(); }
+
+ private:
+  std::vector<uint8_t> vec_;
+};
+
+} // namespace dwarfs::writer::internal

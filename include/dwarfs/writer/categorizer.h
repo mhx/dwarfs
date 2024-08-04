@@ -31,7 +31,7 @@
 #include <span>
 #include <string_view>
 
-#include <dwarfs/category_resolver.h>
+#include <dwarfs/writer/category_resolver.h>
 #include <dwarfs/writer/inode_fragments.h>
 
 namespace boost::program_options {

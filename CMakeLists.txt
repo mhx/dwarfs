@@ -612,8 +612,6 @@ list(APPEND
   src/dwarfs/error.cpp
   src/dwarfs/file_access_generic.cpp
   src/dwarfs/file_stat.cpp
-  src/dwarfs/filesystem_writer.cpp
-  src/dwarfs/fragment_category.cpp
   src/dwarfs/fstypes.cpp
   src/dwarfs/history.cpp
   src/dwarfs/library_dependencies.cpp
@@ -662,10 +660,12 @@ list(APPEND
   src/dwarfs/writer/console_writer.cpp
   src/dwarfs/writer/entry_factory.cpp
   src/dwarfs/writer/filesystem_block_category_resolver.cpp
-  src/dwarfs/writer/filesystem_writer_factory.cpp
+  src/dwarfs/writer/filesystem_writer.cpp
   src/dwarfs/writer/filter_debug.cpp
+  src/dwarfs/writer/fragment_category.cpp
   src/dwarfs/writer/fragment_order_parser.cpp
   src/dwarfs/writer/inode_fragments.cpp
+  src/dwarfs/writer/rewrite_filesystem.cpp
   src/dwarfs/writer/rule_based_entry_filter.cpp
   src/dwarfs/writer/scanner.cpp
   src/dwarfs/writer/segmenter.cpp

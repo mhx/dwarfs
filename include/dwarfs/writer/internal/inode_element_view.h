@@ -24,7 +24,7 @@
 #include <optional>
 #include <span>
 
-#include <dwarfs/fragment_category.h>
+#include <dwarfs/writer/fragment_category.h>
 
 #include <dwarfs/writer/internal/nilsimsa.h>
 #include <dwarfs/writer/internal/similarity_ordering.h>

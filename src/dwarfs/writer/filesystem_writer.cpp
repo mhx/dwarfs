@@ -40,13 +40,13 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
-#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/internal/block_data.h>
-#include <dwarfs/internal/filesystem_writer_detail.h>
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/writer/internal/block_data.h>
+#include <dwarfs/writer/internal/filesystem_writer_detail.h>
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>
 #include <dwarfs/writer/internal/progress.h>
 
@@ -1102,16 +1102,30 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 
 } // namespace internal
 
-filesystem_writer filesystem_writer_factory::create(
-    std::ostream& os, logger& lgr, thread_pool& pool, writer_progress& prog,
-    block_compressor const& schema_bc, block_compressor const& metadata_bc,
-    block_compressor const& history_bc,
-    filesystem_writer_options const& options, std::istream* header) {
-  return filesystem_writer{
-      make_unique_logging_object<internal::filesystem_writer_detail,
-                                 internal::filesystem_writer_, logger_policies>(
+filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
+                                     thread_pool& pool, writer_progress& prog,
+                                     block_compressor const& schema_bc,
+                                     block_compressor const& metadata_bc,
+                                     block_compressor const& history_bc,
+                                     filesystem_writer_options const& options,
+                                     std::istream* header)
+    : impl_{make_unique_logging_object<internal::filesystem_writer_detail,
+                                       internal::filesystem_writer_,
+                                       logger_policies>(
           lgr, os, pool.get_worker_group(), prog.get_internal(), schema_bc,
-          metadata_bc, history_bc, options, header)};
+          metadata_bc, history_bc, options, header)} {}
+
+filesystem_writer::~filesystem_writer() = default;
+filesystem_writer::filesystem_writer(filesystem_writer&&) = default;
+filesystem_writer& filesystem_writer::operator=(filesystem_writer&&) = default;
+
+void filesystem_writer::add_default_compressor(block_compressor bc) {
+  impl_->add_default_compressor(std::move(bc));
+}
+
+void filesystem_writer::add_category_compressor(
+    fragment_category::value_type cat, block_compressor bc) {
+  impl_->add_category_compressor(cat, std::move(bc));
 }
 
 } // namespace dwarfs::writer

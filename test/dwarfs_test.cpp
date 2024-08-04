@@ -46,7 +46,7 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/entry_factory.h>
-#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
@@ -115,8 +115,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   std::ostringstream oss;
 
   block_compressor bc(compression);
-  auto fsw = writer::filesystem_writer_factory::create(oss, lgr, pool, *prog,
-                                                       bc, bc, bc);
+  writer::filesystem_writer fsw(oss, lgr, pool, *prog, bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
@@ -981,8 +980,7 @@ class filter_test
 
     block_compressor bc("null");
     std::ostringstream null;
-    auto fsw = writer::filesystem_writer_factory::create(null, lgr, pool, prog,
-                                                         bc, bc, bc);
+    writer::filesystem_writer fsw(null, lgr, pool, prog, bc, bc, bc);
     s.scan(fsw, std::filesystem::path("/"), prog);
 
     return oss.str();

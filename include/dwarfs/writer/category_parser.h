@@ -24,13 +24,11 @@
 #include <memory>
 #include <vector>
 
-#include <dwarfs/fragment_category.h>
+#include <dwarfs/writer/fragment_category.h>
 
-namespace dwarfs {
+namespace dwarfs::writer {
 
 class category_resolver;
-
-namespace writer {
 
 class category_parser {
  public:
@@ -43,6 +41,4 @@ class category_parser {
   std::shared_ptr<category_resolver const> resolver_;
 };
 
-} // namespace writer
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

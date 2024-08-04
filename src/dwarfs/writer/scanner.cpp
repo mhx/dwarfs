@@ -40,7 +40,6 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
-#include <dwarfs/filesystem_writer.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
@@ -53,18 +52,19 @@
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/entry_filter.h>
 #include <dwarfs/writer/entry_transformer.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/internal/block_data.h>
 #include <dwarfs/internal/features.h>
-#include <dwarfs/internal/filesystem_writer_detail.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>
+#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/file_scanner.h>
+#include <dwarfs/writer/internal/filesystem_writer_detail.h>
 #include <dwarfs/writer/internal/fragment_chunkable.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode.h>

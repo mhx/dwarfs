@@ -29,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-#include <dwarfs/fragment_category.h>
+#include <dwarfs/writer/fragment_category.h>
 
 #include <dwarfs/writer/internal/inode.h>
 

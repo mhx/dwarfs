@@ -45,8 +45,6 @@ namespace dwarfs {
 
 struct vfs_stat;
 
-class category_resolver;
-class filesystem_writer;
 class history;
 class logger;
 class mmif;
@@ -56,6 +54,12 @@ class performance_monitor;
 namespace reader {
 
 struct iovec_read_buf;
+
+namespace internal {
+
+class filesystem_parser;
+
+} // namespace internal
 
 class filesystem_v2 {
  public:
@@ -303,9 +307,12 @@ class filesystem_v2 {
     return impl_->get_all_gids();
   }
 
-  void rewrite(filesystem_writer& writer, category_resolver const& cat_resolver,
-               rewrite_options const& opts) const {
-    return impl_->rewrite(writer, cat_resolver, opts);
+  std::shared_ptr<internal::filesystem_parser> get_parser() const {
+    return impl_->get_parser();
+  }
+
+  std::optional<std::string> get_block_category(size_t block_number) const {
+    return impl_->get_block_category(block_number);
   }
 
   class impl {
@@ -386,9 +393,9 @@ class filesystem_v2 {
     virtual std::vector<std::string> get_all_block_categories() const = 0;
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
-    virtual void
-    rewrite(filesystem_writer& writer, category_resolver const& cat_resolver,
-            rewrite_options const& opts) const = 0;
+    virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
+    virtual std::optional<std::string>
+    get_block_category(size_t block_number) const = 0;
   };
 
  private:

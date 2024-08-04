@@ -49,7 +49,7 @@
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/internal/block_data.h>
+#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 #include <dwarfs/writer/internal/cyclic_hash.h>
@@ -59,8 +59,6 @@
 namespace dwarfs::writer {
 
 namespace internal {
-
-using namespace dwarfs::internal;
 
 namespace {
 

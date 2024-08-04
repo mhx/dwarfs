@@ -29,9 +29,9 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/fragment_category.h>
+#include <dwarfs/writer/fragment_category.h>
 
-using namespace dwarfs;
+using namespace dwarfs::writer;
 
 TEST(fragment_category_test, basic) {
   fragment_category c;

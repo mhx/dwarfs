@@ -65,6 +65,10 @@ class filesystem_parser {
   bool has_checksums() const;
   bool has_index() const;
 
+  size_t filesystem_size() const;
+  std::span<uint8_t const>
+  section_data(dwarfs::internal::fs_section const& s) const;
+
  private:
   void find_index();
 

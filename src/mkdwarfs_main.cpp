@@ -80,9 +80,10 @@
 #include <dwarfs/writer/console_writer.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
-#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_parser.h>
+#include <dwarfs/writer/rewrite_filesystem.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/segmenter_factory.h>
@@ -1168,7 +1169,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   std::optional<reader::filesystem_v2> input_filesystem;
-  std::shared_ptr<category_resolver> cat_resolver;
+  std::shared_ptr<writer::category_resolver> cat_resolver;
 
   if (recompress) {
     input_filesystem.emplace(
@@ -1269,7 +1270,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                             std::numeric_limits<size_t>::max(),
                             compress_niceness);
 
-  std::optional<filesystem_writer> fsw;
+  std::optional<writer::filesystem_writer> fsw;
 
   try {
     std::ostream& fsw_os =
@@ -1280,9 +1281,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw = writer::filesystem_writer_factory::create(
-        fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc, history_bc,
-        fswopts, header_ifs ? &header_ifs->is() : nullptr);
+    fsw.emplace(fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc,
+                history_bc, fswopts, header_ifs ? &header_ifs->is() : nullptr);
 
     writer::categorized_option<block_compressor> compression_opt;
     writer::contextual_option_parser cop("--compression", compression_opt, cp,
@@ -1308,7 +1308,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     if (recompress) {
       compression_opt.visit_contextual(
-          [catres = cat_resolver, &fsw](auto cat, block_compressor const& bc) {
+          [&fsw](auto cat, block_compressor const& bc) {
             fsw->add_category_compressor(cat, bc);
           });
     } else {
@@ -1335,8 +1335,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     if (recompress) {
-      input_filesystem->rewrite(*fsw, *cat_resolver, rw_opts);
-      compress_pool.wait();
+      writer::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
+                                 rw_opts);
     } else {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
                                    sf_config);

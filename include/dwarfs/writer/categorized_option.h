@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include <dwarfs/fragment_category.h>
 #include <dwarfs/writer/contextual_option.h>
+#include <dwarfs/writer/fragment_category.h>
 
 namespace dwarfs::writer {
 

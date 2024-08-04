@@ -34,7 +34,7 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/entry_factory.h>
-#include <dwarfs/writer/filesystem_writer_factory.h>
+#include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
@@ -131,8 +131,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   std::ostringstream oss;
 
   block_compressor bc("null");
-  auto fsw = writer::filesystem_writer_factory::create(oss, lgr, pool, prog, bc,
-                                                       bc, bc);
+  writer::filesystem_writer fsw(oss, lgr, pool, prog, bc, bc, bc);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, "", prog);

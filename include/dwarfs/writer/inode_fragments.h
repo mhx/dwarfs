@@ -28,9 +28,9 @@
 #include <string>
 #include <unordered_map>
 
-#include <dwarfs/fragment_category.h>
 #include <dwarfs/small_vector.h>
 #include <dwarfs/types.h>
+#include <dwarfs/writer/fragment_category.h>
 
 namespace dwarfs::writer {
 

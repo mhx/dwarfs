@@ -133,7 +133,7 @@ TEST_F(fits_categorizer, unused_lsb_count_test) {
   auto metadata_category = catmgr->category_value("fits/metadata").value();
   auto image_category = catmgr->category_value("fits/image").value();
 
-  std::map<fragment_category, std::set<unsigned>> categories;
+  std::map<writer::fragment_category, std::set<unsigned>> categories;
 
   for (size_t offset = 0; offset < 64; offset += 2) {
     std::span<uint8_t> fits{data.data() + offset, 2 * 2880};

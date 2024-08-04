@@ -21,32 +21,28 @@
 
 #pragma once
 
-#include <iosfwd>
-
-#include <dwarfs/filesystem_writer.h>
-#include <dwarfs/options.h>
-
 namespace dwarfs {
 
-class block_compressor;
 class logger;
-class thread_pool;
+
+// TODO: move to writer namespace
+struct rewrite_options;
+
+namespace reader {
+
+class filesystem_v2;
+
+} // namespace reader
 
 namespace writer {
 
-class writer_progress;
+class category_resolver;
+class filesystem_writer;
 
-class filesystem_writer_factory {
- public:
-  static filesystem_writer
-  create(std::ostream& os, logger& lgr, thread_pool& pool,
-         writer_progress& prog, block_compressor const& schema_bc,
-         block_compressor const& metadata_bc,
-         block_compressor const& history_bc,
-         filesystem_writer_options const& options = filesystem_writer_options(),
-         std::istream* header = nullptr);
-};
+void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
+                        filesystem_writer& writer,
+                        category_resolver const& cat_resolver,
+                        rewrite_options const& opts);
 
 } // namespace writer
-
 } // namespace dwarfs
