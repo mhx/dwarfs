@@ -966,7 +966,7 @@ void scanner_<LoggerPolicy>::scan(
   mv2.total_fs_size() = prog.original_size;
   mv2.total_hardlink_size() = prog.hardlink_size;
   mv2.options() = fsopts;
-  mv2.dwarfs_version() = std::string("libdwarfs ") + PRJ_GIT_ID;
+  mv2.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
   if (!options_.no_create_timestamp) {
     mv2.create_timestamp() = std::time(nullptr);
   }

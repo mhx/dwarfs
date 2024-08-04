@@ -51,8 +51,8 @@ namespace dwarfs::tool {
 std::string
 tool_header(std::string_view tool_name, std::string_view extra_info) {
   std::string date;
-  if (PRJ_GIT_DATE) {
-    date = fmt::format(" [{}]", PRJ_GIT_DATE);
+  if (DWARFS_GIT_DATE) {
+    date = fmt::format(" [{}]", DWARFS_GIT_DATE);
   }
   return fmt::format(
       // clang-format off
@@ -62,7 +62,7 @@ tool_header(std::string_view tool_name, std::string_view extra_info) {
     R"(    |___/ \_/\_/\__,_|_| |_| |___/         by Marcus Holland-Moritz)""\n\n"
       // clang-format on
       "{} ({}{}{})\nbuilt for {}\n\n",
-      tool_name, PRJ_GIT_ID, date, extra_info, PRJ_BUILD_ID);
+      tool_name, DWARFS_GIT_ID, date, extra_info, DWARFS_BUILD_ID);
 }
 
 void add_common_options(po::options_description& opts,

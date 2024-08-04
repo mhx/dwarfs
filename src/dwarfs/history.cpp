@@ -57,15 +57,15 @@ void history::parse_append(std::span<uint8_t const> data) {
 void history::append(std::optional<std::vector<std::string>> args) {
   auto& histent = history_->entries()->emplace_back();
   auto& version = histent.version().value();
-  version.major() = PRJ_VERSION_MAJOR;
-  version.minor() = PRJ_VERSION_MINOR;
-  version.patch() = PRJ_VERSION_PATCH;
-  version.is_release() = std::string_view(PRJ_GIT_DESC) == PRJ_GIT_ID;
-  version.git_rev() = PRJ_GIT_REV;
-  version.git_branch() = PRJ_GIT_BRANCH;
-  version.git_desc() = PRJ_GIT_DESC;
-  histent.system_id() = PRJ_SYSTEM_ID;
-  histent.compiler_id() = PRJ_COMPILER_ID;
+  version.major() = DWARFS_VERSION_MAJOR;
+  version.minor() = DWARFS_VERSION_MINOR;
+  version.patch() = DWARFS_VERSION_PATCH;
+  version.is_release() = std::string_view(DWARFS_GIT_DESC) == DWARFS_GIT_ID;
+  version.git_rev() = DWARFS_GIT_REV;
+  version.git_branch() = DWARFS_GIT_BRANCH;
+  version.git_desc() = DWARFS_GIT_DESC;
+  histent.system_id() = DWARFS_SYSTEM_ID;
+  histent.compiler_id() = DWARFS_COMPILER_ID;
   if (args) {
     histent.arguments() = std::move(*args);
   }

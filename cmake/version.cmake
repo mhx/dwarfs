@@ -141,11 +141,16 @@ set(PRJ_VERSION_PATCH \"${PRJ_VERSION_PATCH}\")
 
 namespace dwarfs {
 
-char const* PRJ_GIT_REV = \"${PRJ_GIT_REV}\";
-char const* PRJ_GIT_DATE = ${PRJ_GIT_DATE_VALUE};
-char const* PRJ_GIT_DESC = \"${PRJ_GIT_DESC}\";
-char const* PRJ_GIT_BRANCH = \"${PRJ_GIT_BRANCH}\";
-char const* PRJ_GIT_ID = \"${PRJ_GIT_ID}\";
+int get_dwarfs_library_version()
+{
+  return DWARFS_VERSION;
+}
+
+char const* const DWARFS_GIT_REV = \"${PRJ_GIT_REV}\";
+char const* const DWARFS_GIT_DATE = ${PRJ_GIT_DATE_VALUE};
+char const* const DWARFS_GIT_DESC = \"${PRJ_GIT_DESC}\";
+char const* const DWARFS_GIT_BRANCH = \"${PRJ_GIT_BRANCH}\";
+char const* const DWARFS_GIT_ID = \"${PRJ_GIT_ID}\";
 
 } // namespace dwarfs
 ")
@@ -155,17 +160,20 @@ char const* PRJ_GIT_ID = \"${PRJ_GIT_ID}\";
 
 #pragma once
 
-#define PRJ_VERSION_MAJOR ${PRJ_VERSION_MAJOR}
-#define PRJ_VERSION_MINOR ${PRJ_VERSION_MINOR}
-#define PRJ_VERSION_PATCH ${PRJ_VERSION_PATCH}
+#define DWARFS_VERSION_MAJOR ${PRJ_VERSION_MAJOR}
+#define DWARFS_VERSION_MINOR ${PRJ_VERSION_MINOR}
+#define DWARFS_VERSION_PATCH ${PRJ_VERSION_PATCH}
+#define DWARFS_VERSION (DWARFS_VERSION_MAJOR * 10000 + DWARFS_VERSION_MINOR * 100 + DWARFS_VERSION_PATCH)
 
 namespace dwarfs {
 
-extern char const* PRJ_GIT_REV;
-extern char const* PRJ_GIT_DATE;
-extern char const* PRJ_GIT_DESC;
-extern char const* PRJ_GIT_BRANCH;
-extern char const* PRJ_GIT_ID;
+int get_dwarfs_library_version();
+
+extern char const* const DWARFS_GIT_REV;
+extern char const* const DWARFS_GIT_DATE;
+extern char const* const DWARFS_GIT_DESC;
+extern char const* const DWARFS_GIT_BRANCH;
+extern char const* const DWARFS_GIT_ID;
 
 } // namespace dwarfs
 ")

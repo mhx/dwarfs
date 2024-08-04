@@ -1621,8 +1621,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   LOG_PROXY(debug_logger_policy, userdata.lgr);
 
-  LOG_INFO << "dwarfs (" << PRJ_GIT_ID << ", fuse version " << FUSE_USE_VERSION
-           << ")";
+  LOG_INFO << "dwarfs (" << DWARFS_GIT_ID << ", fuse version "
+           << FUSE_USE_VERSION << ")";
 
   try {
     if (userdata.opts.logopts.threshold >= logger::DEBUG) {
