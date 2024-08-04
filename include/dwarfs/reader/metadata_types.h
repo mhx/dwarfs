@@ -49,7 +49,7 @@ class global_metadata;
 enum class readlink_mode {
   raw,
   preferred,
-  unix,
+  posix,
 };
 
 class inode_view {

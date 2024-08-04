@@ -732,7 +732,7 @@ class metadata_ final : public metadata_v2::impl {
       }
       char host_preferred =
           static_cast<char>(std::filesystem::path::preferred_separator);
-      if (mode == readlink_mode::unix) {
+      if (mode == readlink_mode::posix) {
         host_preferred = '/';
       }
       if (meta_preferred != host_preferred) {

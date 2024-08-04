@@ -514,7 +514,8 @@ int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
   return checked_call(log_, [&] {
     if (auto entry = find()) {
       std::error_code ec;
-      auto link = userdata.fs.readlink(*entry, reader::readlink_mode::unix, ec);
+      auto link =
+          userdata.fs.readlink(*entry, reader::readlink_mode::posix, ec);
       if (!ec) {
         *str = link;
       }

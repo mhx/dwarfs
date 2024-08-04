@@ -87,15 +87,15 @@ TEST(filesystem, metadata_symlink_win) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::unix);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::unix);
+    buffer = fs.readlink(*i2, reader::readlink_mode::posix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, reader::readlink_mode::unix, ec);
+    auto r = fs.readlink(*i1, reader::readlink_mode::posix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
@@ -109,7 +109,7 @@ TEST(filesystem, metadata_symlink_win) {
 
   // also test throwing interface
   {
-    auto r = fs.readlink(*i1, reader::readlink_mode::unix);
+    auto r = fs.readlink(*i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", r);
   }
 
@@ -160,15 +160,15 @@ TEST(filesystem, metadata_symlink_unix) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::unix);
+    auto buffer = fs.readlink(*i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::unix);
+    buffer = fs.readlink(*i2, reader::readlink_mode::posix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, reader::readlink_mode::unix, ec);
+    auto r = fs.readlink(*i1, reader::readlink_mode::posix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
