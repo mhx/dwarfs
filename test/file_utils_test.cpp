@@ -22,12 +22,14 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/file_stat.h>
+
 #include <dwarfs/internal/file_status_conv.h>
 
-using namespace dwarfs::internal;
 namespace fs = std::filesystem;
 
 TEST(file_utils, file_status_conversion) {
+  using namespace dwarfs::internal;
   using fs::file_type;
   using fs::perms;
 
@@ -78,4 +80,85 @@ TEST(file_utils, file_status_conversion) {
   EXPECT_THAT([&] { file_status_to_mode(status); },
               testing::ThrowsMessage<std::runtime_error>(
                   testing::HasSubstr("invalid file type: ")));
+}
+
+TEST(file_utils, file_stat_nonexistent) {
+  using namespace dwarfs;
+
+  file_stat st("somenonexistentfile");
+
+  EXPECT_THAT([&] { st.ensure_valid(file_stat::mode_valid); },
+              testing::Throws<std::system_error>());
+}
+
+TEST(file_utils, file_stat) {
+  using namespace dwarfs;
+
+  file_stat st;
+
+  EXPECT_THAT([&] { st.ensure_valid(file_stat::ino_valid); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("missing stat fields:")));
+
+  EXPECT_THAT([&] { st.set_permissions(0755); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("missing stat fields:")));
+
+  EXPECT_THAT([&] { st.status(); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("missing stat fields:")));
+
+  st.set_mode(0100644);
+
+  EXPECT_NO_THROW(st.set_permissions(0755));
+  EXPECT_NO_THROW(st.ensure_valid(file_stat::mode_valid));
+
+  auto status = st.status();
+  EXPECT_EQ(status.permissions(), fs::perms::owner_all | fs::perms::group_read |
+                                      fs::perms::group_exec |
+                                      fs::perms::others_read |
+                                      fs::perms::others_exec);
+
+  EXPECT_TRUE(st.is_regular_file());
+  EXPECT_FALSE(st.is_directory());
+  EXPECT_FALSE(st.is_symlink());
+
+  st.set_mode(0040755);
+
+  EXPECT_FALSE(st.is_regular_file());
+  EXPECT_TRUE(st.is_directory());
+  EXPECT_FALSE(st.is_symlink());
+
+  st.set_mode(0120644);
+
+  EXPECT_FALSE(st.is_regular_file());
+  EXPECT_FALSE(st.is_directory());
+  EXPECT_TRUE(st.is_symlink());
+
+  EXPECT_THAT([&] { st.dev(); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("missing stat fields:")));
+
+  EXPECT_EQ(st.dev_unchecked(), 0);
+
+  st.set_dev(1234);
+  EXPECT_EQ(st.dev(), 1234);
+
+  st.set_blksize(4096);
+  st.set_blocks(8);
+
+  EXPECT_NO_THROW(st.ensure_valid(file_stat::blksize_valid |
+                                  file_stat::blocks_valid |
+                                  file_stat::dev_valid));
+
+  EXPECT_EQ(st.blksize(), 4096);
+  EXPECT_EQ(st.blocks(), 8);
+
+  EXPECT_EQ(file_stat::mode_string(0100644), "----rw-r--r--");
+  EXPECT_EQ(file_stat::mode_string(0120644), "---lrw-r--r--");
+  EXPECT_EQ(file_stat::mode_string(0140644), "---srw-r--r--");
+
+  EXPECT_THAT([&] { file_stat::mode_string(0110000); },
+              testing::ThrowsMessage<dwarfs::runtime_error>(
+                  testing::HasSubstr("unknown file type: 0x9000")));
 }

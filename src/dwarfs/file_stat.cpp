@@ -216,7 +216,9 @@ file_stat::file_stat(fs::path const& path) {
   struct ::stat st;
 
   if (::lstat(path.string().c_str(), &st) != 0) {
-    throw std::system_error(errno, std::generic_category(), "lstat");
+    exception_ = std::make_exception_ptr(
+        std::system_error(errno, std::generic_category(), "lstat"));
+    return;
   }
 
   valid_fields_ = file_stat::all_valid;
