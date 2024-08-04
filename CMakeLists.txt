@@ -1418,6 +1418,12 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     DESTINATION include
     PATTERN include/dwarfs/internal EXCLUDE
     PATTERN include/dwarfs/tool EXCLUDE
+    PATTERN include/dwarfs/*/internal EXCLUDE
+  )
+
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
+    DESTINATION include/dwarfs
   )
 endif()
 
