@@ -44,10 +44,10 @@
 #include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/thread_pool.h>
+#include <dwarfs/utility/rewrite_filesystem.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 #include <dwarfs/writer/filesystem_writer.h>
-#include <dwarfs/writer/rewrite_filesystem.h>
 #include <dwarfs/writer/writer_progress.h>
 
 #include "mmap_mock.h"
@@ -1127,7 +1127,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     writer::filesystem_block_category_resolver resolver(
         fs.get_all_block_categories());
-    writer::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
+    utility::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
   };
 
   {

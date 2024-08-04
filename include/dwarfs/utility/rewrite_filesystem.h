@@ -39,10 +39,15 @@ namespace writer {
 class category_resolver;
 class filesystem_writer;
 
+} // namespace writer
+
+namespace utility {
+
 void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        filesystem_writer& writer,
-                        category_resolver const& cat_resolver,
+                        dwarfs::writer::filesystem_writer& writer,
+                        dwarfs::writer::category_resolver const& cat_resolver,
                         rewrite_options const& opts);
 
-} // namespace writer
+} // namespace utility
+
 } // namespace dwarfs

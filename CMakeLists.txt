@@ -665,7 +665,6 @@ list(APPEND
   src/dwarfs/writer/fragment_category.cpp
   src/dwarfs/writer/fragment_order_parser.cpp
   src/dwarfs/writer/inode_fragments.cpp
-  src/dwarfs/writer/rewrite_filesystem.cpp
   src/dwarfs/writer/rule_based_entry_filter.cpp
   src/dwarfs/writer/scanner.cpp
   src/dwarfs/writer/segmenter.cpp
@@ -687,6 +686,10 @@ list(APPEND
   src/dwarfs/writer/internal/scanner_progress.cpp
   src/dwarfs/writer/internal/similarity.cpp
   src/dwarfs/writer/internal/similarity_ordering.cpp
+)
+
+list(APPEND LIBDWARFS_REWRITE_SRC
+  src/dwarfs/utility/rewrite_filesystem.cpp
 )
 
 list(APPEND LIBDWARFS_EXTRACTOR_SRC
@@ -781,12 +784,14 @@ add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC} ${LIBDWARFS_COMPRESSION_SRC})
 add_library(dwarfs_reader ${LIBDWARFS_READER_SRC})
 add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC} ${LIBDWARFS_CATEGORIZER_SRC})
 add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
+add_library(dwarfs_rewrite ${LIBDWARFS_REWRITE_SRC})
 add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PRIVATE phmap range-v3::range-v3)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
+target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
 if(DWARFS_GIT_BUILD)
@@ -1227,7 +1232,7 @@ foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
 endforeach()
 
-target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer)
+target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
 target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
 target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
 
@@ -1255,7 +1260,7 @@ if(TARGET segmenter_benchmark)
 endif()
 
 foreach(tgt ${TEST_TARGETS})
-  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_extractor)
+  target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -1396,6 +1401,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
             dwarfs_reader
             dwarfs_writer
             dwarfs_extractor
+            dwarfs_rewrite
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
 

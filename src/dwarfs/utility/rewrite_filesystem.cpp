@@ -29,12 +29,15 @@
 #include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 
-namespace dwarfs::writer {
+namespace dwarfs::utility {
 
 void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        filesystem_writer& fs_writer,
-                        category_resolver const& cat_resolver,
+                        dwarfs::writer::filesystem_writer& fs_writer,
+                        dwarfs::writer::category_resolver const& cat_resolver,
                         rewrite_options const& opts) {
+  using dwarfs::writer::fragment_category;
+  using dwarfs::writer::internal::block_data;
+
   LOG_PROXY(debug_logger_policy, lgr);
 
   auto parser = fs.get_parser();
@@ -178,8 +181,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
                     << "), compressing using '"
                     << writer.get_compressor(s->type()).describe() << "'";
 
-        writer.write_history(
-            std::make_shared<internal::block_data>(hist.serialize()));
+        writer.write_history(std::make_shared<block_data>(hist.serialize()));
       } else {
         LOG_VERBOSE << "removing " << get_section_name(s->type());
       }
@@ -199,4 +201,4 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
   writer.flush();
 }
 
-} // namespace dwarfs::writer
+} // namespace dwarfs::utility

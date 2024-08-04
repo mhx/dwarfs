@@ -74,6 +74,7 @@
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
+#include <dwarfs/utility/rewrite_filesystem.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/chmod_entry_transformer.h>
@@ -83,7 +84,6 @@
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_parser.h>
-#include <dwarfs/writer/rewrite_filesystem.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
 #include <dwarfs/writer/segmenter_factory.h>
@@ -1335,8 +1335,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     if (recompress) {
-      writer::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
-                                 rw_opts);
+      utility::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
+                                  rw_opts);
     } else {
       writer::segmenter_factory sf(lgr, prog, options.inode.categorizer_mgr,
                                    sf_config);
