@@ -26,6 +26,7 @@
 
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
+#include <dwarfs/config.h>
 #include <dwarfs/history.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/version.h>

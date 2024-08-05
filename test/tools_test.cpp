@@ -60,6 +60,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>

@@ -28,6 +28,8 @@
 #include <parallel_hashmap/phmap_config.h>
 #include <xxhash.h>
 
+#include <dwarfs/config.h>
+
 #ifdef DWARFS_USE_JEMALLOC
 #include <jemalloc/jemalloc.h>
 #endif

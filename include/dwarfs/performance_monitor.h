@@ -31,6 +31,7 @@
 #include <string>
 #include <unordered_set>
 
+#include <dwarfs/config.h>
 #include <dwarfs/small_vector.h>
 
 namespace dwarfs {

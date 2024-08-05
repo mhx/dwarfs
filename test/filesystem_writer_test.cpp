@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/config.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/writer_progress.h>

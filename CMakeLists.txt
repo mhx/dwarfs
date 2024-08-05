@@ -1089,6 +1089,18 @@ add_cpp2_thrift_library(thrift/history.thrift
 add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
+set(DWARFS_HAVE_LIBZSTD ON)
+set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
+set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
+set(DWARFS_HAVE_LIBMAGIC ${LIBMAGIC_FOUND})
+set(DWARFS_HAVE_LIBLZ4 ${LIBLZ4_FOUND})
+set(DWARFS_HAVE_LIBLZMA ${LIBLZMA_FOUND})
+set(DWARFS_HAVE_LIBBROTLI ${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND})
+set(DWARFS_HAVE_FLAC ${FLAC_FOUND})
+set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
+set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
+configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
+
 foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
             dwarfs_extractor dwarfs_rewrite dwarfs_tool
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
@@ -1102,24 +1114,6 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
   endif(USE_JEMALLOC)
 
   target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-  target_compile_definitions(
-    ${tgt}
-    PRIVATE DWARFS_HAVE_LIBZSTD
-            DWARFS_STATIC_BUILD=${STATIC_BUILD_DO_NOT_USE}
-            $<$<BOOL:${WITH_MAN_OPTION}>:DWARFS_BUILTIN_MANPAGE>
-            $<$<BOOL:${USE_JEMALLOC}>:DWARFS_USE_JEMALLOC>
-            $<$<BOOL:${LIBMAGIC_FOUND}>:DWARFS_HAVE_LIBMAGIC>
-            $<$<BOOL:${LIBLZ4_FOUND}>:DWARFS_HAVE_LIBLZ4>
-            $<$<BOOL:${LIBLZMA_FOUND}>:DWARFS_HAVE_LIBLZMA>
-            $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:DWARFS_HAVE_LIBBROTLI>
-            $<$<BOOL:${FLAC_FOUND}>:DWARFS_HAVE_FLAC>
-            $<$<BOOL:${ENABLE_RICEPP}>:DWARFS_HAVE_RICEPP>
-  )
-
-  if(ENABLE_PERFMON)
-    target_compile_definitions(${tgt} PRIVATE DWARFS_PERFMON_ENABLED=1)
-  endif()
 
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
      "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -1426,7 +1420,9 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   )
 
   install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
+    FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
+      ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
     DESTINATION include/dwarfs
   )
 endif()

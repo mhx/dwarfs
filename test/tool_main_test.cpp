@@ -43,6 +43,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/config.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_v2.h>
@@ -1824,7 +1825,7 @@ TEST(mkdwarfs_test, output_file_fail_close) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("failed to close output file"));
 }
 
-#if DWARFS_HAVE_RICEPP
+#ifdef DWARFS_HAVE_RICEPP
 TEST(mkdwarfs_test, compression_cannot_be_used_without_category) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-C", "ricepp"}));

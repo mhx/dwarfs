@@ -26,6 +26,7 @@
 
 #include <boost/program_options.hpp>
 
+#include <dwarfs/config.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>

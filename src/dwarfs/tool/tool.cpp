@@ -23,6 +23,7 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/config.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/version.h>

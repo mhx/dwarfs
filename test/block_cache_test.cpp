@@ -32,6 +32,7 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <dwarfs/config.h>
 #include <dwarfs/error.h>
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/filesystem_v2.h>

@@ -56,6 +56,7 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
+#include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>

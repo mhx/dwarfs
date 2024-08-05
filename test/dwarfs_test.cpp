@@ -36,6 +36,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>

@@ -26,6 +26,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/config.h>
+
 #ifdef DWARFS_USE_EXCEPTION_TRACER
 #include <folly/experimental/exception_tracer/ExceptionTracer.h>
 #endif

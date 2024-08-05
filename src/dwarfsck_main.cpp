@@ -35,6 +35,7 @@
 #endif
 
 #include <dwarfs/checksum.h>
+#include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>

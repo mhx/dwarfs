@@ -82,6 +82,7 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
+#include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
