@@ -518,7 +518,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
   while (auto sp = parser.next_section()) {
     check_section(*sp);
 
-    std::packaged_task<fs_section()> task{[this, level, s = *sp] {
+    std::packaged_task<fs_section()> task{[this, level, s = std::move(*sp)] {
       if (level == filesystem_check_level::INTEGRITY ||
           level == filesystem_check_level::FULL) {
         if (!s.verify(*mm_)) {

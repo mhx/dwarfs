@@ -289,9 +289,9 @@ class fs_section_v2_lazy final : public fs_section::impl {
   std::mutex mutable mx_;
   std::unique_ptr<fs_section::impl const> mutable sec_;
   std::shared_ptr<mmif const> mutable mm_;
-  section_type type_;
-  size_t offset_;
-  size_t size_;
+  section_type const type_;
+  size_t const offset_;
+  size_t const size_;
 };
 
 fs_section::fs_section(mmif const& mm, size_t offset, int version) {
