@@ -47,7 +47,11 @@
 
 #include <fmt/format.h>
 
-#include <folly/experimental/symbolizer/SignalHandler.h>
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <folly/debugging/symbolizer/SignalHandler.h>
+#endif
 
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
@@ -82,7 +86,6 @@
 #define DWARFS_FSP_COMPAT
 #endif
 
-#include <dwarfs/config.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
@@ -1513,9 +1516,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return userdata.opts.is_help ? 0 : 1;
   }
 
+#ifdef DWARFS_STACKTRACE_ENABLED
   if (fuse_opts.foreground) {
     folly::symbolizer::installFatalSignalHandler();
   }
+#endif
 
   bool foreground = fuse_opts.foreground;
 #else
@@ -1533,9 +1538,11 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return userdata.opts.is_help ? 0 : 1;
   }
 
+#ifdef DWARFS_STACKTRACE_ENABLED
   if (fg) {
     folly::symbolizer::installFatalSignalHandler();
   }
+#endif
 
   bool foreground = fg;
 #endif

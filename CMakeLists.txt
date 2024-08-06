@@ -36,6 +36,9 @@ option(ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" ON)
 option(WITH_PXATTR "build with pxattr binary" OFF)
+if(NOT (APPLE OR WIN32))
+  option(ENABLE_STACKTRACE "build with symbolizer support" ON)
+endif()
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -417,19 +420,6 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Dwarf.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfImpl.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfLineNumberVM.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfSection.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Elf.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/ElfCache.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/LineReader.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SignalHandler.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/StackTrace.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeCommon.cpp
@@ -474,6 +464,24 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
 )
+
+if(ENABLE_STACKTRACE)
+  target_sources(dwarfs_folly_lite PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Dwarf.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfImpl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfLineNumberVM.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfSection.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfUtil.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Elf.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/ElfCache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/LineReader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SignalHandler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/StackTrace.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
+  )
+endif()
 
 list(APPEND FOLLY_BENCHMARK_LITE_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
@@ -1066,6 +1074,7 @@ set(DWARFS_HAVE_LIBBROTLI ${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND})
 set(DWARFS_HAVE_FLAC ${FLAC_FOUND})
 set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
 set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
+set(DWARFS_STACKTRACE_ENABLED ${ENABLE_STACKTRACE})
 configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
 
 foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
@@ -1401,7 +1410,7 @@ if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(APPLE)
     add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
   else()
-    add_custom_target(strip COMMAND strip --strip-debug ${FILES_TO_STRIP})
+    add_custom_target(strip COMMAND strip $<IF:$<BOOL:ENABLE_STACKTRACE>,--strip-debug,--strip-all> ${FILES_TO_STRIP})
   endif()
 endif()
 

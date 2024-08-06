@@ -23,7 +23,11 @@
 #include <cstdlib>
 #include <iostream>
 
-#include <folly/experimental/symbolizer/SignalHandler.h>
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <folly/debugging/symbolizer/SignalHandler.h>
+#endif
 
 #include <dwarfs/error.h>
 #include <dwarfs/terminal.h>
@@ -34,7 +38,7 @@ namespace dwarfs::tool {
 
 int safe_main(std::function<int(void)> fn) {
   try {
-#ifndef _WIN32
+#ifdef DWARFS_STACKTRACE_ENABLED
     folly::symbolizer::installFatalSignalHandler();
 #endif
     setup_default_locale();

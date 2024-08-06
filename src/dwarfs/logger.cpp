@@ -28,11 +28,14 @@
 #include <folly/String.h>
 #include <folly/small_vector.h>
 
-#ifndef NDEBUG
-#include <folly/experimental/symbolizer/Symbolizer.h>
-#define DWARFS_SYMBOLIZE (FOLLY_HAVE_ELF && FOLLY_HAVE_DWARF)
-#else
-#define DWARFS_SYMBOLIZE 0
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <folly/debugging/symbolizer/Symbolizer.h>
+
+#if !(FOLLY_USE_SYMBOLIZER && FOLLY_HAVE_DWARF && FOLLY_HAVE_ELF)
+#error "folly symbolizer is unavailable"
+#endif
 #endif
 
 #include <fmt/chrono.h>
@@ -164,7 +167,7 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
-#if DWARFS_SYMBOLIZE
+#ifdef DWARFS_STACKTRACE_ENABLED
     std::string stacktrace;
     std::vector<std::string_view> st_lines;
 
@@ -229,7 +232,7 @@ void stream_logger::write(level_type level, const std::string& output,
       }
     }
 
-#if DWARFS_SYMBOLIZE
+#ifdef DWARFS_STACKTRACE_ENABLED
     for (auto l : st_lines) {
       oss << l << newline;
     }
