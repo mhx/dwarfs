@@ -206,33 +206,40 @@ if(STATIC_BUILD_DO_NOT_USE)
 endif()
 
 if(WITH_MAN_PAGES)
-  find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+  if(DWARFS_GIT_BUILD)
+    find_program(RONN_EXE ronn DOC "ronn man page generator" REQUIRED)
+  endif()
 
   foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
     string(REGEX MATCH "^[^.]*" docname "${man}")
     string(REGEX MATCH "[^.]*$" section "${man}")
-    set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
-    set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
-    set(man_output "${man_dir}/${man}")
 
-    execute_process(
-      COMMAND ${RONN_EXE}
-      INPUT_FILE "${man_input}"
-      RESULT_VARIABLE ronn_result
-      OUTPUT_VARIABLE ronn_output
-      ERROR_VARIABLE ronn_error)
+    if(DWARFS_GIT_BUILD)
+      set(man_dir "${CMAKE_CURRENT_BINARY_DIR}/man${section}")
+      set(man_input "${CMAKE_CURRENT_SOURCE_DIR}/doc/${docname}.md")
+      set(man_output "${man_dir}/${man}")
 
-    if(${ronn_result} EQUAL 0)
-      add_custom_command(
-        OUTPUT "${man_output}"
-        COMMAND mkdir -p "${man_dir}"
-        COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
-        DEPENDS "${man_input}")
-      list(APPEND MAN_PAGES "${man_output}")
-      list(APPEND MAN_DIRS "${man_dir}")
+      execute_process(
+        COMMAND ${RONN_EXE}
+        INPUT_FILE "${man_input}"
+        RESULT_VARIABLE ronn_result
+        OUTPUT_VARIABLE ronn_output
+        ERROR_VARIABLE ronn_error)
+
+      if(${ronn_result} EQUAL 0)
+        add_custom_command(
+          OUTPUT "${man_output}"
+          COMMAND mkdir -p "${man_dir}"
+          COMMAND ${RONN_EXE} <"${man_input}" >"${man_output}"
+          DEPENDS "${man_input}")
+        list(APPEND MAN_PAGES "${man_output}")
+        list(APPEND MAN_DIRS "${man_dir}")
+      else()
+        message(WARNING "${RONN_EXE} failed to process ${man_input} -> ${man}")
+        message(WARNING "error: ${ronn_error}")
+      endif()
     else()
-      message(WARNING "${RONN_EXE} failed to process ${man_input} -> ${man}")
-      message(WARNING "error: ${ronn_error}")
+      list(APPEND MAN_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/doc/man${section}")
     endif()
   endforeach()
 endif()
@@ -1015,7 +1022,9 @@ endif()
 
 if(WITH_MAN_PAGES)
   list(REMOVE_DUPLICATES MAN_DIRS)
-  add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
+  if(DWARFS_GIT_BUILD)
+    add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
+  endif()
 endif()
 
 if(DWARFS_GIT_BUILD)
