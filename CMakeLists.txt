@@ -1401,7 +1401,7 @@ if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(APPLE)
     add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
   else()
-    add_custom_target(strip COMMAND strip -s ${FILES_TO_STRIP})
+    add_custom_target(strip COMMAND strip --strip-debug ${FILES_TO_STRIP})
   endif()
 endif()
 
