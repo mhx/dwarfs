@@ -61,6 +61,15 @@ else()
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
+# Libraries that we can fetch on demand if necessary
+#
+# All of these libraries are header-only and not strictly required once
+# libdwarfs is built. Only the range-v3 library is used to implement
+# string splitting, but there's plenty of alternatives for that.
+#
+# We only use these libraries for building the binary targets, we won't
+# install them.
+
 set(LIBFMT_REQUIRED_VERSION 10.0)
 set(LIBFMT_PREFERRED_VERSION 10.2.1)
 
@@ -73,26 +82,16 @@ set(RANGE_V3_PREFERRED_VERSION 0.12.0)
 set(PARALLEL_HASHMAP_REQUIRED_VERSION 1.3.8)
 set(PARALLEL_HASHMAP_PREFERRED_VERSION 1.3.12)
 
-set(XXHASH_REQUIRED_VERSION 0.8.1)
-set(XXHASH_PREFERRED_VERSION 0.8.2)
-
-set(ZSTD_REQUIRED_VERSION 1.4.8)
-set(ZSTD_PREFERRED_VERSION 1.5.6)
-
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
   set(GOOGLETEST_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/googletest)
   set(RANGE_V3_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/range-v3)
   set(PARALLEL_HASHMAP_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/parallel-hashmap)
-  set(XXHASH_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/xxHash)
-  set(ZSTD_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/zstd)
 else()
   set(LIBFMT_GIT_REPO https://github.com/fmtlib/fmt.git)
   set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   set(RANGE_V3_GIT_REPO https://github.com/ericniebler/range-v3.git)
   set(PARALLEL_HASHMAP_GIT_REPO https://github.com/greg7mdp/parallel-hashmap.git)
-  set(XXHASH_GIT_REPO https://github.com/Cyan4973/xxHash.git)
-  set(ZSTD_GIT_REPO https://github.com/facebook/zstd.git)
 endif()
 
 if(APPLE)
@@ -341,12 +340,10 @@ pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
 pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
 pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
 # pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=1.4.8)
+pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=0.8.1)
 if(ENABLE_FLAC)
   pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
-endif()
-if(NOT USE_PREFERRED_LIBS)
-  pkg_check_modules(ZSTD IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
-  pkg_check_modules(XXHASH IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
 endif()
 
 if(WIN32)
@@ -364,32 +361,6 @@ else()
   if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
     message(FATAL_ERROR "No FUSE or FUSE3 library found")
   endif()
-endif()
-
-if(XXHASH_FOUND)
-  add_library(xxHash::xxhash ALIAS PkgConfig::XXHASH)
-else()
-  FetchContent_Declare(
-    libxxhash
-    GIT_REPOSITORY ${XXHASH_GIT_REPO}
-    GIT_TAG v${XXHASH_PREFERRED_VERSION}
-    SOURCE_SUBDIR cmake_unofficial
-    EXCLUDE_FROM_ALL
-  )
-  FetchContent_MakeAvailable(libxxhash)
-endif()
-
-if(ZSTD_FOUND)
-  add_library(libzstd_static ALIAS PkgConfig::ZSTD)
-else()
-  FetchContent_Declare(
-    zstd
-    GIT_REPOSITORY ${ZSTD_GIT_REPO}
-    GIT_TAG v${ZSTD_PREFERRED_VERSION}
-    SOURCE_SUBDIR build/cmake
-    EXCLUDE_FROM_ALL
-  )
-  FetchContent_MakeAvailable(zstd)
 endif()
 
 if(USE_JEMALLOC)
@@ -787,7 +758,7 @@ add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_rewrite ${LIBDWARFS_REWRITE_SRC})
 add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO xxHash::xxhash phmap range-v3::range-v3)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH phmap range-v3::range-v3)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common PRIVATE range-v3::range-v3)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PRIVATE phmap range-v3::range-v3)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
@@ -1209,8 +1180,8 @@ endforeach()
 #   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
 # endif()
 
-target_link_libraries(dwarfs_common PRIVATE libzstd_static)
-target_link_libraries(dwarfs_writer PRIVATE libzstd_static)
+target_link_libraries(dwarfs_common PRIVATE PkgConfig::ZSTD)
+target_link_libraries(dwarfs_writer PRIVATE PkgConfig::ZSTD)
 
 if(LIBLZ4_FOUND)
   target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBLZ4)
