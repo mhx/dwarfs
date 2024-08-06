@@ -200,9 +200,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(GFLAGS_SHARED
       OFF
       CACHE BOOL "static")
-  set(FOLLY_NO_EXCEPTION_TRACER
-      ON
-      CACHE BOOL "disable exception tracer")
 endif()
 
 if(WITH_MAN_PAGES)
@@ -375,9 +372,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
 endif()
 
-set(ZSTD_INCLUDE_DIR
-    ""
-    CACHE PATH "don't build folly with zstd" FORCE)
+set(ZSTD_INCLUDE_DIR "" CACHE PATH "don't build folly with zstd" FORCE)
+set(FOLLY_NO_EXCEPTION_TRACER ON CACHE BOOL "disable exception tracer")
 
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
