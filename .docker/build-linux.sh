@@ -111,6 +111,10 @@ if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0"
 fi
 
+if [[ "-$BUILD_TYPE-" == *-nostacktrace-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_STACKTRACE=0"
+fi
+
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export LDFLAGS="-L/opt/static-libs/$COMPILER/lib"
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DUSE_PREFERRED_LIBS=1"
