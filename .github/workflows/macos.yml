@@ -91,10 +91,14 @@ jobs:
         with:
           xcode-version: ${{ matrix.config.xcode }}
 
+# Do brew update and install folly to see if it causes issues
       - name: Install packages
         run: |
+          if [[ "${{ matrix.config.os }}" == "macos-14" ]]; then
+            brew update
+          fi
           brew install  \
-          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog ccache
+          bison flex gnu-sed bash boost double-conversion jemalloc fmt glog ccache folly
 
       - name: Checkout
         uses: actions/checkout@v4
