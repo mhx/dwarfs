@@ -68,20 +68,27 @@ endif()
 
 foreach(target ${RICEPP_LIBS_CPUSPECIFIC})
   message(STATUS "[ricepp] adding CPU target: ${target}")
-  target_include_directories(${target} PUBLIC include)
+  target_include_directories(${target} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
   target_link_libraries(${target} PUBLIC range-v3::range-v3)
   target_compile_features(${target} PUBLIC cxx_std_20)
   list(APPEND RICEPP_OBJECTS_CPUSPECIFIC $<TARGET_OBJECTS:${target}>)
+  list(APPEND RICEPP_OBJECT_TARGETS ${target})
 endforeach()
 
-add_library(ricepp ricepp.cpp ${RICEPP_OBJECTS_CPUSPECIFIC})
-target_link_libraries(ricepp PUBLIC range-v3::range-v3)
-target_include_directories(ricepp PUBLIC
+add_library(ricepp-core OBJECT ricepp.cpp)
+target_link_libraries(ricepp-core PUBLIC range-v3::range-v3)
+target_include_directories(ricepp-core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_features(ricepp PUBLIC cxx_std_20)
-target_compile_definitions(ricepp PRIVATE ${RICEPP_CPU_SUPPORT})
+target_compile_features(ricepp-core PUBLIC cxx_std_20)
+target_compile_definitions(ricepp-core PRIVATE ${RICEPP_CPU_SUPPORT})
+list(APPEND RICEPP_OBJECT_TARGETS ricepp-core)
+
+set(RICEPP_OBJECT_TARGETS "${RICEPP_OBJECT_TARGETS}" PARENT_SCOPE)
+
+add_library(ricepp)
+target_link_libraries(ricepp PUBLIC ${RICEPP_OBJECT_TARGETS})
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   message(STATUS "[ricepp] building standalone")

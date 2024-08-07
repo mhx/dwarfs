@@ -791,7 +791,7 @@ target_compile_definitions(
 )
 
 if(ENABLE_RICEPP)
-  target_link_libraries(dwarfs_common PRIVATE ricepp)
+  target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -1466,7 +1466,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
             dwarfs_fsst
 
             # other
-            ricepp
+            ${RICEPP_OBJECT_TARGETS}
             folly_deps
     EXPORT dwarfs-targets
     LIBRARY DESTINATION lib
