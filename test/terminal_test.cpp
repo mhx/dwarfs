@@ -21,50 +21,57 @@
 
 #include <gtest/gtest.h>
 
-#include <dwarfs/terminal.h>
+#include <dwarfs/terminal_ansi.h>
 
 using namespace dwarfs;
 
 TEST(terminal, ansi_color) {
-  EXPECT_EQ("\033[0m", terminal_ansi_color(termcolor::NORMAL));
-  EXPECT_EQ("\033[31m", terminal_ansi_color(termcolor::RED));
-  EXPECT_EQ("\033[37m", terminal_ansi_color(termcolor::WHITE));
-  EXPECT_EQ("\033[90m", terminal_ansi_color(termcolor::GRAY));
+  EXPECT_EQ("\033[0m", terminal_ansi::color_impl(termcolor::NORMAL));
+  EXPECT_EQ("\033[31m", terminal_ansi::color_impl(termcolor::RED));
+  EXPECT_EQ("\033[37m", terminal_ansi::color_impl(termcolor::WHITE));
+  EXPECT_EQ("\033[90m", terminal_ansi::color_impl(termcolor::GRAY));
   EXPECT_EQ("\033[90m",
-            terminal_ansi_color(termcolor::NORMAL, termstyle::BOLD));
-  EXPECT_EQ("\033[1;31m", terminal_ansi_color(termcolor::BOLD_RED));
-  EXPECT_EQ("\033[1;31m", terminal_ansi_color(termcolor::RED, termstyle::BOLD));
+            terminal_ansi::color_impl(termcolor::NORMAL, termstyle::BOLD));
+  EXPECT_EQ("\033[1;31m", terminal_ansi::color_impl(termcolor::BOLD_RED));
+  EXPECT_EQ("\033[1;31m",
+            terminal_ansi::color_impl(termcolor::RED, termstyle::BOLD));
   EXPECT_EQ("\033[1;90m",
-            terminal_ansi_color(termcolor::GRAY, termstyle::BOLD));
-  EXPECT_EQ("\033[2;31m", terminal_ansi_color(termcolor::DIM_RED));
-  EXPECT_EQ("\033[2;31m", terminal_ansi_color(termcolor::RED, termstyle::DIM));
-  EXPECT_EQ("\033[2;90m", terminal_ansi_color(termcolor::GRAY, termstyle::DIM));
+            terminal_ansi::color_impl(termcolor::GRAY, termstyle::BOLD));
+  EXPECT_EQ("\033[2;31m", terminal_ansi::color_impl(termcolor::DIM_RED));
+  EXPECT_EQ("\033[2;31m",
+            terminal_ansi::color_impl(termcolor::RED, termstyle::DIM));
+  EXPECT_EQ("\033[2;90m",
+            terminal_ansi::color_impl(termcolor::GRAY, termstyle::DIM));
 
-  auto term = terminal::create();
+  terminal_ansi term(terminal_ansi::init_mode::NOINIT);
+  terminal const& t = term;
 
-  EXPECT_EQ("\033[0m", term->color(termcolor::NORMAL));
-  EXPECT_EQ("\033[31m", term->color(termcolor::RED));
+  EXPECT_EQ("\033[0m", t.color(termcolor::NORMAL));
+  EXPECT_EQ("\033[31m", t.color(termcolor::RED));
 }
 
 TEST(terminal, ansi_colored) {
-  EXPECT_EQ("\033[31mfoo\033[0m", terminal_ansi_colored("foo", termcolor::RED));
-  EXPECT_EQ("foo", terminal_ansi_colored("foo", termcolor::RED, false));
+  EXPECT_EQ("\033[31mfoo\033[0m",
+            terminal_ansi::colored_impl("foo", termcolor::RED));
+  EXPECT_EQ("foo", terminal_ansi::colored_impl("foo", termcolor::RED, false));
+  EXPECT_EQ("\033[31mfoo\033[0m",
+            terminal_ansi::colored_impl("foo", termcolor::RED, true,
+                                        termstyle::NORMAL));
+  EXPECT_EQ("\033[1;31mfoo\033[0m",
+            terminal_ansi::colored_impl("foo", termcolor::RED, true,
+                                        termstyle::BOLD));
   EXPECT_EQ(
-      "\033[31mfoo\033[0m",
-      terminal_ansi_colored("foo", termcolor::RED, true, termstyle::NORMAL));
-  EXPECT_EQ(
-      "\033[1;31mfoo\033[0m",
-      terminal_ansi_colored("foo", termcolor::RED, true, termstyle::BOLD));
-  EXPECT_EQ("\033[2;31mfoo\033[0m",
-            terminal_ansi_colored("foo", termcolor::RED, true, termstyle::DIM));
-  EXPECT_EQ("foo", terminal_ansi_colored("foo", termcolor::RED, false,
-                                         termstyle::BOLD));
+      "\033[2;31mfoo\033[0m",
+      terminal_ansi::colored_impl("foo", termcolor::RED, true, termstyle::DIM));
+  EXPECT_EQ("foo", terminal_ansi::colored_impl("foo", termcolor::RED, false,
+                                               termstyle::BOLD));
 
-  auto term = terminal::create();
+  terminal_ansi term(terminal_ansi::init_mode::NOINIT);
+  terminal const& t = term;
 
   EXPECT_EQ("\033[31mfoo\033[0m",
-            term->colored("foo", termcolor::RED, true, termstyle::NORMAL));
+            t.colored("foo", termcolor::RED, true, termstyle::NORMAL));
   EXPECT_EQ("\033[1;31mfoo\033[0m",
-            term->colored("foo", termcolor::RED, true, termstyle::BOLD));
-  EXPECT_EQ("foo", term->colored("foo", termcolor::RED, false, termstyle::DIM));
+            t.colored("foo", termcolor::RED, true, termstyle::BOLD));
+  EXPECT_EQ("foo", t.colored("foo", termcolor::RED, false, termstyle::DIM));
 }

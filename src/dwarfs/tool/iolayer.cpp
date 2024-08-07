@@ -24,7 +24,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_access_generic.h>
 #include <dwarfs/os_access_generic.h>
-#include <dwarfs/terminal.h>
+#include <dwarfs/terminal_ansi.h>
 #include <dwarfs/tool/iolayer.h>
 
 namespace dwarfs::tool {
@@ -32,7 +32,7 @@ namespace dwarfs::tool {
 iolayer const& iolayer::system_default() {
   static iolayer const iol{
       .os = std::make_shared<os_access_generic>(),
-      .term = terminal::create(),
+      .term = std::make_shared<terminal_ansi>(),
       .file = create_file_access_generic(),
       .in = std::cin,
       .out = std::cout,

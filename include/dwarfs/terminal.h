@@ -22,7 +22,6 @@
 #pragma once
 
 #include <iosfwd>
-#include <memory>
 #include <string>
 #include <string_view>
 
@@ -63,9 +62,6 @@ class terminal {
  public:
   virtual ~terminal() = default;
 
-  static std::unique_ptr<terminal const> create();
-  static void setup();
-
   virtual size_t width() const = 0;
   virtual bool is_tty(std::ostream& os) const = 0;
   virtual bool is_fancy() const = 0;
@@ -78,12 +74,5 @@ class terminal {
   virtual std::string_view rewind_line() const = 0;
   virtual std::string_view clear_line() const = 0;
 };
-
-std::string_view
-terminal_ansi_color(termcolor color, termstyle style = termstyle::NORMAL);
-
-std::string
-terminal_ansi_colored(std::string_view text, termcolor color,
-                      bool enable = true, termstyle style = termstyle::NORMAL);
 
 } // namespace dwarfs

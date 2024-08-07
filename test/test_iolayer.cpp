@@ -25,6 +25,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/file_access_generic.h>
+#include <dwarfs/terminal_ansi.h>
 
 #include "test_helpers.h"
 
@@ -341,7 +342,11 @@ tool::iolayer const& test_iolayer::get() {
 }
 
 void test_iolayer::use_real_terminal(bool use) {
-  real_term_ = terminal::create();
+  if (use) {
+    real_term_ = std::make_shared<terminal_ansi>();
+  } else {
+    real_term_.reset();
+  }
 }
 
 void test_iolayer::set_terminal_is_tty(bool is_tty) {

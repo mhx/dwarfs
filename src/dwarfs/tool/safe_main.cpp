@@ -30,7 +30,6 @@
 #endif
 
 #include <dwarfs/error.h>
-#include <dwarfs/terminal.h>
 #include <dwarfs/tool/safe_main.h>
 #include <dwarfs/util.h>
 
@@ -42,7 +41,6 @@ int safe_main(std::function<int(void)> fn) {
     folly::symbolizer::installFatalSignalHandler();
 #endif
     setup_default_locale();
-    terminal::setup();
 
     return fn();
   } catch (...) {

@@ -626,7 +626,7 @@ list(APPEND
   src/dwarfs/os_access_generic.cpp
   src/dwarfs/pcm_sample_transformer.cpp
   src/dwarfs/performance_monitor.cpp
-  src/dwarfs/terminal.cpp
+  src/dwarfs/terminal_ansi.cpp
   src/dwarfs/thread_pool.cpp
   src/dwarfs/util.cpp
   src/dwarfs/xattr.cpp
