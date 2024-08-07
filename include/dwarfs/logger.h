@@ -133,7 +133,7 @@ class stream_logger : public logger {
 
 class null_logger : public logger {
  public:
-  null_logger() = default;
+  null_logger();
 
   void write(level_type, const std::string&, char const*, int) override {}
 };

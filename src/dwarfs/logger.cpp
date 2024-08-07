@@ -103,6 +103,8 @@ std::string logger::all_level_names() {
   return result;
 }
 
+null_logger::null_logger() { set_policy<prod_logger_policy>(); }
+
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
                              std::ostream& os, logger_options const& logopts)
     : os_(os)
