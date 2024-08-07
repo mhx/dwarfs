@@ -101,6 +101,8 @@ struct logger_options {
 
 class stream_logger : public logger {
  public:
+  explicit stream_logger(logger_options const& options = {});
+  explicit stream_logger(std::ostream& os, logger_options const& options = {});
   stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
                 logger_options const& options = {});
 

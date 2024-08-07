@@ -42,7 +42,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/logger.h>
-#include <dwarfs/terminal.h>
+#include <dwarfs/terminal_ansi.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
@@ -104,6 +104,12 @@ std::string logger::all_level_names() {
 }
 
 null_logger::null_logger() { set_policy<prod_logger_policy>(); }
+
+stream_logger::stream_logger(logger_options const& options)
+    : stream_logger(std::cerr, options) {}
+
+stream_logger::stream_logger(std::ostream& os, logger_options const& options)
+    : stream_logger(std::make_shared<terminal_ansi>(), os, options) {}
 
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
                              std::ostream& os, logger_options const& logopts)
