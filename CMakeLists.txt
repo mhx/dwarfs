@@ -32,7 +32,7 @@ option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_FUZZ "build with fuzzing binaries" OFF)
 option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
-option(ENABLE_FLAC "build with FLAC support" ON)
+option(TRY_ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" ON)
 option(WITH_PXATTR "build with pxattr binary" OFF)
@@ -84,6 +84,18 @@ set(RANGE_V3_PREFERRED_VERSION 0.12.0)
 
 set(PARALLEL_HASHMAP_REQUIRED_VERSION 1.3.8)
 set(PARALLEL_HASHMAP_PREFERRED_VERSION 1.3.12)
+
+set(BOOST_REQUIRED_VERSION 1.67.0)
+set(LIBCRYPTO_REQUIRED_VERSION 3.0.0)
+set(LIBLZ4_REQUIRED_VERSION 1.9.3)
+set(LIBLZMA_REQUIRED_VERSION 5.2.5)
+set(LIBBROTLI_REQUIRED_VERSION 1.0.9)
+set(LIBARCHIVE_REQUIRED_VERSION 3.6.0)
+set(LIBMAGIC_REQUIRED_VERSION 5.38)
+set(ZSTD_REQUIRED_VERSION 1.4.8)
+set(XXHASH_REQUIRED_VERSION 0.8.1)
+set(FLAC_REQUIRED_VERSION 1.4.2)
+set(JEMALLOC_REQUIRED_VERSION 5.2.1)
 
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
@@ -324,7 +336,7 @@ else()
   FetchContent_MakeAvailable(parallel-hashmap)
 endif()
 
-find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
+find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
 
 if(STATIC_BUILD_DO_NOT_USE)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -350,17 +362,17 @@ if(STATIC_BUILD_DO_NOT_USE)
   list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 endif()
 
-pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=3.0.0)
-pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=1.9.3)
-pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=5.2.5)
-pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=1.0.9)
-pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=1.0.9)
-pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=3.6.0)
-# pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=5.38)
-pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=1.4.8)
-pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=0.8.1)
-if(ENABLE_FLAC)
-  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=1.4.2)
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
+pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=${LIBLZ4_REQUIRED_VERSION})
+pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=${LIBLZMA_REQUIRED_VERSION})
+pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=${LIBBROTLI_REQUIRED_VERSION})
+pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=${LIBBROTLI_REQUIRED_VERSION})
+pkg_check_modules(LIBARCHIVE IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
+# pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=${LIBMAGIC_REQUIRED_VERSION})
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
+pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
+if(TRY_ENABLE_FLAC)
+  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=${FLAC_REQUIRED_VERSION})
 endif()
 
 if(WIN32)
@@ -381,7 +393,7 @@ else()
 endif()
 
 if(USE_JEMALLOC)
-  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=5.2.1)
+  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -542,8 +554,8 @@ endif()
 set_property(TARGET dwarfs_folly_lite PROPERTY CXX_STANDARD 20)
 target_include_directories(
   dwarfs_folly_lite SYSTEM PUBLIC
-  ${CMAKE_CURRENT_BINARY_DIR}/folly
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/folly>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/folly>
 )
 apply_folly_compile_options_to_target(dwarfs_folly_lite)
 target_link_libraries(dwarfs_folly_lite PUBLIC folly_deps)
@@ -761,15 +773,17 @@ add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
 add_library(dwarfs_rewrite ${LIBDWARFS_REWRITE_SRC})
 add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH phmap range-v3::range-v3)
-target_link_libraries(dwarfs_reader PUBLIC dwarfs_common PRIVATE range-v3::range-v3)
-target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PRIVATE phmap range-v3::range-v3)
+target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH)
+target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
+target_link_libraries(dwarfs_writer PUBLIC dwarfs_common)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
 if(DWARFS_GIT_BUILD)
-  target_include_directories(dwarfs_common PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
+  target_include_directories(dwarfs_common PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+  )
 endif()
 
 target_compile_definitions(
@@ -1081,8 +1095,8 @@ set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD 20)
 target_link_libraries(dwarfs_thrift_lite PUBLIC dwarfs_folly_lite)
 
 target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift
-  ${THRIFT_GENERATED_DIR}
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fbthrift>
+  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
 )
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
@@ -1123,7 +1137,14 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
 
-  target_include_directories(${tgt} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_include_directories(${tgt} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+
+  target_include_directories(${tgt} PRIVATE
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+  )
 
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
      "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -1172,7 +1193,7 @@ add_library(
   fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
   fsst/fsst_avx512_unroll4.inc)
 
-target_include_directories(dwarfs_common SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fsst)
+target_include_directories(dwarfs_common SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD 20)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
@@ -1412,12 +1433,48 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
   endforeach()
 
+  include(GNUInstallDirs)
+  include(CMakePackageConfigHelpers)
+
+  set(DWARFS_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/dwarfs CACHE STRING
+      "CMake package config files install location")
+
+  configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dwarfs-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config.cmake
+    INSTALL_DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
+    PATH_VARS
+      CMAKE_INSTALL_INCLUDEDIR
+      DWARFS_CMAKE_INSTALL_DIR
+  )
+
+  write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config-version.cmake
+    VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH}
+    COMPATIBILITY AnyNewerVersion
+  )
+
   install(
     TARGETS dwarfs_common
             dwarfs_reader
             dwarfs_writer
             dwarfs_extractor
             dwarfs_rewrite
+            dwarfs_tool
+
+            # object libs
+            dwarfs_folly_lite
+            dwarfs_thrift_lite
+            dwarfs_compression_thrift
+            dwarfs_metadata_thrift
+            dwarfs_history_thrift
+            dwarfs_features_thrift
+            dwarfs_fsst
+
+            # other
+            ricepp
+            folly_deps
+    EXPORT dwarfs-targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
 
@@ -1434,6 +1491,18 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
       ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
       ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
     DESTINATION include/dwarfs
+  )
+
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config.cmake
+    DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
+  )
+
+  install(
+    EXPORT dwarfs-targets
+    FILE dwarfs-targets.cmake
+    NAMESPACE dwarfs::
+    DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
   )
 endif()
 

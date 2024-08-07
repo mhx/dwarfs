@@ -1,0 +1,50 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+set_and_check(DWARFS_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(DWARFS_CMAKE_DIR "@PACKAGE_DWARFS_CMAKE_INSTALL_DIR@")
+
+set(DWARFS_PREFIX_DIR "${PACKAGE_PREFIX_DIR}")
+
+find_package(PkgConfig)
+
+find_dependency(Threads REQUIRED)
+find_dependency(range-v3 CONFIG REQUIRED)
+find_dependency(fmt CONFIG REQUIRED)
+find_dependency(gflags CONFIG REQUIRED)
+find_dependency(Boost @BOOST_REQUIRED_VERSION@ REQUIRED COMPONENTS chrono context filesystem iostreams program_options regex system thread)
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=@LIBCRYPTO_REQUIRED_VERSION@)
+pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=@XXHASH_REQUIRED_VERSION@)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=@ZSTD_REQUIRED_VERSION@)
+
+if(@LIBLZ4_FOUND@) # LIBLZ4_FOUND
+  pkg_check_modules(LIBLZ4 REQUIRED IMPORTED_TARGET liblz4>=@LIBLZ4_REQUIRED_VERSION@)
+endif()
+
+if(@LIBLZMA_FOUND@) # LIBLZMA_FOUND
+  pkg_check_modules(LIBLZMA REQUIRED IMPORTED_TARGET liblzma>=@LIBLZMA_REQUIRED_VERSION@)
+endif()
+
+if(@LIBBROTLIDEC_FOUND@ AND @LIBBROTLIENC_FOUND@) # LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND
+  pkg_check_modules(LIBBROTLIDEC REQUIRED IMPORTED_TARGET libbrotlidec>=@LIBBROTLI_REQUIRED_VERSION@)
+  pkg_check_modules(LIBBROTLIENC REQUIRED IMPORTED_TARGET libbrotlienc>=@LIBBROTLI_REQUIRED_VERSION@)
+endif()
+
+if(@LIBARCHIVE_FOUND@) # LIBARCHIVE_FOUND
+  pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=@LIBARCHIVE_REQUIRED_VERSION@)
+endif()
+
+if(@FLAC_FOUND@) # FLAC_FOUND
+  pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac++>=@FLAC_REQUIRED_VERSION@)
+endif()
+
+if(@JEMALLOC_FOUND@) # JEMALLOC_FOUND
+  pkg_check_modules(JEMALLOC REQUIRED IMPORTED_TARGET jemalloc>=@JEMALLOC_REQUIRED_VERSION@)
+endif()
+
+if (NOT TARGET dwarfs::dwarfs_common)
+  include("${DWARFS_CMAKE_DIR}/dwarfs-targets.cmake")
+endif()
+
+check_required_components(dwarfs)
