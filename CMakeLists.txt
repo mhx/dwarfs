@@ -707,24 +707,6 @@ if(WITH_MAN_OPTION)
     src/dwarfs/tool/pager.cpp
     src/dwarfs/tool/render_manpage.cpp
   )
-
-  if(DWARFS_GIT_BUILD)
-    include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool")
-    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR})
-  else()
-    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-
-  foreach(man mkdwarfs dwarfs dwarfsck dwarfsextract)
-    if(DWARFS_GIT_BUILD)
-      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
-      add_manpage_source(doc/${man}.md NAME ${man}
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
-    endif()
-
-    list(APPEND LIBDWARFS_TOOL_SRC ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
-  endforeach()
 endif()
 
 # Just an example for setting per file compile options
@@ -898,6 +880,32 @@ if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
   list(APPEND MAIN_TARGETS dwarfs2_main)
 endif()
 
+if(WITH_MAN_OPTION)
+  if(DWARFS_GIT_BUILD)
+    include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool")
+    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR})
+  else()
+    set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
+
+  foreach(man mkdwarfs dwarfs dwarfsck dwarfsextract)
+    if(DWARFS_GIT_BUILD)
+      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
+      add_manpage_source(doc/${man}.md NAME ${man}
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
+    endif()
+
+    if(TARGET ${man}_main)
+      target_sources(${man}_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
+    endif()
+  endforeach()
+
+  if(TARGET dwarfs2_main)
+    target_sources(dwarfs2_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/dwarfs_manpage.cpp)
+  endif()
+endif()
+
 add_custom_target(symlinks ALL DEPENDS ${SYMLINKS})
 
 if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
@@ -975,6 +983,13 @@ if(WITH_TESTS)
 
   target_link_libraries(tool_main_test PRIVATE
     mkdwarfs_main dwarfsck_main dwarfsextract_main)
+
+  if(TARGET manpage_test)
+    target_link_libraries(manpage_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+    if (TARGET dwarfs_main)
+      target_link_libraries(manpage_test PRIVATE dwarfs_main)
+    endif()
+  endif()
 
   target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
 
