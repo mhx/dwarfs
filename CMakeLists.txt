@@ -173,6 +173,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
 endif()
 
+if(ENABLE_STACKTRACE)
+  if(CMAKE_BUILD_TYPE STREQUAL Release)
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+       "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+      # enable line numbers in stack traces
+      add_compile_options(-g1)
+    endif()
+  endif()
+endif()
+
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
@@ -1136,8 +1146,8 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
   endif()
 endforeach()
 
-# not sure why exactly, copied from fsst/CMakeLists.txt
 if(CMAKE_BUILD_TYPE STREQUAL Release)
+  # not sure why exactly, copied from fsst/CMakeLists.txt
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
 endif()
 
@@ -1413,13 +1423,15 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
-  foreach(tgt ${BINARY_TARGETS})
-    list(APPEND FILES_TO_STRIP $<TARGET_FILE:${tgt}>)
-  endforeach()
-  if(APPLE)
-    add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
-  else()
-    add_custom_target(strip COMMAND strip $<IF:$<BOOL:ENABLE_STACKTRACE>,--strip-debug,--strip-all> ${FILES_TO_STRIP})
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    foreach(tgt ${BINARY_TARGETS})
+      list(APPEND FILES_TO_STRIP $<TARGET_FILE:${tgt}>)
+    endforeach()
+    if(APPLE)
+      add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
+    else()
+      add_custom_target(strip COMMAND strip $<IF:$<BOOL:ENABLE_STACKTRACE>,--strip-debug,--strip-all> ${FILES_TO_STRIP})
+    endif()
   endif()
 endif()
 
@@ -1444,21 +1456,31 @@ if(PRJ_VERSION_FULL)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR WIN32)
-  if (WITH_UNIVERSAL_BINARY)
-    find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
+  if(WITH_UNIVERSAL_BINARY)
+    set(UNIVERSAL_OUT "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
 
-    set(UNIVERSAL_PACKED "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
+    if(ENABLE_STACKTRACE)
+      message(WARNING "UPX compression is disabled with ENABLE_STACKTRACE")
 
-    # upx -9 is a good compromise between compression ratio and speed
-    # also, anything above --best increases the startup time of the compressed
-    # executable significantly
-    add_custom_command(
-      OUTPUT ${UNIVERSAL_PACKED}
-      COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_PACKED} $<TARGET_FILE:dwarfsuniversal>
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    )
+      add_custom_command(
+        OUTPUT ${UNIVERSAL_OUT}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:dwarfsuniversal> ${UNIVERSAL_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      )
+    else()
+      find_program(UPX_EXE upx upx.exe PATHS "c:/bin" DOC "ultimate packer for executables" REQUIRED)
 
-    add_custom_target(universal_upx DEPENDS ${UNIVERSAL_PACKED})
+      # upx -9 is a good compromise between compression ratio and speed
+      # also, anything above --best increases the startup time of the compressed
+      # executable significantly
+      add_custom_command(
+        OUTPUT ${UNIVERSAL_OUT}
+        COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_OUT} $<TARGET_FILE:dwarfsuniversal>
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      )
+    endif()
+
+    add_custom_target(universal_upx DEPENDS ${UNIVERSAL_OUT})
   endif()
 
   if(DEFINED ENV{GITHUB_REF_TYPE})
@@ -1484,7 +1506,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
 
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/artifacts.env"
                "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
-               "universal_binary=${UNIVERSAL_PACKED}\n")
+               "universal_binary=${UNIVERSAL_OUT}\n")
 
     if(USE_RICEPP_PACKAGE)
       add_executable(ricepp_benchmark_fits ricepp/ricepp_benchmark_fits.cpp)
@@ -1497,7 +1519,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     add_custom_target(copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_PACKED} ${ARTIFACTS_FULL_PATH}
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT} ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy
           ${CMAKE_CURRENT_BINARY_DIR}/${RICEPP_BENCHMARK_FITS}${CMAKE_EXECUTABLE_SUFFIX}
           ${ARTIFACTS_FULL_PATH}/ricepp_benchmark_fits-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
