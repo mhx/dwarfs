@@ -42,9 +42,7 @@ endif()
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
-if(WIN32)
-  option(USE_RICEPP_PACKAGE "use pre-built RICEPP package" OFF)
-else()
+if(NOT WIN32)
   option(WITH_LEGACY_FUSE "build fuse2 driver even if we have fuse3" OFF)
   option(WITH_MAN_PAGES "build man pages using ronn" ON)
   option(ENABLE_ASAN "enable address sanitizer" OFF)
@@ -598,12 +596,8 @@ if(DWARFS_OPTIMIZE)
 endif()
 
 if(ENABLE_RICEPP)
-  if(USE_RICEPP_PACKAGE)
-    find_package(ricepp)
-    add_library(ricepp ALIAS ricepp::ricepp)
-  else()
-    add_subdirectory(ricepp)
-  endif()
+  # TODO: support FetchContent
+  add_subdirectory(ricepp)
 endif()
 
 list(APPEND
@@ -1521,9 +1515,6 @@ endif()
 
 if(PRJ_VERSION_FULL)
   set(DWARFS_ARTIFACT_ID "${PRJ_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
-  if(USE_RICEPP_PACKAGE)
-    set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-ricepp")
-  endif()
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(DWARFS_ARTIFACT_ID "${DWARFS_ARTIFACT_ID}-gcc")
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -1592,13 +1583,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
                "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
                "universal_binary=${UNIVERSAL_OUT}\n")
 
-    if(USE_RICEPP_PACKAGE)
-      add_executable(ricepp_benchmark_fits ricepp/ricepp_benchmark_fits.cpp)
-      target_link_libraries(ricepp_benchmark_fits PRIVATE ricepp benchmark::benchmark)
-      set(RICEPP_BENCHMARK_FITS "ricepp_benchmark_fits")
-    else()
-      set(RICEPP_BENCHMARK_FITS "ricepp/ricepp_benchmark_fits")
-    endif()
+    set(RICEPP_BENCHMARK_FITS "ricepp/ricepp_benchmark_fits")
 
     add_custom_target(copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
