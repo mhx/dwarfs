@@ -1484,10 +1484,15 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     PATTERN include/dwarfs/*/internal EXCLUDE
   )
 
+  if(DWARFS_GIT_BUILD)
+    install(
+      FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
+      DESTINATION include/dwarfs
+    )
+  endif()
+
   install(
-    FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
-      ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
     DESTINATION include/dwarfs
   )
 
