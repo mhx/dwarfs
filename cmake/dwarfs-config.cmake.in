@@ -19,7 +19,6 @@ if(@APPLE@ AND @USE_HOMEBREW_LIBARCHIVE@) # APPLE AND USE_HOMEBREW_LIBARCHIVE
 endif()
 
 find_dependency(Threads REQUIRED)
-find_dependency(range-v3 CONFIG REQUIRED)
 find_dependency(fmt CONFIG REQUIRED)
 find_dependency(gflags CONFIG REQUIRED)
 find_dependency(Boost @BOOST_REQUIRED_VERSION@ REQUIRED COMPONENTS chrono context filesystem iostreams program_options regex system thread)

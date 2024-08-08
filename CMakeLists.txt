@@ -1130,7 +1130,6 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
-  target_link_libraries(${tgt} PRIVATE range-v3::range-v3)
 
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
@@ -1143,6 +1142,7 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
 
   target_include_directories(${tgt} PRIVATE
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:range-v3::range-v3,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
