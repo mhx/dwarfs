@@ -58,7 +58,6 @@ if(NOT WIN32)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(DISABLE_MOLD "disable mold" OFF)
-  option(USE_PREFERRED_LIBS "use preferred versions of libraries" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
 endif()
 
@@ -268,9 +267,7 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-if(NOT USE_PREFERRED_LIBS)
-  find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG)
-endif()
+find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG)
 
 include(FetchContent)
 
@@ -284,16 +281,15 @@ if(NOT fmt_FOUND)
   FetchContent_MakeAvailable(fmt)
 endif()
 
-if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE)
+# folly won't build on Windows with FMT_HEADER_ONLY
+if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE OR WIN32)
   set(DWARFS_FMT_LIB fmt::fmt)
 else()
   add_compile_definitions(FMT_HEADER_ONLY)
   include_directories($<BUILD_INTERFACE:$<TARGET_PROPERTY:fmt::fmt-header-only,INTERFACE_INCLUDE_DIRECTORIES>>)
 endif()
 
-if(NOT USE_PREFERRED_LIBS)
-  find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
-endif()
+find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
 
 if(NOT range-v3_FOUND)
   FetchContent_Declare(
@@ -305,17 +301,15 @@ if(NOT range-v3_FOUND)
   FetchContent_MakeAvailable(range-v3)
 endif()
 
-if(NOT USE_PREFERRED_LIBS)
-  try_run(
-    PHMAP_RUN_RESULT
-    PHMAP_COMPILE_RESULT
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
-    CMAKE_FLAGS -DINCLUDE_DIRECTORIES=${TRY_RUN_INCLUDE_DIRECTORIES}
-    CXX_STANDARD 20
-    RUN_OUTPUT_VARIABLE PHMAP_VERSION
-    COMPILE_OUTPUT_VARIABLE PHMAP_COMPILE_OUTPUT
-  )
-endif()
+try_run(
+  PHMAP_RUN_RESULT
+  PHMAP_COMPILE_RESULT
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
+  CMAKE_FLAGS -DINCLUDE_DIRECTORIES=${TRY_RUN_INCLUDE_DIRECTORIES}
+  CXX_STANDARD 20
+  RUN_OUTPUT_VARIABLE PHMAP_VERSION
+  COMPILE_OUTPUT_VARIABLE PHMAP_COMPILE_OUTPUT
+)
 
 if(PHMAP_RUN_RESULT EQUAL 0)
   if(PHMAP_VERSION VERSION_LESS ${PARALLEL_HASHMAP_REQUIRED_VERSION})
