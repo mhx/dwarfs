@@ -26,16 +26,18 @@ fi
 case "-$BUILD_TYPE-" in
   *-ninja-*)
     BUILD_TOOL=ninja
-    CMAKE_ARGS="-GNinja"
+    CMAKE_TOOL_ARGS="-GNinja"
     ;;
   *-make-*)
     BUILD_TOOL="make -j$(nproc)"
-    CMAKE_ARGS=
+    CMAKE_TOOL_ARGS=
     ;;
   *)
     echo "missing build tool in: $BUILD_TYPE"
     exit 1
 esac
+
+CMAKE_ARGS="${CMAKE_TOOL_ARGS}"
 
 case "-$BUILD_TYPE-" in
   *-gcc-*)
@@ -115,19 +117,20 @@ if [[ "-$BUILD_TYPE-" == *-nostacktrace-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_STACKTRACE=0"
 fi
 
-if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  export LDFLAGS="-L/opt/static-libs/$COMPILER/lib"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DUSE_PREFERRED_LIBS=1"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
-fi
+CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
+CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
 if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_SHARED_LIBS=1 -DCMAKE_POSITION_INDEPENDENT_CODE=1"
 fi
 
-CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
-CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
-CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
+if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+  CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
+  export LDFLAGS="-L/opt/static-libs/$COMPILER/lib"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DUSE_PREFERRED_LIBS=1"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
+fi
 
 # shellcheck disable=SC2086
 cmake ../dwarfs/ $CMAKE_ARGS
@@ -194,6 +197,34 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   cp artifacts.env /tmp-runner
   cp dwarfs-universal-* /tmp-runner/artifacts
   cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
+
+  if [[ "$VERSION" != "" ]]; then
+    # also perform a non-static build based on the source tarball
+
+    $BUILD_TOOL distclean
+    unset LDFLAGS
+
+    # shellcheck disable=SC2086
+    cmake ../dwarfs/ $CMAKE_ARGS_NONSTATIC
+
+    $BUILD_TOOL
+
+    ctest --output-on-failure -j$(nproc)
+  fi
 fi
 
-$BUILD_TOOL realclean
+if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
+   ( [[ "-$BUILD_TYPE-" != *-static-* ]] || [[ "$VERSION" != "" ]] ); then
+  INSTALLDIR="$HOME/install"
+  rm -rf "$INSTALLDIR"
+  DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+
+  $BUILD_TOOL distclean
+
+  cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
+  $BUILD_TOOL
+  $BUILD_TOOL clean
+else
+  $BUILD_TOOL distclean
+fi
+
