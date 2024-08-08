@@ -9,6 +9,15 @@ set(DWARFS_PREFIX_DIR "${PACKAGE_PREFIX_DIR}")
 
 find_package(PkgConfig)
 
+if(@APPLE@ AND @USE_HOMEBREW_LIBARCHIVE@) # APPLE AND USE_HOMEBREW_LIBARCHIVE
+  find_program(HOMEBREW_EXE brew)
+  execute_process(
+    COMMAND ${HOMEBREW_EXE} --prefix libarchive
+    OUTPUT_VARIABLE LIBARCHIVE_PREFIX
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  list(PREPEND CMAKE_PREFIX_PATH ${LIBARCHIVE_PREFIX})
+endif()
+
 find_dependency(Threads REQUIRED)
 find_dependency(range-v3 CONFIG REQUIRED)
 find_dependency(fmt CONFIG REQUIRED)
