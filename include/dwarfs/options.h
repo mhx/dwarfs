@@ -55,7 +55,7 @@ enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
 enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
 
 struct block_cache_options {
-  size_t max_bytes{0};
+  size_t max_bytes{static_cast<size_t>(512) << 20};
   size_t num_workers{0};
   double decompress_ratio{1.0};
   bool mm_release{true};

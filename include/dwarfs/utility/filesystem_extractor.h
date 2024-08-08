@@ -43,7 +43,7 @@ class filesystem_v2;
 namespace utility {
 
 struct filesystem_extractor_options {
-  size_t max_queued_bytes{4096};
+  size_t max_queued_bytes{static_cast<size_t>(512) << 20};
   bool continue_on_error{false};
   std::function<void(std::string_view, uint64_t, uint64_t)> progress;
 };
