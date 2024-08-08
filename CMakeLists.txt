@@ -287,7 +287,8 @@ endif()
 if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE)
   set(DWARFS_FMT_LIB fmt::fmt)
 else()
-  set(DWARFS_FMT_LIB fmt::fmt-header-only)
+  add_compile_definitions(FMT_HEADER_ONLY)
+  include_directories($<BUILD_INTERFACE:$<TARGET_PROPERTY:fmt::fmt-header-only,INTERFACE_INCLUDE_DIRECTORIES>>)
 endif()
 
 if(NOT USE_PREFERRED_LIBS)
@@ -438,6 +439,12 @@ if(DWARFS_GIT_BUILD)
       CACHE BOOL "only build thrift compiler")
 
   add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
+endif()
+
+if(NOT DWARFS_FMT_LIB)
+  get_target_property(FOLLY_DEPS_INTERFACE_LINK_LIBRARIES folly_deps INTERFACE_LINK_LIBRARIES)
+  list(REMOVE_ITEM FOLLY_DEPS_INTERFACE_LINK_LIBRARIES fmt::fmt)
+  set_target_properties(folly_deps PROPERTIES INTERFACE_LINK_LIBRARIES "${FOLLY_DEPS_INTERFACE_LINK_LIBRARIES}")
 endif()
 
 add_library(dwarfs_folly_lite OBJECT
@@ -1173,7 +1180,9 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
     target_compile_definitions(${tgt} PRIVATE DWARFS_COVERAGE_ENABLED=1)
   endif()
 
-  target_link_libraries(${tgt} PRIVATE ${DWARFS_FMT_LIB})
+  if(DWARFS_FMT_LIB)
+    target_link_libraries(${tgt} PRIVATE ${DWARFS_FMT_LIB})
+  endif()
 
   if(WIN32)
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
