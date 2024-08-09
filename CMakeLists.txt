@@ -193,7 +193,6 @@ if(ENABLE_STACKTRACE)
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 if(NOT PRJ_VERSION_FULL)
   message(FATAL_ERROR "PRJ_VERSION_FULL is not set")
@@ -342,9 +341,6 @@ endif()
 find_package(PkgConfig)
 
 if(APPLE)
-  # For whatever reason, thrift is unhappy if we don't do this
-  find_package(OpenSSL 1.1.1 MODULE REQUIRED)
-
   if(USE_HOMEBREW_LIBARCHIVE)
     find_program(HOMEBREW_EXE brew)
     execute_process(
@@ -402,14 +398,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
-
-if(DWARFS_GIT_BUILD)
-  set(THRIFT_COMPILER_ONLY
-      ON
-      CACHE BOOL "only build thrift compiler")
-
-  add_subdirectory(fbthrift EXCLUDE_FROM_ALL SYSTEM)
-endif()
+include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 if(WITH_TESTS)
   if(PREFER_SYSTEM_GTEST)
@@ -867,39 +857,6 @@ if(WITH_MAN_PAGES)
     add_custom_target(manpages ALL DEPENDS ${MAN_PAGES})
   endif()
 endif()
-
-if(DWARFS_GIT_BUILD)
-  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
-else()
-  set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
-
-add_library(
-  dwarfs_thrift_lite OBJECT
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/protocol/TProtocolException.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/util/VarintUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/FieldRef.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/Frozen.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/FrozenUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/frozen/schema/MemorySchema.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/gen/module_types_cpp.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/BinaryProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/CompactProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/DebugProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocol.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/JSONProtocolCommon.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp2/protocol/Protocol.cpp
-  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_data.cpp
-  ${THRIFT_GENERATED_DIR}/thrift/lib/thrift/gen-cpp2/frozen_types.cpp
-)
-
-set_property(TARGET dwarfs_thrift_lite PROPERTY CXX_STANDARD 20)
-target_link_libraries(dwarfs_thrift_lite PUBLIC dwarfs_folly_lite)
-
-target_include_directories(dwarfs_thrift_lite SYSTEM PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fbthrift>
-  $<BUILD_INTERFACE:${THRIFT_GENERATED_DIR}>
-)
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
 
