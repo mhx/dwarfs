@@ -1,6 +1,6 @@
 [submodule "folly"]
 	path = folly
-	url = https://github.com/mhx/folly
+	url = https://github.com/facebook/folly
 [submodule "fbthrift"]
 	path = fbthrift
-	url = https://github.com/mhx/fbthrift
+	url = https://github.com/facebook/fbthrift
