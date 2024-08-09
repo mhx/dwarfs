@@ -1101,12 +1101,8 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
 endforeach()
 
 add_custom_target(
-  _clean
+  realclean
   COMMAND ${CMAKE_MAKE_PROGRAM} clean
-)
-
-add_custom_target(
-  _realclean
   COMMAND ${CMAKE_COMMAND} -E rm -rf
       cmake_install.cmake install_manifest.txt
       dwarfs_install.cmake package_version.cmake
@@ -1124,19 +1120,13 @@ add_custom_target(
       CMakeCache.txt
       ${REALCLEAN_FILES}
 )
-add_dependencies(_realclean _clean)
-
-add_custom_target(
-  realclean
-  COMMAND ${CMAKE_COMMAND} -E rm -rf CMakeFiles
-)
-add_dependencies(realclean _realclean)
 
 add_custom_target(
   distclean
-  COMMAND ${CMAKE_COMMAND} -E rm -rf _deps CMakeFiles
+  COMMAND ${CMAKE_MAKE_PROGRAM} realclean
+  COMMAND ${CMAKE_COMMAND} -E rm -rf _deps
+  COMMAND ${CMAKE_COMMAND} -E rm -rf CMakeFiles
 )
-add_dependencies(distclean realclean)
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
