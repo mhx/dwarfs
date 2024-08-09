@@ -1234,9 +1234,8 @@ add_custom_target(
         vcpkg-manifest-install.log
         build.ninja .ninja_deps
         Makefile compile_commands.json
-        artifacts.env
-        default.profraw
-        profile
+        artifacts.env default.profraw profile
+        dwarfs-config*.cmake
   COMMAND
     ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
 )
