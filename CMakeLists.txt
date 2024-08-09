@@ -1033,9 +1033,6 @@ if(STATIC_BUILD_DO_NOT_USE)
   endfunction()
 
   import_static_lib(static_libglog "libglog.a")
-  if(PREFER_SYSTEM_LIBFMT)
-    import_static_lib(static_libfmt "libfmt.a")
-  endif()
   import_static_lib(static_libdoubleconv "libdouble-conversion.a")
   import_static_lib(static_libgflags "libgflags.a")
   import_static_lib(static_libevent "libevent.a")
@@ -1063,12 +1060,6 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                 static_libz)
 
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
-    if(PREFER_SYSTEM_LIBFMT)
-      target_link_libraries(
-        ${tgt} PRIVATE
-        static_libfmt)
-    endif()
-
     # ...................................................................
     # -static-libgcc above and gcc_eh below is all together an ugly trick to
     # enforce static linking
