@@ -1091,42 +1091,52 @@ endif(STATIC_BUILD_DO_NOT_USE)
 
 foreach(tgt ${TEST_TARGETS})
   list(APPEND REALCLEAN_FILES "${tgt}[1]_include.cmake")
-  list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
 endforeach()
 
-foreach(tgt ${BINARY_TARGETS})
+foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
   list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
+  if(WIN32)
+    list(APPEND REALCLEAN_FILES ${tgt}.ilk ${tgt}.pdb)
+  endif()
 endforeach()
+
+add_custom_target(
+  _clean
+  COMMAND ${CMAKE_MAKE_PROGRAM} clean
+)
+
+add_custom_target(
+  _realclean
+  COMMAND ${CMAKE_COMMAND} -E rm -rf
+      cmake_install.cmake install_manifest.txt
+      dwarfs_install.cmake package_version.cmake
+      CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
+      CTestTestfile.cmake Testing
+      fbthrift folly zstd ricepp tools
+      include src thrift universal bin lib man1 man5
+      vcpkg-manifest-install.log
+      Makefile compile_commands.json
+      artifacts.env default.profraw profile
+      dwarfs-config-version.cmake
+      dwarfs-config.cmake
+      dwarfs.ilk dwarfs.pdb
+      .ninja_deps build.ninja
+      CMakeCache.txt
+      ${REALCLEAN_FILES}
+)
+add_dependencies(_realclean _clean)
 
 add_custom_target(
   realclean
-  COMMAND
-    COMMAND ${CMAKE_MAKE_PROGRAM} clean
-  COMMAND
-    ${CMAKE_COMMAND} -E rm -rf
-        CMakeCache.txt CMakeFiles
-        cmake_install.cmake install_manifest.txt
-        dwarfs_install.cmake package_version.cmake
-        CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
-        CTestTestfile.cmake Testing
-        fbthrift folly zstd ricepp tools
-        include src thrift universal bin lib man1 man5
-        vcpkg-manifest-install.log
-        build.ninja .ninja_deps
-        Makefile compile_commands.json
-        artifacts.env default.profraw profile
-        dwarfs-config*.cmake
-  COMMAND
-    ${CMAKE_COMMAND} -E rm -rf ${REALCLEAN_FILES}
+  COMMAND ${CMAKE_COMMAND} -E rm -rf CMakeFiles
 )
+add_dependencies(realclean _realclean)
 
 add_custom_target(
   distclean
-  COMMAND
-    COMMAND ${CMAKE_MAKE_PROGRAM} realclean
-  COMMAND
-    ${CMAKE_COMMAND} -E rm -rf _deps
+  COMMAND ${CMAKE_COMMAND} -E rm -rf _deps CMakeFiles
 )
+add_dependencies(distclean realclean)
 
 file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
