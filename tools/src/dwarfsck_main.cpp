@@ -51,6 +51,7 @@
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
+#include <dwarfs_tool_manpage.h>
 
 namespace dwarfs::tool {
 

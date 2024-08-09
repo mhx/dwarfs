@@ -90,6 +90,7 @@
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 #include <dwarfs_tool_main.h>
+#include <dwarfs_tool_manpage.h>
 
 namespace po = boost::program_options;
 

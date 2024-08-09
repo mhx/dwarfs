@@ -18,7 +18,7 @@
 
 cmake_minimum_required(VERSION 3.28.0)
 
-set(VERSION_SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/dwarfs/version.cpp)
+set(VERSION_SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/version.cpp)
 set(VERSION_HDR_FILE ${CMAKE_CURRENT_SOURCE_DIR}/include/dwarfs/version.h)
 set(PKG_VERSION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/package_version.cmake)
 
@@ -67,7 +67,7 @@ else()
   set(DWARFS_GIT_BUILD 1)
 
   set(TMP_PKG_VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/package_version.cmake)
-  set(TMP_VERSION_SRC_FILE ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
+  set(TMP_VERSION_SRC_FILE ${CMAKE_CURRENT_BINARY_DIR}/src/version.cpp)
   set(TMP_VERSION_HDR_FILE ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h)
 
   if ("${NIXPKGS_DWARFS_VERSION_OVERRIDE}" STREQUAL "")
@@ -201,7 +201,7 @@ extern char const* const DWARFS_GIT_ID;
   endif()
 
   if(NOT "${VERSION_SRC}" STREQUAL "${VERSION_SRC_OLD}")
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src")
     file(WRITE ${TMP_VERSION_SRC_FILE} "${VERSION_SRC}")
   endif()
 

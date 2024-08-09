@@ -27,6 +27,7 @@
 
 #include <dwarfs/tool/pager.h>
 #include <dwarfs/tool/render_manpage.h>
+#include <dwarfs_tool_manpage.h>
 
 #include "test_helpers.h"
 

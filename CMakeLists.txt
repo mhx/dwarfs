@@ -407,134 +407,134 @@ endif()
 add_library(
   dwarfs_common
 
-  src/dwarfs/block_compressor.cpp
-  src/dwarfs/block_compressor_parser.cpp
-  src/dwarfs/checksum.cpp
-  src/dwarfs/conv.cpp
-  src/dwarfs/error.cpp
-  src/dwarfs/file_access_generic.cpp
-  src/dwarfs/file_stat.cpp
-  src/dwarfs/fstypes.cpp
-  src/dwarfs/history.cpp
-  src/dwarfs/library_dependencies.cpp
-  src/dwarfs/logger.cpp
-  src/dwarfs/mmap.cpp
-  src/dwarfs/option_map.cpp
-  src/dwarfs/options.cpp
-  src/dwarfs/os_access_generic.cpp
-  src/dwarfs/pcm_sample_transformer.cpp
-  src/dwarfs/performance_monitor.cpp
-  src/dwarfs/terminal_ansi.cpp
-  src/dwarfs/thread_pool.cpp
-  src/dwarfs/util.cpp
-  src/dwarfs/xattr.cpp
+  src/block_compressor.cpp
+  src/block_compressor_parser.cpp
+  src/checksum.cpp
+  src/conv.cpp
+  src/error.cpp
+  src/file_access_generic.cpp
+  src/file_stat.cpp
+  src/fstypes.cpp
+  src/history.cpp
+  src/library_dependencies.cpp
+  src/logger.cpp
+  src/mmap.cpp
+  src/option_map.cpp
+  src/options.cpp
+  src/os_access_generic.cpp
+  src/pcm_sample_transformer.cpp
+  src/performance_monitor.cpp
+  src/terminal_ansi.cpp
+  src/thread_pool.cpp
+  src/util.cpp
+  src/xattr.cpp
 
-  src/dwarfs/internal/features.cpp
-  src/dwarfs/internal/file_status_conv.cpp
-  src/dwarfs/internal/fs_section.cpp
-  src/dwarfs/internal/string_table.cpp
-  src/dwarfs/internal/wcwidth.c
-  src/dwarfs/internal/worker_group.cpp
+  src/internal/features.cpp
+  src/internal/file_status_conv.cpp
+  src/internal/fs_section.cpp
+  src/internal/string_table.cpp
+  src/internal/wcwidth.c
+  src/internal/worker_group.cpp
 
-  src/dwarfs/xattr_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
+  src/xattr_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
 
-  $<IF:${DWARFS_GIT_BUILD},${CMAKE_CURRENT_BINARY_DIR},${CMAKE_CURRENT_SOURCE_DIR}>/src/dwarfs/version.cpp
+  $<IF:${DWARFS_GIT_BUILD},${CMAKE_CURRENT_BINARY_DIR},${CMAKE_CURRENT_SOURCE_DIR}>/src/version.cpp
 
-  src/dwarfs/compression/null.cpp
-  src/dwarfs/compression/zstd.cpp
-  $<$<BOOL:${LIBLZMA_FOUND}>:src/dwarfs/compression/lzma.cpp>
-  $<$<BOOL:${LIBLZ4_FOUND}>:src/dwarfs/compression/lz4.cpp>
-  $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/dwarfs/compression/brotli.cpp>
-  $<$<BOOL:${FLAC_FOUND}>:src/dwarfs/compression/flac.cpp>
-  $<$<BOOL:${ENABLE_RICEPP}>:src/dwarfs/compression/ricepp.cpp>
+  src/compression/null.cpp
+  src/compression/zstd.cpp
+  $<$<BOOL:${LIBLZMA_FOUND}>:src/compression/lzma.cpp>
+  $<$<BOOL:${LIBLZ4_FOUND}>:src/compression/lz4.cpp>
+  $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/compression/brotli.cpp>
+  $<$<BOOL:${FLAC_FOUND}>:src/compression/flac.cpp>
+  $<$<BOOL:${ENABLE_RICEPP}>:src/compression/ricepp.cpp>
 )
 
 add_library(
   dwarfs_reader
 
-  src/dwarfs/reader/block_range.cpp
-  src/dwarfs/reader/filesystem_v2.cpp
-  src/dwarfs/reader/metadata_types.cpp
+  src/reader/block_range.cpp
+  src/reader/filesystem_v2.cpp
+  src/reader/metadata_types.cpp
 
-  src/dwarfs/reader/internal/block_cache.cpp
-  src/dwarfs/reader/internal/cached_block.cpp
-  src/dwarfs/reader/internal/filesystem_parser.cpp
-  src/dwarfs/reader/internal/inode_reader_v2.cpp
-  src/dwarfs/reader/internal/metadata_types.cpp
-  src/dwarfs/reader/internal/metadata_v2.cpp
+  src/reader/internal/block_cache.cpp
+  src/reader/internal/cached_block.cpp
+  src/reader/internal/filesystem_parser.cpp
+  src/reader/internal/inode_reader_v2.cpp
+  src/reader/internal/metadata_types.cpp
+  src/reader/internal/metadata_v2.cpp
 )
 
 add_library(
   dwarfs_writer
 
-  src/dwarfs/writer/categorizer.cpp
-  src/dwarfs/writer/category_parser.cpp
-  src/dwarfs/writer/chmod_entry_transformer.cpp
-  src/dwarfs/writer/compression_metadata_requirements.cpp
-  src/dwarfs/writer/console_writer.cpp
-  src/dwarfs/writer/entry_factory.cpp
-  src/dwarfs/writer/filesystem_block_category_resolver.cpp
-  src/dwarfs/writer/filesystem_writer.cpp
-  src/dwarfs/writer/filter_debug.cpp
-  src/dwarfs/writer/fragment_category.cpp
-  src/dwarfs/writer/fragment_order_parser.cpp
-  src/dwarfs/writer/inode_fragments.cpp
-  src/dwarfs/writer/rule_based_entry_filter.cpp
-  src/dwarfs/writer/scanner.cpp
-  src/dwarfs/writer/segmenter.cpp
-  src/dwarfs/writer/segmenter_factory.cpp
-  src/dwarfs/writer/writer_progress.cpp
+  src/writer/categorizer.cpp
+  src/writer/category_parser.cpp
+  src/writer/chmod_entry_transformer.cpp
+  src/writer/compression_metadata_requirements.cpp
+  src/writer/console_writer.cpp
+  src/writer/entry_factory.cpp
+  src/writer/filesystem_block_category_resolver.cpp
+  src/writer/filesystem_writer.cpp
+  src/writer/filter_debug.cpp
+  src/writer/fragment_category.cpp
+  src/writer/fragment_order_parser.cpp
+  src/writer/inode_fragments.cpp
+  src/writer/rule_based_entry_filter.cpp
+  src/writer/scanner.cpp
+  src/writer/segmenter.cpp
+  src/writer/segmenter_factory.cpp
+  src/writer/writer_progress.cpp
 
-  src/dwarfs/writer/internal/block_manager.cpp
-  src/dwarfs/writer/internal/chmod_transformer.cpp
-  src/dwarfs/writer/internal/entry.cpp
-  src/dwarfs/writer/internal/file_scanner.cpp
-  src/dwarfs/writer/internal/fragment_chunkable.cpp
-  src/dwarfs/writer/internal/global_entry_data.cpp
-  src/dwarfs/writer/internal/inode_element_view.cpp
-  src/dwarfs/writer/internal/inode_manager.cpp
-  src/dwarfs/writer/internal/inode_ordering.cpp
-  src/dwarfs/writer/internal/metadata_freezer.cpp
-  src/dwarfs/writer/internal/nilsimsa.cpp
-  src/dwarfs/writer/internal/progress.cpp
-  src/dwarfs/writer/internal/scanner_progress.cpp
-  src/dwarfs/writer/internal/similarity.cpp
-  src/dwarfs/writer/internal/similarity_ordering.cpp
+  src/writer/internal/block_manager.cpp
+  src/writer/internal/chmod_transformer.cpp
+  src/writer/internal/entry.cpp
+  src/writer/internal/file_scanner.cpp
+  src/writer/internal/fragment_chunkable.cpp
+  src/writer/internal/global_entry_data.cpp
+  src/writer/internal/inode_element_view.cpp
+  src/writer/internal/inode_manager.cpp
+  src/writer/internal/inode_ordering.cpp
+  src/writer/internal/metadata_freezer.cpp
+  src/writer/internal/nilsimsa.cpp
+  src/writer/internal/progress.cpp
+  src/writer/internal/scanner_progress.cpp
+  src/writer/internal/similarity.cpp
+  src/writer/internal/similarity_ordering.cpp
 
-  # src/dwarfs/writer/categorizer/binary_categorizer.cpp
-  src/dwarfs/writer/categorizer/fits_categorizer.cpp
-  src/dwarfs/writer/categorizer/incompressible_categorizer.cpp
-  src/dwarfs/writer/categorizer/pcmaudio_categorizer.cpp
+  # src/writer/categorizer/binary_categorizer.cpp
+  src/writer/categorizer/fits_categorizer.cpp
+  src/writer/categorizer/incompressible_categorizer.cpp
+  src/writer/categorizer/pcmaudio_categorizer.cpp
 
-  # $<$<BOOL:${LIBMAGIC_FOUND}>:src/dwarfs/writer/categorizer/libmagic_categorizer.cpp>
+  # $<$<BOOL:${LIBMAGIC_FOUND}>:src/writer/categorizer/libmagic_categorizer.cpp>
 )
 
 add_library(
   dwarfs_rewrite
 
-  src/dwarfs/utility/rewrite_filesystem.cpp
+  src/utility/rewrite_filesystem.cpp
 )
 
 add_library(
   dwarfs_extractor
 
-  src/dwarfs/utility/filesystem_extractor.cpp
+  src/utility/filesystem_extractor.cpp
 )
 
 add_library(
   dwarfs_tool OBJECT
 
-  src/dwarfs/tool/iolayer.cpp
-  src/dwarfs/tool/main_adapter.cpp
-  src/dwarfs/tool/safe_main.cpp
-  src/dwarfs/tool/sys_char.cpp
-  src/dwarfs/tool/tool.cpp
+  src/tool/iolayer.cpp
+  src/tool/main_adapter.cpp
+  src/tool/safe_main.cpp
+  src/tool/sys_char.cpp
+  src/tool/tool.cpp
 )
 
 if(WITH_MAN_OPTION)
   target_sources(dwarfs_tool PRIVATE
-    src/dwarfs/tool/pager.cpp
-    src/dwarfs/tool/render_manpage.cpp
+    src/tool/pager.cpp
+    src/tool/render_manpage.cpp
   )
 endif()
 
@@ -570,15 +570,15 @@ if(STATIC_BUILD_DO_NOT_USE)
 endif(STATIC_BUILD_DO_NOT_USE)
 
 foreach(tgt mkdwarfs dwarfsck dwarfsextract)
-  add_library(${tgt}_main OBJECT src/${tgt}_main.cpp)
+  add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)
 
-  add_executable(${tgt} src/${tgt}.cpp)
+  add_executable(${tgt} tools/src/${tgt}.cpp)
 
   list(APPEND BINARY_TARGETS ${tgt})
 endforeach()
 
 if(WITH_UNIVERSAL_BINARY)
-  add_executable(dwarfsuniversal src/universal.cpp)
+  add_executable(dwarfsuniversal tools/src/universal.cpp)
   list(APPEND BINARY_TARGETS dwarfsuniversal)
 
   target_link_libraries(dwarfsuniversal PRIVATE
@@ -589,7 +589,7 @@ if(WITH_UNIVERSAL_BINARY)
 endif()
 
 if(WITH_PXATTR)
-  add_executable(pxattr src/pxattr.cpp)
+  add_executable(pxattr tools/src/pxattr.cpp)
   list(APPEND BINARY_TARGETS pxattr)
 endif()
 
@@ -598,9 +598,9 @@ install(TARGETS mkdwarfs dwarfsck dwarfsextract RUNTIME DESTINATION bin)
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsextract_main)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
-  add_library(dwarfs_main OBJECT src/dwarfs_main.cpp)
+  add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
-  add_executable(dwarfs-bin src/dwarfs.cpp)
+  add_executable(dwarfs-bin tools/src/dwarfs.cpp)
   target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
   set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
   if(WINFSP)
@@ -639,11 +639,11 @@ if(FUSE3_FOUND OR WINFSP OR APPLE)
 endif()
 
 if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
-  add_library(dwarfs2_main src/dwarfs_main.cpp)
+  add_library(dwarfs2_main tools/src/dwarfs_main.cpp)
   target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
                                                   FUSE_USE_VERSION=29)
   target_link_libraries(dwarfs2_main PRIVATE PkgConfig::FUSE)
-  add_executable(dwarfs2-bin src/dwarfs.cpp)
+  add_executable(dwarfs2-bin tools/src/dwarfs.cpp)
   target_link_libraries(dwarfs2-bin PRIVATE dwarfs2_main)
   if(WITH_UNIVERSAL_BINARY AND (NOT FUSE3_FOUND))
     target_link_libraries(dwarfsuniversal PRIVATE dwarfs2_main)
@@ -662,7 +662,7 @@ endif()
 if(WITH_MAN_OPTION)
   if(DWARFS_GIT_BUILD)
     include(${CMAKE_SOURCE_DIR}/cmake/render_manpage.cmake)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tools/src")
     set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR})
   else()
     set(DWARFS_MANPAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -670,18 +670,18 @@ if(WITH_MAN_OPTION)
 
   foreach(man mkdwarfs dwarfs dwarfsck dwarfsextract)
     if(DWARFS_GIT_BUILD)
-      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs")
+      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tools/src")
       add_manpage_source(doc/${man}.md NAME ${man}
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tools/src/${man}_manpage.cpp)
     endif()
 
     if(TARGET ${man}_main)
-      target_sources(${man}_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/${man}_manpage.cpp)
+      target_sources(${man}_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/tools/src/${man}_manpage.cpp)
     endif()
   endforeach()
 
   if(TARGET dwarfs2_main)
-    target_sources(dwarfs2_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/src/dwarfs/tool/dwarfs_manpage.cpp)
+    target_sources(dwarfs2_main PRIVATE ${DWARFS_MANPAGE_SOURCE_DIR}/tools/src/dwarfs_manpage.cpp)
   endif()
 endif()
 
@@ -844,6 +844,10 @@ set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
 set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
 set(DWARFS_STACKTRACE_ENABLED ${ENABLE_STACKTRACE})
 configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
+
+foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+  target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
+endforeach()
 
 foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
             dwarfs_extractor dwarfs_rewrite dwarfs_tool
@@ -1105,7 +1109,7 @@ add_custom_target(
         dwarfs_install.cmake package_version.cmake
         CPackConfig.cmake CPackSourceConfig.cmake _CPack_Packages
         CTestTestfile.cmake Testing
-        fbthrift folly zstd ricepp
+        fbthrift folly zstd ricepp tools
         include src thrift universal bin lib man1 man5
         vcpkg-manifest-install.log
         build.ninja .ninja_deps
@@ -1129,6 +1133,8 @@ file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/include/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp)
 

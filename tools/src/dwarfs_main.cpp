@@ -106,6 +106,7 @@
 #include <dwarfs/version.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs_tool_main.h>
+#include <dwarfs_tool_manpage.h>
 
 namespace {
 
