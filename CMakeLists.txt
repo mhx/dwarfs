@@ -446,8 +446,8 @@ if(ENABLE_RICEPP)
   add_subdirectory(ricepp)
 endif()
 
-list(APPEND
-  LIBDWARFS_COMMON_SRC
+add_library(
+  dwarfs_common
 
   src/dwarfs/block_compressor.cpp
   src/dwarfs/block_compressor_parser.cpp
@@ -477,10 +477,22 @@ list(APPEND
   src/dwarfs/internal/string_table.cpp
   src/dwarfs/internal/wcwidth.c
   src/dwarfs/internal/worker_group.cpp
+
+  src/dwarfs/xattr_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
+
+  $<IF:${DWARFS_GIT_BUILD},${CMAKE_CURRENT_BINARY_DIR},${CMAKE_CURRENT_SOURCE_DIR}>/src/dwarfs/version.cpp
+
+  src/dwarfs/compression/null.cpp
+  src/dwarfs/compression/zstd.cpp
+  $<$<BOOL:${LIBLZMA_FOUND}>:src/dwarfs/compression/lzma.cpp>
+  $<$<BOOL:${LIBLZ4_FOUND}>:src/dwarfs/compression/lz4.cpp>
+  $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/dwarfs/compression/brotli.cpp>
+  $<$<BOOL:${FLAC_FOUND}>:src/dwarfs/compression/flac.cpp>
+  $<$<BOOL:${ENABLE_RICEPP}>:src/dwarfs/compression/ricepp.cpp>
 )
 
-list(APPEND
-  LIBDWARFS_READER_SRC
+add_library(
+  dwarfs_reader
 
   src/dwarfs/reader/block_range.cpp
   src/dwarfs/reader/filesystem_v2.cpp
@@ -494,8 +506,8 @@ list(APPEND
   src/dwarfs/reader/internal/metadata_v2.cpp
 )
 
-list(APPEND
-  LIBDWARFS_WRITER_SRC
+add_library(
+  dwarfs_writer
 
   src/dwarfs/writer/categorizer.cpp
   src/dwarfs/writer/category_parser.cpp
@@ -530,17 +542,30 @@ list(APPEND
   src/dwarfs/writer/internal/scanner_progress.cpp
   src/dwarfs/writer/internal/similarity.cpp
   src/dwarfs/writer/internal/similarity_ordering.cpp
+
+  # src/dwarfs/writer/categorizer/binary_categorizer.cpp
+  src/dwarfs/writer/categorizer/fits_categorizer.cpp
+  src/dwarfs/writer/categorizer/incompressible_categorizer.cpp
+  src/dwarfs/writer/categorizer/pcmaudio_categorizer.cpp
+
+  # $<$<BOOL:${LIBMAGIC_FOUND}>:src/dwarfs/writer/categorizer/libmagic_categorizer.cpp>
 )
 
-list(APPEND LIBDWARFS_REWRITE_SRC
+add_library(
+  dwarfs_rewrite
+
   src/dwarfs/utility/rewrite_filesystem.cpp
 )
 
-list(APPEND LIBDWARFS_EXTRACTOR_SRC
+add_library(
+  dwarfs_extractor
+
   src/dwarfs/utility/filesystem_extractor.cpp
 )
 
-list(APPEND LIBDWARFS_TOOL_SRC
+add_library(
+  dwarfs_tool OBJECT
+
   src/dwarfs/tool/iolayer.cpp
   src/dwarfs/tool/main_adapter.cpp
   src/dwarfs/tool/safe_main.cpp
@@ -548,70 +573,12 @@ list(APPEND LIBDWARFS_TOOL_SRC
   src/dwarfs/tool/tool.cpp
 )
 
-if(WIN32)
-  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/xattr_win.cpp)
-else()
-  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/xattr_posix.cpp)
-endif()
-
 if(WITH_MAN_OPTION)
-  list(APPEND LIBDWARFS_TOOL_SRC
+  target_sources(dwarfs_tool PRIVATE
     src/dwarfs/tool/pager.cpp
     src/dwarfs/tool/render_manpage.cpp
   )
 endif()
-
-# Just an example for setting per file compile options
-# set_source_files_properties(src/dwarfs/segmenter.cpp PROPERTIES COMPILE_FLAGS -march=tigerlake)
-
-if(DWARFS_GIT_BUILD)
-  list(APPEND LIBDWARFS_COMMON_SRC ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
-else()
-  list(APPEND LIBDWARFS_COMMON_SRC src/dwarfs/version.cpp)
-endif()
-
-list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/null.cpp)
-list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/zstd.cpp)
-
-if(LIBLZMA_FOUND)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lzma.cpp)
-endif()
-
-if(LIBLZ4_FOUND)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/lz4.cpp)
-endif()
-
-if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/brotli.cpp)
-endif()
-
-if(FLAC_FOUND)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/flac.cpp)
-endif()
-
-list(
-  APPEND
-  LIBDWARFS_CATEGORIZER_SRC
-  # src/dwarfs/writer/categorizer/binary_categorizer.cpp
-  src/dwarfs/writer/categorizer/fits_categorizer.cpp
-  src/dwarfs/writer/categorizer/incompressible_categorizer.cpp
-  src/dwarfs/writer/categorizer/pcmaudio_categorizer.cpp
-)
-
-if(ENABLE_RICEPP)
-  list(APPEND LIBDWARFS_COMPRESSION_SRC src/dwarfs/compression/ricepp.cpp)
-endif()
-
-# if(LIBMAGIC_FOUND)
-#   list(APPEND LIBDWARFS_CATEGORIZER_SRC src/dwarfs/writer/categorizer/libmagic_categorizer.cpp)
-# endif()
-
-add_library(dwarfs_common ${LIBDWARFS_COMMON_SRC} ${LIBDWARFS_COMPRESSION_SRC})
-add_library(dwarfs_reader ${LIBDWARFS_READER_SRC})
-add_library(dwarfs_writer ${LIBDWARFS_WRITER_SRC} ${LIBDWARFS_CATEGORIZER_SRC})
-add_library(dwarfs_extractor ${LIBDWARFS_EXTRACTOR_SRC})
-add_library(dwarfs_rewrite ${LIBDWARFS_REWRITE_SRC})
-add_library(dwarfs_tool OBJECT ${LIBDWARFS_TOOL_SRC})
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
@@ -1355,7 +1322,7 @@ if(STATIC_BUILD_DO_NOT_USE OR APPLE)
     if(APPLE)
       add_custom_target(strip COMMAND strip ${FILES_TO_STRIP})
     else()
-      add_custom_target(strip COMMAND strip $<IF:$<BOOL:ENABLE_STACKTRACE>,--strip-debug,--strip-all> ${FILES_TO_STRIP})
+      add_custom_target(strip COMMAND strip $<IF:$<BOOL:${ENABLE_STACKTRACE}>,--strip-debug,--strip-all> ${FILES_TO_STRIP})
     endif()
   endif()
 endif()

@@ -58,13 +58,13 @@ if(((NOT "${REAL_SOURCE_DIR}" STREQUAL "${GIT_TOPLEVEL}")
 
   message(STATUS "PRJ_VERSION_FULL: ${PRJ_VERSION_FULL}")
 
-  set(DWARFS_GIT_BUILD OFF)
+  set(DWARFS_GIT_BUILD 0)
 else()
   if(EXISTS ${VERSION_SRC_FILE} OR EXISTS ${VERSION_HDR_FILE} OR EXISTS ${PKG_VERSION_FILE})
     message(FATAL_ERROR "version files must not exist in git repository")
   endif()
 
-  set(DWARFS_GIT_BUILD ON)
+  set(DWARFS_GIT_BUILD 1)
 
   set(TMP_PKG_VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/package_version.cmake)
   set(TMP_VERSION_SRC_FILE ${CMAKE_CURRENT_BINARY_DIR}/src/dwarfs/version.cpp)
