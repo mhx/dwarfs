@@ -23,6 +23,7 @@
 
 #include <folly/FileUtil.h>
 
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
 
 #include "test_helpers.h"
@@ -54,10 +55,7 @@ int main(int argc, char** argv) {
     auto args = test::parse_args(cmdline);
     args.insert(args.begin(), "mkdwarfs");
 
-    try {
-      mkdwarfs_main(args, iol->get());
-    } catch (const std::exception&) {
-    }
+    tool::main_adapter(tool::mkdwarfs_main).safe(args, iol->get());
   }
 
   return 0;

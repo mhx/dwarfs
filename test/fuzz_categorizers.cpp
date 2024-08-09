@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
 
   null_logger lgr;
 
-  auto& catreg = categorizer_registry::instance();
-  auto catmgr = std::make_shared<categorizer_manager>(lgr);
+  auto& catreg = writer::categorizer_registry::instance();
+  auto catmgr = std::make_shared<writer::categorizer_manager>(lgr);
 
   boost::program_options::variables_map vm;
   catmgr->add(catreg.create(lgr, "pcmaudio", vm));
