@@ -27,8 +27,6 @@
 #include <string>
 #include <vector>
 
-#include <folly/Conv.h>
-
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
 
