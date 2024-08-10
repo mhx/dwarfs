@@ -414,6 +414,7 @@ add_library(
   src/error.cpp
   src/file_access_generic.cpp
   src/file_stat.cpp
+  src/file_util.cpp
   src/fstypes.cpp
   src/history.cpp
   src/library_dependencies.cpp
@@ -907,6 +908,10 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
   endif()
 endforeach()
+
+if(WIN32)
+  target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
+endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL Release)
   # not sure why exactly, copied from fsst/CMakeLists.txt

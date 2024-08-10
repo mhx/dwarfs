@@ -12,6 +12,7 @@
     "boost-process",
     "boost-program-options",
     "boost-thread",
+    "boost-uuid",
     "boost-variant",
     "brotli",
     "date",
