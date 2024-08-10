@@ -19,38 +19,62 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
+#include <filesystem>
 #include <map>
+#include <regex>
 #include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/pager.h>
 #include <dwarfs/tool/render_manpage.h>
+#include <dwarfs_tool_main.h>
 #include <dwarfs_tool_manpage.h>
 
 #include "test_helpers.h"
 
 using namespace dwarfs;
 using namespace dwarfs::tool;
+using namespace std::string_literals;
 
 namespace {
 
-std::map<std::string, manpage::document> const docs = {
-    {"mkdwarfs", manpage::get_mkdwarfs_manpage()},
-    {"dwarfs", manpage::get_dwarfs_manpage()},
-    {"dwarfsck", manpage::get_dwarfsck_manpage()},
-    {"dwarfsextract", manpage::get_dwarfsextract_manpage()},
+struct tool_defs {
+  manpage::document doc;
+  main_adapter::main_fn_type main;
+  std::string_view help_option;
+  bool is_fuse;
 };
 
-}
+std::map<std::string, tool_defs> const tools = {
+    {"mkdwarfs", {manpage::get_mkdwarfs_manpage(), mkdwarfs_main, "-H", false}},
+    {"dwarfs", {manpage::get_dwarfs_manpage(), dwarfs_main, "-h", true}},
+    {"dwarfsck", {manpage::get_dwarfsck_manpage(), dwarfsck_main, "-h", false}},
+    {"dwarfsextract",
+     {manpage::get_dwarfsextract_manpage(), dwarfsextract_main, "-h", false}},
+};
+
+std::array const coverage_tests{
+    "mkdwarfs"s,
+    "dwarfsck"s,
+    "dwarfsextract"s,
+#ifndef DWARFS_TEST_RUNNING_ON_ASAN
+    // FUSE driver is leaky, so we don't run this test under ASAN
+    "dwarfs"s,
+#endif
+};
+
+} // namespace
 
 class manpage_render_test
     : public ::testing::TestWithParam<std::tuple<std::string, bool>> {};
 
 TEST_P(manpage_render_test, basic) {
   auto [name, color] = GetParam();
-  auto doc = docs.at(name);
+  auto doc = tools.at(name).doc;
   for (size_t width = 20; width <= 200; width += 1) {
     auto out = render_manpage(doc, width, color);
     EXPECT_GT(out.size(), 1000);
@@ -67,6 +91,96 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::Values("mkdwarfs", "dwarfs", "dwarfsck",
                                          "dwarfsextract"),
                        ::testing::Bool()));
+
+namespace {
+
+std::regex const boost_po_option{R"(\n\s+(-(\w)\s+\[\s+)?--(\w[\w-]*\w))"};
+std::regex const manpage_option{R"(\n\s+(-(\w),\s+)?--(\w[\w-]*\w))"};
+std::regex const fuse_option{R"(\n\s+-o\s+([\w()]+))"};
+
+std::map<std::string, std::string>
+parse_options(std::string const& text, std::regex const& re, bool is_fuse) {
+  std::map<std::string, std::string> options;
+  auto opts_begin = std::sregex_iterator(text.begin(), text.end(), re);
+  auto opts_end = std::sregex_iterator();
+
+  for (auto it = opts_begin; it != opts_end; ++it) {
+    auto match = *it;
+    if (is_fuse) {
+      auto opt = match[1].str();
+      if (!options.emplace(opt, std::string{}).second) {
+        throw std::runtime_error("duplicate option definition for " + opt);
+      }
+    } else {
+      auto short_opt = match[2].str();
+      auto long_opt = match[3].str();
+      if (auto it = options.find(long_opt); it != options.end()) {
+        if (!it->second.empty()) {
+          if (short_opt.empty()) {
+            continue;
+          } else {
+            throw std::runtime_error("duplicate option definition for " +
+                                     long_opt);
+          }
+        }
+      }
+      options[long_opt] = short_opt;
+    }
+  }
+
+  return options;
+}
+
+} // namespace
+
+class manpage_coverage_test : public ::testing::TestWithParam<std::string> {};
+
+TEST_P(manpage_coverage_test, options) {
+  auto tool_name = GetParam();
+  auto const& tool = tools.at(tool_name);
+  auto man = render_manpage(tool.doc, 80, false);
+  test::test_iolayer iol;
+  std::array<std::string_view, 2> const args{tool_name, tool.help_option};
+  auto rv = main_adapter{tool.main}(args, iol.get());
+
+#ifndef _WIN32
+  // WinFSP exits with a non-zero code when displaying usage :-/
+  ASSERT_EQ(0, rv) << tool_name << " " << tool.help_option << " failed";
+#endif
+
+  auto help_opts = parse_options(
+      iol.out(), tool.is_fuse ? fuse_option : boost_po_option, tool.is_fuse);
+  auto man_opts = parse_options(
+      man, tool.is_fuse ? fuse_option : manpage_option, tool.is_fuse);
+
+  if (tool.is_fuse) {
+    man_opts.erase("allow_root");
+    man_opts.erase("allow_other");
+  } else {
+    EXPECT_TRUE(help_opts.contains("help"))
+        << tool_name << " missing help option";
+  }
+
+  for (auto const& [opt, short_opt] : help_opts) {
+    auto it = man_opts.find(opt);
+    if (it == man_opts.end()) {
+      FAIL() << "option " << opt << " not documented for " << tool_name;
+    } else {
+      EXPECT_EQ(short_opt, it->second)
+          << "short option mismatch for " << opt << " for " << tool_name;
+    }
+  }
+
+  for (auto const& [opt, short_opt] : man_opts) {
+    auto it = help_opts.find(opt);
+    if (it == help_opts.end()) {
+      FAIL() << "option " << opt << " is obsolete for " << tool_name;
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, manpage_coverage_test,
+                         ::testing::ValuesIn(coverage_tests));
 
 TEST(pager_test, find_pager_program) {
   auto resolver = [](std::filesystem::path const& name) {
