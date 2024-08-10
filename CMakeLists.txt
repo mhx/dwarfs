@@ -868,6 +868,9 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
 
   target_include_directories(${tgt} PRIVATE
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+  )
+
+  target_include_directories(${tgt} PUBLIC
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:range-v3::range-v3,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 
