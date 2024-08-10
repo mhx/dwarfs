@@ -29,12 +29,10 @@
 
 #include <fmt/format.h>
 
-#include <folly/FileUtil.h>
-#include <folly/String.h>
-#include <folly/portability/Unistd.h>
-
+#include <dwarfs/file_util.h>
 #include <dwarfs/match.h>
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 #include "loremipsum.h"
@@ -327,9 +325,11 @@ void os_access_mock::add_local_files(fs::path const& base_path) {
       st.gid = 100;
       st.size = p.file_size();
       add(relpath, st, [path = p.path().string()] {
-        std::string rv;
-        if (!folly::readFile(path.c_str(), rv)) {
-          throw std::runtime_error(fmt::format("failed to read file {}", path));
+        std::error_code ec;
+        auto rv = read_file(path, ec);
+        if (ec) {
+          throw std::runtime_error(
+              fmt::format("failed to read file {}: {}", path, ec.message()));
         }
         return rv;
       });
@@ -562,9 +562,7 @@ std::optional<fs::path> find_binary(std::string_view name) {
 }
 
 std::vector<std::string> parse_args(std::string_view args) {
-  std::vector<std::string> rv;
-  folly::split(' ', args, rv);
-  return rv;
+  return split_to<std::vector<std::string>>(args, ' ');
 }
 
 std::string create_random_string(size_t size, uint8_t min, uint8_t max,
