@@ -34,9 +34,7 @@
 #include <thread>
 #include <tuple>
 
-#ifdef _WIN32
-#include <folly/portability/Windows.h>
-#else
+#ifndef _WIN32
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -50,18 +48,17 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
 
-#include <folly/Conv.h>
-#include <folly/FileUtil.h>
-#include <folly/String.h>
-#include <folly/experimental/TestUtil.h>
-#include <folly/portability/Unistd.h>
-
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/config.h>
+#include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
@@ -130,7 +127,7 @@ class scoped_no_leak_check {
 
 #if !(defined(_WIN32) || defined(__APPLE__))
 pid_t get_dwarfs_pid(fs::path const& path) {
-  return folly::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
+  return dwarfs::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
 }
 #endif
 
@@ -163,31 +160,6 @@ bool read_file(fs::path const& path, std::string& out) {
   tmp << ifs.rdbuf();
   out = tmp.str();
   return true;
-}
-
-std::error_code get_last_error_code() {
-#ifdef _WIN32
-  return std::error_code(::GetLastError(), std::system_category());
-#else
-  return std::error_code(errno, std::generic_category());
-#endif
-}
-
-bool read_file(fs::path const& path, std::string& out, std::error_code& ec) {
-  auto res = folly::readFile(path.string().c_str(), out);
-  if (!res) {
-    ec = get_last_error_code();
-  }
-  return res;
-}
-
-bool write_file(fs::path const& path, std::string_view data,
-                std::error_code& ec) {
-  auto res = folly::writeFile(data, path.string().c_str());
-  if (!res) {
-    ec = get_last_error_code();
-  }
-  return res;
 }
 
 struct compare_directories_result {
@@ -387,8 +359,7 @@ class subprocess {
   std::string cmdline() const {
     std::string cmd = prog_.string();
     if (!cmdline_.empty()) {
-      cmd += ' ';
-      cmd += folly::join(' ', cmdline_);
+      cmd += fmt::format(" {}", fmt::join(cmdline_, " "));
     }
     return cmd;
   }
@@ -522,7 +493,7 @@ class process_guard {
 
   explicit process_guard(pid_t pid)
       : pid_{pid} {
-    auto proc_dir = fs::path("/proc") / folly::to<std::string>(pid);
+    auto proc_dir = fs::path("/proc") / dwarfs::to<std::string>(pid);
     proc_dir_fd_ = ::open(proc_dir.c_str(), O_DIRECTORY);
 
     if (proc_dir_fd_ < 0) {
@@ -695,7 +666,7 @@ class driver_runner {
   ~driver_runner() {
     if (!mountpoint_.empty()) {
       if (!unmount()) {
-        ::abort();
+        std::abort();
       }
     }
   }
@@ -817,7 +788,7 @@ TEST_P(tools_test, end_to_end) {
   auto mode = GetParam();
 
   std::chrono::seconds const timeout{5};
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
@@ -1229,7 +1200,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
   }
 
   std::chrono::seconds const timeout{5};
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto mountpoint = td / "mnt";
   auto file = mountpoint / "bench.sh";
@@ -1387,8 +1358,8 @@ TEST_P(tools_test, mutating_and_error_ops) {
 
     {
       std::error_code ec;
-      std::string tmp;
-      EXPECT_FALSE(read_file(mountpoint / "empty", tmp, ec));
+      auto tmp = dwarfs::read_file(mountpoint / "empty", ec);
+      EXPECT_TRUE(ec);
       EXPECT_EC_UNIX_WIN(ec, EISDIR, ERROR_ACCESS_DENIED);
     }
 
@@ -1413,7 +1384,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       auto p = mountpoint / "nonexistent";
       EXPECT_FALSE(fs::exists(p));
       std::error_code ec;
-      EXPECT_FALSE(write_file(p, "hello", ec));
+      dwarfs::write_file(p, "hello", ec);
       EXPECT_TRUE(ec);
       EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
@@ -1423,7 +1394,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       auto p = mountpoint / "format.sh";
       EXPECT_TRUE(fs::exists(p));
       std::error_code ec;
-      EXPECT_FALSE(write_file(p, "hello", ec));
+      dwarfs::write_file(p, "hello", ec);
       EXPECT_TRUE(ec);
       EXPECT_EC_UNIX_WIN(ec, EACCES, ERROR_ACCESS_DENIED);
     }
@@ -1436,7 +1407,7 @@ TEST_P(tools_test, categorize) {
   auto mode = GetParam();
 
   std::chrono::seconds const timeout{5};
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
   auto image_recompressed = td / "test2.dwarfs";
@@ -1682,7 +1653,7 @@ INSTANTIATE_TEST_SUITE_P(
 #endif
 
 TEST(tools_test, dwarfsextract_progress) {
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto tarfile = td / "output.tar";
 
@@ -1702,7 +1673,7 @@ TEST(tools_test, dwarfsextract_progress) {
 }
 
 TEST(tools_test, dwarfsextract_stdout) {
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
 
   auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
@@ -1715,7 +1686,7 @@ TEST(tools_test, dwarfsextract_stdout) {
 }
 
 TEST(tools_test, dwarfsextract_file_out) {
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto outfile = td / "output.mtree";
 
