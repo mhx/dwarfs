@@ -35,19 +35,21 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-
-#include <folly/FileUtil.h>
-#include <folly/String.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <nlohmann/json.hpp>
 
 #include <range/v3/view/enumerate.hpp>
 
 #include <dwarfs/config.h>
+#include <dwarfs/file_util.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/iovec_read_buf.h>
+#include <dwarfs/string.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/util.h>
 #include <dwarfs_tool_main.h>
@@ -1087,6 +1089,9 @@ TEST(mkdwarfs_test, metadata_readdir) {
 
 TEST(mkdwarfs_test, metadata_access) {
 #ifdef _WIN32
+#define F_OK 0
+#define W_OK 2
+#define R_OK 4
   static constexpr int const x_ok = 1;
 #else
   static constexpr int const x_ok = X_OK;
@@ -1672,7 +1677,7 @@ TEST(mkdwarfs_test, pack_modes_random) {
                                         pack_mode_names.end());
     std::shuffle(modes.begin(), modes.end(), rng);
     modes.resize(dist(rng));
-    auto mode_arg = folly::join(',', modes);
+    auto mode_arg = fmt::format("{}", fmt::join(modes, ","));
     auto t = mkdwarfs_tester::create_empty();
     t.add_test_file_tree();
     t.add_random_file_tree({.avg_size = 128.0, .dimension = 16});
@@ -2187,9 +2192,7 @@ TEST(dwarfsck_test, list_files) {
   EXPECT_EQ(0, t.run({"image.dwarfs", "--list"})) << t.err();
   auto out = t.out();
 
-  std::set<std::string> files;
-  folly::splitTo<std::string>('\n', out, std::inserter(files, files.end()),
-                              true);
+  auto files = split_to<std::set<std::string>>(out, '\n');
 
   std::set<std::string> const expected{
       "test.pl",     "somelink",      "somedir",   "foo.pl",
@@ -2234,15 +2237,15 @@ TEST(dwarfsck_test, checksum_files) {
   EXPECT_EQ(8, num_lines);
 
   std::map<std::string, std::string> actual;
-  std::vector<std::string_view> lines;
-  folly::split('\n', out, lines);
 
-  for (auto const& line : lines) {
+  for (auto line : split_view<std::string_view>(out, '\n')) {
     if (line.empty()) {
       continue;
     }
-    std::string file, hash;
-    folly::split("  ", line, hash, file);
+    auto pos = line.find("  ");
+    ASSERT_NE(std::string::npos, pos);
+    auto hash = line.substr(0, pos);
+    auto file = line.substr(pos + 2);
     EXPECT_TRUE(actual.emplace(file, hash).second);
   }
 
@@ -2370,7 +2373,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
 
       auto ordered_sizes = get_sizes_in_offset_order(fs);
 
-      nilsimsa_results.insert(folly::join(",", ordered_sizes));
+      nilsimsa_results.insert(fmt::format("{}", fmt::join(ordered_sizes, ",")));
 
       if (max_sim_size == 0) {
         EXPECT_EQ(nilsimsa_ordered_sizes, ordered_sizes) << max_sim_size;
@@ -2577,9 +2580,7 @@ TEST_P(map_file_error_test, delayed) {
     for (auto const& p : fs::recursive_directory_iterator(audio_data_dir)) {
       if (p.is_regular_file()) {
         auto fp = fs::relative(p.path(), audio_data_dir);
-        std::string contents;
-        ASSERT_TRUE(folly::readFile(p.path().string().c_str(), contents));
-        files.emplace_back(fp, std::move(contents));
+        files.emplace_back(fp, read_file(p.path()));
 
         if (rng() % 2 == 0) {
           t.os->set_map_file_error(
@@ -2678,7 +2679,8 @@ TEST_P(map_file_error_test, delayed) {
     auto it = original_files.find(path.relative_path());
     ASSERT_NE(original_files.end(), it);
     std::cout << "--- original (" << it->second.size() << " bytes) ---\n";
-    std::cout << folly::hexDump(it->second.data(), it->second.size()) << "\n";
+    // std::cout << folly::hexDump(it->second.data(), it->second.size()) <<
+    // "\n";
   }
 
   auto dump = t.fa->get_file("inodes.dump");
