@@ -76,14 +76,14 @@ struct Symbol {
       if (len < 8) {
          *(u64*) symbol = 0;
          for(u32 i=0; i<len; i++) symbol[i] = input[i];
-         set_code_len(0, len);
       } else {
+         len = 8;
          *(u64*) symbol = *(u64*) input;
-         set_code_len(0, 8);
       }
+      set_code_len(FSST_CODE_MASK, len);
    }
    explicit Symbol(const char* begin, const char* end) : Symbol(begin, end-begin) {}
-   explicit Symbol(u8* begin, u8* end) : Symbol((const char*)begin, end-begin) {}
+   explicit Symbol(const u8* begin, const u8* end) : Symbol((const char*)begin, end-begin) {}
    void set_code_len(u32 code, u32 len) { gcl = (len<<28)|(code<<16)|((8-len)*8); }
 
    u8 length() const { return gcl >> 28; }
@@ -109,7 +109,7 @@ struct Symbol {
 // you always find a hit, because the lowest 256 codes are all single-byte symbols
 
 // in the hash table, the gcl field contains (low-to-high) garbageBits:16,code:12,length:4 
-#define FSST_GCL_FREE ((8<<28)|(((u32)FSST_CODE_MASK)<<16)) // high bits of gcl (len=8,code=FSST_CODE_MASK) indicates free bucket
+#define FSST_GCL_FREE ((15<<28)|(((u32)FSST_CODE_MASK)<<16)) // high bits of gcl (len=15,code=FSST_CODE_MASK) indicates free bucket
 
 // garbageBits is (8-length)*8, which is the amount of high bits to zero in the input word before comparing with the hashtable key
 //             ..it could of course be computed from len during lookup, but storing it precomputed in some loose bits is faster
@@ -191,7 +191,7 @@ struct SymbolMap {
    /// Find symbol in hash table, return code
    u16 hashFind(Symbol s) const {
       ulong idx = s.hash() & (hashTabSize-1);
-      if (hashTab[idx].gcl < FSST_GCL_FREE && 
+      if (hashTab[idx].gcl <= s.gcl && 
           *(u64*) hashTab[idx].symbol == (*(u64*) s.symbol & (0xFFFFFFFFFFFFFFFF >> ((u8) hashTab[idx].gcl)))) 
          return (hashTab[idx].gcl>>16); // matched a long symbol 
       return 0;

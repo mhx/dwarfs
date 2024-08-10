@@ -55,9 +55,8 @@ std::ostream& operator<<(std::ostream& out, const Symbol& s) {
       out << s.val.str[i];
    return out;
 }
-static u64 iter = 0;
 
-SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[], bool zeroTerminated=false) {
+SymbolTable *buildSymbolTable(Counters& counters, vector<const u8*> line, const size_t len[], bool zeroTerminated=false) {
    SymbolTable *st = new SymbolTable(), *bestTable = new SymbolTable();
    int bestGain = (int) -FSST_SAMPLEMAXSZ; // worst case (everything exception)
    size_t sampleFrac = 128;
@@ -70,8 +69,8 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
       u16 byteHisto[256];
       memset(byteHisto, 0, sizeof(byteHisto));
       for(size_t i=0; i<line.size(); i++) {
-         u8* cur = line[i];
-         u8* end = cur + len[i];
+         const u8* cur = line[i];
+         const u8* end = cur + len[i];
          while(cur < end) byteHisto[*cur++]++;
       }
       u32 minSize = FSST_SAMPLEMAXSZ, i = st->terminator = 256;
@@ -91,8 +90,8 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
       int gain = 0;
 
       for(size_t i=0; i<line.size(); i++) {
-         u8* cur = line[i], *start = cur;
-         u8* end = cur + len[i];
+         const u8* cur = line[i], *start = cur;
+         const u8* end = cur + len[i];
 
          if (sampleFrac < 128) {
             // in earlier rounds (sampleFrac < 128) we skip data in the sample (reduces overall work ~2x)
@@ -240,7 +239,7 @@ SymbolTable *buildSymbolTable(Counters& counters, vector<u8*> line, size_t len[]
    return bestTable;
 }
 
-static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size_t nlines, size_t len[], u8* line[], size_t size, u8* dst, size_t lenOut[], u8* strOut[], int unroll) {
+static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size_t nlines, const size_t len[], const u8* line[], size_t size, u8* dst, size_t lenOut[], u8* strOut[], int unroll) {
    size_t curLine = 0, inOff = 0, outOff = 0, batchPos = 0, empty = 0, budget = size;
    u8 *lim = dst + size, *codeBase = symbolBase + (1<<18); // 512KB temp space for compressing 512 strings 
    SIMDjob input[512];  // combined offsets of input strings (cur,end), and string #id (pos) and output (dst) pointer
@@ -375,8 +374,8 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
 
 
 // optimized adaptive *scalar* compression method
-static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, size_t lenIn[], u8* strIn[], size_t size, u8* out, size_t lenOut[], u8* strOut[], bool noSuffixOpt, bool avoidBranch) {
-   u8 *cur = NULL, *end =  NULL, *lim = out + size;
+static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, const size_t lenIn[], const u8* strIn[], size_t size, u8* out, size_t lenOut[], u8* strOut[], bool noSuffixOpt, bool avoidBranch) {
+   const u8 *cur = NULL, *end =  NULL, *lim = out + size;
    size_t curLine, suffixLim = symbolTable.suffixLim;
    u8 byteLim = symbolTable.nSymbols + symbolTable.zeroTerminated - symbolTable.lenHisto[0];
 
@@ -452,9 +451,10 @@ static inline size_t compressBulk(SymbolTable &symbolTable, size_t nlines, size_
 #define FSST_SAMPLELINE ((size_t) 512)
 
 // quickly select a uniformly random set of lines such that we have between [FSST_SAMPLETARGET,FSST_SAMPLEMAXSZ) string bytes
-vector<u8*> makeSample(u8* sampleBuf, u8* strIn[], size_t **lenRef, size_t nlines) {
-   size_t totSize = 0, *lenIn = *lenRef;
-   vector<u8*> sample;
+vector<const u8*> makeSample(u8* sampleBuf, const u8* strIn[], const size_t **lenRef, size_t nlines) {
+   size_t totSize = 0;
+   const size_t *lenIn = *lenRef;
+   vector<const u8*> sample;
 
    for(size_t i=0; i<nlines; i++) 
       totSize += lenIn[i];
@@ -464,10 +464,12 @@ vector<u8*> makeSample(u8* sampleBuf, u8* strIn[], size_t **lenRef, size_t nline
          sample.push_back(strIn[i]);
    } else {
       size_t sampleRnd = FSST_HASH(4637947);
-      u8* sampleLim = sampleBuf + FSST_SAMPLETARGET;
-      size_t *sampleLen = *lenRef = new size_t[nlines + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE];
+      const u8* sampleLim = sampleBuf + FSST_SAMPLETARGET;
+      size_t *sampleLen =  new size_t[nlines + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE];
+      *lenRef = sampleLen;
+      size_t* sampleLenLim = sampleLen + nlines + FSST_SAMPLEMAXSZ/FSST_SAMPLELINE;
 
-      while(sampleBuf < sampleLim) {
+      while(sampleBuf < sampleLim && sampleLen < sampleLenLim) {
          // choose a non-empty line
          sampleRnd = FSST_HASH(sampleRnd);
          size_t linenr = sampleRnd % nlines;
@@ -489,10 +491,10 @@ vector<u8*> makeSample(u8* sampleBuf, u8* strIn[], size_t **lenRef, size_t nline
    return sample;
 }
 
-extern "C" fsst_encoder_t* fsst_create(size_t n, size_t lenIn[], u8 *strIn[], int zeroTerminated) {
+extern "C" fsst_encoder_t* fsst_create(size_t n, const size_t lenIn[], const u8 *strIn[], int zeroTerminated) {
    u8* sampleBuf = new u8[FSST_SAMPLEMAXSZ];
-   size_t *sampleLen = lenIn;
-   vector<u8*> sample = makeSample(sampleBuf, strIn, &sampleLen, n?n:1); // careful handling of input to get a right-size and representative sample
+   const size_t *sampleLen = lenIn;
+   vector<const u8*> sample = makeSample(sampleBuf, strIn, &sampleLen, n?n:1); // careful handling of input to get a right-size and representative sample
    Encoder *encoder = new Encoder();
    encoder->symbolTable = shared_ptr<SymbolTable>(buildSymbolTable(encoder->counters, sample, sampleLen, zeroTerminated));
    if (sampleLen != lenIn) delete[] sampleLen; 
@@ -547,7 +549,7 @@ extern "C" u32 fsst_export(fsst_encoder_t *encoder, u8 *buf) {
 
 #define FSST_CORRUPT 32774747032022883 /* 7-byte number in little endian containing "corrupt" */
 
-extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 *buf) {
+extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 const *buf) {
    u64 version = 0;
    u32 code, pos = 17;
    u8 lenHisto[8];
@@ -586,7 +588,7 @@ extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 *buf) {
 }
 
 // runtime check for simd
-inline size_t _compressImpl(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
+inline size_t _compressImpl(Encoder *e, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
 #ifndef NONOPT_FSST
    if (simd && fsst_hasAVX512())
       return compressSIMD(*e->symbolTable, e->simdbuf, nlines, lenIn, strIn, size, output, lenOut, strOut, simd);
@@ -594,12 +596,12 @@ inline size_t _compressImpl(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn
    (void) simd;
    return compressBulk(*e->symbolTable, nlines, lenIn, strIn, size, output, lenOut, strOut, noSuffixOpt, avoidBranch);
 }
-size_t compressImpl(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
+size_t compressImpl(Encoder *e, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
    return _compressImpl(e, nlines, lenIn, strIn, size, output, lenOut, strOut, noSuffixOpt, avoidBranch, simd);
 }
 
 // adaptive choosing of scalar compression method based on symbol length histogram 
-inline size_t _compressAuto(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], int simd) {
+inline size_t _compressAuto(Encoder *e, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], int simd) {
    bool avoidBranch = false, noSuffixOpt = false;
    if (100*e->symbolTable->lenHisto[1] > 65*e->symbolTable->nSymbols && 100*e->symbolTable->suffixLim > 95*e->symbolTable->lenHisto[1]) {
       noSuffixOpt = true;
@@ -610,12 +612,12 @@ inline size_t _compressAuto(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn
    }
    return _compressImpl(e, nlines, lenIn, strIn, size, output, lenOut, strOut, noSuffixOpt, avoidBranch, simd);
 }
-size_t compressAuto(Encoder *e, size_t nlines, size_t lenIn[], u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], int simd) {
+size_t compressAuto(Encoder *e, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], int simd) {
    return _compressAuto(e, nlines, lenIn, strIn, size, output, lenOut, strOut, simd);
 }
 
 // the main compression function (everything automatic)
-extern "C" size_t fsst_compress(fsst_encoder_t *encoder, size_t nlines, size_t lenIn[], u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[]) {
+extern "C" size_t fsst_compress(fsst_encoder_t *encoder, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[]) {
    // to be faster than scalar, simd needs 64 lines or more of length >=12; or fewer lines, but big ones (totLen > 32KB)
    size_t totLen = accumulate(lenIn, lenIn+nlines, 0);
    int simd = totLen > nlines*12 && (nlines > 64 || totLen > (size_t) 1<<15); 

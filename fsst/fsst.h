@@ -88,8 +88,8 @@ typedef struct {
 fsst_encoder_t*  
 fsst_create(
    size_t n,         /* IN: number of strings in batch to sample from. */
-   size_t lenIn[],   /* IN: byte-lengths of the inputs */
-   unsigned char *strIn[],  /* IN: string start pointers. */
+   const size_t lenIn[],   /* IN: byte-lengths of the inputs */
+   const unsigned char *strIn[],  /* IN: string start pointers. */
    int zeroTerminated       /* IN: whether input strings are zero-terminated. If so, encoded strings are as well (i.e. symbol[0]=""). */
 );
 
@@ -116,7 +116,7 @@ fsst_destroy(fsst_encoder_t*);
 unsigned int                /* OUT: number of bytes consumed in buf (0 on failure). */
 fsst_import(
    fsst_decoder_t *decoder, /* IN: this symbol table will be overwritten. */ 
-   unsigned char *buf       /* OUT: pointer to a byte-buffer where fsst_export() serialized this symbol table. */
+   unsigned char const *buf /* IN: pointer to a byte-buffer where fsst_export() serialized this symbol table. */
 ); 
 
 /* Return a decoder structure from an encoder. */
@@ -131,8 +131,8 @@ size_t                      /* OUT: the number of compressed strings (<=n) that 
 fsst_compress(
    fsst_encoder_t *encoder, /* IN: encoder obtained from fsst_create(). */
    size_t nstrings,         /* IN: number of strings in batch to compress. */
-   size_t lenIn[],          /* IN: byte-lengths of the inputs */
-   unsigned char *strIn[],  /* IN: input string start pointers. */
+   const size_t lenIn[],          /* IN: byte-lengths of the inputs */
+   const unsigned char *strIn[],  /* IN: input string start pointers. */
    size_t outsize,          /* IN: byte-length of output buffer. */
    unsigned char *output,   /* OUT: memory buffer to put the compressed strings in (one after the other). */
    size_t lenOut[],         /* OUT: byte-lengths of the compressed strings. */
@@ -142,9 +142,9 @@ fsst_compress(
 /* Decompress a single string, inlined for speed. */
 inline size_t /* OUT: bytesize of the decompressed string. If > size, the decoded output is truncated to size. */
 fsst_decompress(
-   fsst_decoder_t *decoder,  /* IN: use this symbol table for compression. */
+   const fsst_decoder_t *decoder,  /* IN: use this symbol table for compression. */
    size_t lenIn,             /* IN: byte-length of compressed string. */
-   unsigned char *strIn,     /* IN: compressed string. */
+   const unsigned char *strIn,     /* IN: compressed string. */
    size_t size,              /* IN: byte-length of output buffer. */
    unsigned char *output     /* OUT: memory buffer to put the decompressed string in. */
 ) {

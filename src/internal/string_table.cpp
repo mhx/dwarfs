@@ -73,8 +73,8 @@ class packed_string_table : public string_table::impl {
       DWARFS_CHECK(st, "symtab unexpectedly unset");
       dec_ = std::make_unique<fsst_decoder_t>();
 
-      auto read = fsst_import(dec_.get(), reinterpret_cast<unsigned char*>(
-                                              const_cast<char*>(st->data())));
+      auto read = fsst_import(
+          dec_.get(), reinterpret_cast<unsigned char const*>(st->data()));
 
       if (read != st->size()) {
         DWARFS_THROW(runtime_error,
@@ -115,9 +115,8 @@ class packed_string_table : public string_table::impl {
       size_t size = end - beg;
       out.resize(8 * size);
       auto outlen = fsst_decompress(
-          dec_.get(), size,
-          reinterpret_cast<unsigned char*>(const_cast<char*>(beg)), out.size(),
-          reinterpret_cast<unsigned char*>(out.data()));
+          dec_.get(), size, reinterpret_cast<unsigned char const*>(beg),
+          out.size(), reinterpret_cast<unsigned char*>(out.data()));
       out.resize(outlen);
       return out;
     }
@@ -202,14 +201,13 @@ string_table::pack_generic(std::span<T const> input,
 
   if (pack_data) {
     std::vector<size_t> len_vec;
-    std::vector<unsigned char*> ptr_vec;
+    std::vector<unsigned char const*> ptr_vec;
 
     len_vec.reserve(size);
     ptr_vec.reserve(size);
 
     for (auto const& s : input) {
-      ptr_vec.emplace_back(
-          reinterpret_cast<unsigned char*>(const_cast<char*>(s.data())));
+      ptr_vec.emplace_back(reinterpret_cast<unsigned char const*>(s.data()));
       len_vec.emplace_back(s.size());
       total_input_size += s.size();
     }

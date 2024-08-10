@@ -75,7 +75,7 @@ struct Symbol {
 
    explicit Symbol(u8 c, u16 code) : icl((1<<28)|(code<<16)|56) { val.num = c; } // single-char symbol
    explicit Symbol(const char* begin, const char* end) : Symbol(begin, (u32) (end-begin)) {}
-   explicit Symbol(u8* begin, u8* end) : Symbol((const char*)begin, (u32) (end-begin)) {}
+   explicit Symbol(const u8* begin, const u8* end) : Symbol((const char*)begin, (u32) (end-begin)) {}
    explicit Symbol(const char* input, u32 len) {
       val.num = 0;
       if (len>=8) {
@@ -244,7 +244,7 @@ struct SymbolTable {
       }
       return byteCodes[s.first()] & FSST_CODE_MASK;
    }
-   u16 findLongestSymbol(u8* cur, u8* end) const {
+   u16 findLongestSymbol(const u8* cur, const u8* end) const {
       return findLongestSymbol(Symbol(cur,end)); // represent the string as a temporary symbol
    }
 

@@ -58,19 +58,17 @@ std::ostream& operator<<(std::ostream& out, const Symbol& s) {
 #define FSST_SAMPLETARGET (1<<17) 
 #define FSST_SAMPLEMAXSZ ((long) 2*FSST_SAMPLETARGET) 
 
-SymbolMap *buildSymbolMap(Counters& counters, long sampleParam, vector<ulong>& sample, ulong len[], u8* line[]) {
+SymbolMap *buildSymbolMap(Counters& counters, long sampleParam, vector<ulong>& sample, const ulong len[], const u8* line[]) {
    ulong sampleSize = max(sampleParam, FSST_SAMPLEMAXSZ); // if sampleParam is negative, we need to ignore part of the last line
    SymbolMap *st = new SymbolMap(), *bestMap = new SymbolMap();
    long bestGain = -sampleSize; // worst case (everything exception)
    ulong sampleFrac = 128;
 
    for(ulong i=0; i<sample.size(); i++) {
-      u8* cur = line[sample[i]];
-      u8* end = cur + len[sample[i]];
-      if (sampleParam < 0 && i+1 == sample.size()) 
+      const u8* cur = line[sample[i]];
+      if (sampleParam < 0 && i+1 == sample.size())
          cur -= sampleSize; // use only last part of last line (which could be too long for an efficient sample)
    }
-   u32 minSize = FSST_SAMPLEMAXSZ;
 
    // a random number between 0 and 128
    auto rnd128 = [&](ulong i) { return 1 + (FSST_HASH((i+1)*sampleFrac)&127); };
@@ -80,8 +78,8 @@ SymbolMap *buildSymbolMap(Counters& counters, long sampleParam, vector<ulong>& s
       long gain = 0;
 
       for(ulong i=0; i<sample.size(); i++) {
-         u8* cur = line[sample[i]];
-         u8* end = cur + len[sample[i]];
+         const u8* cur = line[sample[i]];
+         const u8* end = cur + len[sample[i]];
 
          if (sampleParam < 0 && i+1 == sample.size()) { 
             cur -= sampleParam; // use only last part of last line (which could be too long for an efficient sample)
@@ -96,7 +94,7 @@ SymbolMap *buildSymbolMap(Counters& counters, long sampleParam, vector<ulong>& s
             cur += pos1 >> 12;
             pos1 &= FSST_CODE_MASK;
             while (true) {
-	       u8 *old = cur;
+	       const u8 *old = cur;
                counters.count1Inc(pos1);
                if (cur<end-7) {
                   ulong word = fsst_unaligned_load(cur);
@@ -207,12 +205,12 @@ SymbolMap *buildSymbolMap(Counters& counters, long sampleParam, vector<ulong>& s
 }
 
 // optimized adaptive *scalar* compression method
-static inline ulong compressBulk(SymbolMap &symbolMap, ulong nlines, ulong lenIn[], u8* strIn[], ulong size, u8* out, ulong lenOut[], u8* strOut[]) {
+static inline ulong compressBulk(SymbolMap &symbolMap, ulong nlines, const ulong lenIn[], const u8* strIn[], ulong size, u8* out, ulong lenOut[], u8* strOut[]) {
    u8 *lim = out + size;
    ulong curLine;
    for(curLine=0; curLine<nlines; curLine++) {
-      u8 *cur = strIn[curLine]; 
-      u8 *end = cur + lenIn[curLine]; 
+      const u8 *cur = strIn[curLine];
+      const u8 *end = cur + lenIn[curLine];
       strOut[curLine] = out;
       while (cur+16 <= end && (lim-out) >= 8) {
          u64 word = fsst_unaligned_load(cur);
@@ -263,7 +261,7 @@ static inline ulong compressBulk(SymbolMap &symbolMap, ulong nlines, ulong lenIn
    return curLine;
 }
 
-long makeSample(vector<ulong> &sample, ulong nlines, ulong len[]) {
+long makeSample(vector<ulong> &sample, ulong nlines, const ulong len[]) {
    ulong i, sampleRnd = 1, sampleProb = 256, sampleSize = 0, totSize = 0;
    ulong sampleTarget = FSST_SAMPLETARGET;
 
@@ -298,7 +296,7 @@ long makeSample(vector<ulong> &sample, ulong nlines, ulong len[]) {
    return (sampleLong < FSST_SAMPLEMAXSZ)?sampleLong:FSST_SAMPLEMAXSZ-sampleLong; 
 }
 
-extern "C" fsst_encoder_t* fsst_create(ulong n, ulong lenIn[], u8 *strIn[], int dummy) {
+extern "C" fsst_encoder_t* fsst_create(ulong n, const ulong lenIn[], const u8 *strIn[], int dummy) {
    vector<ulong> sample;
    (void) dummy;
    long sampleSize = makeSample(sample, n?n:1, lenIn); // careful handling of input to get a right-size and representative sample
@@ -378,27 +376,27 @@ extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 *buf) {
 }
 
 // runtime check for simd
-inline ulong _compressImpl(Encoder *e, ulong nlines, ulong lenIn[], u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
+inline ulong _compressImpl(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
    (void) noSuffixOpt;
    (void) avoidBranch;
    (void) simd;
    return compressBulk(*e->symbolMap, nlines, lenIn, strIn, size, output, lenOut, strOut);
 }
-ulong compressImpl(Encoder *e, ulong nlines, ulong lenIn[], u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
+ulong compressImpl(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
    return _compressImpl(e, nlines, lenIn, strIn, size, output, lenOut, strOut, noSuffixOpt, avoidBranch, simd);
 }
 
 // adaptive choosing of scalar compression method based on symbol length histogram 
-inline ulong _compressAuto(Encoder *e, ulong nlines, ulong lenIn[], u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], int simd) {
+inline ulong _compressAuto(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], int simd) {
    (void) simd;
    return _compressImpl(e, nlines, lenIn, strIn, size, output, lenOut, strOut, false, false, false);
 }
-ulong compressAuto(Encoder *e, ulong nlines, ulong lenIn[], u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], int simd) {
+ulong compressAuto(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], int simd) {
    return _compressAuto(e, nlines, lenIn, strIn, size, output, lenOut, strOut, simd);
 }
 
 // the main compression function (everything automatic)
-extern "C" ulong fsst_compress(fsst_encoder_t *encoder, ulong nlines, ulong lenIn[], u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[]) {
+extern "C" ulong fsst_compress(fsst_encoder_t *encoder, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[]) {
    // to be faster than scalar, simd needs 64 lines or more of length >=12; or fewer lines, but big ones (totLen > 32KB)
    ulong totLen = accumulate(lenIn, lenIn+nlines, 0);
    int simd = totLen > nlines*12 && (nlines > 64 || totLen > (ulong) 1<<15); 
