@@ -49,12 +49,12 @@ int main_adapter::operator()(int argc, sys_char** argv) const {
   return main_fn_(argc, argv, iolayer::system_default());
 }
 
-int main_adapter::operator()(std::span<std::string> args,
+int main_adapter::operator()(std::span<std::string const> args,
                              iolayer const& iol) const {
   return call_sys_main_iolayer(args, iol, main_fn_);
 }
 
-int main_adapter::operator()(std::span<std::string_view> args,
+int main_adapter::operator()(std::span<std::string_view const> args,
                              iolayer const& iol) const {
   return call_sys_main_iolayer(args, iol, main_fn_);
 }
@@ -63,11 +63,12 @@ int main_adapter::safe(int argc, sys_char** argv) const {
   return safe_main([&] { return (*this)(argc, argv); });
 }
 
-int main_adapter::safe(std::span<std::string> args, iolayer const& iol) const {
+int main_adapter::safe(std::span<std::string const> args,
+                       iolayer const& iol) const {
   return safe_main([&] { return (*this)(args, iol); });
 }
 
-int main_adapter::safe(std::span<std::string_view> args,
+int main_adapter::safe(std::span<std::string_view const> args,
                        iolayer const& iol) const {
   return safe_main([&] { return (*this)(args, iol); });
 }
