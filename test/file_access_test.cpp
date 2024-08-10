@@ -24,10 +24,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <folly/experimental/TestUtil.h>
-
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_access_generic.h>
+#include <dwarfs/file_util.h>
 
 #include "test_helpers.h"
 
@@ -35,7 +34,7 @@ using namespace dwarfs;
 namespace fs = std::filesystem;
 
 TEST(file_access_generic_test, basic) {
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
 
   auto text_file = td / "test.txt";
@@ -89,7 +88,7 @@ TEST(file_access_generic_test, basic) {
 }
 
 TEST(file_access_generic_test, error_handling) {
-  folly::test::TemporaryDirectory tempdir("dwarfs");
+  temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
 
   auto nonexistent_file = td / "nonexistent";
