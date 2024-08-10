@@ -83,7 +83,7 @@ to disk:
   fully decompressed yet will carry decompressor state along with it, which
   can use a significant amount of additional memory.
 
-- `-l`, `--log-level=`*name*:
+- `--log-level=`*name*:
   Specify a logging level.
 
 - `--log-with-context`:
