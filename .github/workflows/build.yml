@@ -40,7 +40,7 @@ jobs:
       - name: Configure Build
         shell: cmd
         run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON
+          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON
 
       - name: Run Build
         shell: cmd

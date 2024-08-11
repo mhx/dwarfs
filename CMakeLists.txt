@@ -26,6 +26,9 @@ project(dwarfs)
 include(ExternalProject)
 include(CheckCXXSourceCompiles)
 
+option(WITH_LIBDWARFS "build with libdwarfs" ON)
+option(WITH_TOOLS "build with tools" ON)
+option(WITH_FUSE_DRIVER "build with FUSE driver" ON)
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(WITH_FUZZ "build with fuzzing binaries" OFF)
@@ -33,7 +36,7 @@ option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(TRY_ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
-option(WITH_UNIVERSAL_BINARY "build with universal binary" ON)
+option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 if(NOT (APPLE OR WIN32))
   option(ENABLE_STACKTRACE "build with symbolizer support" ON)
@@ -58,6 +61,10 @@ if(NOT WIN32)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(DISABLE_MOLD "disable mold" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
+endif()
+
+if(STATIC_BUILD_DO_NOT_USE AND NOT(WITH_LIBDWARFS AND WITH_TOOLS AND WITH_FUSE_DRIVER))
+  message(FATAL_ERROR "STATIC_BUILD_DO_NOT_USE requires WITH_LIBDWARFS, WITH_TOOLS and WITH_FUSE_DRIVER")
 endif()
 
 # Libraries that we can fetch on demand if necessary
@@ -153,80 +160,118 @@ endif()
 
 if(WITH_MAN_PAGES)
   include("${CMAKE_SOURCE_DIR}/cmake/manpage.cmake")
-  foreach(man dwarfs.1 mkdwarfs.1 dwarfsck.1 dwarfsextract.1 dwarfs-format.5)
+  if(WITH_LIBDWARFS)
+    list(APPEND DWARFS_MANPAGES dwarfs-format.5)
+  endif()
+  if(WITH_TOOLS)
+    list(APPEND DWARFS_MANPAGES mkdwarfs.1 dwarfsck.1 dwarfsextract.1)
+  endif()
+  if(WITH_FUSE_DRIVER)
+    list(APPEND DWARFS_MANPAGES dwarfs.1)
+  endif()
+  foreach(man ${DWARFS_MANPAGES})
     add_manpage(${man})
   endforeach()
 endif()
 
 include(FetchContent)
 
-include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
-
 if(WITH_TESTS)
   include(${CMAKE_SOURCE_DIR}/cmake/need_gtest.cmake)
 endif()
 
-find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
+include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 
-if(APPLE)
-  if(USE_HOMEBREW_LIBARCHIVE)
-    find_program(HOMEBREW_EXE brew)
-    execute_process(
-      COMMAND ${HOMEBREW_EXE} --prefix libarchive
-      OUTPUT_VARIABLE LIBARCHIVE_PREFIX
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    list(PREPEND CMAKE_PREFIX_PATH ${LIBARCHIVE_PREFIX})
+if(WITH_LIBDWARFS)
+  include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
+
+  find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
+
+  if(APPLE)
+    if(USE_HOMEBREW_LIBARCHIVE)
+      find_program(HOMEBREW_EXE brew)
+      execute_process(
+        COMMAND ${HOMEBREW_EXE} --prefix libarchive
+        OUTPUT_VARIABLE LIBARCHIVE_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+      list(PREPEND CMAKE_PREFIX_PATH ${LIBARCHIVE_PREFIX})
+    endif()
   endif()
+
+  pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
+  pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
+  pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
+  pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
+  pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=${LIBLZ4_REQUIRED_VERSION})
+  pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=${LIBLZMA_REQUIRED_VERSION})
+  pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=${LIBBROTLI_REQUIRED_VERSION})
+  pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=${LIBBROTLI_REQUIRED_VERSION})
+  # pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=${LIBMAGIC_REQUIRED_VERSION})
+  if(TRY_ENABLE_FLAC)
+    pkg_check_modules(FLAC IMPORTED_TARGET flac++>=${FLAC_REQUIRED_VERSION})
+  endif()
+
+  if(USE_JEMALLOC)
+    pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
+  endif()
+
+  include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
+
+  include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
+  include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
+
+  if(ENABLE_RICEPP)
+    # TODO: support FetchContent
+    add_subdirectory(ricepp)
+  endif()
+
+  include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
+
+  set(DWARFS_HAVE_LIBZSTD ON)
+  set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
+  set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
+  set(DWARFS_HAVE_LIBMAGIC ${LIBMAGIC_FOUND})
+  set(DWARFS_HAVE_LIBLZ4 ${LIBLZ4_FOUND})
+  set(DWARFS_HAVE_LIBLZMA ${LIBLZMA_FOUND})
+  set(DWARFS_HAVE_LIBBROTLI ${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND})
+  set(DWARFS_HAVE_FLAC ${FLAC_FOUND})
+  set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
+  set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
+  set(DWARFS_STACKTRACE_ENABLED ${ENABLE_STACKTRACE})
+
+  configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
+else()
+  find_package(dwarfs ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH} EXACT REQUIRED CONFIG)
 endif()
 
-pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
-pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
-pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
-pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=${ZSTD_REQUIRED_VERSION})
-pkg_check_modules(LIBLZ4 IMPORTED_TARGET liblz4>=${LIBLZ4_REQUIRED_VERSION})
-pkg_check_modules(LIBLZMA IMPORTED_TARGET liblzma>=${LIBLZMA_REQUIRED_VERSION})
-pkg_check_modules(LIBBROTLIDEC IMPORTED_TARGET libbrotlidec>=${LIBBROTLI_REQUIRED_VERSION})
-pkg_check_modules(LIBBROTLIENC IMPORTED_TARGET libbrotlienc>=${LIBBROTLI_REQUIRED_VERSION})
-# pkg_check_modules(LIBMAGIC IMPORTED_TARGET libmagic>=${LIBMAGIC_REQUIRED_VERSION})
-if(TRY_ENABLE_FLAC)
-  pkg_check_modules(FLAC IMPORTED_TARGET flac++>=${FLAC_REQUIRED_VERSION})
-endif()
+if(WITH_TOOLS)
+  foreach(tgt mkdwarfs dwarfsck dwarfsextract)
+    add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)
+    add_executable(${tgt} tools/src/${tgt}.cpp)
 
-if(USE_JEMALLOC)
-  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
-endif()
+    target_link_libraries(${tgt} PRIVATE ${tgt}_main)
 
-include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
+    list(APPEND MAIN_TARGETS ${tgt}_main)
+    list(APPEND BINARY_TARGETS ${tgt})
 
-include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
+    install(TARGETS ${tgt} RUNTIME DESTINATION bin)
+  endforeach()
 
-if(ENABLE_RICEPP)
-  # TODO: support FetchContent
-  add_subdirectory(ricepp)
-endif()
+  target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
+  target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
+  target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
 
-include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
+  if(WITH_UNIVERSAL_BINARY)
+    add_executable(dwarfsuniversal tools/src/universal.cpp)
+    list(APPEND BINARY_TARGETS dwarfsuniversal)
 
-foreach(tgt mkdwarfs dwarfsck dwarfsextract)
-  add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)
-
-  add_executable(${tgt} tools/src/${tgt}.cpp)
-
-  list(APPEND BINARY_TARGETS ${tgt})
-endforeach()
-
-if(WITH_UNIVERSAL_BINARY)
-  add_executable(dwarfsuniversal tools/src/universal.cpp)
-  list(APPEND BINARY_TARGETS dwarfsuniversal)
-
-  target_link_libraries(dwarfsuniversal PRIVATE
-          mkdwarfs_main dwarfsck_main dwarfsextract_main)
-  set_target_properties(dwarfsuniversal PROPERTIES
-          RUNTIME_OUTPUT_DIRECTORY universal
-          OUTPUT_NAME dwarfs-universal)
+    target_link_libraries(dwarfsuniversal PRIVATE
+            mkdwarfs_main dwarfsck_main dwarfsextract_main)
+    set_target_properties(dwarfsuniversal PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY universal
+            OUTPUT_NAME dwarfs-universal)
+  endif()
 endif()
 
 if(WITH_PXATTR)
@@ -234,72 +279,72 @@ if(WITH_PXATTR)
   list(APPEND BINARY_TARGETS pxattr)
 endif()
 
-install(TARGETS mkdwarfs dwarfsck dwarfsextract RUNTIME DESTINATION bin)
+if(WITH_FUSE_DRIVER)
+  include(${CMAKE_SOURCE_DIR}/cmake/need_fuse.cmake)
 
-list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsextract_main)
-
-include(${CMAKE_SOURCE_DIR}/cmake/need_fuse.cmake)
-
-if(FUSE3_FOUND OR WINFSP OR APPLE)
-  add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
-  target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
-  add_executable(dwarfs-bin tools/src/dwarfs.cpp)
-  target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
-  set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
-  if(WINFSP)
-    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
-                                                   DWARFS_FUSE_LOWLEVEL=0)
-    target_include_directories(dwarfs_main SYSTEM PRIVATE "${WINFSP_PATH}/inc")
-    target_link_libraries(dwarfs_main PRIVATE ${WINFSP})
-    target_link_libraries(dwarfs-bin PRIVATE delayimp.lib)
-    target_link_options(dwarfs-bin PRIVATE /DELAYLOAD:winfsp-x64.dll)
-    if(WITH_UNIVERSAL_BINARY)
-      target_link_libraries(dwarfsuniversal PRIVATE delayimp.lib)
-      target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+  if(FUSE3_FOUND OR WINFSP OR APPLE)
+    add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
+    target_compile_definitions(dwarfs_main PRIVATE _FILE_OFFSET_BITS=64)
+    add_executable(dwarfs-bin tools/src/dwarfs.cpp)
+    target_link_libraries(dwarfs-bin PRIVATE dwarfs_main)
+    set_target_properties(dwarfs-bin PROPERTIES OUTPUT_NAME dwarfs)
+    if(WINFSP)
+      target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=32
+                                                     DWARFS_FUSE_LOWLEVEL=0)
+      target_include_directories(dwarfs_main SYSTEM PRIVATE "${WINFSP_PATH}/inc")
+      target_link_libraries(dwarfs_main PRIVATE ${WINFSP})
+      target_link_libraries(dwarfs-bin PRIVATE delayimp.lib)
+      target_link_options(dwarfs-bin PRIVATE /DELAYLOAD:winfsp-x64.dll)
+      if(WITH_UNIVERSAL_BINARY)
+        target_link_libraries(dwarfsuniversal PRIVATE delayimp.lib)
+        target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+      endif()
+    elseif(APPLE)
+      target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=29)
+      target_link_libraries(dwarfs_main PRIVATE PkgConfig::FUSE)
+    else()
+      target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
+      target_link_libraries(dwarfs_main PRIVATE PkgConfig::FUSE3)
     endif()
-  elseif(APPLE)
-    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=29)
-    target_link_libraries(dwarfs_main PRIVATE PkgConfig::FUSE)
-  else()
-    target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
-    target_link_libraries(dwarfs_main PRIVATE PkgConfig::FUSE3)
+    if(WITH_UNIVERSAL_BINARY)
+      target_link_libraries(dwarfsuniversal PRIVATE dwarfs_main)
+    endif()
+    if(WINFSP)
+      install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
+    else()
+      add_custom_command(OUTPUT  mount.dwarfs
+                         COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
+                         DEPENDS dwarfs-bin)
+      list(APPEND SYMLINKS mount.dwarfs)
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
+      install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
+    endif()
+    list(APPEND BINARY_TARGETS dwarfs-bin)
+    list(APPEND MAIN_TARGETS dwarfs_main)
+    target_link_libraries(dwarfs_main PRIVATE dwarfs_reader)
   endif()
-  if(WITH_UNIVERSAL_BINARY)
-    target_link_libraries(dwarfsuniversal PRIVATE dwarfs_main)
-  endif()
-  if(WINFSP)
-    install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
-  else()
-    add_custom_command(OUTPUT  mount.dwarfs
-                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
-                       DEPENDS dwarfs-bin)
-    list(APPEND SYMLINKS mount.dwarfs)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs DESTINATION sbin)
-    install(TARGETS dwarfs-bin RUNTIME DESTINATION sbin)
-  endif()
-  list(APPEND BINARY_TARGETS dwarfs-bin)
-  list(APPEND MAIN_TARGETS dwarfs_main)
-endif()
 
-if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
-  add_library(dwarfs2_main tools/src/dwarfs_main.cpp)
-  target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
-                                                  FUSE_USE_VERSION=29)
-  target_link_libraries(dwarfs2_main PRIVATE PkgConfig::FUSE)
-  add_executable(dwarfs2-bin tools/src/dwarfs.cpp)
-  target_link_libraries(dwarfs2-bin PRIVATE dwarfs2_main)
-  if(WITH_UNIVERSAL_BINARY AND (NOT FUSE3_FOUND))
-    target_link_libraries(dwarfsuniversal PRIVATE dwarfs2_main)
+  if(FUSE_FOUND AND (NOT APPLE) AND (WITH_LEGACY_FUSE OR NOT FUSE3_FOUND))
+    add_library(dwarfs2_main tools/src/dwarfs_main.cpp)
+    target_compile_definitions(dwarfs2_main PRIVATE _FILE_OFFSET_BITS=64
+                                                    FUSE_USE_VERSION=29)
+    target_link_libraries(dwarfs2_main PRIVATE PkgConfig::FUSE)
+    add_executable(dwarfs2-bin tools/src/dwarfs.cpp)
+    target_link_libraries(dwarfs2-bin PRIVATE dwarfs2_main)
+    if(WITH_UNIVERSAL_BINARY AND (NOT FUSE3_FOUND))
+      target_link_libraries(dwarfsuniversal PRIVATE dwarfs2_main)
+    endif()
+    set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
+    add_custom_command(OUTPUT  mount.dwarfs2
+                       COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
+                       DEPENDS dwarfs2-bin)
+    list(APPEND SYMLINKS mount.dwarfs2)
+    install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
+    list(APPEND BINARY_TARGETS dwarfs2-bin)
+    list(APPEND MAIN_TARGETS dwarfs2_main)
+    target_link_libraries(dwarfs2_main PRIVATE dwarfs_reader)
   endif()
-  set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
-  add_custom_command(OUTPUT  mount.dwarfs2
-                     COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs2 mount.dwarfs2
-                     DEPENDS dwarfs2-bin)
-  list(APPEND SYMLINKS mount.dwarfs2)
-  install(TARGETS dwarfs2-bin RUNTIME DESTINATION sbin)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mount.dwarfs2 DESTINATION sbin)
-  list(APPEND BINARY_TARGETS dwarfs2-bin)
-  list(APPEND MAIN_TARGETS dwarfs2_main)
 endif()
 
 if(WITH_MAN_OPTION)
@@ -344,46 +389,60 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
 endif()
 
 if(WITH_TESTS)
-  list(APPEND DWARFS_TESTS
-    badfs_test
-    block_cache_test
-    block_merger_test
-    checksum_test
-    chmod_transformer_test
-    compat_test
-    dwarfs_test
-    entry_test
-    error_test
-    file_access_test
-    filesystem_test
-    filesystem_writer_test
-    fits_categorizer_test
-    fragment_category_test
-    incompressible_categorizer_test
-    integral_value_parser_test
-    lazy_value_test
-    metadata_requirements_test
-    options_test
-    pcm_sample_transformer_test
-    pcmaudio_categorizer_test
-    speedometer_test
-    terminal_test
-    tool_main_test
-    tools_test
-    utils_test
-    file_utils_test
-    worker_group_test
-  )
+  if(WITH_LIBDWARFS)
+    list(APPEND DWARFS_TESTS
+      badfs_test
+      block_merger_test
+      checksum_test
+      chmod_transformer_test
+      compat_test
+      dwarfs_test
+      entry_test
+      error_test
+      file_access_test
+      filesystem_test
+      filesystem_writer_test
+      fits_categorizer_test
+      fragment_category_test
+      incompressible_categorizer_test
+      integral_value_parser_test
+      lazy_value_test
+      metadata_requirements_test
+      options_test
+      pcm_sample_transformer_test
+      pcmaudio_categorizer_test
+      speedometer_test
+      terminal_test
+      utils_test
+      file_utils_test
+      worker_group_test
+    )
 
-  if(WITH_MAN_OPTION)
+    if(FLAC_FOUND)
+      list(APPEND DWARFS_TESTS
+        flac_compressor_test
+      )
+    endif()
+  endif()
+
+  if(WITH_TOOLS)
+    list(APPEND DWARFS_TESTS
+      block_cache_test
+      tool_main_test
+    )
+  endif()
+
+  if(WITH_TOOLS OR WITH_FUSE_DRIVER)
+    list(APPEND DWARFS_TESTS
+      tools_test
+    )
+  endif()
+
+  if(WITH_TOOLS AND WITH_MAN_OPTION)
     list(APPEND DWARFS_TESTS manpage_test)
   endif()
 
-  if(FLAC_FOUND)
-    list(APPEND DWARFS_TESTS flac_compressor_test)
-  endif()
-
-  if(ENABLE_RICEPP)
+  if(WITH_LIBDWARFS AND ENABLE_RICEPP)
     list(APPEND DWARFS_TESTS ricepp_compressor_test)
   endif()
 
@@ -403,23 +462,28 @@ if(WITH_TESTS)
     $<$<BOOL:${WITH_UNIVERSAL_BINARY}>:DWARFS_HAVE_UNIVERSAL_BINARY>
   )
 
-  target_link_libraries(tool_main_test PRIVATE
-    mkdwarfs_main dwarfsck_main dwarfsextract_main)
+  if(TARGET tool_main_test)
+    target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+  endif()
 
   if(TARGET manpage_test)
     target_link_libraries(manpage_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
-    if (TARGET dwarfs_main)
+    if(WITH_FUSE_DRIVER)
       target_link_libraries(manpage_test PRIVATE dwarfs_main)
     endif()
   endif()
 
-  target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
+  if(TARGET block_cache_test)
+    target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
+  endif()
 
   foreach(tgt fits_categorizer_test
               incompressible_categorizer_test
               pcmaudio_categorizer_test
               tool_main_test)
-    target_link_libraries(${tgt} PRIVATE dwarfs_writer)
+    if(TARGET ${tgt})
+      target_link_libraries(${tgt} PRIVATE dwarfs_writer)
+    endif()
   endforeach()
 
   foreach(tgt ${TEST_TARGETS})
@@ -430,15 +494,17 @@ if(WITH_TESTS)
   endforeach()
 endif()
 
-if(WITH_BENCHMARKS)
+if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
   find_package(benchmark 1.8)
   if(benchmark_FOUND)
     add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
+    target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
     list(APPEND BINARY_TARGETS dwarfs_benchmark)
 
     add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
     target_link_libraries(multiversioning_benchmark PRIVATE benchmark::benchmark)
+    target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_writer)
     list(APPEND BINARY_TARGETS multiversioning_benchmark)
 
     add_executable(converter_benchmark test/converter_benchmark.cpp)
@@ -449,10 +515,11 @@ if(WITH_BENCHMARKS)
   # TODO: migrate to benchmark?
   add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
   target_link_libraries(segmenter_benchmark PRIVATE dwarfs_follybenchmark_lite dwarfs_test_helpers)
+  target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
   list(APPEND BINARY_TARGETS segmenter_benchmark)
 endif()
 
-if(WITH_FUZZ)
+if(WITH_LIBDWARFS AND WITH_FUZZ)
   add_executable(fuzz_categorizers test/fuzz_categorizers.cpp)
   target_link_libraries(fuzz_categorizers PRIVATE dwarfs_writer)
   list(APPEND BINARY_TARGETS fuzz_categorizers)
@@ -461,19 +528,6 @@ if(WITH_FUZZ)
   target_link_libraries(fuzz_mkdwarfs PRIVATE mkdwarfs_main dwarfs_test_helpers)
   list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
 endif()
-
-set(DWARFS_HAVE_LIBZSTD ON)
-set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
-set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
-set(DWARFS_HAVE_LIBMAGIC ${LIBMAGIC_FOUND})
-set(DWARFS_HAVE_LIBLZ4 ${LIBLZ4_FOUND})
-set(DWARFS_HAVE_LIBLZMA ${LIBLZMA_FOUND})
-set(DWARFS_HAVE_LIBBROTLI ${LIBBROTLIDEC_FOUND} AND ${LIBBROTLIENC_FOUND})
-set(DWARFS_HAVE_FLAC ${FLAC_FOUND})
-set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
-set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
-set(DWARFS_STACKTRACE_ENABLED ${ENABLE_STACKTRACE})
-configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
 
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
@@ -484,6 +538,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGET
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
 
+  # TODO: need to get USE_JEMALLOC and others from imported libdwarfs
   if(USE_JEMALLOC)
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
@@ -513,8 +568,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGET
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
-
-  add_dependencies(${tgt} dwarfs_metadata_thrift dwarfs_history_thrift)
 
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -569,33 +622,6 @@ endforeach()
 foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
 endforeach()
-
-target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
-target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
-target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
-
-target_link_libraries(mkdwarfs PRIVATE mkdwarfs_main)
-target_link_libraries(dwarfsck PRIVATE dwarfsck_main)
-target_link_libraries(dwarfsextract PRIVATE dwarfsextract_main)
-
-if(TARGET dwarfsuniversal)
-  target_link_libraries(dwarfsuniversal PRIVATE dwarfs_writer dwarfs_extractor)
-endif()
-if(TARGET dwarfs_main)
-  target_link_libraries(dwarfs_main PRIVATE dwarfs_reader)
-endif()
-if(TARGET dwarfs2_main)
-  target_link_libraries(dwarfs2_main PRIVATE dwarfs_reader)
-endif()
-if(TARGET dwarfs_benchmark)
-  target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
-endif()
-if(TARGET multiversioning_benchmark)
-  target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_writer)
-endif()
-if(TARGET segmenter_benchmark)
-  target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
-endif()
 
 foreach(tgt ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
@@ -823,10 +849,8 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
   endif()
 endif()
 
-if(DWARFS_GIT_BUILD)
-  configure_file("${PROJECT_SOURCE_DIR}/cmake/dwarfs_install.cmake.in" dwarfs_install.cmake @ONLY)
-  set(CPACK_INSTALL_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/dwarfs_install.cmake")
-endif()
+configure_file("${PROJECT_SOURCE_DIR}/cmake/dwarfs_install.cmake.in" dwarfs_install.cmake @ONLY)
+set(CPACK_INSTALL_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/dwarfs_install.cmake")
 
 if(WIN32)
   # set(CPACK_GENERATOR "NSIS;ZIP;7Z")
