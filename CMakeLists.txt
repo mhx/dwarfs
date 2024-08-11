@@ -119,6 +119,8 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules")
 
+find_package(PkgConfig)
+
 if(STATIC_BUILD_DO_NOT_USE)
   # Strangely this is needed when linking statically against FLAC++
   #add_compile_options(-fno-omit-frame-pointer)
@@ -144,6 +146,9 @@ if(STATIC_BUILD_DO_NOT_USE)
   set(GFLAGS_SHARED
       OFF
       CACHE BOOL "static")
+
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 endif()
 
 if(WITH_MAN_PAGES)
@@ -165,12 +170,6 @@ endif()
 
 find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
 
-if(STATIC_BUILD_DO_NOT_USE)
-  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
-endif()
-
-find_package(PkgConfig)
-
 if(APPLE)
   if(USE_HOMEBREW_LIBARCHIVE)
     find_program(HOMEBREW_EXE brew)
@@ -180,10 +179,6 @@ if(APPLE)
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     list(PREPEND CMAKE_PREFIX_PATH ${LIBARCHIVE_PREFIX})
   endif()
-endif()
-
-if(STATIC_BUILD_DO_NOT_USE)
-  list(APPEND PKG_CONFIG_EXECUTABLE "--static")
 endif()
 
 pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
@@ -214,10 +209,6 @@ if(ENABLE_RICEPP)
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
-
-if(STATIC_BUILD_DO_NOT_USE)
-  add_link_options(-static -static-libgcc)
-endif(STATIC_BUILD_DO_NOT_USE)
 
 foreach(tgt mkdwarfs dwarfsck dwarfsextract)
   add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)
@@ -685,6 +676,9 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
   list(APPEND REALCLEAN_FILES $<TARGET_FILE:${tgt}>.manifest)
   if(WIN32)
     list(APPEND REALCLEAN_FILES ${tgt}.ilk ${tgt}.pdb)
+  endif()
+  if(STATIC_BUILD_DO_NOT_USE)
+    target_link_options(${tgt} PRIVATE -static -static-libgcc)
   endif()
 endforeach()
 
