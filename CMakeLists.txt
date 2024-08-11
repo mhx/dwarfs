@@ -24,7 +24,6 @@ cmake_policy(SET CMP0091 NEW)
 project(dwarfs)
 
 include(ExternalProject)
-
 include(CheckCXXSourceCompiles)
 
 option(WITH_TESTS "build with tests" OFF)
@@ -111,87 +110,7 @@ if(APPLE)
   set(TRY_RUN_INCLUDE_DIRECTORIES ${HOMEBREW_PREFIX_PATH}/include)
 endif()
 
-if(BUILD_SHARED_LIBS AND STATIC_BUILD_DO_NOT_USE)
-  message(FATAL_ERROR "Seriously, don't try setting both BUILD_SHARED_LIBS and STATIC_BUILD_DO_NOT_USE")
-endif()
-
-if(WIN32 OR STATIC_BUILD_DO_NOT_USE)
-  set(BUILD_SHARED_LIBS OFF)
-  set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
-else()
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
-
-set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
-
-if(NOT DISABLE_CCACHE)
-  find_program(CCACHE_EXE ccache ccache.exe PATHS "c:/bin")
-  if(CCACHE_EXE)
-    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_EXE})
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_EXE})
-    if(DEFINED ENV{GITHUB_REF_TYPE})
-      message(STATUS "Using ccache from ${CCACHE_EXE}")
-      execute_process(COMMAND ${CCACHE_EXE} -p OUTPUT_VARIABLE CCACHE_CONFIG ERROR_QUIET)
-      message(STATUS "ccache config:\n${CCACHE_CONFIG}")
-    endif()
-  endif()
-endif()
-
-if(DEFINED ENV{CCACHE_PREFIX})
-  add_compile_options(-Wno-gnu-line-marker)
-endif()
-
-if(NOT WIN32)
-  if(NOT DISABLE_MOLD)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-      find_program(MOLD_EXE mold)
-      if(MOLD_EXE)
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=${MOLD_EXE}")
-      endif()
-    endif()
-  endif()
-endif()
-
-set(default_build_type "Release")
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${default_build_type}'")
-  set(CMAKE_BUILD_TYPE
-      "${default_build_type}"
-      CACHE STRING "Build Type" FORCE)
-endif()
-
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  add_compile_options(-fdiagnostics-color=always)
-  # For gcc, -O3 is *much* worse than -O2
-  # Update: This is still true for gcc-12
-  # set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -g")
-  # set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O2 -g")
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics)
-endif()
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  add_compile_options(/Zc:__cplusplus /utf-8 /wd4267 /wd4244 /wd5219)
-  # Apply /MT or /MTd  (multithread, static version of the run-time library)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug>:Embedded>")
-  add_compile_definitions(_WIN32_WINNT=0x0601 WINVER=0x0601)
-endif()
-
-if(ENABLE_STACKTRACE)
-  if(CMAKE_BUILD_TYPE STREQUAL Release)
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
-       "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      # enable line numbers in stack traces
-      add_compile_options(-g1)
-    endif()
-  endif()
-endif()
-
+include(${CMAKE_SOURCE_DIR}/cmake/compile.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/version.cmake)
 
 if(NOT PRJ_VERSION_FULL)
@@ -234,71 +153,11 @@ if(WITH_MAN_PAGES)
   endforeach()
 endif()
 
-find_package(fmt ${LIBFMT_REQUIRED_VERSION} CONFIG)
-
 include(FetchContent)
 
-if(NOT fmt_FOUND)
-  FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY ${LIBFMT_GIT_REPO}
-    GIT_TAG ${LIBFMT_PREFERRED_VERSION}
-    EXCLUDE_FROM_ALL
-  )
-  FetchContent_MakeAvailable(fmt)
-endif()
-
-# folly won't build on Windows with FMT_HEADER_ONLY
-if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE OR WIN32)
-  set(DWARFS_FMT_LIB fmt::fmt)
-else()
-  add_compile_definitions(FMT_HEADER_ONLY)
-  include_directories($<BUILD_INTERFACE:$<TARGET_PROPERTY:fmt::fmt-header-only,INTERFACE_INCLUDE_DIRECTORIES>>)
-endif()
-
-find_package(range-v3 ${RANGE_V3_REQUIRED_VERSION} CONFIG)
-
-if(NOT range-v3_FOUND)
-  FetchContent_Declare(
-    range-v3
-    GIT_REPOSITORY ${RANGE_V3_GIT_REPO}
-    GIT_TAG ${RANGE_V3_PREFERRED_VERSION}
-    EXCLUDE_FROM_ALL
-  )
-  FetchContent_MakeAvailable(range-v3)
-endif()
-
-try_run(
-  PHMAP_RUN_RESULT
-  PHMAP_COMPILE_RESULT
-  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/phmap-version.cpp
-  CMAKE_FLAGS -DINCLUDE_DIRECTORIES=${TRY_RUN_INCLUDE_DIRECTORIES}
-  CXX_STANDARD 20
-  RUN_OUTPUT_VARIABLE PHMAP_VERSION
-  COMPILE_OUTPUT_VARIABLE PHMAP_COMPILE_OUTPUT
-)
-
-if(PHMAP_RUN_RESULT EQUAL 0)
-  if(PHMAP_VERSION VERSION_LESS ${PARALLEL_HASHMAP_REQUIRED_VERSION})
-    string(STRIP "${PHMAP_VERSION}" PHMAP_VERSION)
-    message(STATUS "System-installed parallel-hashmap version ${PHMAP_VERSION} is less than required version ${PARALLEL_HASHMAP_REQUIRED_VERSION}")
-  endif()
-else()
-  message(STATUS "failed to check parallel-hashmap version")
-  message(VERBOSE "${PHMAP_COMPILE_OUTPUT}")
-endif()
-
-if(PHMAP_RUN_RESULT EQUAL 0 AND PHMAP_VERSION VERSION_GREATER_EQUAL ${PARALLEL_HASHMAP_REQUIRED_VERSION})
-  add_library(phmap INTERFACE)
-else()
-  FetchContent_Declare(
-    parallel-hashmap
-    GIT_REPOSITORY ${PARALLEL_HASHMAP_GIT_REPO}
-    GIT_TAG v${PARALLEL_HASHMAP_PREFERRED_VERSION}
-    EXCLUDE_FROM_ALL
-  )
-  FetchContent_MakeAvailable(parallel-hashmap)
-endif()
+include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
 
 find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
 
@@ -336,6 +195,10 @@ if(TRY_ENABLE_FLAC)
   pkg_check_modules(FLAC IMPORTED_TARGET flac++>=${FLAC_REQUIRED_VERSION})
 endif()
 
+if(USE_JEMALLOC)
+  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
+endif()
+
 if(WIN32)
   if(NOT WINFSP_PATH)
     set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")
@@ -351,18 +214,6 @@ else()
   if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
     message(FATAL_ERROR "No FUSE or FUSE3 library found")
   endif()
-endif()
-
-if(USE_JEMALLOC)
-  pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
-endif()
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  foreach(CompilerFlag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REPLACE "/RTC1" "" ${CompilerFlag} "${${CompilerFlag}}")
-  endforeach()
-
-  set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
@@ -393,11 +244,6 @@ if(WITH_TESTS)
 
   enable_testing()
   include(GoogleTest)
-endif()
-
-if(DWARFS_OPTIMIZE)
-  string(REPLACE "-O3" "-O${DWARFS_OPTIMIZE}" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-  string(REPLACE "-O3" "-O${DWARFS_OPTIMIZE}" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 endif()
 
 if(ENABLE_RICEPP)
