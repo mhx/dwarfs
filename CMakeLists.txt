@@ -203,23 +203,6 @@ if(USE_JEMALLOC)
   pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
 endif()
 
-if(WIN32)
-  if(NOT WINFSP_PATH)
-    set(WINFSP_PATH "C:/Program Files (x86)/WinFsp")
-  endif()
-  find_library(WINFSP winfsp-x64.lib "${WINFSP_PATH}/lib")
-  if (NOT WINFSP)
-    message(FATAL_ERROR "No WinFsp library found")
-  endif()
-else()
-  pkg_check_modules(FUSE IMPORTED_TARGET fuse>=2.9.9)
-  pkg_check_modules(FUSE3 IMPORTED_TARGET fuse3>=3.10.5)
-
-  if(NOT FUSE_FOUND AND NOT FUSE3_FOUND)
-    message(FATAL_ERROR "No FUSE or FUSE3 library found")
-  endif()
-endif()
-
 include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
@@ -263,6 +246,8 @@ endif()
 install(TARGETS mkdwarfs dwarfsck dwarfsextract RUNTIME DESTINATION bin)
 
 list(APPEND MAIN_TARGETS mkdwarfs_main dwarfsck_main dwarfsextract_main)
+
+include(${CMAKE_SOURCE_DIR}/cmake/need_fuse.cmake)
 
 if(FUSE3_FOUND OR WINFSP OR APPLE)
   add_library(dwarfs_main OBJECT tools/src/dwarfs_main.cpp)
