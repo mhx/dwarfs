@@ -159,6 +159,10 @@ include(${CMAKE_SOURCE_DIR}/cmake/need_fmt.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
 
+if(WITH_TESTS)
+  include(${CMAKE_SOURCE_DIR}/cmake/need_gtest.cmake)
+endif()
+
 find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
 
 if(STATIC_BUILD_DO_NOT_USE)
@@ -220,31 +224,6 @@ include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
-
-if(WITH_TESTS)
-  if(PREFER_SYSTEM_GTEST)
-    find_package(GTest ${GOOGLETEST_REQUIRED_VERSION} CONFIG)
-    add_library(gtest ALIAS GTest::gtest)
-    add_library(gtest_main ALIAS GTest::gtest_main)
-    add_library(gmock ALIAS GTest::gmock)
-    add_library(gmock_main ALIAS GTest::gmock_main)
-  endif()
-
-  if(NOT GTest_FOUND)
-    FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
-      GIT_TAG v${GOOGLETEST_PREFERRED_VERSION}
-      EXCLUDE_FROM_ALL
-    )
-    # For Windows: Prevent overriding the parent project's compiler/linker settings
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
-  endif()
-
-  enable_testing()
-  include(GoogleTest)
-endif()
 
 if(ENABLE_RICEPP)
   # TODO: support FetchContent
