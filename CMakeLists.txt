@@ -365,9 +365,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(MSVC_USE_STATIC_RUNTIME ON CACHE BOOL "static build")
 endif()
 
+include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
+
 include(${CMAKE_SOURCE_DIR}/cmake/folly.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/thrift.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)
 
 if(WITH_TESTS)
   if(PREFER_SYSTEM_GTEST)
@@ -404,167 +405,7 @@ if(ENABLE_RICEPP)
   add_subdirectory(ricepp)
 endif()
 
-add_library(
-  dwarfs_common
-
-  src/block_compressor.cpp
-  src/block_compressor_parser.cpp
-  src/checksum.cpp
-  src/conv.cpp
-  src/error.cpp
-  src/file_access_generic.cpp
-  src/file_stat.cpp
-  src/file_util.cpp
-  src/fstypes.cpp
-  src/history.cpp
-  src/library_dependencies.cpp
-  src/logger.cpp
-  src/mmap.cpp
-  src/option_map.cpp
-  src/options.cpp
-  src/os_access_generic.cpp
-  src/pcm_sample_transformer.cpp
-  src/performance_monitor.cpp
-  src/terminal_ansi.cpp
-  src/thread_pool.cpp
-  src/util.cpp
-  src/xattr.cpp
-
-  src/internal/features.cpp
-  src/internal/file_status_conv.cpp
-  src/internal/fs_section.cpp
-  src/internal/string_table.cpp
-  src/internal/wcwidth.c
-  src/internal/worker_group.cpp
-
-  src/xattr_$<IF:$<BOOL:${WIN32}>,win,posix>.cpp
-
-  $<IF:${DWARFS_GIT_BUILD},${CMAKE_CURRENT_BINARY_DIR},${CMAKE_CURRENT_SOURCE_DIR}>/src/version.cpp
-
-  src/compression/null.cpp
-  src/compression/zstd.cpp
-  $<$<BOOL:${LIBLZMA_FOUND}>:src/compression/lzma.cpp>
-  $<$<BOOL:${LIBLZ4_FOUND}>:src/compression/lz4.cpp>
-  $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/compression/brotli.cpp>
-  $<$<BOOL:${FLAC_FOUND}>:src/compression/flac.cpp>
-  $<$<BOOL:${ENABLE_RICEPP}>:src/compression/ricepp.cpp>
-)
-
-add_library(
-  dwarfs_reader
-
-  src/reader/block_range.cpp
-  src/reader/filesystem_v2.cpp
-  src/reader/metadata_types.cpp
-
-  src/reader/internal/block_cache.cpp
-  src/reader/internal/cached_block.cpp
-  src/reader/internal/filesystem_parser.cpp
-  src/reader/internal/inode_reader_v2.cpp
-  src/reader/internal/metadata_types.cpp
-  src/reader/internal/metadata_v2.cpp
-)
-
-add_library(
-  dwarfs_writer
-
-  src/writer/categorizer.cpp
-  src/writer/category_parser.cpp
-  src/writer/chmod_entry_transformer.cpp
-  src/writer/compression_metadata_requirements.cpp
-  src/writer/console_writer.cpp
-  src/writer/entry_factory.cpp
-  src/writer/filesystem_block_category_resolver.cpp
-  src/writer/filesystem_writer.cpp
-  src/writer/filter_debug.cpp
-  src/writer/fragment_category.cpp
-  src/writer/fragment_order_parser.cpp
-  src/writer/inode_fragments.cpp
-  src/writer/rule_based_entry_filter.cpp
-  src/writer/scanner.cpp
-  src/writer/segmenter.cpp
-  src/writer/segmenter_factory.cpp
-  src/writer/writer_progress.cpp
-
-  src/writer/internal/block_manager.cpp
-  src/writer/internal/chmod_transformer.cpp
-  src/writer/internal/entry.cpp
-  src/writer/internal/file_scanner.cpp
-  src/writer/internal/fragment_chunkable.cpp
-  src/writer/internal/global_entry_data.cpp
-  src/writer/internal/inode_element_view.cpp
-  src/writer/internal/inode_manager.cpp
-  src/writer/internal/inode_ordering.cpp
-  src/writer/internal/metadata_freezer.cpp
-  src/writer/internal/nilsimsa.cpp
-  src/writer/internal/progress.cpp
-  src/writer/internal/scanner_progress.cpp
-  src/writer/internal/similarity.cpp
-  src/writer/internal/similarity_ordering.cpp
-
-  # src/writer/categorizer/binary_categorizer.cpp
-  src/writer/categorizer/fits_categorizer.cpp
-  src/writer/categorizer/incompressible_categorizer.cpp
-  src/writer/categorizer/pcmaudio_categorizer.cpp
-
-  # $<$<BOOL:${LIBMAGIC_FOUND}>:src/writer/categorizer/libmagic_categorizer.cpp>
-)
-
-add_library(
-  dwarfs_rewrite
-
-  src/utility/rewrite_filesystem.cpp
-)
-
-add_library(
-  dwarfs_extractor
-
-  src/utility/filesystem_extractor.cpp
-)
-
-add_library(
-  dwarfs_tool OBJECT
-
-  src/tool/iolayer.cpp
-  src/tool/main_adapter.cpp
-  src/tool/safe_main.cpp
-  src/tool/sys_char.cpp
-  src/tool/tool.cpp
-)
-
-if(WITH_MAN_OPTION)
-  target_sources(dwarfs_tool PRIVATE
-    src/tool/pager.cpp
-    src/tool/render_manpage.cpp
-  )
-endif()
-
-target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH)
-target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
-target_link_libraries(dwarfs_writer PUBLIC dwarfs_common)
-target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
-target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
-target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
-
-if(DWARFS_GIT_BUILD)
-  target_include_directories(dwarfs_common PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  )
-endif()
-
-target_compile_definitions(
-  dwarfs_tool PRIVATE DWARFS_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
-)
-
-target_compile_definitions(
-  dwarfs_common PRIVATE
-  DWARFS_SYSTEM_ID="${CMAKE_SYSTEM} [${CMAKE_SYSTEM_PROCESSOR}]"
-  DWARFS_COMPILER_ID="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
-)
-
-if(ENABLE_RICEPP)
-  target_link_libraries(dwarfs_common PRIVATE ${RICEPP_OBJECT_TARGETS})
-endif()
+include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
 
 if(STATIC_BUILD_DO_NOT_USE)
   add_link_options(-static -static-libgcc)
@@ -820,19 +661,6 @@ if(WITH_FUZZ)
   list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
 endif()
 
-target_link_libraries(dwarfs_common PRIVATE dwarfs_thrift_lite)
-
-add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
-                        OUTPUT_PATH lib/thrift NO_LIBRARY)
-add_cpp2_thrift_library(thrift/metadata.thrift FROZEN
-                        TARGET dwarfs_metadata_thrift OUTPUT_PATH dwarfs)
-add_cpp2_thrift_library(thrift/compression.thrift
-                        TARGET dwarfs_compression_thrift OUTPUT_PATH dwarfs)
-add_cpp2_thrift_library(thrift/history.thrift
-                        TARGET dwarfs_history_thrift OUTPUT_PATH dwarfs)
-add_cpp2_thrift_library(thrift/features.thrift
-                        TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
-
 set(DWARFS_HAVE_LIBZSTD ON)
 set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
 set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
@@ -850,9 +678,7 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
 endforeach()
 
-foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
-            dwarfs_extractor dwarfs_rewrite dwarfs_tool
-            ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+foreach(tgt ${LIBDWARFS_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
@@ -912,44 +738,13 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer
   endif()
 endforeach()
 
-if(WIN32)
-  target_link_libraries(dwarfs_common PRIVATE bcrypt.lib)
-endif()
-
 if(CMAKE_BUILD_TYPE STREQUAL Release)
   # not sure why exactly, copied from fsst/CMakeLists.txt
   set_source_files_properties(fsst/fsst_avx512.cpp PROPERTIES COMPILE_FLAGS -O1)
 endif()
 
-add_library(
-  dwarfs_fsst OBJECT
-  fsst/libfsst.cpp fsst/fsst_avx512.cpp fsst/fsst_avx512_unroll1.inc
-  fsst/fsst_avx512_unroll2.inc fsst/fsst_avx512_unroll3.inc
-  fsst/fsst_avx512_unroll4.inc)
-
-target_include_directories(dwarfs_common SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD 20)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_STANDARD_REQUIRED ON)
-set_property(TARGET dwarfs_fsst PROPERTY CXX_EXTENSIONS OFF)
-
-target_link_libraries(
-  dwarfs_common
-  PUBLIC
-  Boost::boost
-  Boost::chrono
-  Boost::iostreams
-  dwarfs_compression_thrift
-  dwarfs_metadata_thrift
-  dwarfs_history_thrift
-  dwarfs_features_thrift
-  dwarfs_fsst
-)
-
-foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_tool
-            dwarfs_extractor dwarfs_rewrite dwarfs_fsst dwarfs_test_helpers
-            dwarfs_folly_lite dwarfs_thrift_lite dwarfs_follybenchmark_lite
-            dwarfs_compression_thrift dwarfs_metadata_thrift
-            dwarfs_history_thrift dwarfs_features_thrift
+foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite
+            ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(ENABLE_ASAN)
     target_compile_options(${tgt} PRIVATE -fsanitize=address
@@ -969,31 +764,6 @@ foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_tool
     target_link_options(${tgt} PRIVATE -fsanitize=undefined)
   endif()
 endforeach()
-
-# if(LIBMAGIC_FOUND)
-#   target_link_libraries(dwarfs PkgConfig::LIBMAGIC)
-# endif()
-
-target_link_libraries(dwarfs_common PRIVATE PkgConfig::ZSTD)
-target_link_libraries(dwarfs_writer PRIVATE PkgConfig::ZSTD)
-
-if(LIBLZ4_FOUND)
-  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBLZ4)
-endif()
-
-if(LIBLZMA_FOUND)
-  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBLZMA)
-endif()
-
-if(FLAC_FOUND)
-  target_link_libraries(dwarfs_common PRIVATE PkgConfig::FLAC)
-endif()
-
-if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
-  target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
-endif()
-
-target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
 foreach(tgt ${MAIN_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_tool)
@@ -1149,89 +919,6 @@ file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
 add_custom_target(
   format
   COMMAND clang-format -i ${ALL_SOURCES})
-
-if(NOT STATIC_BUILD_DO_NOT_USE)
-  foreach(tgt dwarfs_common dwarfs_reader dwarfs_writer dwarfs_extractor dwarfs_rewrite)
-    set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
-  endforeach()
-
-  include(GNUInstallDirs)
-  include(CMakePackageConfigHelpers)
-
-  set(DWARFS_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/dwarfs CACHE STRING
-      "CMake package config files install location")
-
-  configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dwarfs-config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config.cmake
-    INSTALL_DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
-    PATH_VARS
-      CMAKE_INSTALL_INCLUDEDIR
-      DWARFS_CMAKE_INSTALL_DIR
-  )
-
-  write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config-version.cmake
-    VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH}
-    COMPATIBILITY AnyNewerVersion
-  )
-
-  install(
-    TARGETS dwarfs_common
-            dwarfs_reader
-            dwarfs_writer
-            dwarfs_extractor
-            dwarfs_rewrite
-            dwarfs_tool
-
-            # object libs
-            dwarfs_folly_lite
-            dwarfs_thrift_lite
-            dwarfs_compression_thrift
-            dwarfs_metadata_thrift
-            dwarfs_history_thrift
-            dwarfs_features_thrift
-            dwarfs_fsst
-
-            # other
-            ${RICEPP_OBJECT_TARGETS}
-            folly_deps
-    EXPORT dwarfs-targets
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib)
-
-  install(
-    DIRECTORY include/dwarfs
-    DESTINATION include
-    PATTERN include/dwarfs/internal EXCLUDE
-    PATTERN include/dwarfs/tool EXCLUDE
-    PATTERN include/dwarfs/*/internal EXCLUDE
-  )
-
-  if(DWARFS_GIT_BUILD)
-    install(
-      FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
-      DESTINATION include/dwarfs
-    )
-  endif()
-
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
-    DESTINATION include/dwarfs
-  )
-
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config.cmake
-    DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
-  )
-
-  install(
-    EXPORT dwarfs-targets
-    FILE dwarfs-targets.cmake
-    NAMESPACE dwarfs::
-    DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
-  )
-endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(CMAKE_BUILD_TYPE STREQUAL "Release")

@@ -31,6 +31,9 @@ else()
   set(THRIFT_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
+add_cpp2_thrift_library(fbthrift/thrift/lib/thrift/frozen.thrift
+                        OUTPUT_PATH lib/thrift NO_LIBRARY)
+
 add_library(
   dwarfs_thrift_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/fbthrift/thrift/lib/cpp/protocol/TProtocolException.cpp
