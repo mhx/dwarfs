@@ -321,6 +321,7 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
 
   install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config.cmake
+          ${CMAKE_CURRENT_BINARY_DIR}/dwarfs-config-version.cmake
     DESTINATION ${DWARFS_CMAKE_INSTALL_DIR}
   )
 
