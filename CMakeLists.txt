@@ -384,7 +384,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
     test/test_dirtree.cpp
     test/filter_test_data.cpp
   )
-  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_common)
+  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_common dwarfs_writer dwarfs_tool)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
