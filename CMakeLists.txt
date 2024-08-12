@@ -529,6 +529,12 @@ if(WITH_LIBDWARFS AND WITH_FUZZ)
   list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
 endif()
 
+foreach(tgt ${LIBDWARFS_TARGETS})
+  target_include_directories(${tgt} PRIVATE
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
+  )
+endforeach()
+
 foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
 endforeach()
@@ -546,10 +552,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGET
   target_include_directories(${tgt} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
-  )
-
-  target_include_directories(${tgt} PRIVATE
-    $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 
   target_include_directories(${tgt} PUBLIC
