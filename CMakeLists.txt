@@ -440,9 +440,16 @@ if(WITH_TESTS)
   endif()
 
   if(WITH_TOOLS OR WITH_FUSE_DRIVER)
-    list(APPEND DWARFS_TESTS
-      tools_test
-    )
+    if(NOT WITH_TOOLS)
+      find_program(MKDWARFS_EXE mkdwarfs mkdwarfs.exe)
+      find_program(DWARFSCK_EXE dwarfsck dwarfsck.exe)
+      find_program(DWARFSEXTRACT_EXE dwarfsextract dwarfsextract.exe)
+    endif()
+    if(WITH_TOOLS OR (MKDWARFS_EXE AND DWARFSCK_EXE AND DWARFSEXTRACT_EXE))
+      list(APPEND DWARFS_TESTS
+        tools_test
+      )
+    endif()
   endif()
 
   if((WITH_TOOLS OR WITH_FUSE_DRIVER) AND WITH_MAN_OPTION)
@@ -480,11 +487,6 @@ if(WITH_TESTS)
   endif()
 
   if(TARGET tools_test)
-    if(NOT WITH_TOOLS)
-      find_program(MKDWARFS_EXE mkdwarfs mkdwarfs.exe)
-      find_program(DWARFSCK_EXE dwarfsck dwarfsck.exe)
-      find_program(DWARFSEXTRACT_EXE dwarfsextract dwarfsextract.exe)
-    endif()
     target_compile_definitions(tools_test PRIVATE
       $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
       $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>

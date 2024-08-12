@@ -1636,9 +1636,11 @@ class manpage_test
     : public ::testing::TestWithParam<std::tuple<binary_mode, std::string>> {};
 
 std::vector<std::string> const manpage_test_tools{
-"mkdwarfs", "dwarfsck", "dwarfsextract",
+    "mkdwarfs",
+    "dwarfsck",
+    "dwarfsextract",
 #ifdef DWARFS_WITH_FUSE_DRIVER
-"dwarfs",
+    "dwarfs",
 #endif
 };
 
