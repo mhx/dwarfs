@@ -146,7 +146,105 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-  linux:
+  linux-src:
+    needs: package-source
+
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - arm64v8
+        dist:
+          - ubuntu
+          - fedora
+          - arch
+        build_type:
+          - gcc-debug-ninja-full
+          - gcc-release-ninja-split
+          - gcc-release-shared-ninja-split
+          - clang-release-ninja-full
+        exclude:
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-debug-ninja-full
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-release-ninja-split
+          - arch: arm64v8
+            dist: arch
+            build_type: gcc-release-shared-ninja-split
+          - arch: arm64v8
+            dist: arch
+            build_type: clang-release-ninja-full
+        include:
+          - arch: amd64
+            dist: ubuntu
+            build_type: oldgcc-debug-make-split
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-debug-noperfmon-ninja-split
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-debug-nostacktrace-ninja-split
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: oldclang-debug-make-split
+          - arch: amd64
+            dist: ubuntu-2204
+            build_type: gcc-release-ninja-split
+          - arch: amd64
+            dist: ubuntu-2204
+            build_type: gcc-debug-ninja-full
+          - arch: amd64
+            dist: ubuntu-2204
+            build_type: clang-release-ninja-split
+
+    runs-on:
+      - self-hosted
+      - Linux
+      - ${{ matrix.arch }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Download Source Tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: dwarfs-source
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -f .docker/Dockerfile.${{ matrix.dist }} \
+            -t dwarfs-linux-build-${{ matrix.dist }} \
+            --build-arg ARCH=${{ matrix.arch }} \
+            --build-arg SCRIPT=build-linux.sh \
+            .docker
+
+      - name: Run Build (${{ matrix.build_type }})
+        run: |
+          docker run --rm \
+            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
+            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --env BUILD_FROM_TARBALL=1 \
+            --env BUILD_TYPE=${{ matrix.build_type }} \
+            --env BUILD_ARCH=${{ matrix.arch }} \
+            --env BUILD_DIST=${{ matrix.dist }} \
+            --env GITHUB_REF_NAME \
+            --env GITHUB_REF_TYPE \
+            --env GITHUB_RUN_ID \
+            --env GITHUB_RUN_NUMBER \
+            --env GITHUB_RUN_ATTEMPT \
+            dwarfs-linux-build-${{ matrix.dist }}
+
+  linux-git:
     strategy:
       matrix:
         arch:

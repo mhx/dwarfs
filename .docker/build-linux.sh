@@ -6,10 +6,20 @@ export CCACHE_DIR=/ccache
 
 cd "$HOME"
 
-git config --global --add safe.directory /workspace
+rm -rf dwarfs dwarfs-*
 
-rm -f dwarfs
-ln -s /workspace dwarfs
+if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
+  # delete all but the latest tarball
+  ls -1 -r --sort=time /workspace/dwarfs-*.tar.zst | tail -n +2 | while read -r tarball; do
+    echo "deleting old tarball: $tarball"
+    rm -f "$tarball"
+  done
+  tar xvf /workspace/dwarfs-*.tar.zst
+  ln -s dwarfs-* dwarfs
+else
+  git config --global --add safe.directory /workspace
+  ln -s /workspace dwarfs
+fi
 
 rm -rf build
 mkdir build
@@ -132,106 +142,158 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
 fi
 
-# shellcheck disable=SC2086
-cmake ../dwarfs/ $CMAKE_ARGS
+if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
+  INSTALLDIR="$HOME/install"
+  PREFIXPATH="$INSTALLDIR/usr/local"
+  rm -rf "$INSTALLDIR"
 
-$BUILD_TOOL
+  if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
+    LDLIBPATH="$PREFIXPATH/lib"
+    if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
+      export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
+    fi
+  fi
 
-if [[ "-$BUILD_TYPE-" != *-source-* ]]; then
-  ctest --output-on-failure -j$(nproc)
-fi
+  case "-$BUILD_TYPE-" in
+    *-full-*)
+      cmake ../dwarfs/ $CMAKE_ARGS
+      $BUILD_TOOL
+      ctest --output-on-failure -j$(nproc)
+      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+      $BUILD_TOOL distclean
+      ;;
 
-if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
-  rm -f /tmp-runner/dwarfs-coverage.txt
-  llvm-profdata-$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
-  llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata \
-    $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
-    >/tmp-runner/dwarfs-coverage.txt
-fi
+    *-split-*)
+      # ==== libdwarfs ====
+      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+      $BUILD_TOOL
+      ctest --output-on-failure -j$(nproc)
+      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+      $BUILD_TOOL distclean
+      rm -rf *
 
-if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-  if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
-    # in the clang-release-static case, we also try to build from the source tarball
-    if [[ "-$BUILD_TYPE-" == *-clang-* ]] && [[ "-$BUILD_TYPE-" != *-O2-* ]]; then
-      $BUILD_TOOL package_source
+      # ==== dwarfs tools ====
+      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+      $BUILD_TOOL
+      ctest --output-on-failure -j$(nproc)
+      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+      $BUILD_TOOL distclean
+      rm -rf *
 
-      $BUILD_TOOL realclean
+      # ==== dwarfs fuse driver ====
+      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+      $BUILD_TOOL
+      ctest --output-on-failure -j$(nproc)
+      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+      $BUILD_TOOL distclean
+      ;;
 
-      cd "$HOME"
+    *)
+      echo "builds from source tarball must be 'full' or 'split'"
+      exit 1
+      ;;
+  esac
+else
+  # shellcheck disable=SC2086
+  cmake ../dwarfs/ $CMAKE_ARGS
 
-      VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
-      VERSION=${VERSION:1}
+  $BUILD_TOOL
 
-      rm -rf dwarfs-*
-      rm -f dwarfs
+  if [[ "-$BUILD_TYPE-" != *-source-* ]]; then
+    ctest --output-on-failure -j$(nproc)
+  fi
 
-      mv "build/dwarfs-${VERSION}.tar.zst" .
-      rm -rf build
+  if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
+    rm -f /tmp-runner/dwarfs-coverage.txt
+    llvm-profdata-$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
+    llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata \
+      $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
+      >/tmp-runner/dwarfs-coverage.txt
+  fi
 
-      tar xvf "dwarfs-${VERSION}.tar.zst"
-      mv "dwarfs-${VERSION}" dwarfs
+  if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+    if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
+      # in the clang-release-static case, we also try to build from the source tarball
+      if [[ "-$BUILD_TYPE-" == *-clang-* ]] && [[ "-$BUILD_TYPE-" != *-O2-* ]]; then
+        $BUILD_TOOL package_source
 
-      mkdir build
-      cd build
+        $BUILD_TOOL realclean
+
+        cd "$HOME"
+
+        VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
+        VERSION=${VERSION:1}
+
+        rm -rf dwarfs-*
+        rm -f dwarfs
+
+        mv "build/dwarfs-${VERSION}.tar.zst" .
+        rm -rf build
+
+        tar xvf "dwarfs-${VERSION}.tar.zst"
+        mv "dwarfs-${VERSION}" dwarfs
+
+        mkdir build
+        cd build
+
+        # shellcheck disable=SC2086
+        cmake ../dwarfs/ $CMAKE_ARGS
+
+        $BUILD_TOOL
+
+        ctest --output-on-failure -j$(nproc)
+      fi
+
+      $BUILD_TOOL strip
+    fi
+
+    $BUILD_TOOL package
+    $BUILD_TOOL universal_upx
+
+    $BUILD_TOOL copy_artifacts
+
+    rm -rf /tmp-runner/artifacts
+    mkdir -p /tmp-runner/artifacts
+    cp artifacts.env /tmp-runner
+    cp dwarfs-universal-* /tmp-runner/artifacts
+    cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
+
+    if [[ "$VERSION" != "" ]]; then
+      # also perform a non-static build based on the source tarball
+
+      $BUILD_TOOL distclean
+      unset LDFLAGS
 
       # shellcheck disable=SC2086
-      cmake ../dwarfs/ $CMAKE_ARGS
+      cmake ../dwarfs/ $CMAKE_ARGS_NONSTATIC
 
       $BUILD_TOOL
 
       ctest --output-on-failure -j$(nproc)
     fi
-
-    $BUILD_TOOL strip
+  elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
+    $BUILD_TOOL package_source
+    $BUILD_TOOL copy_source_artifacts
+    rm -rf /tmp-runner/artifacts
+    mkdir -p /tmp-runner/artifacts
+    cp source-artifacts.env /tmp-runner
+    cp dwarfs-*.tar.zst /tmp-runner/artifacts
   fi
 
-  $BUILD_TOOL package
-  $BUILD_TOOL universal_upx
-
-  $BUILD_TOOL copy_artifacts
-
-  rm -rf /tmp-runner/artifacts
-  mkdir -p /tmp-runner/artifacts
-  cp artifacts.env /tmp-runner
-  cp dwarfs-universal-* /tmp-runner/artifacts
-  cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
-
-  if [[ "$VERSION" != "" ]]; then
-    # also perform a non-static build based on the source tarball
+  if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
+     [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
+     [[ "-$BUILD_TYPE-" != *-source-* ]] && \
+     ( [[ "-$BUILD_TYPE-" != *-static-* ]] || [[ "$VERSION" != "" ]] ); then
+    INSTALLDIR="$HOME/install"
+    rm -rf "$INSTALLDIR"
+    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
 
     $BUILD_TOOL distclean
-    unset LDFLAGS
 
-    # shellcheck disable=SC2086
-    cmake ../dwarfs/ $CMAKE_ARGS_NONSTATIC
-
+    cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
     $BUILD_TOOL
-
-    ctest --output-on-failure -j$(nproc)
+    $BUILD_TOOL clean
+  else
+    $BUILD_TOOL distclean
   fi
-elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
-  $BUILD_TOOL package_source
-  $BUILD_TOOL copy_source_artifacts
-  rm -rf /tmp-runner/artifacts
-  mkdir -p /tmp-runner/artifacts
-  cp source-artifacts.env /tmp-runner
-  cp dwarfs-*.tar.zst /tmp-runner/artifacts
 fi
-
-if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
-   [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
-   [[ "-$BUILD_TYPE-" != *-source-* ]] && \
-   ( [[ "-$BUILD_TYPE-" != *-static-* ]] || [[ "$VERSION" != "" ]] ); then
-  INSTALLDIR="$HOME/install"
-  rm -rf "$INSTALLDIR"
-  DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-
-  $BUILD_TOOL distclean
-
-  cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
-  $BUILD_TOOL
-  $BUILD_TOOL clean
-else
-  $BUILD_TOOL distclean
-fi
-
