@@ -49,10 +49,6 @@
 
 #include <dwarfs/config.h>
 
-#ifdef DWARFS_STACKTRACE_ENABLED
-#include <folly/debugging/symbolizer/SignalHandler.h>
-#endif
-
 #ifndef DWARFS_FUSE_LOWLEVEL
 #define DWARFS_FUSE_LOWLEVEL 1
 #endif
@@ -1519,7 +1515,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_STACKTRACE_ENABLED
   if (fuse_opts.foreground) {
-    folly::symbolizer::installFatalSignalHandler();
+    install_signal_handlers();
   }
 #endif
 
@@ -1541,7 +1537,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
 #ifdef DWARFS_STACKTRACE_ENABLED
   if (fg) {
-    folly::symbolizer::installFatalSignalHandler();
+    install_signal_handlers();
   }
 #endif
 
