@@ -71,8 +71,8 @@
 #endif
 
 #ifdef _WIN32
-#include <folly/portability/Windows.h>
-
+#include <windows.h>
+// --- windows.h must be included before delayimp.h ---
 #include <delayimp.h>
 
 #include <fuse3/winfsp_fuse.h>
