@@ -94,6 +94,58 @@ jobs:
           compression-level: 0
         if: matrix.build_mode == 'Release'
 
+  package-source:
+    runs-on:
+      - self-hosted
+      - Linux
+      - amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -f .docker/Dockerfile.arch \
+            -t dwarfs-linux-build-arch \
+            --build-arg ARCH=amd64 \
+            --build-arg SCRIPT=build-linux.sh \
+            .docker
+
+      - name: Run Build
+        run: |
+          docker run --rm \
+            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
+            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
+            --env BUILD_TYPE=clang-release-ninja-source \
+            --env BUILD_ARCH=amd64 \
+            --env BUILD_DIST=arch \
+            --env GITHUB_REF_NAME \
+            --env GITHUB_REF_TYPE \
+            --env GITHUB_RUN_ID \
+            --env GITHUB_RUN_NUMBER \
+            --env GITHUB_RUN_ATTEMPT \
+            dwarfs-linux-build-arch
+
+      - name: Prepare Artifact Upload
+        run: cat ${{ runner.temp }}/source-artifacts.env >> $GITHUB_ENV
+
+      - name: Upload Source Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwarfs-source
+          path: ${{ runner.temp }}/artifacts/${{ env.source_tarball }}
+          if-no-files-found: error
+          compression-level: 0
+
   linux:
     strategy:
       matrix:

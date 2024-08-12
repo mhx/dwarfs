@@ -137,7 +137,9 @@ cmake ../dwarfs/ $CMAKE_ARGS
 
 $BUILD_TOOL
 
-ctest --output-on-failure -j$(nproc)
+if [[ "-$BUILD_TYPE-" != *-source-* ]]; then
+  ctest --output-on-failure -j$(nproc)
+fi
 
 if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
   rm -f /tmp-runner/dwarfs-coverage.txt
@@ -152,10 +154,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     # in the clang-release-static case, we also try to build from the source tarball
     if [[ "-$BUILD_TYPE-" == *-clang-* ]] && [[ "-$BUILD_TYPE-" != *-O2-* ]]; then
       $BUILD_TOOL package_source
-
-      if [[ "$BUILD_ARCH" == "amd64" ]]; then
-        $BUILD_TOOL copy_source_artifacts
-      fi
 
       $BUILD_TOOL realclean
 
@@ -211,9 +209,18 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
 
     ctest --output-on-failure -j$(nproc)
   fi
+elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
+  $BUILD_TOOL package_source
+  $BUILD_TOOL copy_source_artifacts
+  rm -rf /tmp-runner/artifacts
+  mkdir -p /tmp-runner/artifacts
+  cp source-artifacts.env /tmp-runner
+  cp dwarfs-*.tar.zst /tmp-runner/artifacts
 fi
 
-if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
+if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
+   [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
+   [[ "-$BUILD_TYPE-" != *-source-* ]] && \
    ( [[ "-$BUILD_TYPE-" != *-static-* ]] || [[ "$VERSION" != "" ]] ); then
   INSTALLDIR="$HOME/install"
   rm -rf "$INSTALLDIR"

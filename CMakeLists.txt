@@ -744,7 +744,8 @@ add_custom_target(
       include src thrift universal bin lib man1 man5
       vcpkg-manifest-install.log
       Makefile compile_commands.json
-      artifacts.env default.profraw profile
+      artifacts.env source-artifacts.env
+      default.profraw profile
       dwarfs-config-version.cmake
       dwarfs-config.cmake
       dwarfs.ilk dwarfs.pdb
@@ -829,28 +830,38 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
 
     add_custom_target(universal_upx DEPENDS ${UNIVERSAL_OUT})
   endif()
+endif()
 
-  if(DEFINED ENV{GITHUB_REF_TYPE})
-    message(STATUS "GITHUB_REF_TYPE: $ENV{GITHUB_REF_TYPE}")
-    message(STATUS "GITHUB_REF_NAME: $ENV{GITHUB_REF_NAME}")
-    message(STATUS "GITHUB_RUN_ID: $ENV{GITHUB_RUN_ID}")
-    message(STATUS "GITHUB_RUN_NUMBER: $ENV{GITHUB_RUN_NUMBER}")
-    message(STATUS "GITHUB_RUN_ATTEMPT: $ENV{GITHUB_RUN_ATTEMPT}")
+if(DEFINED ENV{GITHUB_REF_TYPE})
+  message(STATUS "GITHUB_REF_TYPE: $ENV{GITHUB_REF_TYPE}")
+  message(STATUS "GITHUB_REF_NAME: $ENV{GITHUB_REF_NAME}")
+  message(STATUS "GITHUB_RUN_ID: $ENV{GITHUB_RUN_ID}")
+  message(STATUS "GITHUB_RUN_NUMBER: $ENV{GITHUB_RUN_NUMBER}")
+  message(STATUS "GITHUB_RUN_ATTEMPT: $ENV{GITHUB_RUN_ATTEMPT}")
 
-    if("$ENV{GITHUB_REF_TYPE}" STREQUAL "tag")
-      set(ARTIFACTS_SUBDIR "releases/$ENV{GITHUB_REF_NAME}@${PRJ_GIT_REV}")
-    else()
-      set(ARTIFACTS_SUBDIR "builds/$ENV{GITHUB_RUN_NUMBER}.$ENV{GITHUB_RUN_ATTEMPT}-${PRJ_VERSION_FULL}")
-    endif()
+  if("$ENV{GITHUB_REF_TYPE}" STREQUAL "tag")
+    set(ARTIFACTS_SUBDIR "releases/$ENV{GITHUB_REF_NAME}@${PRJ_GIT_REV}")
+  else()
+    set(ARTIFACTS_SUBDIR "builds/$ENV{GITHUB_RUN_NUMBER}.$ENV{GITHUB_RUN_ATTEMPT}-${PRJ_VERSION_FULL}")
+  endif()
 
-    set(ARTIFACTS_FULL_PATH "${DWARFS_ARTIFACTS_DIR}/${ARTIFACTS_SUBDIR}")
+  set(ARTIFACTS_FULL_PATH "${DWARFS_ARTIFACTS_DIR}/${ARTIFACTS_SUBDIR}")
 
-    if(WIN32)
-      set(PACKAGE_EXT ".7z")
-    else()
-      set(PACKAGE_EXT ".tar.zst")
-    endif()
+  if(WIN32)
+    set(PACKAGE_EXT ".7z")
+  else()
+    set(PACKAGE_EXT ".tar.zst")
+  endif()
 
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/source-artifacts.env"
+             "source_tarball=${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}${PACKAGE_EXT}\n")
+
+  add_custom_target(copy_source_artifacts
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
+  )
+
+  if(STATIC_BUILD_DO_NOT_USE OR WIN32)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/artifacts.env"
                "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
                "universal_binary=${UNIVERSAL_OUT}\n")
@@ -864,11 +875,6 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
       COMMAND ${CMAKE_COMMAND} -E copy
           ${CMAKE_CURRENT_BINARY_DIR}/${RICEPP_BENCHMARK_FITS}${CMAKE_EXECUTABLE_SUFFIX}
           ${ARTIFACTS_FULL_PATH}/ricepp_benchmark_fits-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
-    )
-
-    add_custom_target(copy_source_artifacts
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${PRJ_VERSION_FULL}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
     )
   endif()
 endif()
