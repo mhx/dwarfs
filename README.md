@@ -193,23 +193,22 @@ There are some things to be aware of:
   different compile options. Even subtle differences, such as the
   C++ standard version, can cause run-time errors.
   See [this issue](https://github.com/facebook/folly/pull/1949)
-  for details.
+  for details. Currently, it is not even possible to use external
+  versions of folly/fbthrift as DwarFS is building minimal subsets of
+  both libraries; these are bundled in the `dwarfs_common` library
+  and they are strictly used internally, i.e. none of the folly or
+  fbthrift headers are required to build against DwarFS' libraries.
 
 - Similar issues can arise when using a system-installed version
   of GoogleTest. GoogleTest itself recommends that it is being
   downloaded as part of the build. However, you can use the system
   installed version by passing `-DPREFER_SYSTEM_GTEST=ON` to the
-  `cmake` call.
+  `cmake` call. Use at your own risk.
 
 - For other bundled libraries (namely `fmt`, `parallel-hashmap`,
-  `range-v3`, `xxhash` and `zstd`), the system installed version
-  is used as long as it meets the minimum required version.
-  Otherwise, the preferred version is fetched during the build.
-
-- Building the project with `-DBUILD_SHARED_LIBS=ON` is unsupported,
-  the reason being that there's no point in installing *any* of the
-  libraries. As long as dependencies are available as shared system
-  libraries, DwarFS will happily link against them.
+  `range-v3`), the system installed version is used as long as it
+  meets the minimum required version. Otherwise, the preferred
+  version is fetched during the build.
 
 ### Prebuilt Binaries
 
@@ -303,7 +302,6 @@ $ apt install \
     make \
     bison \
     flex \
-    ronn \
     fuse3 \
     pkg-config \
     binutils-dev \
@@ -326,7 +324,10 @@ $ apt install \
     libiberty-dev \
     liblz4-dev \
     liblzma-dev \
+    libzstd-dev \
+    libxxhash-dev \
     libmagic-dev \
+    libparallel-hashmap-dev \
     librange-v3-dev \
     libssl-dev \
     libunwind-dev \
@@ -337,8 +338,7 @@ $ apt install \
     libgoogle-glog-dev \
     libutfcpp-dev \
     libflac++-dev \
-    nlohmann-json3-dev \
-    python3-mistletoe
+    nlohmann-json3-dev
 ```
 
 Note that when building with `gcc`, the optimization level will be
@@ -349,18 +349,21 @@ build with `-O2`.
 
 ### Building
 
-Firstly, either clone the repository...
+First, unpack the release archive:
+
+```
+$ tar xvf dwarfs-x.y.z.tar.xz
+$ cd dwarfs-x.y.z
+```
+
+Alternatively, you can also clone the git repository, but be aware
+that this has more dependencies and the build will likely take longer
+because the release archive ships with most of the auto-generated
+files that will have to be generated when building from the repository:
 
 ```
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 $ cd dwarfs
-```
-
-...or unpack the release archive:
-
-```
-$ tar xvf dwarfs-x.y.z.tar.bz2
-$ cd dwarfs-x.y.z
 ```
 
 Once all dependencies have been installed, you can build DwarFS
@@ -369,14 +372,14 @@ using:
 ```
 $ mkdir build
 $ cd build
-$ cmake .. -DWITH_TESTS=1
-$ make -j$(nproc)
+$ cmake .. -GNinja -DWITH_TESTS=ON
+$ ninja
 ```
 
 You can then run tests with:
 
 ```
-$ make test
+$ ctest -j
 ```
 
 All binaries use [jemalloc](https://github.com/jemalloc/jemalloc)
@@ -385,12 +388,35 @@ system memory compared to the `glibc` or `tcmalloc` allocators.
 To disable the use of `jemalloc`, pass `-DUSE_JEMALLOC=0` on the
 `cmake` command line.
 
+It is also possible to build/install the DwarFS libraries, tools,
+and FUSE driver independently. This is mostly interesting when
+packaging DwarFS. Note that the tools and FUSE driver require the
+libraries to be either built or already installed. To build just
+the libraries, use:
+
+```
+$ cmake .. -GNinja -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+```
+
+Once the libraries are tested and installed, you can build the
+tools (i.e. `mkdwarfs`, `dwarfsck`, `dwarfsextract`) using:
+
+```
+$ cmake .. -GNinja -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF
+```
+
+To build the FUSE driver, use:
+
+```
+$ cmake .. -GNinja -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON
+```
+
 ### Installing
 
 Installing is as easy as:
 
 ```
-$ sudo make install
+$ sudo ninja install
 ```
 
 Though you don't have to install the tools to play with them.
@@ -432,7 +458,7 @@ That's it! Now you can try building static binaries for DwarFS:
 ```
 $ git clone --recurse-submodules https://github.com/mhx/dwarfs
 $ cd dwarfs && mkdir build && cd build
-$ cmake .. -GNinja -DWITH_TESTS=1 -DSTATIC_BUILD_DO_NOT_USE=1 \
+$ cmake .. -GNinja -DWITH_TESTS=ON -DSTATIC_BUILD_DO_NOT_USE=ON \
            -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs
 $ ninja
 $ ninja test
