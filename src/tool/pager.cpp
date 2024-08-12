@@ -26,8 +26,6 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/process.hpp>
 
-#include <folly/portability/Unistd.h>
-
 #include <dwarfs/os_access.h>
 #include <dwarfs/tool/pager.h>
 
@@ -42,6 +40,10 @@ std::vector<pager_program> const pagers{
 };
 
 } // namespace
+
+#ifdef _WIN32
+#define X_OK 0
+#endif
 
 std::optional<pager_program> find_pager_program(os_access const& os) {
   if (auto pager_env = os.getenv("PAGER")) {

@@ -43,6 +43,12 @@
 #include <folly/portability/Windows.h>
 #include <folly/system/HardwareConcurrency.h>
 
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <folly/debugging/symbolizer/SignalHandler.h>
+#endif
+
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
 #include <dwarfs/util.h>
@@ -352,6 +358,12 @@ int get_current_umask() {
   auto mask = ::umask(0077); /* Flawfinder: ignore */
   ::umask(mask);             /* Flawfinder: ignore */
   return mask;
+}
+
+void install_signal_handlers() {
+#ifdef DWARFS_STACKTRACE_ENABLED
+  folly::symbolizer::installFatalSignalHandler();
+#endif
 }
 
 } // namespace dwarfs

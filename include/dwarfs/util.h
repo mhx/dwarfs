@@ -75,4 +75,6 @@ unsigned int hardware_concurrency() noexcept;
 
 int get_current_umask();
 
+void install_signal_handlers();
+
 } // namespace dwarfs
