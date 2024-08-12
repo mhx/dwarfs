@@ -464,11 +464,6 @@ if(WITH_TESTS)
     list(APPEND TEST_TARGETS ${test})
   endforeach()
 
-  set_source_files_properties(test/tools_test.cpp PROPERTIES
-    COMPILE_DEFINITIONS
-    $<$<BOOL:${WITH_UNIVERSAL_BINARY}>:DWARFS_HAVE_UNIVERSAL_BINARY>
-  )
-
   if(TARGET tool_main_test)
     target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
   endif()
@@ -482,6 +477,22 @@ if(WITH_TESTS)
       target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_FUSE_DRIVER)
       target_link_libraries(manpage_test PRIVATE dwarfs_main)
     endif()
+  endif()
+
+  if(TARGET tools_test)
+    if(NOT WITH_TOOLS)
+      find_program(MKDWARFS_EXE mkdwarfs mkdwarfs.exe)
+      find_program(DWARFSCK_EXE dwarfsck dwarfsck.exe)
+      find_program(DWARFSEXTRACT_EXE dwarfsextract dwarfsextract.exe)
+    endif()
+    target_compile_definitions(tools_test PRIVATE
+      $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
+      $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>
+      $<$<BOOL:${WITH_FUSE_DRIVER}>:DWARFS_WITH_FUSE_DRIVER>
+      $<$<BOOL:${MKDWARFS_EXE}>:MKDWARFS_BINARY=\"${MKDWARFS_EXE}\">
+      $<$<BOOL:${DWARFSCK_EXE}>:DWARFSCK_BINARY=\"${DWARFSCK_EXE}\">
+      $<$<BOOL:${DWARFSEXTRACT_EXE}>:DWARFSEXTRACT_BINARY=\"${DWARFSEXTRACT_EXE}\">
+    )
   endif()
 
   if(TARGET block_cache_test)

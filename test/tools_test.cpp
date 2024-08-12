@@ -79,12 +79,24 @@ auto test_catdata_dwarfs = test_dir / "catdata.dwarfs";
 #define EXE_EXT ""
 #endif
 
+#ifndef MKDWARFS_BINARY
+#define MKDWARFS_BINARY tools_dir / "mkdwarfs" EXE_EXT
+#endif
+
+#ifndef DWARFSCK_BINARY
+#define DWARFSCK_BINARY tools_dir / "dwarfsck" EXE_EXT
+#endif
+
+#ifndef DWARFSEXTRACT_BINARY
+#define DWARFSEXTRACT_BINARY tools_dir / "dwarfsextract" EXE_EXT
+#endif
+
 auto tools_dir = fs::path(TOOLS_BIN_DIR).make_preferred();
-auto mkdwarfs_bin = tools_dir / "mkdwarfs" EXE_EXT;
+auto mkdwarfs_bin = fs::path{MKDWARFS_BINARY};
 auto fuse3_bin = tools_dir / "dwarfs" EXE_EXT;
 auto fuse2_bin = tools_dir / "dwarfs2" EXE_EXT;
-auto dwarfsextract_bin = tools_dir / "dwarfsextract" EXE_EXT;
-auto dwarfsck_bin = tools_dir / "dwarfsck" EXE_EXT;
+auto dwarfsextract_bin = fs::path{DWARFSEXTRACT_BINARY};
+auto dwarfsck_bin = fs::path{DWARFSCK_BINARY};
 auto universal_bin = tools_dir / "universal" / "dwarfs-universal" EXE_EXT;
 
 class scoped_no_leak_check {
@@ -125,6 +137,12 @@ class scoped_no_leak_check {
 #endif
 };
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
+
+bool skip_fuse_tests() {
+  return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
+}
+
 #if !(defined(_WIN32) || defined(__APPLE__))
 pid_t get_dwarfs_pid(fs::path const& path) {
   return dwarfs::to<pid_t>(dwarfs::getxattr(path, "user.dwarfs.driver.pid"));
@@ -150,6 +168,8 @@ bool wait_until_file_ready(fs::path const& path,
   }
   return true;
 }
+
+#endif
 
 bool read_file(fs::path const& path, std::string& out) {
   std::ifstream ifs(path, std::ios::binary);
@@ -298,10 +318,6 @@ bool compare_directories(fs::path const& p1, fs::path const& p2,
   }
 
   return rv;
-}
-
-bool skip_fuse_tests() {
-  return dwarfs::getenv_is_enabled("DWARFS_SKIP_FUSE_TESTS");
 }
 
 #ifdef _WIN32
@@ -525,6 +541,8 @@ class process_guard {
 };
 #endif
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
+
 class driver_runner {
  public:
   struct foreground_t {};
@@ -742,6 +760,8 @@ bool check_readonly(fs::path const& p, bool readonly) {
   return true;
 }
 
+#endif
+
 size_t num_hardlinks(fs::path const& p) {
 #ifdef _WIN32
   dwarfs::file_stat stat(p);
@@ -787,7 +807,9 @@ class tools_test : public ::testing::TestWithParam<binary_mode> {};
 TEST_P(tools_test, end_to_end) {
   auto mode = GetParam();
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
   std::chrono::seconds const timeout{5};
+#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto image = td / "test.dwarfs";
@@ -889,6 +911,7 @@ TEST_P(tools_test, end_to_end) {
   auto extracted = td / "extracted";
   auto untared = td / "untared";
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
   std::vector<fs::path> drivers;
 
   switch (mode) {
@@ -1133,6 +1156,7 @@ TEST_P(tools_test, end_to_end) {
       }
     }
   }
+#endif
 
   auto meta_export = td / "test.meta";
 
@@ -1173,6 +1197,8 @@ TEST_P(tools_test, end_to_end) {
   EXPECT_EQ(cdr.symlinks.size(), 2) << cdr;
 }
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
+
 #define EXPECT_EC_IMPL(ec, cat, val)                                           \
   EXPECT_TRUE(ec) << runner.cmdline();                                         \
   EXPECT_EQ(cat, (ec).category()) << runner.cmdline();                         \
@@ -1199,7 +1225,9 @@ TEST_P(tools_test, mutating_and_error_ops) {
     GTEST_SKIP() << "skipping FUSE tests";
   }
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
   std::chrono::seconds const timeout{5};
+#endif
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = fs::path(tempdir.path().string());
   auto mountpoint = td / "mnt";
@@ -1403,6 +1431,8 @@ TEST_P(tools_test, mutating_and_error_ops) {
   }
 }
 
+#endif
+
 TEST_P(tools_test, categorize) {
   auto mode = GetParam();
 
@@ -1492,6 +1522,8 @@ TEST_P(tools_test, categorize) {
     EXPECT_LT(image_size_recompressed, image_size);
   }
 
+#ifdef DWARFS_WITH_FUSE_DRIVER
+
   if (!skip_fuse_tests()) {
     auto mountpoint = td / "mnt";
     fs::path driver;
@@ -1525,6 +1557,8 @@ TEST_P(tools_test, categorize) {
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
   }
+
+#endif
 
   auto json_info = subprocess::check_run(*dwarfsck_test_bin, dwarfsck_tool_arg,
                                          image_recompressed, "--json");
@@ -1601,6 +1635,13 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, tools_test,
 class manpage_test
     : public ::testing::TestWithParam<std::tuple<binary_mode, std::string>> {};
 
+std::vector<std::string> const manpage_test_tools{
+"mkdwarfs", "dwarfsck", "dwarfsextract",
+#ifdef DWARFS_WITH_FUSE_DRIVER
+"dwarfs",
+#endif
+};
+
 TEST_P(manpage_test, manpage) {
   auto [mode, tool] = GetParam();
 
@@ -1648,8 +1689,7 @@ std::vector<binary_mode> manpage_test_modes{
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, manpage_test,
     ::testing::Combine(::testing::ValuesIn(manpage_test_modes),
-                       ::testing::Values("dwarfs", "mkdwarfs", "dwarfsck",
-                                         "dwarfsextract")));
+                       ::testing::ValuesIn(manpage_test_tools)));
 #endif
 
 TEST(tools_test, dwarfsextract_progress) {
