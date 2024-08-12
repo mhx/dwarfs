@@ -161,11 +161,9 @@ target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PkgConfig::ZSTD)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
-if(DWARFS_GIT_BUILD)
-  target_include_directories(dwarfs_common PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  )
-endif()
+target_include_directories(dwarfs_common PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+)
 
 target_compile_definitions(
   dwarfs_common PRIVATE
