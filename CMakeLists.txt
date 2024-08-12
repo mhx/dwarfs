@@ -250,6 +250,8 @@ else()
   add_library(dwarfs_extractor ALIAS dwarfs::dwarfs_extractor)
 endif()
 
+include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs_tool.cmake)
+
 if(WITH_TOOLS)
   foreach(tgt mkdwarfs dwarfsck dwarfsextract)
     add_library(${tgt}_main OBJECT tools/src/${tgt}_main.cpp)

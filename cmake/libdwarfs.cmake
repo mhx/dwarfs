@@ -137,23 +137,6 @@ add_library(
 )
 
 add_library(
-  dwarfs_tool OBJECT
-
-  src/tool/iolayer.cpp
-  src/tool/main_adapter.cpp
-  src/tool/safe_main.cpp
-  src/tool/sys_char.cpp
-  src/tool/tool.cpp
-)
-
-if(WITH_MAN_OPTION)
-  target_sources(dwarfs_tool PRIVATE
-    src/tool/pager.cpp
-    src/tool/render_manpage.cpp
-  )
-endif()
-
-add_library(
   dwarfs_fsst OBJECT
   fsst/libfsst.cpp
   fsst/fsst_avx512.cpp
@@ -177,17 +160,12 @@ target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PkgConfig::ZSTD)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
-target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 
 if(DWARFS_GIT_BUILD)
   target_include_directories(dwarfs_common PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   )
 endif()
-
-target_compile_definitions(
-  dwarfs_tool PRIVATE DWARFS_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
-)
 
 target_compile_definitions(
   dwarfs_common PRIVATE
@@ -247,7 +225,6 @@ list(APPEND LIBDWARFS_TARGETS
   dwarfs_writer
   dwarfs_extractor
   dwarfs_rewrite
-  dwarfs_tool
 )
 
 list(APPEND LIBDWARFS_OBJECT_TARGETS
