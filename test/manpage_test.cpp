@@ -24,9 +24,14 @@
 #include <map>
 #include <regex>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/pager.h>
@@ -50,20 +55,30 @@ struct tool_defs {
 };
 
 std::map<std::string, tool_defs> const tools = {
+#ifdef DWARFS_WITH_TOOLS
     {"mkdwarfs", {manpage::get_mkdwarfs_manpage(), mkdwarfs_main, "-H", false}},
-    {"dwarfs", {manpage::get_dwarfs_manpage(), dwarfs_main, "-h", true}},
     {"dwarfsck", {manpage::get_dwarfsck_manpage(), dwarfsck_main, "-h", false}},
     {"dwarfsextract",
      {manpage::get_dwarfsextract_manpage(), dwarfsextract_main, "-h", false}},
+#endif
+#ifdef DWARFS_WITH_FUSE_DRIVER
+    {"dwarfs", {manpage::get_dwarfs_manpage(), dwarfs_main, "-h", true}},
+#endif
 };
 
+auto const render_tests = ranges::views::keys(tools) | ranges::to<std::vector>;
+
 std::array const coverage_tests{
+#ifdef DWARFS_WITH_TOOLS
     "mkdwarfs"s,
     "dwarfsck"s,
     "dwarfsextract"s,
+#endif
+#ifdef DWARFS_WITH_FUSE_DRIVER
 #ifndef DWARFS_TEST_RUNNING_ON_ASAN
     // FUSE driver is leaky, so we don't run this test under ASAN
     "dwarfs"s,
+#endif
 #endif
 };
 
@@ -86,11 +101,9 @@ TEST_P(manpage_render_test, basic) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    dwarfs, manpage_render_test,
-    ::testing::Combine(::testing::Values("mkdwarfs", "dwarfs", "dwarfsck",
-                                         "dwarfsextract"),
-                       ::testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(dwarfs, manpage_render_test,
+                         ::testing::Combine(::testing::ValuesIn(render_tests),
+                                            ::testing::Bool()));
 
 namespace {
 
