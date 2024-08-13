@@ -524,23 +524,25 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     add_executable(dwarfs_benchmark test/dwarfs_benchmark.cpp)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
-    list(APPEND BINARY_TARGETS dwarfs_benchmark)
+    list(APPEND BENCHMARK_TARGETS dwarfs_benchmark)
 
     add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
     target_link_libraries(multiversioning_benchmark PRIVATE benchmark::benchmark)
     target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_writer)
-    list(APPEND BINARY_TARGETS multiversioning_benchmark)
+    list(APPEND BENCHMARK_TARGETS multiversioning_benchmark)
 
     add_executable(converter_benchmark test/converter_benchmark.cpp)
     target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
-    list(APPEND BINARY_TARGETS converter_benchmark)
+    list(APPEND BENCHMARK_TARGETS converter_benchmark)
   endif()
 
   # TODO: migrate to benchmark?
   add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
   target_link_libraries(segmenter_benchmark PRIVATE dwarfs_follybenchmark_lite dwarfs_test_helpers)
   target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
-  list(APPEND BINARY_TARGETS segmenter_benchmark)
+  list(APPEND BENCHMARK_TARGETS segmenter_benchmark)
+
+  list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
 endif()
 
 if(WITH_LIBDWARFS AND WITH_FUZZ)
@@ -870,16 +872,35 @@ if(DEFINED ENV{GITHUB_REF_TYPE})
                "binary_tarball=${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT}\n"
                "universal_binary=${UNIVERSAL_OUT}\n")
 
-    set(RICEPP_BENCHMARK_FITS "ricepp/ricepp_benchmark_fits")
-
-    add_custom_target(copy_artifacts
+    add_custom_command(
+      OUTPUT _copy_artifacts
       COMMAND ${CMAKE_COMMAND} -E make_directory ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}-${DWARFS_ARTIFACT_ID}${PACKAGE_EXT} ${ARTIFACTS_FULL_PATH}
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${UNIVERSAL_OUT} ${ARTIFACTS_FULL_PATH}
-      COMMAND ${CMAKE_COMMAND} -E copy
-          ${CMAKE_CURRENT_BINARY_DIR}/${RICEPP_BENCHMARK_FITS}${CMAKE_EXECUTABLE_SUFFIX}
-          ${ARTIFACTS_FULL_PATH}/ricepp_benchmark_fits-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
     )
+
+    if(WITH_BENCHMARKS)
+      foreach(tgt ${BENCHMARK_TARGETS})
+        add_custom_command(
+          OUTPUT _copy_artifacts APPEND
+          COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_CURRENT_BINARY_DIR}/${tgt}${CMAKE_EXECUTABLE_SUFFIX}
+              ${ARTIFACTS_FULL_PATH}/${tgt}-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
+        )
+      endforeach()
+
+      if (ENABLE_RICEPP)
+        add_custom_command(
+          OUTPUT _copy_artifacts APPEND
+          COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_CURRENT_BINARY_DIR}/ricepp/ricepp_benchmark_fits${CMAKE_EXECUTABLE_SUFFIX}
+              ${ARTIFACTS_FULL_PATH}/ricepp_benchmark_fits-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}
+        )
+      endif()
+    endif()
+
+    add_custom_target(copy_artifacts DEPENDS _copy_artifacts)
+    set_source_files_properties(_copy_artifacts PROPERTIES SYMBOLIC ON)
   endif()
 endif()
 
