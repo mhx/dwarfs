@@ -192,7 +192,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
   case "-$BUILD_TYPE-" in
     *-full-*)
       cmake ../dwarfs/ $CMAKE_ARGS
-      $BUILD_TOOL
+      time $BUILD_TOOL
       ctest --output-on-failure -j$(nproc)
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
@@ -201,7 +201,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
     *-split-*)
       # ==== libdwarfs ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
-      $BUILD_TOOL
+      time $BUILD_TOOL
       ctest --output-on-failure -j$(nproc)
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
@@ -209,7 +209,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
 
       # ==== dwarfs tools ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
-      $BUILD_TOOL
+      time $BUILD_TOOL
       ctest --output-on-failure -j$(nproc)
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
@@ -217,7 +217,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
 
       # ==== dwarfs fuse driver ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
-      $BUILD_TOOL
+      time $BUILD_TOOL
       ctest --output-on-failure -j$(nproc)
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
@@ -232,7 +232,7 @@ else
   # shellcheck disable=SC2086
   cmake ../dwarfs/ $CMAKE_ARGS
 
-  $BUILD_TOOL
+  time $BUILD_TOOL
 
   if [[ "-$BUILD_TYPE-" != *-source-* ]]; then
     ctest --output-on-failure -j$(nproc)
@@ -274,7 +274,7 @@ else
         # shellcheck disable=SC2086
         cmake ../dwarfs/ $CMAKE_ARGS
 
-        $BUILD_TOOL
+        time $BUILD_TOOL
 
         ctest --output-on-failure -j$(nproc)
       fi
@@ -302,7 +302,7 @@ else
       # shellcheck disable=SC2086
       cmake ../dwarfs/ $CMAKE_ARGS_NONSTATIC
 
-      $BUILD_TOOL
+      time $BUILD_TOOL
 
       ctest --output-on-failure -j$(nproc)
     fi
