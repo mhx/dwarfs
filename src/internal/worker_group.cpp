@@ -36,13 +36,13 @@
 
 #include <fmt/format.h>
 
-#include <folly/String.h>
 #include <folly/portability/Windows.h>
 #include <folly/system/ThreadName.h>
 
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/worker_group.h>
@@ -232,16 +232,13 @@ class basic_worker_group final : public worker_group::impl, private Policy {
 
   void check_set_affinity_from_enviroment(const char* group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
-      std::vector<std::string_view> groups;
-      folly::split(':', var.value(), groups);
+      auto groups = split_to<std::vector<std::string_view>>(var.value(), ':');
 
       for (auto& group : groups) {
-        std::vector<std::string_view> parts;
-        folly::split('=', group, parts);
+        auto parts = split_to<std::vector<std::string_view>>(group, '=');
 
         if (parts.size() == 2 && parts[0] == group_name) {
-          std::vector<int> cpus;
-          folly::split(',', parts[1], cpus);
+          auto cpus = split_to<std::vector<int>>(parts[1], ',');
           set_affinity(cpus);
         }
       }

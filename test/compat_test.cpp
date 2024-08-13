@@ -42,6 +42,7 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/string.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
@@ -999,15 +1000,17 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     }
 
     std::vector<std::string> parts;
-    folly::split(' ', line, parts);
+    split_to(line, ' ', parts);
     auto name = parts.front().substr(2);
     parts.erase(parts.begin());
     std::unordered_map<std::string, std::string> kv;
 
     for (auto const& p : parts) {
-      std::string key, value;
-      folly::split('=', p, key, value);
-      kv[key] = value;
+      auto pos = p.find('=');
+      if (pos == std::string::npos) {
+        throw std::runtime_error("unexpected mtree line: " + line);
+      }
+      kv[p.substr(0, pos)] = p.substr(pos + 1);
     }
 
     ++num;

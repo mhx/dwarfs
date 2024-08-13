@@ -21,8 +21,7 @@
 
 #include <fmt/format.h>
 
-#include <folly/String.h>
-
+#include <dwarfs/string.h>
 #include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/category_resolver.h>
 
@@ -40,9 +39,8 @@ category_parser::parse(std::string_view arg) const {
   }
 
   std::vector<fragment_category::value_type> rv;
-  std::vector<std::string_view> categories;
+  auto categories = split_to<std::vector<std::string_view>>(arg, ',');
 
-  folly::split(',', arg, categories);
   rv.reserve(categories.size());
 
   for (auto const& name : categories) {

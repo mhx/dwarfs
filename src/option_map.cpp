@@ -27,17 +27,15 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <folly/String.h>
-
 #include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/string.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
 
 option_map::option_map(const std::string_view spec) {
-  std::vector<std::string_view> arg;
-  folly::split(':', spec, arg);
+  auto arg = split_to<std::vector<std::string_view>>(spec, ':');
 
   choice_ = arg[0];
 

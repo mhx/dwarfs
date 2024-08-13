@@ -25,7 +25,6 @@
 #include <stdexcept>
 
 #include <folly/Conv.h>
-#include <folly/String.h>
 #include <folly/small_vector.h>
 
 #include <dwarfs/config.h>
@@ -42,6 +41,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/logger.h>
+#include <dwarfs/string.h>
 #include <dwarfs/terminal_ansi.h>
 #include <dwarfs/util.h>
 
@@ -189,7 +189,7 @@ void stream_logger::write(level_type level, const std::string& output,
           color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
       printer.println(addresses, 3);
       stacktrace = printer.str();
-      folly::split('\n', stacktrace, st_lines);
+      split_to(stacktrace, '\n', st_lines);
       if (st_lines.back().empty()) {
         st_lines.pop_back();
       }
@@ -217,9 +217,9 @@ void stream_logger::write(level_type level, const std::string& output,
       tmp.reserve(output.size());
       std::copy_if(output.begin(), output.end(), std::back_inserter(tmp),
                    [](char c) { return c != '\r'; });
-      folly::split('\n', tmp, lines);
+      split_to(tmp, '\n', lines);
     } else {
-      folly::split('\n', output, lines);
+      split_to(output, '\n', lines);
     }
 
     if (lines.back().empty()) {

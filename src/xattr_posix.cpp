@@ -21,8 +21,7 @@
 
 #include <sys/xattr.h>
 
-#include <folly/String.h>
-
+#include <dwarfs/string.h>
 #include <dwarfs/xattr.h>
 
 namespace dwarfs {
@@ -144,7 +143,7 @@ listxattr(std::filesystem::path const& path, std::error_code& ec) {
       if (size > 0) {
         // drop the last '\0'
         list.resize(size - 1);
-        folly::split('\0', list, names);
+        split_to(list, '\0', names);
       }
 
       return names;
