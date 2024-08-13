@@ -44,12 +44,7 @@ cd "$HOME"
 rm -rf dwarfs dwarfs-*
 
 if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
-  # delete all but the latest tarball
-  ls -1 -r --sort=time /workspace/dwarfs-*.tar.zst | tail -n +2 | while read -r tarball; do
-    echo "deleting old tarball: $tarball"
-    rm -f "$tarball"
-  done
-  tar xf /workspace/dwarfs-*.tar.zst
+  tar xf "/artifacts/cache/dwarfs-source-${GITHUB_RUN_NUMBER}.tar.zst"
   ln -s dwarfs-* dwarfs
 else
   git config --global --add safe.directory /workspace
@@ -309,10 +304,6 @@ else
   elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
     $BUILD_TOOL package_source
     $BUILD_TOOL copy_source_artifacts
-    rm -rf /tmp-runner/artifacts
-    mkdir -p /tmp-runner/artifacts
-    cp source-artifacts.env /tmp-runner
-    cp dwarfs-*.tar.zst /tmp-runner/artifacts
   fi
 
   if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
