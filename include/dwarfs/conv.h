@@ -77,7 +77,11 @@ std::optional<T> tryTo(U&& s)
 
 template <typename T, typename U>
 T to(U&& s) {
-  return tryTo<T>(std::forward<U>(s)).value();
+  if constexpr (std::same_as<T, std::decay_t<U>>) {
+    return std::forward<U>(s);
+  } else {
+    return tryTo<T>(std::forward<U>(s)).value();
+  }
 }
 
 } // namespace dwarfs

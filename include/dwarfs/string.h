@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -30,14 +31,29 @@
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/split.hpp>
 
+#include <dwarfs/conv.h>
+
 namespace dwarfs {
 
 template <typename T, typename Input, typename Delim>
-auto split_view(Input&& input, Delim&& delim) {
+auto split_view(Input&& input, Delim&& delim)
+  requires(std::same_as<T, std::string> || std::same_as<T, std::string_view>)
+{
   return std::forward<Input>(input) |
          ranges::views::split(std::forward<Delim>(delim)) |
          ranges::views::transform([](auto&& rng) {
            return T(&*rng.begin(), ranges::distance(rng));
+         });
+}
+
+template <typename T, typename Input, typename Delim>
+auto split_view(Input&& input, Delim&& delim)
+  requires std::is_arithmetic_v<T>
+{
+  return std::forward<Input>(input) |
+         ranges::views::split(std::forward<Delim>(delim)) |
+         ranges::views::transform([](auto&& rng) {
+           return to<T>(std::string_view(&*rng.begin(), ranges::distance(rng)));
          });
 }
 
