@@ -39,6 +39,8 @@ namespace dwarfs {
 
 namespace {
 
+constexpr size_t default_width{80};
+
 #if defined(_WIN32)
 
 void WindowsEmulateVT100Terminal(DWORD std_handle) {
@@ -66,8 +68,10 @@ void WindowsEmulateVT100Terminal(DWORD std_handle) {
 
 size_t width_impl() {
   CONSOLE_SCREEN_BUFFER_INFO csbi;
-  ::GetConsoleScreenBufferInfo(::GetStdHandle(STD_ERROR_HANDLE), &csbi);
-  return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+  if (::GetConsoleScreenBufferInfo(::GetStdHandle(STD_ERROR_HANDLE), &csbi)) {
+    return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+  }
+  return default_width;
 }
 
 bool is_tty_impl(std::ostream& os) {
@@ -86,8 +90,8 @@ bool is_fancy_impl() { return true; }
 
 size_t width_impl() {
   struct ::winsize w;
-  ::ioctl(STDERR_FILENO, TIOCGWINSZ, &w);
-  return w.ws_col;
+  auto rv = ::ioctl(STDERR_FILENO, TIOCGWINSZ, &w);
+  return rv == 0 ? w.ws_col : default_width;
 }
 
 bool is_tty_impl(std::ostream& os) {
