@@ -232,6 +232,8 @@ jobs:
             dwarfs-linux-build-${{ matrix.dist }}
 
   linux-git:
+    needs: package-source
+
     strategy:
       matrix:
         arch:
