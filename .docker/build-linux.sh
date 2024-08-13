@@ -14,7 +14,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
     echo "deleting old tarball: $tarball"
     rm -f "$tarball"
   done
-  tar xvf /workspace/dwarfs-*.tar.zst
+  tar xf /workspace/dwarfs-*.tar.zst
   ln -s dwarfs-* dwarfs
 else
   git config --global --add safe.directory /workspace
