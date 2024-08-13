@@ -1055,11 +1055,14 @@ TEST_P(tools_test, end_to_end) {
         "-oenable_nlink",
         "-oreadonly",
 #endif
-        "-omlock=try",
-        "-ono_cache_image",
-        "-ocache_files",
-        "-otidy_strategy=time",
     };
+
+    if (!dwarfs::test::skip_slow_tests()) {
+      all_options.push_back("-omlock=try");
+      all_options.push_back("-ono_cache_image");
+      all_options.push_back("-ocache_files");
+      all_options.push_back("-otidy_strategy=time");
+    }
 
     unsigned const combinations = 1 << all_options.size();
 

@@ -583,4 +583,9 @@ std::string create_random_string(size_t size, size_t seed) {
   return create_random_string(size, tmprng);
 }
 
+bool skip_slow_tests() {
+  static bool skip = getenv_is_enabled("DWARFS_SKIP_SLOW_TESTS");
+  return skip;
+}
+
 } // namespace dwarfs::test

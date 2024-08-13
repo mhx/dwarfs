@@ -38,6 +38,9 @@
 
 #include <dwarfs/writer/internal/multi_queue_block_merger.h>
 
+#include "test_helpers.h"
+
+using namespace dwarfs::test;
 using namespace dwarfs::writer;
 
 namespace {
@@ -46,6 +49,8 @@ constexpr int const debuglevel{0};
 
 constexpr size_t const max_runs_regular{250};
 constexpr size_t const max_runs_partial{50};
+constexpr size_t const max_runs_regular_quick{25};
+constexpr size_t const max_runs_partial_quick{5};
 constexpr size_t const num_runner_threads{16};
 constexpr size_t const num_repetitions{4};
 
@@ -469,9 +474,11 @@ block_merger_test(size_t const max_runs) {
 TEST(block_merger, random) {
   using merger_type = internal::multi_queue_block_merger<size_t, block>;
 
-  auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
+  auto max_runs = skip_slow_tests() ? max_runs_regular_quick : max_runs_regular;
 
-  EXPECT_EQ(max_runs_regular * num_repetitions, passes);
+  auto [passes, fails] = block_merger_test<merger_type>(max_runs);
+
+  EXPECT_EQ(max_runs * num_repetitions, passes);
   EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
 }
 
@@ -480,9 +487,11 @@ TEST(block_merger, random_sized) {
       internal::multi_queue_block_merger<size_t, sized_block,
                                          sized_block_merger_policy>;
 
-  auto [passes, fails] = block_merger_test<merger_type>(max_runs_regular);
+  auto max_runs = skip_slow_tests() ? max_runs_regular_quick : max_runs_regular;
 
-  EXPECT_EQ(max_runs_regular * num_repetitions, passes);
+  auto [passes, fails] = block_merger_test<merger_type>(max_runs);
+
+  EXPECT_EQ(max_runs * num_repetitions, passes);
   EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
 }
 
@@ -491,8 +500,10 @@ TEST(block_merger, random_sized_partial) {
       internal::multi_queue_block_merger<size_t, sized_block,
                                          sized_block_merger_policy>;
 
-  auto [passes, fails] = block_merger_test<merger_type, true>(max_runs_partial);
+  auto max_runs = skip_slow_tests() ? max_runs_partial_quick : max_runs_partial;
 
-  EXPECT_EQ(max_runs_partial * num_repetitions, passes);
+  auto [passes, fails] = block_merger_test<merger_type, true>(max_runs);
+
+  EXPECT_EQ(max_runs * num_repetitions, passes);
   EXPECT_TRUE(fails.empty()) << folly::join(", ", fails);
 }

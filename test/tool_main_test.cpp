@@ -1478,7 +1478,9 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_recompress_test,
                          ::testing::ValuesIn(source_fs_compression));
 
 class mkdwarfs_build_options_test
-    : public testing::TestWithParam<std::string_view> {};
+    : public testing::TestWithParam<std::string_view> {
+  DWARFS_SLOW_FIXTURE
+};
 
 TEST_P(mkdwarfs_build_options_test, basic) {
   auto opts = GetParam();
@@ -1669,6 +1671,8 @@ constexpr std::array<std::string_view, 9> const pack_mode_names = {
 }
 
 TEST(mkdwarfs_test, pack_modes_random) {
+  DWARFS_SLOW_TEST();
+
   std::mt19937_64 rng{42};
   std::uniform_int_distribution<> dist{1, pack_mode_names.size()};
 
@@ -1848,7 +1852,9 @@ TEST(mkdwarfs_test, compression_cannot_be_used_for_category) {
 }
 #endif
 
-class mkdwarfs_progress_test : public testing::TestWithParam<char const*> {};
+class mkdwarfs_progress_test : public testing::TestWithParam<char const*> {
+  DWARFS_SLOW_FIXTURE
+};
 
 TEST_P(mkdwarfs_progress_test, basic) {
   std::string mode{GetParam()};
@@ -2471,6 +2477,7 @@ TEST(mkdwarfs_test, filesystem_read_error) {
 }
 
 class segmenter_repeating_sequence_test : public testing::TestWithParam<char> {
+  DWARFS_SLOW_FIXTURE
 };
 
 TEST_P(segmenter_repeating_sequence_test, github161) {

@@ -34,6 +34,11 @@ if [[ "$BUILD_TYPE" != "clang-release-ninja-static" ]]; then
   export DWARFS_LOCAL_REPO_PATH="$LOCAL_REPO_PATH"
 fi
 
+if [[ "-$BUILD_TYPE-" == *-debug-* ]] && [[ "-$BUILD_TYPE-" != *-coverage-* ]] &&
+   [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && [[ "-$BUILD_TYPE-" != *-ubsan-* ]]; then
+  export DWARFS_SKIP_SLOW_TESTS=1
+fi
+
 cd "$HOME"
 
 rm -rf dwarfs dwarfs-*

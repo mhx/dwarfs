@@ -576,6 +576,7 @@ std::vector<std::string> const compressions{
 class compression_test
     : public testing::TestWithParam<std::tuple<
           std::string, unsigned, file_order_mode, std::optional<std::string>>> {
+  DWARFS_SLOW_FIXTURE
 };
 
 class scanner_test : public testing::TestWithParam<
@@ -857,7 +858,9 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
 
 class file_scanner
     : public testing::TestWithParam<
-          std::tuple<file_order_mode, std::optional<std::string>>> {};
+          std::tuple<file_order_mode, std::optional<std::string>>> {
+  DWARFS_SLOW_FIXTURE
+};
 
 TEST_P(file_scanner, inode_ordering) {
   auto [order_mode, file_hash_algo] = GetParam();

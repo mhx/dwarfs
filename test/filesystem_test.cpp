@@ -214,6 +214,8 @@ std::string valid_v2_header(uint32_t section_number = 0) {
 } // namespace
 
 TEST(filesystem, find_image_offset) {
+  DWARFS_SLOW_TEST();
+
   test::test_logger lgr;
   test::os_access_mock os;
 

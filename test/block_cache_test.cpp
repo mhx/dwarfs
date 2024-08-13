@@ -133,7 +133,9 @@ TEST(block_range, compressed) {
           ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
 }
 
-class options_test : public ::testing::TestWithParam<block_cache_options> {};
+class options_test : public ::testing::TestWithParam<block_cache_options> {
+  DWARFS_SLOW_FIXTURE
+};
 
 TEST_P(options_test, cache_stress) {
   static constexpr size_t num_threads{8};
