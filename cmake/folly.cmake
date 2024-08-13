@@ -63,54 +63,44 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeCommon.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/RangeSse42.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SimpleSimdStringUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/FsUtil.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/CString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/ToAscii.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeAddress.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/SanitizeLeak.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/detail/MallocImpl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/PThread.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Stdlib.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysMman.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysResource.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysUio.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Unistd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/QuantileEstimator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/TDigest.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/stats/detail/DoubleRadixSort.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/HardwareConcurrency.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
 )
+
+if(WIN32)
+  target_sources(dwarfs_folly_lite PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Fcntl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/PThread.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Sockets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysFile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysMman.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysResource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/SysStat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/portability/Time.cpp
+  )
+endif()
 
 if(ENABLE_STACKTRACE)
   target_sources(dwarfs_folly_lite PRIVATE
@@ -127,6 +117,7 @@ if(ENABLE_STACKTRACE)
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
   )
 endif()
 
@@ -146,6 +137,8 @@ if(WITH_BENCHMARKS)
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/PerfScoped.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/StaticSingletonManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/FsUtil.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/dynamic.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json_pointer.cpp
@@ -171,6 +164,7 @@ if(WITH_BENCHMARKS)
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StreamHandlerFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/xlog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/Pid.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
   )
   if(NOT WIN32)
     target_sources(dwarfs_follybenchmark_lite PRIVATE
@@ -180,4 +174,22 @@ if(WITH_BENCHMARKS)
   set_property(TARGET dwarfs_follybenchmark_lite PROPERTY CXX_STANDARD 20)
   apply_folly_compile_options_to_target(dwarfs_follybenchmark_lite)
   target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
+endif()
+
+if(ENABLE_STACKTRACE OR WITH_BENCHMARKS)
+  if(ENABLE_STACKTRACE)
+    set(_target dwarfs_folly_lite)
+  else()
+    set(_target dwarfs_follybenchmark_lite)
+  endif()
+  target_sources(${_target} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
+  )
 endif()
