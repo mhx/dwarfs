@@ -184,10 +184,10 @@ jobs:
           - arch: arm64v8
             dist: ubuntu
             build_type: gcc-debug-noperfmon-ninja-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: gcc-debug-nostacktrace-ninja-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: oldclang-debug-make-split
           - arch: amd64
@@ -293,10 +293,10 @@ jobs:
           - arch: arm64v8
             dist: ubuntu
             build_type: gcc-debug-noperfmon-ninja
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: gcc-debug-nostacktrace-ninja
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: oldclang-debug-make
           - arch: amd64
