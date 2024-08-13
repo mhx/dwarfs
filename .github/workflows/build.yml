@@ -25,6 +25,11 @@ jobs:
         build_mode:
           - Release
           - Debug
+        config:
+          - name: Normal
+            cmake_args:
+          - name: Benchmark
+            cmake_args: -DWITH_BENCHMARKS=ON
 
     steps:
       - name: Checkout
@@ -40,7 +45,7 @@ jobs:
       - name: Configure Build
         shell: cmd
         run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON
+          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON ${{ matrix.config.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON
 
       - name: Run Build
         shell: cmd
@@ -57,24 +62,24 @@ jobs:
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target package
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
       - name: Compress Universal Binary
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target universal_upx
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
       - name: Copy Artifacts
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target copy_artifacts
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
       - name: Prepare Artifact Upload
         shell: cmd
         run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
       - name: Upload Binary Tarball
         uses: actions/upload-artifact@v4
@@ -83,7 +88,7 @@ jobs:
           path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
           if-no-files-found: error
           compression-level: 0
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
       - name: Upload Universal Binary
         uses: actions/upload-artifact@v4
@@ -92,7 +97,7 @@ jobs:
           path: ${{ runner.temp }}\build\${{ env.universal_binary }}
           if-no-files-found: error
           compression-level: 0
-        if: matrix.build_mode == 'Release'
+        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
 
   package-source:
     runs-on:
@@ -409,14 +414,21 @@ jobs:
     runs-on:
       - self-hosted
       - macOS
+      - ${{ matrix.arch }}
 
     strategy:
       matrix:
         arch:
           - ARM64
+          - X64
         build_mode:
           - Release
           - Debug
+        config:
+          - name: Normal
+            cmake_args:
+          - name: Benchmark
+            cmake_args: -DWITH_BENCHMARKS=ON
 
     steps:
       - name: Unpack Source Tarball
@@ -429,7 +441,7 @@ jobs:
 
       - name: Configure Full Build
         run: |
-          cmake -B${{ runner.temp }}/build-full -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DWITH_PXATTR=ON
+          cmake -B${{ runner.temp }}/build-full -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
 
       - name: Run Full Build
         run: |
@@ -441,7 +453,7 @@ jobs:
 
       - name: Configure Library Build
         run: |
-          cmake -B${{ runner.temp }}/build-library -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+          cmake -B${{ runner.temp }}/build-library -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }}
 
       - name: Run Library Build
         run: |
@@ -457,7 +469,7 @@ jobs:
 
       - name: Configure Tools Build
         run: |
-          cmake -B${{ runner.temp }}/build-tools -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+          cmake -B${{ runner.temp }}/build-tools -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
 
       - name: Run Tools Build
         run: |
@@ -473,7 +485,7 @@ jobs:
 
       - name: Configure FUSE Driver Build
         run: |
-          cmake -B${{ runner.temp }}/build-driver -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+          cmake -B${{ runner.temp }}/build-driver -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
 
       - name: Run FUSE Driver Build
         run: |
