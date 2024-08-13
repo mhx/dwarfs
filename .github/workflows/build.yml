@@ -124,6 +124,7 @@ jobs:
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --mount type=bind,source=/home/mhx/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=clang-release-ninja-source \
             --env BUILD_ARCH=amd64 \
@@ -233,6 +234,7 @@ jobs:
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --mount type=bind,source=/home/mhx/github-local,target=/local \
             --env BUILD_FROM_TARBALL=1 \
             --env BUILD_TYPE=${{ matrix.build_type }} \
             --env BUILD_ARCH=${{ matrix.arch }} \
@@ -372,6 +374,7 @@ jobs:
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
             --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
+            --mount type=bind,source=/home/mhx/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=${{ matrix.build_type }} \
             --env BUILD_ARCH=${{ matrix.arch }} \
