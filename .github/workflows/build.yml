@@ -160,14 +160,14 @@ jobs:
           - fedora
           - arch
         build_type:
-          - gcc-debug-ninja-full
+          - gcc-debug-shared-ninja-full
           - gcc-release-ninja-split
           - gcc-release-shared-ninja-split
-          - clang-release-ninja-full
+          - clang-release-shared-ninja-full
         exclude:
           - arch: arm64v8
             dist: arch
-            build_type: gcc-debug-ninja-full
+            build_type: gcc-debug-shared-ninja-full
           - arch: arm64v8
             dist: arch
             build_type: gcc-release-ninja-split
@@ -176,26 +176,26 @@ jobs:
             build_type: gcc-release-shared-ninja-split
           - arch: arm64v8
             dist: arch
-            build_type: clang-release-ninja-full
+            build_type: clang-release-shared-ninja-full
         include:
           - arch: amd64
             dist: ubuntu
-            build_type: oldgcc-debug-make-split
+            build_type: oldgcc-debug-shared-make-split
           - arch: arm64v8
             dist: ubuntu
-            build_type: gcc-debug-noperfmon-ninja-split
+            build_type: gcc-debug-shared-noperfmon-ninja-split
           - arch: amd64
             dist: ubuntu
-            build_type: gcc-debug-nostacktrace-ninja-split
+            build_type: gcc-debug-shared-nostacktrace-ninja-split
           - arch: amd64
             dist: ubuntu
-            build_type: oldclang-debug-make-split
+            build_type: oldclang-debug-shared-make-split
           - arch: amd64
             dist: ubuntu-2204
-            build_type: gcc-release-ninja-split
+            build_type: gcc-release-shared-ninja-split
           - arch: amd64
             dist: ubuntu-2204
-            build_type: gcc-debug-ninja-full
+            build_type: gcc-debug-shared-ninja-full
           - arch: amd64
             dist: ubuntu-2204
             build_type: clang-release-ninja-split
@@ -257,14 +257,14 @@ jobs:
           - fedora
           - arch
         build_type:
-          - gcc-debug-ninja
+          - gcc-debug-shared-ninja
           - gcc-release-ninja
           - gcc-release-shared-ninja
-          - clang-release-ninja
+          - clang-release-shared-ninja
         exclude:
           - arch: arm64v8
             dist: arch
-            build_type: gcc-debug-ninja
+            build_type: gcc-debug-shared-ninja
           - arch: arm64v8
             dist: arch
             build_type: gcc-release-ninja
@@ -273,32 +273,32 @@ jobs:
             build_type: gcc-release-shared-ninja
           - arch: arm64v8
             dist: arch
-            build_type: clang-release-ninja
+            build_type: clang-release-shared-ninja
         include:
           - arch: amd64
             dist: ubuntu
-            build_type: clang-reldbg-asan-ninja
+            build_type: clang-reldbg-shared-asan-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: clang-debug-tsan-ninja
+            build_type: clang-debug-shared-tsan-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: clang-reldbg-ubsan-ninja
+            build_type: clang-reldbg-shared-ubsan-ninja
           - arch: amd64
             dist: ubuntu
             build_type: clang-debug-coverage-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: oldgcc-debug-make
+            build_type: oldgcc-debug-shared-make
           - arch: arm64v8
             dist: ubuntu
-            build_type: gcc-debug-noperfmon-ninja
+            build_type: gcc-debug-shared-noperfmon-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: gcc-debug-nostacktrace-ninja
+            build_type: gcc-debug-shared-nostacktrace-ninja
           - arch: amd64
             dist: ubuntu
-            build_type: oldclang-debug-make
+            build_type: oldclang-debug-shared-make
           - arch: amd64
             dist: ubuntu
             build_type: gcc-release-ninja-static
@@ -337,10 +337,10 @@ jobs:
             build_type: clang-debug-ninja-static
           - arch: arm64v8
             dist: ubuntu-2204
-            build_type: gcc-release-ninja
+            build_type: gcc-release-shared-ninja
           - arch: arm64v8
             dist: ubuntu-2204
-            build_type: gcc-debug-ninja
+            build_type: gcc-debug-shared-ninja
           - arch: arm64v8
             dist: ubuntu-2204
             build_type: clang-release-ninja
