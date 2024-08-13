@@ -400,3 +400,93 @@ jobs:
           if-no-files-found: error
           compression-level: 0
         if: ${{ endsWith(matrix.build_type, '-static') }}
+
+  macos:
+    needs: package-source
+
+    runs-on:
+      - self-hosted
+      - macOS
+
+    strategy:
+      matrix:
+        arch:
+          - ARM64
+        build_mode:
+          - Release
+          - Debug
+
+    steps:
+      - name: Unpack Source Tarball
+        run: |
+          rm -rf dwarfs-*/
+          rm -f dwarfs-source-*.tar.zst
+          rm -f dwarfs
+          tar xf /Volumes/opensource/artifacts/dwarfs/cache/dwarfs-source-${{ github.run_number }}.tar.zst
+          ln -s dwarfs-* dwarfs
+
+      - name: Configure Full Build
+        run: |
+          cmake -B${{ runner.temp }}/build-full -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DWITH_PXATTR=ON
+
+      - name: Run Full Build
+        run: |
+          cmake --build ${{ runner.temp }}/build-full
+
+      - name: Run Full Test
+        run: |
+          ctest --test-dir ${{ runner.temp }}/build-full --output-on-failure -j
+
+      - name: Configure Library Build
+        run: |
+          cmake -B${{ runner.temp }}/build-library -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+
+      - name: Run Library Build
+        run: |
+          cmake --build ${{ runner.temp }}/build-library
+
+      - name: Run Library Test
+        run: |
+          ctest --test-dir ${{ runner.temp }}/build-library --output-on-failure -j
+
+      - name: Install Library
+        run: |
+          cmake --install ${{ runner.temp }}/build-library --prefix ${{ runner.temp }}/install
+
+      - name: Configure Tools Build
+        run: |
+          cmake -B${{ runner.temp }}/build-tools -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+
+      - name: Run Tools Build
+        run: |
+          cmake --build ${{ runner.temp }}/build-tools
+
+      - name: Run Tools Test
+        run: |
+          ctest --test-dir ${{ runner.temp }}/build-tools --output-on-failure -j
+
+      - name: Install Tools
+        run: |
+          cmake --install ${{ runner.temp }}/build-tools --prefix ${{ runner.temp }}/install
+
+      - name: Configure FUSE Driver Build
+        run: |
+          cmake -B${{ runner.temp }}/build-driver -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+
+      - name: Run FUSE Driver Build
+        run: |
+          cmake --build ${{ runner.temp }}/build-driver
+
+      - name: Run FUSE Driver Test
+        run: |
+          ctest --test-dir ${{ runner.temp }}/build-driver --output-on-failure -j
+
+      - name: Install FUSE Driver
+        run: |
+          cmake --install ${{ runner.temp }}/build-driver --prefix ${{ runner.temp }}/install
+
+      - name: Cleanup
+        run: |
+          rm -rf dwarfs-*/
+          rm -f dwarfs-source-*.tar.zst
+          rm -f dwarfs
