@@ -604,13 +604,14 @@ class driver_runner {
 
     if (!mountpoint_.empty()) {
 #ifdef __APPLE__
-      auto umount = dwarfs::test::find_binary("umount");
-      if (!umount) {
-        throw std::runtime_error("no umount binary found");
+      auto diskutil = dwarfs::test::find_binary("diskutil");
+      if (!diskutil) {
+        throw std::runtime_error("no diskutil binary found");
       }
       auto t0 = std::chrono::steady_clock::now();
       for (;;) {
-        auto [out, err, ec] = subprocess::run(umount.value(), mountpoint_);
+        auto [out, err, ec] =
+            subprocess::run(diskutil.value(), "unmount", mountpoint_);
         if (ec == 0) {
           break;
         }
