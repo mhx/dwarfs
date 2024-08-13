@@ -628,22 +628,24 @@ endif()
 foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite
             ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS}
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
-  if(ENABLE_ASAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=address
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=address)
-  endif()
+  if(TARGET ${tgt})
+    if(ENABLE_ASAN)
+      target_compile_options(${tgt} PRIVATE -fsanitize=address
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fsanitize=address)
+    endif()
 
-  if(ENABLE_TSAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=thread
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=thread)
-  endif()
+    if(ENABLE_TSAN)
+      target_compile_options(${tgt} PRIVATE -fsanitize=thread
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fsanitize=thread)
+    endif()
 
-  if(ENABLE_UBSAN)
-    target_compile_options(${tgt} PRIVATE -fsanitize=undefined
-                                          -fno-omit-frame-pointer)
-    target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+    if(ENABLE_UBSAN)
+      target_compile_options(${tgt} PRIVATE -fsanitize=undefined
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fsanitize=undefined)
+    endif()
   endif()
 endforeach()
 
