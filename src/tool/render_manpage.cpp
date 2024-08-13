@@ -27,6 +27,12 @@ namespace dwarfs::tool {
 
 std::string render_manpage(manpage::document const doc, size_t const width,
                            bool const color) {
+  static constexpr size_t min_width = 20;
+
+  if (width < min_width) {
+    throw std::invalid_argument("width too small");
+  }
+
   static constexpr std::string_view punct = ".,:;!?";
   static constexpr size_t right_margin = 4;
   size_t const effective_width = width - right_margin;
@@ -45,17 +51,22 @@ std::string render_manpage(manpage::document const doc, size_t const width,
       auto t = e.text;
       auto style = color ? e.style : fmt::text_style{};
 
-      while (column + t.size() > effective_width) {
+      while (!t.empty() && column + t.size() > effective_width) {
         auto wp = t.rfind(' ', effective_width - column);
+        auto const space_offset = wp == std::string_view::npos ? 0 : 1;
 
         if (wp == std::string_view::npos && column == indent) {
-          wp = effective_width - column;
+          if (column < effective_width) {
+            wp = effective_width - column;
+          } else {
+            wp = 1;
+          }
         }
 
         if (wp != std::string_view::npos) {
           fmt::format_to(out_it, style, "{}", t.substr(0, wp));
           column += wp;
-          t = t.substr(wp + 1);
+          t = t.substr(wp + space_offset);
         }
 
         indent = l.indent_next;
