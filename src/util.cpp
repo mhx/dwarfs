@@ -267,7 +267,7 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
 
 bool getenv_is_enabled(char const* var) {
   if (auto val = std::getenv(var)) {
-    if (auto maybeBool = tryTo<bool>(val); maybeBool && *maybeBool) {
+    if (auto maybeBool = try_to<bool>(val); maybeBool && *maybeBool) {
       return true;
     }
   }

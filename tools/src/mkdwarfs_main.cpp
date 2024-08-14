@@ -982,7 +982,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.count("set-time")) {
     if (timestamp == "now") {
       options.timestamp = std::time(nullptr);
-    } else if (auto val = tryTo<uint64_t>(timestamp)) {
+    } else if (auto val = try_to<uint64_t>(timestamp)) {
       options.timestamp = *val;
     } else {
       try {
@@ -1000,7 +1000,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (auto it = time_resolutions.find(time_resolution);
       it != time_resolutions.end()) {
     options.time_resolution_sec = it->second;
-  } else if (auto val = tryTo<uint32_t>(time_resolution)) {
+  } else if (auto val = try_to<uint32_t>(time_resolution)) {
     options.time_resolution_sec = *val;
     if (options.time_resolution_sec == 0) {
       iol.err << "error: the argument to '--time-resolution' must be nonzero\n";

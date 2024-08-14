@@ -337,7 +337,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
                                   ? reader::block_access_level::no_verify
                                   : reader::block_access_level::unrestricted;
 
-          auto numeric_detail = tryTo<int>(detail);
+          auto numeric_detail = try_to<int>(detail);
           opts.features =
               numeric_detail.has_value()
                   ? reader::fsinfo_features::for_level(*numeric_detail)

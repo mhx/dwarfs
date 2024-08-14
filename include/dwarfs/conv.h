@@ -38,7 +38,7 @@ std::optional<bool> str_to_bool(std::string_view s);
 } // namespace detail
 
 template <typename T, typename U>
-std::optional<T> tryTo(U&& s)
+std::optional<T> try_to(U&& s)
   requires(!std::same_as<T, bool> && !std::convertible_to<U, T>)
 {
 #if defined(__GNUC__) && !defined(__clang__)
@@ -55,21 +55,21 @@ std::optional<T> tryTo(U&& s)
 }
 
 template <typename T, typename U>
-std::optional<bool> tryTo(U&& s)
+std::optional<bool> try_to(U&& s)
   requires(std::same_as<T, bool> && std::is_arithmetic_v<U>)
 {
   return s != U{};
 }
 
 template <typename T>
-std::optional<bool> tryTo(std::string_view s)
+std::optional<bool> try_to(std::string_view s)
   requires std::same_as<T, bool>
 {
   return detail::str_to_bool(s);
 }
 
 template <typename T, typename U>
-std::optional<T> tryTo(U&& s)
+std::optional<T> try_to(U&& s)
   requires(std::convertible_to<U, T>)
 {
   return std::forward<U>(s);
@@ -80,7 +80,7 @@ T to(U&& s) {
   if constexpr (std::same_as<T, std::decay_t<U>>) {
     return std::forward<U>(s);
   } else {
-    return tryTo<T>(std::forward<U>(s)).value();
+    return try_to<T>(std::forward<U>(s)).value();
   }
 }
 
