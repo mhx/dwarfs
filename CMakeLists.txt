@@ -285,6 +285,7 @@ endif()
 if(WITH_PXATTR)
   add_executable(pxattr tools/src/pxattr.cpp)
   list(APPEND BINARY_TARGETS pxattr)
+  install(TARGETS pxattr RUNTIME DESTINATION bin)
 endif()
 
 if(WITH_EXAMPLE)
