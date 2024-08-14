@@ -1,5 +1,87 @@
 # Change Log
 
+## Version 0.10.0 - 2024-08-14
+
+- (fix) Fixed a race condition identified by ThreadSanitizer
+  in the root node name processing.
+
+- (fix) The terminal abstraction code did not check any errors
+  when trying to determine the terminal width, leading to a
+  random terminal width value. This caused the manual page
+  tests to occasionally crash.
+
+- (feat) Two sets of universal binaries and binary tarballs are
+  provided for Linux platforms: one without any debug symbols, the
+  other with minimal debug symbols and support for stack traces.
+  For the universal binary, only the version without debug symbols
+  will be UPX-compressed, as the stack trace functionality doesn't
+  work with a compressed binary.
+
+- (feat) Symbolic links to the universal binary may now be
+  suffixed with a version (i.e. any part of the name starting
+  with `-` and followed by a digit will be ignored, e.g. the
+  symlink could be `mkdwarfs-0.10` and it would be treated
+  as `mkdwarfs`).
+
+- (feat) Introduced support for extended attributes on Windows,
+  including a new utility for cross-platform xattr manipulation
+  (`pxattr`, for portable xattr).
+
+- (feat) Enhanced file system API, adding error-code based and
+  exception-safe versions for `getattr`, `access`, and similar
+  functions.
+
+- (feat) Filter rules now consistently use Unix path separators,
+  even for the root path component. Addresses a comment in github
+  discussion #228.
+
+- (refactor) Extensive refactoring to improve code modularity,
+  maintainability and to provide proper libraries. The library
+  code has been moved to different namespaces to make it easier
+  to understand the role of different components (e.g. `reader`,
+  `writer`, `extractor`).
+
+- (refactor) Replaced all `folly` library dependencies in the public
+  DwarFS library interface with alternatives from libraries like
+  e.g. `boost` or `nlohmann::json` which are more broadly available.
+  `folly` and `fbthrift` are still used as implementation details,
+  but no longer leak into the public library interfaces.
+
+- (refactor) A much smaller subset of `folly` is now used in DwarFS
+  and only the necessary components are built, significantly
+  reducing the number of compilation units when building DwarFS.
+
+- (build) It is now possible to do modular builds in addition to
+  the default monolithic build, i.e. you can build and install
+  just the DwarFS libraries and later build/install the tools
+  (`mkdwarfs`, ...) and/or the FUSE driver against these libraries.
+  This is particularly useful for packaging (e.g. in Homebrew,
+  which has removed all FUSE support from the core formulae).
+
+- (build) Shared library builds are now explicitly supported.
+  This fixes issues such as github #184.
+
+- (build) The source tarball now contains all auto-generated code,
+  e.g. manual pages or generated thrift code. This reduces the
+  number of build-time dependencies (e.g. `ronn` or `mistletoe`
+  are no longer required) and significantly reduces the build
+  steps (it is no longer necessary to build the thrift compiler).
+  The build is now roughly twice as fast as in the 0.9.x releases.
+
+- (build) The `parallel-hashmap`, `xxHash` and `zstd` submodules
+  have been removed from the git repo and are no longer added to
+  the source tarball. Both `xxHash` and `zstd` are now widely
+  available. If a suitable version of `parallel-hashmap` is found
+  on the system, this will be used, otherwise it will be fetched
+  during the build. Being a header-only library and only used
+  internally, there's no need for it to be installed.
+
+- (build) A *lot* of GCC warnings have been fixed and upstreamed
+  to `folly` / `fbthrift`.
+
+- (test) Fixed some flaky tests, e.g. unmounting the FUSE driver
+  on macOS, or the manpage test that used to crash occasionally.
+
 ## Version 0.9.10 - 2024-05-30
 
 - (fix) When cloning LZMA compressor objects, the LZMA filter options
