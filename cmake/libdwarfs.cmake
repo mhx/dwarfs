@@ -35,7 +35,6 @@ add_library(
   src/logger.cpp
   src/mmap.cpp
   src/option_map.cpp
-  src/options.cpp
   src/os_access_generic.cpp
   src/pcm_sample_transformer.cpp
   src/performance_monitor.cpp
@@ -92,6 +91,7 @@ add_library(
   src/writer/compression_metadata_requirements.cpp
   src/writer/console_writer.cpp
   src/writer/entry_factory.cpp
+  src/writer/file_order_options.cpp
   src/writer/filesystem_block_category_resolver.cpp
   src/writer/filesystem_writer.cpp
   src/writer/filter_debug.cpp

@@ -19,34 +19,38 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <ostream>
+#include <string>
 
-namespace dwarfs {
+#include <fmt/format.h>
 
-class logger;
+#include <dwarfs/error.h>
+#include <dwarfs/writer/file_order_options.h>
 
-namespace reader {
+namespace dwarfs::writer {
 
-class filesystem_v2;
+std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
+  std::string modestr{"unknown"};
 
-} // namespace reader
+  switch (mode) {
+  case file_order_mode::NONE:
+    modestr = "none";
+    break;
+  case file_order_mode::PATH:
+    modestr = "path";
+    break;
+  case file_order_mode::REVPATH:
+    modestr = "revpath";
+    break;
+  case file_order_mode::SIMILARITY:
+    modestr = "similarity";
+    break;
+  case file_order_mode::NILSIMSA:
+    modestr = "nilsimsa";
+    break;
+  }
 
-namespace writer {
+  return os << modestr;
+}
 
-class category_resolver;
-class filesystem_writer;
-
-} // namespace writer
-
-namespace utility {
-
-struct rewrite_options;
-
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
-
-} // namespace utility
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

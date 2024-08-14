@@ -24,7 +24,7 @@
 #include <string>
 #include <string_view>
 
-#include <dwarfs/options.h>
+#include <dwarfs/writer/file_order_options.h>
 
 namespace dwarfs::writer {
 

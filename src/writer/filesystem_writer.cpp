@@ -41,6 +41,7 @@
 #include <dwarfs/util.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 #include <dwarfs/writer/filesystem_writer.h>
+#include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/internal/fs_section.h>
@@ -1101,6 +1102,19 @@ void filesystem_writer_<LoggerPolicy>::write_section_index() {
 }
 
 } // namespace internal
+
+filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
+                                     thread_pool& pool, writer_progress& prog,
+                                     block_compressor const& bc)
+    : filesystem_writer(os, lgr, pool, prog, bc, bc, bc) {}
+
+filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
+                                     thread_pool& pool, writer_progress& prog,
+                                     block_compressor const& schema_bc,
+                                     block_compressor const& metadata_bc,
+                                     block_compressor const& history_bc)
+    : filesystem_writer(os, lgr, pool, prog, schema_bc, metadata_bc, history_bc,
+                        filesystem_writer_options{}) {}
 
 filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
                                      thread_pool& pool, writer_progress& prog,

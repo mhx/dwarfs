@@ -65,7 +65,6 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
@@ -77,6 +76,7 @@
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
+#include <dwarfs/utility/rewrite_options.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/category_parser.h>
 #include <dwarfs/writer/chmod_entry_transformer.h>
@@ -84,10 +84,12 @@
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 #include <dwarfs/writer/filesystem_writer.h>
+#include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_parser.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/scanner_options.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 #include <dwarfs_tool_main.h>
@@ -404,7 +406,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   writer::fragment_order_parser order_parser;
   block_compressor_parser compressor_parser;
 
-  scanner_options options;
+  writer::scanner_options options;
   logger_options logopts;
 
   auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
@@ -846,7 +848,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   path = iol.os->canonical(path);
 
   bool recompress = vm.count("recompress");
-  rewrite_options rw_opts;
+  utility::rewrite_options rw_opts;
   if (recompress) {
     std::unordered_map<std::string, unsigned> const modes{
         {"all", 3},
@@ -1067,7 +1069,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                       ? 2000ms
                       : 200ms;
 
-  filesystem_writer_options fswopts;
+  writer::filesystem_writer_options fswopts;
   fswopts.max_queue_size = mem_limit;
   fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
   fswopts.remove_header = remove_header;

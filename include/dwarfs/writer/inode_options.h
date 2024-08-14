@@ -21,32 +21,23 @@
 
 #pragma once
 
-namespace dwarfs {
+#include <cstddef>
+#include <memory>
+#include <optional>
+#include <string>
 
-class logger;
+#include <dwarfs/writer/categorized_option.h>
+#include <dwarfs/writer/file_order_options.h>
 
-namespace reader {
+namespace dwarfs::writer {
 
-class filesystem_v2;
+class categorizer_manager;
 
-} // namespace reader
+struct inode_options {
+  std::optional<size_t> max_similarity_scan_size;
+  std::shared_ptr<writer::categorizer_manager> categorizer_mgr;
+  writer::categorized_option<file_order_options> fragment_order{
+      file_order_options()};
+};
 
-namespace writer {
-
-class category_resolver;
-class filesystem_writer;
-
-} // namespace writer
-
-namespace utility {
-
-struct rewrite_options;
-
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
-
-} // namespace utility
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

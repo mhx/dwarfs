@@ -24,7 +24,6 @@
 #include <iosfwd>
 
 #include <dwarfs/block_compressor.h>
-#include <dwarfs/options.h>
 #include <dwarfs/writer/fragment_category.h>
 
 namespace dwarfs {
@@ -33,6 +32,8 @@ class logger;
 class thread_pool;
 
 namespace writer {
+
+struct filesystem_writer_options;
 
 class writer_progress;
 
@@ -44,12 +45,20 @@ class filesystem_writer_detail;
 
 class filesystem_writer {
  public:
-  filesystem_writer(
-      std::ostream& os, logger& lgr, thread_pool& pool, writer_progress& prog,
-      block_compressor const& schema_bc, block_compressor const& metadata_bc,
-      block_compressor const& history_bc,
-      filesystem_writer_options const& options = filesystem_writer_options(),
-      std::istream* header = nullptr);
+  filesystem_writer(std::ostream& os, logger& lgr, thread_pool& pool,
+                    writer_progress& prog, block_compressor const& bc);
+
+  filesystem_writer(std::ostream& os, logger& lgr, thread_pool& pool,
+                    writer_progress& prog, block_compressor const& schema_bc,
+                    block_compressor const& metadata_bc,
+                    block_compressor const& history_bc);
+
+  filesystem_writer(std::ostream& os, logger& lgr, thread_pool& pool,
+                    writer_progress& prog, block_compressor const& schema_bc,
+                    block_compressor const& metadata_bc,
+                    block_compressor const& history_bc,
+                    filesystem_writer_options const& options,
+                    std::istream* header = nullptr);
 
   ~filesystem_writer();
   filesystem_writer(filesystem_writer&&);

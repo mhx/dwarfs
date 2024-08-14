@@ -28,7 +28,6 @@
 #include <vector>
 
 #include <dwarfs/error.h>
-#include <dwarfs/options.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/reader/internal/offset_cache.h>

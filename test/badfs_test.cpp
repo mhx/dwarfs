@@ -26,7 +26,6 @@
 
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 

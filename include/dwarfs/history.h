@@ -30,7 +30,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <dwarfs/options.h>
+#include <dwarfs/history_config.h>
 
 namespace dwarfs {
 

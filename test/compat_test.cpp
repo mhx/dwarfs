@@ -47,9 +47,11 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
+#include <dwarfs/utility/rewrite_options.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/filesystem_block_category_resolver.h>
 #include <dwarfs/writer/filesystem_writer.h>
+#include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/writer_progress.h>
 
 #include "mmap_mock.h"
@@ -1116,7 +1118,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   test::os_access_mock os;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
-  rewrite_options opts;
+  utility::rewrite_options opts;
   opts.recompress_block = recompress_block;
   opts.recompress_metadata = recompress_metadata;
 
@@ -1156,7 +1158,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     std::istringstream hdr_iss(format_sh);
-    filesystem_writer_options fsw_opts;
+    writer::filesystem_writer_options fsw_opts;
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog, bc, bc, bc,
                                   fsw_opts, &hdr_iss);
     fsw.add_default_compressor(bc);
@@ -1183,7 +1185,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   {
     std::istringstream hdr_iss("D");
-    filesystem_writer_options fsw_opts;
+    writer::filesystem_writer_options fsw_opts;
     writer::filesystem_writer fsw(rewritten2, lgr, pool, prog, bc, bc, bc,
                                   fsw_opts, &hdr_iss);
     fsw.add_default_compressor(bc);
@@ -1219,7 +1221,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   std::ostringstream rewritten4;
 
   {
-    filesystem_writer_options fsw_opts;
+    writer::filesystem_writer_options fsw_opts;
     fsw_opts.remove_header = true;
     writer::filesystem_writer fsw(rewritten4, lgr, pool, prog, bc, bc, bc,
                                   fsw_opts);
@@ -1239,7 +1241,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   std::ostringstream rewritten5;
 
   {
-    filesystem_writer_options fsw_opts;
+    writer::filesystem_writer_options fsw_opts;
     fsw_opts.no_section_index = true;
     writer::filesystem_writer fsw(rewritten5, lgr, pool, prog, bc, bc, bc,
                                   fsw_opts);

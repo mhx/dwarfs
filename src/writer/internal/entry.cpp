@@ -29,7 +29,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_type.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/util.h>
 

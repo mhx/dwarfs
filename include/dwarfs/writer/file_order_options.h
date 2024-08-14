@@ -21,32 +21,23 @@
 
 #pragma once
 
-namespace dwarfs {
+#include <iosfwd>
 
-class logger;
+namespace dwarfs::writer {
 
-namespace reader {
+// TODO: rename? -> inode_order_mode / fragment_order_mode
+enum class file_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
 
-class filesystem_v2;
+// TODO: rename? -> inode_order_options / fragment_order_options
+struct file_order_options {
+  static constexpr int const kDefaultNilsimsaMaxChildren{16384};
+  static constexpr int const kDefaultNilsimsaMaxClusterSize{16384};
 
-} // namespace reader
+  file_order_mode mode{file_order_mode::NONE};
+  int nilsimsa_max_children{kDefaultNilsimsaMaxChildren};
+  int nilsimsa_max_cluster_size{kDefaultNilsimsaMaxClusterSize};
+};
 
-namespace writer {
+std::ostream& operator<<(std::ostream& os, file_order_mode mode);
 
-class category_resolver;
-class filesystem_writer;
-
-} // namespace writer
-
-namespace utility {
-
-struct rewrite_options;
-
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
-
-} // namespace utility
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

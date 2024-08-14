@@ -43,7 +43,6 @@
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -54,6 +53,7 @@
 #include <dwarfs/writer/entry_transformer.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/scanner_options.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 

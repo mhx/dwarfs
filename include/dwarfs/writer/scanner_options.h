@@ -22,57 +22,19 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
-#include <iosfwd>
-#include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
-#include <unordered_set>
 #include <vector>
 
 #include <dwarfs/file_stat.h>
-#include <dwarfs/writer/categorized_option.h>
+#include <dwarfs/history_config.h>
+#include <dwarfs/writer/inode_options.h>
 
-namespace dwarfs {
+namespace dwarfs::writer {
 
-namespace writer {
-
-class categorizer_manager;
 class entry_interface;
-
-} // namespace writer
-
-struct history_config {
-  bool with_timestamps{false};
-};
-
-struct filesystem_writer_options {
-  size_t max_queue_size{64 << 20};
-  size_t worst_case_block_size{4 << 20};
-  bool remove_header{false};
-  bool no_section_index{false};
-};
-
-// TODO: rename
-enum class file_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
-
-// TODO: rename
-struct file_order_options {
-  static constexpr int const kDefaultNilsimsaMaxChildren{16384};
-  static constexpr int const kDefaultNilsimsaMaxClusterSize{16384};
-
-  file_order_mode mode{file_order_mode::NONE};
-  int nilsimsa_max_children{kDefaultNilsimsaMaxChildren};
-  int nilsimsa_max_cluster_size{kDefaultNilsimsaMaxClusterSize};
-};
-
-struct inode_options {
-  std::optional<size_t> max_similarity_scan_size;
-  std::shared_ptr<writer::categorizer_manager> categorizer_mgr;
-  writer::categorized_option<file_order_options> fragment_order{
-      file_order_options()};
-};
 
 struct scanner_options {
   std::optional<std::string> file_hash_algorithm{"xxh3-128"};
@@ -104,16 +66,4 @@ struct scanner_options {
   history_config history;
 };
 
-struct rewrite_options {
-  bool recompress_block{false};
-  bool recompress_metadata{false};
-  std::unordered_set<std::string> recompress_categories;
-  bool recompress_categories_exclude{false};
-  bool enable_history{true};
-  std::optional<std::vector<std::string>> command_line_arguments;
-  history_config history;
-};
-
-std::ostream& operator<<(std::ostream& os, file_order_mode mode);
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

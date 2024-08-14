@@ -23,30 +23,8 @@
 
 namespace dwarfs {
 
-class logger;
-
-namespace reader {
-
-class filesystem_v2;
-
-} // namespace reader
-
-namespace writer {
-
-class category_resolver;
-class filesystem_writer;
-
-} // namespace writer
-
-namespace utility {
-
-struct rewrite_options;
-
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
-
-} // namespace utility
+struct history_config {
+  bool with_timestamps{false};
+};
 
 } // namespace dwarfs

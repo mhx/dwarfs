@@ -21,32 +21,15 @@
 
 #pragma once
 
-namespace dwarfs {
+#include <cstddef>
 
-class logger;
+namespace dwarfs::writer {
 
-namespace reader {
+struct filesystem_writer_options {
+  size_t max_queue_size{64 << 20};
+  size_t worst_case_block_size{4 << 20};
+  bool remove_header{false};
+  bool no_section_index{false};
+};
 
-class filesystem_v2;
-
-} // namespace reader
-
-namespace writer {
-
-class category_resolver;
-class filesystem_writer;
-
-} // namespace writer
-
-namespace utility {
-
-struct rewrite_options;
-
-void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
-                        dwarfs::writer::filesystem_writer& writer,
-                        dwarfs::writer::category_resolver const& cat_resolver,
-                        rewrite_options const& opts);
-
-} // namespace utility
-
-} // namespace dwarfs
+} // namespace dwarfs::writer

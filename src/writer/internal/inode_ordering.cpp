@@ -22,7 +22,7 @@
 #include <algorithm>
 
 #include <dwarfs/logger.h>
-#include <dwarfs/options.h>
+#include <dwarfs/writer/inode_options.h>
 
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/entry.h>

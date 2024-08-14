@@ -49,10 +49,12 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/entry_factory.h>
+#include <dwarfs/writer/file_order_options.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
 #include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/scanner_options.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
@@ -78,7 +80,7 @@ std::string
 build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              writer::segmenter::config const& cfg = writer::segmenter::config(),
-             scanner_options const& options = scanner_options(),
+             writer::scanner_options const& options = writer::scanner_options(),
              writer::writer_progress* prog = nullptr,
              std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
@@ -126,24 +128,22 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   return oss.str();
 }
 
-void basic_end_to_end_test(std::string const& compressor,
-                           unsigned block_size_bits, file_order_mode file_order,
-                           bool with_devices, bool with_specials, bool set_uid,
-                           bool set_gid, bool set_time, bool keep_all_times,
-                           bool enable_nlink, bool pack_chunk_table,
-                           bool pack_directories, bool pack_shared_files_table,
-                           bool pack_names, bool pack_names_index,
-                           bool pack_symlinks, bool pack_symlinks_index,
-                           bool plain_names_table, bool plain_symlinks_table,
-                           bool access_fail, size_t readahead,
-                           std::optional<std::string> file_hash_algo) {
+void basic_end_to_end_test(
+    std::string const& compressor, unsigned block_size_bits,
+    writer::file_order_mode file_order, bool with_devices, bool with_specials,
+    bool set_uid, bool set_gid, bool set_time, bool keep_all_times,
+    bool enable_nlink, bool pack_chunk_table, bool pack_directories,
+    bool pack_shared_files_table, bool pack_names, bool pack_names_index,
+    bool pack_symlinks, bool pack_symlinks_index, bool plain_names_table,
+    bool plain_symlinks_table, bool access_fail, size_t readahead,
+    std::optional<std::string> file_hash_algo) {
   writer::segmenter::config cfg;
-  scanner_options options;
+  writer::scanner_options options;
 
   cfg.blockhash_window_size = 10;
   cfg.block_size_bits = block_size_bits;
 
-  file_order_options order_opts;
+  writer::file_order_options order_opts;
   order_opts.mode = file_order;
 
   options.file_hash_algorithm = file_hash_algo;
@@ -195,8 +195,8 @@ void basic_end_to_end_test(std::string const& compressor,
   auto image_size = fsimage.size();
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  bool similarity = file_order == file_order_mode::SIMILARITY ||
-                    file_order == file_order_mode::NILSIMSA;
+  bool similarity = file_order == writer::file_order_mode::SIMILARITY ||
+                    file_order == writer::file_order_mode::NILSIMSA;
 
   size_t const num_fail_empty = access_fail ? 1 : 0;
 
@@ -576,8 +576,9 @@ std::vector<std::string> const compressions{
 } // namespace
 
 class compression_test
-    : public testing::TestWithParam<std::tuple<
-          std::string, unsigned, file_order_mode, std::optional<std::string>>> {
+    : public testing::TestWithParam<
+          std::tuple<std::string, unsigned, writer::file_order_mode,
+                     std::optional<std::string>>> {
   DWARFS_SLOW_FIXTURE
 };
 
@@ -618,7 +619,7 @@ TEST_P(scanner_test, end_to_end) {
   auto [with_devices, with_specials, set_uid, set_gid, set_time, keep_all_times,
         enable_nlink, access_fail, file_hash_algo] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE,
+  basic_end_to_end_test(compressions[0], 15, writer::file_order_mode::NONE,
                         with_devices, with_specials, set_uid, set_gid, set_time,
                         keep_all_times, enable_nlink, true, true, true, true,
                         true, true, true, false, false, access_fail, 0,
@@ -626,29 +627,31 @@ TEST_P(scanner_test, end_to_end) {
 }
 
 TEST_P(hashing_test, end_to_end) {
-  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
+  basic_end_to_end_test(compressions[0], 15, writer::file_order_mode::NONE,
                         true, true, true, true, true, true, true, true, true,
-                        true, true, true, false, false, false, 0, GetParam());
+                        true, true, true, true, true, false, false, false, 0,
+                        GetParam());
 }
 
 TEST_P(packing_test, end_to_end) {
   auto [pack_chunk_table, pack_directories, pack_shared_files_table, pack_names,
         pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
-                        false, false, false, false, false, pack_chunk_table,
-                        pack_directories, pack_shared_files_table, pack_names,
-                        pack_names_index, pack_symlinks, pack_symlinks_index,
-                        false, false, false, 0, default_file_hash_algo);
+  basic_end_to_end_test(
+      compressions[0], 15, writer::file_order_mode::NONE, true, true, false,
+      false, false, false, false, pack_chunk_table, pack_directories,
+      pack_shared_files_table, pack_names, pack_names_index, pack_symlinks,
+      pack_symlinks_index, false, false, false, 0, default_file_hash_algo);
 }
 
 TEST_P(plain_tables_test, end_to_end) {
   auto [plain_names_table, plain_symlinks_table] = GetParam();
 
-  basic_end_to_end_test(compressions[0], 15, file_order_mode::NONE, true, true,
-                        false, false, false, false, false, false, false, false,
-                        false, false, false, false, plain_names_table,
-                        plain_symlinks_table, false, 0, default_file_hash_algo);
+  basic_end_to_end_test(compressions[0], 15, writer::file_order_mode::NONE,
+                        true, true, false, false, false, false, false, false,
+                        false, false, false, false, false, false,
+                        plain_names_table, plain_symlinks_table, false, 0,
+                        default_file_hash_algo);
 }
 
 TEST_P(packing_test, regression_empty_fs) {
@@ -656,7 +659,7 @@ TEST_P(packing_test, regression_empty_fs) {
         pack_names_index, pack_symlinks, pack_symlinks_index] = GetParam();
 
   writer::segmenter::config cfg;
-  scanner_options options;
+  writer::scanner_options options;
 
   cfg.blockhash_window_size = 8;
   cfg.block_size_bits = 10;
@@ -704,12 +707,14 @@ TEST_P(packing_test, regression_empty_fs) {
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, compression_test,
-    ::testing::Combine(
-        ::testing::ValuesIn(compressions), ::testing::Values(12, 15, 20, 28),
-        ::testing::Values(file_order_mode::NONE, file_order_mode::PATH,
-                          file_order_mode::REVPATH, file_order_mode::NILSIMSA,
-                          file_order_mode::SIMILARITY),
-        ::testing::Values(std::nullopt, "xxh3-128")));
+    ::testing::Combine(::testing::ValuesIn(compressions),
+                       ::testing::Values(12, 15, 20, 28),
+                       ::testing::Values(writer::file_order_mode::NONE,
+                                         writer::file_order_mode::PATH,
+                                         writer::file_order_mode::REVPATH,
+                                         writer::file_order_mode::NILSIMSA,
+                                         writer::file_order_mode::SIMILARITY),
+                       ::testing::Values(std::nullopt, "xxh3-128")));
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, scanner_test,
@@ -860,7 +865,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs, compression_regression,
 
 class file_scanner
     : public testing::TestWithParam<
-          std::tuple<file_order_mode, std::optional<std::string>>> {
+          std::tuple<writer::file_order_mode, std::optional<std::string>>> {
   DWARFS_SLOW_FIXTURE
 };
 
@@ -870,9 +875,9 @@ TEST_P(file_scanner, inode_ordering) {
   test::test_logger lgr;
 
   auto bmcfg = writer::segmenter::config();
-  auto opts = scanner_options();
+  auto opts = writer::scanner_options();
 
-  file_order_options order_opts;
+  writer::file_order_options order_opts;
   order_opts.mode = order_mode;
 
   opts.file_hash_algorithm = file_hash_algo;
@@ -918,10 +923,10 @@ TEST_P(file_scanner, inode_ordering) {
 
 INSTANTIATE_TEST_SUITE_P(
     dwarfs, file_scanner,
-    ::testing::Combine(::testing::Values(file_order_mode::PATH,
-                                         file_order_mode::REVPATH,
-                                         file_order_mode::SIMILARITY,
-                                         file_order_mode::NILSIMSA),
+    ::testing::Combine(::testing::Values(writer::file_order_mode::PATH,
+                                         writer::file_order_mode::REVPATH,
+                                         writer::file_order_mode::SIMILARITY,
+                                         writer::file_order_mode::NILSIMSA),
                        ::testing::Values(std::nullopt, "xxh3-128")));
 
 class filter_test
@@ -969,7 +974,7 @@ class filter_test
 
     std::ostringstream oss;
 
-    scanner_options options;
+    writer::scanner_options options;
     options.remove_empty_dirs = false;
     options.debug_filter_function = [&](bool exclude,
                                         writer::entry_interface const& ei) {
@@ -1006,7 +1011,7 @@ TEST_P(filter_test, filesystem) {
 
   writer::segmenter::config cfg;
 
-  scanner_options options;
+  writer::scanner_options options;
   options.remove_empty_dirs = true;
 
   auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr,
@@ -1087,9 +1092,9 @@ TEST(file_scanner, input_list) {
   test::test_logger lgr;
 
   auto bmcfg = writer::segmenter::config();
-  auto opts = scanner_options();
+  auto opts = writer::scanner_options();
 
-  file_order_options order_opts;
+  writer::file_order_options order_opts;
   opts.inode.fragment_order.set_default(order_opts);
 
   auto input = test::os_access_mock::create_test_instance();

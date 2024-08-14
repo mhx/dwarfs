@@ -37,6 +37,7 @@
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/scanner.h>
+#include <dwarfs/writer/scanner_options.h>
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
@@ -96,7 +97,7 @@ void PackParamsDirs(::benchmark::internal::Benchmark* b) {
 
 std::string make_filesystem(::benchmark::State const& state) {
   writer::segmenter_factory::config cfg;
-  scanner_options options;
+  writer::scanner_options options;
 
   cfg.blockhash_window_size.set_default(12);
   cfg.window_increment_shift.set_default(1);

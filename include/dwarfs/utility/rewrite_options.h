@@ -19,38 +19,25 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
+#pragma once
+
+#include <optional>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
-#include <fmt/format.h>
+#include <dwarfs/history_config.h>
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+namespace dwarfs::utility {
 
-namespace dwarfs {
+struct rewrite_options {
+  bool recompress_block{false};
+  bool recompress_metadata{false};
+  std::unordered_set<std::string> recompress_categories;
+  bool recompress_categories_exclude{false};
+  bool enable_history{true};
+  std::optional<std::vector<std::string>> command_line_arguments;
+  history_config history;
+};
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
-
-  return os << modestr;
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::utility

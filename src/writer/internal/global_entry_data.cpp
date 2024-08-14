@@ -24,7 +24,7 @@
 #include <range/v3/view/map.hpp>
 
 #include <dwarfs/error.h>
-#include <dwarfs/options.h>
+#include <dwarfs/writer/scanner_options.h>
 
 #include <dwarfs/writer/internal/global_entry_data.h>
 
