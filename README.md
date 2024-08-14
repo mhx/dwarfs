@@ -634,9 +634,9 @@ Building on macOS should be relatively straightforward:
 - Use Homebrew to install the necessary dependencies:
 
 ```
-$ brew install cmake ninja macfuse python3 brotli howard-hinnant-date \
-               double-conversion fmt glog libarchive libevent flac openssl \
-               nlohmann-json pkg-config range-v3 utf8cpp xxhash boost zstd
+$ brew install cmake ninja macfuse brotli howard-hinnant-date double-conversion \
+               fmt glog libarchive libevent flac openssl nlohmann-json pkg-config \
+               range-v3 utf8cpp xxhash boost zstd
 ```
 
 - When installing macFUSE for the first time, you'll need to explicitly
