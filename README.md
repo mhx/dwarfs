@@ -25,6 +25,7 @@ A fast high compression read-only file system for Linux and Windows.
   - [Installing](#installing)
   - [Static Builds](#static-builds)
 - [Usage](#usage)
+- [Using the Libraries](#using-the-libraries)
 - [Windows Support](#windows-support)
   - [Building on Windows](#building-on-windows)
 - [macOS Support](#macos-support)
@@ -485,6 +486,39 @@ A description of the DwarFS filesystem format can be found in
 
 A high-level overview of the internal operation of `mkdwarfs` is shown
 in [this sequence diagram](doc/mkdwarfs-sequence.svg).
+
+## Using the Libraries
+
+Using the DwarFS libraries should be pretty straightforward if you're
+using [CMake](https://cmake.org/) to build your project. For a quick
+start, have a look at the [example code](example/example.cpp) that uses
+the libraries to print information about a DwarFS image (like `dwarfsck`)
+or extract it (like `dwarfsextract`).
+
+There are five individual libraries:
+
+- `dwarfs_common` contains the common code required by all the other
+  libraries. The interfaces are defined in [`dwarfs/`](include/dwarfs).
+
+- `dwarfs_reader` contains all code required to read data from a
+  DwarFS image. The interfaces are defined in [`dwarfs/reader/`](include/dwarfs/reader).
+
+- `dwarfs_extractor` contains the ccode required to extract a DwarFS
+  image using [`libarchive`](https://libarchive.org/). The interfaces
+  are defined in [`dwarfs/utility/filesystem_extractor.h`](include/dwarfs/utility/filesystem_extractor.h).
+
+- `dwarfs_writer` contains the code required to create DwarFS images.
+  The interfaces are defined in [`dwarfs/writer/`](include/dwarfs/writer).
+
+- `dwarfs_rewrite` contains the code to re-write DwarFS images. The
+  interfaces are defined in [`dwarfs/utility/rewrite_filesystem.h`](include/dwarfs/utility/rewrite_filesystem.h).
+
+The headers in `internal` subfolders are only accessible at build
+time and won't be installed. The same goes for the `tool` subfolder.
+
+The reader and extractor APIs should be fairly stable. The writer
+APIs are likely going to change. Note, however, that there are no
+guarantees on API stability before this project reaches version 1.0.0.
 
 ## Windows Support
 
