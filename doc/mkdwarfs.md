@@ -688,8 +688,6 @@ only match non-directories.
 
 Note that regardless of the preferred native directory separator,
 filter rules will always use UNIX-style directory separators (`/`).
-The only exception is the root path component in floating matches,
-which will always use native directory separators.
 
 Patterns support `?` and `*` wildcards matching a single character
 and any number of characters, respectively. These patterns don't match
