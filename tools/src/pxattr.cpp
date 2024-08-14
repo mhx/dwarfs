@@ -25,6 +25,7 @@
 
 #include <dwarfs/tool/program_options_helpers.h>
 #include <dwarfs/tool/sys_char.h>
+#include <dwarfs/tool/tool.h>
 #include <dwarfs/xattr.h>
 
 namespace dwarfs::tool {
@@ -61,12 +62,13 @@ int pxattr_main(int argc, sys_char** argv) {
   po::notify(vm);
 
   if (vm.count("help")) {
-    std::cout << desc << std::endl;
+    auto constexpr usage = "Usage: pxattr [OPTIONS...]\n";
+    std::cout << tool::tool_header("pxattr") << usage << "\n" << desc << "\n";
     return 0;
   }
 
   if (!vm.count("path")) {
-    std::cerr << "no path specified" << std::endl;
+    std::cerr << "no path specified\n";
     return 1;
   }
 
@@ -118,8 +120,6 @@ int pxattr_main(int argc, sys_char** argv) {
       std::cout << attr << "\n";
     }
   }
-
-  std::cout << "successfully completed\n";
 
   return 0;
 }
