@@ -120,7 +120,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   std::ostringstream oss;
 
   block_compressor bc(compression);
-  writer::filesystem_writer fsw(oss, lgr, pool, *prog, bc, bc, bc);
+  writer::filesystem_writer fsw(oss, lgr, pool, *prog);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
@@ -992,7 +992,8 @@ class filter_test
 
     block_compressor bc("null");
     std::ostringstream null;
-    writer::filesystem_writer fsw(null, lgr, pool, prog, bc, bc, bc);
+    writer::filesystem_writer fsw(null, lgr, pool, prog);
+    fsw.add_default_compressor(bc);
     s.scan(fsw, std::filesystem::path("/"), prog);
 
     return oss.str();

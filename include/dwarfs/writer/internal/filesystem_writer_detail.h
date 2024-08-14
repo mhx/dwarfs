@@ -56,6 +56,8 @@ class filesystem_writer_detail {
   virtual void add_default_compressor(block_compressor bc) = 0;
   virtual void add_category_compressor(fragment_category::value_type cat,
                                        block_compressor bc) = 0;
+  virtual void
+  add_section_compressor(section_type type, block_compressor bc) = 0;
   virtual compression_constraints
   get_compression_constraints(fragment_category::value_type cat,
                               std::string const& metadata) const = 0;

@@ -91,6 +91,8 @@ class block_compressor {
     return impl_->get_compression_constraints(metadata);
   }
 
+  explicit operator bool() const { return static_cast<bool>(impl_); }
+
   class impl {
    public:
     virtual ~impl() = default;

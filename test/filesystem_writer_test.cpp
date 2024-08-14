@@ -48,15 +48,15 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   block_compressor bcnull("null");
 
-  EXPECT_NO_THROW(
-      filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcnull));
+  EXPECT_NO_THROW(filesystem_writer(devnull, lgr, pool, prog));
 
 #ifdef DWARFS_HAVE_FLAC
   block_compressor bcflac("flac:level=1");
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcflac, bcnull, bcnull);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::METADATA_V2_SCHEMA, bcflac);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for schema compression because "
@@ -65,7 +65,8 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcflac, bcnull);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::METADATA_V2, bcflac);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for metadata compression because "
@@ -74,7 +75,8 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcflac);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::HISTORY, bcflac);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'flac [level=1]' for history compression because "
@@ -87,7 +89,8 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcrice, bcnull, bcnull);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::METADATA_V2_SCHEMA, bcrice);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for schema compression because "
@@ -96,7 +99,8 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcrice, bcnull);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::METADATA_V2, bcrice);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for metadata compression "
@@ -106,7 +110,8 @@ TEST(filesystem_writer, compression_metadata_requirements) {
 
   EXPECT_THAT(
       [&] {
-        filesystem_writer(devnull, lgr, pool, prog, bcnull, bcnull, bcrice);
+        auto fsw = filesystem_writer(devnull, lgr, pool, prog);
+        fsw.add_section_compressor(section_type::HISTORY, bcrice);
       },
       testing::ThrowsMessage<dwarfs::runtime_error>(testing::HasSubstr(
           "cannot use 'ricepp [block_size=128]' for history compression "

@@ -133,7 +133,7 @@ std::string make_filesystem(::benchmark::State const& state) {
   std::ostringstream oss;
 
   block_compressor bc("null");
-  writer::filesystem_writer fsw(oss, lgr, pool, prog, bc, bc, bc);
+  writer::filesystem_writer fsw(oss, lgr, pool, prog);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, "", prog);

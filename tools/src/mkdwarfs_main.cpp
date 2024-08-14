@@ -1286,8 +1286,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
               },
               [&](std::ostringstream& oss) -> std::ostream& { return oss; }};
 
-    fsw.emplace(fsw_os, lgr, compress_pool, prog, schema_bc, metadata_bc,
-                history_bc, fswopts, header_ifs ? &header_ifs->is() : nullptr);
+    fsw.emplace(fsw_os, lgr, compress_pool, prog, fswopts,
+                header_ifs ? &header_ifs->is() : nullptr);
+
+    fsw->add_section_compressor(section_type::METADATA_V2_SCHEMA, schema_bc);
+    fsw->add_section_compressor(section_type::METADATA_V2, metadata_bc);
+    fsw->add_section_compressor(section_type::HISTORY, history_bc);
 
     writer::categorized_option<block_compressor> compression_opt;
     writer::contextual_option_parser cop("--compression", compression_opt, cp,
