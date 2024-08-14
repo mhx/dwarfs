@@ -215,6 +215,11 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
       $BUILD_TOOL distclean
       rm -rf *
 
+      # ==== example binary ====
+      cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+      time $BUILD_TOOL
+      rm -rf *
+
       # ==== dwarfs tools ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
       time $BUILD_TOOL
