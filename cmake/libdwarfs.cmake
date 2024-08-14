@@ -67,9 +67,13 @@ add_library(
 add_library(
   dwarfs_reader
 
+  src/reader/block_cache_options.cpp
   src/reader/block_range.cpp
+  src/reader/filesystem_options.cpp
   src/reader/filesystem_v2.cpp
+  src/reader/fsinfo_features.cpp
   src/reader/metadata_types.cpp
+  src/reader/mlock_mode.cpp
 
   src/reader/internal/block_cache.cpp
   src/reader/internal/cached_block.cpp

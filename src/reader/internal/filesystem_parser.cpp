@@ -27,7 +27,7 @@
 
 #include <dwarfs/error.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_options.h>
 
 #include <dwarfs/reader/internal/filesystem_parser.h>
 

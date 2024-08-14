@@ -19,38 +19,27 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
-#include <string>
+#pragma once
 
-#include <fmt/format.h>
+#include <dwarfs/reader/block_cache_options.h>
+#include <dwarfs/reader/inode_reader_options.h>
+#include <dwarfs/reader/metadata_options.h>
+#include <dwarfs/reader/mlock_mode.h>
+#include <dwarfs/types.h>
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+namespace dwarfs::reader {
 
-namespace dwarfs {
+struct filesystem_options {
+  static constexpr file_off_t IMAGE_OFFSET_AUTO{-1};
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
+  mlock_mode lock_mode{mlock_mode::NONE};
+  file_off_t image_offset{0};
+  block_cache_options block_cache{};
+  metadata_options metadata{};
+  inode_reader_options inode_reader{};
+  int inode_offset{0};
+};
 
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
+file_off_t parse_image_offset(std::string const& str);
 
-  return os << modestr;
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::reader

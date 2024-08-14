@@ -22,9 +22,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <dwarfs/options.h>
+#include <dwarfs/error.h>
+#include <dwarfs/reader/filesystem_options.h>
+#include <dwarfs/reader/fsinfo_options.h>
 
 using namespace dwarfs;
+using namespace dwarfs::reader;
 
 TEST(options, fsinfo_features) {
   fsinfo_features ff;
@@ -59,4 +62,17 @@ TEST(options, fsinfo_features) {
   EXPECT_THAT([]() { fsinfo_features::parse("frozen_layout,history,x"); },
               testing::ThrowsMessage<runtime_error>(
                   testing::HasSubstr("invalid feature: \"x\"")));
+}
+
+TEST(utils, parse_image_offset) {
+  EXPECT_EQ(0, parse_image_offset("0"));
+  EXPECT_EQ(1, parse_image_offset("1"));
+  EXPECT_EQ(1024, parse_image_offset("1024"));
+  EXPECT_EQ(filesystem_options::IMAGE_OFFSET_AUTO, parse_image_offset("auto"));
+  EXPECT_THAT([] { parse_image_offset("-1"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("image offset must be positive")));
+  EXPECT_THAT([] { parse_image_offset("asd"); },
+              ::testing::ThrowsMessage<dwarfs::runtime_error>(
+                  ::testing::HasSubstr("failed to parse image offset")));
 }

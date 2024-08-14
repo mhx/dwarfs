@@ -35,7 +35,6 @@
 
 #include <date/date.h>
 
-#include <folly/Conv.h>
 #include <folly/ExceptionString.h>
 #include <folly/String.h>
 #include <folly/portability/Fcntl.h>
@@ -49,6 +48,7 @@
 #include <folly/debugging/symbolizer/SignalHandler.h>
 #endif
 
+#include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/options.h>
 #include <dwarfs/util.h>
@@ -176,27 +176,6 @@ std::chrono::system_clock::time_point parse_time_point(std::string const& str) {
   DWARFS_THROW(runtime_error, "cannot parse time point");
 }
 
-file_off_t parse_image_offset(std::string const& str) {
-  if (str == "auto") {
-    return filesystem_options::IMAGE_OFFSET_AUTO;
-  }
-
-  auto off = folly::tryTo<file_off_t>(str);
-
-  if (!off) {
-    auto ce = folly::makeConversionError(off.error(), str);
-    DWARFS_THROW(runtime_error,
-                 fmt::format("failed to parse image offset: {} ({})", str,
-                             exception_str(ce)));
-  }
-
-  if (off.value() < 0) {
-    DWARFS_THROW(runtime_error, "image offset must be positive");
-  }
-
-  return off.value();
-}
-
 size_t utf8_display_width(char const* p, size_t len) {
   char const* const e = p + len;
   size_t rv = 0;
@@ -288,7 +267,7 @@ std::filesystem::path canonical_path(std::filesystem::path p) {
 
 bool getenv_is_enabled(char const* var) {
   if (auto val = std::getenv(var)) {
-    if (auto maybeBool = folly::tryTo<bool>(val); maybeBool && *maybeBool) {
+    if (auto maybeBool = tryTo<bool>(val); maybeBool && *maybeBool) {
       return true;
     }
   }

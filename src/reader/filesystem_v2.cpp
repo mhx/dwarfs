@@ -38,10 +38,11 @@
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/util.h>
 
 #include <dwarfs/internal/fs_section.h>

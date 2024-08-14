@@ -21,22 +21,17 @@
 
 #pragma once
 
-#include <chrono>
 #include <cstddef>
 #include <functional>
-#include <initializer_list>
 #include <iosfwd>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <unordered_set>
 #include <vector>
 
 #include <dwarfs/file_stat.h>
-#include <dwarfs/types.h>
 #include <dwarfs/writer/categorized_option.h>
 
 namespace dwarfs {
@@ -48,154 +43,8 @@ class entry_interface;
 
 } // namespace writer
 
-enum class mlock_mode { NONE, TRY, MUST };
-
-enum class cache_tidy_strategy { NONE, EXPIRY_TIME, BLOCK_SWAPPED_OUT };
-
-enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
-
-struct block_cache_options {
-  size_t max_bytes{static_cast<size_t>(512) << 20};
-  size_t num_workers{0};
-  double decompress_ratio{1.0};
-  bool mm_release{true};
-  bool init_workers{true};
-  bool disable_block_integrity_check{false};
-  size_t sequential_access_detector_threshold{0};
-};
-
 struct history_config {
   bool with_timestamps{false};
-};
-
-struct cache_tidy_config {
-  cache_tidy_strategy strategy{cache_tidy_strategy::NONE};
-  std::chrono::milliseconds interval{std::chrono::seconds(1)};
-  std::chrono::milliseconds expiry_time{std::chrono::seconds(60)};
-};
-
-struct getattr_options {
-  bool no_size{false};
-};
-
-enum class block_access_level {
-  no_access,
-  no_verify,
-  unrestricted,
-};
-
-inline auto operator<=>(block_access_level lhs, block_access_level rhs) {
-  return static_cast<std::underlying_type_t<block_access_level>>(lhs) <=>
-         static_cast<std::underlying_type_t<block_access_level>>(rhs);
-}
-
-enum class fsinfo_feature {
-  version,
-  history,
-  metadata_summary,
-  metadata_details,
-  metadata_full_dump,
-  frozen_analysis,
-  frozen_layout,
-  directory_tree,
-  section_details,
-  chunk_details,
-  num_fsinfo_feature_bits,
-};
-
-class fsinfo_features {
- public:
-  constexpr fsinfo_features() = default;
-  constexpr fsinfo_features(std::initializer_list<fsinfo_feature> features) {
-    for (auto f : features) {
-      set(f);
-    }
-  }
-
-  static constexpr fsinfo_features all() { return fsinfo_features().set_all(); }
-
-  static int max_level();
-  static fsinfo_features for_level(int level);
-  static fsinfo_features parse(std::string_view str);
-
-  std::string to_string() const;
-  std::vector<std::string_view> to_string_views() const;
-
-  constexpr bool has(fsinfo_feature f) const {
-    return features_ & (1 << static_cast<size_t>(f));
-  }
-
-  constexpr fsinfo_features& set(fsinfo_feature f) {
-    features_ |= (1 << static_cast<size_t>(f));
-    return *this;
-  }
-
-  constexpr fsinfo_features& set_all() {
-    features_ = ~feature_type{} >>
-                (max_feature_bits -
-                 static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits));
-    return *this;
-  }
-
-  constexpr fsinfo_features& clear(fsinfo_feature f) {
-    features_ &= ~(1 << static_cast<size_t>(f));
-    return *this;
-  }
-
-  constexpr fsinfo_features& reset() {
-    features_ = 0;
-    return *this;
-  }
-
-  constexpr fsinfo_features& operator|=(fsinfo_features const& other) {
-    features_ |= other.features_;
-    return *this;
-  }
-
-  constexpr fsinfo_features& operator|=(fsinfo_feature f) {
-    set(f);
-    return *this;
-  }
-
-  constexpr bool operator&(fsinfo_feature f) const { return has(f); }
-
- private:
-  // can be upgraded to std::bitset if needed and when it's constexpr
-  using feature_type = uint64_t;
-  static constexpr size_t max_feature_bits{
-      std::numeric_limits<feature_type>::digits};
-  static constexpr size_t num_feature_bits{
-      static_cast<size_t>(fsinfo_feature::num_fsinfo_feature_bits)};
-  static_assert(num_feature_bits <= max_feature_bits);
-
-  feature_type features_{0};
-};
-
-struct fsinfo_options {
-  fsinfo_features features;
-  block_access_level block_access{block_access_level::unrestricted};
-};
-
-struct metadata_options {
-  bool enable_nlink{false};
-  bool readonly{false};
-  bool check_consistency{false};
-  size_t block_size{512};
-};
-
-struct inode_reader_options {
-  size_t readahead{0};
-};
-
-struct filesystem_options {
-  static constexpr file_off_t IMAGE_OFFSET_AUTO{-1};
-
-  mlock_mode lock_mode{mlock_mode::NONE};
-  file_off_t image_offset{0};
-  block_cache_options block_cache{};
-  metadata_options metadata{};
-  inode_reader_options inode_reader{};
-  int inode_offset{0};
 };
 
 struct filesystem_writer_options {
@@ -266,8 +115,5 @@ struct rewrite_options {
 };
 
 std::ostream& operator<<(std::ostream& os, file_order_mode mode);
-std::ostream& operator<<(std::ostream& os, block_cache_options const& opts);
-
-mlock_mode parse_mlock_mode(std::string_view mode);
 
 } // namespace dwarfs

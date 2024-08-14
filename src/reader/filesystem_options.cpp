@@ -19,38 +19,35 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
-#include <string>
-
 #include <fmt/format.h>
 
+#include <folly/Conv.h>
+
 #include <dwarfs/error.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_options.h>
+#include <dwarfs/util.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
+file_off_t parse_image_offset(std::string const& str) {
+  if (str == "auto") {
+    return filesystem_options::IMAGE_OFFSET_AUTO;
   }
 
-  return os << modestr;
+  auto off = folly::tryTo<file_off_t>(str);
+
+  if (!off) {
+    auto ce = folly::makeConversionError(off.error(), str);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("failed to parse image offset: {} ({})", str,
+                             exception_str(ce)));
+  }
+
+  if (off.value() < 0) {
+    DWARFS_THROW(runtime_error, "image offset must be positive");
+  }
+
+  return off.value();
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

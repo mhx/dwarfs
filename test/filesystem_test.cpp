@@ -30,6 +30,7 @@
 
 #include <dwarfs/fstypes.h>
 #include <dwarfs/mmap.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 
 #include "mmap_mock.h"
@@ -221,8 +222,8 @@ TEST(filesystem, find_image_offset) {
 
   auto make_fs =
       [&](std::string data,
-          filesystem_options const& opt = {
-              .image_offset = filesystem_options::IMAGE_OFFSET_AUTO}) {
+          reader::filesystem_options const& opt = {
+              .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO}) {
         return reader::filesystem_v2(
             lgr, os, std::make_shared<test::mmap_mock>(std::move(data)), opt);
       };

@@ -19,38 +19,24 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
-#include <string>
-
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/mlock_mode.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
+mlock_mode parse_mlock_mode(std::string_view mode) {
+  if (mode == "none") {
+    return mlock_mode::NONE;
   }
-
-  return os << modestr;
+  if (mode == "try") {
+    return mlock_mode::TRY;
+  }
+  if (mode == "must") {
+    return mlock_mode::MUST;
+  }
+  DWARFS_THROW(runtime_error, fmt::format("invalid lock mode: {}", mode));
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

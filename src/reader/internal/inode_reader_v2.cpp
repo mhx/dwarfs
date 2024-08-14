@@ -35,8 +35,8 @@
 
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/inode_reader_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/util.h>
 

@@ -19,38 +19,35 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
+#pragma once
+
+#include <compare>
+#include <cstdint>
+#include <initializer_list>
+#include <limits>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
 
-#include <fmt/format.h>
+#include <dwarfs/reader/fsinfo_features.h>
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+namespace dwarfs::reader {
 
-namespace dwarfs {
+enum class block_access_level {
+  no_access,
+  no_verify,
+  unrestricted,
+};
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
-
-  return os << modestr;
+inline auto operator<=>(block_access_level lhs, block_access_level rhs) {
+  return static_cast<std::underlying_type_t<block_access_level>>(lhs) <=>
+         static_cast<std::underlying_type_t<block_access_level>>(rhs);
 }
 
-} // namespace dwarfs
+struct fsinfo_options {
+  fsinfo_features features;
+  block_access_level block_access{block_access_level::unrestricted};
+};
+
+} // namespace dwarfs::reader

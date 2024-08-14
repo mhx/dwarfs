@@ -19,38 +19,23 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
-#include <string>
+#pragma once
 
-#include <fmt/format.h>
+#include <cstddef>
+#include <iosfwd>
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+namespace dwarfs::reader {
 
-namespace dwarfs {
+struct block_cache_options {
+  size_t max_bytes{static_cast<size_t>(512) << 20};
+  size_t num_workers{0};
+  double decompress_ratio{1.0};
+  bool mm_release{true};
+  bool init_workers{true};
+  bool disable_block_integrity_check{false};
+  size_t sequential_access_detector_threshold{0};
+};
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
+std::ostream& operator<<(std::ostream& os, block_cache_options const& opts);
 
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
-
-  return os << modestr;
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::reader

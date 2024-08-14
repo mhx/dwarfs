@@ -30,8 +30,6 @@
 #include <string>
 #include <string_view>
 
-#include <dwarfs/types.h>
-
 namespace dwarfs {
 
 std::string time_with_unit(double sec);
@@ -40,8 +38,6 @@ std::string size_with_unit(size_t size);
 size_t parse_size_with_unit(std::string const& str);
 std::chrono::milliseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);
-
-file_off_t parse_image_offset(std::string const& str);
 
 inline std::u8string string_to_u8string(std::string const& in) {
   return std::u8string(reinterpret_cast<char8_t const*>(in.data()), in.size());

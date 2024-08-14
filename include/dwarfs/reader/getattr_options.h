@@ -19,38 +19,12 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ostream>
-#include <string>
+#pragma once
 
-#include <fmt/format.h>
+namespace dwarfs::reader {
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+struct getattr_options {
+  bool no_size{false};
+};
 
-namespace dwarfs {
-
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
-
-  return os << modestr;
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::reader

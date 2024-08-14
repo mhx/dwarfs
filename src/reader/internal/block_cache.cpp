@@ -43,8 +43,9 @@
 
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/block_cache_options.h>
+#include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 

@@ -25,6 +25,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access_generic.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/utility/filesystem_extractor.h>
 
 int main(int argc, char** argv) {
@@ -42,7 +43,7 @@ int main(int argc, char** argv) {
     reader::filesystem_v2 fs(lgr, os, argv[2]);
 
     if (std::string_view(argv[1]) == "info") {
-      fs.dump(std::cout, {.features = fsinfo_features::for_level(2)});
+      fs.dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
     } else if (std::string_view(argv[1]) == "extract") {
       utility::filesystem_extractor ex(lgr, os);
       ex.open_disk(std::filesystem::current_path());

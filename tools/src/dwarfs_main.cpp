@@ -89,11 +89,13 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/cache_tidy_config.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/iovec_read_buf.h>
+#include <dwarfs/reader/mlock_mode.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
@@ -177,10 +179,11 @@ struct options {
   size_t blocksize{0};
   size_t readahead{0};
   size_t workers{0};
-  mlock_mode lock_mode{mlock_mode::NONE};
+  reader::mlock_mode lock_mode{reader::mlock_mode::NONE};
   double decompress_ratio{0.0};
   logger_options logopts{};
-  cache_tidy_strategy block_cache_tidy_strategy{cache_tidy_strategy::NONE};
+  reader::cache_tidy_strategy block_cache_tidy_strategy{
+      reader::cache_tidy_strategy::NONE};
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
   size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};
@@ -250,11 +253,11 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
 #endif
     FUSE_OPT_END};
 
-std::unordered_map<std::string_view, cache_tidy_strategy> const
+std::unordered_map<std::string_view, reader::cache_tidy_strategy> const
     cache_tidy_strategy_map{
-        {"none", cache_tidy_strategy::NONE},
-        {"time", cache_tidy_strategy::EXPIRY_TIME},
-        {"swap", cache_tidy_strategy::BLOCK_SWAPPED_OUT},
+        {"none", reader::cache_tidy_strategy::NONE},
+        {"time", reader::cache_tidy_strategy::EXPIRY_TIME},
+        {"swap", reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT},
     };
 
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
@@ -331,7 +334,7 @@ void op_init_common(void* data) {
   // we must do this *after* the fuse driver has forked into background
   userdata.fs.set_num_workers(userdata.opts.workers);
 
-  cache_tidy_config tidy;
+  reader::cache_tidy_config tidy;
   tidy.strategy = userdata.opts.block_cache_tidy_strategy;
   tidy.interval = userdata.opts.block_cache_tidy_interval;
   tidy.expiry_time = userdata.opts.block_cache_tidy_max_age;
@@ -1412,7 +1415,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   auto ti = LOG_TIMED_INFO;
   auto& opts = userdata.opts;
 
-  filesystem_options fsopts;
+  reader::filesystem_options fsopts;
   fsopts.lock_mode = opts.lock_mode;
   fsopts.block_cache.max_bytes = opts.cachesize;
   fsopts.block_cache.num_workers = opts.workers;
@@ -1428,7 +1431,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.inode_offset = inode_offset;
 
   if (opts.image_offset_str) {
-    fsopts.image_offset = parse_image_offset(opts.image_offset_str);
+    fsopts.image_offset = reader::parse_image_offset(opts.image_offset_str);
   }
 
   std::unordered_set<std::string> perfmon_enabled;
@@ -1570,8 +1573,8 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     opts.readahead =
         opts.readahead_str ? parse_size_with_unit(opts.readahead_str) : 0;
     opts.workers = opts.workers_str ? to<size_t>(opts.workers_str) : 2;
-    opts.lock_mode =
-        opts.mlock_str ? parse_mlock_mode(opts.mlock_str) : mlock_mode::NONE;
+    opts.lock_mode = opts.mlock_str ? reader::parse_mlock_mode(opts.mlock_str)
+                                    : reader::mlock_mode::NONE;
     opts.decompress_ratio =
         opts.decompress_ratio_str ? to<double>(opts.decompress_ratio_str) : 0.8;
 

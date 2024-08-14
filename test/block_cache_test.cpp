@@ -34,7 +34,10 @@
 
 #include <dwarfs/config.h>
 #include <dwarfs/error.h>
+#include <dwarfs/reader/block_cache_options.h>
 #include <dwarfs/reader/block_range.h>
+#include <dwarfs/reader/cache_tidy_config.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
@@ -133,7 +136,8 @@ TEST(block_range, compressed) {
           ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
 }
 
-class options_test : public ::testing::TestWithParam<block_cache_options> {
+class options_test
+    : public ::testing::TestWithParam<reader::block_cache_options> {
   DWARFS_SLOW_FIXTURE
 };
 
@@ -183,18 +187,18 @@ TEST_P(options_test, cache_stress) {
   }
 
   test::test_logger lgr(logger::TRACE);
-  filesystem_options opts{
+  reader::filesystem_options opts{
       .block_cache = cache_opts,
   };
   reader::filesystem_v2 fs(lgr, *os, mm, opts);
 
-  EXPECT_NO_THROW(
-      fs.set_cache_tidy_config({.strategy = cache_tidy_strategy::NONE}));
+  EXPECT_NO_THROW(fs.set_cache_tidy_config(
+      {.strategy = reader::cache_tidy_strategy::NONE}));
 
   EXPECT_THAT(
       [&] {
         fs.set_cache_tidy_config({
-            .strategy = cache_tidy_strategy::BLOCK_SWAPPED_OUT,
+            .strategy = reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT,
             .interval = std::chrono::seconds::zero(),
         });
       },
@@ -202,13 +206,13 @@ TEST_P(options_test, cache_stress) {
           ::testing::HasSubstr("tidy interval is zero")));
 
   fs.set_cache_tidy_config({
-      .strategy = cache_tidy_strategy::BLOCK_SWAPPED_OUT,
+      .strategy = reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT,
   });
 
   fs.set_num_workers(cache_opts.num_workers);
 
   fs.set_cache_tidy_config({
-      .strategy = cache_tidy_strategy::EXPIRY_TIME,
+      .strategy = reader::cache_tidy_strategy::EXPIRY_TIME,
       .interval = std::chrono::milliseconds(1),
       .expiry_time = std::chrono::milliseconds(2),
   });
@@ -286,6 +290,8 @@ TEST_P(options_test, cache_stress) {
 
 namespace {
 
+using reader::block_cache_options;
+
 constexpr std::array const cache_options{
     block_cache_options{.max_bytes = 0, .num_workers = 0},
     block_cache_options{.max_bytes = 256 * 1024, .num_workers = 0},
@@ -305,7 +311,7 @@ constexpr std::array const cache_options{
                         .disable_block_integrity_check = true},
 };
 
-}
+} // namespace
 
 INSTANTIATE_TEST_SUITE_P(block_cache, options_test,
                          ::testing::ValuesIn(cache_options));

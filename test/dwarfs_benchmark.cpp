@@ -28,8 +28,9 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
@@ -186,7 +187,7 @@ void dwarfs_initialize(::benchmark::State& state) {
   test::test_logger lgr;
   test::os_access_mock os;
   auto mm = std::make_shared<test::mmap_mock>(image);
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = true;
 
@@ -203,7 +204,7 @@ class filesystem : public ::benchmark::Fixture {
   void SetUp(::benchmark::State const& state) {
     image = make_filesystem(state);
     mm = std::make_shared<test::mmap_mock>(image);
-    filesystem_options opts;
+    reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
     fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
@@ -271,8 +272,9 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   template <size_t N>
-  void getattr_bench(::benchmark::State& state, getattr_options const& opts,
-                     std::array<std::string_view, N> const& paths) {
+  void
+  getattr_bench(::benchmark::State& state, reader::getattr_options const& opts,
+                std::array<std::string_view, N> const& paths) {
     int i = 0;
     std::vector<reader::inode_view> ent;
     ent.reserve(paths.size());

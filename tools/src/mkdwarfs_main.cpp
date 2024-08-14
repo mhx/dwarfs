@@ -67,6 +67,7 @@
 #include <dwarfs/mmap.h>
 #include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
@@ -1176,8 +1177,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (recompress) {
     input_filesystem.emplace(
         lgr, *iol.os, path,
-        filesystem_options{.image_offset =
-                               filesystem_options::IMAGE_OFFSET_AUTO});
+        reader::filesystem_options{
+            .image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO});
 
     LOG_INFO << "checking input filesystem...";
 
@@ -1185,7 +1186,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
       auto tv = LOG_TIMED_VERBOSE;
 
       if (auto num_errors =
-              input_filesystem->check(filesystem_check_level::CHECKSUM);
+              input_filesystem->check(reader::filesystem_check_level::CHECKSUM);
           num_errors != 0) {
         LOG_ERROR << "input filesystem is corrupt: detected " << num_errors
                   << " error(s)";

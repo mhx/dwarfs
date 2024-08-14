@@ -20,37 +20,20 @@
  */
 
 #include <ostream>
-#include <string>
 
 #include <fmt/format.h>
 
-#include <dwarfs/error.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/block_cache_options.h>
 
-namespace dwarfs {
+namespace dwarfs::reader {
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
-  std::string modestr{"unknown"};
-
-  switch (mode) {
-  case file_order_mode::NONE:
-    modestr = "none";
-    break;
-  case file_order_mode::PATH:
-    modestr = "path";
-    break;
-  case file_order_mode::REVPATH:
-    modestr = "revpath";
-    break;
-  case file_order_mode::SIMILARITY:
-    modestr = "similarity";
-    break;
-  case file_order_mode::NILSIMSA:
-    modestr = "nilsimsa";
-    break;
-  }
-
-  return os << modestr;
+std::ostream& operator<<(std::ostream& os, block_cache_options const& opts) {
+  os << fmt::format(
+      "max_bytes={}, num_workers={}, decompress_ratio={}, mm_release={}, "
+      "init_workers={}, disable_block_integrity_check={}",
+      opts.max_bytes, opts.num_workers, opts.decompress_ratio, opts.mm_release,
+      opts.init_workers, opts.disable_block_integrity_check);
+  return os;
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::reader

@@ -40,8 +40,9 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/string.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/utility/filesystem_extractor.h>
@@ -833,7 +834,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   EXPECT_GT(json.size(), 1000) << json;
 
   std::ostringstream dumpss;
-  fs.dump(dumpss, {.features = fsinfo_features::all()});
+  fs.dump(dumpss, {.features = reader::fsinfo_features::all()});
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
   auto entry = fs.find("/format.sh");
@@ -1072,7 +1073,7 @@ TEST_P(compat_filesystem, backwards_compat) {
   test::os_access_mock os;
   auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
 
@@ -1081,7 +1082,7 @@ TEST_P(compat_filesystem, backwards_compat) {
     check_compat(lgr, fs, version);
   }
 
-  opts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+  opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
 
   std::string fsdata;
   ASSERT_TRUE(folly::readFile(filename.c_str(), fsdata));
@@ -1125,8 +1126,8 @@ TEST_P(rewrite, filesystem_rewrite) {
   std::ostringstream rewritten, idss;
 
   auto rewrite_fs = [&](auto& fsw, auto const& mm) {
-    filesystem_options fsopts;
-    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+    reader::filesystem_options fsopts;
+    fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     writer::filesystem_block_category_resolver resolver(
         fs.get_all_block_categories());
@@ -1165,14 +1166,15 @@ TEST_P(rewrite, filesystem_rewrite) {
   {
     auto mm = std::make_shared<test::mmap_mock>(rewritten.str());
     EXPECT_NO_THROW(reader::filesystem_v2::identify(
-        lgr, os, mm, idss, 0, 1, false, filesystem_options::IMAGE_OFFSET_AUTO));
+        lgr, os, mm, idss, 0, 1, false,
+        reader::filesystem_options::IMAGE_OFFSET_AUTO));
     auto hdr = reader::filesystem_v2::header(mm);
     ASSERT_TRUE(hdr) << folly::hexDump(rewritten.str().data(),
                                        rewritten.str().size());
     EXPECT_EQ(format_sh, std::string(reinterpret_cast<char const*>(hdr->data()),
                                      hdr->size()));
-    filesystem_options fsopts;
-    fsopts.image_offset = filesystem_options::IMAGE_OFFSET_AUTO;
+    reader::filesystem_options fsopts;
+    fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
     check_dynamic(version, fs);
   }
@@ -1269,7 +1271,7 @@ TEST_P(set_uidgid_test, read_legacy_image) {
   test::os_access_mock os;
   reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(image));
 
-  ASSERT_EQ(0, fs.check(filesystem_check_level::FULL));
+  ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 
   for (auto path : {"/dwarfs", "/dwarfs/version.h"}) {
     auto v = fs.find(path);

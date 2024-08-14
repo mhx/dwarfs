@@ -41,8 +41,10 @@
 #include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/options.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/vfs_stat.h>
@@ -236,7 +238,7 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_EQ(prog.hash.bytes, file_hash_algo ? 46912 : 0);
   EXPECT_EQ(image_size, prog.compressed_size);
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = enable_nlink;
   opts.metadata.check_consistency = true;
@@ -262,7 +264,7 @@ void basic_end_to_end_test(std::string const& compressor,
 
   std::ostringstream dumpss;
 
-  fs.dump(dumpss, {.features = fsinfo_features::all()});
+  fs.dump(dumpss, {.features = reader::fsinfo_features::all()});
 
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
@@ -517,8 +519,8 @@ void basic_end_to_end_test(std::string const& compressor,
   EXPECT_GT(json.size(), 1000) << json;
 
   for (int detail = 0; detail <= 5; ++detail) {
-    auto info =
-        fs.info_as_json({.features = fsinfo_features::for_level(detail)});
+    auto info = fs.info_as_json(
+        {.features = reader::fsinfo_features::for_level(detail)});
 
     ASSERT_TRUE(info.count("version"));
     ASSERT_TRUE(info.count("image_offset"));
@@ -677,7 +679,7 @@ TEST_P(packing_test, regression_empty_fs) {
   auto mm = std::make_shared<test::mmap_mock>(
       build_dwarfs(lgr, input, "null", cfg, options));
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
@@ -736,7 +738,7 @@ TEST(segmenter, regression_block_boundary) {
   cfg.blockhash_window_size = 12;
   cfg.block_size_bits = 10;
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
@@ -783,7 +785,7 @@ TEST_P(compression_regression, github45) {
   cfg.blockhash_window_size = 0;
   cfg.block_size_bits = block_size_bits;
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.check_consistency = true;
 
@@ -1012,7 +1014,7 @@ TEST_P(filter_test, filesystem) {
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
-  filesystem_options opts;
+  reader::filesystem_options opts;
   opts.block_cache.max_bytes = 1 << 20;
   opts.metadata.enable_nlink = true;
   opts.metadata.check_consistency = true;

@@ -42,9 +42,10 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
@@ -164,9 +165,10 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto checksum_desc = fmt::format("print checksums for all files ({})",
                                    fmt::join(algo_list, ", "));
   auto detail_desc = fmt::format(
-      "detail level (0-{}, or feature list: {})", fsinfo_features::max_level(),
-      fmt::join(fsinfo_features::all().to_string_views(), ", "));
-  auto const detail_default{fsinfo_features::for_level(2).to_string()};
+      "detail level (0-{}, or feature list: {})",
+      reader::fsinfo_features::max_level(),
+      fmt::join(reader::fsinfo_features::all().to_string_views(), ", "));
+  auto const detail_default{reader::fsinfo_features::for_level(2).to_string()};
 
   sys_string input, export_metadata;
   std::string image_offset, checksum_algo;
@@ -284,11 +286,11 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
-    filesystem_options fsopts;
+    reader::filesystem_options fsopts;
 
     fsopts.metadata.enable_nlink = true;
     fsopts.metadata.check_consistency = check_integrity;
-    fsopts.image_offset = parse_image_offset(image_offset);
+    fsopts.image_offset = reader::parse_image_offset(image_offset);
 
     auto input_path = iol.os->canonical(input);
 
@@ -324,20 +326,22 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
           return 1;
         }
       } else {
-        auto level = check_integrity ? filesystem_check_level::FULL
-                                     : filesystem_check_level::CHECKSUM;
+        auto level = check_integrity ? reader::filesystem_check_level::FULL
+                                     : reader::filesystem_check_level::CHECKSUM;
         auto errors = no_check ? 0 : fs.check(level, num_workers);
 
         if (!quiet && !list_files && checksum_algo.empty()) {
-          fsinfo_options opts;
+          reader::fsinfo_options opts;
 
-          opts.block_access = no_check ? block_access_level::no_verify
-                                       : block_access_level::unrestricted;
+          opts.block_access = no_check
+                                  ? reader::block_access_level::no_verify
+                                  : reader::block_access_level::unrestricted;
 
           auto numeric_detail = tryTo<int>(detail);
-          opts.features = numeric_detail.has_value()
-                              ? fsinfo_features::for_level(*numeric_detail)
-                              : fsinfo_features::parse(detail);
+          opts.features =
+              numeric_detail.has_value()
+                  ? reader::fsinfo_features::for_level(*numeric_detail)
+                  : reader::fsinfo_features::parse(detail);
 
           if (output_json) {
             iol.out << fs.info_as_json(opts) << "\n";

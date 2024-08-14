@@ -36,8 +36,8 @@
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/file_stat.h>
-#include <dwarfs/options.h>
 #include <dwarfs/reader/block_range.h>
+#include <dwarfs/reader/fsinfo_features.h>
 #include <dwarfs/reader/metadata_types.h>
 #include <dwarfs/types.h>
 
@@ -53,7 +53,13 @@ class performance_monitor;
 
 namespace reader {
 
+struct cache_tidy_config;
+struct filesystem_options;
+struct fsinfo_options;
+struct getattr_options;
 struct iovec_read_buf;
+
+enum class filesystem_check_level { CHECKSUM, INTEGRITY, FULL };
 
 namespace internal {
 

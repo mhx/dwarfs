@@ -30,9 +30,9 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/options.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
@@ -145,9 +145,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     stream_logger lgr(iol.term, iol.err, logopts);
-    filesystem_options fsopts;
+    reader::filesystem_options fsopts;
 
-    fsopts.image_offset = parse_image_offset(image_offset);
+    fsopts.image_offset = reader::parse_image_offset(image_offset);
     fsopts.block_cache.max_bytes = parse_size_with_unit(cache_size_str);
     fsopts.block_cache.num_workers = num_workers;
     fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;

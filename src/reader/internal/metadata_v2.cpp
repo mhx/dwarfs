@@ -49,8 +49,10 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
-#include <dwarfs/options.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/fsinfo_options.h>
+#include <dwarfs/reader/getattr_options.h>
+#include <dwarfs/reader/metadata_options.h>
 #include <dwarfs/util.h>
 #include <dwarfs/vfs_stat.h>
 
