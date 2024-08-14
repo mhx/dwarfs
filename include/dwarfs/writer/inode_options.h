@@ -27,7 +27,7 @@
 #include <string>
 
 #include <dwarfs/writer/categorized_option.h>
-#include <dwarfs/writer/file_order_options.h>
+#include <dwarfs/writer/fragment_order_options.h>
 
 namespace dwarfs::writer {
 
@@ -36,8 +36,8 @@ class categorizer_manager;
 struct inode_options {
   std::optional<size_t> max_similarity_scan_size;
   std::shared_ptr<writer::categorizer_manager> categorizer_mgr;
-  writer::categorized_option<file_order_options> fragment_order{
-      file_order_options()};
+  writer::categorized_option<fragment_order_options> fragment_order{
+      fragment_order_options()};
 };
 
 } // namespace dwarfs::writer

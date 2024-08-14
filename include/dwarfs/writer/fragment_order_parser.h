@@ -24,7 +24,7 @@
 #include <string>
 #include <string_view>
 
-#include <dwarfs/writer/file_order_options.h>
+#include <dwarfs/writer/fragment_order_options.h>
 
 namespace dwarfs::writer {
 
@@ -32,8 +32,8 @@ struct fragment_order_parser {
  public:
   static std::string choices();
 
-  file_order_options parse(std::string_view arg) const;
-  std::string to_string(file_order_options const& opts) const;
+  fragment_order_options parse(std::string_view arg) const;
+  std::string to_string(fragment_order_options const& opts) const;
 };
 
 } // namespace dwarfs::writer

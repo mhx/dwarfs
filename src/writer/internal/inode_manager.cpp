@@ -420,14 +420,14 @@ class inode_ : public inode {
       }
 
       switch (opts.fragment_order.get(cat).mode) {
-      case file_order_mode::NONE:
-      case file_order_mode::PATH:
-      case file_order_mode::REVPATH:
+      case fragment_order_mode::NONE:
+      case fragment_order_mode::PATH:
+      case fragment_order_mode::REVPATH:
         break;
-      case file_order_mode::SIMILARITY:
+      case fragment_order_mode::SIMILARITY:
         sc.try_emplace(cat);
         break;
-      case file_order_mode::NILSIMSA:
+      case fragment_order_mode::NILSIMSA:
         nc.try_emplace(cat);
         break;
       }
@@ -483,12 +483,12 @@ class inode_ : public inode {
             : opts.fragment_order.get(fragments_.get_single_category()).mode;
 
     switch (order_mode) {
-    case file_order_mode::NONE:
-    case file_order_mode::PATH:
-    case file_order_mode::REVPATH:
+    case fragment_order_mode::NONE:
+    case fragment_order_mode::PATH:
+    case fragment_order_mode::REVPATH:
       break;
 
-    case file_order_mode::SIMILARITY: {
+    case fragment_order_mode::SIMILARITY: {
       similarity sc;
       if (mm) {
         scan_range(mm, sprog, chunk_size, sc);
@@ -496,7 +496,7 @@ class inode_ : public inode {
       similarity_.emplace<uint32_t>(sc.finalize());
     } break;
 
-    case file_order_mode::NILSIMSA: {
+    case fragment_order_mode::NILSIMSA: {
       nilsimsa nc;
       if (mm) {
         scan_range(mm, sprog, chunk_size, nc);
@@ -642,8 +642,8 @@ class inode_manager_ final : public inode_manager::impl {
     }
 
     return opts.fragment_order.any_is([](auto const& order) {
-      return order.mode == file_order_mode::SIMILARITY ||
-             order.mode == file_order_mode::NILSIMSA;
+      return order.mode == fragment_order_mode::SIMILARITY ||
+             order.mode == fragment_order_mode::NILSIMSA;
     });
   }
 
@@ -765,11 +765,11 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
   inode_ordering order(LOG_GET_LOGGER, prog_, opts_);
 
   switch (opts.mode) {
-  case file_order_mode::NONE:
+  case fragment_order_mode::NONE:
     LOG_VERBOSE << prefix << "keeping inode order";
     break;
 
-  case file_order_mode::PATH: {
+  case fragment_order_mode::PATH: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
                 << " inodes by path name...";
     auto tv = LOG_CPU_TIMED_VERBOSE;
@@ -778,7 +778,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
     break;
   }
 
-  case file_order_mode::REVPATH: {
+  case fragment_order_mode::REVPATH: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
                 << " inodes by reverse path name...";
     auto tv = LOG_CPU_TIMED_VERBOSE;
@@ -787,7 +787,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
     break;
   }
 
-  case file_order_mode::SIMILARITY: {
+  case fragment_order_mode::SIMILARITY: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
                 << " inodes by similarity...";
     auto tv = LOG_CPU_TIMED_VERBOSE;
@@ -796,7 +796,7 @@ auto inode_manager_<LoggerPolicy>::ordered_span(
     break;
   }
 
-  case file_order_mode::NILSIMSA: {
+  case fragment_order_mode::NILSIMSA: {
     LOG_VERBOSE << prefix << "ordering " << span.size()
                 << " inodes using nilsimsa similarity...";
     similarity_ordering_options soo;

@@ -36,12 +36,12 @@ namespace dwarfs::writer {
 
 namespace {
 
-const std::map<std::string_view, file_order_mode> order_choices{
-    {"none", file_order_mode::NONE},
-    {"path", file_order_mode::PATH},
-    {"revpath", file_order_mode::REVPATH},
-    {"similarity", file_order_mode::SIMILARITY},
-    {"nilsimsa", file_order_mode::NILSIMSA},
+const std::map<std::string_view, fragment_order_mode> order_choices{
+    {"none", fragment_order_mode::NONE},
+    {"path", fragment_order_mode::PATH},
+    {"revpath", fragment_order_mode::REVPATH},
+    {"similarity", fragment_order_mode::SIMILARITY},
+    {"nilsimsa", fragment_order_mode::NILSIMSA},
 };
 
 } // namespace
@@ -53,8 +53,9 @@ std::string fragment_order_parser::choices() {
 
 // TODO: find a common syntax for these options so we don't need
 //       complex parsers like this one
-file_order_options fragment_order_parser::parse(std::string_view arg) const {
-  file_order_options rv;
+fragment_order_options
+fragment_order_parser::parse(std::string_view arg) const {
+  fragment_order_options rv;
 
   option_map om(arg);
   auto algo = om.choice();
@@ -67,12 +68,12 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
 
   if (om.has_options()) {
     switch (rv.mode) {
-    case file_order_mode::NILSIMSA:
+    case fragment_order_mode::NILSIMSA:
       rv.nilsimsa_max_children = om.get_size(
-          "max-children", file_order_options::kDefaultNilsimsaMaxChildren);
+          "max-children", fragment_order_options::kDefaultNilsimsaMaxChildren);
       rv.nilsimsa_max_cluster_size =
           om.get_size("max-cluster-size",
-                      file_order_options::kDefaultNilsimsaMaxClusterSize);
+                      fragment_order_options::kDefaultNilsimsaMaxClusterSize);
 
       if (rv.nilsimsa_max_children < 1) {
         throw std::runtime_error(fmt::format("invalid max-children value: {}",
@@ -98,21 +99,21 @@ file_order_options fragment_order_parser::parse(std::string_view arg) const {
 }
 
 std::string
-fragment_order_parser::to_string(file_order_options const& opts) const {
+fragment_order_parser::to_string(fragment_order_options const& opts) const {
   switch (opts.mode) {
-  case file_order_mode::NONE:
+  case fragment_order_mode::NONE:
     return "none";
 
-  case file_order_mode::PATH:
+  case fragment_order_mode::PATH:
     return "path";
 
-  case file_order_mode::REVPATH:
+  case fragment_order_mode::REVPATH:
     return "revpath";
 
-  case file_order_mode::SIMILARITY:
+  case fragment_order_mode::SIMILARITY:
     return "similarity";
 
-  case file_order_mode::NILSIMSA:
+  case fragment_order_mode::NILSIMSA:
     return fmt::format("nilsimsa:max_children={}:max_cluster_size={}",
                        opts.nilsimsa_max_children,
                        opts.nilsimsa_max_cluster_size);

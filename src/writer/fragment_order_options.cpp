@@ -25,27 +25,27 @@
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
-#include <dwarfs/writer/file_order_options.h>
+#include <dwarfs/writer/fragment_order_options.h>
 
 namespace dwarfs::writer {
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode) {
+std::ostream& operator<<(std::ostream& os, fragment_order_mode mode) {
   std::string modestr{"unknown"};
 
   switch (mode) {
-  case file_order_mode::NONE:
+  case fragment_order_mode::NONE:
     modestr = "none";
     break;
-  case file_order_mode::PATH:
+  case fragment_order_mode::PATH:
     modestr = "path";
     break;
-  case file_order_mode::REVPATH:
+  case fragment_order_mode::REVPATH:
     modestr = "revpath";
     break;
-  case file_order_mode::SIMILARITY:
+  case fragment_order_mode::SIMILARITY:
     modestr = "similarity";
     break;
-  case file_order_mode::NILSIMSA:
+  case fragment_order_mode::NILSIMSA:
     modestr = "nilsimsa";
     break;
   }

@@ -26,18 +26,18 @@
 namespace dwarfs::writer {
 
 // TODO: rename? -> inode_order_mode / fragment_order_mode
-enum class file_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
+enum class fragment_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
 
 // TODO: rename? -> inode_order_options / fragment_order_options
-struct file_order_options {
+struct fragment_order_options {
   static constexpr int const kDefaultNilsimsaMaxChildren{16384};
   static constexpr int const kDefaultNilsimsaMaxClusterSize{16384};
 
-  file_order_mode mode{file_order_mode::NONE};
+  fragment_order_mode mode{fragment_order_mode::NONE};
   int nilsimsa_max_children{kDefaultNilsimsaMaxChildren};
   int nilsimsa_max_cluster_size{kDefaultNilsimsaMaxClusterSize};
 };
 
-std::ostream& operator<<(std::ostream& os, file_order_mode mode);
+std::ostream& operator<<(std::ostream& os, fragment_order_mode mode);
 
 } // namespace dwarfs::writer
