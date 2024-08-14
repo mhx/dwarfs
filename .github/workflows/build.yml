@@ -56,7 +56,7 @@ jobs:
         shell: cmd
         run: |
           copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
-          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j8
+          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
 
       - name: Build Package
         shell: cmd
@@ -131,7 +131,7 @@ jobs:
             --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
             --mount type=bind,source=/home/mhx/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_TYPE=clang-release-ninja-source \
+            --env BUILD_TYPE=clang-release-ninja-source-notest \
             --env BUILD_ARCH=amd64 \
             --env BUILD_DIST=arch \
             --env GITHUB_REF_NAME \
@@ -249,23 +249,11 @@ jobs:
           - fedora
           - arch
         build_type:
-          - gcc-debug-shared-ninja
-          - gcc-release-ninja
           - gcc-release-shared-ninja
-          - clang-release-shared-ninja
         exclude:
           - arch: arm64v8
             dist: arch
-            build_type: gcc-debug-shared-ninja
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-ninja
-          - arch: arm64v8
-            dist: arch
             build_type: gcc-release-shared-ninja
-          - arch: arm64v8
-            dist: arch
-            build_type: clang-release-shared-ninja
         include:
           - arch: amd64
             dist: ubuntu
@@ -420,7 +408,6 @@ jobs:
       matrix:
         arch:
           - ARM64
-          - X64
         build_mode:
           - Release
           - Debug
@@ -429,6 +416,17 @@ jobs:
             cmake_args:
           - name: Benchmark
             cmake_args: -DWITH_BENCHMARKS=ON
+        include:
+          - arch: X64
+            build_mode: Release
+            config:
+            - name: Normal
+              cmake_args:
+          - arch: X64
+            build_mode: Debug
+            config:
+            - name: Benchmark
+              cmake_args: -DWITH_BENCHMARKS=ON
 
     steps:
       - name: Unpack Source Tarball

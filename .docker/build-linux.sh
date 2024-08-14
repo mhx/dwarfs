@@ -158,7 +158,20 @@ if [[ "-$BUILD_TYPE-" == *-nostacktrace-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_STACKTRACE=0"
 fi
 
-CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1 -DWITH_LEGACY_FUSE=1"
+if [[ "-$BUILD_TYPE-" == *-source-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_OPTIMIZE=0"
+else
+  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_LEGACY_FUSE=1"
+fi
+
+if [[ "-$BUILD_TYPE-" == *-notest-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=0"
+  RUN_TESTS="echo 'skipping tests'"
+else
+  CMAKE_ARGS="${CMAKE_ARGS} -DWITH_TESTS=1"
+  RUN_TESTS="ctest --output-on-failure -j$(nproc)"
+fi
+
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
 if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
@@ -188,7 +201,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
     *-full-*)
       cmake ../dwarfs/ $CMAKE_ARGS
       time $BUILD_TOOL
-      ctest --output-on-failure -j$(nproc)
+      $RUN_TESTS
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
       ;;
@@ -197,7 +210,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
       # ==== libdwarfs ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
       time $BUILD_TOOL
-      ctest --output-on-failure -j$(nproc)
+      $RUN_TESTS
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
       rm -rf *
@@ -205,7 +218,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
       # ==== dwarfs tools ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
       time $BUILD_TOOL
-      ctest --output-on-failure -j$(nproc)
+      $RUN_TESTS
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
       rm -rf *
@@ -213,7 +226,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
       # ==== dwarfs fuse driver ====
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
       time $BUILD_TOOL
-      ctest --output-on-failure -j$(nproc)
+      $RUN_TESTS
       DESTDIR="$INSTALLDIR" $BUILD_TOOL install
       $BUILD_TOOL distclean
       ;;
@@ -229,9 +242,7 @@ else
 
   time $BUILD_TOOL
 
-  if [[ "-$BUILD_TYPE-" != *-source-* ]]; then
-    ctest --output-on-failure -j$(nproc)
-  fi
+  $RUN_TESTS
 
   if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
     rm -f /tmp-runner/dwarfs-coverage.txt
@@ -271,7 +282,7 @@ else
 
         time $BUILD_TOOL
 
-        ctest --output-on-failure -j$(nproc)
+        $RUN_TESTS
       fi
 
       $BUILD_TOOL strip
@@ -287,20 +298,6 @@ else
     cp artifacts.env /tmp-runner
     cp dwarfs-universal-* /tmp-runner/artifacts
     cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
-
-    if [[ "$VERSION" != "" ]]; then
-      # also perform a non-static build based on the source tarball
-
-      $BUILD_TOOL distclean
-      unset LDFLAGS
-
-      # shellcheck disable=SC2086
-      cmake ../dwarfs/ $CMAKE_ARGS_NONSTATIC
-
-      time $BUILD_TOOL
-
-      ctest --output-on-failure -j$(nproc)
-    fi
   elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
     $BUILD_TOOL package_source
     $BUILD_TOOL copy_source_artifacts
@@ -309,7 +306,7 @@ else
   if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
      [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
      [[ "-$BUILD_TYPE-" != *-source-* ]] && \
-     ( [[ "-$BUILD_TYPE-" != *-static-* ]] || [[ "$VERSION" != "" ]] ); then
+     [[ "-$BUILD_TYPE-" != *-static-* ]]; then
     INSTALLDIR="$HOME/install"
     rm -rf "$INSTALLDIR"
     DESTDIR="$INSTALLDIR" $BUILD_TOOL install
