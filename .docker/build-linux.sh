@@ -238,7 +238,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
   esac
 else
   # shellcheck disable=SC2086
-  cmake ../dwarfs/ $CMAKE_ARGS
+  cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
 
   time $BUILD_TOOL
 
