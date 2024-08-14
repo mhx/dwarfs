@@ -287,6 +287,12 @@ jobs:
             build_type: gcc-release-ninja-O2-static
           - arch: amd64
             dist: ubuntu
+            build_type: clang-release-nostacktrace-ninja-static
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: clang-release-nostacktrace-ninja-static
+          - arch: amd64
+            dist: ubuntu
             build_type: clang-release-ninja-static
           - arch: arm64v8
             dist: ubuntu
