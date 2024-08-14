@@ -180,6 +180,10 @@ and [24.04](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.ubuntu)),
 [Fedora Rawhide](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.fedora)
 and [Arch](https://github.com/mhx/dwarfs/blob/main/.docker/Dockerfile.arch)
 that can help with determining an up-to-date set of dependencies.
+Note that building from the release tarball requires less dependencies
+than building from the git repository, notably the `ronn` tool as well
+as Python and the `mistletoe` Python module are not required when
+building from the release tarball.
 
 There are some things to be aware of:
 
