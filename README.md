@@ -622,62 +622,54 @@ your machine.
 
 ## macOS Support
 
-Support for the macOS operating system is currently experimental.
-
 The macOS version of the DwarFS filesystem driver relies on the awesome
 [macFUSE](https://osxfuse.github.io/) project.
 
 ### Building on macOS
 
-Building on macOS involves a few steps, but should be relatively
-straightforward:
+Building on macOS should be relatively straightforward:
 
 - Install [Homebrew](https://brew.sh/)
 
 - Use Homebrew to install the necessary dependencies:
 
 ```
-$ brew install cmake ninja ronn macfuse python3 brotli howard-hinnant-date \
+$ brew install cmake ninja macfuse python3 brotli howard-hinnant-date \
                double-conversion fmt glog libarchive libevent flac openssl \
-               pkg-config range-v3 utf8cpp xxhash boost zstd jemalloc
+               nlohmann-json pkg-config range-v3 utf8cpp xxhash boost zstd
 ```
 
 - When installing macFUSE for the first time, you'll need to explicitly
   allow the sofware in *System Preferences* / *Privacy & Security*. It's
   quite likely that you'll have to reboot after this.
 
-- Clone the DwarFS repository:
+- Download a release tarball from the [releases page](https://github.com/mhx/dwarfs/releases)
+  and extract it:
 
 ```
-$ git clone --recurse-submodules https://github.com/mhx/dwarfs
-```
-
-- Prepare the build by installing the `mistletoe` python module
-  in a virtualenv:
-
-```
-$ cd dwarfs
-$ python3 -m venv @buildenv
-$ source ./@buildenv/bin/activate
-$ pip3 install mistletoe
+$ wget https://github.com/mhx/dwarfs/releases/download/v0.10.0/dwarfs-0.10.0.tar.xz
+$ tar xf dwarfs-0.10.0.tar.xz
 ```
 
 - Build DwarFS and run its tests:
 
 ```
-$ git checkout v0.9.4
-$ git submodule update
-$ mkdir build && cd build
-$ cmake .. -GNinja -DWITH_TESTS=ON
-$ ninja
-$ export CTEST_PARALLEL_LEVEL=$(sysctl -n hw.logicalcpu)
-$ ninja test
+$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON
+$ cmake --build dwarfs-build
+$ ctest --test-dir dwarfs-build -j
+```
+
+- If you don't need the FUSE driver, you can omit `macfuse` from the `brew install`
+  and use the following instead of the first `cmake` command above:
+
+```
+$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON -DWITH_FUSE_DRIVER=OFF
 ```
 
 - Install DwarFS:
 
 ```
-$ ninja install
+$ sudo cmake --install dwarfs-build
 ```
 
 That's it!
