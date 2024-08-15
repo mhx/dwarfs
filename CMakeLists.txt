@@ -475,6 +475,18 @@ if(WITH_TESTS)
     target_link_libraries(
       ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
     )
+
+    if(NOT PREFER_SYSTEM_GTEST)
+      ### This is a wild hack. At least on macOS, gtest and basically everything
+      ### Homebrew is installed in /usr/local, and /usr/local/include can end up
+      ### in the compiler's include path *before* the include path of our local
+      ### gtest/gmock. The following code tries to ensure that the gtest/gmock
+      ### include paths are searched first.
+      get_target_property(gmock_include_dirs gmock INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property(gtest_include_dirs gtest INTERFACE_INCLUDE_DIRECTORIES)
+      target_include_directories(${test} PRIVATE BEFORE ${gmock_include_dirs} ${gtest_include_dirs})
+    endif()
+
     target_compile_definitions(${test}
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
