@@ -263,7 +263,6 @@ void os_access_mock::add(fs::path const& path, simplestat const& st,
 
 void os_access_mock::add_dir(fs::path const& path) {
   simplestat st;
-  std::memset(&st, 0, sizeof(st));
   st.ino = ino_++;
   st.mode = posix_file_type::directory | 0755;
   st.uid = 1000;
@@ -273,7 +272,6 @@ void os_access_mock::add_dir(fs::path const& path) {
 
 void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
   simplestat st;
-  std::memset(&st, 0, sizeof(st));
   st.ino = ino_++;
   st.mode = posix_file_type::regular | 0644;
   st.uid = 1000;
@@ -302,7 +300,6 @@ void os_access_mock::add_file(fs::path const& path, size_t size, bool random) {
 void os_access_mock::add_file(fs::path const& path,
                               std::string const& contents) {
   simplestat st;
-  std::memset(&st, 0, sizeof(st));
   st.ino = ino_++;
   st.mode = posix_file_type::regular | 0644;
   st.uid = 1000;
@@ -318,7 +315,6 @@ void os_access_mock::add_local_files(fs::path const& base_path) {
     } else if (p.is_regular_file()) {
       auto relpath = fs::relative(p.path(), base_path);
       simplestat st;
-      std::memset(&st, 0, sizeof(st));
       st.ino = ino_++;
       st.mode = posix_file_type::regular | 0644;
       st.uid = 1000;

@@ -59,8 +59,8 @@
 namespace dwarfs::test {
 
 struct simplestat {
-  file_stat::ino_type ino;
-  file_stat::mode_type mode;
+  file_stat::ino_type ino{0};
+  file_stat::mode_type mode{0};
   file_stat::nlink_type nlink{1};
   file_stat::uid_type uid{0};
   file_stat::gid_type gid{0};
