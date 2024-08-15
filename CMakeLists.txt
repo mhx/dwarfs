@@ -573,7 +573,12 @@ foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
 endforeach()
 
-foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
+            ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
+  if(NOT TARGET ${tgt})
+    continue()
+  endif()
+
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
