@@ -394,11 +394,13 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   add_library(dwarfs_test_helpers OBJECT
     test/test_helpers.cpp
     test/test_iolayer.cpp
-    test/test_strings.cpp
     test/loremipsum.cpp
     test/test_dirtree.cpp
     test/filter_test_data.cpp
   )
+  if(WITH_BENCHMARKS)
+    target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
+  endif()
   target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_common dwarfs_writer dwarfs_tool)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
 endif()
