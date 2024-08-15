@@ -470,15 +470,14 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
     }
 
     return std::make_unique<mmap_mock>(
-        de->v | match{
-                    [this](std::string const& str) { return str; },
-                    [this](std::function<std::string()> const& fun) {
-                      return fun();
-                    },
-                    [this](auto const&) -> std::string {
-                      throw std::runtime_error("oops in match");
-                    },
+        de->v |
+            match{
+                [](std::string const& str) { return str; },
+                [](std::function<std::string()> const& fun) { return fun(); },
+                [](auto const&) -> std::string {
+                  throw std::runtime_error("oops in match");
                 },
+            },
         size);
   }
 
