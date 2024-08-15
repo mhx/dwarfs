@@ -89,6 +89,14 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadName.cpp
 )
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # silence warning until this is fixed upstream
+  set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/NetOps.cpp
+    PROPERTIES COMPILE_FLAGS "-Wno-address"
+  )
+endif()
+
 if(WIN32)
   target_sources(dwarfs_folly_lite PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/net/detail/SocketFileDescriptorMap.cpp
