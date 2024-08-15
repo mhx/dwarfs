@@ -194,7 +194,7 @@ if(WITH_TESTS)
 
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      foreach(target ricepp ricepp_test)
+      foreach(target ricepp ${RICEPP_OBJECT_TARGETS} ricepp_test)
         target_compile_options(
           ${target} PRIVATE -fprofile-instr-generate -fcoverage-mapping
                             -fno-omit-frame-pointer)
