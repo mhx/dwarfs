@@ -188,9 +188,9 @@ class mkdwarfs_tester : public tester_common {
 
   void add_stream_logger(std::ostream& os,
                          logger::level_type level = logger::VERBOSE) {
-    lgr = std::make_unique<stream_logger>(
-        std::make_shared<test::test_terminal>(os, os), os,
-        logger_options{.threshold = level});
+    lgr =
+        std::make_unique<stream_logger>(std::make_shared<test::test_terminal>(),
+                                        os, logger_options{.threshold = level});
   }
 
   void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }

@@ -211,9 +211,7 @@ test_file_access::get_file(std::filesystem::path const& path) const {
   return std::nullopt;
 }
 
-test_terminal::test_terminal(std::ostream& out, std::ostream& err)
-    : out_{&out}
-    , err_{&err} {}
+test_terminal::test_terminal() = default;
 
 size_t test_terminal::width() const { return width_; }
 
@@ -311,7 +309,7 @@ test_iolayer::test_iolayer(std::shared_ptr<os_access const> os)
 test_iolayer::test_iolayer(std::shared_ptr<os_access const> os,
                            std::shared_ptr<file_access const> fa)
     : os_{std::move(os)}
-    , term_{std::make_shared<test_terminal>(out_, err_)}
+    , term_{std::make_shared<test_terminal>()}
     , fa_{std::move(fa)} {}
 
 test_iolayer::~test_iolayer() = default;

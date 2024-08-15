@@ -245,7 +245,7 @@ class mock_transformer : public writer::entry_transformer {
 
 class test_terminal : public terminal {
  public:
-  test_terminal(std::ostream& out, std::ostream& err);
+  test_terminal();
 
   void set_fancy(bool fancy) { fancy_ = fancy; }
   void set_is_tty(bool is_tty) { is_tty_ = is_tty; }
@@ -262,8 +262,6 @@ class test_terminal : public terminal {
   std::string_view clear_line() const override;
 
  private:
-  std::ostream* out_;
-  std::ostream* err_;
   bool fancy_{false};
   bool is_tty_{false};
   size_t width_{80};
