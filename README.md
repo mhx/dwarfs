@@ -208,7 +208,12 @@ There are some things to be aware of:
   of GoogleTest. GoogleTest itself recommends that it is being
   downloaded as part of the build. However, you can use the system
   installed version by passing `-DPREFER_SYSTEM_GTEST=ON` to the
-  `cmake` call. Use at your own risk.
+  `cmake` call. Use at your own risk. One known issues with using
+  system-installed versions of GoogleTest is that `utils_test` can
+  fail to compile because it uses C++20 features and GoogleTest is
+  built without `-std=c++20`. The release page has a patch
+  (`dwarfs-system-gtest.patch`) that can be applied to work around
+  this issue.
 
 - For other bundled libraries (namely `fmt`, `parallel-hashmap`,
   `range-v3`), the system installed version is used as long as it
