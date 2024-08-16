@@ -24,9 +24,18 @@ if(PREFER_SYSTEM_GTEST)
   add_library(gtest_main ALIAS GTest::gtest_main)
   add_library(gmock ALIAS GTest::gmock)
   add_library(gmock_main ALIAS GTest::gmock_main)
-endif()
 
-if(NOT GTest_FOUND)
+  try_compile(
+    GTEST_SUPPORTS_U8STRING
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/checks/gtest-u8string.cpp
+    CXX_STANDARD 20
+  )
+
+  if(NOT GTEST_SUPPORTS_U8STRING)
+    message(WARNING "GTest does not support u8string.")
+    target_compile_definitions(GTest::gtest INTERFACE GTEST_NO_U8STRING=1)
+  endif()
+else()
   FetchContent_Declare(
     googletest
     GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
