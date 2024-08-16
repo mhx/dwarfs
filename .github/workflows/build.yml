@@ -39,6 +39,10 @@ jobs:
           fetch-depth: '0'
           ref: ${{ github.ref }}
 
+      - name: Prepare Job Environment
+        run: |
+          "do_install=${{ (matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark') || (matrix.build_mode == 'Debug' && matrix.config.name == 'Normal') }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Set MSVC Dev Environment
         uses: ilammy/msvc-dev-cmd@v1
 
@@ -62,24 +66,24 @@ jobs:
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target package
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
       - name: Compress Universal Binary
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target universal_upx
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
       - name: Copy Artifacts
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target copy_artifacts
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
       - name: Prepare Artifact Upload
         shell: cmd
         run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
       - name: Upload Binary Tarball
         uses: actions/upload-artifact@v4
@@ -88,7 +92,7 @@ jobs:
           path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
           if-no-files-found: error
           compression-level: 0
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
       - name: Upload Universal Binary
         uses: actions/upload-artifact@v4
@@ -97,7 +101,7 @@ jobs:
           path: ${{ runner.temp }}\build\${{ env.universal_binary }}
           if-no-files-found: error
           compression-level: 0
-        if: matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark'
+        if: env.do_install == 'true'
 
   package-source:
     runs-on:
