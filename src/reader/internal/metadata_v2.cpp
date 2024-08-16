@@ -1127,7 +1127,7 @@ void metadata_<LoggerPolicy>::dump(
   }
 
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
-    os << "block size: " << size_with_unit(stbuf.bsize) << "\n";
+    os << "block size: " << size_with_unit(meta_.block_size()) << "\n";
     if (fsinfo) {
       os << "block count: " << fsinfo->block_count << "\n";
     }
