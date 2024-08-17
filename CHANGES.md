@@ -1,5 +1,22 @@
 # Change Log
 
+## Version 0.10.1 - 2024-08-17
+
+- (fix) Allow building `utils_test` against a non-compatible,
+  system-installed version of gtest. This is a common issue
+  when trying to integrate dwarfs into a package manager, as
+  these generally disallow fetching external dependencies at
+  build time.
+
+- (fix) `dwarfsck` was always reporting a block size of 1 byte
+  rather than the actual block size of the image.
+
+- (fix) `DWARFS_HAVE_LIBBROTLI` was not set correctly in the
+  config file, causing build errors if the library was built
+  without `brotli`.
+
+- (fix) Several small fixes for building with Homebrew.
+
 ## Version 0.10.0 - 2024-08-14
 
 - (fix) Fixed a race condition identified by ThreadSanitizer
