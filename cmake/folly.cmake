@@ -49,6 +49,10 @@ set(
   "The C++ standard argument to pass to the compiler."
 )
 
+set(CMAKE_DISABLE_FIND_PACKAGE_ZLIB ON)
+set(CMAKE_DISABLE_FIND_PACKAGE_BZip2 ON)
+set(CMAKE_DISABLE_FIND_PACKAGE_Snappy ON)
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/folly EXCLUDE_FROM_ALL SYSTEM)
 
 if(NOT DWARFS_FMT_LIB)
