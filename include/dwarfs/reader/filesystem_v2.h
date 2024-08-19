@@ -322,6 +322,10 @@ class filesystem_v2 {
     return impl_->get_inode_info(entry);
   }
 
+  nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
+    return impl_->get_inode_info(entry, max_chunks);
+  }
+
   std::vector<std::string> get_all_block_categories() const {
     return impl_->get_all_block_categories();
   }
@@ -428,6 +432,8 @@ class filesystem_v2 {
     virtual bool has_symlinks() const = 0;
     virtual history const& get_history() const = 0;
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
+    virtual nlohmann::json
+    get_inode_info(inode_view entry, size_t max_chunks) const = 0;
     virtual std::vector<std::string> get_all_block_categories() const = 0;
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
