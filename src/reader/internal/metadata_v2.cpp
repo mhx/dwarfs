@@ -529,7 +529,8 @@ class metadata_ final : public metadata_v2::impl {
 
   bool has_symlinks() const override { return !meta_.symlink_table().empty(); }
 
-  nlohmann::json get_inode_info(inode_view iv) const override;
+  nlohmann::json
+  get_inode_info(inode_view iv, size_t max_chunks) const override;
 
   std::optional<std::string>
   get_block_category(size_t block_number) const override;
@@ -1844,7 +1845,9 @@ metadata_<LoggerPolicy>::get_chunks(int inode, std::error_code& ec) const {
 }
 
 template <typename LoggerPolicy>
-nlohmann::json metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
+nlohmann::json
+metadata_<LoggerPolicy>::get_inode_info(inode_view iv,
+                                        size_t max_chunks) const {
   nlohmann::json obj;
 
   if (iv.is_regular_file()) {
@@ -1854,16 +1857,20 @@ nlohmann::json metadata_<LoggerPolicy>::get_inode_info(inode_view iv) const {
     DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
                                   ec.message()));
 
-    for (auto const& chunk : chunk_range) {
-      nlohmann::json& chk = obj["chunks"].emplace_back();
+    if (chunk_range.size() <= max_chunks) {
+      for (auto const& chunk : chunk_range) {
+        nlohmann::json& chk = obj["chunks"].emplace_back();
 
-      chk["block"] = chunk.block();
-      chk["offset"] = chunk.offset();
-      chk["size"] = chunk.size();
+        chk["block"] = chunk.block();
+        chk["offset"] = chunk.offset();
+        chk["size"] = chunk.size();
 
-      if (auto catname = get_block_category(chunk.block())) {
-        chk["category"] = catname.value();
+        if (auto catname = get_block_category(chunk.block())) {
+          chk["category"] = catname.value();
+        }
       }
+    } else {
+      obj["chunks"] = fmt::format("too many chunks ({})", chunk_range.size());
     }
   }
 
