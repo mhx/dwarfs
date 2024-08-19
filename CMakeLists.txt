@@ -688,6 +688,12 @@ foreach(tgt ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
 endforeach()
 
+set(PYBIND11_FINDPYTHON ON)
+find_package(pybind11 CONFIG REQUIRED)
+
+pybind11_add_module(pydwarfs python/pydwarfs.cpp)
+target_link_libraries(pydwarfs PRIVATE dwarfs_reader)
+
 if(STATIC_BUILD_DO_NOT_USE)
   # ...................................................................
   # Each library name given to the NAMES option is first considered as a library
@@ -802,6 +808,7 @@ file(GLOB_RECURSE ALL_SOURCES LIST_DIRECTORIES false
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/ricepp/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/src/*.cpp
