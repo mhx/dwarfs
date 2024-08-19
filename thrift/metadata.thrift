@@ -169,6 +169,20 @@ struct string_table {
    4: bool packed_index
 }
 
+/*
+ * For highly fragmented inodes, computing the size from the
+ * individual chunks can be extremely slow. This cache can be
+ * used to bypass the chunk lookup and size computation.
+ */
+struct inode_size_cache {
+   // lookup from inode number to size
+   1: map<UInt32, UInt64>  lookup
+
+   // minimum number of chunks for a file to be found in the cache,
+   // corresponds to scanner_options.inode_size_cache_min_chunk_count
+   2: UInt64               min_chunk_count
+}
+
 /**
  * File System Metadata
  *
@@ -388,4 +402,11 @@ struct metadata {
   // index into this vector is the block number and the value
   // is an index into `category_names`.
   29: optional list<UInt32>     block_categories
+
+  //==========================================================//
+  // fields added with dwarfs-0.10.2, file system version 2.5 //
+  //==========================================================//
+
+  // Size cache for highly fragmented file inodes
+  30: optional inode_size_cache reg_file_size_cache
 }
