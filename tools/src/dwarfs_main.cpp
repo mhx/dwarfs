@@ -149,6 +149,7 @@ namespace {
 
 constexpr size_t const kDefaultBlockSize{static_cast<size_t>(512) << 10};
 constexpr size_t const kDefaultSeqDetectorThreshold{4};
+constexpr size_t const kMaxInodeInfoChunks{8};
 
 struct options {
   // std::string isn't standard-layout on MSVC
@@ -952,7 +953,7 @@ int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
     }
 
     if (name == inodeinfo_xattr) {
-      oss << userdata.fs.get_inode_info(*entry) << "\n";
+      oss << userdata.fs.get_inode_info(*entry, kMaxInodeInfoChunks) << "\n";
     }
 
     value = oss.str();

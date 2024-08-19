@@ -290,7 +290,11 @@ class filesystem_ final : public filesystem_v2::impl {
   bool has_symlinks() const override { return meta_.has_symlinks(); }
   history const& get_history() const override { return history_; }
   nlohmann::json get_inode_info(inode_view entry) const override {
-    return meta_.get_inode_info(entry);
+    return meta_.get_inode_info(entry, std::numeric_limits<size_t>::max());
+  }
+  nlohmann::json
+  get_inode_info(inode_view entry, size_t max_chunks) const override {
+    return meta_.get_inode_info(entry, max_chunks);
   }
   std::vector<std::string> get_all_block_categories() const override {
     return meta_.get_all_block_categories();
