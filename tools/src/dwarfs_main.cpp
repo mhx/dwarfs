@@ -323,6 +323,18 @@ void check_fusermount(dwarfs_userdata& userdata) {
 #endif
 }
 
+#if DWARFS_FUSE_LOWLEVEL
+std::string get_caller_context(fuse_req_t req) {
+  auto ctx = fuse_req_ctx(req);
+  return fmt::format(" [pid={}, uid={}, gid={}]", ctx->pid, ctx->uid, ctx->gid);
+}
+#else
+std::string get_caller_context() {
+  auto ctx = fuse_get_context();
+  return fmt::format(" [pid={}, uid={}, gid={}]", ctx->pid, ctx->uid, ctx->gid);
+}
+#endif
+
 template <typename LoggerPolicy>
 void op_init_common(void* data) {
   auto& userdata = *reinterpret_cast<dwarfs_userdata*>(data);
@@ -365,7 +377,8 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_lookup)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << parent << ", " << name << ")";
+  LOG_DEBUG << __func__ << "(" << parent << ", " << name << ")"
+            << get_caller_context(req);
 
   checked_reply_err(log_, req, [&] {
     auto entry = userdata.fs.find(parent, name);
@@ -426,7 +439,7 @@ void op_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info*) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ")";
+  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   native_stat st;
@@ -447,7 +460,7 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ")";
+  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_getattr_common(log_, userdata, st, [&] {
     auto e = userdata.fs.find(path);
@@ -480,7 +493,7 @@ void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ")";
+  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   auto ctx = fuse_req_ctx(req);
@@ -498,7 +511,7 @@ int op_access(char const* path, int mode) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ")";
+  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   auto ctx = fuse_get_context();
 
@@ -536,7 +549,7 @@ void op_readlink(fuse_req_t req, fuse_ino_t ino) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_readlink)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   std::string symlink;
@@ -557,7 +570,7 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_readlink)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   std::string symlink;
 
@@ -619,7 +632,7 @@ void op_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_open)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   auto err =
@@ -638,7 +651,7 @@ int op_open(char const* path, struct fuse_file_info* fi) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_open)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_open_common(log_, userdata, fi, [&] {
     auto e = userdata.fs.find(path);
@@ -658,7 +671,8 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   PERFMON_EXT_SCOPED_SECTION(userdata, op_read)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")"
+            << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino, size)
 
   checked_reply_err(log_, req, [&]() -> ssize_t {
@@ -689,7 +703,8 @@ int op_read(char const* path, char* buf, size_t size, native_off_t off,
   PERFMON_EXT_SCOPED_SECTION(userdata, op_read)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << path << ", " << size << ", " << off << ")"
+            << get_caller_context();
   PERFMON_SET_CONTEXT(fi->fh, size)
 
   return -checked_call(log_, [&] {
@@ -822,7 +837,8 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
   PERFMON_EXT_SCOPED_SECTION(userdata, op_readdir)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")";
+  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ", " << off << ")"
+            << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino, size)
 
   checked_reply_err(log_, req, [&] {
@@ -839,7 +855,8 @@ int op_readdir(char const* path, void* buf, fuse_fill_dir_t filler,
   PERFMON_EXT_SCOPED_SECTION(userdata, op_readdir)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ")";
+  LOG_DEBUG << __func__ << "(" << path << ", " << off << ")"
+            << get_caller_context();
 
   return -checked_call(log_, [&] {
     readdir_policy policy{path, buf, filler};
@@ -873,12 +890,12 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata& userdata,
 
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
-void op_statfs(fuse_req_t req, fuse_ino_t /*ino*/) {
+void op_statfs(fuse_req_t req, fuse_ino_t ino) {
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_statfs)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__;
+  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
 
   struct ::statvfs st;
 
@@ -897,7 +914,7 @@ int op_statfs(char const* path, native_statvfs* st) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_statfs)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ")";
+  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_statfs_common(log_, userdata, st);
 }
@@ -969,7 +986,7 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
 #ifdef __APPLE__
             << ", " << position
 #endif
-            << ")";
+            << ")" << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
@@ -1006,7 +1023,8 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")"
+            << get_caller_context();
 
   std::string tmp;
   size_t extra_size{0};
@@ -1046,7 +1064,8 @@ int op_setxattr(char const* path, char const* name, char const* /*value*/,
   // PERFMON_EXT_SCOPED_SECTION(userdata, op_setxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")";
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ", " << size << ")"
+            << get_caller_context();
 
   return -ENOTSUP;
 }
@@ -1057,7 +1076,8 @@ int op_removexattr(char const* path, char const* name) {
   // PERFMON_EXT_SCOPED_SECTION(userdata, op_removexattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << name << ")";
+  LOG_DEBUG << __func__ << "(" << path << ", " << name << ")"
+            << get_caller_context();
 
   return -ENOTSUP;
 }
@@ -1095,7 +1115,8 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")";
+  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")"
+            << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
   checked_reply_err(log_, req, [&] {
@@ -1129,7 +1150,8 @@ int op_listxattr(char const* path, char* list, size_t size) {
   PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << path << ", " << size << ")";
+  LOG_DEBUG << __func__ << "(" << path << ", " << size << ")"
+            << get_caller_context();
 
   std::string xattrs;
   auto err = op_listxattr_common(log_, xattrs, [&] {
@@ -1163,7 +1185,8 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
   dUSERDATA;
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << from << ", " << to << ", " << flags << ")";
+  LOG_DEBUG << __func__ << "(" << from << ", " << to << ", " << flags << ")"
+            << get_caller_context();
 
   return -ENOSYS;
 }
