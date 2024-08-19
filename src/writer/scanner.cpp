@@ -867,11 +867,15 @@ void scanner_<LoggerPolicy>::scan(
   LOG_INFO << "saving chunks...";
   mv2.chunk_table()->resize(im.count() + 1);
 
+  auto& size_cache = mv2.reg_file_size_cache().emplace();
+  size_cache.min_chunk_count() = options_.inode_size_cache_min_chunk_count;
+
   // TODO: we should be able to start this once all blocks have been
   //       submitted for compression
   mv2.chunks().value().reserve(prog.chunk_count);
   im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
-    DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = mv2.chunks()->size();
+    auto const total_chunks = mv2.chunks()->size();
+    DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = total_chunks;
     if (!ino->append_chunks_to(mv2.chunks().value())) {
       std::ostringstream oss;
       for (auto fp : ino->all()) {
@@ -879,6 +883,12 @@ void scanner_<LoggerPolicy>::scan(
       }
       LOG_ERROR << "inconsistent fragments in inode " << ino->num()
                 << ", the following files will be empty:" << oss.str();
+    }
+    auto num_inode_chunks = mv2.chunks()->size() - total_chunks;
+    if (num_inode_chunks >= options_.inode_size_cache_min_chunk_count) {
+      LOG_DEBUG << "caching size " << ino->size() << " for inode " << ino->num()
+                << " with " << num_inode_chunks << " chunks";
+      size_cache.lookup()->emplace(ino->num(), ino->size());
     }
   });
 
