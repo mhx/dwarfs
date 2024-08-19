@@ -66,14 +66,14 @@ class inode_reader_v2 {
 
   size_t
   readv(iovec_read_buf& buf, uint32_t inode, size_t size, file_off_t offset,
-        chunk_range chunks, std::error_code& ec) const {
-    return impl_->readv(buf, inode, size, offset, chunks, ec);
+        size_t maxiov, chunk_range chunks, std::error_code& ec) const {
+    return impl_->readv(buf, inode, size, offset, maxiov, chunks, ec);
   }
 
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, size_t size, file_off_t offset, chunk_range chunks,
-        std::error_code& ec) const {
-    return impl_->readv(inode, size, offset, chunks, ec);
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
+        chunk_range chunks, std::error_code& ec) const {
+    return impl_->readv(inode, size, offset, maxiov, chunks, ec);
   }
 
   void
@@ -101,10 +101,10 @@ class inode_reader_v2 {
          chunk_range chunks, std::error_code& ec) const = 0;
     virtual size_t
     readv(iovec_read_buf& buf, uint32_t inode, size_t size, file_off_t offset,
-          chunk_range chunks, std::error_code& ec) const = 0;
+          size_t maxiov, chunk_range chunks, std::error_code& ec) const = 0;
     virtual std::vector<std::future<block_range>>
-    readv(uint32_t inode, size_t size, file_off_t offset, chunk_range chunks,
-          std::error_code& ec) const = 0;
+    readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
+          chunk_range chunks, std::error_code& ec) const = 0;
     virtual void dump(std::ostream& os, const std::string& indent,
                       chunk_range chunks) const = 0;
     virtual void set_num_workers(size_t num) = 0;

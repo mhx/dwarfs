@@ -62,6 +62,9 @@ using namespace dwarfs::internal;
 
 namespace {
 
+constexpr size_t const kDefaultMaxIOV{std::numeric_limits<size_t>::max()};
+constexpr size_t const KReadFullFile{std::numeric_limits<size_t>::max()};
+
 void check_section_logger(logger& lgr, fs_section const& section) {
   LOG_PROXY(debug_logger_policy, lgr);
 
@@ -259,6 +262,11 @@ class filesystem_ final : public filesystem_v2::impl {
                file_off_t offset, std::error_code& ec) const override;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset) const override;
+  size_t
+  readv(uint32_t inode, iovec_read_buf& buf, size_t size, file_off_t offset,
+        size_t maxiov, std::error_code& ec) const override;
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, size_t maxiov) const override;
   std::vector<std::future<block_range>> readv(uint32_t inode) const override;
   std::vector<std::future<block_range>>
   readv(uint32_t inode, std::error_code& ec) const override;
@@ -266,6 +274,12 @@ class filesystem_ final : public filesystem_v2::impl {
   readv(uint32_t inode, size_t size, file_off_t offset) const override;
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset,
+        std::error_code& ec) const override;
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        size_t maxiov) const override;
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
         std::error_code& ec) const override;
   std::optional<std::span<uint8_t const>> header() const override;
   void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
@@ -303,9 +317,9 @@ class filesystem_ final : public filesystem_v2::impl {
   size_t read_ec(uint32_t inode, char* buf, size_t size, file_off_t offset,
                  std::error_code& ec) const;
   size_t readv_ec(uint32_t inode, iovec_read_buf& buf, size_t size,
-                  file_off_t offset, std::error_code& ec) const;
+                  file_off_t offset, size_t maxiov, std::error_code& ec) const;
   std::vector<std::future<block_range>>
-  readv_ec(uint32_t inode, size_t size, file_off_t offset,
+  readv_ec(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
            std::error_code& ec) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -859,14 +873,14 @@ template <typename LoggerPolicy>
 std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode,
                                                    std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(read_string_ec)
-  return read_string_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+  return read_string_ec(inode, KReadFullFile, 0, ec);
 }
 
 template <typename LoggerPolicy>
 std::string filesystem_<LoggerPolicy>::read_string(uint32_t inode) const {
   PERFMON_CLS_SCOPED_SECTION(read_string)
   return call_ec_throw([&](std::error_code& ec) {
-    return read_string_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+    return read_string_ec(inode, KReadFullFile, 0, ec);
   });
 }
 
@@ -916,12 +930,13 @@ size_t filesystem_<LoggerPolicy>::read(uint32_t inode, char* buf, size_t size,
 }
 
 template <typename LoggerPolicy>
-size_t filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, iovec_read_buf& buf,
-                                           size_t size, file_off_t offset,
-                                           std::error_code& ec) const {
+size_t
+filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, iovec_read_buf& buf,
+                                    size_t size, file_off_t offset,
+                                    size_t maxiov, std::error_code& ec) const {
   auto chunks = meta_.get_chunks(inode, ec);
   if (!ec) {
-    return ir_.readv(buf, inode, size, offset, chunks, ec);
+    return ir_.readv(buf, inode, size, offset, maxiov, chunks, ec);
   }
   return 0;
 }
@@ -930,7 +945,7 @@ template <typename LoggerPolicy>
 size_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                         std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec_ec)
-  return readv_ec(inode, buf, std::numeric_limits<size_t>::max(), 0, ec);
+  return readv_ec(inode, buf, KReadFullFile, 0, kDefaultMaxIOV, ec);
 }
 
 template <typename LoggerPolicy>
@@ -938,7 +953,7 @@ size_t
 filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   return call_ec_throw([&](std::error_code& ec) {
-    return readv_ec(inode, buf, std::numeric_limits<size_t>::max(), 0, ec);
+    return readv_ec(inode, buf, KReadFullFile, 0, kDefaultMaxIOV, ec);
   });
 }
 
@@ -947,7 +962,7 @@ size_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                         size_t size, file_off_t offset,
                                         std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec_ec)
-  return readv_ec(inode, buf, size, offset, ec);
+  return readv_ec(inode, buf, size, offset, kDefaultMaxIOV, ec);
 }
 
 template <typename LoggerPolicy>
@@ -955,18 +970,37 @@ size_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
                                         size_t size, file_off_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   return call_ec_throw([&](std::error_code& ec) {
-    return readv_ec(inode, buf, size, offset, ec);
+    return readv_ec(inode, buf, size, offset, kDefaultMaxIOV, ec);
+  });
+}
+
+template <typename LoggerPolicy>
+size_t
+filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
+                                 size_t size, file_off_t offset, size_t maxiov,
+                                 std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec_ec)
+  return readv_ec(inode, buf, size, offset, maxiov, ec);
+}
+
+template <typename LoggerPolicy>
+size_t filesystem_<LoggerPolicy>::readv(uint32_t inode, iovec_read_buf& buf,
+                                        size_t size, file_off_t offset,
+                                        size_t maxiov) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_iovec)
+  return call_ec_throw([&](std::error_code& ec) {
+    return readv_ec(inode, buf, size, offset, maxiov, ec);
   });
 }
 
 template <typename LoggerPolicy>
 std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv_ec(uint32_t inode, size_t size,
-                                    file_off_t offset,
+                                    file_off_t offset, size_t maxiov,
                                     std::error_code& ec) const {
   auto chunks = meta_.get_chunks(inode, ec);
   if (!ec) {
-    return ir_.readv(inode, size, offset, chunks, ec);
+    return ir_.readv(inode, size, offset, maxiov, chunks, ec);
   }
   return {};
 }
@@ -975,7 +1009,7 @@ template <typename LoggerPolicy>
 std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future_ec)
-  return readv_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+  return readv_ec(inode, KReadFullFile, 0, kDefaultMaxIOV, ec);
 }
 
 template <typename LoggerPolicy>
@@ -983,7 +1017,7 @@ std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv(uint32_t inode) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future)
   return call_ec_throw([&](std::error_code& ec) {
-    return readv_ec(inode, std::numeric_limits<size_t>::max(), 0, ec);
+    return readv_ec(inode, KReadFullFile, 0, kDefaultMaxIOV, ec);
   });
 }
 
@@ -992,7 +1026,7 @@ std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size, file_off_t offset,
                                  std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future_ec)
-  return readv_ec(inode, size, offset, ec);
+  return readv_ec(inode, size, offset, kDefaultMaxIOV, ec);
 }
 
 template <typename LoggerPolicy>
@@ -1000,8 +1034,27 @@ std::vector<std::future<block_range>>
 filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size,
                                  file_off_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future)
-  return call_ec_throw(
-      [&](std::error_code& ec) { return readv_ec(inode, size, offset, ec); });
+  return call_ec_throw([&](std::error_code& ec) {
+    return readv_ec(inode, size, offset, kDefaultMaxIOV, ec);
+  });
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size, file_off_t offset,
+                                 size_t maxiov, std::error_code& ec) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future_ec)
+  return readv_ec(inode, size, offset, maxiov, ec);
+}
+
+template <typename LoggerPolicy>
+std::vector<std::future<block_range>>
+filesystem_<LoggerPolicy>::readv(uint32_t inode, size_t size, file_off_t offset,
+                                 size_t maxiov) const {
+  PERFMON_CLS_SCOPED_SECTION(readv_future)
+  return call_ec_throw([&](std::error_code& ec) {
+    return readv_ec(inode, size, offset, maxiov, ec);
+  });
 }
 
 template <typename LoggerPolicy>

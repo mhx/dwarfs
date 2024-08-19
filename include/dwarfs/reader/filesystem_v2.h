@@ -246,6 +246,11 @@ class filesystem_v2 {
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, size_t maxiov, std::error_code& ec) const {
+    return impl_->readv(inode, buf, size, offset, maxiov, ec);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                std::error_code& ec) const {
     return impl_->readv(inode, buf, size, 0, ec);
   }
@@ -253,6 +258,11 @@ class filesystem_v2 {
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset = 0) const {
     return impl_->readv(inode, buf, size, offset);
+  }
+
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, size_t maxiov) const {
+    return impl_->readv(inode, buf, size, offset, maxiov);
   }
 
   std::vector<std::future<block_range>> readv(uint32_t inode) const {
@@ -270,6 +280,11 @@ class filesystem_v2 {
   }
 
   std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov) const {
+    return impl_->readv(inode, size, offset, maxiov);
+  }
+
+  std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, std::error_code& ec) const {
     return impl_->readv(inode, size, 0, ec);
   }
@@ -278,6 +293,12 @@ class filesystem_v2 {
   readv(uint32_t inode, size_t size, file_off_t offset,
         std::error_code& ec) const {
     return impl_->readv(inode, size, offset, ec);
+  }
+
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
+        std::error_code& ec) const {
+    return impl_->readv(inode, size, offset, maxiov, ec);
   }
 
   std::optional<std::span<uint8_t const>> header() const {
@@ -378,6 +399,11 @@ class filesystem_v2 {
                          file_off_t offset, std::error_code& ec) const = 0;
     virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                          file_off_t offset) const = 0;
+    virtual size_t
+    readv(uint32_t inode, iovec_read_buf& buf, size_t size, file_off_t offset,
+          size_t maxiov, std::error_code& ec) const = 0;
+    virtual size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+                         file_off_t offset, size_t maxiov) const = 0;
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode) const = 0;
     virtual std::vector<std::future<block_range>>
@@ -386,6 +412,12 @@ class filesystem_v2 {
     readv(uint32_t inode, size_t size, file_off_t offset) const = 0;
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset,
+          std::error_code& ec) const = 0;
+    virtual std::vector<std::future<block_range>>
+    readv(uint32_t inode, size_t size, file_off_t offset,
+          size_t maxiov) const = 0;
+    virtual std::vector<std::future<block_range>>
+    readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
           std::error_code& ec) const = 0;
     virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
