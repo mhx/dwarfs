@@ -151,8 +151,8 @@ class metadata_v2 {
 
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
-  nlohmann::json get_inode_info(inode_view iv) const {
-    return impl_->get_inode_info(iv);
+  nlohmann::json get_inode_info(inode_view iv, size_t max_chunks) const {
+    return impl_->get_inode_info(iv, max_chunks);
   }
 
   std::optional<std::string> get_block_category(size_t block_number) const {
@@ -229,7 +229,8 @@ class metadata_v2 {
 
     virtual bool has_symlinks() const = 0;
 
-    virtual nlohmann::json get_inode_info(inode_view iv) const = 0;
+    virtual nlohmann::json
+    get_inode_info(inode_view iv, size_t max_chunks) const = 0;
 
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
