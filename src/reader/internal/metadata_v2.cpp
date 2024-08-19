@@ -292,6 +292,12 @@ void analyze_frozen(std::ostream& os,
 #undef META_OPT_LIST_SIZE
 #undef META_OPT_STRING_TABLE_SIZE
 
+  if (auto cache = meta.reg_file_size_cache()) {
+    add_list_size(
+        "inode_size_cache", cache->lookup(),
+        l->reg_file_size_cacheField.layout.valueField.layout.lookupField);
+  }
+
   std::sort(usage.begin(), usage.end(), [](auto const& a, auto const& b) {
     return a.first > b.first || (a.first == b.first && a.second < b.second);
   });
@@ -538,6 +544,8 @@ class metadata_ final : public metadata_v2::impl {
 
   thrift::metadata::metadata unpack_metadata() const;
 
+  void check_inode_size_cache() const;
+
   file_stat getattr_impl(inode_view iv, getattr_options const& opts) const;
 
   inode_view make_inode_view(uint32_t inode) const {
@@ -671,15 +679,39 @@ class metadata_ final : public metadata_v2::impl {
     return {};
   }
 
-  size_t reg_file_size(inode_view iv) const {
+  size_t reg_file_size_impl(inode_view iv, bool use_cache) const {
     PERFMON_CLS_SCOPED_SECTION(reg_file_size)
+
+    // Looking up the chunk range is cheap, and we likely have to do it anyway
     std::error_code ec;
     auto cr = get_chunk_range(iv.inode_num(), ec);
     DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
                                   ec.message()));
+
+    if (use_cache) {
+      if (auto cache = meta_.reg_file_size_cache()) {
+        if (cr.size() >= cache->min_chunk_count()) {
+          LOG_TRACE << "using size cache lookup for inode " << iv.inode_num();
+          if (auto size = cache->lookup().getOptional(iv.inode_num() -
+                                                      file_inode_offset_)) {
+            return *size;
+          }
+        }
+      }
+    }
+
+    // This is the expensive part for highly fragmented inodes
     return std::accumulate(
         cr.begin(), cr.end(), static_cast<size_t>(0),
         [](size_t s, chunk_view cv) { return s + cv.size(); });
+  }
+
+  size_t reg_file_size_nocache(inode_view iv) const {
+    return reg_file_size_impl(iv, false);
+  }
+
+  size_t reg_file_size(inode_view iv) const {
+    return reg_file_size_impl(iv, true);
   }
 
   size_t file_size(inode_view iv, uint16_t mode) const {
@@ -916,8 +948,30 @@ void metadata_<LoggerPolicy>::analyze_chunks(std::ostream& os) const {
 }
 
 template <typename LoggerPolicy>
+void metadata_<LoggerPolicy>::check_inode_size_cache() const {
+  if (auto cache = meta_.reg_file_size_cache()) {
+    LOG_DEBUG << "checking inode size cache";
+    for (auto entry : cache->lookup()) {
+      auto inode = entry.first();
+      auto size = entry.second();
+      auto iv = make_inode_view(file_inode_offset_ + inode);
+      LOG_TRACE << "checking inode " << inode << " size " << size;
+      auto expected = reg_file_size_nocache(iv);
+      if (size != expected) {
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format(
+                "inode size cache mismatch: inode {} expected {} got {}", inode,
+                expected, size));
+      }
+    }
+  }
+}
+
+template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::check_consistency() const {
   global_.check_consistency(LOG_GET_LOGGER);
+  check_inode_size_cache();
 }
 
 template <typename LoggerPolicy>
