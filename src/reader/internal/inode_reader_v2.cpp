@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 #include <future>
+#include <limits>
 #include <mutex>
 #include <ostream>
 #include <utility>
@@ -47,6 +48,8 @@
 namespace dwarfs::reader::internal {
 
 namespace {
+
+constexpr size_t const kReadAllIOV{std::numeric_limits<size_t>::max()};
 
 /**
  * Offset cache configuration
@@ -130,10 +133,10 @@ class inode_reader_ final : public inode_reader_v2::impl {
               chunk_range chunks, std::error_code& ec) const override;
   size_t
   readv(iovec_read_buf& buf, uint32_t inode, size_t size, file_off_t offset,
-        chunk_range chunks, std::error_code& ec) const override;
+        size_t maxiov, chunk_range chunks, std::error_code& ec) const override;
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, size_t size, file_off_t offset, chunk_range chunks,
-        std::error_code& ec) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
+        chunk_range chunks, std::error_code& ec) const override;
   void dump(std::ostream& os, const std::string& indent,
             chunk_range chunks) const override;
   void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
@@ -151,12 +154,12 @@ class inode_reader_ final : public inode_reader_v2::impl {
   using readahead_cache_type = folly::EvictingCacheMap<uint32_t, file_off_t>;
 
   std::vector<std::future<block_range>>
-  read_internal(uint32_t inode, size_t size, file_off_t offset,
+  read_internal(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
                 chunk_range chunks, std::error_code& ec) const;
 
   template <typename StoreFunc>
   size_t read_internal(uint32_t inode, size_t size, file_off_t read_offset,
-                       chunk_range chunks, std::error_code& ec,
+                       size_t maxiov, chunk_range chunks, std::error_code& ec,
                        const StoreFunc& store) const;
 
   void do_readahead(uint32_t inode, chunk_range::iterator it,
@@ -237,6 +240,7 @@ template <typename LoggerPolicy>
 std::vector<std::future<block_range>>
 inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
                                            file_off_t const read_offset,
+                                           size_t const maxiov,
                                            chunk_range chunks,
                                            std::error_code& ec) const {
   std::vector<std::future<block_range>> ranges;
@@ -315,7 +319,7 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
 
     num_read += copysize;
 
-    if (num_read == size) {
+    if (num_read == size || ranges.size() >= maxiov) {
       if (oc_ent) {
         oc_ent->update(oc_upd, it_index, it_offset, chunksize);
         offset_cache_.set(inode, std::move(oc_ent));
@@ -340,13 +344,10 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
 
 template <typename LoggerPolicy>
 template <typename StoreFunc>
-size_t
-inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t size,
-                                           file_off_t offset,
-                                           chunk_range chunks,
-                                           std::error_code& ec,
-                                           const StoreFunc& store) const {
-  auto ranges = read_internal(inode, size, offset, chunks, ec);
+size_t inode_reader_<LoggerPolicy>::read_internal(
+    uint32_t inode, size_t size, file_off_t offset, size_t const maxiov,
+    chunk_range chunks, std::error_code& ec, const StoreFunc& store) const {
+  auto ranges = read_internal(inode, size, offset, maxiov, chunks, ec);
 
   if (ec) {
     return 0;
@@ -378,7 +379,7 @@ inode_reader_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
   PERFMON_CLS_SCOPED_SECTION(read_string)
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
-  auto ranges = read_internal(inode, size, offset, chunks, ec);
+  auto ranges = read_internal(inode, size, offset, kReadAllIOV, chunks, ec);
 
   std::string res;
 
@@ -411,7 +412,7 @@ size_t inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
   PERFMON_CLS_SCOPED_SECTION(read)
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
-  return read_internal(inode, size, offset, chunks, ec,
+  return read_internal(inode, size, offset, kReadAllIOV, chunks, ec,
                        [&](size_t num_read, const block_range& br) {
                          ::memcpy(buf + num_read, br.data(), br.size());
                        });
@@ -420,23 +421,24 @@ size_t inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
 template <typename LoggerPolicy>
 std::vector<std::future<block_range>>
 inode_reader_<LoggerPolicy>::readv(uint32_t inode, size_t const size,
-                                   file_off_t offset, chunk_range chunks,
+                                   file_off_t offset, size_t maxiov,
+                                   chunk_range chunks,
                                    std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_future)
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
-  return read_internal(inode, size, offset, chunks, ec);
+  return read_internal(inode, size, offset, maxiov, chunks, ec);
 }
 
 template <typename LoggerPolicy>
 size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
                                           size_t size, file_off_t offset,
-                                          chunk_range chunks,
+                                          size_t maxiov, chunk_range chunks,
                                           std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readv_iovec)
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
-  auto rv = read_internal(inode, size, offset, chunks, ec,
+  auto rv = read_internal(inode, size, offset, maxiov, chunks, ec,
                           [&](size_t, const block_range& br) {
                             auto& iov = buf.buf.emplace_back();
                             iov.iov_base = const_cast<uint8_t*>(br.data());
