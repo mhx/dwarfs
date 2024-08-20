@@ -1171,8 +1171,8 @@ void metadata_<LoggerPolicy>::dump(
   os << " (" << count << " entries, parent=" << dir.parent_entry() << ")\n";
 
   for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, make_dir_entry_view(first + i, entry.self_index()), opts,
-         icb);
+    dump(os, indent, make_dir_entry_view(first + i, entry.raw().self_index()),
+         opts, icb);
   }
 }
 
@@ -1328,7 +1328,8 @@ nlohmann::json metadata_<LoggerPolicy>::as_json(directory_view dir,
   auto first = dir.first_entry();
 
   for (size_t i = 0; i < count; ++i) {
-    arr.push_back(as_json(make_dir_entry_view(first + i, entry.self_index())));
+    arr.push_back(
+        as_json(make_dir_entry_view(first + i, entry.raw().self_index())));
   }
 
   return arr;
