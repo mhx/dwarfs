@@ -1660,18 +1660,20 @@ metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
     stbuf.set_blocks((stbuf.size_unchecked() + 511) / 512);
   }
 
+  auto& ivr = iv.raw();
+
   stbuf.set_ino(inode + inode_offset_);
   stbuf.set_blksize(options_.block_size);
   stbuf.set_uid(iv.getuid());
   stbuf.set_gid(iv.getgid());
-  stbuf.set_mtime(resolution * (timebase + iv.raw().mtime_offset()));
+  stbuf.set_mtime(resolution * (timebase + ivr.mtime_offset()));
 
   if (mtime_only) {
     stbuf.set_atime(stbuf.mtime_unchecked());
     stbuf.set_ctime(stbuf.mtime_unchecked());
   } else {
-    stbuf.set_atime(resolution * (timebase + iv.raw().atime_offset()));
-    stbuf.set_ctime(resolution * (timebase + iv.raw().ctime_offset()));
+    stbuf.set_atime(resolution * (timebase + ivr.atime_offset()));
+    stbuf.set_ctime(resolution * (timebase + ivr.ctime_offset()));
   }
 
   stbuf.set_nlink(options_.enable_nlink && stbuf.is_regular_file()
