@@ -101,6 +101,7 @@ class inode_view_impl
   uid_type getuid() const;
   gid_type getgid() const;
   uint32_t inode_num() const { return inode_num_; }
+  bool is_directory() const { return type() == posix_file_type::directory; }
 
  private:
   uint32_t inode_num_;
@@ -129,9 +130,15 @@ class dir_entry_view_impl {
       , g_{&g} {}
 
   static std::shared_ptr<dir_entry_view_impl>
+  from_dir_entry_index_shared(uint32_t self_index, uint32_t parent_index,
+                              global_metadata const& g);
+  static std::shared_ptr<dir_entry_view_impl>
+  from_dir_entry_index_shared(uint32_t self_index, global_metadata const& g);
+
+  static dir_entry_view_impl
   from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
                        global_metadata const& g);
-  static std::shared_ptr<dir_entry_view_impl>
+  static dir_entry_view_impl
   from_dir_entry_index(uint32_t self_index, global_metadata const& g);
 
   // TODO: this works, but it's strange; a limited version of
@@ -139,10 +146,11 @@ class dir_entry_view_impl {
   //       should work without a parent for these use cases
   static std::string name(uint32_t index, global_metadata const& g);
   static std::shared_ptr<inode_view_impl>
-  inode(uint32_t index, global_metadata const& g);
+  inode_shared(uint32_t index, global_metadata const& g);
 
   std::string name() const;
-  std::shared_ptr<inode_view_impl> inode() const;
+  std::shared_ptr<inode_view_impl> inode_shared() const;
+  inode_view_impl inode() const;
 
   bool is_root() const;
 
@@ -158,6 +166,17 @@ class dir_entry_view_impl {
   uint32_t self_index() const { return self_index_; }
 
  private:
+  template <template <typename...> class Ctor>
+  auto make_inode() const;
+
+  template <template <typename...> class Ctor>
+  static auto make_dir_entry_view(uint32_t self_index, uint32_t parent_index,
+                                  global_metadata const& g);
+
+  template <template <typename...> class Ctor>
+  static auto
+  make_dir_entry_view(uint32_t self_index, global_metadata const& g);
+
   std::variant<DirEntryView, InodeView> v_;
   uint32_t self_index_, parent_index_;
   global_metadata const* g_;
