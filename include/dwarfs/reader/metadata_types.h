@@ -96,10 +96,6 @@ class dir_entry_view {
   std::filesystem::path fs_path() const;
   std::wstring wpath() const;
 
-  void append_to(std::filesystem::path& p) const;
-
-  uint32_t self_index() const;
-
   internal::dir_entry_view_impl const& raw() const { return *impl_; }
 
  private:
