@@ -96,8 +96,6 @@ class filesystem_v2 {
   static std::optional<std::span<uint8_t const>>
   header(std::shared_ptr<mmif> mm, file_off_t image_offset);
 
-  static fsinfo_features features_for_level(int level);
-
   int check(filesystem_check_level level, size_t num_threads = 0) const {
     return impl_->check(level, num_threads);
   }
