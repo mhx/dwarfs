@@ -1473,28 +1473,42 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
   }
 
   {
-    auto td = LOG_TIMED_DEBUG;
+    auto tv = LOG_TIMED_VERBOSE;
 
-    walk_tree([&](uint32_t self_index, uint32_t parent_index) {
-      entries.emplace_back(self_index, parent_index);
-    });
+    {
+      auto td = LOG_TIMED_DEBUG;
+
+      walk_tree([&](uint32_t self_index, uint32_t parent_index) {
+        entries.emplace_back(self_index, parent_index);
+      });
+
+      td << "collected " << entries.size() << " entries";
+    }
 
     if (auto dep = meta_.dir_entries()) {
       // 1. partition non-files / files
-      auto mid =
-          std::stable_partition(entries.begin(), entries.end(),
-                                [de = *dep, beg = file_inode_offset_,
-                                 end = dev_inode_offset_](auto const& e) {
-                                  int ino = de[e.first].inode_num();
-                                  return ino < beg or ino >= end;
-                                });
+      decltype(entries)::iterator mid;
+      {
+        auto td = LOG_TIMED_DEBUG;
+
+        mid = std::stable_partition(entries.begin(), entries.end(),
+                                    [de = *dep, beg = file_inode_offset_,
+                                     end = dev_inode_offset_](auto const& e) {
+                                      int ino = de[e.first].inode_num();
+                                      return ino < beg or ino >= end;
+                                    });
+
+        td << "partitioned " << entries.size() << " entries into "
+           << std::distance(entries.begin(), mid) << " non-files and "
+           << std::distance(mid, entries.end()) << " files";
+      }
 
       // 2. order files by chunk block number
       // 2a. build mapping inode -> first chunk block
       std::vector<uint32_t> first_chunk_block;
 
       {
-        auto td2 = LOG_TIMED_DEBUG;
+        auto td = LOG_TIMED_DEBUG;
 
         first_chunk_block.resize(dep->size());
 
@@ -1509,12 +1523,12 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
           }
         }
 
-        td2 << "prepare first chunk block vector";
+        td << "prepare first chunk block vector";
       }
 
       // 2b. sort second partition accordingly
       {
-        auto td2 = LOG_TIMED_DEBUG;
+        auto td = LOG_TIMED_DEBUG;
 
         std::stable_sort(mid, entries.end(),
                          [&first_chunk_block](auto const& a, auto const& b) {
@@ -1522,8 +1536,8 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                                   first_chunk_block[b.first];
                          });
 
-        td2 << "final sort of " << std::distance(mid, entries.end())
-            << " file entries";
+        td << "final sort of " << std::distance(mid, entries.end())
+           << " file entries";
       }
     } else {
       std::sort(entries.begin(), entries.end(),
@@ -1533,7 +1547,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
                 });
     }
 
-    td << "ordered " << entries.size() << " entries by file data order";
+    tv << "ordered " << entries.size() << " entries by file data order";
   }
 
   for (auto [self_index, parent_index] : entries) {
