@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <fstream>
 #include <sstream>
 
 #include <benchmark/benchmark.h>
@@ -30,6 +31,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/getattr_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/thread_pool.h>
@@ -95,7 +97,10 @@ void PackParamsDirs(::benchmark::internal::Benchmark* b) {
   }
 }
 
-std::string make_filesystem(::benchmark::State const& state) {
+std::string
+make_filesystem(::benchmark::State const* state,
+                std::shared_ptr<os_access> os = nullptr,
+                writer::segmenter_factory::config const* segcfg = nullptr) {
   writer::segmenter_factory::config cfg;
   writer::scanner_options options;
 
@@ -105,27 +110,33 @@ std::string make_filesystem(::benchmark::State const& state) {
   cfg.bloom_filter_size.set_default(4);
   cfg.block_size_bits = 12;
 
+  options.inode.fragment_order.set_default(
+      {.mode = writer::fragment_order_mode::PATH});
+
   options.with_devices = true;
   options.with_specials = true;
   options.keep_all_times = false;
   options.pack_chunk_table = true;
-  options.pack_directories = state.range(0);
+  options.pack_directories = state ? state->range(0) : true;
   options.pack_shared_files_table = true;
-  options.pack_names = state.range(2);
-  options.pack_names_index = state.range(3);
-  options.pack_symlinks = state.range(2);
-  options.pack_symlinks_index = state.range(3);
+  options.pack_names = state ? state->range(2) : true;
+  options.pack_names_index = state ? state->range(3) : true;
+  options.pack_symlinks = state ? state->range(2) : true;
+  options.pack_symlinks_index = state ? state->range(3) : true;
   options.force_pack_string_tables = true;
-  options.plain_names_table = state.range(1);
-  options.plain_symlinks_table = state.range(1);
+  options.plain_names_table = state ? state->range(1) : false;
+  options.plain_symlinks_table = state ? state->range(1) : false;
 
   test::test_logger lgr;
-  auto os = test::os_access_mock::create_test_instance();
+
+  if (!os) {
+    os = test::os_access_mock::create_test_instance();
+  }
 
   thread_pool pool(lgr, *os, "writer", 4);
   writer::writer_progress prog;
 
-  writer::segmenter_factory sf(lgr, prog, cfg);
+  writer::segmenter_factory sf(lgr, prog, segcfg ? *segcfg : cfg);
   writer::entry_factory ef;
 
   writer::scanner s(lgr, pool, sf, ef, *os, options);
@@ -184,7 +195,7 @@ void frozen_string_table_lookup(::benchmark::State& state) {
 }
 
 void dwarfs_initialize(::benchmark::State& state) {
-  auto image = make_filesystem(state);
+  auto image = make_filesystem(&state);
   test::test_logger lgr;
   test::os_access_mock os;
   auto mm = std::make_shared<test::mmap_mock>(image);
@@ -203,7 +214,7 @@ class filesystem : public ::benchmark::Fixture {
   static constexpr size_t NUM_ENTRIES = 8;
 
   void SetUp(::benchmark::State const& state) {
-    image = make_filesystem(state);
+    image = make_filesystem(&state);
     mm = std::make_shared<test::mmap_mock>(image);
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
@@ -302,6 +313,123 @@ class filesystem : public ::benchmark::Fixture {
   test::test_logger lgr;
   test::os_access_mock os;
   std::string image;
+  std::shared_ptr<mmif> mm;
+};
+
+class filesystem_walk : public ::benchmark::Fixture {
+ public:
+  void SetUp(::benchmark::State const&) {
+    mm = std::make_shared<test::mmap_mock>(get_image());
+    reader::filesystem_options opts;
+    opts.block_cache.max_bytes = 1 << 20;
+    opts.metadata.enable_nlink = true;
+    fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
+    // fs->dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
+  }
+
+  void TearDown(::benchmark::State const&) {
+    mm.reset();
+    fs.reset();
+  }
+
+  std::unique_ptr<reader::filesystem_v2> fs;
+  std::vector<reader::inode_view> entries;
+
+ private:
+  constexpr static int kDimension{32};
+  constexpr static size_t kPatternLength{16};
+
+  static std::string make_data(std::mt19937_64& rng, size_t size) {
+    std::string data;
+    std::uniform_int_distribution<> byte_dist{0, 31};
+    data.reserve(size * kPatternLength * 2);
+    for (size_t i = 0; i < size; ++i) {
+      char p1 = byte_dist(rng);
+      char p2 = 128 + byte_dist(rng);
+      for (size_t j = 0; j < kPatternLength; ++j) {
+        data.push_back(p1);
+        data.push_back(p2);
+      }
+    }
+    return data;
+  }
+
+  static void add_random_file_tree(test::os_access_mock& os) {
+    std::mt19937_64 rng{42};
+    std::uniform_int_distribution<> size_dist{1, 16};
+    std::uniform_int_distribution<> path_comp_size_dist{1, 10};
+
+    auto random_path_component = [&] {
+      auto size = path_comp_size_dist(rng);
+      return test::create_random_string(size, 'A', 'Z', rng);
+    };
+
+    for (int u = 0; u < kDimension; ++u) {
+      std::filesystem::path d1{random_path_component() + std::to_string(u)};
+      os.add_dir(d1);
+
+      for (int v = 0; v < kDimension; ++v) {
+        std::filesystem::path d2{d1 /
+                                 (random_path_component() + std::to_string(v))};
+        os.add_dir(d2);
+
+        for (int w = 0; w < kDimension; ++w) {
+          std::filesystem::path d3{
+              d2 / (random_path_component() + std::to_string(w))};
+          os.add_dir(d3);
+
+          for (int z = 0; z < kDimension; ++z) {
+            std::filesystem::path f{
+                d3 / (random_path_component() + std::to_string(z))};
+            os.add_file(f, make_data(rng, size_dist(rng)));
+          }
+        }
+      }
+    }
+  }
+
+  static std::string build_image() {
+    auto os = std::make_shared<test::os_access_mock>();
+    os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+    add_random_file_tree(*os);
+    writer::segmenter_factory::config cfg;
+    cfg.blockhash_window_size.set_default(4);
+    cfg.window_increment_shift.set_default(1);
+    cfg.max_active_blocks.set_default(4);
+    cfg.bloom_filter_size.set_default(4);
+    cfg.block_size_bits = 16;
+    return make_filesystem(nullptr, os, &cfg);
+  }
+
+  static std::string get_image() {
+    static std::string const image = [] {
+      std::string image;
+      if (auto file = std::getenv("DWARFS_BENCHMARK_SAVE_IMAGE")) {
+        std::cerr << "*** Saving image to " << file << std::endl;
+        image = build_image();
+        std::ofstream ofs(file, std::ios::binary);
+        ofs.write(image.data(), image.size());
+      } else if (auto file = std::getenv("DWARFS_BENCHMARK_LOAD_IMAGE")) {
+        std::cerr << "*** Loading image from " << file << std::endl;
+        std::ifstream ifs(file, std::ios::binary);
+        if (ifs) {
+          ifs.seekg(0, std::ios::end);
+          image.resize(ifs.tellg());
+          ifs.seekg(0, std::ios::beg);
+          ifs.read(image.data(), image.size());
+        } else {
+          throw std::runtime_error("Failed to open image file");
+        }
+      } else {
+        image = build_image();
+      }
+      return image;
+    }();
+    return image;
+  }
+
+  test::test_logger lgr;
+  test::os_access_mock os;
   std::shared_ptr<mmif> mm;
 };
 
@@ -510,6 +638,19 @@ BENCHMARK_DEFINE_F(filesystem, readv_future_large)(::benchmark::State& state) {
   readv_future_bench(state, "/ipsum.txt");
 }
 
+BENCHMARK_DEFINE_F(filesystem_walk, walk)(::benchmark::State& state) {
+  for (auto _ : state) {
+    fs->walk([](reader::dir_entry_view) {});
+  }
+}
+
+BENCHMARK_DEFINE_F(filesystem_walk, walk_data_order)
+(::benchmark::State& state) {
+  for (auto _ : state) {
+    fs->walk_data_order([](reader::dir_entry_view) {});
+  }
+}
+
 } // namespace
 
 BENCHMARK(frozen_legacy_string_table_lookup);
@@ -552,5 +693,9 @@ BENCHMARK_REGISTER_F(filesystem, readv_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_large)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_future_small)->Apply(PackParamsNone);
 BENCHMARK_REGISTER_F(filesystem, readv_future_large)->Apply(PackParamsNone);
+
+BENCHMARK_REGISTER_F(filesystem_walk, walk)->Unit(benchmark::kMillisecond);
+BENCHMARK_REGISTER_F(filesystem_walk, walk_data_order)
+    ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();
