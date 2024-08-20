@@ -391,7 +391,8 @@ class metadata_ final : public metadata_v2::impl {
       , global_(lgr, check_metadata_consistency(lgr, meta_,
                                                 options.check_consistency ||
                                                     force_consistency_check))
-      , root_(internal::dir_entry_view_impl::from_dir_entry_index(0, global_))
+      , root_(internal::dir_entry_view_impl::from_dir_entry_index_shared(
+            0, global_))
       , LOG_PROXY_INIT(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
@@ -559,8 +560,14 @@ class metadata_ final : public metadata_v2::impl {
 
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
-    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index(
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
         self_index, parent_index, global_)};
+  }
+
+  dir_entry_view_impl
+  make_dir_entry_view_impl(uint32_t self_index, uint32_t parent_index) const {
+    return dir_entry_view_impl::from_dir_entry_index(self_index, parent_index,
+                                                     global_);
   }
 
   // This represents the order in which inodes are stored in inodes
@@ -1441,7 +1448,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
                                    set_type<int>& seen, T&& func) const {
   func(self_index, parent_index);
 
-  auto entry = make_dir_entry_view(self_index, parent_index);
+  auto entry = make_dir_entry_view_impl(self_index, parent_index);
   auto iv = entry.inode();
 
   if (iv.is_directory()) {
@@ -1451,7 +1458,7 @@ void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
       DWARFS_THROW(runtime_error, "cycle detected during directory walk");
     }
 
-    auto dir = make_directory_view(iv);
+    directory_view dir{inode, global_};
 
     for (auto cur_index : dir.entry_range()) {
       walk(cur_index, self_index, seen, func);
@@ -1571,7 +1578,8 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
   if (it != range.end()) {
     if (internal::dir_entry_view_impl::name(*it, global_) == name) {
-      rv = inode_view{internal::dir_entry_view_impl::inode(*it, global_)};
+      rv =
+          inode_view{internal::dir_entry_view_impl::inode_shared(*it, global_)};
     }
   }
 
@@ -1733,7 +1741,7 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
 
     auto index = dir.first_entry() + offset;
     auto inode =
-        inode_view{internal::dir_entry_view_impl::inode(index, global_)};
+        inode_view{internal::dir_entry_view_impl::inode_shared(index, global_)};
     return std::pair(inode,
                      internal::dir_entry_view_impl::name(index, global_));
   }
