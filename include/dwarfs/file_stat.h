@@ -132,6 +132,9 @@ class file_stat {
   static std::string perm_string(mode_type mode);
   static std::string mode_string(mode_type mode);
 
+  std::string perm_string() const { return perm_string(mode()); }
+  std::string mode_string() const { return mode_string(mode()); }
+
   template <typename T>
   void copy_to(T* out) const {
     copy_to_impl<true>(out);
