@@ -87,12 +87,6 @@ std::filesystem::path dir_entry_view::fs_path() const {
 
 std::wstring dir_entry_view::wpath() const { return impl_->wpath(); }
 
-void dir_entry_view::append_to(std::filesystem::path& p) const {
-  impl_->append_to(p);
-}
-
-uint32_t dir_entry_view::self_index() const { return impl_->self_index(); }
-
 uint32_t directory_view::first_entry(uint32_t ino) const {
   return g_->first_dir_entry(ino);
 }
