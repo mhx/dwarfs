@@ -64,7 +64,9 @@ uint32_t inode_view::inode_num() const { return iv_->inode_num(); }
 
 std::string dir_entry_view::name() const { return impl_->name(); }
 
-inode_view dir_entry_view::inode() const { return inode_view{impl_->inode()}; }
+inode_view dir_entry_view::inode() const {
+  return inode_view{impl_->inode_shared()};
+}
 
 bool dir_entry_view::is_root() const { return impl_->is_root(); }
 
