@@ -1165,14 +1165,14 @@ void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
     dir_entry_view entry, fsinfo_options const& opts,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
-  auto count = dir.entry_count();
-  auto first = dir.first_entry();
+  auto range = dir.entry_range();
 
-  os << " (" << count << " entries, parent=" << dir.parent_entry() << ")\n";
+  os << " (" << range.size() << " entries, parent=" << dir.parent_entry()
+     << ")\n";
 
-  for (size_t i = 0; i < count; ++i) {
-    dump(os, indent, make_dir_entry_view(first + i, entry.raw().self_index()),
-         opts, icb);
+  for (auto i : range) {
+    dump(os, indent, make_dir_entry_view(i, entry.raw().self_index()), opts,
+         icb);
   }
 }
 
@@ -1324,12 +1324,10 @@ nlohmann::json metadata_<LoggerPolicy>::as_json(directory_view dir,
                                                 dir_entry_view entry) const {
   nlohmann::json arr = nlohmann::json::array();
 
-  auto count = dir.entry_count();
-  auto first = dir.first_entry();
+  auto range = dir.entry_range();
 
-  for (size_t i = 0; i < count; ++i) {
-    arr.push_back(
-        as_json(make_dir_entry_view(first + i, entry.raw().self_index())));
+  for (auto i : range) {
+    arr.push_back(as_json(make_dir_entry_view(i, entry.raw().self_index())));
   }
 
   return arr;
