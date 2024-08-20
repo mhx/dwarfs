@@ -871,6 +871,13 @@ class metadata_ final : public metadata_v2::impl {
     return nlinks;
   }
 
+  size_t total_file_entries() const {
+    return (dev_inode_offset_ - file_inode_offset_) +
+           (meta_.dir_entries()
+                ? meta_.dir_entries()->size() - meta_.inodes().size()
+                : 0);
+  }
+
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   const global_metadata global_;
@@ -1473,59 +1480,66 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
     std::function<void(dir_entry_view)> const& func) const {
   std::vector<std::pair<uint32_t, uint32_t>> entries;
 
-  if (auto dep = meta_.dir_entries()) {
-    entries.reserve(dep->size());
-  } else {
-    entries.reserve(meta_.inodes().size());
-  }
-
   {
     auto tv = LOG_TIMED_VERBOSE;
 
-    {
-      auto td = LOG_TIMED_DEBUG;
-
-      walk_tree([&](uint32_t self_index, uint32_t parent_index) {
-        entries.emplace_back(self_index, parent_index);
-      });
-
-      td << "collected " << entries.size() << " entries";
-    }
-
     if (auto dep = meta_.dir_entries()) {
-      // 1. partition non-files / files
-      decltype(entries)::iterator mid;
+      // 1. collect and partition non-files / files
+      entries.resize(dep->size());
+
+      auto const num_files = total_file_entries();
+      auto mid = entries.end() - num_files;
+
+      // we use this first to build a mapping from self_index to inode number
+      std::vector<uint32_t> first_chunk_block(dep->size());
+
       {
         auto td = LOG_TIMED_DEBUG;
 
-        mid = std::stable_partition(entries.begin(), entries.end(),
-                                    [de = *dep, beg = file_inode_offset_,
-                                     end = dev_inode_offset_](auto const& e) {
-                                      int ino = de[e.first].inode_num();
-                                      return ino < beg or ino >= end;
-                                    });
+        size_t other_ix = 0;
+        size_t file_ix = entries.size() - num_files;
 
-        td << "partitioned " << entries.size() << " entries into "
+        walk_tree([&, de = *dep, beg = file_inode_offset_,
+                   end = dev_inode_offset_](uint32_t self_index,
+                                            uint32_t parent_index) {
+          int ino = de[self_index].inode_num();
+          size_t index;
+
+          if (beg <= ino && ino < end) {
+            index = file_ix++;
+            first_chunk_block[self_index] = ino;
+          } else {
+            index = other_ix++;
+          }
+
+          entries[index] = {self_index, parent_index};
+        });
+
+        DWARFS_CHECK(file_ix == entries.size(),
+                     fmt::format("unexpected file index: {} != {}", file_ix,
+                                 entries.size()));
+        DWARFS_CHECK(other_ix == entries.size() - num_files,
+                     fmt::format("unexpected other index: {} != {}", other_ix,
+                                 entries.size() - num_files));
+
+        td << "collected " << entries.size() << " entries ("
            << std::distance(entries.begin(), mid) << " non-files and "
-           << std::distance(mid, entries.end()) << " files";
+           << std::distance(mid, entries.end()) << " files)";
       }
 
       // 2. order files by chunk block number
       // 2a. build mapping inode -> first chunk block
-      std::vector<uint32_t> first_chunk_block;
 
       {
         auto td = LOG_TIMED_DEBUG;
 
-        first_chunk_block.resize(dep->size());
-
-        for (size_t ix = 0; ix < first_chunk_block.size(); ++ix) {
-          int ino = (*dep)[ix].inode_num();
-          if (ino >= file_inode_offset_ and ino < dev_inode_offset_) {
+        for (auto& fcb : first_chunk_block) {
+          int ino = fcb;
+          if (ino >= file_inode_offset_) {
             ino = file_inode_to_chunk_index(ino);
             if (auto beg = chunk_table_lookup(ino);
                 beg != chunk_table_lookup(ino + 1)) {
-              first_chunk_block[ix] = meta_.chunks()[beg].block();
+              fcb = meta_.chunks()[beg].block();
             }
           }
         }
@@ -1547,6 +1561,12 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
            << " file entries";
       }
     } else {
+      entries.reserve(meta_.inodes().size());
+
+      walk_tree([&](uint32_t self_index, uint32_t parent_index) {
+        entries.emplace_back(self_index, parent_index);
+      });
+
       std::sort(entries.begin(), entries.end(),
                 [this](auto const& a, auto const& b) {
                   return meta_.inodes()[a.first].inode_v2_2() <
