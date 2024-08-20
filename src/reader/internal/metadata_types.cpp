@@ -41,6 +41,24 @@ using namespace dwarfs::internal;
 
 namespace {
 
+template <typename T>
+class shared_ptr_ctor {
+ public:
+  template <typename... Args>
+  auto operator()(Args&&... args) {
+    return std::make_shared<T>(std::forward<Args>(args)...);
+  }
+};
+
+template <typename T>
+class stack_ctor {
+ public:
+  template <typename... Args>
+  auto operator()(Args&&... args) {
+    return T(std::forward<Args>(args)...);
+  }
+};
+
 std::vector<thrift::metadata::directory>
 unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   std::vector<thrift::metadata::directory> directories;
@@ -708,18 +726,27 @@ std::string dir_entry_view_impl::name() const {
          };
 }
 
-std::shared_ptr<inode_view_impl> dir_entry_view_impl::inode() const {
-  return v_ | match{
-                  [this](DirEntryView const& dev) {
-                    return std::make_shared<internal::inode_view_impl>(
-                        g_->meta().inodes()[dev.inode_num()], dev.inode_num(),
-                        g_->meta());
-                  },
-                  [this](InodeView const& iv) {
-                    return std::make_shared<internal::inode_view_impl>(
-                        iv, iv.inode_v2_2(), g_->meta());
-                  },
-              };
+template <template <typename...> class Ctor>
+auto dir_entry_view_impl::make_inode() const {
+  return v_ |
+         match{
+             [this](DirEntryView const& dev) {
+               return Ctor<inode_view_impl>()(
+                   g_->meta().inodes()[dev.inode_num()], dev.inode_num(),
+                   g_->meta());
+             },
+             [this](InodeView const& iv) {
+               return Ctor<inode_view_impl>()(iv, iv.inode_v2_2(), g_->meta());
+             },
+         };
+}
+
+std::shared_ptr<inode_view_impl> dir_entry_view_impl::inode_shared() const {
+  return make_inode<shared_ptr_ctor>();
+}
+
+inode_view_impl dir_entry_view_impl::inode() const {
+  return make_inode<stack_ctor>();
 }
 
 bool dir_entry_view_impl::is_root() const {
@@ -735,10 +762,10 @@ bool dir_entry_view_impl::is_root() const {
  * inode, but for files, this isn't possible.
  */
 
-std::shared_ptr<dir_entry_view_impl>
-dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
-                                          uint32_t parent_index,
-                                          global_metadata const& g) {
+template <template <typename...> class Ctor>
+auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
+                                              uint32_t parent_index,
+                                              global_metadata const& g) {
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
@@ -747,8 +774,7 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
 
     auto dev = (*de)[self_index];
 
-    return std::make_shared<dir_entry_view_impl>(dev, self_index, parent_index,
-                                                 g);
+    return Ctor<dir_entry_view_impl>()(dev, self_index, parent_index, g);
   }
 
   DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
@@ -756,12 +782,12 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
 
   auto iv = meta.inodes()[self_index];
 
-  return std::make_shared<dir_entry_view_impl>(iv, self_index, parent_index, g);
+  return Ctor<dir_entry_view_impl>()(iv, self_index, parent_index, g);
 }
 
-std::shared_ptr<dir_entry_view_impl>
-dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
-                                          global_metadata const& g) {
+template <template <typename...> class Ctor>
+auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
+                                              global_metadata const& g) {
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
@@ -769,8 +795,8 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
     auto dev = (*de)[self_index];
     DWARFS_CHECK(dev.inode_num() < meta.directories().size(),
                  "self_index inode out of range");
-    return std::make_shared<dir_entry_view_impl>(
-        dev, self_index, g.parent_dir_entry(dev.inode_num()), g);
+    return Ctor<dir_entry_view_impl>()(dev, self_index,
+                                       g.parent_dir_entry(dev.inode_num()), g);
   }
 
   DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
@@ -778,11 +804,37 @@ dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
 
   DWARFS_CHECK(iv.inode_v2_2() < meta.directories().size(),
                "parent_index out of range");
-  return std::make_shared<dir_entry_view_impl>(
+  return Ctor<dir_entry_view_impl>()(
       iv, self_index,
       meta.entry_table_v2_2()[meta.directories()[iv.inode_v2_2()]
                                   .parent_entry()],
       g);
+}
+
+std::shared_ptr<dir_entry_view_impl>
+dir_entry_view_impl::from_dir_entry_index_shared(uint32_t self_index,
+                                                 uint32_t parent_index,
+                                                 global_metadata const& g) {
+  return make_dir_entry_view<shared_ptr_ctor>(self_index, parent_index, g);
+}
+
+std::shared_ptr<dir_entry_view_impl>
+dir_entry_view_impl::from_dir_entry_index_shared(uint32_t self_index,
+                                                 global_metadata const& g) {
+  return make_dir_entry_view<shared_ptr_ctor>(self_index, g);
+}
+
+dir_entry_view_impl
+dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
+                                          uint32_t parent_index,
+                                          global_metadata const& g) {
+  return make_dir_entry_view<stack_ctor>(self_index, parent_index, g);
+}
+
+dir_entry_view_impl
+dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
+                                          global_metadata const& g) {
+  return make_dir_entry_view<stack_ctor>(self_index, g);
 }
 
 std::shared_ptr<dir_entry_view_impl> dir_entry_view_impl::parent() const {
@@ -790,7 +842,7 @@ std::shared_ptr<dir_entry_view_impl> dir_entry_view_impl::parent() const {
     return nullptr;
   }
 
-  return from_dir_entry_index(parent_index_, *g_);
+  return from_dir_entry_index_shared(parent_index_, *g_);
 }
 
 std::string
@@ -807,18 +859,17 @@ dir_entry_view_impl::name(uint32_t index, global_metadata const& g) {
 }
 
 std::shared_ptr<inode_view_impl>
-dir_entry_view_impl::inode(uint32_t index, global_metadata const& g) {
+dir_entry_view_impl::inode_shared(uint32_t index, global_metadata const& g) {
   if (auto de = g.meta().dir_entries()) {
     DWARFS_CHECK(index < de->size(), "index out of range");
     auto dev = (*de)[index];
-    return std::make_shared<internal::inode_view_impl>(
-        g.meta().inodes()[dev.inode_num()], dev.inode_num(), g.meta());
+    return std::make_shared<inode_view_impl>(g.meta().inodes()[dev.inode_num()],
+                                             dev.inode_num(), g.meta());
   }
 
   DWARFS_CHECK(index < g.meta().inodes().size(), "index out of range");
   auto iv = g.meta().inodes()[index];
-  return std::make_shared<internal::inode_view_impl>(iv, iv.inode_v2_2(),
-                                                     g.meta());
+  return std::make_shared<inode_view_impl>(iv, iv.inode_v2_2(), g.meta());
 }
 
 std::string dir_entry_view_impl::path() const {
