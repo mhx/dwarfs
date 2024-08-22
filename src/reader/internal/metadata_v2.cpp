@@ -497,6 +497,8 @@ class metadata_ final : public metadata_v2::impl {
     walk_data_order_impl(func);
   }
 
+  dir_entry_view root() const override { return root_; }
+
   std::optional<inode_view> find(const char* path) const override;
   std::optional<inode_view> find(int inode) const override;
   std::optional<inode_view> find(int inode, const char* name) const override;
