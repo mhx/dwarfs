@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cerrno>
 #include <climits>
@@ -57,6 +58,7 @@
 #include <dwarfs/vfs_stat.h>
 
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
 
@@ -862,13 +864,14 @@ class metadata_ final : public metadata_v2::impl {
     return decompressed;
   }
 
-  std::vector<uint32_t> build_nlinks(metadata_options const& options) const {
-    std::vector<uint32_t> nlinks;
+  packed_int_vector<uint32_t>
+  build_nlinks(metadata_options const& options) const {
+    packed_int_vector<uint32_t> packed_nlinks;
 
     if (options.enable_nlink) {
-      auto ti = LOG_TIMED_DEBUG;
+      auto td = LOG_TIMED_DEBUG;
 
-      nlinks.resize(dev_inode_offset_ - file_inode_offset_);
+      std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
 
       if (auto de = meta_.dir_entries()) {
         for (auto e : *de) {
@@ -886,11 +889,26 @@ class metadata_ final : public metadata_v2::impl {
         }
       }
 
-      ti << "built hardlink table ("
-         << size_with_unit(sizeof(nlinks.front()) * nlinks.capacity()) << ")";
+      {
+        auto tt = LOG_TIMED_TRACE;
+
+        uint32_t max = *std::max_element(nlinks.begin(), nlinks.end());
+        packed_nlinks.reset(std::bit_width(max), nlinks.size());
+
+        for (size_t i = 0; i < nlinks.size(); ++i) {
+          packed_nlinks.set(i, nlinks[i]);
+        }
+
+        tt << "packed hardlink table from "
+           << size_with_unit(sizeof(nlinks.front()) * nlinks.size()) << " to "
+           << size_with_unit(packed_nlinks.size_in_bytes());
+      }
+
+      td << "built hardlink table (" << packed_nlinks.size() << " entries, "
+         << size_with_unit(packed_nlinks.size_in_bytes()) << ")";
     }
 
-    return nlinks;
+    return packed_nlinks;
   }
 
   size_t total_file_entries() const {
@@ -910,7 +928,7 @@ class metadata_ final : public metadata_v2::impl {
   const int file_inode_offset_;
   const int dev_inode_offset_;
   const int inode_count_;
-  const std::vector<uint32_t> nlinks_;
+  const packed_int_vector<uint32_t> nlinks_;
   const std::vector<uint32_t> chunk_table_;
   const std::vector<uint32_t> shared_files_;
   const int unique_files_;
