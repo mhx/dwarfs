@@ -1453,8 +1453,8 @@ thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
     if (opts->packed_chunk_table().value()) {
       meta.chunk_table() = chunk_table_;
     }
-    if (opts->packed_directories().value()) {
-      meta.directories() = global_.directories();
+    if (auto const& dirs = global_.bundled_directories()) {
+      meta.directories() = dirs->thaw();
     }
     if (opts->packed_shared_files_table().value()) {
       meta.shared_files_table() = shared_files_;
