@@ -97,6 +97,8 @@ class metadata_v2 {
     impl_->walk_data_order(func);
   }
 
+  dir_entry_view root() const { return impl_->root(); }
+
   std::optional<inode_view> find(const char* path) const {
     return impl_->find(path);
   }
@@ -196,6 +198,8 @@ class metadata_v2 {
 
     virtual void
     walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
+
+    virtual dir_entry_view root() const = 0;
 
     virtual std::optional<inode_view> find(const char* path) const = 0;
     virtual std::optional<inode_view> find(int inode) const = 0;
