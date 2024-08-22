@@ -65,13 +65,12 @@ class global_metadata {
   dwarfs::internal::string_table const& names() const { return names_; }
 
   std::vector<thrift::metadata::directory> const& directories() const {
-    return directories_storage_;
+    return directories_;
   }
 
  private:
   Meta const& meta_;
-  std::vector<thrift::metadata::directory> const directories_storage_;
-  thrift::metadata::directory const* const directories_;
+  std::vector<thrift::metadata::directory> const directories_;
   dwarfs::internal::string_table const names_;
 };
 
