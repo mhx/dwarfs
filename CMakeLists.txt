@@ -432,6 +432,7 @@ if(WITH_TESTS)
       lazy_value_test
       metadata_requirements_test
       options_test
+      packed_int_vector_test
       pcm_sample_transformer_test
       pcmaudio_categorizer_test
       speedometer_test
