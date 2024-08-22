@@ -62,17 +62,23 @@ struct chunk {
  *    ..
  *    dir_entries[directory[inode + 1].first_entry - 1]
  *
- * Note that the `first_entry` fields are stored delta-compressed
- * as of v2.3 and must be unpacked before using. Also note that
- * the `parent_entry` fields are all set to zero as of v2.3. The
- * `parent_entry` information can easily and quickly be built by
- * traversing the `dir_entries` using the unpacked `first_entry`
+ * Note that as of v2.3, directory entries can be stored "packed", in
+ * which case only the `first_entry` fields are populated and stored
+ * delta-compressed. The `first_entry` field must be unpacked before
+ * using and the `parent_entry` and `self_entry` fields must be built
+ * by traversing the `dir_entries` using the unpacked `first_entry`
  * fields.
  */
 struct directory {
    1: UInt32 parent_entry      // indexes into `dir_entries`
 
    2: UInt32 first_entry       // indexes into `dir_entries`
+
+  //==========================================================//
+  // fields added with dwarfs-0.10.2, file system version 2.5 //
+  //==========================================================//
+
+   3: UInt32 self_entry        // indexes into `dir_entries`
 }
 
 /**
