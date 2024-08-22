@@ -61,6 +61,7 @@ class global_metadata {
 
   uint32_t first_dir_entry(uint32_t ino) const;
   uint32_t parent_dir_entry(uint32_t ino) const;
+  uint32_t self_dir_entry(uint32_t ino) const;
 
   dwarfs::internal::string_table const& names() const { return names_; }
 
@@ -71,6 +72,7 @@ class global_metadata {
  private:
   Meta const& meta_;
   std::vector<thrift::metadata::directory> const directories_;
+  std::vector<uint32_t> const dir_self_index_;
   dwarfs::internal::string_table const names_;
 };
 

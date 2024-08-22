@@ -109,6 +109,42 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   return directories;
 }
 
+std::vector<uint32_t>
+build_dir_self_index(logger& lgr, global_metadata::Meta const& meta) {
+  std::vector<uint32_t> index;
+
+  if (auto dep = meta.dir_entries()) {
+    LOG_PROXY(debug_logger_policy, lgr);
+
+    auto ti = LOG_TIMED_DEBUG;
+
+    auto const dir_count = meta.directories().size() - 1;
+
+    index.resize(dir_count);
+
+    for (size_t i = 0; i < dep->size(); ++i) {
+      auto ino = (*dep)[i].inode_num();
+      if (ino < dir_count) {
+        index[ino] = i;
+      }
+    }
+
+    auto check_index [[maybe_unused]] = [&] {
+      auto tmp = index;
+      std::sort(tmp.begin(), tmp.end());
+      std::adjacent_difference(tmp.begin(), tmp.end(), tmp.begin());
+      return std::all_of(tmp.begin() + 1, tmp.end(),
+                         [](auto i) { return i != 0; });
+    };
+
+    assert(check_index());
+
+    ti << "built directory self index table (size: " << dir_count << ")";
+  }
+
+  return index;
+}
+
 // TODO: merge with inode_rank in metadata_v2
 int mode_rank(uint16_t mode) {
   switch (posix_file_type::from_mode(mode)) {
@@ -547,6 +583,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 global_metadata::global_metadata(logger& lgr, Meta const& meta)
     : meta_{meta}
     , directories_{unpack_directories(lgr, meta_)}
+    , dir_self_index_{build_dir_self_index(lgr, meta_)}
     , names_{meta_.compact_names()
                  ? string_table(lgr, "names", *meta_.compact_names())
                  : string_table(meta_.names())} {}
@@ -567,6 +604,11 @@ uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
   return !directories_.empty() ? directories_[ino].parent_entry().value()
                                : meta_.directories()[ino].parent_entry();
+}
+
+uint32_t global_metadata::self_dir_entry(uint32_t ino) const {
+  return !dir_self_index_.empty() ? dir_self_index_[ino]
+                                  : meta_.entry_table_v2_2()[ino];
 }
 
 auto inode_view_impl::mode() const -> mode_type {
