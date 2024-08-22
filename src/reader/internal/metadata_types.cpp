@@ -546,9 +546,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 
 global_metadata::global_metadata(logger& lgr, Meta const& meta)
     : meta_{meta}
-    , directories_storage_{unpack_directories(lgr, meta_)}
-    , directories_{directories_storage_.empty() ? nullptr
-                                                : directories_storage_.data()}
+    , directories_{unpack_directories(lgr, meta_)}
     , names_{meta_.compact_names()
                  ? string_table(lgr, "names", *meta_.compact_names())
                  : string_table(meta_.names())} {}
@@ -562,13 +560,13 @@ void global_metadata::check_consistency(logger& lgr) const {
 }
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].first_entry().value()
-                      : meta_.directories()[ino].first_entry();
+  return !directories_.empty() ? directories_[ino].first_entry().value()
+                               : meta_.directories()[ino].first_entry();
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
-  return directories_ ? directories_[ino].parent_entry().value()
-                      : meta_.directories()[ino].parent_entry();
+  return !directories_.empty() ? directories_[ino].parent_entry().value()
+                               : meta_.directories()[ino].parent_entry();
 }
 
 auto inode_view_impl::mode() const -> mode_type {
