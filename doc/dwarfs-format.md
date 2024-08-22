@@ -132,18 +132,18 @@ to each other:
     ╔════╗   ┌────────────────┐       │  S_IFDIR ──►┌───────────────────┐         │  ┌────────────────┴─┐
     ║root╟──►│ name_index:  0 │       │             │ mode_index:     0 ├──────┐  └─►│ parent_entry:  0 │
     ╚════╝   │ inode_num:   0 ├───────┴────────────►│ owner_index:    0 │      │     │ first_entry:   1 │
-             ├────────────────┤                     │ group_index:    0 │      │     ├──────────────────┤
-         ┌───┤ name_index:  2 │                     │ atime_offset:   0 │      │     │ parent_entry:  0 │
-    ┌────┼───┤ inode_num:   5 ├───────┐             │ mtime_offset: 417 │      │     │ first_entry:  11 │
-    │    │   ├────────────────┤       │             │ ctime_offset:   0 │      │     ├──────────────────┤
-    │ ┌──┼───┤ name_index:  3 │       │             ├───────────────────┤      │     │ parent_entry:  5 │
-    │ │  │   │ inode_num:   9 ├────┐  │             │        ...        │      │     │ first_entry:  12 │
-    │ │  │   ├────────────────┤    │  │  S_IFLNK ──►├───────────────────┤      │     ├──────────────────┤
-    │ │  │   │                │    │  │             │ mode_index:     2 │      │     │                  │
-    │ │  │   │      ...       │    │  └────────────►│ owner_index:    2 │      │     │       ...        │
-    │ │  │   │                │    │                │ group_index:    0 │      │     │                  │
-    │ │  │   └────────────────┘    │                │ atime_offset:   0 │      │     └──────────────────┘
-    │ │  │                         │                │ mtime_offset: 298 │      │
+             ├────────────────┤                     │ group_index:    0 │      │     | self_entry:    0 |
+         ┌───┤ name_index:  2 │                     │ atime_offset:   0 │      │     ├──────────────────┤
+    ┌────┼───┤ inode_num:   5 ├───────┐             │ mtime_offset: 417 │      │     │ parent_entry:  0 │
+    │    │   ├────────────────┤       │             │ ctime_offset:   0 │      │     │ first_entry:  11 │
+    │ ┌──┼───┤ name_index:  3 │       │             ├───────────────────┤      │     | self_entry:    1 |
+    │ │  │   │ inode_num:   9 ├────┐  │             │        ...        │      │     ├──────────────────┤
+    │ │  │   ├────────────────┤    │  │  S_IFLNK ──►├───────────────────┤      │     │ parent_entry:  5 │
+    │ │  │   │                │    │  │             │ mode_index:     2 │      │     │ first_entry:  12 │
+    │ │  │   │      ...       │    │  └────────────►│ owner_index:    2 │      │     | self_entry:    7 |
+    │ │  │   │                │    │                │ group_index:    0 │      │     ├──────────────────┤
+    │ │  │   └────────────────┘    │                │ atime_offset:   0 │      │     │       ...        │
+    │ │  │                         │                │ mtime_offset: 298 │      │     └──────────────────┘
     │ │  │                         │                │ ctime_offset:   0 │      │
     │ │  │    names[]              │                ├───────────────────┤      │      modes[]
     │ │  │   ┌────────────┐        │                │        ...        │      │     ┌─────────────┐
