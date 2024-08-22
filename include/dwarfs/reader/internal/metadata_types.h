@@ -165,6 +165,7 @@ class dir_entry_view_impl {
   void append_to(std::filesystem::path& p) const;
 
   uint32_t self_index() const { return self_index_; }
+  uint32_t parent_index() const { return parent_index_; }
 
  private:
   template <template <typename...> class Ctor>
