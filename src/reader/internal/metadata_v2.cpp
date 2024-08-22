@@ -560,6 +560,13 @@ class metadata_ final : public metadata_v2::impl {
         meta_.inodes()[index], inode, meta_)};
   }
 
+  inode_view_impl make_inode_view_impl(uint32_t inode) const {
+    // TODO: move compatibility details to metadata_types
+    uint32_t index =
+        meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
+    return inode_view_impl(meta_.inodes()[index], inode, meta_);
+  }
+
   dir_entry_view
   make_dir_entry_view(uint32_t self_index, uint32_t parent_index) const {
     return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
@@ -619,7 +626,7 @@ class metadata_ final : public metadata_v2::impl {
 
       auto it = std::lower_bound(range.begin(), range.end(), rank,
                                  [&](auto inode, inode_rank r) {
-                                   auto iv = make_inode_view(inode);
+                                   auto iv = make_inode_view_impl(inode);
                                    return get_inode_rank(iv.mode()) < r;
                                  });
 
@@ -627,10 +634,14 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  directory_view make_directory_view(inode_view iv) const {
+  directory_view make_directory_view(inode_view_impl const& iv) const {
     // TODO: revisit: is this the way to do it?
     DWARFS_CHECK(iv.is_directory(), "not a directory");
     return directory_view(iv.inode_num(), global_);
+  }
+
+  directory_view make_directory_view(inode_view iv) const {
+    return make_directory_view(iv.raw());
   }
 
   void analyze_chunks(std::ostream& os) const;
@@ -689,7 +700,7 @@ class metadata_ final : public metadata_v2::impl {
     return {};
   }
 
-  size_t reg_file_size_impl(inode_view iv, bool use_cache) const {
+  size_t reg_file_size_impl(inode_view_impl const& iv, bool use_cache) const {
     PERFMON_CLS_SCOPED_SECTION(reg_file_size)
 
     // Looking up the chunk range is cheap, and we likely have to do it anyway
@@ -716,15 +727,15 @@ class metadata_ final : public metadata_v2::impl {
         [](size_t s, chunk_view cv) { return s + cv.size(); });
   }
 
-  size_t reg_file_size_nocache(inode_view iv) const {
+  size_t reg_file_size_nocache(inode_view_impl const& iv) const {
     return reg_file_size_impl(iv, false);
   }
 
-  size_t reg_file_size(inode_view iv) const {
+  size_t reg_file_size(inode_view_impl const& iv) const {
     return reg_file_size_impl(iv, true);
   }
 
-  size_t file_size(inode_view iv, uint16_t mode) const {
+  size_t file_size(inode_view_impl const& iv, uint16_t mode) const {
     switch (posix_file_type::from_mode(mode)) {
     case posix_file_type::regular:
       return reg_file_size(iv);
@@ -733,6 +744,10 @@ class metadata_ final : public metadata_v2::impl {
     default:
       return 0;
     }
+  }
+
+  size_t file_size(inode_view const& iv, uint16_t mode) const {
+    return file_size(iv.raw(), mode);
   }
 
   // TODO: cleanup the walk logic
@@ -763,8 +778,8 @@ class metadata_ final : public metadata_v2::impl {
     return rv;
   }
 
-  std::string
-  link_value(inode_view iv, readlink_mode mode = readlink_mode::raw) const {
+  std::string link_value(inode_view_impl const& iv,
+                         readlink_mode mode = readlink_mode::raw) const {
     std::string rv =
         symlinks_[meta_
                       .symlink_table()[iv.inode_num() - symlink_inode_offset_]];
@@ -785,6 +800,11 @@ class metadata_ final : public metadata_v2::impl {
     }
 
     return rv;
+  }
+
+  std::string link_value(inode_view const& iv,
+                         readlink_mode mode = readlink_mode::raw) const {
+    return link_value(iv.raw(), mode);
   }
 
   uint64_t get_device_id(int inode) const {
@@ -971,7 +991,7 @@ void metadata_<LoggerPolicy>::check_inode_size_cache() const {
     for (auto entry : cache->lookup()) {
       auto inode = entry.first();
       auto size = entry.second();
-      auto iv = make_inode_view(file_inode_offset_ + inode);
+      auto iv = make_inode_view_impl(file_inode_offset_ + inode);
       LOG_TRACE << "checking inode " << inode << " size " << size;
       auto expected = reg_file_size_nocache(iv);
       if (size != expected) {
