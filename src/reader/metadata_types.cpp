@@ -87,6 +87,43 @@ std::filesystem::path dir_entry_view::fs_path() const {
 
 std::wstring dir_entry_view::wpath() const { return impl_->wpath(); }
 
+directory_iterator::directory_iterator(uint32_t inode, uint32_t first,
+                                       uint32_t last,
+                                       internal::global_metadata const& g)
+    : current_{first != last
+                   ? internal::dir_entry_view_impl::from_dir_entry_index_shared(
+                         first, g.self_dir_entry(inode), g)
+                   : nullptr}
+    , last_index_{last}
+    , g_{first != last ? &g : nullptr} {}
+
+directory_iterator::directory_iterator(uint32_t inode,
+                                       internal::global_metadata const& g)
+    : directory_iterator(inode, g.first_dir_entry(inode),
+                         g.first_dir_entry(inode + 1), g) {}
+
+directory_iterator& directory_iterator::operator++() {
+  auto const& raw = current_.raw();
+  auto next_index = raw.self_index() + 1;
+
+  if (next_index < last_index_) {
+    current_ = dir_entry_view{
+        internal::dir_entry_view_impl::from_dir_entry_index_shared(
+            next_index, raw.parent_index(), *g_)};
+  } else {
+    current_ = dir_entry_view{};
+    g_ = nullptr;
+  }
+
+  return *this;
+}
+
+bool directory_iterator::operator==(directory_iterator const& other) const {
+  return (!g_ && !other.g_) ||
+         (g_ == other.g_ &&
+          current_.raw().self_index() == other.current_.raw().self_index());
+}
+
 uint32_t directory_view::first_entry(uint32_t ino) const {
   return g_->first_dir_entry(ino);
 }
