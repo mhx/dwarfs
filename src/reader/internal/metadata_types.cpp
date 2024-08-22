@@ -663,16 +663,24 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
-    DWARFS_CHECK(self_index < de->size(), "self_index out of range");
-    DWARFS_CHECK(parent_index < de->size(), "parent_index out of range");
+    DWARFS_CHECK(self_index < de->size(),
+                 fmt::format("self_index out of range: {0} >= {1}", self_index,
+                             de->size()));
+    DWARFS_CHECK(parent_index < de->size(),
+                 fmt::format("parent_index out of range: {0} >= {1}",
+                             parent_index, de->size()));
 
     auto dev = (*de)[self_index];
 
     return Ctor<dir_entry_view_impl>()(dev, self_index, parent_index, g);
   }
 
-  DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
-  DWARFS_CHECK(parent_index < meta.inodes().size(), "self_index out of range");
+  DWARFS_CHECK(self_index < meta.inodes().size(),
+               fmt::format("self_index out of range: {0} >= {1}", self_index,
+                           meta.inodes().size()));
+  DWARFS_CHECK(parent_index < meta.inodes().size(),
+               fmt::format("parent_index out of range: {0} >= {1}",
+                           parent_index, meta.inodes().size()));
 
   auto iv = meta.inodes()[self_index];
 
@@ -685,19 +693,25 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
-    DWARFS_CHECK(self_index < de->size(), "self_index out of range");
+    DWARFS_CHECK(self_index < de->size(),
+                 fmt::format("self_index out of range: {0} >= {1}", self_index,
+                             de->size()));
     auto dev = (*de)[self_index];
     DWARFS_CHECK(dev.inode_num() < meta.directories().size(),
-                 "self_index inode out of range");
+                 fmt::format("inode_num out of range: {0} >= {1}",
+                             dev.inode_num(), meta.directories().size()));
     return Ctor<dir_entry_view_impl>()(dev, self_index,
                                        g.parent_dir_entry(dev.inode_num()), g);
   }
 
-  DWARFS_CHECK(self_index < meta.inodes().size(), "self_index out of range");
+  DWARFS_CHECK(self_index < meta.inodes().size(),
+               fmt::format("self_index out of range: {0} >= {1}", self_index,
+                           meta.inodes().size()));
   auto iv = meta.inodes()[self_index];
 
   DWARFS_CHECK(iv.inode_v2_2() < meta.directories().size(),
-               "parent_index out of range");
+               fmt::format("inode_v2_2 out of range: {0} >= {1}",
+                           iv.inode_v2_2(), meta.directories().size()));
   return Ctor<dir_entry_view_impl>()(
       iv, self_index,
       meta.entry_table_v2_2()[meta.directories()[iv.inode_v2_2()]
