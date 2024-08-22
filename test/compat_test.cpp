@@ -817,6 +817,27 @@ file_stat make_stat(posix_file_type::value type, file_stat::perms_type perms,
   return st;
 }
 
+template <typename T>
+void walk_tree(reader::filesystem_v2 const& fs, T& cb,
+               std::optional<reader::dir_entry_view> dev = std::nullopt) {
+  if (!dev) {
+    dev.emplace(fs.root());
+  }
+
+  cb(*dev);
+
+  auto iv = dev->inode();
+
+  if (iv.is_directory()) {
+    auto dir = fs.opendir(iv);
+    assert(dir);
+
+    for (auto e : *dir) {
+      walk_tree(fs, cb, e);
+    }
+  }
+}
+
 void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
                   std::string const& version) {
   bool has_devices = not(version == "0.2.0" or version == "0.2.3");
@@ -954,16 +975,38 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     foo.set_size(foo.size() - 1);
   }
 
-  for (auto mp : {&reader::filesystem_v2::walk,
-                  &reader::filesystem_v2::walk_data_order}) {
+  enum class walk_mode { normal, data_order, custom };
+
+  for (auto mode :
+       {walk_mode::normal, walk_mode::data_order, walk_mode::custom}) {
     std::map<std::string, file_stat> entries;
     std::vector<int> inodes;
+    std::vector<int> first_blocks;
 
-    (fs.*mp)([&](auto e) {
-      auto stbuf = fs.getattr(e.inode());
+    auto cb = [&](auto e) {
+      auto iv = e.inode();
+      auto stbuf = fs.getattr(iv);
       inodes.push_back(stbuf.ino());
       EXPECT_TRUE(entries.emplace(e.unix_path(), stbuf).second);
-    });
+      if (iv.is_regular_file()) {
+        auto i = fs.get_inode_info(iv);
+        if (!i["chunks"].empty()) {
+          first_blocks.push_back(i["chunks"][0]["block"].template get<int>());
+        }
+      }
+    };
+
+    switch (mode) {
+    case walk_mode::normal:
+      fs.walk(cb);
+      break;
+    case walk_mode::data_order:
+      fs.walk_data_order(cb);
+      break;
+    case walk_mode::custom:
+      walk_tree(fs, cb);
+      break;
+    }
 
     EXPECT_EQ(entries.size(), ref_entries.size());
 
@@ -981,6 +1024,18 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
         }
         EXPECT_EQ(it->second.size(), st.size()) << p;
       }
+    }
+
+    EXPECT_EQ(24, first_blocks.size());
+
+    switch (mode) {
+    case walk_mode::normal:
+    case walk_mode::custom:
+      EXPECT_FALSE(std::is_sorted(first_blocks.begin(), first_blocks.end()));
+      break;
+    case walk_mode::data_order:
+      EXPECT_TRUE(std::is_sorted(first_blocks.begin(), first_blocks.end()));
+      break;
     }
   }
 
@@ -1035,6 +1090,29 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   }
 
   EXPECT_EQ(ref_entries.size(), num);
+
+  std::map<std::string, std::vector<std::string>> testdirs{
+      {"empty", {"empty/alsoempty"}},
+      {"empty/alsoempty", {}},
+      {"foo/1/2/3/4/5", {"foo/1/2/3/4/5/6", "foo/1/2/3/4/5/z"}},
+      {"foo/1/2/3/4", {"foo/1/2/3/4/5", "foo/1/2/3/4/y"}},
+      {"foo/1/2/3", {"foo/1/2/3/4", "foo/1/2/3/copy.sh", "foo/1/2/3/x"}},
+      {"",
+       {"bench.sh", "dev", "empty", "foo", "foobar", "format.sh",
+        "perl-exec.sh", "test.py"}},
+  };
+
+  for (auto const& [td, expected] : testdirs) {
+    auto entry = fs.find(td.c_str());
+    ASSERT_TRUE(entry) << td;
+    auto dir = fs.opendir(*entry);
+    ASSERT_TRUE(dir) << td;
+    std::vector<std::string> paths;
+    for (auto const& dev : *dir) {
+      paths.emplace_back(dev.unix_path());
+    }
+    EXPECT_EQ(expected, paths) << td;
+  }
 }
 
 } // namespace
