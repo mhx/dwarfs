@@ -1089,6 +1089,44 @@ TEST(mkdwarfs_test, metadata_readdir) {
   }
 }
 
+TEST(mkdwarfs_test, metadata_directory_iterator) {
+  mkdwarfs_tester t;
+  t.os->add_dir("emptydir");
+  ASSERT_EQ(0, t.run("-l3 -i / -o -"));
+  auto fs = t.fs_from_stdout();
+
+  std::map<std::string, std::vector<std::string>> testdirs{
+      {"",
+       {"bar.pl", "baz.pl", "empty", "emptydir", "foo.pl", "ipsum.txt",
+        "somedir", "somelink", "test.pl"}},
+      {"somedir", {"bad", "empty", "ipsum.py"}},
+      {"emptydir", {}},
+  };
+
+  for (auto const& [path, expected_names] : testdirs) {
+    auto iv = fs.find(path.c_str());
+    ASSERT_TRUE(iv) << path;
+
+    auto dir = fs.opendir(*iv);
+    ASSERT_TRUE(dir) << path;
+
+    std::vector<std::string> actual_names;
+    std::vector<std::string> actual_paths;
+    for (auto const& dev : *dir) {
+      actual_names.push_back(dev.name());
+      actual_paths.push_back(dev.unix_path());
+    }
+
+    std::vector<std::string> expected_paths;
+    for (auto const& name : expected_names) {
+      expected_paths.push_back(path.empty() ? name : path + "/" + name);
+    }
+
+    EXPECT_EQ(expected_names, actual_names) << path;
+    EXPECT_EQ(expected_paths, actual_paths) << path;
+  }
+}
+
 TEST(mkdwarfs_test, metadata_access) {
 #ifdef _WIN32
 #define F_OK 0
