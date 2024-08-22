@@ -102,6 +102,42 @@ class dir_entry_view {
   std::shared_ptr<internal::dir_entry_view_impl const> impl_;
 };
 
+class directory_iterator {
+ public:
+  using value_type = dir_entry_view;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type const*;
+  using reference = value_type const&;
+
+  directory_iterator() = default;
+  directory_iterator(uint32_t inode, internal::global_metadata const& g);
+
+  reference operator*() const { return current_; }
+  pointer operator->() const { return &current_; }
+
+  directory_iterator& operator++();
+  directory_iterator operator++(int) {
+    auto tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  bool operator==(directory_iterator const& other) const;
+  bool operator!=(directory_iterator const& other) const {
+    return !(*this == other);
+  }
+
+ private:
+  directory_iterator(uint32_t inode, uint32_t first, uint32_t last,
+                     internal::global_metadata const& g);
+
+  dir_entry_view current_;
+  uint32_t last_index_{0};
+  internal::global_metadata const* g_{nullptr};
+};
+
+static_assert(std::input_iterator<directory_iterator>);
+
 class directory_view {
   template <typename T>
   friend class internal::metadata_;
@@ -116,6 +152,9 @@ class directory_view {
   uint32_t parent_entry() const { return parent_entry(inode_); }
   uint32_t entry_count() const;
   boost::integer_range<uint32_t> entry_range() const;
+
+  directory_iterator begin() const { return directory_iterator{inode_, *g_}; }
+  directory_iterator end() const { return directory_iterator{}; }
 
  private:
   directory_view(uint32_t inode, internal::global_metadata const& g)
