@@ -200,6 +200,7 @@ class save_directories_visitor : public visitor_base {
     thrift::metadata::directory dummy;
     dummy.parent_entry() = 0;
     dummy.first_entry() = mv2.dir_entries()->size();
+    dummy.self_entry() = 0;
     mv2.directories()->push_back(dummy);
 
     directories_.clear();
@@ -914,6 +915,7 @@ void scanner_<LoggerPolicy>::scan(
 
     for (auto& d : mv2.directories().value()) {
       d.parent_entry() = 0; // this will be recovered
+      d.self_entry() = 0;   // this will be recovered
       auto delta = d.first_entry().value() - last_first_entry;
       last_first_entry = d.first_entry().value();
       d.first_entry() = delta;

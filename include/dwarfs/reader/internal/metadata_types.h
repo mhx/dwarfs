@@ -52,6 +52,11 @@ class global_metadata {
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
+  using directories_view = ::apache::thrift::frozen::Layout<
+      std::vector<thrift::metadata::directory>>::View;
+  using bundled_directories_view =
+      ::apache::thrift::frozen::Bundled<directories_view>;
+
   global_metadata(logger& lgr, Meta const& meta);
 
   static void check_consistency(logger& lgr, Meta const& meta);
@@ -65,14 +70,12 @@ class global_metadata {
 
   dwarfs::internal::string_table const& names() const { return names_; }
 
-  std::vector<thrift::metadata::directory> const& directories() const {
-    return directories_;
-  }
+  std::optional<directories_view> bundled_directories() const;
 
  private:
   Meta const& meta_;
-  std::vector<thrift::metadata::directory> const directories_;
-  std::vector<uint32_t> const dir_self_index_;
+  std::optional<bundled_directories_view> const bundled_directories_;
+  directories_view const directories_;
   dwarfs::internal::string_table const names_;
 };
 

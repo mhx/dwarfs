@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <numeric>
 #include <queue>
@@ -38,6 +39,7 @@
 namespace dwarfs::reader::internal {
 
 using namespace dwarfs::internal;
+using namespace ::apache::thrift;
 
 namespace {
 
@@ -59,90 +61,127 @@ class stack_ctor {
   }
 };
 
-std::vector<thrift::metadata::directory>
+std::optional<global_metadata::bundled_directories_view>
 unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
+  auto has_self_entry = [&] {
+    auto layout = meta.findFirstOfType<
+        std::unique_ptr<frozen::Layout<thrift::metadata::metadata>>>();
+    return (*layout)
+               ->directoriesField.layout.itemField.layout.self_entryField.layout
+               .bits > 0;
+  };
+
+  auto opts = meta.options();
+  auto dep = meta.dir_entries();
+
+  if ((!opts or !opts->packed_directories()) and (!dep or has_self_entry())) {
+    return std::nullopt;
+  }
+
+  LOG_PROXY(debug_logger_policy, lgr);
+
+  auto td = LOG_TIMED_DEBUG;
+
+  auto dirent = *dep;
+  auto metadir = meta.directories();
+
   std::vector<thrift::metadata::directory> directories;
 
-  if (auto opts = meta.options(); opts and opts->packed_directories()) {
-    LOG_PROXY(debug_logger_policy, lgr);
-
-    auto ti = LOG_TIMED_DEBUG;
-
-    auto dirent = *meta.dir_entries();
-    auto metadir = meta.directories();
-
+  if (opts->packed_directories()) {
     directories.resize(metadir.size());
 
     // delta-decode first entries first
-    directories[0].first_entry() = metadir[0].first_entry();
+    {
+      auto tt = LOG_TIMED_TRACE;
 
-    for (size_t i = 1; i < directories.size(); ++i) {
-      directories[i].first_entry() =
-          directories[i - 1].first_entry().value() + metadir[i].first_entry();
+      directories[0].first_entry() = metadir[0].first_entry();
+
+      for (size_t i = 1; i < directories.size(); ++i) {
+        directories[i].first_entry() =
+            directories[i - 1].first_entry().value() + metadir[i].first_entry();
+      }
+
+      tt << "delta-decoded " << directories.size() << " first entries";
     }
 
     // then traverse to recover parent entries
-    std::queue<uint32_t> queue;
-    queue.push(0);
+    {
+      auto tt = LOG_TIMED_TRACE;
 
-    while (!queue.empty()) {
-      auto parent = queue.front();
-      queue.pop();
+      std::queue<uint32_t> queue;
+      queue.push(0);
 
-      auto p_ino = dirent[parent].inode_num();
+      while (!queue.empty()) {
+        auto parent = queue.front();
+        queue.pop();
 
-      auto beg = directories[p_ino].first_entry().value();
-      auto end = directories[p_ino + 1].first_entry().value();
+        auto p_ino = dirent[parent].inode_num();
 
-      for (auto e = beg; e < end; ++e) {
-        if (auto e_ino = dirent[e].inode_num();
-            e_ino < (directories.size() - 1)) {
-          directories[e_ino].parent_entry() = parent;
-          queue.push(e);
+        auto beg = directories[p_ino].first_entry().value();
+        auto end = directories[p_ino + 1].first_entry().value();
+
+        for (auto e = beg; e < end; ++e) {
+          if (auto e_ino = dirent[e].inode_num();
+              e_ino < (directories.size() - 1)) {
+            directories[e_ino].parent_entry() = parent;
+            queue.push(e);
+          }
         }
       }
-    }
 
-    ti << "unpacked directories table";
+      tt << "recovered " << directories.size() << " parent entries";
+    }
+  } else {
+    auto tt = LOG_TIMED_TRACE;
+
+    directories = metadir.thaw();
+
+    tt << "thawed " << directories.size() << " directories";
   }
 
-  return directories;
-}
+  // finally, set self entries
+  {
+    auto tt = LOG_TIMED_TRACE;
 
-std::vector<uint32_t>
-build_dir_self_index(logger& lgr, global_metadata::Meta const& meta) {
-  std::vector<uint32_t> index;
-
-  if (auto dep = meta.dir_entries()) {
-    LOG_PROXY(debug_logger_policy, lgr);
-
-    auto ti = LOG_TIMED_DEBUG;
-
-    auto const dir_count = meta.directories().size() - 1;
-
-    index.resize(dir_count);
-
-    for (size_t i = 0; i < dep->size(); ++i) {
-      auto ino = (*dep)[i].inode_num();
-      if (ino < dir_count) {
-        index[ino] = i;
+    for (size_t i = 0; i < dirent.size(); ++i) {
+      auto ino = dirent[i].inode_num();
+      if (ino < directories.size()) {
+        directories[ino].self_entry() = i;
       }
     }
 
-    auto check_index [[maybe_unused]] = [&] {
-      auto tmp = index;
-      std::sort(tmp.begin(), tmp.end());
-      std::adjacent_difference(tmp.begin(), tmp.end(), tmp.begin());
-      return std::all_of(tmp.begin() + 1, tmp.end(),
-                         [](auto i) { return i != 0; });
-    };
-
-    assert(check_index());
-
-    ti << "built directory self index table (size: " << dir_count << ")";
+    tt << "recoverd " << directories.size() << " self entries from "
+       << dirent.size() << " dir entries";
   }
 
-  return index;
+  // freeze to save memory
+  auto view = [&] {
+    auto tt = LOG_TIMED_TRACE;
+
+    auto v = frozen::freeze(directories);
+
+    tt << "froze " << directories.size() << " directories ("
+       << size_with_unit(sizeof(thrift::metadata::directory) *
+                         directories.size())
+       << ")";
+
+    return v;
+  }();
+
+  auto l_old = meta.findFirstOfType<
+      std::unique_ptr<frozen::Layout<thrift::metadata::metadata>>>();
+  auto bits_per_dir_old =
+      (*l_old)->directoriesField.layout.itemField.layout.bits;
+  auto l_new = view.findFirstOfType<std::unique_ptr<
+      frozen::Layout<std::vector<thrift::metadata::directory>>>>();
+  auto bits_per_dir_new = (*l_new)->itemField.layout.bits;
+
+  td << "unpacked directories table with " << directories.size() << " entries ("
+     << size_with_unit((bits_per_dir_old * directories.size() + 7) / 8)
+     << " -> "
+     << size_with_unit((bits_per_dir_new * directories.size() + 7) / 8) << ")";
+
+  return view;
 }
 
 // TODO: merge with inode_rank in metadata_v2
@@ -578,12 +617,18 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
   return meta;
 }
 
+template <typename T>
+T unbundled(frozen::Bundled<T> const& bundle) {
+  return bundle;
+}
+
 } // namespace
 
 global_metadata::global_metadata(logger& lgr, Meta const& meta)
     : meta_{meta}
-    , directories_{unpack_directories(lgr, meta_)}
-    , dir_self_index_{build_dir_self_index(lgr, meta_)}
+    , bundled_directories_{unpack_directories(lgr, meta_)}
+    , directories_{bundled_directories_ ? unbundled(*bundled_directories_)
+                                        : meta_.directories()}
     , names_{meta_.compact_names()
                  ? string_table(lgr, "names", *meta_.compact_names())
                  : string_table(meta_.names())} {}
@@ -597,18 +642,27 @@ void global_metadata::check_consistency(logger& lgr) const {
 }
 
 uint32_t global_metadata::first_dir_entry(uint32_t ino) const {
-  return !directories_.empty() ? directories_[ino].first_entry().value()
-                               : meta_.directories()[ino].first_entry();
+  return directories_[ino].first_entry();
 }
 
 uint32_t global_metadata::parent_dir_entry(uint32_t ino) const {
-  return !directories_.empty() ? directories_[ino].parent_entry().value()
-                               : meta_.directories()[ino].parent_entry();
+  return directories_[ino].parent_entry();
 }
 
 uint32_t global_metadata::self_dir_entry(uint32_t ino) const {
-  return !dir_self_index_.empty() ? dir_self_index_[ino]
-                                  : meta_.entry_table_v2_2()[ino];
+  if (!meta_.entry_table_v2_2().empty()) {
+    return meta_.entry_table_v2_2()[ino];
+  }
+
+  return directories_[ino].self_entry();
+}
+
+auto global_metadata::bundled_directories() const
+    -> std::optional<directories_view> {
+  if (bundled_directories_) {
+    return directories_;
+  }
+  return std::nullopt;
 }
 
 auto inode_view_impl::mode() const -> mode_type {

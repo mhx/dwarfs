@@ -373,6 +373,9 @@ void dir::pack(thrift::metadata::metadata& mv2,
     d.parent_entry() = 0;
   }
   d.first_entry() = mv2.dir_entries()->size();
+  auto se = entry_index();
+  DWARFS_CHECK(se, "self entry index not set");
+  d.self_entry() = *se;
   mv2.directories()->push_back(d);
   for (entry_ptr const& e : entries_) {
     e->set_entry_index(mv2.dir_entries()->size());
