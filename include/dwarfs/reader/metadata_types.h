@@ -125,8 +125,8 @@ class directory_view {
   uint32_t first_entry(uint32_t ino) const;
   uint32_t parent_entry(uint32_t ino) const;
 
-  uint32_t inode_;
-  internal::global_metadata const* g_;
+  uint32_t inode_{0};
+  internal::global_metadata const* g_{nullptr};
 };
 
 } // namespace dwarfs::reader
