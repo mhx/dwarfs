@@ -714,6 +714,10 @@ std::string dir_entry_view_impl::name() const {
     return "..";
   }
 
+  if (is_root()) {
+    return {};
+  }
+
   return v_ |
          match{
              [this](DirEntryView const& dev) {
