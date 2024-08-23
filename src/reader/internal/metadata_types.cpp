@@ -885,20 +885,6 @@ dir_entry_view_impl::name(uint32_t index, global_metadata const& g) {
   return std::string(g.meta().names()[iv.name_index_v2_2()]);
 }
 
-std::shared_ptr<inode_view_impl>
-dir_entry_view_impl::inode_shared(uint32_t index, global_metadata const& g) {
-  if (auto de = g.meta().dir_entries()) {
-    DWARFS_CHECK(index < de->size(), "index out of range");
-    auto dev = (*de)[index];
-    return std::make_shared<inode_view_impl>(g.meta().inodes()[dev.inode_num()],
-                                             dev.inode_num(), g.meta());
-  }
-
-  DWARFS_CHECK(index < g.meta().inodes().size(), "index out of range");
-  auto iv = g.meta().inodes()[index];
-  return std::make_shared<inode_view_impl>(iv, iv.inode_v2_2(), g.meta());
-}
-
 std::string dir_entry_view_impl::path() const {
   return u8string_to_string(fs_path().u8string());
 }
