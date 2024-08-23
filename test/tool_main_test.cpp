@@ -820,7 +820,7 @@ TEST(mkdwarfs_test, metadata_inode_info) {
   t.os->add_local_files(fits_data_dir);
   t.os->add_file("random", 4096, true);
 
-  ASSERT_EQ(0, t.run("-l3 -i / -o - --categorize"));
+  ASSERT_EQ(0, t.run("-l3 -i / -o - --categorize -S10")) << t.err();
 
   auto fs = t.fs_from_stdout();
 
@@ -832,6 +832,8 @@ TEST(mkdwarfs_test, metadata_inode_info) {
     ASSERT_TRUE(info.count("chunks") > 0);
 
     std::set<std::string> categories;
+
+    EXPECT_GE(info["chunks"].size(), 2);
 
     for (auto chunk : info["chunks"]) {
       ASSERT_TRUE(chunk.count("category") > 0);
@@ -855,6 +857,10 @@ TEST(mkdwarfs_test, metadata_inode_info) {
 
     std::set<std::string> categories;
 
+    auto chunk_count = info["chunks"].size();
+
+    EXPECT_GE(chunk_count, 12);
+
     for (auto chunk : info["chunks"]) {
       ASSERT_TRUE(chunk.count("category") > 0);
       categories.insert(chunk["category"].get<std::string>());
@@ -866,6 +872,12 @@ TEST(mkdwarfs_test, metadata_inode_info) {
     };
 
     EXPECT_EQ(expected, categories);
+
+    info = fs.get_inode_info(dev->inode(), 5);
+    ASSERT_TRUE(info.count("chunks") > 0);
+
+    EXPECT_EQ(fmt::format("too many chunks ({})", chunk_count),
+              info["chunks"].get<std::string>());
   }
 }
 
