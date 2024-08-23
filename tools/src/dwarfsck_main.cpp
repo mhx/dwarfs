@@ -288,7 +288,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
     reader::filesystem_options fsopts;
 
-    fsopts.metadata.enable_nlink = true;
+    fsopts.metadata.enable_nlink = false;
     fsopts.metadata.check_consistency = check_integrity;
     fsopts.image_offset = reader::parse_image_offset(image_offset);
 
