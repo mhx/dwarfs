@@ -34,6 +34,7 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_type.h>
 
+#include <dwarfs/internal/packed_ptr.h>
 #include <dwarfs/internal/string_table.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
@@ -119,38 +120,49 @@ class dir_entry_view_impl {
   using DirEntryView =
       ::apache::thrift::frozen::View<thrift::metadata::dir_entry>;
 
+  enum class entry_name_type : uint8_t {
+    other,
+    self,
+    parent,
+  };
+
   dir_entry_view_impl(DirEntryView v, uint32_t self_index,
-                      uint32_t parent_index, global_metadata const& g)
+                      uint32_t parent_index, global_metadata const& g,
+                      entry_name_type name_type)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , g_{&g} {}
+      , g_{&g, name_type} {}
 
   dir_entry_view_impl(InodeView v, uint32_t self_index, uint32_t parent_index,
-                      global_metadata const& g)
+                      global_metadata const& g, entry_name_type name_type)
       : v_{v}
       , self_index_{self_index}
       , parent_index_{parent_index}
-      , g_{&g} {}
+      , g_{&g, name_type} {}
 
-  static std::shared_ptr<dir_entry_view_impl>
-  from_dir_entry_index_shared(uint32_t self_index, uint32_t parent_index,
-                              global_metadata const& g);
-  static std::shared_ptr<dir_entry_view_impl>
-  from_dir_entry_index_shared(uint32_t self_index, global_metadata const& g);
+  static std::shared_ptr<dir_entry_view_impl> from_dir_entry_index_shared(
+      uint32_t self_index, uint32_t parent_index, global_metadata const& g,
+      entry_name_type name_type = entry_name_type::other);
+  static std::shared_ptr<dir_entry_view_impl> from_dir_entry_index_shared(
+      uint32_t self_index, global_metadata const& g,
+      entry_name_type name_type = entry_name_type::other);
 
   static dir_entry_view_impl
   from_dir_entry_index(uint32_t self_index, uint32_t parent_index,
-                       global_metadata const& g);
+                       global_metadata const& g,
+                       entry_name_type name_type = entry_name_type::other);
   static dir_entry_view_impl
-  from_dir_entry_index(uint32_t self_index, global_metadata const& g);
+  from_dir_entry_index(uint32_t self_index, global_metadata const& g,
+                       entry_name_type name_type = entry_name_type::other);
 
   // TODO: this works, but it's strange; a limited version of
   // dir_entry_view_impl
   //       should work without a parent for these use cases
-  static std::string name(uint32_t index, global_metadata const& g);
+  static std::string
+  name(uint32_t index, global_metadata const& g); // TODO: remove?
   static std::shared_ptr<inode_view_impl>
-  inode_shared(uint32_t index, global_metadata const& g);
+  inode_shared(uint32_t index, global_metadata const& g); // TODO: remove?
 
   std::string name() const;
   std::shared_ptr<inode_view_impl> inode_shared() const;
@@ -175,16 +187,18 @@ class dir_entry_view_impl {
   auto make_inode() const;
 
   template <template <typename...> class Ctor>
-  static auto make_dir_entry_view(uint32_t self_index, uint32_t parent_index,
-                                  global_metadata const& g);
+  static auto
+  make_dir_entry_view(uint32_t self_index, uint32_t parent_index,
+                      global_metadata const& g, entry_name_type name_type);
 
   template <template <typename...> class Ctor>
-  static auto
-  make_dir_entry_view(uint32_t self_index, global_metadata const& g);
+  static auto make_dir_entry_view(uint32_t self_index, global_metadata const& g,
+                                  entry_name_type name_type);
 
   std::variant<DirEntryView, InodeView> v_;
   uint32_t self_index_, parent_index_;
-  global_metadata const* g_;
+  dwarfs::internal::packed_ptr<global_metadata const, 2, entry_name_type> const
+      g_;
 };
 
 using chunk_view = ::apache::thrift::frozen::View<thrift::metadata::chunk>;
