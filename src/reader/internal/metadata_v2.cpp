@@ -817,19 +817,19 @@ class metadata_ final : public metadata_v2::impl {
     return 0;
   }
 
-  std::vector<uint32_t> unpack_chunk_table() const {
-    std::vector<uint32_t> chunk_table;
+  packed_int_vector<uint32_t> unpack_chunk_table() const {
+    packed_int_vector<uint32_t> chunk_table;
 
     if (auto opts = meta_.options(); opts and opts->packed_chunk_table()) {
       auto ti = LOG_TIMED_DEBUG;
 
-      chunk_table.resize(meta_.chunk_table().size());
+      chunk_table.reset(std::bit_width(meta_.chunks().size()));
+      chunk_table.reserve(meta_.chunk_table().size());
       std::partial_sum(meta_.chunk_table().begin(), meta_.chunk_table().end(),
-                       chunk_table.begin());
+                       std::back_inserter(chunk_table));
 
-      ti << "unpacked chunk table ("
-         << size_with_unit(sizeof(chunk_table.front()) * chunk_table.capacity())
-         << ")";
+      ti << "unpacked chunk table with " << chunk_table.size() << " entries ("
+         << size_with_unit(chunk_table.size_in_bytes()) << ")";
     }
 
     return chunk_table;
@@ -933,7 +933,7 @@ class metadata_ final : public metadata_v2::impl {
   const int dev_inode_offset_;
   const int inode_count_;
   const packed_int_vector<uint32_t> nlinks_;
-  const std::vector<uint32_t> chunk_table_;
+  const packed_int_vector<uint32_t> chunk_table_;
   const packed_int_vector<uint32_t> shared_files_;
   const int unique_files_;
   const metadata_options options_;
@@ -1455,7 +1455,7 @@ thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
 
   if (auto opts = meta.options()) {
     if (opts->packed_chunk_table().value()) {
-      meta.chunk_table() = chunk_table_;
+      meta.chunk_table() = chunk_table_.unpack();
     }
     if (auto const& dirs = global_.bundled_directories()) {
       meta.directories() = dirs->thaw();
