@@ -404,7 +404,7 @@ class metadata_ final : public metadata_v2::impl {
                                          : meta_.entry_table_v2_2().size())
       , nlinks_(build_nlinks(options))
       , chunk_table_(unpack_chunk_table())
-      , shared_files_(decompress_shared_files())
+      , shared_files_(unpack_shared_files())
       , unique_files_(dev_inode_offset_ - file_inode_offset_ -
                       (shared_files_.empty()
                            ? meta_.shared_files_table()
@@ -835,8 +835,8 @@ class metadata_ final : public metadata_v2::impl {
     return chunk_table;
   }
 
-  std::vector<uint32_t> decompress_shared_files() const {
-    std::vector<uint32_t> decompressed;
+  packed_int_vector<uint32_t> unpack_shared_files() const {
+    packed_int_vector<uint32_t> unpacked;
 
     if (auto opts = meta_.options();
         opts and opts->packed_shared_files_table()) {
@@ -844,24 +844,28 @@ class metadata_ final : public metadata_v2::impl {
         auto ti = LOG_TIMED_DEBUG;
 
         auto size = std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
-        decompressed.reserve(size);
+        unpacked.reset(std::bit_width(sfp->size()), size);
 
-        uint32_t index = 0;
+        uint32_t target = 0;
+        size_t index = 0;
+
         for (auto c : *sfp) {
-          decompressed.insert(decompressed.end(), c + 2, index++);
+          for (size_t i = 0; i < c + 2; ++i) {
+            unpacked.set(index++, target);
+          }
+
+          ++target;
         }
 
-        DWARFS_CHECK(decompressed.size() == size,
-                     "unexpected decompressed shared files count");
+        DWARFS_CHECK(unpacked.size() == size,
+                     "unexpected unpacked shared files count");
 
-        ti << "decompressed shared files table ("
-           << size_with_unit(sizeof(decompressed.front()) *
-                             decompressed.capacity())
-           << ")";
+        ti << "unpacked shared files table with " << unpacked.size()
+           << " entries (" << size_with_unit(unpacked.size_in_bytes()) << ")";
       }
     }
 
-    return decompressed;
+    return unpacked;
   }
 
   packed_int_vector<uint32_t>
@@ -930,7 +934,7 @@ class metadata_ final : public metadata_v2::impl {
   const int inode_count_;
   const packed_int_vector<uint32_t> nlinks_;
   const std::vector<uint32_t> chunk_table_;
-  const std::vector<uint32_t> shared_files_;
+  const packed_int_vector<uint32_t> shared_files_;
   const int unique_files_;
   const metadata_options options_;
   const string_table symlinks_;
@@ -1457,7 +1461,7 @@ thrift::metadata::metadata metadata_<LoggerPolicy>::unpack_metadata() const {
       meta.directories() = dirs->thaw();
     }
     if (opts->packed_shared_files_table().value()) {
-      meta.shared_files_table() = shared_files_;
+      meta.shared_files_table() = shared_files_.unpack();
     }
     if (auto const& names = global_.names(); names.is_packed()) {
       meta.names() = names.unpack();
