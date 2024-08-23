@@ -620,15 +620,15 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   auto foo = fs.find("/foo.pl");
   auto ipsum = fs.find("/somedir/ipsum.py");
 
-  EXPECT_TRUE(link);
-  EXPECT_TRUE(foo);
-  EXPECT_TRUE(ipsum);
+  ASSERT_TRUE(link);
+  ASSERT_TRUE(foo);
+  ASSERT_TRUE(ipsum);
 
   EXPECT_FALSE(fs.find("/test.pl"));
 
-  EXPECT_TRUE(link->is_symlink());
-  EXPECT_TRUE(foo->is_regular_file());
-  EXPECT_TRUE(ipsum->is_regular_file());
+  EXPECT_TRUE(link->inode().is_symlink());
+  EXPECT_TRUE(foo->inode().is_regular_file());
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
 
   std::set<fs::path> const expected = {"", "somelink", "foo.pl", "somedir",
                                        fs::path("somedir") / "ipsum.py"};
@@ -691,11 +691,11 @@ TEST_P(logging_test, end_to_end) {
 
   auto fs = t.fs_from_file(image_file);
 
-  auto iv16 = fs.find("/test8.aiff");
-  auto iv32 = fs.find("/test8.caf");
+  auto dev16 = fs.find("/test8.aiff");
+  auto dev32 = fs.find("/test8.caf");
 
-  EXPECT_TRUE(iv16);
-  EXPECT_TRUE(iv32);
+  EXPECT_TRUE(dev16);
+  EXPECT_TRUE(dev32);
 
   {
     std::vector<std::string> dumps;
@@ -824,10 +824,10 @@ TEST(mkdwarfs_test, metadata_inode_info) {
   auto fs = t.fs_from_stdout();
 
   {
-    auto iv = fs.find("/test8.aiff");
-    ASSERT_TRUE(iv);
+    auto dev = fs.find("/test8.aiff");
+    ASSERT_TRUE(dev);
 
-    auto info = fs.get_inode_info(*iv);
+    auto info = fs.get_inode_info(dev->inode());
     ASSERT_TRUE(info.count("chunks") > 0);
 
     std::set<std::string> categories;
@@ -846,10 +846,10 @@ TEST(mkdwarfs_test, metadata_inode_info) {
   }
 
   {
-    auto iv = fs.find("/test.fits");
-    ASSERT_TRUE(iv);
+    auto dev = fs.find("/test.fits");
+    ASSERT_TRUE(dev);
 
-    auto info = fs.get_inode_info(*iv);
+    auto info = fs.get_inode_info(dev->inode());
     ASSERT_TRUE(info.count("chunks") > 0);
 
     std::set<std::string> categories;
@@ -903,10 +903,11 @@ TEST(mkdwarfs_test, metadata_path) {
   auto e4 = entries.at(16);
   auto e5 = entries.at(32);
 
-  auto de = fs.find(d1.string().c_str());
+  auto dev = fs.find(d1.string().c_str());
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
 
-  ASSERT_TRUE(de);
-  EXPECT_EQ(de->mode_string(), "---drwxr-xr-x");
+  EXPECT_EQ(iv.mode_string(), "---drwxr-xr-x");
   EXPECT_EQ(e1.inode().mode_string(), "----rw-r--r--");
 
   EXPECT_EQ(e1.fs_path(), f1);
@@ -972,17 +973,17 @@ TEST(mkdwarfs_test, metadata_modes) {
   ASSERT_TRUE(d10);
   ASSERT_TRUE(d11);
 
-  EXPECT_EQ(d1->mode_string(), "---drwxrwxrwx");
-  EXPECT_EQ(d2->mode_string(), "----rw-------");
-  EXPECT_EQ(d3->mode_string(), "---lrwxrwxrwx");
-  EXPECT_EQ(d4->mode_string(), "---drwxrwxrwx");
-  EXPECT_EQ(d5->mode_string(), "---prw-r--r--");
-  EXPECT_EQ(d6->mode_string(), "---crw-rw-rw-");
-  EXPECT_EQ(d7->mode_string(), "U---rwxr-xr-x");
-  EXPECT_EQ(d8->mode_string(), "-G--rwxr-xr-x");
-  EXPECT_EQ(d9->mode_string(), "--S-rwxr-xr-x");
-  EXPECT_EQ(d10->mode_string(), "---brw-rw-rw-");
-  EXPECT_EQ(d11->mode_string(), "---srw-rw-rw-");
+  EXPECT_EQ(d1->inode().mode_string(), "---drwxrwxrwx");
+  EXPECT_EQ(d2->inode().mode_string(), "----rw-------");
+  EXPECT_EQ(d3->inode().mode_string(), "---lrwxrwxrwx");
+  EXPECT_EQ(d4->inode().mode_string(), "---drwxrwxrwx");
+  EXPECT_EQ(d5->inode().mode_string(), "---prw-r--r--");
+  EXPECT_EQ(d6->inode().mode_string(), "---crw-rw-rw-");
+  EXPECT_EQ(d7->inode().mode_string(), "U---rwxr-xr-x");
+  EXPECT_EQ(d8->inode().mode_string(), "-G--rwxr-xr-x");
+  EXPECT_EQ(d9->inode().mode_string(), "--S-rwxr-xr-x");
+  EXPECT_EQ(d10->inode().mode_string(), "---brw-rw-rw-");
+  EXPECT_EQ(d11->inode().mode_string(), "---srw-rw-rw-");
 }
 
 TEST(mkdwarfs_test, metadata_specials) {
@@ -1014,11 +1015,11 @@ TEST(mkdwarfs_test, metadata_specials) {
   EXPECT_THAT(dump, ::testing::HasSubstr("socket"));
   EXPECT_THAT(dump, ::testing::HasSubstr("named pipe"));
 
-  auto iv = fs.find("/block");
-  ASSERT_TRUE(iv);
+  auto dev = fs.find("/block");
+  ASSERT_TRUE(dev);
 
   std::error_code ec;
-  auto stat = fs.getattr(*iv, ec);
+  auto stat = fs.getattr(dev->inode(), ec);
   EXPECT_FALSE(ec);
 
   EXPECT_TRUE(stat.is_device());
@@ -1040,11 +1041,11 @@ TEST(mkdwarfs_test, metadata_time_resolution) {
   auto dyn = fs.info_as_json({.features = reader::fsinfo_features::all()});
   EXPECT_EQ(60, dyn["time_resolution"].get<int>());
 
-  auto iv = fs.find("/suid");
-  ASSERT_TRUE(iv);
+  auto dev = fs.find("/suid");
+  ASSERT_TRUE(dev);
 
   std::error_code ec;
-  auto stat = fs.getattr(*iv, ec);
+  auto stat = fs.getattr(dev->inode(), ec);
   EXPECT_FALSE(ec);
   EXPECT_EQ(3300, stat.atime());
   EXPECT_EQ(2220, stat.mtime());
@@ -1056,10 +1057,11 @@ TEST(mkdwarfs_test, metadata_readdir) {
   ASSERT_EQ(0, t.run("-l3 -i / -o -"));
   auto fs = t.fs_from_stdout();
 
-  auto iv = fs.find("/somedir");
-  ASSERT_TRUE(iv);
+  auto dev = fs.find("/somedir");
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
 
-  auto dir = fs.opendir(*iv);
+  auto dir = fs.opendir(iv);
   ASSERT_TRUE(dir);
 
   {
@@ -1067,7 +1069,7 @@ TEST(mkdwarfs_test, metadata_readdir) {
     ASSERT_TRUE(r);
 
     EXPECT_EQ(".", r->name());
-    EXPECT_EQ(r->inode().inode_num(), iv->inode_num());
+    EXPECT_EQ(r->inode().inode_num(), iv.inode_num());
   }
 
   {
@@ -1078,7 +1080,7 @@ TEST(mkdwarfs_test, metadata_readdir) {
 
     auto parent = fs.find("/");
     ASSERT_TRUE(parent);
-    EXPECT_EQ(r->inode().inode_num(), parent->inode_num());
+    EXPECT_EQ(r->inode().inode_num(), parent->inode().inode_num());
   }
 
   {
@@ -1102,10 +1104,10 @@ TEST(mkdwarfs_test, metadata_directory_iterator) {
   };
 
   for (auto const& [path, expected_names] : testdirs) {
-    auto iv = fs.find(path.c_str());
-    ASSERT_TRUE(iv) << path;
+    auto dev = fs.find(path.c_str());
+    ASSERT_TRUE(dev) << path;
 
-    auto dir = fs.opendir(*iv);
+    auto dir = fs.opendir(dev->inode());
     ASSERT_TRUE(dir) << path;
 
     std::vector<std::string> actual_names;
@@ -1143,43 +1145,45 @@ TEST(mkdwarfs_test, metadata_access) {
   {
     auto fs = t.fs_from_stdout();
 
-    auto iv = fs.find("/access");
-    ASSERT_TRUE(iv);
+    auto dev = fs.find("/access");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
 
-    EXPECT_TRUE(fs.access(*iv, F_OK, 1, 1));
+    EXPECT_TRUE(fs.access(iv, F_OK, 1, 1));
 
-    EXPECT_FALSE(fs.access(*iv, R_OK, 1, 1));
-    EXPECT_TRUE(fs.access(*iv, W_OK, 1, 1));
-    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 1));
+    EXPECT_FALSE(fs.access(iv, R_OK, 1, 1));
+    EXPECT_TRUE(fs.access(iv, W_OK, 1, 1));
+    EXPECT_FALSE(fs.access(iv, x_ok, 1, 1));
 
-    EXPECT_TRUE(fs.access(*iv, R_OK, 1, 3333));
-    EXPECT_TRUE(fs.access(*iv, W_OK, 1, 3333));
-    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 3333));
+    EXPECT_TRUE(fs.access(iv, R_OK, 1, 3333));
+    EXPECT_TRUE(fs.access(iv, W_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(iv, x_ok, 1, 3333));
 
-    EXPECT_TRUE(fs.access(*iv, R_OK, 222, 7));
-    EXPECT_TRUE(fs.access(*iv, W_OK, 222, 7));
-    EXPECT_TRUE(fs.access(*iv, x_ok, 222, 7));
+    EXPECT_TRUE(fs.access(iv, R_OK, 222, 7));
+    EXPECT_TRUE(fs.access(iv, W_OK, 222, 7));
+    EXPECT_TRUE(fs.access(iv, x_ok, 222, 7));
   }
 
   {
     auto fs = t.fs_from_stdout({.metadata = {.readonly = true}});
 
-    auto iv = fs.find("/access");
-    ASSERT_TRUE(iv);
+    auto dev = fs.find("/access");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
 
-    EXPECT_TRUE(fs.access(*iv, F_OK, 1, 1));
+    EXPECT_TRUE(fs.access(iv, F_OK, 1, 1));
 
-    EXPECT_FALSE(fs.access(*iv, R_OK, 1, 1));
-    EXPECT_FALSE(fs.access(*iv, W_OK, 1, 1));
-    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 1));
+    EXPECT_FALSE(fs.access(iv, R_OK, 1, 1));
+    EXPECT_FALSE(fs.access(iv, W_OK, 1, 1));
+    EXPECT_FALSE(fs.access(iv, x_ok, 1, 1));
 
-    EXPECT_TRUE(fs.access(*iv, R_OK, 1, 3333));
-    EXPECT_FALSE(fs.access(*iv, W_OK, 1, 3333));
-    EXPECT_FALSE(fs.access(*iv, x_ok, 1, 3333));
+    EXPECT_TRUE(fs.access(iv, R_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(iv, W_OK, 1, 3333));
+    EXPECT_FALSE(fs.access(iv, x_ok, 1, 3333));
 
-    EXPECT_TRUE(fs.access(*iv, R_OK, 222, 7));
-    EXPECT_FALSE(fs.access(*iv, W_OK, 222, 7));
-    EXPECT_TRUE(fs.access(*iv, x_ok, 222, 7));
+    EXPECT_TRUE(fs.access(iv, R_OK, 222, 7));
+    EXPECT_FALSE(fs.access(iv, W_OK, 222, 7));
+    EXPECT_TRUE(fs.access(iv, x_ok, 222, 7));
   }
 }
 
@@ -2336,9 +2340,9 @@ TEST(mkdwarfs_test, max_similarity_size) {
 
     for (auto size : sizes) {
       auto path = "/file" + std::to_string(size);
-      auto iv = fs.find(path.c_str());
-      assert(iv);
-      auto info = fs.get_inode_info(*iv);
+      auto dev = fs.find(path.c_str());
+      assert(dev);
+      auto info = fs.get_inode_info(dev->inode());
       assert(1 == info["chunks"].size());
       auto const& chunk = info["chunks"][0];
       tmp.emplace_back(chunk["offset"].get<int>(), chunk["size"].get<int>());
@@ -2480,13 +2484,14 @@ TEST(mkdwarfs_test, filesystem_read_error) {
   mkdwarfs_tester t;
   EXPECT_EQ(0, t.run("-i / -o -")) << t.err();
   auto fs = t.fs_from_stdout();
-  auto iv = fs.find("/somedir");
-  ASSERT_TRUE(iv);
-  EXPECT_TRUE(iv->is_directory());
-  EXPECT_THAT([&] { fs.open(*iv); }, ::testing::Throws<std::system_error>());
+  auto dev = fs.find("/somedir");
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
+  EXPECT_TRUE(iv.is_directory());
+  EXPECT_THAT([&] { fs.open(iv); }, ::testing::Throws<std::system_error>());
   {
     std::error_code ec;
-    auto res = fs.open(*iv, ec);
+    auto res = fs.open(iv, ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(EINVAL, ec.value());
     EXPECT_EQ(0, res);
@@ -2494,28 +2499,28 @@ TEST(mkdwarfs_test, filesystem_read_error) {
   {
     char buf[1];
     std::error_code ec;
-    auto num = fs.read(iv->inode_num(), buf, sizeof(buf), ec);
+    auto num = fs.read(iv.inode_num(), buf, sizeof(buf), ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(0, num);
     EXPECT_EQ(EINVAL, ec.value());
-    EXPECT_THAT([&] { fs.read(iv->inode_num(), buf, sizeof(buf)); },
+    EXPECT_THAT([&] { fs.read(iv.inode_num(), buf, sizeof(buf)); },
                 ::testing::Throws<std::system_error>());
   }
   {
     reader::iovec_read_buf buf;
     std::error_code ec;
-    auto num = fs.readv(iv->inode_num(), buf, 42, ec);
+    auto num = fs.readv(iv.inode_num(), buf, 42, ec);
     EXPECT_EQ(0, num);
     EXPECT_TRUE(ec);
     EXPECT_EQ(EINVAL, ec.value());
   }
   {
     std::error_code ec;
-    auto res = fs.readv(iv->inode_num(), 42, ec);
+    auto res = fs.readv(iv.inode_num(), 42, ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(EINVAL, ec.value());
   }
-  EXPECT_THAT([&] { fs.readv(iv->inode_num(), 42); },
+  EXPECT_THAT([&] { fs.readv(iv.inode_num(), 42); },
               ::testing::Throws<std::system_error>());
 }
 
@@ -2665,10 +2670,12 @@ TEST_P(map_file_error_test, delayed) {
     ASSERT_TRUE(large_link2);
     ASSERT_TRUE(small_link1);
     ASSERT_TRUE(small_link2);
-    EXPECT_EQ(large_link1->inode_num(), large_link2->inode_num());
-    EXPECT_EQ(small_link1->inode_num(), small_link2->inode_num());
-    EXPECT_EQ(0, fs.getattr(*large_link1).size());
-    EXPECT_EQ(0, fs.getattr(*small_link1).size());
+    EXPECT_EQ(large_link1->inode().inode_num(),
+              large_link2->inode().inode_num());
+    EXPECT_EQ(small_link1->inode().inode_num(),
+              small_link2->inode().inode_num());
+    EXPECT_EQ(0, fs.getattr(large_link1->inode()).size());
+    EXPECT_EQ(0, fs.getattr(small_link1->inode()).size());
   }
 
   std::unordered_map<fs::path, std::string, fs_path_hash> actual_files;
@@ -2807,14 +2814,15 @@ TEST(block_cache, sequential_access_detector) {
 #ifdef _WIN32
         std::replace(pstr.begin(), pstr.end(), '\\', '/');
 #endif
-        auto iv = fs.find(pstr.c_str());
-        ASSERT_TRUE(iv);
-        ASSERT_TRUE(iv->is_regular_file());
-        auto st = fs.getattr(*iv);
+        auto dev = fs.find(pstr.c_str());
+        ASSERT_TRUE(dev);
+        auto iv = dev->inode();
+        ASSERT_TRUE(iv.is_regular_file());
+        auto st = fs.getattr(iv);
         ASSERT_EQ(data.size(), st.size());
         std::string buffer;
         buffer.resize(data.size());
-        auto nread = fs.read(iv->inode_num(), buffer.data(), st.size());
+        auto nread = fs.read(iv.inode_num(), buffer.data(), st.size());
         EXPECT_EQ(data.size(), nread);
         EXPECT_EQ(data, buffer);
       }
@@ -2912,12 +2920,13 @@ TEST(file_scanner, large_file_handling) {
   auto fs = t.fs_from_stdout();
 
   for (size_t i = 0; i < data.size(); ++i) {
-    auto iv = fs.find(fmt::format("f{}", i).c_str());
-    ASSERT_TRUE(iv) << i;
-    auto st = fs.getattr(*iv);
+    auto dev = fs.find(fmt::format("f{}", i).c_str());
+    ASSERT_TRUE(dev) << i;
+    auto iv = dev->inode();
+    auto st = fs.getattr(iv);
     std::string buffer;
     buffer.resize(st.size());
-    auto nread = fs.read(iv->inode_num(), buffer.data(), st.size());
+    auto nread = fs.read(iv.inode_num(), buffer.data(), st.size());
     EXPECT_EQ(data[i].size(), nread) << i;
     EXPECT_EQ(data[i], buffer) << i;
   }
