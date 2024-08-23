@@ -30,6 +30,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
@@ -128,13 +129,13 @@ class filesystem_v2 {
 
   dir_entry_view root() const { return impl_->root(); }
 
-  std::optional<dir_entry_view> find(const char* path) const {
+  std::optional<dir_entry_view> find(std::string_view path) const {
     return impl_->find(path);
   }
 
   std::optional<inode_view> find(int inode) const { return impl_->find(inode); }
 
-  std::optional<dir_entry_view> find(int inode, const char* name) const {
+  std::optional<dir_entry_view> find(int inode, std::string_view name) const {
     return impl_->find(inode, name);
   }
 
@@ -362,10 +363,10 @@ class filesystem_v2 {
     virtual void
     walk_data_order(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual dir_entry_view root() const = 0;
-    virtual std::optional<dir_entry_view> find(const char* path) const = 0;
+    virtual std::optional<dir_entry_view> find(std::string_view path) const = 0;
     virtual std::optional<inode_view> find(int inode) const = 0;
     virtual std::optional<dir_entry_view>
-    find(int inode, const char* name) const = 0;
+    find(int inode, std::string_view name) const = 0;
     virtual file_stat getattr(inode_view entry, std::error_code& ec) const = 0;
     virtual file_stat getattr(inode_view entry, getattr_options const& opts,
                               std::error_code& ec) const = 0;

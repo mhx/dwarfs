@@ -1306,10 +1306,10 @@ TEST(filesystem, find_by_path) {
   EXPECT_GT(paths.size(), 10);
 
   for (auto const& p : paths) {
-    auto dev = fs.find(p.c_str());
+    auto dev = fs.find(p);
     ASSERT_TRUE(dev) << p;
     EXPECT_FALSE(fs.find(dev->inode().inode_num(), "desktop.ini")) << p;
-    EXPECT_FALSE(fs.find((p + "/desktop.ini").c_str())) << p;
+    EXPECT_FALSE(fs.find(p + "/desktop.ini")) << p;
   }
 }
 

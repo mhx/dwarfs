@@ -501,10 +501,10 @@ class metadata_ final : public metadata_v2::impl {
 
   dir_entry_view root() const override { return root_; }
 
-  std::optional<dir_entry_view> find(const char* path) const override;
+  std::optional<dir_entry_view> find(std::string_view path) const override;
   std::optional<inode_view> find(int inode) const override;
   std::optional<dir_entry_view>
-  find(int inode, const char* name) const override;
+  find(int inode, std::string_view name) const override;
 
   file_stat getattr(inode_view iv, std::error_code& ec) const override;
   file_stat getattr(inode_view iv, getattr_options const& opts,
@@ -1650,30 +1650,38 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
 template <typename LoggerPolicy>
 std::optional<dir_entry_view>
-metadata_<LoggerPolicy>::find(const char* path) const {
-  while (*path == '/') {
-    ++path;
+metadata_<LoggerPolicy>::find(std::string_view path) const {
+  auto start = path.find_first_not_of('/');
+
+  if (start != std::string_view::npos) {
+    path.remove_prefix(start);
+  } else {
+    path = {};
   }
 
   auto dev = std::make_optional(root_);
 
-  while (*path) {
-    const char* next = ::strchr(path, '/');
-    size_t clen = next ? next - path : ::strlen(path); // Flawfinder: ignore
-
+  while (!path.empty()) {
     auto iv = dev->inode();
 
     if (!iv.is_directory()) {
       return std::nullopt;
     }
 
-    dev = find(make_directory_view(iv), std::string_view(path, clen));
+    auto name = path;
+
+    if (auto sep = path.find('/'); sep != std::string_view::npos) {
+      name = path.substr(0, sep);
+      path.remove_prefix(sep + 1);
+    } else {
+      path = {};
+    }
+
+    dev = find(make_directory_view(iv), name);
 
     if (!dev) {
       break;
     }
-
-    path = next ? next + 1 : path + clen;
   }
 
   return dev;
@@ -1686,9 +1694,9 @@ std::optional<inode_view> metadata_<LoggerPolicy>::find(int inode) const {
 
 template <typename LoggerPolicy>
 std::optional<dir_entry_view>
-metadata_<LoggerPolicy>::find(int inode, const char* name) const {
+metadata_<LoggerPolicy>::find(int inode, std::string_view name) const {
   if (auto iv = get_entry(inode); iv and iv->is_directory()) {
-    return find(make_directory_view(*iv), std::string_view(name));
+    return find(make_directory_view(*iv), name);
   }
 
   return std::nullopt;
