@@ -1114,6 +1114,11 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
       paths.emplace_back(dev.unix_path());
     }
     EXPECT_EQ(expected, paths) << td;
+    paths.clear();
+    for (auto it = dir->begin(); it != dir->end();) {
+      paths.emplace_back((it++)->unix_path());
+    }
+    EXPECT_EQ(expected, paths) << td;
   }
 }
 
