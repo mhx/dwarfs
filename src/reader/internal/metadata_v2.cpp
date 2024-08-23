@@ -1655,7 +1655,7 @@ metadata_<LoggerPolicy>::find(const char* path) const {
     ++path;
   }
 
-  std::optional<dir_entry_view> dev = root_;
+  auto dev = std::make_optional(root_);
 
   while (*path) {
     const char* next = ::strchr(path, '/');
