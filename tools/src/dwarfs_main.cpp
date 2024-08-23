@@ -804,13 +804,11 @@ int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
   ::memset(&st, 0, sizeof(st));
 
   while (off < lastoff && policy.keep_going()) {
-    auto res = fs.readdir(*dir, off);
-    assert(res);
-
-    auto [entry, name] = *res;
+    auto dev = fs.readdir(*dir, off);
+    assert(dev);
 
     std::error_code ec;
-    auto stbuf = fs.getattr(entry, ec);
+    auto stbuf = fs.getattr(dev->inode(), ec);
 
     if (ec) {
       return ec.value();
@@ -818,7 +816,7 @@ int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
 
     stbuf.copy_to(&st);
 
-    if (!policy.add_entry(name, st, off)) {
+    if (!policy.add_entry(dev->name(), st, off)) {
       break;
     }
 
