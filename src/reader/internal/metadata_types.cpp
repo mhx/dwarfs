@@ -705,6 +705,15 @@ auto inode_view_impl::getgid() const -> gid_type {
 // TODO: pretty certain some of this stuff can be simplified
 
 std::string dir_entry_view_impl::name() const {
+  switch (g_.get_data()) {
+  case entry_name_type::other:
+    break;
+  case entry_name_type::self:
+    return ".";
+  case entry_name_type::parent:
+    return "..";
+  }
+
   return v_ |
          match{
              [this](DirEntryView const& dev) {
@@ -755,7 +764,8 @@ bool dir_entry_view_impl::is_root() const {
 template <template <typename...> class Ctor>
 auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
                                               uint32_t parent_index,
-                                              global_metadata const& g) {
+                                              global_metadata const& g,
+                                              entry_name_type name_type) {
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
@@ -768,7 +778,8 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
 
     auto dev = (*de)[self_index];
 
-    return Ctor<dir_entry_view_impl>()(dev, self_index, parent_index, g);
+    return Ctor<dir_entry_view_impl>()(dev, self_index, parent_index, g,
+                                       name_type);
   }
 
   DWARFS_CHECK(self_index < meta.inodes().size(),
@@ -780,12 +791,14 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
 
   auto iv = meta.inodes()[self_index];
 
-  return Ctor<dir_entry_view_impl>()(iv, self_index, parent_index, g);
+  return Ctor<dir_entry_view_impl>()(iv, self_index, parent_index, g,
+                                     name_type);
 }
 
 template <template <typename...> class Ctor>
 auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
-                                              global_metadata const& g) {
+                                              global_metadata const& g,
+                                              entry_name_type name_type) {
   auto& meta = g.meta();
 
   if (auto de = meta.dir_entries()) {
@@ -796,8 +809,8 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
     DWARFS_CHECK(dev.inode_num() < meta.directories().size(),
                  fmt::format("inode_num out of range: {0} >= {1}",
                              dev.inode_num(), meta.directories().size()));
-    return Ctor<dir_entry_view_impl>()(dev, self_index,
-                                       g.parent_dir_entry(dev.inode_num()), g);
+    return Ctor<dir_entry_view_impl>()(
+        dev, self_index, g.parent_dir_entry(dev.inode_num()), g, name_type);
   }
 
   DWARFS_CHECK(self_index < meta.inodes().size(),
@@ -812,33 +825,39 @@ auto dir_entry_view_impl::make_dir_entry_view(uint32_t self_index,
       iv, self_index,
       meta.entry_table_v2_2()[meta.directories()[iv.inode_v2_2()]
                                   .parent_entry()],
-      g);
+      g, name_type);
 }
 
 std::shared_ptr<dir_entry_view_impl>
 dir_entry_view_impl::from_dir_entry_index_shared(uint32_t self_index,
                                                  uint32_t parent_index,
-                                                 global_metadata const& g) {
-  return make_dir_entry_view<shared_ptr_ctor>(self_index, parent_index, g);
+                                                 global_metadata const& g,
+                                                 entry_name_type name_type) {
+  return make_dir_entry_view<shared_ptr_ctor>(self_index, parent_index, g,
+                                              name_type);
 }
 
 std::shared_ptr<dir_entry_view_impl>
 dir_entry_view_impl::from_dir_entry_index_shared(uint32_t self_index,
-                                                 global_metadata const& g) {
-  return make_dir_entry_view<shared_ptr_ctor>(self_index, g);
+                                                 global_metadata const& g,
+                                                 entry_name_type name_type) {
+  return make_dir_entry_view<shared_ptr_ctor>(self_index, g, name_type);
 }
 
 dir_entry_view_impl
 dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
                                           uint32_t parent_index,
-                                          global_metadata const& g) {
-  return make_dir_entry_view<stack_ctor>(self_index, parent_index, g);
+                                          global_metadata const& g,
+                                          entry_name_type name_type) {
+  return make_dir_entry_view<stack_ctor>(self_index, parent_index, g,
+                                         name_type);
 }
 
 dir_entry_view_impl
 dir_entry_view_impl::from_dir_entry_index(uint32_t self_index,
-                                          global_metadata const& g) {
-  return make_dir_entry_view<stack_ctor>(self_index, g);
+                                          global_metadata const& g,
+                                          entry_name_type name_type) {
+  return make_dir_entry_view<stack_ctor>(self_index, g, name_type);
 }
 
 std::shared_ptr<dir_entry_view_impl> dir_entry_view_impl::parent() const {
