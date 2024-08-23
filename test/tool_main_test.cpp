@@ -1066,21 +1066,19 @@ TEST(mkdwarfs_test, metadata_readdir) {
     auto r = fs.readdir(dir.value(), 0);
     ASSERT_TRUE(r);
 
-    auto [ino, name] = r.value();
-    EXPECT_EQ(".", name);
-    EXPECT_EQ(ino.inode_num(), iv->inode_num());
+    EXPECT_EQ(".", r->name());
+    EXPECT_EQ(r->inode().inode_num(), iv->inode_num());
   }
 
   {
     auto r = fs.readdir(dir.value(), 1);
     ASSERT_TRUE(r);
 
-    auto [ino, name] = r.value();
-    EXPECT_EQ("..", name);
+    EXPECT_EQ("..", r->name());
 
     auto parent = fs.find("/");
     ASSERT_TRUE(parent);
-    EXPECT_EQ(ino.inode_num(), parent->inode_num());
+    EXPECT_EQ(r->inode().inode_num(), parent->inode_num());
   }
 
   {
