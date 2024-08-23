@@ -265,6 +265,16 @@ constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
 constexpr std::string_view perfmon_xattr{"user.dwarfs.driver.perfmon"};
 constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
 
+#if !DWARFS_FUSE_LOWLEVEL
+std::optional<reader::inode_view>
+iv_from_dev(std::optional<reader::dir_entry_view> dev) {
+  if (dev) {
+    return std::make_optional(dev->inode());
+  }
+  return std::nullopt;
+}
+#endif
+
 template <typename LogProxy, typename T>
 auto checked_call(LogProxy& log_, T&& f) -> decltype(std::forward<T>(f)()) {
   try {
@@ -382,14 +392,14 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
             << get_caller_context(req);
 
   checked_reply_err(log_, req, [&] {
-    auto entry = userdata.fs.find(parent, name);
+    auto dev = userdata.fs.find(parent, name);
 
-    if (!entry) {
+    if (!dev) {
       return ENOENT;
     }
 
     std::error_code ec;
-    auto stbuf = userdata.fs.getattr(*entry, ec);
+    auto stbuf = userdata.fs.getattr(dev->inode(), ec);
 
     if (!ec) {
       struct ::fuse_entry_param e;
@@ -415,14 +425,14 @@ template <typename LogProxy, typename Find>
 int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
                       native_stat* st, Find const& find) {
   return checked_call(log_, [&] {
-    auto entry = find();
+    auto iv = find();
 
-    if (!entry) {
+    if (!iv) {
       return ENOENT;
     }
 
     std::error_code ec;
-    auto stbuf = userdata.fs.getattr(*entry, ec);
+    auto stbuf = userdata.fs.getattr(*iv, ec);
 
     if (!ec) {
       ::memset(st, 0, sizeof(*st));
@@ -464,11 +474,11 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_getattr_common(log_, userdata, st, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 }
 #endif
@@ -478,9 +488,9 @@ int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
                      file_stat::uid_type uid, file_stat::gid_type gid,
                      Find const& find) {
   return checked_call(log_, [&] {
-    if (auto entry = find()) {
+    if (auto iv = find()) {
       std::error_code ec;
-      userdata.fs.access(*entry, mode, uid, gid, ec);
+      userdata.fs.access(*iv, mode, uid, gid, ec);
       return ec.value();
     }
     return ENOENT;
@@ -517,11 +527,11 @@ int op_access(char const* path, int mode) {
   auto ctx = fuse_get_context();
 
   return -op_access_common(log_, userdata, mode, ctx->uid, ctx->gid, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 }
 #endif
@@ -530,10 +540,9 @@ template <typename LogProxy, typename Find>
 int op_readlink_common(LogProxy& log_, dwarfs_userdata& userdata,
                        std::string* str, Find const& find) {
   return checked_call(log_, [&] {
-    if (auto entry = find()) {
+    if (auto iv = find()) {
       std::error_code ec;
-      auto link =
-          userdata.fs.readlink(*entry, reader::readlink_mode::posix, ec);
+      auto link = userdata.fs.readlink(*iv, reader::readlink_mode::posix, ec);
       if (!ec) {
         *str = link;
       }
@@ -576,11 +585,11 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
   std::string symlink;
 
   auto err = op_readlink_common(log_, userdata, &symlink, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 
   if (err == 0) {
@@ -603,13 +612,13 @@ template <typename LogProxy, typename Find>
 int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
                    struct fuse_file_info* fi, Find const& find) {
   return checked_call(log_, [&] {
-    auto entry = find();
+    auto iv = find();
 
-    if (!entry) {
+    if (!iv) {
       return ENOENT;
     }
 
-    if (entry->is_directory()) {
+    if (iv->is_directory()) {
       return EISDIR;
     }
 
@@ -618,7 +627,7 @@ int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
       return EACCES;
     }
 
-    fi->fh = entry->inode_num();
+    fi->fh = iv->inode_num();
     fi->direct_io = !userdata.opts.cache_files;
     fi->keep_cache = userdata.opts.cache_files;
 
@@ -655,11 +664,11 @@ int op_open(char const* path, struct fuse_file_info* fi) {
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_open_common(log_, userdata, fi, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 }
 #endif
@@ -763,7 +772,13 @@ class readdir_policy {
       , buf_{buf}
       , filler_{filler} {}
 
-  auto find(reader::filesystem_v2& fs) const { return fs.find(path_); }
+  auto find(reader::filesystem_v2& fs) const {
+    std::optional<reader::inode_view> iv;
+    if (auto dev = fs.find(path_)) {
+      iv = dev->inode();
+    }
+    return iv;
+  }
 
   bool keep_going() const { return true; }
 
@@ -784,15 +799,15 @@ class readdir_policy {
 template <typename Policy, typename OnInode>
 int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
                       OnInode&& on_inode) {
-  auto dirent = policy.find(fs);
+  auto iv = policy.find(fs);
 
-  if (!dirent) {
+  if (!iv) {
     return ENOENT;
   }
 
-  std::forward<OnInode>(on_inode)(*dirent);
+  std::forward<OnInode>(on_inode)(*iv);
 
-  auto dir = fs.opendir(*dirent);
+  auto dir = fs.opendir(*iv);
 
   if (!dir) {
     return ENOTDIR;
@@ -924,15 +939,15 @@ int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
                        std::string_view name, std::string& value,
                        size_t& extra_size [[maybe_unused]], Find const& find) {
   return checked_call(log_, [&] {
-    auto entry = find();
+    auto iv = find();
 
-    if (!entry) {
+    if (!iv) {
       return ENOENT;
     }
 
     std::ostringstream oss;
 
-    if (entry->inode_num() == 0) {
+    if (iv->inode_num() == 0) {
       if (name == pid_xattr) {
         // use to_string() to prevent locale-specific formatting
         oss << std::to_string(::getpid());
@@ -951,7 +966,7 @@ int op_getxattr_common(LogProxy& log_, dwarfs_userdata& userdata,
     }
 
     if (name == inodeinfo_xattr) {
-      oss << userdata.fs.get_inode_info(*entry, kMaxInodeInfoChunks) << "\n";
+      oss << userdata.fs.get_inode_info(*iv, kMaxInodeInfoChunks) << "\n";
     }
 
     value = oss.str();
@@ -1028,11 +1043,11 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   std::string tmp;
   size_t extra_size{0};
   auto err = op_getxattr_common(log_, userdata, name, tmp, extra_size, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 
   if (err != 0) {
@@ -1086,15 +1101,15 @@ template <typename LogProxy, typename Find>
 int op_listxattr_common(LogProxy& log_, std::string& xattr_names,
                         Find const& find) {
   return checked_call(log_, [&] {
-    auto entry = find();
+    auto iv = find();
 
-    if (!entry) {
+    if (!iv) {
       return ENOENT;
     }
 
     std::ostringstream oss;
 
-    if (entry->inode_num() == 0) {
+    if (iv->inode_num() == 0) {
       oss << pid_xattr << '\0';
       oss << perfmon_xattr << '\0';
     }
@@ -1154,11 +1169,11 @@ int op_listxattr(char const* path, char* list, size_t size) {
 
   std::string xattrs;
   auto err = op_listxattr_common(log_, xattrs, [&] {
-    auto e = userdata.fs.find(path);
-    if (e) {
-      PERFMON_SET_CONTEXT(e->inode_num())
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      PERFMON_SET_CONTEXT(dev->inode().inode_num())
     }
-    return e;
+    return iv_from_dev(dev);
   });
 
   if (err != 0) {
