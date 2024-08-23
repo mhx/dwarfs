@@ -1730,9 +1730,30 @@ TEST(filesystem, read) {
       EXPECT_GE(iov.buf.size(), size / 256) << size << ":" << off;
 
       iov.clear();
+      {
+        auto nread = fs.readv(fh, iov, size, off, 2);
+        EXPECT_LE(iov.buf.size(), 2) << size << ":" << off;
+        EXPECT_LE(nread, size) << size << ":" << off;
+        EXPECT_GE(nread, std::min<size_t>(size, 256)) << size << ":" << off;
+        EXPECT_EQ(iov_to_str(iov), cview.substr(off, nread))
+            << size << ":" << off;
+      }
+
+      iov.clear();
       EXPECT_EQ(fs.readv(fh, iov, size, off, ec), size) << size << ":" << off;
       EXPECT_EQ(iov_to_str(iov), cview.substr(off, size)) << size << ":" << off;
       EXPECT_FALSE(ec) << size << ":" << off;
+
+      iov.clear();
+      {
+        auto nread = fs.readv(fh, iov, size, off, 3, ec);
+        EXPECT_FALSE(ec) << size << ":" << off;
+        EXPECT_LE(iov.buf.size(), 3) << size << ":" << off;
+        EXPECT_LE(nread, size) << size << ":" << off;
+        EXPECT_GE(nread, std::min<size_t>(size, 512)) << size << ":" << off;
+        EXPECT_EQ(iov_to_str(iov), cview.substr(off, nread))
+            << size << ":" << off;
+      }
 
       EXPECT_THROW(fs.readv(fh_invalid, iov, size, off), std::system_error)
           << size << ":" << off;
@@ -1740,10 +1761,26 @@ TEST(filesystem, read) {
       EXPECT_TRUE(ec) << size << ":" << off;
       EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
 
+      EXPECT_THROW(fs.readv(fh_invalid, iov, size, off, 1), std::system_error)
+          << size << ":" << off;
+      fs.readv(fh_invalid, iov, size, off, 0, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+
       // --- readv (async) ---
 
       EXPECT_EQ(fut_to_str(fs.readv(fh, size, off)), cview.substr(off, size))
           << size << ":" << off;
+
+      {
+        auto brs = fs.readv(fh, size, off, 2);
+        EXPECT_LE(brs.size(), 2) << size << ":" << off;
+        auto res = fut_to_str(std::move(brs));
+        EXPECT_LE(res.size(), size) << size << ":" << off;
+        EXPECT_GE(res.size(), std::min<size_t>(size, 256))
+            << size << ":" << off;
+        EXPECT_EQ(res, cview.substr(off, res.size())) << size << ":" << off;
+      }
 
       EXPECT_EQ(fut_to_str(fs.readv(fh, size, off, ec)),
                 cview.substr(off, size))
@@ -1753,6 +1790,23 @@ TEST(filesystem, read) {
       EXPECT_THROW(fs.readv(fh_invalid, size, off), std::system_error)
           << size << ":" << off;
       fs.readv(fh_invalid, size, off, ec);
+      EXPECT_TRUE(ec) << size << ":" << off;
+      EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
+
+      {
+        auto brs = fs.readv(fh, size, off, 3, ec);
+        EXPECT_FALSE(ec) << size << ":" << off;
+        EXPECT_LE(brs.size(), 3) << size << ":" << off;
+        auto res = fut_to_str(std::move(brs));
+        EXPECT_LE(res.size(), size) << size << ":" << off;
+        EXPECT_GE(res.size(), std::min<size_t>(size, 512))
+            << size << ":" << off;
+        EXPECT_EQ(res, cview.substr(off, res.size())) << size << ":" << off;
+      }
+
+      EXPECT_THROW(fs.readv(fh_invalid, size, off, 1), std::system_error)
+          << size << ":" << off;
+      fs.readv(fh_invalid, size, off, 0, ec);
       EXPECT_TRUE(ec) << size << ":" << off;
       EXPECT_EQ(ec.value(), EINVAL) << size << ":" << off;
     }
