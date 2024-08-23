@@ -122,7 +122,7 @@ class metadata_v2 {
     return impl_->opendir(iv);
   }
 
-  std::optional<std::pair<inode_view, std::string>>
+  std::optional<dir_entry_view>
   readdir(directory_view dir, size_t offset) const {
     return impl_->readdir(dir, offset);
   }
@@ -212,7 +212,7 @@ class metadata_v2 {
 
     virtual std::optional<directory_view> opendir(inode_view iv) const = 0;
 
-    virtual std::optional<std::pair<inode_view, std::string>>
+    virtual std::optional<dir_entry_view>
     readdir(directory_view dir, size_t offset) const = 0;
 
     virtual size_t dirsize(directory_view dir) const = 0;

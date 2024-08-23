@@ -167,7 +167,7 @@ class filesystem_v2 {
     return impl_->opendir(entry);
   }
 
-  std::optional<std::pair<inode_view, std::string>>
+  std::optional<dir_entry_view>
   readdir(directory_view dir, size_t offset) const {
     return impl_->readdir(dir, offset);
   }
@@ -377,7 +377,7 @@ class filesystem_v2 {
     virtual void access(inode_view entry, int mode, file_stat::uid_type uid,
                         file_stat::gid_type gid, std::error_code& ec) const = 0;
     virtual std::optional<directory_view> opendir(inode_view entry) const = 0;
-    virtual std::optional<std::pair<inode_view, std::string>>
+    virtual std::optional<dir_entry_view>
     readdir(directory_view dir, size_t offset) const = 0;
     virtual size_t dirsize(directory_view dir) const = 0;
     virtual std::string readlink(inode_view entry, readlink_mode mode,

@@ -409,8 +409,7 @@ void basic_end_to_end_test(
   for (size_t i = 0; i < fs.dirsize(*dir); ++i) {
     auto r = fs.readdir(*dir, i);
     ASSERT_TRUE(r);
-    auto [view, name] = *r;
-    names.emplace_back(name);
+    names.emplace_back(r->name());
   }
 
   std::vector<std::string> expected{
