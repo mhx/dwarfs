@@ -501,9 +501,10 @@ class metadata_ final : public metadata_v2::impl {
 
   dir_entry_view root() const override { return root_; }
 
-  std::optional<inode_view> find(const char* path) const override;
+  std::optional<dir_entry_view> find(const char* path) const override;
   std::optional<inode_view> find(int inode) const override;
-  std::optional<inode_view> find(int inode, const char* name) const override;
+  std::optional<dir_entry_view>
+  find(int inode, const char* name) const override;
 
   file_stat getattr(inode_view iv, std::error_code& ec) const override;
   file_stat getattr(inode_view iv, getattr_options const& opts,
@@ -660,7 +661,7 @@ class metadata_ final : public metadata_v2::impl {
   nlohmann::json as_json(dir_entry_view entry) const;
   nlohmann::json as_json(directory_view dir, dir_entry_view entry) const;
 
-  std::optional<inode_view>
+  std::optional<dir_entry_view>
   find(directory_view dir, std::string_view name) const;
 
   uint32_t chunk_table_lookup(uint32_t ino) const {
@@ -1626,7 +1627,7 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
 }
 
 template <typename LoggerPolicy>
-std::optional<inode_view>
+std::optional<dir_entry_view>
 metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
   PERFMON_CLS_SCOPED_SECTION(find)
 
@@ -1637,45 +1638,45 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
         return internal::dir_entry_view_impl::name(ix, global_) < name;
       });
 
-  std::optional<inode_view> rv;
-
   if (it != range.end()) {
     if (internal::dir_entry_view_impl::name(*it, global_) == name) {
-      rv =
-          inode_view{internal::dir_entry_view_impl::inode_shared(*it, global_)};
+      return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+          *it, global_.self_dir_entry(dir.inode()), global_)};
     }
   }
 
-  return rv;
+  return std::nullopt;
 }
 
 template <typename LoggerPolicy>
-std::optional<inode_view>
+std::optional<dir_entry_view>
 metadata_<LoggerPolicy>::find(const char* path) const {
   while (*path == '/') {
     ++path;
   }
 
-  std::optional<inode_view> iv = root_.inode();
+  std::optional<dir_entry_view> dev = root_;
 
   while (*path) {
     const char* next = ::strchr(path, '/');
     size_t clen = next ? next - path : ::strlen(path); // Flawfinder: ignore
 
-    if (!iv->is_directory()) {
+    auto iv = dev->inode();
+
+    if (!iv.is_directory()) {
       return std::nullopt;
     }
 
-    iv = find(make_directory_view(*iv), std::string_view(path, clen));
+    dev = find(make_directory_view(iv), std::string_view(path, clen));
 
-    if (!iv) {
+    if (!dev) {
       break;
     }
 
     path = next ? next + 1 : path + clen;
   }
 
-  return iv;
+  return dev;
 }
 
 template <typename LoggerPolicy>
@@ -1684,19 +1685,13 @@ std::optional<inode_view> metadata_<LoggerPolicy>::find(int inode) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<inode_view>
+std::optional<dir_entry_view>
 metadata_<LoggerPolicy>::find(int inode, const char* name) const {
-  auto iv = get_entry(inode);
-
-  if (iv) {
-    if (!iv->is_directory()) {
-      return std::nullopt;
-    }
-
-    iv = find(make_directory_view(*iv), std::string_view(name));
+  if (auto iv = get_entry(inode); iv and iv->is_directory()) {
+    return find(make_directory_view(*iv), std::string_view(name));
   }
 
-  return iv;
+  return std::nullopt;
 }
 
 template <typename LoggerPolicy>

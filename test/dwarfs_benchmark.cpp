@@ -220,25 +220,26 @@ class filesystem : public ::benchmark::Fixture {
     opts.block_cache.max_bytes = 1 << 20;
     opts.metadata.enable_nlink = true;
     fs = std::make_unique<reader::filesystem_v2>(lgr, os, mm, opts);
-    entries.reserve(NUM_ENTRIES);
-    for (int i = 0; entries.size() < NUM_ENTRIES; ++i) {
-      if (auto e = fs->find(i)) {
-        entries.emplace_back(*e);
+    inode_views.reserve(NUM_ENTRIES);
+    for (int i = 0; inode_views.size() < NUM_ENTRIES; ++i) {
+      if (auto iv = fs->find(i)) {
+        inode_views.emplace_back(*iv);
       }
     }
   }
 
   void TearDown(::benchmark::State const&) {
-    entries.clear();
+    inode_views.clear();
     image.clear();
     mm.reset();
     fs.reset();
   }
 
   void read_bench(::benchmark::State& state, const char* file) {
-    auto iv = fs->find(file);
-    auto st = fs->getattr(*iv);
-    auto i = fs->open(*iv);
+    auto dev = fs->find(file);
+    auto iv = dev->inode();
+    auto st = fs->getattr(iv);
+    auto i = fs->open(iv);
     std::string buf;
     auto size = st.size();
     buf.resize(size);
@@ -250,8 +251,8 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   void read_string_bench(::benchmark::State& state, const char* file) {
-    auto iv = fs->find(file);
-    auto i = fs->open(*iv);
+    auto dev = fs->find(file);
+    auto i = fs->open(dev->inode());
 
     for (auto _ : state) {
       auto r = fs->read_string(i);
@@ -260,8 +261,8 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   void readv_bench(::benchmark::State& state, char const* file) {
-    auto iv = fs->find(file);
-    auto i = fs->open(*iv);
+    auto dev = fs->find(file);
+    auto i = fs->open(dev->inode());
 
     for (auto _ : state) {
       reader::iovec_read_buf buf;
@@ -271,8 +272,8 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   void readv_future_bench(::benchmark::State& state, char const* file) {
-    auto iv = fs->find(file);
-    auto i = fs->open(*iv);
+    auto dev = fs->find(file);
+    auto i = fs->open(dev->inode());
 
     for (auto _ : state) {
       auto x = fs->readv(i);
@@ -291,7 +292,7 @@ class filesystem : public ::benchmark::Fixture {
     std::vector<reader::inode_view> ent;
     ent.reserve(paths.size());
     for (auto const& p : paths) {
-      ent.emplace_back(*fs->find(p.data()));
+      ent.emplace_back(fs->find(p.data())->inode());
     }
 
     for (auto _ : state) {
@@ -307,7 +308,7 @@ class filesystem : public ::benchmark::Fixture {
   }
 
   std::unique_ptr<reader::filesystem_v2> fs;
-  std::vector<reader::inode_view> entries;
+  std::vector<reader::inode_view> inode_views;
 
  private:
   test::test_logger lgr;
@@ -333,7 +334,6 @@ class filesystem_walk : public ::benchmark::Fixture {
   }
 
   std::unique_ptr<reader::filesystem_v2> fs;
-  std::vector<reader::inode_view> entries;
 
  private:
   constexpr static int kDimension{32};
@@ -469,10 +469,11 @@ BENCHMARK_DEFINE_F(filesystem, find_inode_name)(::benchmark::State& state) {
       "zero",
   }};
   auto base = fs->find("/somedir");
+  auto inode_num = base->inode().inode_num();
   int i = 0;
 
   for (auto _ : state) {
-    auto r = fs->find(base->inode_num(), names[i++ % names.size()]);
+    auto r = fs->find(inode_num, names[i++ % names.size()]);
     ::benchmark::DoNotOptimize(r);
   }
 }
@@ -534,7 +535,7 @@ BENCHMARK_DEFINE_F(filesystem, access_F_OK)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    auto r = fs->access(entries[i++ % NUM_ENTRIES], F_OK, 1000, 100);
+    auto r = fs->access(inode_views[i++ % NUM_ENTRIES], F_OK, 1000, 100);
     ::benchmark::DoNotOptimize(r);
   }
 }
@@ -543,23 +544,24 @@ BENCHMARK_DEFINE_F(filesystem, access_R_OK)(::benchmark::State& state) {
   int i = 0;
 
   for (auto _ : state) {
-    auto r = fs->access(entries[i++ % NUM_ENTRIES], R_OK, 1000, 100);
+    auto r = fs->access(inode_views[i++ % NUM_ENTRIES], R_OK, 1000, 100);
     ::benchmark::DoNotOptimize(r);
   }
 }
 
 BENCHMARK_DEFINE_F(filesystem, opendir)(::benchmark::State& state) {
-  auto iv = fs->find("/somedir");
+  auto dev = fs->find("/somedir");
+  auto iv = dev->inode();
 
   for (auto _ : state) {
-    auto r = fs->opendir(*iv);
+    auto r = fs->opendir(iv);
     ::benchmark::DoNotOptimize(r);
   }
 }
 
 BENCHMARK_DEFINE_F(filesystem, dirsize)(::benchmark::State& state) {
-  auto iv = fs->find("/somedir");
-  auto dv = fs->opendir(*iv);
+  auto dev = fs->find("/somedir");
+  auto dv = fs->opendir(dev->inode());
 
   for (auto _ : state) {
     auto r = fs->dirsize(*dv);
@@ -568,8 +570,8 @@ BENCHMARK_DEFINE_F(filesystem, dirsize)(::benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(filesystem, readdir)(::benchmark::State& state) {
-  auto iv = fs->find("/");
-  auto dv = fs->opendir(*iv);
+  auto dev = fs->find("/");
+  auto dv = fs->opendir(dev->inode());
   auto const num = fs->dirsize(*dv);
   size_t i = 0;
 
@@ -580,10 +582,11 @@ BENCHMARK_DEFINE_F(filesystem, readdir)(::benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(filesystem, readlink)(::benchmark::State& state) {
-  auto iv = fs->find("/somelink");
+  auto dev = fs->find("/somelink");
+  auto iv = dev->inode();
 
   for (auto _ : state) {
-    auto r = fs->readlink(*iv);
+    auto r = fs->readlink(iv);
     ::benchmark::DoNotOptimize(r);
   }
 }
@@ -601,7 +604,7 @@ BENCHMARK_DEFINE_F(filesystem, open)(::benchmark::State& state) {
 
   for (auto _ : state) {
     std::error_code ec;
-    auto r = fs->open(entries[i++ % NUM_ENTRIES], ec);
+    auto r = fs->open(inode_views[i++ % NUM_ENTRIES], ec);
     ::benchmark::DoNotOptimize(r);
   }
 }
@@ -661,7 +664,7 @@ BENCHMARK(frozen_string_table_lookup)
     ->Args({true, false})
     ->Args({true, true});
 
-BENCHMARK(dwarfs_initialize)->Apply(PackParams);
+BENCHMARK(dwarfs_initialize)->Apply(PackParams)->Unit(benchmark::kMillisecond);
 
 BENCHMARK_REGISTER_F(filesystem, find_inode)->Apply(PackParams);
 BENCHMARK_REGISTER_F(filesystem, find_inode_name)->Apply(PackParams);

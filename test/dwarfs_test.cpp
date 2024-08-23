@@ -268,10 +268,11 @@ void basic_end_to_end_test(
 
   EXPECT_GT(dumpss.str().size(), 1000) << dumpss.str();
 
-  auto entry = fs.find("/foo.pl");
+  auto dev = fs.find("/foo.pl");
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
 
-  ASSERT_TRUE(entry);
-  auto st = fs.getattr(*entry);
+  auto st = fs.getattr(iv);
   EXPECT_EQ(st.size(), 23456);
   EXPECT_EQ(st.uid(), set_uid ? 0 : 1337);
   EXPECT_EQ(st.gid(), 0);
@@ -281,7 +282,7 @@ void basic_end_to_end_test(
 
   {
     std::error_code ec;
-    auto st2 = fs.getattr(*entry, {.no_size = true}, ec);
+    auto st2 = fs.getattr(iv, {.no_size = true}, ec);
     EXPECT_FALSE(ec);
     EXPECT_THROW(st2.size(), runtime_error);
     EXPECT_EQ(st2.uid(), st.uid());
@@ -292,7 +293,7 @@ void basic_end_to_end_test(
   }
 
   {
-    auto st3 = fs.getattr(*entry, {.no_size = true});
+    auto st3 = fs.getattr(iv, {.no_size = true});
     EXPECT_THROW(st3.size(), runtime_error);
     EXPECT_EQ(st3.uid(), st.uid());
     EXPECT_EQ(st3.gid(), st.gid());
@@ -301,7 +302,7 @@ void basic_end_to_end_test(
     EXPECT_EQ(st3.ctime(), st.ctime());
   }
 
-  int inode = fs.open(*entry);
+  int inode = fs.open(iv);
   EXPECT_GE(inode, 0);
 
   std::error_code ec;
@@ -311,10 +312,11 @@ void basic_end_to_end_test(
   EXPECT_EQ(rv, st.size());
   EXPECT_EQ(std::string(buf.begin(), buf.end()), test::loremipsum(st.size()));
 
-  entry = fs.find("/somelink");
+  dev = fs.find("/somelink");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
 
-  ASSERT_TRUE(entry);
-  st = fs.getattr(*entry);
+  st = fs.getattr(iv);
   EXPECT_EQ(st.size(), 16);
   EXPECT_EQ(st.uid(), set_uid ? 0 : 1000);
   EXPECT_EQ(st.gid(), set_gid ? 0 : 100);
@@ -323,25 +325,26 @@ void basic_end_to_end_test(
   EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 2002 : 2002);
   EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
-  auto link = fs.readlink(*entry);
+  auto link = fs.readlink(iv);
   EXPECT_EQ(link, "somedir/ipsum.py");
 
   EXPECT_FALSE(fs.find("/somedir/nope"));
 
-  entry = fs.find("/somedir/bad");
+  dev = fs.find("/somedir/bad");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
 
-  ASSERT_TRUE(entry);
-  st = fs.getattr(*entry);
+  st = fs.getattr(iv);
   EXPECT_EQ(st.size(), 6);
 
-  link = fs.readlink(*entry);
+  link = fs.readlink(iv);
   EXPECT_EQ(link, "../foo");
 
-  entry = fs.find("/somedir/pipe");
+  dev = fs.find("/somedir/pipe");
 
   if (with_specials) {
-    ASSERT_TRUE(entry);
-    st = fs.getattr(*entry);
+    ASSERT_TRUE(dev);
+    st = fs.getattr(dev->inode());
     EXPECT_EQ(st.size(), 0);
     EXPECT_EQ(st.uid(), set_uid ? 0 : 1000);
     EXPECT_EQ(st.gid(), set_gid ? 0 : 100);
@@ -351,28 +354,28 @@ void basic_end_to_end_test(
     EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 8002 : 8002);
     EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 8003 : 8002);
   } else {
-    EXPECT_FALSE(entry);
+    EXPECT_FALSE(dev);
   }
 
-  entry = fs.find("/somedir/null");
+  dev = fs.find("/somedir/null");
 
   if (with_devices) {
-    ASSERT_TRUE(entry);
-    st = fs.getattr(*entry);
+    ASSERT_TRUE(dev);
+    st = fs.getattr(dev->inode());
     EXPECT_EQ(st.size(), 0);
     EXPECT_EQ(st.uid(), 0);
     EXPECT_EQ(st.gid(), 0);
     EXPECT_EQ(st.type(), posix_file_type::character);
     EXPECT_EQ(st.rdev(), 259);
   } else {
-    EXPECT_FALSE(entry);
+    EXPECT_FALSE(dev);
   }
 
-  entry = fs.find("/somedir/zero");
+  dev = fs.find("/somedir/zero");
 
   if (with_devices) {
-    ASSERT_TRUE(entry);
-    st = fs.getattr(*entry);
+    ASSERT_TRUE(dev);
+    st = fs.getattr(dev->inode());
     EXPECT_EQ(st.size(), 0);
     EXPECT_EQ(st.uid(), 0);
     EXPECT_EQ(st.gid(), 0);
@@ -388,20 +391,20 @@ void basic_end_to_end_test(
                           : keep_all_times ? 4000030003
                                            : 4000020002);
   } else {
-    EXPECT_FALSE(entry);
+    EXPECT_FALSE(dev);
   }
 
-  entry = fs.find("/");
+  dev = fs.find("/");
+  ASSERT_TRUE(dev);
 
-  ASSERT_TRUE(entry);
-  auto dir = fs.opendir(*entry);
+  auto dir = fs.opendir(dev->inode());
   ASSERT_TRUE(dir);
   EXPECT_EQ(10, fs.dirsize(*dir));
 
-  entry = fs.find("/somedir");
+  dev = fs.find("/somedir");
+  ASSERT_TRUE(dev);
 
-  ASSERT_TRUE(entry);
-  dir = fs.opendir(*entry);
+  dir = fs.opendir(dev->inode());
   ASSERT_TRUE(dir);
   EXPECT_EQ(5 + 2 * with_devices + with_specials, fs.dirsize(*dir));
 
@@ -430,16 +433,18 @@ void basic_end_to_end_test(
 
   EXPECT_EQ(expected, names);
 
-  entry = fs.find("/foo.pl");
-  ASSERT_TRUE(entry);
+  dev = fs.find("/foo.pl");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
 
-  auto e2 = fs.find("/bar.pl");
-  ASSERT_TRUE(e2);
+  auto dev2 = fs.find("/bar.pl");
+  ASSERT_TRUE(dev2);
+  auto iv2 = dev2->inode();
 
-  EXPECT_EQ(entry->inode_num(), e2->inode_num());
+  EXPECT_EQ(iv.inode_num(), iv2.inode_num());
 
-  auto st1 = fs.getattr(*entry);
-  auto st2 = fs.getattr(*e2);
+  auto st1 = fs.getattr(iv);
+  auto st2 = fs.getattr(iv2);
 
   EXPECT_EQ(st1.ino(), st2.ino());
   if (enable_nlink) {
@@ -447,30 +452,36 @@ void basic_end_to_end_test(
     EXPECT_EQ(2, st2.nlink());
   }
 
-  entry = fs.find("/");
-  ASSERT_TRUE(entry);
-  EXPECT_EQ(0, entry->inode_num());
-  e2 = fs.find(0);
-  ASSERT_TRUE(e2);
-  EXPECT_EQ(e2->inode_num(), 0);
-  entry = fs.find(0, "baz.pl");
-  ASSERT_TRUE(entry);
-  EXPECT_GT(entry->inode_num(), 0);
-  st1 = fs.getattr(*entry);
+  dev = fs.find("/");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
+  EXPECT_EQ(0, iv.inode_num());
+  auto root = fs.find(0);
+  ASSERT_TRUE(root);
+  iv2 = *root;
+  EXPECT_EQ(iv2.inode_num(), 0);
+  dev = fs.find(0, "baz.pl");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
+  EXPECT_GT(iv.inode_num(), 0);
+  st1 = fs.getattr(iv);
   EXPECT_EQ(23456, st1.size());
-  e2 = fs.find(0, "somedir");
-  ASSERT_TRUE(e2);
-  st2 = fs.getattr(*e2);
-  entry = fs.find(st2.ino(), "ipsum.py");
-  ASSERT_TRUE(entry);
-  st1 = fs.getattr(*entry);
+  dev2 = fs.find(0, "somedir");
+  ASSERT_TRUE(dev2);
+  iv2 = dev2->inode();
+  st2 = fs.getattr(iv2);
+  dev = fs.find(st2.ino(), "ipsum.py");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
+  st1 = fs.getattr(iv);
   EXPECT_EQ(access_fail ? 0 : 10000, st1.size());
-  EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 100));
-  entry = fs.find(0, "baz.pl");
-  ASSERT_TRUE(entry);
-  fs.access(*entry, R_OK, 1337, 0, ec);
+  EXPECT_TRUE(fs.access(iv, R_OK, 1000, 100));
+  dev = fs.find(0, "baz.pl");
+  ASSERT_TRUE(dev);
+  iv = dev->inode();
+  fs.access(iv, R_OK, 1337, 0, ec);
   EXPECT_EQ(set_uid ? EACCES : 0, ec.value());
-  EXPECT_EQ(set_uid, !fs.access(*entry, R_OK, 1337, 0));
+  EXPECT_EQ(set_uid, !fs.access(iv, R_OK, 1337, 0));
 
   for (auto mp : {&reader::filesystem_v2::walk,
                   &reader::filesystem_v2::walk_data_order}) {
@@ -842,13 +853,14 @@ TEST_P(compression_regression, github45) {
   EXPECT_EQ(2 * file_size, vfsbuf.blocks);
 
   auto check_file = [&](char const* name, std::string const& contents) {
-    auto entry = fs.find(name);
+    auto dev = fs.find(name);
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
 
-    ASSERT_TRUE(entry);
-    auto st = fs.getattr(*entry);
+    auto st = fs.getattr(iv);
     EXPECT_EQ(st.size(), file_size);
 
-    int inode = fs.open(*entry);
+    int inode = fs.open(iv);
     EXPECT_GE(inode, 0);
 
     auto buf = fs.read_string(inode);
@@ -1143,14 +1155,14 @@ TEST(filesystem, uid_gid_32bit) {
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
-  auto iv16 = fs.find("/foo16.txt");
-  auto iv32 = fs.find("/foo32.txt");
+  auto dev16 = fs.find("/foo16.txt");
+  auto dev32 = fs.find("/foo32.txt");
 
-  EXPECT_TRUE(iv16);
-  EXPECT_TRUE(iv32);
+  ASSERT_TRUE(dev16);
+  ASSERT_TRUE(dev32);
 
-  auto st16 = fs.getattr(*iv16);
-  auto st32 = fs.getattr(*iv32);
+  auto st16 = fs.getattr(dev16->inode());
+  auto st32 = fs.getattr(dev32->inode());
 
   EXPECT_EQ(60000, st16.uid());
   EXPECT_EQ(65535, st16.gid());
@@ -1177,17 +1189,17 @@ TEST(filesystem, uid_gid_count) {
 
   reader::filesystem_v2 fs(lgr, *input, mm);
 
-  auto iv00000 = fs.find("/foo00000.txt");
-  auto iv50000 = fs.find("/foo50000.txt");
-  auto iv99999 = fs.find("/foo99999.txt");
+  auto dev00000 = fs.find("/foo00000.txt");
+  auto dev50000 = fs.find("/foo50000.txt");
+  auto dev99999 = fs.find("/foo99999.txt");
 
-  EXPECT_TRUE(iv00000);
-  EXPECT_TRUE(iv50000);
-  EXPECT_TRUE(iv99999);
+  ASSERT_TRUE(dev00000);
+  ASSERT_TRUE(dev50000);
+  ASSERT_TRUE(dev99999);
 
-  auto st00000 = fs.getattr(*iv00000);
-  auto st50000 = fs.getattr(*iv50000);
-  auto st99999 = fs.getattr(*iv99999);
+  auto st00000 = fs.getattr(dev00000->inode());
+  auto st50000 = fs.getattr(dev50000->inode());
+  auto st99999 = fs.getattr(dev99999->inode());
 
   EXPECT_EQ(50000, st00000.uid());
   EXPECT_EQ(250000, st00000.gid());
@@ -1257,15 +1269,15 @@ TEST(section_index_regression, github183) {
   ASSERT_NO_THROW(fs = reader::filesystem_v2(lgr, *input, mm));
   EXPECT_NO_THROW(fs.walk([](auto) {}));
 
-  auto entry = fs.find("/foo.pl");
+  auto dev = fs.find("/foo.pl");
+  ASSERT_TRUE(dev);
+  auto iv = dev->inode();
 
-  ASSERT_TRUE(entry);
-
-  auto st = fs.getattr(*entry);
+  auto st = fs.getattr(iv);
 
   int inode{-1};
 
-  EXPECT_NO_THROW(inode = fs.open(*entry));
+  EXPECT_NO_THROW(inode = fs.open(iv));
 
   std::error_code ec;
   std::vector<char> buf(st.size());
@@ -1294,9 +1306,9 @@ TEST(filesystem, find_by_path) {
   EXPECT_GT(paths.size(), 10);
 
   for (auto const& p : paths) {
-    auto iv = fs.find(p.c_str());
-    ASSERT_TRUE(iv) << p;
-    EXPECT_FALSE(fs.find(iv->inode_num(), "desktop.ini")) << p;
+    auto dev = fs.find(p.c_str());
+    ASSERT_TRUE(dev) << p;
+    EXPECT_FALSE(fs.find(dev->inode().inode_num(), "desktop.ini")) << p;
     EXPECT_FALSE(fs.find((p + "/desktop.ini").c_str())) << p;
   }
 }
@@ -1324,11 +1336,11 @@ TEST(file_scanner, file_start_hash) {
   auto link1 = fs.find("/hardlink1");
   auto link2 = fs.find("/hardlink2");
 
-  EXPECT_TRUE(link1);
-  EXPECT_TRUE(link2);
+  ASSERT_TRUE(link1);
+  ASSERT_TRUE(link2);
 
-  auto st1 = fs.getattr(*link1);
-  auto st2 = fs.getattr(*link2);
+  auto st1 = fs.getattr(link1->inode());
+  auto st2 = fs.getattr(link2->inode());
 
   EXPECT_EQ(st1.ino(), st2.ino());
   EXPECT_EQ(st1.nlink(), 2);
@@ -1357,9 +1369,13 @@ TEST(filesystem, root_access_github204) {
   auto group = fs.find("/group");
   auto user = fs.find("/user");
 
-  EXPECT_TRUE(other);
-  EXPECT_TRUE(group);
-  EXPECT_TRUE(user);
+  ASSERT_TRUE(other);
+  ASSERT_TRUE(group);
+  ASSERT_TRUE(user);
+
+  auto iv_other = other->inode();
+  auto iv_group = group->inode();
+  auto iv_user = user->inode();
 
 #ifdef _WIN32
   static constexpr int const x_ok{1};
@@ -1367,133 +1383,137 @@ TEST(filesystem, root_access_github204) {
   static constexpr int const x_ok{X_OK};
 #endif
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 1000, 100));
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 1000, 100));
 
-  EXPECT_TRUE(fs.access(*other, x_ok, 1000, 100));
-  EXPECT_TRUE(fs.access(*group, x_ok, 1000, 100));
-  EXPECT_TRUE(fs.access(*user, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_other, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_group, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_user, x_ok, 1000, 100));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 1000, 0));
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 1000, 0));
 
-  EXPECT_TRUE(fs.access(*other, x_ok, 1000, 0));
-  EXPECT_TRUE(fs.access(*group, x_ok, 1000, 0));
-  EXPECT_TRUE(fs.access(*user, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_other, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_group, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_user, x_ok, 1000, 0));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 100));
-  EXPECT_TRUE(fs.access(*group, R_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, R_OK, 2000, 100));
 
-  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_other, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_group, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, W_OK, 2000, 100));
 
-  EXPECT_TRUE(fs.access(*other, x_ok, 2000, 100));
-  EXPECT_TRUE(fs.access(*group, x_ok, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_other, x_ok, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_group, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 2000, 100));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, R_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 200));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, R_OK, 2000, 200));
 
-  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_other, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, W_OK, 2000, 200));
 
-  EXPECT_TRUE(fs.access(*other, x_ok, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 200));
+  EXPECT_TRUE(fs.access(iv_other, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 2000, 200));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*group, R_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*user, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 0, 0));
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*group, W_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*user, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 0, 0));
 
-  EXPECT_TRUE(fs.access(*other, x_ok, 0, 0));
-  EXPECT_TRUE(fs.access(*group, x_ok, 0, 0));
-  EXPECT_TRUE(fs.access(*user, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(iv_other, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(iv_group, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(iv_user, x_ok, 0, 0));
 
   other = fs.find("/other/file");
   group = fs.find("/group/file");
   user = fs.find("/user/file");
 
-  EXPECT_TRUE(other);
-  EXPECT_TRUE(group);
-  EXPECT_TRUE(user);
+  ASSERT_TRUE(other);
+  ASSERT_TRUE(group);
+  ASSERT_TRUE(user);
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 100));
+  iv_other = other->inode();
+  iv_group = group->inode();
+  iv_user = user->inode();
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 100));
-  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 1000, 100));
 
-  EXPECT_FALSE(fs.access(*other, x_ok, 1000, 100));
-  EXPECT_FALSE(fs.access(*group, x_ok, 1000, 100));
-  EXPECT_FALSE(fs.access(*user, x_ok, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 1000, 100));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 1000, 100));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*group, R_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*user, R_OK, 1000, 0));
+  EXPECT_FALSE(fs.access(iv_other, x_ok, 1000, 100));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 1000, 100));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 1000, 100));
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*group, W_OK, 1000, 0));
-  EXPECT_TRUE(fs.access(*user, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 1000, 0));
 
-  EXPECT_FALSE(fs.access(*other, x_ok, 1000, 0));
-  EXPECT_FALSE(fs.access(*group, x_ok, 1000, 0));
-  EXPECT_FALSE(fs.access(*user, x_ok, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 1000, 0));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 100));
-  EXPECT_TRUE(fs.access(*group, R_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_other, x_ok, 1000, 0));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 1000, 0));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 1000, 0));
 
-  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 2000, 100));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, R_OK, 2000, 100));
 
-  EXPECT_FALSE(fs.access(*other, x_ok, 2000, 100));
-  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 100));
-  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_other, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_group, W_OK, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, W_OK, 2000, 100));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, R_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_other, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 2000, 100));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 2000, 100));
 
-  EXPECT_FALSE(fs.access(*other, W_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, W_OK, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, W_OK, 2000, 200));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, R_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, R_OK, 2000, 200));
 
-  EXPECT_FALSE(fs.access(*other, x_ok, 2000, 200));
-  EXPECT_FALSE(fs.access(*group, x_ok, 2000, 200));
-  EXPECT_FALSE(fs.access(*user, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_other, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, W_OK, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, W_OK, 2000, 200));
 
-  EXPECT_TRUE(fs.access(*other, R_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*group, R_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*user, R_OK, 0, 0));
+  EXPECT_FALSE(fs.access(iv_other, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 2000, 200));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 2000, 200));
 
-  EXPECT_TRUE(fs.access(*other, W_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*group, W_OK, 0, 0));
-  EXPECT_TRUE(fs.access(*user, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_other, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_group, R_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_user, R_OK, 0, 0));
 
-  EXPECT_FALSE(fs.access(*other, x_ok, 0, 0));
-  EXPECT_FALSE(fs.access(*group, x_ok, 0, 0));
-  EXPECT_FALSE(fs.access(*user, x_ok, 0, 0));
+  EXPECT_TRUE(fs.access(iv_other, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_group, W_OK, 0, 0));
+  EXPECT_TRUE(fs.access(iv_user, W_OK, 0, 0));
+
+  EXPECT_FALSE(fs.access(iv_other, x_ok, 0, 0));
+  EXPECT_FALSE(fs.access(iv_group, x_ok, 0, 0));
+  EXPECT_FALSE(fs.access(iv_user, x_ok, 0, 0));
 }
 
 TEST(filesystem, read) {
@@ -1518,10 +1538,10 @@ TEST(filesystem, read) {
   reader::filesystem_v2 fs(lgr, *input, mm,
                            {.inode_reader = {.readahead = 64}});
 
-  auto iv = fs.find("/random");
-  EXPECT_TRUE(iv);
+  auto dev = fs.find("/random");
+  EXPECT_TRUE(dev);
 
-  auto fh = fs.open(*iv);
+  auto fh = fs.open(dev->inode());
   uint32_t fh_invalid = 66666;
 
   std::error_code ec;
