@@ -223,10 +223,10 @@ class filesystem_ final : public filesystem_v2::impl {
   void walk_data_order(
       std::function<void(dir_entry_view)> const& func) const override;
   dir_entry_view root() const override;
-  std::optional<dir_entry_view> find(const char* path) const override;
+  std::optional<dir_entry_view> find(std::string_view path) const override;
   std::optional<inode_view> find(int inode) const override;
   std::optional<dir_entry_view>
-  find(int inode, const char* name) const override;
+  find(int inode, std::string_view name) const override;
   file_stat getattr(inode_view entry, std::error_code& ec) const override;
   file_stat getattr(inode_view entry, getattr_options const& opts,
                     std::error_code& ec) const override;
@@ -743,7 +743,7 @@ dir_entry_view filesystem_<LoggerPolicy>::root() const {
 
 template <typename LoggerPolicy>
 std::optional<dir_entry_view>
-filesystem_<LoggerPolicy>::find(const char* path) const {
+filesystem_<LoggerPolicy>::find(std::string_view path) const {
   PERFMON_CLS_SCOPED_SECTION(find_path)
   return meta_.find(path);
 }
@@ -756,7 +756,7 @@ std::optional<inode_view> filesystem_<LoggerPolicy>::find(int inode) const {
 
 template <typename LoggerPolicy>
 std::optional<dir_entry_view>
-filesystem_<LoggerPolicy>::find(int inode, const char* name) const {
+filesystem_<LoggerPolicy>::find(int inode, std::string_view name) const {
   PERFMON_CLS_SCOPED_SECTION(find_inode_name)
   return meta_.find(inode, name);
 }
