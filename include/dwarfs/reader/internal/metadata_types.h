@@ -156,13 +156,7 @@ class dir_entry_view_impl {
   from_dir_entry_index(uint32_t self_index, global_metadata const& g,
                        entry_name_type name_type = entry_name_type::other);
 
-  // TODO: this works, but it's strange; a limited version of
-  // dir_entry_view_impl
-  //       should work without a parent for these use cases
-  static std::string
-  name(uint32_t index, global_metadata const& g); // TODO: remove?
-  static std::shared_ptr<inode_view_impl>
-  inode_shared(uint32_t index, global_metadata const& g); // TODO: remove?
+  static std::string name(uint32_t index, global_metadata const& g);
 
   std::string name() const;
   std::shared_ptr<inode_view_impl> inode_shared() const;
