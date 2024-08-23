@@ -1120,6 +1120,33 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     }
     EXPECT_EQ(expected, paths) << td;
   }
+
+  {
+    auto dev = fs.find("foo/1/2/3/4/5/6/7/8/9/j");
+    ASSERT_TRUE(dev);
+    EXPECT_EQ("j", dev->name());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_regular_file());
+    dev = dev->parent();
+    EXPECT_EQ("9", dev->name());
+    EXPECT_EQ("foo/1/2/3/4/5/6/7/8/9", dev->unix_path());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    dev = dev->parent()->parent()->parent();
+    EXPECT_EQ("6", dev->name());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    dev = dev->parent()->parent()->parent()->parent()->parent()->parent();
+    EXPECT_EQ("foo", dev->name());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    dev = dev->parent();
+    ASSERT_TRUE(dev);
+    EXPECT_EQ("", dev->name());
+    EXPECT_TRUE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    EXPECT_FALSE(dev->parent());
+  }
 }
 
 } // namespace
