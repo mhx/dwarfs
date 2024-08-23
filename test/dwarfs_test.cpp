@@ -563,6 +563,25 @@ void basic_end_to_end_test(
       ASSERT_TRUE(info.count("root"));
     }
   }
+
+  {
+    auto dev = fs.find("somedir/ipsum.py");
+    ASSERT_TRUE(dev);
+    EXPECT_EQ("ipsum.py", dev->name());
+    EXPECT_EQ("somedir/ipsum.py", dev->unix_path());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_regular_file());
+    dev = dev->parent();
+    EXPECT_EQ("somedir", dev->name());
+    EXPECT_FALSE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    dev = dev->parent();
+    ASSERT_TRUE(dev);
+    EXPECT_EQ("", dev->name());
+    EXPECT_TRUE(dev->is_root());
+    EXPECT_TRUE(dev->inode().is_directory());
+    EXPECT_FALSE(dev->parent());
+  }
 }
 
 std::vector<std::string> const compressions{
