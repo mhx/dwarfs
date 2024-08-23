@@ -863,7 +863,8 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   auto entry = fs.find("/format.sh");
 
   ASSERT_TRUE(entry);
-  auto st = fs.getattr(*entry);
+  auto iv = entry->inode();
+  auto st = fs.getattr(iv);
   EXPECT_EQ(94, st.size());
   EXPECT_EQ(S_IFREG | 0755, st.mode());
   EXPECT_EQ(1000, st.uid());
@@ -874,9 +875,9 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     EXPECT_EQ(1616013816, st.ctime());
   }
 
-  EXPECT_TRUE(fs.access(*entry, R_OK, 1000, 0));
+  EXPECT_TRUE(fs.access(iv, R_OK, 1000, 0));
 
-  auto inode = fs.open(*entry);
+  auto inode = fs.open(iv);
   EXPECT_GE(inode, 0);
 
   std::error_code ec;
@@ -888,13 +889,15 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
 
   entry = fs.find("/foo/bad");
   ASSERT_TRUE(entry);
-  auto link = fs.readlink(*entry, reader::readlink_mode::raw);
+  iv = entry->inode();
+  auto link = fs.readlink(iv, reader::readlink_mode::raw);
   EXPECT_EQ(link, "../foo");
 
   entry = fs.find(0, "foo");
   ASSERT_TRUE(entry);
+  iv = entry->inode();
 
-  auto dir = fs.opendir(*entry);
+  auto dir = fs.opendir(iv);
   ASSERT_TRUE(dir);
   EXPECT_EQ(6 + has_devices, fs.dirsize(*dir));
 
@@ -1104,7 +1107,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   for (auto const& [td, expected] : testdirs) {
     auto entry = fs.find(td.c_str());
     ASSERT_TRUE(entry) << td;
-    auto dir = fs.opendir(*entry);
+    auto dir = fs.opendir(entry->inode());
     ASSERT_TRUE(dir) << td;
     std::vector<std::string> paths;
     for (auto const& dev : *dir) {
@@ -1353,10 +1356,11 @@ TEST_P(set_uidgid_test, read_legacy_image) {
   for (auto path : {"/dwarfs", "/dwarfs/version.h"}) {
     auto v = fs.find(path);
     ASSERT_TRUE(v) << path;
-    EXPECT_EQ(33333, v->getuid()) << path;
-    EXPECT_EQ(44444, v->getgid()) << path;
+    auto iv = v->inode();
+    EXPECT_EQ(33333, iv.getuid()) << path;
+    EXPECT_EQ(44444, iv.getgid()) << path;
 
-    auto st = fs.getattr(*v);
+    auto st = fs.getattr(iv);
     EXPECT_EQ(33333, st.uid()) << path;
     EXPECT_EQ(44444, st.gid()) << path;
   }

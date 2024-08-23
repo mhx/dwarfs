@@ -54,22 +54,26 @@ TEST(filesystem, metadata_symlink_win) {
   auto mm = std::make_shared<mmap>(test_dir / "winlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
-  auto i1 = fs.find("link.txt");
-  auto i2 = fs.find("dir/link.txt");
-  auto i3 = fs.find("subdir/test.txt");
+  auto dev1 = fs.find("link.txt");
+  auto dev2 = fs.find("dir/link.txt");
+  auto dev3 = fs.find("subdir/test.txt");
 
-  ASSERT_TRUE(i1);
-  ASSERT_TRUE(i2);
-  ASSERT_TRUE(i3);
+  ASSERT_TRUE(dev1);
+  ASSERT_TRUE(dev2);
+  ASSERT_TRUE(dev3);
 
-  EXPECT_TRUE(i1->is_symlink());
-  EXPECT_TRUE(i2->is_symlink());
-  EXPECT_TRUE(i3->is_regular_file());
+  auto i1 = dev1->inode();
+  auto i2 = dev2->inode();
+  auto i3 = dev3->inode();
+
+  EXPECT_TRUE(i1.is_symlink());
+  EXPECT_TRUE(i2.is_symlink());
+  EXPECT_TRUE(i3.is_regular_file());
 
   // readlink_mode::preferred (default)
   {
-    auto buf1 = fs.readlink(*i1);
-    auto buf2 = fs.readlink(*i2);
+    auto buf1 = fs.readlink(i1);
+    auto buf2 = fs.readlink(i2);
 
 #if defined(_WIN32)
     EXPECT_EQ("subdir\\test.txt", buf1);
@@ -81,41 +85,41 @@ TEST(filesystem, metadata_symlink_win) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::raw);
+    auto buffer = fs.readlink(i1, reader::readlink_mode::raw);
     EXPECT_EQ("subdir\\test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::raw);
+    buffer = fs.readlink(i2, reader::readlink_mode::raw);
     EXPECT_EQ("..\\subdir\\test.txt", buffer);
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::posix);
+    auto buffer = fs.readlink(i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::posix);
+    buffer = fs.readlink(i2, reader::readlink_mode::posix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, reader::readlink_mode::posix, ec);
+    auto r = fs.readlink(i1, reader::readlink_mode::posix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i3, ec);
+    auto r = fs.readlink(i3, ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(EINVAL, ec.value());
   }
 
   // also test throwing interface
   {
-    auto r = fs.readlink(*i1, reader::readlink_mode::posix);
+    auto r = fs.readlink(i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", r);
   }
 
   {
-    EXPECT_THAT([&] { fs.readlink(*i3); },
+    EXPECT_THAT([&] { fs.readlink(i3); },
                 ::testing::Throws<std::system_error>());
   }
 }
@@ -127,22 +131,26 @@ TEST(filesystem, metadata_symlink_unix) {
   auto mm = std::make_shared<mmap>(test_dir / "unixlink.dwarfs");
   reader::filesystem_v2 fs(lgr, os, mm);
 
-  auto i1 = fs.find("link.txt");
-  auto i2 = fs.find("dir/link.txt");
-  auto i3 = fs.find("subdir/test.txt");
+  auto dev1 = fs.find("link.txt");
+  auto dev2 = fs.find("dir/link.txt");
+  auto dev3 = fs.find("subdir/test.txt");
 
-  ASSERT_TRUE(i1);
-  ASSERT_TRUE(i2);
-  ASSERT_TRUE(i3);
+  ASSERT_TRUE(dev1);
+  ASSERT_TRUE(dev2);
+  ASSERT_TRUE(dev3);
 
-  EXPECT_TRUE(i1->is_symlink());
-  EXPECT_TRUE(i2->is_symlink());
-  EXPECT_TRUE(i3->is_regular_file());
+  auto i1 = dev1->inode();
+  auto i2 = dev2->inode();
+  auto i3 = dev3->inode();
+
+  EXPECT_TRUE(i1.is_symlink());
+  EXPECT_TRUE(i2.is_symlink());
+  EXPECT_TRUE(i3.is_regular_file());
 
   // readlink_mode::preferred (default)
   {
-    auto buf1 = fs.readlink(*i1);
-    auto buf2 = fs.readlink(*i2);
+    auto buf1 = fs.readlink(i1);
+    auto buf2 = fs.readlink(i2);
 
 #if defined(_WIN32)
     EXPECT_EQ("subdir\\test.txt", buf1);
@@ -154,29 +162,29 @@ TEST(filesystem, metadata_symlink_unix) {
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::raw);
+    auto buffer = fs.readlink(i1, reader::readlink_mode::raw);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::raw);
+    buffer = fs.readlink(i2, reader::readlink_mode::raw);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
-    auto buffer = fs.readlink(*i1, reader::readlink_mode::posix);
+    auto buffer = fs.readlink(i1, reader::readlink_mode::posix);
     EXPECT_EQ("subdir/test.txt", buffer);
-    buffer = fs.readlink(*i2, reader::readlink_mode::posix);
+    buffer = fs.readlink(i2, reader::readlink_mode::posix);
     EXPECT_EQ("../subdir/test.txt", buffer);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i1, reader::readlink_mode::posix, ec);
+    auto r = fs.readlink(i1, reader::readlink_mode::posix, ec);
     EXPECT_FALSE(ec);
     EXPECT_EQ("subdir/test.txt", r);
   }
 
   {
     std::error_code ec;
-    auto r = fs.readlink(*i3, ec);
+    auto r = fs.readlink(i3, ec);
     EXPECT_TRUE(ec);
     EXPECT_EQ(EINVAL, ec.value());
   }
