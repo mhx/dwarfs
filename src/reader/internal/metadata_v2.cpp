@@ -511,7 +511,7 @@ class metadata_ final : public metadata_v2::impl {
 
   std::optional<directory_view> opendir(inode_view iv) const override;
 
-  std::optional<std::pair<inode_view, std::string>>
+  std::optional<dir_entry_view>
   readdir(directory_view dir, size_t offset) const override;
 
   size_t dirsize(directory_view dir) const override {
@@ -1784,16 +1784,20 @@ metadata_<LoggerPolicy>::opendir(inode_view iv) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<inode_view, std::string>>
+std::optional<dir_entry_view>
 metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readdir)
 
   switch (offset) {
   case 0:
-    return std::pair(make_inode_view(dir.inode()), ".");
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+        global_.self_dir_entry(dir.inode()), global_,
+        dir_entry_view_impl::entry_name_type::self)};
 
   case 1:
-    return std::pair(make_inode_view(dir.parent_inode()), "..");
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+        global_.self_dir_entry(dir.parent_inode()), global_,
+        dir_entry_view_impl::entry_name_type::parent)};
 
   default:
     offset -= 2;
@@ -1803,10 +1807,8 @@ metadata_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
     }
 
     auto index = dir.first_entry() + offset;
-    auto inode =
-        inode_view{internal::dir_entry_view_impl::inode_shared(index, global_)};
-    return std::pair(inode,
-                     internal::dir_entry_view_impl::name(index, global_));
+    return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+        index, global_.self_dir_entry(dir.inode()), global_)};
   }
 
   return std::nullopt;

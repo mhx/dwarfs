@@ -237,7 +237,7 @@ class filesystem_ final : public filesystem_v2::impl {
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const override;
   std::optional<directory_view> opendir(inode_view entry) const override;
-  std::optional<std::pair<inode_view, std::string>>
+  std::optional<dir_entry_view>
   readdir(directory_view dir, size_t offset) const override;
   size_t dirsize(directory_view dir) const override;
   std::string readlink(inode_view entry, readlink_mode mode,
@@ -818,7 +818,7 @@ filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
 }
 
 template <typename LoggerPolicy>
-std::optional<std::pair<inode_view, std::string>>
+std::optional<dir_entry_view>
 filesystem_<LoggerPolicy>::readdir(directory_view dir, size_t offset) const {
   PERFMON_CLS_SCOPED_SECTION(readdir)
   return meta_.readdir(dir, offset);
