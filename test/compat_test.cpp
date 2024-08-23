@@ -1105,7 +1105,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   };
 
   for (auto const& [td, expected] : testdirs) {
-    auto entry = fs.find(td.c_str());
+    auto entry = fs.find(td);
     ASSERT_TRUE(entry) << td;
     auto dir = fs.opendir(entry->inode());
     ASSERT_TRUE(dir) << td;
