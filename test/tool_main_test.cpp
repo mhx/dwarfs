@@ -903,7 +903,7 @@ TEST(mkdwarfs_test, metadata_path) {
   auto e4 = entries.at(16);
   auto e5 = entries.at(32);
 
-  auto dev = fs.find(d1.string().c_str());
+  auto dev = fs.find(d1.string());
   ASSERT_TRUE(dev);
   auto iv = dev->inode();
 
@@ -1104,7 +1104,7 @@ TEST(mkdwarfs_test, metadata_directory_iterator) {
   };
 
   for (auto const& [path, expected_names] : testdirs) {
-    auto dev = fs.find(path.c_str());
+    auto dev = fs.find(path);
     ASSERT_TRUE(dev) << path;
 
     auto dir = fs.opendir(dev->inode());
@@ -2340,7 +2340,7 @@ TEST(mkdwarfs_test, max_similarity_size) {
 
     for (auto size : sizes) {
       auto path = "/file" + std::to_string(size);
-      auto dev = fs.find(path.c_str());
+      auto dev = fs.find(path);
       assert(dev);
       auto info = fs.get_inode_info(dev->inode());
       assert(1 == info["chunks"].size());
@@ -2814,7 +2814,7 @@ TEST(block_cache, sequential_access_detector) {
 #ifdef _WIN32
         std::replace(pstr.begin(), pstr.end(), '\\', '/');
 #endif
-        auto dev = fs.find(pstr.c_str());
+        auto dev = fs.find(pstr);
         ASSERT_TRUE(dev);
         auto iv = dev->inode();
         ASSERT_TRUE(iv.is_regular_file());
@@ -2920,7 +2920,7 @@ TEST(file_scanner, large_file_handling) {
   auto fs = t.fs_from_stdout();
 
   for (size_t i = 0; i < data.size(); ++i) {
-    auto dev = fs.find(fmt::format("f{}", i).c_str());
+    auto dev = fs.find(fmt::format("f{}", i));
     ASSERT_TRUE(dev) << i;
     auto iv = dev->inode();
     auto st = fs.getattr(iv);
