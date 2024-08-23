@@ -434,6 +434,7 @@ if(WITH_TESTS)
       metadata_requirements_test
       options_test
       packed_int_vector_test
+      packed_ptr_test
       pcm_sample_transformer_test
       pcmaudio_categorizer_test
       speedometer_test
