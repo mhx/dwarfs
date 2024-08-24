@@ -146,6 +146,12 @@ class performance_monitor_proxy {
 #define PERFMON_PROXY_SETUP(instname, monitor, name_space)                     \
   instname = performance_monitor_proxy(monitor, name_space);
 
+#define PERFMON_SECTION_ARG perfmon_scoped_section_
+#define PERFMON_SECTION_ARG_ perfmon_scoped_section_,
+#define PERFMON_SECTION_PARAM                                                  \
+  ::dwarfs::performance_monitor_proxy::section_timer& perfmon_scoped_section_
+#define PERFMON_SECTION_PARAM_ PERFMON_SECTION_PARAM,
+
 #define PERFMON_PROXY_INSTNAME perfmon_inst_
 
 #define PERFMON_EXT_PROXY_DECL PERFMON_PROXY_DECL(PERFMON_PROXY_INSTNAME)
@@ -184,6 +190,11 @@ class performance_monitor_proxy {
 #define PERFMON_TIMER_INIT(instname, id, ...)
 #define PERFMON_SCOPED_SECTION(instname, id)
 #define PERFMON_PROXY_SETUP(instname, monitor, name_space)
+
+#define PERFMON_SECTION_ARG
+#define PERFMON_SECTION_ARG_
+#define PERFMON_SECTION_PARAM
+#define PERFMON_SECTION_PARAM_
 
 #define PERFMON_EXT_PROXY_DECL
 #define PERFMON_EXT_TIMER_DECL(id)
