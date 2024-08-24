@@ -1147,7 +1147,7 @@ template <typename LoggerPolicy>
 nlohmann::json
 metadata_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
                                       filesystem_info const* fsinfo) const {
-  auto info = nlohmann::json::object();
+  nlohmann::json info;
   vfs_stat stbuf;
   statvfs(&stbuf);
 
