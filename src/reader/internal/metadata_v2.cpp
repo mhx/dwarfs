@@ -688,14 +688,12 @@ class metadata_ final : public metadata_v2::impl {
     return inode;
   }
 
-  chunk_range get_chunk_range(int inode, std::error_code& ec) const {
-    inode = file_inode_to_chunk_index(inode);
-
-    if (inode >= 0 &&
-        (inode + 1) < static_cast<int>(meta_.chunk_table().size())) {
+  chunk_range get_chunk_range_from_index(int index, std::error_code& ec) const {
+    if (index >= 0 &&
+        (index + 1) < static_cast<int>(meta_.chunk_table().size())) {
       ec.clear();
-      uint32_t begin = chunk_table_lookup(inode);
-      uint32_t end = chunk_table_lookup(inode + 1);
+      uint32_t begin = chunk_table_lookup(index);
+      uint32_t end = chunk_table_lookup(index + 1);
       return chunk_range(meta_, begin, end);
     }
 
@@ -703,21 +701,27 @@ class metadata_ final : public metadata_v2::impl {
     return {};
   }
 
+  chunk_range get_chunk_range(int inode, std::error_code& ec) const {
+    return get_chunk_range_from_index(file_inode_to_chunk_index(inode), ec);
+  }
+
   size_t reg_file_size_impl(inode_view_impl const& iv, bool use_cache) const {
     PERFMON_CLS_SCOPED_SECTION(reg_file_size)
 
     // Looking up the chunk range is cheap, and we likely have to do it anyway
     std::error_code ec;
-    auto cr = get_chunk_range(iv.inode_num(), ec);
-    DWARFS_CHECK(!ec, fmt::format("get_chunk_range({}): {}", iv.inode_num(),
-                                  ec.message()));
+    auto inode = iv.inode_num();
+    auto index = file_inode_to_chunk_index(inode);
+    auto cr = get_chunk_range_from_index(index, ec);
+    DWARFS_CHECK(!ec,
+                 fmt::format("get_chunk_range({}): {}", inode, ec.message()));
 
     if (use_cache) {
       if (auto cache = meta_.reg_file_size_cache()) {
         if (cr.size() >= cache->min_chunk_count()) {
-          LOG_TRACE << "using size cache lookup for inode " << iv.inode_num();
-          if (auto size = cache->lookup().getOptional(iv.inode_num() -
-                                                      file_inode_offset_)) {
+          LOG_TRACE << "using size cache lookup for inode " << iv.inode_num()
+                    << " (index " << index << ")";
+          if (auto size = cache->lookup().getOptional(index)) {
             return *size;
           }
         }
@@ -1011,19 +1015,70 @@ template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::check_inode_size_cache() const {
   if (auto cache = meta_.reg_file_size_cache()) {
     LOG_DEBUG << "checking inode size cache";
-    for (auto entry : cache->lookup()) {
-      auto inode = entry.first();
-      auto size = entry.second();
-      auto iv = make_inode_view_impl(file_inode_offset_ + inode);
-      LOG_TRACE << "checking inode " << inode << " size " << size;
+    size_t errors{0};
+    auto const min_chunk_count = cache->min_chunk_count();
+
+    std::unordered_set<uint32_t> seen;
+
+    for (int inode = file_inode_offset_; inode < dev_inode_offset_; ++inode) {
+      auto iv = make_inode_view_impl(inode);
       auto expected = reg_file_size_nocache(iv);
-      if (size != expected) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format(
-                "inode size cache mismatch: inode {} expected {} got {}", inode,
-                expected, size));
+      auto size_cached = reg_file_size(iv);
+
+      if (size_cached != expected) {
+        LOG_ERROR << "inode " << inode
+                  << " cached/uncached size mismatch: " << size_cached
+                  << " != " << expected;
+        ++errors;
       }
+
+      auto index = file_inode_to_chunk_index(inode);
+
+      if (seen.find(index) != seen.end()) {
+        continue;
+      }
+
+      if (auto it = cache->lookup().find(index); it != cache->lookup().end()) {
+        auto size = it->second();
+
+        std::error_code ec;
+        auto cr = get_chunk_range_from_index(index, ec);
+        DWARFS_CHECK(
+            !ec, fmt::format("get_chunk_range({}): {}", inode, ec.message()));
+
+        LOG_TRACE << "checking inode " << inode << " [index=" << index
+                  << "] size " << size << " (" << cr.size() << " chunks)";
+
+        if (size != expected) {
+          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                    << " does not match expected " << expected;
+          ++errors;
+        }
+
+        if (cr.size() < min_chunk_count) {
+          LOG_ERROR << "inode " << inode << " [" << index << "] size " << size
+                    << " has less than " << min_chunk_count
+                    << " chunks: " << cr.size();
+          ++errors;
+        }
+
+        seen.insert(index);
+      }
+    }
+
+    for (auto entry : cache->lookup()) {
+      auto index = entry.first();
+      if (seen.find(index) == seen.end()) {
+        LOG_ERROR << "unused inode size cache entry for index " << index
+                  << " size " << entry.second();
+        ++errors;
+      }
+    }
+
+    if (errors > 0) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format("inode size cache check failed: {} error(s)", errors));
     }
   }
 }
