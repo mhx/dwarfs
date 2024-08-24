@@ -1854,3 +1854,75 @@ TEST(filesystem, read) {
   EXPECT_TRUE(ec);
   EXPECT_EQ(ec.value(), EINVAL);
 }
+
+TEST(filesystem, inode_size_cache) {
+  std::mt19937_64 rng;
+  constexpr size_t kNumFragments{1000};
+  constexpr size_t kNumFiles{100};
+  std::uniform_int_distribution<size_t> file_fragments(1, 1024);
+  std::uniform_int_distribution<size_t> file_dist(0, kNumFiles - 1);
+
+  std::vector<std::string> fragments;
+  fragments.reserve(kNumFragments);
+  for (size_t i = 0; i < kNumFragments; ++i) {
+    fragments.emplace_back(test::create_random_string(256, rng));
+  }
+
+  std::vector<std::string> files;
+  files.reserve(kNumFiles);
+  for (size_t i = 0; i < kNumFiles; ++i) {
+    std::string file;
+    auto num_fragments = file_fragments(rng);
+    for (size_t j = 0; j < num_fragments; ++j) {
+      file.append(fragments[rng() % kNumFragments]);
+    }
+    files.emplace_back(std::move(file));
+  }
+
+  test::test_logger lgr;
+  auto input = std::make_shared<test::os_access_mock>();
+  input->add_dir("");
+  input->add_dir("a");
+  input->add_dir("b");
+  input->add_dir("c");
+
+  std::map<std::string, size_t> file_sizes;
+
+  auto add_file = [&](std::string const& path) {
+    auto const& content = files[file_dist(rng)];
+    file_sizes[path] = content.size();
+    input->add_file(path, content);
+  };
+
+  for (size_t i = 0; i < kNumFiles / 2; ++i) {
+    add_file(fmt::format("a/file{}", i));
+    add_file(fmt::format("b/file{}", i));
+    add_file(fmt::format("c/file{}", i));
+  }
+
+  writer::scanner_options options;
+  options.inode_size_cache_min_chunk_count = 32;
+
+  writer::segmenter::config cfg;
+  cfg.block_size_bits = 16;
+  cfg.blockhash_window_size = 7;
+
+  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options);
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  reader::filesystem_options fsopts = {.metadata = {.check_consistency = true}};
+
+  reader::filesystem_v2 fs(lgr, *input, mm, fsopts);
+
+  // fs.dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
+
+  EXPECT_NO_THROW(fs.check(reader::filesystem_check_level::FULL));
+
+  for (auto const& [path, size] : file_sizes) {
+    auto dev = fs.find(path);
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
+    auto st = fs.getattr(iv);
+    EXPECT_EQ(st.size(), size);
+  }
+}
