@@ -61,9 +61,37 @@
 using namespace dwarfs;
 namespace fs = std::filesystem;
 
+/*------------------------------------------------------------------------------
+
+Command line options used to create the 0.4.1 and later images:
+
+$ mkdwarfs -i @compat -o compat-vx.y.z.dwarfs --with-devices --with-specials \
+           -S10 -l0 -W5 --order=similarity
+
+------------------------------------------------------------------------------*/
+
 namespace {
 
 auto test_dir = fs::path(TEST_DATA_DIR).make_preferred();
+
+template <class F>
+void walk_json(nlohmann::json& j, F f) {
+  for (auto& [k, v] : j.items()) {
+    f(v);
+
+    if (v.is_structured()) {
+      walk_json(v, f);
+    }
+  }
+}
+
+void remove_inode_numbers(nlohmann::json& j) {
+  walk_json(j, [](nlohmann::json& j) {
+    if (j.contains("inode")) {
+      j.erase("inode");
+    }
+  });
+}
 
 char const* reference_v0_2 = R"(
 {
@@ -414,7 +442,7 @@ char const* reference_v0_2 = R"(
 }
 )";
 
-char const* reference = R"(
+char const* reference_v0_4 = R"(
 {
   "root": {
     "inode": 0,
@@ -789,6 +817,7 @@ char const* reference = R"(
 
 std::vector<std::string> versions{
     "0.2.0", "0.2.3", "0.3.0", "0.4.0", "0.4.1",
+    "0.5.6", "0.6.2", "0.7.5", "0.8.0", "0.9.10",
 };
 
 std::string format_sh = R"(#!/bin/bash
@@ -839,16 +868,23 @@ void walk_tree(reader::filesystem_v2 const& fs, T& cb,
 }
 
 void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
-                  std::string const& version) {
-  bool has_devices = not(version == "0.2.0" or version == "0.2.3");
-  bool has_ac_time = version == "0.2.0" or version == "0.2.3";
+                  std::string const& version, bool enable_nlink) {
+  const bool has_devices = not(version == "0.2.0" or version == "0.2.3");
+  const bool has_ac_time = version == "0.2.0" or version == "0.2.3";
+  const bool nlink_affects_blocks =
+      not(version.starts_with("0.2.") or version.starts_with("0.3.") or
+          version.starts_with("0.4."));
+  auto const expected_blocks =
+      nlink_affects_blocks and enable_nlink ? 2747 : 10614;
+
+  ASSERT_EQ(0, fs.check(reader::filesystem_check_level::FULL));
 
   vfs_stat vfsbuf;
   fs.statvfs(&vfsbuf);
 
   EXPECT_EQ(1, vfsbuf.bsize);
   EXPECT_EQ(1, vfsbuf.frsize);
-  EXPECT_EQ(10614, vfsbuf.blocks);
+  EXPECT_EQ(expected_blocks, vfsbuf.blocks);
   EXPECT_EQ(33 + 3 * has_devices, vfsbuf.files);
   EXPECT_TRUE(vfsbuf.readonly);
   EXPECT_GT(vfsbuf.namemax, 0);
@@ -1149,6 +1185,10 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   }
 }
 
+auto get_image_path(std::string const& version) {
+  return test_dir / "compat" / fmt::format("compat-v{}.dwarfs", version);
+}
+
 } // namespace
 
 class compat_metadata : public testing::TestWithParam<std::string> {};
@@ -1157,17 +1197,21 @@ void check_dynamic(std::string const& version,
                    reader::filesystem_v2 const& fs) {
   auto meta = fs.metadata_as_json();
   nlohmann::json ref;
-  if (version == "0.2.0" or version == "0.2.3") {
+  if (version.starts_with("0.2.")) {
     ref = nlohmann::json::parse(reference_v0_2);
   } else {
-    ref = nlohmann::json::parse(reference);
+    ref = nlohmann::json::parse(reference_v0_4);
   }
-  EXPECT_EQ(ref, meta);
+
+  remove_inode_numbers(ref);
+  remove_inode_numbers(meta);
+
+  EXPECT_EQ(ref, meta) << nlohmann::json::diff(ref, meta).dump(2);
 }
 
 TEST_P(compat_metadata, backwards_compat) {
   auto version = GetParam();
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+  auto filename = get_image_path(version);
   test::test_logger lgr;
   test::os_access_mock os;
   reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename));
@@ -1185,7 +1229,7 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+  auto filename = get_image_path(version);
 
   reader::filesystem_options opts;
   opts.metadata.enable_nlink = enable_nlink;
@@ -1193,25 +1237,25 @@ TEST_P(compat_filesystem, backwards_compat) {
 
   {
     reader::filesystem_v2 fs(lgr, os, std::make_shared<mmap>(filename), opts);
-    check_compat(lgr, fs, version);
+    check_compat(lgr, fs, version, enable_nlink);
   }
 
   opts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
 
   std::string fsdata;
-  ASSERT_TRUE(folly::readFile(filename.c_str(), fsdata));
+  ASSERT_TRUE(folly::readFile(filename.string().c_str(), fsdata));
 
   for (auto const& hdr : headers) {
     reader::filesystem_v2 fs(
         lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
-    check_compat(lgr, fs, version);
+    check_compat(lgr, fs, version, enable_nlink);
   }
 
   if (version != "0.2.0" and version != "0.2.3") {
     for (auto const& hdr : headers_v2) {
       reader::filesystem_v2 fs(
           lgr, os, std::make_shared<test::mmap_mock>(hdr + fsdata), opts);
-      check_compat(lgr, fs, version);
+      check_compat(lgr, fs, version, enable_nlink);
     }
   }
 }
@@ -1228,7 +1272,7 @@ TEST_P(rewrite, filesystem_rewrite) {
 
   test::test_logger lgr;
   test::os_access_mock os;
-  auto filename = std::string(TEST_DATA_DIR "/compat-v") + version + ".dwarfs";
+  auto filename = get_image_path(version);
 
   utility::rewrite_options opts;
   opts.recompress_block = recompress_block;
@@ -1377,7 +1421,7 @@ INSTANTIATE_TEST_SUITE_P(dwarfs_compat, rewrite,
 class set_uidgid_test : public testing::TestWithParam<char const*> {};
 
 TEST_P(set_uidgid_test, read_legacy_image) {
-  auto image = test_dir / GetParam();
+  auto image = test_dir / "compat" / GetParam();
 
   test::test_logger lgr;
   test::os_access_mock os;
