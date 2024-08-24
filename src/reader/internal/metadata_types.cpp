@@ -230,43 +230,55 @@ void check_empty_tables(global_metadata::Meta const& meta) {
 }
 
 void check_index_range(global_metadata::Meta const& meta) {
-  auto num_modes = meta.modes().size();
-  auto num_uids = meta.uids().size();
-  auto num_gids = meta.gids().size();
+  auto const num_modes = meta.modes().size();
+  auto const num_uids = meta.uids().size();
+  auto const num_gids = meta.gids().size();
   auto num_names = meta.names().size();
-  auto num_inodes = meta.inodes().size();
-  bool v2_2 = !static_cast<bool>(meta.dir_entries());
+  auto const num_inodes = meta.inodes().size();
+  bool const v2_2 = !static_cast<bool>(meta.dir_entries());
+  auto const max_names = v2_2 ? num_inodes : meta.dir_entries()->size();
+  auto const max_inodes =
+      v2_2 ? std::numeric_limits<uint32_t>::max() : meta.dir_entries()->size();
 
-  if (num_modes >= std::numeric_limits<file_stat::mode_type>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of modes");
+  if (num_modes > num_inodes) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid number of modes: {} > {}",
+                                            num_modes, num_inodes));
   }
 
-  if (num_uids >= std::numeric_limits<file_stat::uid_type>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of uids");
+  if (num_uids > num_inodes) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid number of uids: {} > {}",
+                                            num_uids, num_inodes));
   }
 
-  if (num_gids >= std::numeric_limits<file_stat::gid_type>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of gids");
+  if (num_gids > num_inodes) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid number of gids: {} > {}",
+                                            num_gids, num_inodes));
   }
 
-  if (num_names >= std::numeric_limits<uint32_t>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of names");
+  if (num_names > max_names) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid number of names: {} > {}",
+                                            num_names, max_names));
   }
 
-  if (num_inodes >= std::numeric_limits<uint32_t>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of inodes");
+  if (num_inodes > max_inodes) {
+    DWARFS_THROW(runtime_error, fmt::format("invalid number of inodes: {} > {}",
+                                            num_inodes, max_inodes));
   }
 
   for (auto ino : meta.inodes()) {
     if (ino.mode_index() >= num_modes) {
-      DWARFS_THROW(runtime_error, "mode_index out of range");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("mode_index out of range: {} >= {}",
+                               ino.mode_index(), num_modes));
     }
     // Special handling for legacy filesystems built with --set-owner
     // where num_uids == 0 is valid and owner_index is used to store
     // the uid.
     if (num_uids > 0) {
       if (auto i = ino.owner_index(); i >= num_uids) {
-        DWARFS_THROW(runtime_error, "owner_index out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("owner_index out of range: {} >= {}", i, num_uids));
       }
     }
     // Special handling for legacy filesystems built with --set-group
@@ -274,19 +286,26 @@ void check_index_range(global_metadata::Meta const& meta) {
     // the gid.
     if (num_gids > 0) {
       if (auto i = ino.group_index(); i >= num_gids) {
-        DWARFS_THROW(runtime_error, "group_index out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("group_index out of range: {} >= {}", i, num_gids));
       }
     }
     if (v2_2) {
       if (auto i = ino.name_index_v2_2(); i >= num_names && i > 0) {
-        DWARFS_THROW(runtime_error, "name_index_v2_2 out of range");
+        DWARFS_THROW(runtime_error,
+                     fmt::format("name_index_v2_2 out of range: {} >= {}", i,
+                                 num_names));
       }
     }
   }
 
   if (auto dep = meta.dir_entries()) {
     if (dep->size() >= std::numeric_limits<uint32_t>::max()) {
-      DWARFS_THROW(runtime_error, "invalid number of dir_entries");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid number of dir_entries: {} >= {}",
+                               dep->size(),
+                               std::numeric_limits<uint32_t>::max()));
     }
 
     if (auto cn = meta.compact_names()) {
@@ -301,33 +320,51 @@ void check_index_range(global_metadata::Meta const& meta) {
 
     for (auto de : *dep) {
       if (auto i = de.name_index(); i >= num_names && i > 0) {
-        DWARFS_THROW(runtime_error, "name_index out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("name_index out of range: {} >= {}", i, num_names));
       }
       if (auto i = de.inode_num(); i >= num_inodes) {
-        DWARFS_THROW(runtime_error, "inode_num out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("inode_num out of range: {} >= {}", i, num_inodes));
       }
     }
   } else {
     if (meta.entry_table_v2_2().size() >=
         std::numeric_limits<uint32_t>::max()) {
-      DWARFS_THROW(runtime_error, "invalid number of entries");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid number of entries: {} >= {}",
+                               meta.entry_table_v2_2().size(),
+                               std::numeric_limits<uint32_t>::max()));
     }
 
     for (auto ent : meta.entry_table_v2_2()) {
       if (ent >= num_inodes) {
-        DWARFS_THROW(runtime_error, "entry_table_v2_2 value out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("entry_table_v2_2 value out of range: {} >= {}", ent,
+                        num_inodes));
       }
     }
   }
 }
 
 void check_packed_tables(global_metadata::Meta const& meta) {
-  if (meta.directories().size() >= std::numeric_limits<uint32_t>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of directories");
+  auto const num_inodes = meta.inodes().size();
+
+  if (meta.directories().size() > num_inodes + 1) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid number of directories: {} > {}",
+                             meta.directories().size(), num_inodes + 1));
   }
 
-  if (meta.chunk_table().size() >= std::numeric_limits<uint32_t>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of chunk_table entries");
+  // strictly, the chunk table can only one entry per regular file,
+  // plus the sentinel entry at the end
+  if (meta.chunk_table().size() > num_inodes) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid number of chunk_table entries: {} > {}",
+                             meta.chunk_table().size(), num_inodes));
   }
 
   if (auto opt = meta.options(); opt and opt->packed_directories()) {
@@ -335,12 +372,16 @@ void check_packed_tables(global_metadata::Meta const& meta) {
                     [](auto i) { return i.parent_entry() != 0; })) {
       DWARFS_THROW(runtime_error, "parent_entry set in packed directory");
     }
-    if (std::accumulate(meta.directories().begin(), meta.directories().end(),
-                        static_cast<size_t>(0), [](auto n, auto d) {
-                          return n + d.first_entry();
-                        }) != meta.dir_entries()->size()) {
-      DWARFS_THROW(runtime_error,
-                   "first_entry inconsistency in packed directories");
+    if (auto expected =
+            std::accumulate(meta.directories().begin(),
+                            meta.directories().end(), static_cast<size_t>(0),
+                            [](auto n, auto d) { return n + d.first_entry(); });
+        expected != meta.dir_entries()->size()) {
+      DWARFS_THROW(
+          runtime_error,
+          fmt::format(
+              "first_entry inconsistency in packed directories: {} != {}",
+              expected, meta.dir_entries()->size()));
     }
   } else {
     size_t num_entries =
@@ -349,28 +390,41 @@ void check_packed_tables(global_metadata::Meta const& meta) {
     if (!std::is_sorted(
             meta.directories().begin(), meta.directories().end(),
             [](auto a, auto b) { return a.first_entry() < b.first_entry(); })) {
-      DWARFS_THROW(runtime_error, "first_entry inconsistency");
+      DWARFS_THROW(runtime_error, "first_entry values not sorted");
     }
 
     for (auto d : meta.directories()) {
       if (auto i = d.first_entry(); i > num_entries) {
-        DWARFS_THROW(runtime_error, "first_entry out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("first_entry out of range: {} > {}", i, num_entries));
       }
       if (auto i = d.parent_entry(); i >= num_entries) {
-        DWARFS_THROW(runtime_error, "parent_entry out of range");
+        DWARFS_THROW(
+            runtime_error,
+            fmt::format("parent_entry out of range: {} >= {}", i, num_entries));
       }
     }
   }
 
   if (auto opt = meta.options(); opt and opt->packed_chunk_table()) {
-    if (std::accumulate(meta.chunk_table().begin(), meta.chunk_table().end(),
-                        static_cast<size_t>(0)) != meta.chunks().size()) {
-      DWARFS_THROW(runtime_error, "packed chunk_table inconsistency");
+    if (auto expected =
+            std::accumulate(meta.chunk_table().begin(),
+                            meta.chunk_table().end(), static_cast<size_t>(0));
+        expected != meta.chunks().size()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("packed chunk_table inconsistency: {} != {}",
+                               expected, meta.chunks().size()));
     }
   } else {
-    if (!std::is_sorted(meta.chunk_table().begin(), meta.chunk_table().end()) or
-        meta.chunk_table().back() != meta.chunks().size()) {
-      DWARFS_THROW(runtime_error, "chunk_table inconsistency");
+    if (!std::is_sorted(meta.chunk_table().begin(), meta.chunk_table().end())) {
+      DWARFS_THROW(runtime_error, "chunk_table values not sorted");
+    }
+    if (meta.chunk_table().back() != meta.chunks().size()) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("chunk_table end value mismatch: {} != {}",
+                               meta.chunk_table().back(),
+                               meta.chunks().size()));
     }
   }
 }
@@ -385,7 +439,9 @@ void check_compact_strings(
   }
 
   if (index_size != expected_num) {
-    DWARFS_THROW(runtime_error, "unexpected number of compact " + what);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unexpected number of compact {0}: {1} != {2}",
+                             what, index_size, expected_num));
   }
 
   size_t expected_data_size = 0;
@@ -396,15 +452,29 @@ void check_compact_strings(
           std::accumulate(v.index().begin(), v.index().end(), 0);
       longest_item_len = *std::max_element(v.index().begin(), v.index().end());
     } else {
-      expected_data_size = v.index().back();
-      if (!std::is_sorted(v.index().begin(), v.index().end())) {
-        DWARFS_THROW(runtime_error, "inconsistent index for compact " + what);
+      auto idx = v.index();
+      if (idx.front() != 0) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("invalid first compact {0} index: {1}", what,
+                                 idx.front()));
+      }
+      if (!std::is_sorted(idx.begin(), idx.end())) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("compact {0} index not sorted", what));
+      }
+      expected_data_size = idx.back();
+      // waiting for std::ranges::views::adjacent_transform...
+      for (size_t i = 1; i < idx.size(); ++i) {
+        longest_item_len =
+            std::max<size_t>(longest_item_len, idx[i] - idx[i - 1]);
       }
     }
   }
 
   if (v.buffer().size() != expected_data_size) {
-    DWARFS_THROW(runtime_error, "data size mismatch for compact " + what);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("data size mismatch for compact {0}: {1} != {2}",
+                             what, v.buffer().size(), expected_data_size));
   }
 
   if (longest_item_len > max_item_len) {
@@ -418,39 +488,47 @@ void check_plain_strings(
     ::apache::thrift::frozen::View<std::vector<std::string>> v,
     size_t expected_num, size_t max_item_len, std::string const& what) {
   if (v.size() != expected_num) {
-    DWARFS_THROW(runtime_error, "unexpected number of " + what);
+    DWARFS_THROW(runtime_error,
+                 fmt::format("unexpected number of {0}: {1} != {2}", what,
+                             v.size(), expected_num));
   }
 
   size_t total_size = 0;
 
   for (auto s : v) {
     if (s.size() > max_item_len) {
-      DWARFS_THROW(runtime_error, "unexpectedly long item in " + what);
+      DWARFS_THROW(runtime_error,
+                   fmt::format("invalid item length in {0}: {1} > {2}", what,
+                               s.size(), max_item_len));
     }
     total_size += s.size();
   }
 
   if (!v.empty()) {
-    if (total_size != static_cast<size_t>(v.back().end() - v.front().begin())) {
-      DWARFS_THROW(runtime_error, "unexpectedly data size in " + what);
+    auto expected = static_cast<size_t>(v.back().end() - v.front().begin());
+    if (total_size != expected) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("unexpected data size in {0}: {1} != {2}", what,
+                               total_size, expected));
     }
   }
 }
 
 void check_string_tables(global_metadata::Meta const& meta) {
-  size_t num_names = 0;
+  size_t expected_num_names = 0;
   if (auto dep = meta.dir_entries()) {
     if (dep->size() > 1) {
-      num_names = std::max_element(dep->begin(), dep->end(),
-                                   [](auto const& a, auto const& b) {
-                                     return a.name_index() < b.name_index();
-                                   })
-                      ->name_index() +
-                  1;
+      expected_num_names =
+          std::max_element(dep->begin(), dep->end(),
+                           [](auto const& a, auto const& b) {
+                             return a.name_index() < b.name_index();
+                           })
+              ->name_index() +
+          1;
     }
   } else {
     if (meta.inodes().size() > 1) {
-      num_names =
+      expected_num_names =
           std::max_element(meta.inodes().begin(), meta.inodes().end(),
                            [](auto const& a, auto const& b) {
                              return a.name_index_v2_2() < b.name_index_v2_2();
@@ -466,9 +544,14 @@ void check_string_tables(global_metadata::Meta const& meta) {
   constexpr size_t max_symlink_len = 4096;
 
   if (auto cn = meta.compact_names()) {
-    check_compact_strings(*cn, num_names, max_name_len, "names");
+    if (!meta.names().empty()) {
+      DWARFS_THROW(runtime_error,
+                   "both compact and plain names tables populated");
+    }
+    check_compact_strings(*cn, expected_num_names, max_name_len, "names");
   } else {
-    check_plain_strings(meta.names(), num_names, max_name_len, "names");
+    check_plain_strings(meta.names(), expected_num_names, max_name_len,
+                        "names");
   }
 
   size_t num_symlink_strings = 0;
@@ -479,6 +562,10 @@ void check_string_tables(global_metadata::Meta const& meta) {
   }
 
   if (auto cs = meta.compact_symlinks()) {
+    if (!meta.symlinks().empty()) {
+      DWARFS_THROW(runtime_error,
+                   "both compact and plain symlinks tables populated");
+    }
     check_compact_strings(*cs, num_symlink_strings, max_symlink_len,
                           "symlink strings");
   } else {
@@ -490,20 +577,28 @@ void check_string_tables(global_metadata::Meta const& meta) {
 void check_chunks(global_metadata::Meta const& meta) {
   auto block_size = meta.block_size();
 
-  if (block_size == 0 || (block_size & (block_size - 1))) {
-    DWARFS_THROW(runtime_error, "invalid block size");
+  if (!std::has_single_bit(block_size)) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("invalid block size: {}", block_size));
   }
 
-  if (meta.chunks().size() >= std::numeric_limits<uint32_t>::max()) {
-    DWARFS_THROW(runtime_error, "invalid number of chunks");
-  }
+  // chunks().size() is already covered by check_packed_tables()
 
   for (auto c : meta.chunks()) {
-    if (c.offset() >= block_size || c.size() > block_size) {
-      DWARFS_THROW(runtime_error, "chunk offset/size out of range");
+    if (c.offset() >= block_size) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("chunk offset out of range: {} >= {}",
+                               c.offset(), block_size));
+    }
+    if (c.size() > block_size) {
+      DWARFS_THROW(runtime_error,
+                   fmt::format("chunk size out of range: {} > {}", c.size(),
+                               block_size));
     }
     if (c.offset() + c.size() > block_size) {
-      DWARFS_THROW(runtime_error, "chunk end outside of block");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("chunk end outside of block: {} + {} > {}",
+                               c.offset(), c.size(), block_size));
     }
   }
 }
@@ -519,7 +614,7 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
       auto inodes = meta.inodes();
 
       if (!std::is_partitioned(inodes.begin(), inodes.end(), pred)) {
-        DWARFS_THROW(runtime_error, "inode table inconsistency");
+        DWARFS_THROW(runtime_error, "inode table is not partitioned");
       }
 
       offsets[r] = std::distance(
@@ -532,7 +627,7 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
       auto entries = meta.entry_table_v2_2();
 
       if (!std::is_partitioned(entries.begin(), entries.end(), pred)) {
-        DWARFS_THROW(runtime_error, "entry_table_v2_2 inconsistency");
+        DWARFS_THROW(runtime_error, "entry_table_v2_2 is not partitioned");
       }
 
       offsets[r] = std::distance(
@@ -566,7 +661,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     size_t num_reg_shared = 0;
 
     if (auto sfp = meta.shared_files_table()) {
-      if (meta.options()->packed_shared_files_table()) {
+      if (meta.options() and meta.options()->packed_shared_files_table()) {
         num_reg_shared =
             std::accumulate(sfp->begin(), sfp->end(), 2 * sfp->size());
         num_reg_unique -= sfp->size();
@@ -585,19 +680,28 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     size_t num_dev = meta.devices() ? meta.devices()->size() : 0;
 
     if (num_dir != offsets[1]) {
-      DWARFS_THROW(runtime_error, "wrong number of directories");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("wrong number of directories: {} != {}", num_dir,
+                               offsets[1]));
     }
 
     if (num_lnk != offsets[2] - offsets[1]) {
-      DWARFS_THROW(runtime_error, "wrong number of links");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("wrong number of links: {} != {}", num_lnk,
+                               offsets[2] - offsets[1]));
     }
 
     if (num_reg_unique + num_reg_shared != offsets[3] - offsets[2]) {
-      DWARFS_THROW(runtime_error, "wrong number of files");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("wrong number of files: {} + {} != {}",
+                               num_reg_unique, num_reg_shared,
+                               offsets[3] - offsets[2]));
     }
 
     if (num_dev != offsets[4] - offsets[3]) {
-      DWARFS_THROW(runtime_error, "wrong number of devices");
+      DWARFS_THROW(runtime_error,
+                   fmt::format("wrong number of devices: {} != {}", num_dev,
+                               offsets[4] - offsets[3]));
     }
 
     if (!meta.dir_entries()) {
