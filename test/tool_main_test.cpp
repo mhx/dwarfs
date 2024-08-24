@@ -1975,6 +1975,20 @@ TEST(dwarfsextract_test, stdout_progress_error) {
                            "cannot use --stdout-progress with --output=-"));
 }
 
+TEST(dwarfsextract_test, archive_error) {
+  auto tgen = mkdwarfs_tester::create_empty();
+  tgen.add_root_dir();
+  tgen.add_random_file_tree(
+      {.avg_size = 32.0, .dimension = 5, .max_name_len = 250});
+  ASSERT_EQ(0, tgen.run({"-i", "/", "-l3", "-o", "-"})) << tgen.err();
+  auto image = tgen.out();
+
+  auto t = dwarfsextract_tester::create_with_image(image);
+  EXPECT_EQ(1, t.run({"-i", "image.dwarfs", "-f", "ustar"})) << t.err();
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("archive_error"));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("extraction aborted"));
+}
+
 TEST(dwarfsck_test, check_exclusive) {
   auto t = dwarfsck_tester::create_with_image();
   EXPECT_NE(0, t.run({"image.dwarfs", "--no-check", "--check-integrity"}))
