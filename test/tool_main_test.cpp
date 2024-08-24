@@ -172,7 +172,8 @@ struct random_file_tree_options {
 
 auto constexpr default_fs_opts = reader::filesystem_options{
     .block_cache = {.max_bytes = 256 * 1024,
-                    .sequential_access_detector_threshold = 4}};
+                    .sequential_access_detector_threshold = 4},
+    .metadata = {.check_consistency = true}};
 
 class mkdwarfs_tester : public tester_common {
  public:
