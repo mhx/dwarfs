@@ -237,15 +237,15 @@ void check_index_range(global_metadata::Meta const& meta) {
   auto num_inodes = meta.inodes().size();
   bool v2_2 = !static_cast<bool>(meta.dir_entries());
 
-  if (num_modes >= std::numeric_limits<uint16_t>::max()) {
+  if (num_modes >= std::numeric_limits<file_stat::mode_type>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of modes");
   }
 
-  if (num_uids >= std::numeric_limits<uint16_t>::max()) {
+  if (num_uids >= std::numeric_limits<file_stat::uid_type>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of uids");
   }
 
-  if (num_gids >= std::numeric_limits<uint16_t>::max()) {
+  if (num_gids >= std::numeric_limits<file_stat::gid_type>::max()) {
     DWARFS_THROW(runtime_error, "invalid number of gids");
   }
 
