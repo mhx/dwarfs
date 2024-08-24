@@ -532,12 +532,12 @@ void basic_end_to_end_test(
     auto info = fs.info_as_json(
         {.features = reader::fsinfo_features::for_level(detail)});
 
-    ASSERT_TRUE(info.count("version"));
-    ASSERT_TRUE(info.count("image_offset"));
-    ASSERT_TRUE(info.count("created_on"));
-    ASSERT_TRUE(info.count("created_by"));
-
     if (detail >= 1) {
+      ASSERT_TRUE(info.count("version"));
+      ASSERT_TRUE(info.count("image_offset"));
+      ASSERT_TRUE(info.count("created_on"));
+      ASSERT_TRUE(info.count("created_by"));
+
       ASSERT_TRUE(info.count("block_count"));
       ASSERT_TRUE(info.count("block_size"));
       ASSERT_TRUE(info.count("compressed_block_size"));
