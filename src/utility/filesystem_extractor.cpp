@@ -335,7 +335,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
           check_result(::archive_write_header(a_, ae));
         } catch (...) {
           LOG_ERROR << exception_str(std::current_exception());
-          hard_error = true;
+          ++hard_error;
         }
       });
     }
