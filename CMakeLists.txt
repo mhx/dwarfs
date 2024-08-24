@@ -427,6 +427,7 @@ if(WITH_TESTS)
       filesystem_writer_test
       fits_categorizer_test
       fragment_category_test
+      global_metadata_test
       incompressible_categorizer_test
       integral_value_parser_test
       lazy_value_test
