@@ -664,15 +664,16 @@ nlohmann::json
 filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
   filesystem_parser parser(mm_, image_offset_);
 
-  nlohmann::json info{
-      {"version",
-       {
-           {"major", parser.major_version()},
-           {"minor", parser.minor_version()},
-           {"header", parser.header_version()},
-       }},
-      {"image_offset", parser.image_offset()},
-  };
+  auto info = nlohmann::json::object();
+
+  if (opts.features.has(fsinfo_feature::version)) {
+    info["version"] = nlohmann::json::object({
+        {"major", parser.major_version()},
+        {"minor", parser.minor_version()},
+        {"header", parser.header_version()},
+    });
+    info["image_offset"] = parser.image_offset();
+  }
 
   if (opts.features.has(fsinfo_feature::history)) {
     info["history"] = history_.as_json();
