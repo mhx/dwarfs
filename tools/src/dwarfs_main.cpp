@@ -267,9 +267,13 @@ constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
 
 #if !DWARFS_FUSE_LOWLEVEL
 std::optional<reader::inode_view>
-iv_from_dev(std::optional<reader::dir_entry_view> dev) {
+find_inode(PERFMON_SECTION_PARAM_ reader::filesystem_v2& fs,
+           std::string_view path) {
+  auto dev = fs.find(path);
   if (dev) {
-    return std::make_optional(dev->inode());
+    auto iv = dev->inode();
+    PERFMON_SET_CONTEXT(iv.inode_num())
+    return iv;
   }
   return std::nullopt;
 }
@@ -474,11 +478,7 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_getattr_common(log_, userdata, st, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
 #endif
@@ -527,11 +527,7 @@ int op_access(char const* path, int mode) {
   auto ctx = fuse_get_context();
 
   return -op_access_common(log_, userdata, mode, ctx->uid, ctx->gid, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
 #endif
@@ -585,11 +581,7 @@ int op_readlink(char const* path, char* buf, size_t buflen) {
   std::string symlink;
 
   auto err = op_readlink_common(log_, userdata, &symlink, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 
   if (err == 0) {
@@ -664,11 +656,7 @@ int op_open(char const* path, struct fuse_file_info* fi) {
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_open_common(log_, userdata, fi, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
 #endif
@@ -1043,11 +1031,7 @@ int op_getxattr(char const* path, char const* name, char* value, size_t size) {
   std::string tmp;
   size_t extra_size{0};
   auto err = op_getxattr_common(log_, userdata, name, tmp, extra_size, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 
   if (err != 0) {
@@ -1169,11 +1153,7 @@ int op_listxattr(char const* path, char* list, size_t size) {
 
   std::string xattrs;
   auto err = op_listxattr_common(log_, xattrs, [&] {
-    auto dev = userdata.fs.find(path);
-    if (dev) {
-      PERFMON_SET_CONTEXT(dev->inode().inode_num())
-    }
-    return iv_from_dev(dev);
+    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 
   if (err != 0) {
