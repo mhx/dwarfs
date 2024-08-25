@@ -503,7 +503,7 @@ if(WITH_TESTS)
   endforeach()
 
   if(TARGET tool_main_test)
-    target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+    target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
   endif()
 
   if(TARGET manpage_test)
