@@ -377,7 +377,7 @@ Most other options are concerned with compression tuning:
   in the output of `mkdwarfs -h`.
 
 - `--log-level=`*name*:
-  Specifiy a logging level.
+  Specify a logging level.
 
 - `--log-with-context`:
   Enable logging context regardless of level. By default, context is enabled
@@ -821,7 +821,7 @@ not a requirement for the algorithm.
 By setting `max-children` to 1 and `max-cluster-size` to a really large
 number, only a single cluster will be created and the nearest neighbour
 search will be performed on the set of all nodes. Since the algorithm is
-O(n^2), this does not scale well for `max-cluster-size` beyong a few
+O(n^2), this does not scale well for `max-cluster-size` beyond a few
 100,000. Also, since the algorithm does not minimize the global distance
 between all nodes, there's no guarantee that the result will be better
 if you use only a single cluster.

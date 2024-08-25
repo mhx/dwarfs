@@ -157,7 +157,7 @@ options:
   Threshold, in blocks, for the sequential access detector. If the most
   recently accessed *num* blocks are sequential, then the block following
   the sequence is prefetched. This can significantly increase throughput
-  if data is acccessed sequentially. A value of `0` completely disables
+  if data is accessed sequentially. A value of `0` completely disables
   detection and prefetching.
 
 - `-o perfmon=`*name*[`+`*name*...]:
