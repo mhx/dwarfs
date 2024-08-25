@@ -113,7 +113,7 @@ class brotli_block_decompressor final : public block_decompressor::impl {
     }
     if (!::BrotliDecoderSetParameter(decoder_.get(),
                                      BROTLI_DECODER_PARAM_LARGE_WINDOW, 1)) {
-      DWARFS_THROW(runtime_error, "could not set brotli decoder paramter");
+      DWARFS_THROW(runtime_error, "could not set brotli decoder parameter");
     }
     try {
       decompressed_.reserve(uncompressed_size_);
@@ -148,7 +148,7 @@ class brotli_block_decompressor final : public block_decompressor::impl {
 
     if (res == BROTLI_DECODER_RESULT_ERROR) {
       DWARFS_THROW(runtime_error,
-                   fmt::format("brotli errro: {}", brotli_error()));
+                   fmt::format("brotli error: {}", brotli_error()));
     }
 
     decompressed_.resize(std::distance(decompressed_.data(), next_out));
