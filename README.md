@@ -231,7 +231,7 @@ available for each architecture. These universal binaries contain
 FUSE driver) in a single executable. These executables are compressed
 using [upx](https://github.com/upx/upx), so they are much smaller than
 the individual tools combined. However, it also means the binaries need
-to be decompressed each time they are run, which can have a signficant
+to be decompressed each time they are run, which can have a significant
 overhead. If that is an issue, you can either stick to the "classic"
 individual binaries or you can decompress the universal binary, e.g.:
 
@@ -441,7 +441,7 @@ $ apt install ccache ninja libacl1-dev
 
 `ccache` and `ninja` are optional, but help with a speedy compile.
 
-Depending on your distibution, you'll need to build and install static
+Depending on your distribution, you'll need to build and install static
 versions of some libraries, e.g. `libarchive` and `libmagic` for Ubuntu:
 
 ```
@@ -653,7 +653,7 @@ $ brew install cmake ninja macfuse brotli howard-hinnant-date double-conversion 
 ```
 
 - When installing macFUSE for the first time, you'll need to explicitly
-  allow the sofware in *System Preferences* / *Privacy & Security*. It's
+  allow the software in *System Preferences* / *Privacy & Security*. It's
   quite likely that you'll have to reboot after this.
 
 - Download a release tarball from the [releases page](https://github.com/mhx/dwarfs/releases)
@@ -800,7 +800,7 @@ with slow external hard drives.
 
 Currently, DwarFS has no built-in ability to add recovery information to a
 file system image. However, for archival purposes, it's a good idea to have
-such recovery infomation in order to be able to repair a damaged image.
+such recovery information in order to be able to repair a damaged image.
 
 This is fortunately relatively straightforward using something like
 [par2cmdline](https://github.com/Parchive/par2cmdline):
@@ -844,7 +844,7 @@ FUSE driver. The `dwarfs.driver.perfmon` attribute contains the current
 results of the [performance monitor](#performance-monitoring).
 
 Furthermore, each regular file exposes an attribute `dwarfs.inodeinfo`
-with information about the undelying inode:
+with information about the underlying inode:
 
 ```
 $ attr -l "05 Disappear.caf"
@@ -1492,7 +1492,7 @@ compression.
 [lrzip](https://github.com/ckolivas/lrzip) is a compression utility
 targeted especially at compressing large files. From its description,
 it looks like it does something very similar to DwarFS, i.e. it looks
-for duplicate segments before passsing the de-duplicated data on to
+for duplicate segments before passing the de-duplicated data on to
 an `lzma` compressor.
 
 When I first read about `lrzip`, I was pretty certain it would easily
