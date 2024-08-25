@@ -118,6 +118,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
 
 #ifdef _WIN32
     check_result(::archive_write_open_filename_w(
@@ -147,6 +148,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
+    check_result(::archive_write_set_bytes_in_last_block(a_, 1));
     check_result(::archive_write_open_fd(a_, pipefd_[1]));
   }
 
