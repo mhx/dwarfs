@@ -187,7 +187,9 @@ include(${CMAKE_SOURCE_DIR}/cmake/need_range_v3.cmake)
 if(WITH_LIBDWARFS)
   include(${CMAKE_SOURCE_DIR}/cmake/need_phmap.cmake)
 
-  find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED COMPONENTS chrono iostreams program_options)
+  find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED CONFIG
+               COMPONENTS chrono iostreams program_options
+               OPTIONAL_COMPONENTS process)
 
   if(APPLE)
     if(USE_HOMEBREW_LIBARCHIVE)

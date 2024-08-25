@@ -221,6 +221,10 @@ target_link_libraries(
   dwarfs_fsst
 )
 
+if(TARGET Boost::process)
+  target_link_libraries(dwarfs_common PUBLIC Boost::process)
+endif()
+
 list(APPEND LIBDWARFS_TARGETS
   dwarfs_common
   dwarfs_reader
