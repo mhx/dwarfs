@@ -626,8 +626,17 @@ your machine.
 
 ## macOS Support
 
+The DwarFS libraries and tools (`mkdwarfs`, `dwarfsck`, `dwarfsextract`)
+are now available from [Homebrew](https://brew.sh/):
+
+```
+$ brew install dwarfs
+$ brew test dwarfs
+```
+
 The macOS version of the DwarFS filesystem driver relies on the awesome
-[macFUSE](https://osxfuse.github.io/) project.
+[macFUSE](https://osxfuse.github.io/) project. Until a formula has been
+added, you will have to build the DwarFS FUSE driver manually.
 
 ### Building on macOS
 
@@ -668,6 +677,12 @@ $ ctest --test-dir dwarfs-build -j
 
 ```
 $ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON -DWITH_FUSE_DRIVER=OFF
+```
+
+- To *only* build the FUSE driver, you can use this instead:
+
+```
+$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF
 ```
 
 - Install DwarFS:
