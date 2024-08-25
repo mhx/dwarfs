@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+title: >-
+  DwarFS: A fast high compression read-only file system for
+  Linux, Windows and macOS
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - orcid: 'https://orcid.org/0009-0004-7086-9358'
+    given-names: Marcus
+    family-names: Holland-Moritz
+    email: github@mhxnet.de
+repository-code: 'https://github.com/mhx/dwarfs'
+keywords:
+  - filesystem
+  - compression
+  - deduplication
+  - C++
+  - FUSE
+license: GPL-3.0-or-later
