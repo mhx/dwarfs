@@ -167,14 +167,14 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       a_ = nullptr;
     }
 
-    closefd(pipefd_[1]);
-
     if (iot_) {
+      closefd(pipefd_[1]);
+
       iot_->join();
       iot_.reset();
-    }
 
-    closefd(pipefd_[0]);
+      closefd(pipefd_[0]);
+    }
   }
 
   bool extract(reader::filesystem_v2 const& fs,
