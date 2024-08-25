@@ -1680,7 +1680,7 @@ void metadata_<LoggerPolicy>::access(inode_view iv, int mode,
                            mode, uid, gid);
 
   if (mode == F_OK) {
-    // easy; we're only interested in the file's existance
+    // easy; we're only interested in the file's existence
     ec.clear();
     return;
   }

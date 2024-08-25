@@ -65,7 +65,7 @@ namespace {
 /**
  * Segmenter Strategy
  *
- * For each *block*, start new rolling hash. The hashes are associcated
+ * For each *block*, start new rolling hash. The hashes are associated
  * with the block, new hash-offset-pairs will only be added as the block
  * grows. We only need to store a hash-offset-pair every N bytes, with N
  * being configurable (typically half of the window size so we find all
@@ -76,7 +76,7 @@ namespace {
  * will be scanned for matches. Old file data beyond the moving window will
  * be added to the current *block*, causing the rolling *block* hash to also
  * advance. Data needs to be added to the block only in increments at which
- * a new hash valus is computed.
+ * a new hash values is computed.
  *
  * This strategy ensures that we're using a deterministic amount of memory
  * (proportional to block size and history block count).
