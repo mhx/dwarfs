@@ -1,3 +1,25 @@
+- Case-insensitive mounting? (github #232)
+
+- Metadata rebuilding (see also below). It should be
+  possible to rebuild the metadata block and change
+  features like packing without having to rebuild the
+  whole image.
+
+- Sparse files: implement by adding a "chunk type" field
+  to each chunk; for now, there are only "normal" and
+  "sequence" chunks, with sequence chunks encoding as
+  follows:
+
+    block: byte value
+    offset: sequence_length / block_size
+    size: sequence_length % block_size
+
+  Will need a feature bit. Also, we probably want a
+  sparse file categorizer? (see further below)
+
+  We'll probably have to do this along with refactoring
+  the code to support both mmap- and read-based APIs.
+
 - Add support for logging to file (with different level?)
 
 - Add support for libarchive filters in dwarfsextract.
