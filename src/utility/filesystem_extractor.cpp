@@ -264,12 +264,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   std::atomic<uint64_t> bytes_written{0};
   uint64_t const bytes_total{vfs.blocks};
 
-  auto do_archive = [&](::archive_entry* ae,
+  auto do_archive = [&](std::shared_ptr<::archive_entry> ae,
                         reader::inode_view entry) { // TODO: inode vs. entry
-    if (auto size = ::archive_entry_size(ae);
+    if (auto size = ::archive_entry_size(ae.get());
         entry.is_regular_file() && size > 0) {
       auto fd = fs.open(entry);
-      std::string_view path{::archive_entry_pathname(ae)};
+      std::string_view path{::archive_entry_pathname(ae.get())};
       size_t pos = 0;
       size_t remain = size;
 
@@ -284,12 +284,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
         if (!ec) {
           archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
-                            ranges = std::move(ranges), ae, pos, remain, bs,
-                            size, path, &bytes_written, bytes_total]() mutable {
+                            ranges = std::move(ranges), ae, pos, bs, size, path,
+                            &bytes_written, bytes_total]() mutable {
             try {
               if (pos == 0) {
                 LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
-                check_result(::archive_write_header(a_, ae));
+                check_result(::archive_write_header(a_, ae.get()));
               }
               for (auto& r : ranges) {
                 auto br = r.get();
@@ -300,9 +300,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                   bytes_written += br.size();
                   opts.progress(path, bytes_written, bytes_total);
                 }
-              }
-              if (bs == remain) {
-                archive_entry_free(ae);
               }
               sem.post(bs);
             } catch (archive_error const& e) {
@@ -316,7 +313,6 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
                 LOG_ERROR << exception_str(std::current_exception());
                 ++hard_error;
               }
-              archive_entry_free(ae);
             }
           });
         } else {
@@ -331,9 +327,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
       }
     } else {
       archiver.add_job([this, ae, &hard_error] {
-        scope_exit free_entry{[&] { ::archive_entry_free(ae); }};
         try {
-          check_result(::archive_write_header(a_, ae));
+          check_result(::archive_write_header(a_, ae.get()));
         } catch (...) {
           LOG_ERROR << exception_str(std::current_exception());
           ++hard_error;
@@ -388,8 +383,12 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
 
     ::archive_entry_linkify(lr, &ae, &spare);
 
+    auto shared_entry_ptr = [](::archive_entry* e) {
+      return std::shared_ptr<::archive_entry>(e, ::archive_entry_free);
+    };
+
     if (ae) {
-      do_archive(ae, inode);
+      do_archive(shared_entry_ptr(ae), inode);
     }
 
     if (spare) {
@@ -398,7 +397,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         LOG_ERROR << "find() failed";
       }
       LOG_INFO << "archiving spare " << ::archive_entry_pathname(spare);
-      do_archive(spare, *ev);
+      do_archive(shared_entry_ptr(spare), *ev);
     }
   });
 
@@ -413,6 +412,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   ::archive_entry* ae = nullptr;
   ::archive_entry_linkify(lr, &ae, &spare);
   if (ae) {
+    ::archive_entry_free(ae);
     DWARFS_THROW(runtime_error, "unexpected deferred entry");
   }
 
