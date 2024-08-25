@@ -322,6 +322,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         } else {
           LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
                     << " from  inode [" << fd << "]: " << ec.message();
+          ++hard_error;
           break;
         }
 
