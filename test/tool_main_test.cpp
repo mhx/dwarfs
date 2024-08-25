@@ -31,6 +31,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <archive.h>
+#include <archive_entry.h>
+
 #include <boost/algorithm/string.hpp>
 
 #include <fmt/chrono.h>
@@ -1988,6 +1991,121 @@ TEST(dwarfsextract_test, archive_error) {
   EXPECT_THAT(t.err(), ::testing::HasSubstr("archive_error"));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("extraction aborted"));
 }
+
+namespace {
+
+struct libarchive_format_def {
+  std::string name;
+  std::optional<std::string> expected_error{};
+  size_t min_size{1000};
+};
+
+std::ostream& operator<<(std::ostream& os, libarchive_format_def const& def) {
+  return os << def.name;
+}
+
+std::vector<libarchive_format_def> const libarchive_formats{
+    {"7zip"},
+    {"ar"},
+    {"arbsd"},
+    {"argnu"},
+    {"arsvr4"},
+    {"bin"},
+    {"bsdtar"},
+    {"cd9660"},
+    {"cpio"},
+    {"gnutar"},
+    {"iso"},
+    {"iso9660"},
+    {"mtree", std::nullopt, 500},
+    {"mtree-classic", std::nullopt, 500},
+    {"newc"},
+    {"odc"},
+    {"oldtar"},
+    {"pax"},
+    {"paxr"},
+    {"posix"},
+    {"pwb", "symbolic links cannot be represented in the PWB cpio format"},
+    {"raw", "Raw format only supports filetype AE_IFREG"},
+    {"rpax"},
+    {"shar"},
+    {"shardump"},
+    {"ustar"},
+    {"v7tar"},
+    {"v7"},
+    {"warc", "WARC format cannot archive"},
+    {"xar"},
+    {"zip"},
+};
+
+} // namespace
+
+class dwarfsextract_format_test
+    : public testing::TestWithParam<libarchive_format_def> {};
+
+TEST_P(dwarfsextract_format_test, basic) {
+  auto fmt = GetParam();
+  bool const is_ar = fmt.name.starts_with("ar");
+  bool const is_shar = fmt.name.starts_with("shar");
+  auto t = dwarfsextract_tester::create_with_image();
+  int const expected_exit = fmt.expected_error ? 1 : 0;
+  int exit_code = t.run({"-i", "image.dwarfs", "-f", fmt.name});
+  if (!fmt.expected_error && exit_code != 0) {
+    if (t.err().find("not supported on this platform") != std::string::npos) {
+      GTEST_SKIP();
+    }
+  }
+  ASSERT_EQ(expected_exit, exit_code) << t.err();
+  if (fmt.expected_error) {
+    EXPECT_THAT(t.err(), ::testing::HasSubstr(fmt.expected_error.value()));
+    EXPECT_THAT(t.err(), ::testing::HasSubstr("extraction aborted"));
+  } else if (!is_shar and !is_ar) {
+    auto out = t.out();
+    EXPECT_GE(out.size(), fmt.min_size);
+
+    std::set<std::string> paths;
+    std::set<std::string> expected_paths{
+        "bar.pl",           "baz.pl",   "empty",       "foo.pl",
+        "ipsum.txt",        "somedir",  "somedir/bad", "somedir/empty",
+        "somedir/ipsum.py", "somelink", "test.pl",
+    };
+
+    auto ar = ::archive_read_new();
+    ASSERT_EQ(ARCHIVE_OK, ::archive_read_support_format_all(ar))
+        << ::archive_error_string(ar);
+    ASSERT_EQ(ARCHIVE_OK,
+              ::archive_read_open_memory(ar, out.data(), out.size()))
+        << ::archive_error_string(ar);
+
+    for (;;) {
+      struct archive_entry* entry;
+      int ret = ::archive_read_next_header(ar, &entry);
+      if (ret == ARCHIVE_EOF) {
+        break;
+      }
+      ASSERT_EQ(ARCHIVE_OK, ret) << ::archive_error_string(ar);
+      std::string path{::archive_entry_pathname(entry)};
+      if (path != ".") {
+        if (path.back() == '/') {
+          path.pop_back();
+        }
+        if (path.starts_with("./")) {
+          path.erase(0, 2);
+        }
+        std::replace(path.begin(), path.end(), '\\', '/');
+        EXPECT_TRUE(paths.insert(path).second) << path;
+      }
+    }
+
+    EXPECT_EQ(ARCHIVE_OK, ::archive_read_free(ar))
+        << ::archive_error_string(ar);
+
+    EXPECT_EQ(expected_paths, paths);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_format_test,
+                         ::testing::ValuesIn(libarchive_formats));
 
 TEST(dwarfsck_test, check_exclusive) {
   auto t = dwarfsck_tester::create_with_image();
