@@ -113,6 +113,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   void open_archive(std::filesystem::path const& output,
                     std::string const& format) override {
+    LOG_DEBUG << "opening archive file in " << format << " format";
+
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
@@ -140,6 +142,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     iot_ = std::make_unique<std::thread>(
         [this, &os, fd = pipefd_[0]] { pump(os, fd); });
 
+    LOG_DEBUG << "opening archive stream in " << format << " format";
+
     a_ = ::archive_write_new();
 
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
@@ -162,17 +166,22 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   void close() override {
     if (a_) {
+      LOG_DEBUG << "closing archive";
       check_result(::archive_write_close(a_));
+      LOG_TRACE << "freeing archive";
       ::archive_write_free(a_);
       a_ = nullptr;
     }
 
     if (iot_) {
+      LOG_TRACE << "closing pipe[1]";
       closefd(pipefd_[1]);
 
+      LOG_TRACE << "joining I/O thread";
       iot_->join();
       iot_.reset();
 
+      LOG_TRACE << "closing pipe[0]";
       closefd(pipefd_[0]);
     }
   }
@@ -199,6 +208,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
       // This is fine, we're simply reusing the buffer.
       // Flawfinder: ignore
       auto rv = ::read(fd, buf.data(), buf.size());
+
+      LOG_TRACE << "read() returned " << rv;
 
       if (rv <= 0) {
         if (rv < 0) {
