@@ -1180,6 +1180,9 @@ metadata_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
         info["uncompressed_metadata_size"] = fsinfo->uncompressed_metadata_size;
       }
     }
+    if (auto ths = meta_.total_hardlink_size()) {
+      info["total_hardlink_size"] = *ths;
+    }
 
     if (auto opt = meta_.options()) {
       nlohmann::json options;
@@ -1332,6 +1335,9 @@ void metadata_<LoggerPolicy>::dump(
         os << "(at least) ";
       }
       os << size_with_unit(fsinfo->uncompressed_metadata_size) << "\n";
+    }
+    if (auto ths = meta_.total_hardlink_size()) {
+      os << "total hardlink size: " << size_with_unit(*ths) << "\n";
     }
     if (auto opt = meta_.options()) {
       std::vector<std::string> options;
