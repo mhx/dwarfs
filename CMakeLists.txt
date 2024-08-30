@@ -347,7 +347,6 @@ endif()
 if(PREFER_SYSTEM_LIBFMT)
   find_package(fmt 10 CONFIG)
 else(PREFER_SYSTEM_LIBFMT)
-  include_directories(${fmt_SOURCE_DIR}/include)
   
   include(FetchContent)
   FetchContent_Declare(
@@ -358,6 +357,12 @@ else(PREFER_SYSTEM_LIBFMT)
   )
   FetchContent_MakeAvailable(fmt)
   
+  target_include_directories(fmt BEFORE PUBLIC
+    $<BUILD_INTERFACE:${fmt_SOURCE_DIR}/include>  
+    $<INSTALL_INTERFACE:include>
+  )
+
+  include_directories(BEFORE ${fmt_SOURCE_DIR}/include)  
 endif(PREFER_SYSTEM_LIBFMT)
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
