@@ -346,16 +346,19 @@ endif()
 
 if(PREFER_SYSTEM_LIBFMT)
   find_package(fmt 10 CONFIG)
-else()
+else(PREFER_SYSTEM_LIBFMT)
+  include_directories(${fmt_SOURCE_DIR}/include)
+  
   include(FetchContent)
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
-    GIT_TAG 10.1.0
+    GIT_TAG 10.2.1
+    OVERRIDE_FIND_PACKAGE
   )
   FetchContent_MakeAvailable(fmt)
-  include_directories(${fmt_SOURCE_DIR}/include)
-endif()
+  
+endif(PREFER_SYSTEM_LIBFMT)
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
 
@@ -482,6 +485,7 @@ if(WITH_TESTS)
       googletest
       GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
       GIT_TAG v1.13.0
+      OVERRIDE_FIND_PACKAGE
     )
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
