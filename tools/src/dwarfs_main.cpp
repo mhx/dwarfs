@@ -164,6 +164,7 @@ struct options {
   char const* mlock_str{nullptr};               // TODO: const?? -> use string?
   char const* decompress_ratio_str{nullptr};    // TODO: const?? -> use string?
   char const* image_offset_str{nullptr};        // TODO: const?? -> use string?
+  char const* image_size_str{nullptr};          // TODO: const?? -> use string?
   char const* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
@@ -238,6 +239,7 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("offset=%s", image_offset_str, 0),
+    DWARFS_OPT("imagesize=%s", image_size_str, 0),
     DWARFS_OPT("tidy_strategy=%s", cache_tidy_strategy_str, 0),
     DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
     DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
@@ -1203,6 +1205,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o mlock=NAME          mlock mode: (none), try, must\n"
      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
+     << "    -o imagesize=NUM       filesystem image size in bytes\n"
      << "    -o enable_nlink        show correct hardlink numbers\n"
      << "    -o readonly            show read-only file system\n"
      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
@@ -1449,6 +1452,10 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   if (opts.image_offset_str) {
     fsopts.image_offset = reader::parse_image_offset(opts.image_offset_str);
+  }
+
+  if (opts.image_size_str) {
+    fsopts.image_size = to<file_off_t>(opts.image_size_str);
   }
 
   std::unordered_set<std::string> perfmon_enabled;

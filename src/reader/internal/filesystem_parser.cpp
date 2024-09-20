@@ -109,10 +109,13 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
 }
 
 filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
-                                     file_off_t image_offset)
+                                     file_off_t image_offset,
+                                     file_off_t image_size)
     : mm_{std::move(mm)}
-    , image_offset_{find_image_offset(*mm_, image_offset)} {
-  if (mm_->size() < image_offset_ + sizeof(file_header)) {
+    , image_offset_{find_image_offset(*mm_, image_offset)}
+    , image_size_{
+          std::min<file_off_t>(image_size, mm_->size() - image_offset_)} {
+  if (image_size_ < static_cast<file_off_t>(sizeof(file_header))) {
     DWARFS_THROW(runtime_error, "file too small");
   }
 
@@ -143,7 +146,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
 
 std::optional<fs_section> filesystem_parser::next_section() {
   if (index_.empty()) {
-    if (offset_ < static_cast<file_off_t>(mm_->size())) {
+    if (offset_ < image_offset_ + image_size_) {
       auto section = fs_section(*mm_, offset_, version_);
       offset_ = section.end();
       return section;
@@ -154,7 +157,7 @@ std::optional<fs_section> filesystem_parser::next_section() {
       uint64_t offset = id & section_offset_mask;
       uint64_t next_offset = offset_ < static_cast<file_off_t>(index_.size())
                                  ? index_[offset_] & section_offset_mask
-                                 : mm_->size() - image_offset_;
+                                 : image_size_;
       return fs_section(mm_, static_cast<section_type>(id >> 48),
                         image_offset_ + offset, next_offset - offset, version_);
     }
@@ -189,7 +192,9 @@ bool filesystem_parser::has_checksums() const { return version_ >= 2; }
 
 bool filesystem_parser::has_index() const { return !index_.empty(); }
 
-size_t filesystem_parser::filesystem_size() const { return mm_->size(); }
+size_t filesystem_parser::filesystem_size() const {
+  return image_offset_ + image_size_;
+}
 
 std::span<uint8_t const>
 filesystem_parser::section_data(fs_section const& s) const {
@@ -199,14 +204,15 @@ filesystem_parser::section_data(fs_section const& s) const {
 void filesystem_parser::find_index() {
   uint64_t index_pos;
 
-  ::memcpy(&index_pos, mm_->as<void>(mm_->size() - sizeof(uint64_t)),
+  ::memcpy(&index_pos,
+           mm_->as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
            sizeof(uint64_t));
 
   if ((index_pos >> 48) == static_cast<uint16_t>(section_type::SECTION_INDEX)) {
     index_pos &= section_offset_mask;
     index_pos += image_offset_;
 
-    if (index_pos < mm_->size()) {
+    if (index_pos < static_cast<uint64_t>(image_offset_ + image_size_)) {
       auto section = fs_section(*mm_, index_pos, version_);
 
       if (section.check_fast(*mm_)) {
