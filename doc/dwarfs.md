@@ -66,6 +66,11 @@ options:
   This is only useful for images that have some header located
   before the actual filesystem data.
 
+- `-o imagesize=`*value*:
+  Explicitly set the size of the filesystem image in bytes,
+  starting from the offset. This can be used in cases where
+  the image is embedded in a larger file.
+
 - `-o mlock=none`|`try`|`must`:
   Set this to `try` or `must` instead of the default `none` to
   try or require `mlock()`ing of the file system metadata into
