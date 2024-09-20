@@ -50,6 +50,7 @@
 #include <dwarfs/vfs_stat.h>
 #include <dwarfs/writer/entry_factory.h>
 #include <dwarfs/writer/filesystem_writer.h>
+#include <dwarfs/writer/filesystem_writer_options.h>
 #include <dwarfs/writer/filter_debug.h>
 #include <dwarfs/writer/fragment_order_options.h>
 #include <dwarfs/writer/rule_based_entry_filter.h>
@@ -81,6 +82,8 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
              std::string const& compression,
              writer::segmenter::config const& cfg = writer::segmenter::config(),
              writer::scanner_options const& options = writer::scanner_options(),
+             writer::filesystem_writer_options const& writer_opts =
+                 writer::filesystem_writer_options(),
              writer::writer_progress* prog = nullptr,
              std::shared_ptr<test::filter_transformer_data> ftd = nullptr,
              std::optional<std::span<std::filesystem::path const>> input_list =
@@ -120,7 +123,7 @@ build_dwarfs(logger& lgr, std::shared_ptr<test::os_access_mock> input,
   std::ostringstream oss;
 
   block_compressor bc(compression);
-  writer::filesystem_writer fsw(oss, lgr, pool, *prog);
+  writer::filesystem_writer fsw(oss, lgr, pool, *prog, writer_opts);
   fsw.add_default_compressor(bc);
 
   s.scan(fsw, std::filesystem::path("/"), *prog, input_list);
@@ -187,7 +190,7 @@ void basic_end_to_end_test(
   auto ftd = std::make_shared<test::filter_transformer_data>();
 
   auto fsimage =
-      build_dwarfs(lgr, input, compressor, cfg, options, &wprog, ftd);
+      build_dwarfs(lgr, input, compressor, cfg, options, {}, &wprog, ftd);
 
   EXPECT_EQ(14, ftd->filter_calls.size());
   EXPECT_EQ(15, ftd->transform_calls.size());
@@ -1046,7 +1049,7 @@ TEST_P(filter_test, filesystem) {
   writer::scanner_options options;
   options.remove_empty_dirs = true;
 
-  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, nullptr,
+  auto fsimage = build_dwarfs(lgr, input, "null", cfg, options, {}, nullptr,
                               nullptr, std::nullopt, std::move(rbf));
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
@@ -1136,8 +1139,8 @@ TEST(file_scanner, input_list) {
       "foo.pl",
   };
 
-  auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, nullptr, nullptr,
-                              input_list);
+  auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, {}, nullptr,
+                              nullptr, input_list);
 
   auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
 
@@ -1924,5 +1927,75 @@ TEST(filesystem, inode_size_cache) {
     auto iv = dev->inode();
     auto st = fs.getattr(iv);
     EXPECT_EQ(st.size(), size);
+  }
+}
+
+TEST(filesystem, multi_image) {
+  test::test_logger lgr;
+  std::string data("header");
+  std::vector<std::pair<file_off_t, file_off_t>> images;
+
+  for (std::string str : {"foo", "bar", "baz"}) {
+    auto input = std::make_shared<test::os_access_mock>();
+    input->add_dir("");
+    input->add_file(str, str);
+    auto img = build_dwarfs(lgr, input, "null", {}, {},
+                            {.no_section_index = str == "bar"});
+    images.emplace_back(data.size(), img.size());
+    data += img;
+    data += "filler";
+  }
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(data));
+  auto os = std::make_shared<test::os_access_mock>();
+
+  std::vector<reader::filesystem_v2> fss;
+
+  for (size_t i = 0; i < images.size(); ++i) {
+    fss.emplace_back(
+        lgr, *os, mm,
+        reader::filesystem_options{.image_offset = images[i].first,
+                                   .image_size = images[i].second});
+  }
+
+  ASSERT_EQ(3, fss.size());
+
+  {
+    auto& fs = fss[0];
+    auto foo = fs.find("/foo");
+    auto bar = fs.find("/bar");
+    auto baz = fs.find("/baz");
+
+    ASSERT_TRUE(foo);
+    EXPECT_FALSE(bar);
+    EXPECT_FALSE(baz);
+
+    EXPECT_EQ("foo", fs.read_string(fs.open(foo->inode())));
+  }
+
+  {
+    auto& fs = fss[1];
+    auto foo = fs.find("/foo");
+    auto bar = fs.find("/bar");
+    auto baz = fs.find("/baz");
+
+    EXPECT_FALSE(foo);
+    ASSERT_TRUE(bar);
+    EXPECT_FALSE(baz);
+
+    EXPECT_EQ("bar", fs.read_string(fs.open(bar->inode())));
+  }
+
+  {
+    auto& fs = fss[2];
+    auto foo = fs.find("/foo");
+    auto bar = fs.find("/bar");
+    auto baz = fs.find("/baz");
+
+    EXPECT_FALSE(foo);
+    EXPECT_FALSE(bar);
+    ASSERT_TRUE(baz);
+
+    EXPECT_EQ("baz", fs.read_string(fs.open(baz->inode())));
   }
 }

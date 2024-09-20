@@ -45,8 +45,9 @@ class filesystem_parser {
  public:
   static file_off_t find_image_offset(mmif& mm, file_off_t image_offset);
 
-  explicit filesystem_parser(std::shared_ptr<mmif> mm,
-                             file_off_t image_offset = 0);
+  explicit filesystem_parser(
+      std::shared_ptr<mmif> mm, file_off_t image_offset = 0,
+      file_off_t image_size = std::numeric_limits<file_off_t>::max());
 
   std::optional<dwarfs::internal::fs_section> next_section();
 
@@ -74,6 +75,7 @@ class filesystem_parser {
 
   std::shared_ptr<mmif> mm_;
   file_off_t const image_offset_{0};
+  file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
   file_off_t offset_{0};
   int version_{0};
   uint8_t major_{0};

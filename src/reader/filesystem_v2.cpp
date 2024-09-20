@@ -308,7 +308,8 @@ class filesystem_ final : public filesystem_v2::impl {
     return meta_.get_all_gids();
   }
   std::shared_ptr<filesystem_parser> get_parser() const override {
-    return std::make_unique<filesystem_parser>(mm_, image_offset_);
+    return std::make_unique<filesystem_parser>(mm_, image_offset_,
+                                               options_.image_size);
   }
   std::optional<std::string>
   get_block_category(size_t block_no) const override {
@@ -341,6 +342,7 @@ class filesystem_ final : public filesystem_v2::impl {
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
   history history_;
   file_off_t const image_offset_;
+  filesystem_options const options_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -380,7 +382,7 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
   std::lock_guard lock(mx_);
 
   if (!fsinfo_ || opts.block_access > fsinfo_block_access_level_) {
-    filesystem_parser parser(mm_, image_offset_);
+    filesystem_parser parser(mm_, image_offset_, options_.image_size);
     filesystem_info info;
 
     parser.rewind();
@@ -429,14 +431,15 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
 template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-    const filesystem_options& options,
+    filesystem_options const& options,
     std::shared_ptr<performance_monitor const> perfmon)
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{std::move(mm)}
     , history_({.with_timestamps = true})
-    , image_offset_{filesystem_parser::find_image_offset(
-          *mm_, options.image_offset)} // clang-format off
+    , image_offset_{filesystem_parser::find_image_offset(*mm_,
+                                                         options.image_offset)}
+    , options_{options} // clang-format off
     PERFMON_CLS_PROXY_INIT(perfmon, "filesystem_v2")
     PERFMON_CLS_TIMER_INIT(find_path)
     PERFMON_CLS_TIMER_INIT(find_inode)
@@ -465,7 +468,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_future_ec) // clang-format on
 {
   block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
-  filesystem_parser parser(mm_, image_offset_);
+  filesystem_parser parser(mm_, image_offset_, options.image_size);
 
   if (parser.has_index()) {
     LOG_DEBUG << "found valid section index";
@@ -531,7 +534,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
-  filesystem_parser parser(mm_, image_offset_);
+  filesystem_parser parser(mm_, image_offset_, options_.image_size);
 
   worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
@@ -593,7 +596,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os,
                                      fsinfo_options const& opts) const {
-  filesystem_parser parser(mm_, image_offset_);
+  filesystem_parser parser(mm_, image_offset_, options_.image_size);
 
   if (opts.features.has(fsinfo_feature::version)) {
     os << "DwarFS version " << parser.version();
@@ -662,7 +665,7 @@ std::string filesystem_<LoggerPolicy>::dump(fsinfo_options const& opts) const {
 template <typename LoggerPolicy>
 nlohmann::json
 filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
-  filesystem_parser parser(mm_, image_offset_);
+  filesystem_parser parser(mm_, image_offset_, options_.image_size);
 
   auto info = nlohmann::json::object();
 
