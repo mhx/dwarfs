@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <limits>
+
 #include <dwarfs/reader/block_cache_options.h>
 #include <dwarfs/reader/inode_reader_options.h>
 #include <dwarfs/reader/metadata_options.h>
@@ -34,6 +36,7 @@ struct filesystem_options {
 
   mlock_mode lock_mode{mlock_mode::NONE};
   file_off_t image_offset{0};
+  file_off_t image_size{std::numeric_limits<file_off_t>::max()};
   block_cache_options block_cache{};
   metadata_options metadata{};
   inode_reader_options inode_reader{};
