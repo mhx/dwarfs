@@ -222,8 +222,12 @@ void stream_logger::write(level_type level, const std::string& output,
       split_to(output, '\n', lines);
     }
 
-    if (lines.back().empty()) {
-      lines.pop_back();
+    if (!lines.empty()) {
+      if (lines.back().empty()) {
+        lines.pop_back();
+      }
+    } else {
+      lines.push_back("<<< no log message >>>");
     }
 
     std::ostringstream oss;
