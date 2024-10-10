@@ -31,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -330,6 +331,7 @@ class scanner_ final : public scanner::impl {
   os_access const& os_;
   std::vector<std::unique_ptr<entry_filter>> filters_;
   std::vector<std::unique_ptr<entry_transformer>> transformers_;
+  std::unordered_set<std::string> invalid_filenames_;
 };
 
 template <typename LoggerPolicy>
@@ -362,6 +364,27 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   file_scanner& fs, bool debug_filter) {
   try {
     auto pe = entry_factory_.create(os_, name, parent);
+
+    if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
+      try {
+        auto tmp [[maybe_unused]] = name.filename().u8string();
+      } catch (std::system_error const& e) {
+        LOG_ERROR << fmt::format(
+            "invalid file name in \"{}\", storing as \"{}\": {}",
+            path_to_utf8_string_sanitized(name.parent_path()), pe->name(),
+            e.what());
+
+        prog.errors++;
+
+        if (!invalid_filenames_.emplace(path_to_utf8_string_sanitized(name))
+                 .second) {
+          LOG_ERROR << fmt::format(
+              "cannot store \"{}\" as the name already exists", pe->name());
+          return nullptr;
+        }
+      }
+    }
+
     bool const exclude =
         std::any_of(filters_.begin(), filters_.end(), [&pe](auto const& f) {
           return f->filter(*pe) == filter_action::remove;
@@ -452,7 +475,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     return pe;
   } catch (const std::system_error& e) {
-    LOG_ERROR << fmt::format("error reading entry (path={}): {}", name.string(),
+    LOG_ERROR << fmt::format("error reading entry (path={}): {}",
+                             path_to_utf8_string_sanitized(name),
                              exception_str(e));
     prog.errors++;
   }
