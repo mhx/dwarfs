@@ -121,6 +121,9 @@ class entry : public entry_interface {
  private:
   std::u8string u8name() const;
 
+#ifdef _WIN32
+  std::filesystem::path path_;
+#endif
   std::string name_;
   std::weak_ptr<entry> parent_;
   file_stat stat_;
