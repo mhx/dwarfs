@@ -58,20 +58,19 @@ bool is_root_path(std::string_view path) {
 #endif
 }
 
-std::string entry_name(fs::path const& path, bool has_parent) {
-  if (has_parent) {
-    return u8string_to_string(path.filename().u8string());
-  }
-  return u8string_to_string(path.u8string());
-}
-
 } // namespace
 
 entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
-    : name_{entry_name(path, static_cast<bool>(parent))}
+#ifdef _WIN32
+    : path_{parent ? path.filename() : path}
+    , name_{path_to_utf8_string_sanitized(path_)}
+#else
+    : name_{path_to_utf8_string_sanitized(parent ? path.filename() : path)}
+#endif
     , parent_{std::move(parent)}
-    , stat_{st} {}
+    , stat_{st} {
+}
 
 bool entry::has_parent() const {
   if (parent_.lock()) {
@@ -88,11 +87,17 @@ void entry::set_name(const std::string& name) { name_ = name; }
 std::u8string entry::u8name() const { return string_to_u8string(name_); }
 
 fs::path entry::fs_path() const {
+#ifdef _WIN32
+  fs::path self = path_;
+#else
+  fs::path self = name_;
+#endif
+
   if (auto parent = parent_.lock()) {
-    return parent->fs_path() / u8name();
+    return parent->fs_path() / self;
   }
 
-  return fs::path(u8name());
+  return self;
 }
 
 std::string entry::path_as_string() const {
