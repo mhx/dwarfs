@@ -812,7 +812,7 @@ TEST_P(tools_test, end_to_end) {
   std::chrono::seconds const timeout{5};
 #endif
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
   auto image = td / "test.dwarfs";
   auto image_hdr = td / "test_hdr.dwarfs";
   auto fsdata_dir = td / "fsdata";
@@ -1236,7 +1236,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
   std::chrono::seconds const timeout{5};
 #endif
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
   auto mountpoint = td / "mnt";
   auto file = mountpoint / "bench.sh";
   auto empty_dir = mountpoint / "empty";
@@ -1445,7 +1445,7 @@ TEST_P(tools_test, categorize) {
 
   std::chrono::seconds const timeout{5};
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
   auto image = td / "test.dwarfs";
   auto image_recompressed = td / "test2.dwarfs";
   auto fsdata_dir = td / "fsdata";
@@ -1703,7 +1703,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST(tools_test, dwarfsextract_progress) {
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
   auto tarfile = td / "output.tar";
 
   auto out =
@@ -1723,7 +1723,7 @@ TEST(tools_test, dwarfsextract_progress) {
 
 TEST(tools_test, dwarfsextract_stdout) {
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
 
   auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
                                    "-f", "mtree");
@@ -1736,7 +1736,7 @@ TEST(tools_test, dwarfsextract_stdout) {
 
 TEST(tools_test, dwarfsextract_file_out) {
   dwarfs::temporary_directory tempdir("dwarfs");
-  auto td = fs::path(tempdir.path().string());
+  auto td = tempdir.path();
   auto outfile = td / "output.mtree";
 
   auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
