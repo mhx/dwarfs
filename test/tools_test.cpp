@@ -1753,3 +1753,56 @@ TEST(tools_test, dwarfsextract_file_out) {
   EXPECT_THAT(mtree, ::testing::StartsWith("#mtree\n"));
   EXPECT_THAT(mtree, ::testing::HasSubstr("type=file"));
 }
+
+#ifdef _WIN32
+TEST(tools_test, mkdwarfs_invalid_utf8_filename) {
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto input = td / "input";
+
+  ASSERT_TRUE(fs::create_directory(input));
+
+  auto valid = input / "valid.txt";
+  dwarfs::write_file(valid, "hello");
+
+  auto invalid1 = input / L"invalid\xd800.txt";
+  fs::copy_file(valid, invalid1);
+  auto output1 = td / "test1.dwarfs";
+
+  {
+    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, "-i", input.string(),
+                                          "-o", output1.string());
+    EXPECT_EQ(2, ec);
+    EXPECT_THAT(err, ::testing::HasSubstr("storing as \"invalid\ufffd.txt\""));
+  }
+
+  auto invalid2 = input / L"invalid\xd801.txt";
+  fs::copy_file(valid, invalid2);
+  auto output2 = td / "test2.dwarfs";
+
+  {
+    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, "-i", input.string(),
+                                          "-o", output2.string());
+    EXPECT_EQ(2, ec);
+    EXPECT_THAT(err, ::testing::HasSubstr("storing as \"invalid\ufffd.txt\""));
+    EXPECT_THAT(
+        err,
+        ::testing::HasSubstr(
+            "cannot store \"invalid\ufffd.txt\" as the name already exists"));
+  }
+
+  auto ext1 = td / "ext1";
+  ASSERT_TRUE(fs::create_directory(ext1));
+  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output1.string(),
+                                    "-o", ext1.string()));
+  EXPECT_TRUE(fs::exists(ext1 / "valid.txt"));
+  EXPECT_TRUE(fs::exists(ext1 / L"invalid\ufffd.txt"));
+
+  auto ext2 = td / "ext2";
+  ASSERT_TRUE(fs::create_directory(ext2));
+  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output2.string(),
+                                    "-o", ext2.string()));
+  EXPECT_TRUE(fs::exists(ext2 / "valid.txt"));
+  EXPECT_TRUE(fs::exists(ext2 / L"invalid\ufffd.txt"));
+}
+#endif
