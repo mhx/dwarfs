@@ -1002,8 +1002,8 @@ void filesystem_writer_<LoggerPolicy>::add_section_compressor(
 
 template <typename LoggerPolicy>
 auto filesystem_writer_<LoggerPolicy>::get_compression_constraints(
-    fragment_category::value_type cat,
-    std::string const& metadata) const -> compression_constraints {
+    fragment_category::value_type cat, std::string const& metadata) const
+    -> compression_constraints {
   return compressor_for_category(cat).get_compression_constraints(metadata);
 }
 
