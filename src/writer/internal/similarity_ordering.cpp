@@ -330,8 +330,8 @@ auto similarity_ordering_<LoggerPolicy>::build_index(
 
 template <typename LoggerPolicy>
 auto similarity_ordering_<LoggerPolicy>::find_duplicates(
-    similarity_element_view const& ev,
-    index_type& index) const -> duplicates_map {
+    similarity_element_view const& ev, index_type& index) const
+    -> duplicates_map {
   duplicates_map dm;
 
   {

@@ -304,28 +304,28 @@ class compression_metadata_requirements {
   template <
       typename F, typename U,
       typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
-  void add_set(std::string const& name, U(Meta::*mp), F&& value_parser) {
+  void add_set(std::string const& name, U(Meta::* mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_set<Meta, T, U>>(
             name, mp, std::forward<F>(value_parser)));
   }
 
   template <typename T, typename U>
-  void add_set(std::string const& name, U(Meta::*mp)) {
+  void add_set(std::string const& name, U(Meta::* mp)) {
     add_set(name, mp, detail::value_parser<T>);
   }
 
   template <
       typename F, typename U,
       typename T = typename std::invoke_result_t<F, nlohmann::json>::value_type>
-  void add_range(std::string const& name, U(Meta::*mp), F&& value_parser) {
+  void add_range(std::string const& name, U(Meta::* mp), F&& value_parser) {
     req_.emplace_back(
         std::make_unique<detail::metadata_requirement_range<Meta, T, U>>(
             name, mp, std::forward<F>(value_parser)));
   }
 
   template <typename T, typename U>
-  void add_range(std::string const& name, U(Meta::*mp)) {
+  void add_range(std::string const& name, U(Meta::* mp)) {
     add_range(name, mp, detail::value_parser<T>);
   }
 
