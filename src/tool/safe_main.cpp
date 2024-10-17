@@ -33,6 +33,9 @@ int safe_main(std::function<int(void)> fn) {
   try {
     install_signal_handlers();
     setup_default_locale();
+#ifdef _WIN32
+    ::_set_abort_behavior(0, _WRITE_ABORT_MSG);
+#endif
 
     return fn();
   } catch (...) {
