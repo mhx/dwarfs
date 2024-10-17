@@ -29,6 +29,10 @@ pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=@LIBARCHIVE_RE
 pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=@XXHASH_REQUIRED_VERSION@)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd>=@ZSTD_REQUIRED_VERSION@)
 
+if(@cpptrace_FOUND@) # cpptrace_FOUND
+  find_dependency(cpptrace CONFIG REQUIRED)
+endif()
+
 if(@LIBLZ4_FOUND@) # LIBLZ4_FOUND
   pkg_check_modules(LIBLZ4 REQUIRED IMPORTED_TARGET liblz4>=@LIBLZ4_REQUIRED_VERSION@)
 endif()
