@@ -39,9 +39,7 @@ option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
-if(NOT (APPLE OR WIN32))
-  option(ENABLE_STACKTRACE "build with symbolizer support" ON)
-endif()
+option(ENABLE_STACKTRACE "build with stack trace support" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -202,7 +200,7 @@ if(WITH_LIBDWARFS)
     endif()
   endif()
 
-  if(WIN32)
+  if(ENABLE_STACKTRACE)
     find_package(cpptrace REQUIRED CONFIG)
   endif()
 
@@ -235,6 +233,7 @@ if(WITH_LIBDWARFS)
 
   include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
 
+  set(DWARFS_HAVE_CPPTRACE ${cpptrace_FOUND})
   set(DWARFS_HAVE_LIBZSTD ON)
   set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
   set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
@@ -274,6 +273,9 @@ if(WITH_TOOLS)
     list(APPEND BINARY_TARGETS ${tgt})
 
     install(TARGETS ${tgt} RUNTIME DESTINATION bin)
+    if(WIN32)
+      install(FILES $<TARGET_PDB_FILE:${tgt}> DESTINATION bin OPTIONAL)
+    endif()
   endforeach()
 
   target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
@@ -296,6 +298,9 @@ if(WITH_PXATTR)
   add_executable(pxattr tools/src/pxattr.cpp)
   list(APPEND BINARY_TARGETS pxattr)
   install(TARGETS pxattr RUNTIME DESTINATION bin)
+  if(WIN32)
+    install(FILES $<TARGET_PDB_FILE:pxattr> DESTINATION bin OPTIONAL)
+  endif()
 endif()
 
 if(WITH_EXAMPLE)
@@ -336,6 +341,7 @@ if(WITH_FUSE_DRIVER)
     endif()
     if(WINFSP)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION bin)
+      install(FILES $<TARGET_PDB_FILE:dwarfs-bin> DESTINATION bin OPTIONAL)
     else()
       add_custom_command(OUTPUT  mount.dwarfs
                          COMMAND ${CMAKE_COMMAND} -E create_symlink dwarfs mount.dwarfs
@@ -657,7 +663,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
 
   if(WIN32)
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
-    target_link_libraries(${tgt} PRIVATE cpptrace::cpptrace)
   endif()
 endforeach()
 
