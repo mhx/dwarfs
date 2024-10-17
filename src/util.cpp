@@ -26,6 +26,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
+#include <optional>
 #include <type_traits>
 
 #if __has_include(<utf8cpp/utf8.h>)
@@ -45,13 +47,12 @@
 
 #include <dwarfs/config.h>
 
-#ifdef _WIN32
+#ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
 #include <signal.h>
+
+#ifdef _WIN32
 #include <tlhelp32.h>
-#else
-#ifdef DWARFS_STACKTRACE_ENABLED
-#include <folly/debugging/symbolizer/SignalHandler.h>
 #endif
 #endif
 
@@ -364,9 +365,27 @@ int get_current_umask() {
   return mask;
 }
 
-#ifdef _WIN32
+#ifdef DWARFS_STACKTRACE_ENABLED
 
 namespace {
+
+struct fatal_signal {
+  int signum;
+  std::string_view name;
+};
+
+constexpr std::array kFatalSignals{
+    fatal_signal{SIGSEGV, "SIGSEGV"}, fatal_signal{SIGILL, "SIGILL"},
+    fatal_signal{SIGFPE, "SIGFPE"},   fatal_signal{SIGABRT, "SIGABRT"},
+    fatal_signal{SIGTERM, "SIGTERM"},
+#ifndef _WIN32
+    fatal_signal{SIGBUS, "SIGBUS"},
+#endif
+};
+
+std::once_flag g_signal_handlers_installed;
+
+#ifdef _WIN32
 
 std::vector<HANDLE> suspend_other_threads() {
   std::vector<HANDLE> handles;
@@ -411,12 +430,74 @@ void resume_suspended_threads(const std::vector<HANDLE>& handles) {
   }
 }
 
-void abort_handler(int signal) {
+void fatal_signal_handler_win(int signal) {
   auto suspended = suspend_other_threads();
-  std::cerr << "Caught signal " << signal << "\n";
+
+  std::optional<std::string> signame;
+
+  for (size_t i = 0; i < kFatalSignals.size(); ++i) {
+    if (signal == kFatalSignals[i].signum) {
+      signame = kFatalSignals[i].name;
+      break;
+    }
+  }
+
+  if (!signame) {
+    signame = std::to_string(signal);
+  }
+
+  std::cerr << "Caught signal " << *signame << "\n";
   cpptrace::generate_trace().print();
+
   resume_suspended_threads(suspended);
+
   ::exit(1);
+}
+
+#else
+
+std::array<struct ::sigaction, kFatalSignals.size()> old_handlers;
+
+void fatal_signal_handler_posix(int signal) {
+  std::optional<std::string> signame;
+
+  for (size_t i = 0; i < kFatalSignals.size(); ++i) {
+    if (signal == kFatalSignals[i].signum) {
+      ::sigaction(signal, &old_handlers[i], nullptr);
+      signame = kFatalSignals[i].name;
+      break;
+    }
+  }
+
+  if (!signame) {
+    struct ::sigaction sa_dfl;
+    ::memset(&sa_dfl, 0, sizeof(sa_dfl));
+    sa_dfl.sa_handler = SIG_DFL;
+    ::sigaction(signal, &sa_dfl, nullptr);
+    signame = std::to_string(signal);
+  }
+
+  std::cerr << "Caught signal " << *signame << "\n";
+  cpptrace::generate_trace().print();
+
+  ::raise(signal);
+}
+
+#endif
+
+void install_signal_handlers_impl() {
+  for (size_t i = 0; i < kFatalSignals.size(); ++i) {
+#ifdef _WIN32
+    ::signal(kFatalSignals[i].signum, fatal_signal_handler_win);
+#else
+    struct ::sigaction new_sa;
+    ::memset(&new_sa, 0, sizeof(new_sa));
+    // this is potentially implemented as a macro
+    sigfillset(&new_sa.sa_mask);
+    new_sa.sa_handler = fatal_signal_handler_posix;
+    ::sigaction(kFatalSignals[i].signum, &new_sa, &old_handlers[i]);
+#endif
+  }
 }
 
 } // namespace
@@ -424,12 +505,8 @@ void abort_handler(int signal) {
 #endif
 
 void install_signal_handlers() {
-#ifdef _WIN32
-  ::signal(SIGABRT, abort_handler);
-#else
 #ifdef DWARFS_STACKTRACE_ENABLED
-  folly::symbolizer::installFatalSignalHandler();
-#endif
+  std::call_once(g_signal_handlers_installed, install_signal_handlers_impl);
 #endif
 }
 
