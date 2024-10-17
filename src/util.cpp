@@ -45,8 +45,14 @@
 
 #include <dwarfs/config.h>
 
+#ifdef _WIN32
+#include <cpptrace/cpptrace.hpp>
+#include <signal.h>
+#include <tlhelp32.h>
+#else
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <folly/debugging/symbolizer/SignalHandler.h>
+#endif
 #endif
 
 #include <dwarfs/conv.h>
@@ -393,9 +399,72 @@ int get_current_umask() {
   return mask;
 }
 
+#ifdef _WIN32
+
+namespace {
+
+std::vector<HANDLE> suspend_other_threads() {
+  std::vector<HANDLE> handles;
+  DWORD currend_tid = ::GetCurrentThreadId();
+  DWORD current_pid = ::GetCurrentProcessId();
+
+  HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    return handles;
+  }
+
+  THREADENTRY32 te;
+  te.dwSize = sizeof(THREADENTRY32);
+
+  if (::Thread32First(snapshot, &te)) {
+    do {
+      if (te.th32OwnerProcessID == current_pid &&
+          te.th32ThreadID != currend_tid) {
+        HANDLE th =
+            ::OpenThread(THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
+                         FALSE, te.th32ThreadID);
+        if (th) {
+          if (::SuspendThread(th) != static_cast<DWORD>(-1)) {
+            handles.push_back(th);
+          } else {
+            ::CloseHandle(th);
+          }
+        }
+      }
+    } while (::Thread32Next(snapshot, &te));
+  }
+
+  ::CloseHandle(snapshot);
+
+  return handles;
+}
+
+void resume_suspended_threads(const std::vector<HANDLE>& handles) {
+  for (auto th : handles) {
+    ::ResumeThread(th);
+    ::CloseHandle(th);
+  }
+}
+
+void abort_handler(int signal) {
+  auto suspended = suspend_other_threads();
+  std::cerr << "Caught signal " << signal << "\n";
+  cpptrace::generate_trace().print();
+  resume_suspended_threads(suspended);
+  ::exit(1);
+}
+
+} // namespace
+
+#endif
+
 void install_signal_handlers() {
+#ifdef _WIN32
+  ::signal(SIGABRT, abort_handler);
+#else
 #ifdef DWARFS_STACKTRACE_ENABLED
   folly::symbolizer::installFatalSignalHandler();
+#endif
 #endif
 }
 
