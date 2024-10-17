@@ -118,25 +118,6 @@ if(WIN32)
   )
 endif()
 
-if(ENABLE_STACKTRACE)
-  target_sources(dwarfs_folly_lite PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Dwarf.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfImpl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfLineNumberVM.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfSection.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/DwarfUtil.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Elf.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/ElfCache.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/LineReader.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SignalHandler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/StackTrace.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizePrinter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/SymbolizedFrame.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/debugging/symbolizer/Symbolizer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/tracing/AsyncStack.cpp
-  )
-endif()
-
 set_property(TARGET dwarfs_folly_lite PROPERTY CXX_STANDARD 20)
 target_include_directories(
   dwarfs_folly_lite SYSTEM PUBLIC
@@ -147,7 +128,7 @@ apply_folly_compile_options_to_target(dwarfs_folly_lite)
 target_link_libraries(dwarfs_folly_lite PUBLIC folly_deps)
 
 if(WITH_BENCHMARKS)
-  add_library(dwarfs_follybenchmark_lite OBJECT 
+  add_library(dwarfs_follybenchmark_lite OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp

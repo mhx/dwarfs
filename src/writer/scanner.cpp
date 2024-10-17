@@ -365,6 +365,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
   try {
     auto pe = entry_factory_.create(os_, name, parent);
 
+    abort();
+
     if constexpr (!std::is_same_v<std::filesystem::path::value_type, char>) {
       try {
         auto tmp [[maybe_unused]] = name.filename().u8string();

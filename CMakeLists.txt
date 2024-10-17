@@ -39,9 +39,7 @@ option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
-if(NOT (APPLE OR WIN32))
-  option(ENABLE_STACKTRACE "build with symbolizer support" ON)
-endif()
+option(ENABLE_STACKTRACE "build with stack trace support" ON)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -202,7 +200,7 @@ if(WITH_LIBDWARFS)
     endif()
   endif()
 
-  if(WIN32)
+  if(ENABLE_STACKTRACE)
     find_package(cpptrace REQUIRED CONFIG)
   endif()
 
@@ -235,6 +233,7 @@ if(WITH_LIBDWARFS)
 
   include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs.cmake)
 
+  set(DWARFS_HAVE_CPPTRACE ${cpptrace_FOUND})
   set(DWARFS_HAVE_LIBZSTD ON)
   set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
   set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
@@ -657,7 +656,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
 
   if(WIN32)
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
-    target_link_libraries(${tgt} PRIVATE cpptrace::cpptrace)
   endif()
 endforeach()
 
