@@ -15,6 +15,7 @@
     "boost-uuid",
     "boost-variant",
     "brotli",
+    "cpptrace",
     "date",
     "double-conversion",
     "fmt",

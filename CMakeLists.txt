@@ -202,6 +202,10 @@ if(WITH_LIBDWARFS)
     endif()
   endif()
 
+  if(WIN32)
+    find_package(cpptrace REQUIRED CONFIG)
+  endif()
+
   pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=${LIBCRYPTO_REQUIRED_VERSION})
   pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive>=${LIBARCHIVE_REQUIRED_VERSION})
   pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash>=${XXHASH_REQUIRED_VERSION})
@@ -653,6 +657,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
 
   if(WIN32)
     target_link_libraries(${tgt} PRIVATE ntdll.lib dbghelp.lib)
+    target_link_libraries(${tgt} PRIVATE cpptrace::cpptrace)
   endif()
 endforeach()
 
