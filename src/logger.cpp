@@ -32,11 +32,7 @@
 #include <dwarfs/config.h>
 
 #ifdef DWARFS_STACKTRACE_ENABLED
-#include <folly/debugging/symbolizer/Symbolizer.h>
-
-#if !(FOLLY_USE_SYMBOLIZER && FOLLY_HAVE_DWARF && FOLLY_HAVE_ELF)
-#error "folly symbolizer is unavailable"
-#endif
+#include <cpptrace/cpptrace.hpp>
 #endif
 
 #include <fmt/chrono.h>
@@ -207,15 +203,7 @@ void stream_logger::write(level_type level, const std::string& output,
     std::vector<std::string_view> st_lines;
 
     if (enable_stack_trace_ || level == FATAL) {
-      using namespace folly::symbolizer;
-      Symbolizer symbolizer(LocationInfoMode::FULL);
-      FrameArray<8> addresses;
-      getStackTraceSafe(addresses);
-      symbolizer.symbolize(addresses);
-      folly::symbolizer::StringSymbolizePrinter printer(
-          color_ ? folly::symbolizer::SymbolizePrinter::COLOR : 0);
-      printer.println(addresses, 3);
-      stacktrace = printer.str();
+      stacktrace = cpptrace::generate_trace().to_string(true);
       split_to(stacktrace, '\n', st_lines);
       if (st_lines.back().empty()) {
         st_lines.pop_back();

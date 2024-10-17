@@ -154,8 +154,8 @@ if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0"
 fi
 
-if [[ "-$BUILD_TYPE-" == *-nostacktrace-* ]]; then
-  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_STACKTRACE=0"
+if [[ "-$BUILD_TYPE-" == *-stacktrace-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_STACKTRACE=ON"
 fi
 
 if [[ "-$BUILD_TYPE-" == *-source-* ]]; then
