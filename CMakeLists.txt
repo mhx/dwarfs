@@ -479,11 +479,20 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS ricepp_compressor_test)
   endif()
 
+  if(ENABLE_TSAN)
+    add_library(tsan_test_main test/tsan_test_main.cpp)
+    target_link_libraries(tsan_test_main PRIVATE gtest)
+  endif()
+
   foreach (test ${DWARFS_TESTS})
     add_executable(${test} test/${test}.cpp)
-    target_link_libraries(
-      ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
-    )
+    target_link_libraries(${test} PRIVATE dwarfs_test_helpers gmock gtest)
+
+    if(ENABLE_TSAN)
+      target_link_libraries(${test} PRIVATE tsan_test_main)
+    else()
+      target_link_libraries(${test} PRIVATE gtest_main)
+    endif()
 
     if(NOT PREFER_SYSTEM_GTEST)
       ### This is a wild hack. At least on macOS, gtest and basically everything
