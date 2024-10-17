@@ -1,9 +1,25 @@
 - Case-insensitive mounting? (github #232)
 
+- Mounting lots of images with shared cache?
+  - Communication could be implemented using xattrs
+  - Does WinFsp support multiple mountpoints in a
+    single process?
+    - Seems it does!
+    - https://github.com/winfsp/winfsp/commit/ae8e4e61f77f24c6267d6fc5fa14bd567c7a88ea
+  - Second option would be handling the images internally
+    - However, inode numbers aren't straightforward in
+      case of adding/removing images.
+
 - Metadata rebuilding (see also below). It should be
   possible to rebuild the metadata block and change
   features like packing without having to rebuild the
   whole image.
+
+- Allow changing the block size during recompression.
+  This should be possible, along with updating the chunks
+  in the metadata, and the operation should be perfectly
+  reversible. At block boundaries, chunks must be split
+  or merged, but that should be easily doable as well.
 
 - Sparse files: implement by adding a "chunk type" field
   to each chunk; for now, there are only "normal" and
@@ -99,8 +115,6 @@
   - Videos with shared streams
   - Backups of audio files
   - Compression of filesystem images for forensic purposes
-
-- Mounting lots of images with shared cache?
 
 - different scenarios for categorized files / chunks:
 
