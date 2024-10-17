@@ -201,6 +201,10 @@ if(LIBBROTLIDEC_FOUND AND LIBBROTLIENC_FOUND)
   target_link_libraries(dwarfs_common PRIVATE PkgConfig::LIBBROTLIDEC PkgConfig::LIBBROTLIENC)
 endif()
 
+if(ENABLE_STACKTRACE)
+  target_link_libraries(dwarfs_common PRIVATE cpptrace::cpptrace)
+endif()
+
 target_link_libraries(dwarfs_extractor PRIVATE PkgConfig::LIBARCHIVE)
 
 target_include_directories(dwarfs_common SYSTEM PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fsst>)
