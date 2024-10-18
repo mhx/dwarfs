@@ -283,12 +283,12 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
             ${RICEPP_OBJECT_TARGETS}
             folly_deps
     EXPORT dwarfs-targets
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib)
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
   install(
     DIRECTORY include/dwarfs
-    DESTINATION include
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     PATTERN include/dwarfs/internal EXCLUDE
     PATTERN include/dwarfs/tool EXCLUDE
     PATTERN include/dwarfs/*/internal EXCLUDE
@@ -297,13 +297,13 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
   if(DWARFS_GIT_BUILD)
     install(
       FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/version.h
-      DESTINATION include/dwarfs
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dwarfs
     )
   endif()
 
   install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/include/dwarfs/config.h
-    DESTINATION include/dwarfs
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dwarfs
   )
 
   install(
