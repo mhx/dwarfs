@@ -191,7 +191,7 @@ if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
   rm -rf "$INSTALLDIR"
 
   if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
-    LDLIBPATH="$PREFIXPATH/lib"
+    LDLIBPATH="$(readlink -m "$PREFIXPATH/lib/$(gcc -print-multi-os-directory)")"
     if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
       export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
     fi
