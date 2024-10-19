@@ -280,7 +280,7 @@ void basic_end_to_end_test(
   EXPECT_EQ(st.uid(), set_uid ? 0 : 1337);
   EXPECT_EQ(st.gid(), 0);
   EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 4001 : 4002);
-  EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 4002 : 4002);
+  EXPECT_EQ(st.mtime(), set_time ? 4711 : 4002);
   EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 4003 : 4002);
 
   {
@@ -325,7 +325,7 @@ void basic_end_to_end_test(
   EXPECT_EQ(st.gid(), set_gid ? 0 : 100);
   EXPECT_EQ(st.rdev(), 0);
   EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 2001 : 2002);
-  EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 2002 : 2002);
+  EXPECT_EQ(st.mtime(), set_time ? 4711 : 2002);
   EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 2003 : 2002);
 
   auto link = fs.readlink(iv);
@@ -354,7 +354,7 @@ void basic_end_to_end_test(
     EXPECT_EQ(st.type(), posix_file_type::fifo);
     EXPECT_EQ(st.rdev(), 0);
     EXPECT_EQ(st.atime(), set_time ? 4711 : keep_all_times ? 8001 : 8002);
-    EXPECT_EQ(st.mtime(), set_time ? 4711 : keep_all_times ? 8002 : 8002);
+    EXPECT_EQ(st.mtime(), set_time ? 4711 : 8002);
     EXPECT_EQ(st.ctime(), set_time ? 4711 : keep_all_times ? 8003 : 8002);
   } else {
     EXPECT_FALSE(dev);
@@ -387,9 +387,7 @@ void basic_end_to_end_test(
     EXPECT_EQ(st.atime(), set_time         ? 4711
                           : keep_all_times ? 4000010001
                                            : 4000020002);
-    EXPECT_EQ(st.mtime(), set_time         ? 4711
-                          : keep_all_times ? 4000020002
-                                           : 4000020002);
+    EXPECT_EQ(st.mtime(), set_time ? 4711 : 4000020002);
     EXPECT_EQ(st.ctime(), set_time         ? 4711
                           : keep_all_times ? 4000030003
                                            : 4000020002);
