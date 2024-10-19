@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 
 namespace dwarfs {
@@ -38,7 +39,9 @@ struct posix_file_type {
     fifo = 0010000,
   };
 
-  static constexpr value from_mode(uint16_t mode) {
+  static constexpr value from_mode(std::unsigned_integral auto mode)
+    requires(sizeof(mode) >= sizeof(uint16_t))
+  {
     return static_cast<value>(mode & mask);
   }
 };
