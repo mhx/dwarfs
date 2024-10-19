@@ -26,6 +26,7 @@ if(NOT fmt_FOUND)
     GIT_REPOSITORY ${LIBFMT_GIT_REPO}
     GIT_TAG ${LIBFMT_PREFERRED_VERSION}
     EXCLUDE_FROM_ALL
+    SYSTEM
   )
   FetchContent_MakeAvailable(fmt)
 endif()
@@ -35,5 +36,5 @@ if(fmt_FOUND OR STATIC_BUILD_DO_NOT_USE OR WIN32)
   set(DWARFS_FMT_LIB fmt::fmt)
 else()
   add_compile_definitions(FMT_HEADER_ONLY)
-  include_directories($<BUILD_INTERFACE:$<TARGET_PROPERTY:fmt::fmt-header-only,INTERFACE_INCLUDE_DIRECTORIES>>)
+  include_directories(SYSTEM $<BUILD_INTERFACE:$<TARGET_PROPERTY:fmt::fmt-header-only,INTERFACE_INCLUDE_DIRECTORIES>>)
 endif()
