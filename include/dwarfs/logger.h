@@ -39,7 +39,7 @@
 
 #include <boost/chrono/thread_clock.hpp>
 
-#include <dwarfs/error.h>
+#include <dwarfs/detail/logging_class_factory.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
@@ -65,26 +65,22 @@ class logger {
   virtual void write(level_type level, const std::string& output,
                      char const* file, int line) = 0;
 
-  const std::string& policy_name() const { return policy_name_; }
-
-  template <class Policy>
-  void set_policy() // TODO: construction time arg?
-  {
-    policy_name_ = Policy::name();
-  }
-
-  void set_policy_name(const std::string& name) // TODO: construction time arg?
-  {
-    policy_name_ = name;
-  }
+  std::string_view policy_name() const { return policy_name_; }
 
   static level_type parse_level(std::string_view level);
   static std::string_view level_name(level_type level);
 
   static std::string all_level_names();
 
+ protected:
+  template <class Policy>
+  void set_policy() // TODO: construction time arg?
+  {
+    policy_name_ = Policy::name();
+  }
+
  private:
-  std::string policy_name_; // TODO: const?
+  std::string_view policy_name_;
 };
 
 std::ostream& operator<<(std::ostream& os, logger::level_type const& optval);
@@ -395,82 +391,30 @@ class log_proxy {
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {
  public:
-  static std::string name() { return "prod"; }
+  static std::string_view name() { return "prod"; }
 };
 
 class debug_logger_policy : public MinimumLogLevelPolicy<logger::TRACE> {
  public:
-  static std::string name() { return "debug"; }
+  static std::string_view name() { return "debug"; }
 };
 
 using logger_policies = std::tuple<debug_logger_policy, prod_logger_policy>;
 
-template <class T>
-struct unique_ptr_policy {
-  using return_type = std::unique_ptr<T>;
-
-  template <class U, class... Args>
-  static return_type create(Args&&... args) {
-    return std::make_unique<U>(std::forward<Args>(args)...);
-  }
-};
-
-template <class T>
-struct shared_ptr_policy {
-  using return_type = std::shared_ptr<T>;
-
-  template <class U, class... Args>
-  static return_type create(Args&&... args) {
-    return std::make_shared<U>(std::forward<Args>(args)...);
-  }
-};
-
-template <template <class> class T, class CreatePolicy, class LoggerPolicyList,
-          size_t N>
-struct logging_class_factory {
-  template <class... Args>
-  static typename CreatePolicy::return_type
-  create(logger& lgr, Args&&... args) {
-    if (std::tuple_element<N - 1, LoggerPolicyList>::type::name() ==
-        lgr.policy_name()) {
-      using obj_type =
-          T<typename std::tuple_element<N - 1, LoggerPolicyList>::type>;
-      return CreatePolicy::template create<obj_type>(
-          lgr, std::forward<Args>(args)...);
-    }
-
-    return logging_class_factory<T, CreatePolicy, LoggerPolicyList,
-                                 N - 1>::create(lgr,
-                                                std::forward<Args>(args)...);
-  }
-};
-
-template <template <class> class T, class CreatePolicy, class LoggerPolicyList>
-struct logging_class_factory<T, CreatePolicy, LoggerPolicyList, 0> {
-  template <class... Args>
-  static typename CreatePolicy::return_type create(logger& lgr, Args&&...) {
-    DWARFS_THROW(runtime_error, "no such logger policy: " + lgr.policy_name());
-  }
-};
-
 template <class Base, template <class> class T, class LoggerPolicyList,
           class... Args>
 std::unique_ptr<Base> make_unique_logging_object(logger& lgr, Args&&... args) {
-  return logging_class_factory<
-      T, unique_ptr_policy<Base>, LoggerPolicyList,
-      std::tuple_size<LoggerPolicyList>::value>::create(lgr,
-                                                        std::forward<Args>(
-                                                            args)...);
+  return detail::logging_class_factory::create<
+      T, detail::unique_ptr_policy<Base>, LoggerPolicyList>(
+      lgr, std::forward<Args>(args)...);
 }
 
 template <class Base, template <class> class T, class LoggerPolicyList,
           class... Args>
 std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
-  return logging_class_factory<
-      T, shared_ptr_policy<Base>, LoggerPolicyList,
-      std::tuple_size<LoggerPolicyList>::value>::create(lgr,
-                                                        std::forward<Args>(
-                                                            args)...);
+  return detail::logging_class_factory::create<
+      T, detail::shared_ptr_policy<Base>, LoggerPolicyList>(
+      lgr, std::forward<Args>(args)...);
 }
 
 std::string get_logger_context(char const* path, int line);
