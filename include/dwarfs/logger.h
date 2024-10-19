@@ -136,21 +136,21 @@ class null_logger : public logger {
   void write(level_type, const std::string&, char const*, int) override {}
 };
 
-class level_logger {
+class level_log_entry {
  public:
-  level_logger(logger& lgr, logger::level_type level,
-               char const* file = nullptr, int line = 0)
+  level_log_entry(logger& lgr, logger::level_type level,
+                  char const* file = nullptr, int line = 0)
       : lgr_(lgr)
       , level_(level)
       , file_(file)
       , line_(line) {}
 
-  level_logger(level_logger const&) = delete;
+  level_log_entry(level_log_entry const&) = delete;
 
-  ~level_logger() { lgr_.write(level_, oss_.str(), file_, line_); }
+  ~level_log_entry() { lgr_.write(level_, oss_.str(), file_, line_); }
 
   template <typename T>
-  level_logger& operator<<(const T& val) {
+  level_log_entry& operator<<(const T& val) {
     oss_ << val;
     return *this;
   }
@@ -163,13 +163,13 @@ class level_logger {
   int const line_;
 };
 
-class timed_level_logger {
+class timed_level_log_entry {
  public:
   using thread_clock = boost::chrono::thread_clock;
 
-  timed_level_logger(logger& lgr, logger::level_type level,
-                     char const* file = nullptr, int line = 0,
-                     bool with_cpu = false)
+  timed_level_log_entry(logger& lgr, logger::level_type level,
+                        char const* file = nullptr, int line = 0,
+                        bool with_cpu = false)
       : lgr_(lgr)
       , level_(level)
       , start_time_(std::chrono::high_resolution_clock::now())
@@ -181,9 +181,9 @@ class timed_level_logger {
     }
   }
 
-  timed_level_logger(timed_level_logger const&) = delete;
+  timed_level_log_entry(timed_level_log_entry const&) = delete;
 
-  ~timed_level_logger() {
+  ~timed_level_log_entry() {
     if (output_) {
       std::chrono::duration<double> sec =
           std::chrono::high_resolution_clock::now() - start_time_;
@@ -199,7 +199,7 @@ class timed_level_logger {
   }
 
   template <typename T>
-  timed_level_logger& operator<<(const T& val) {
+  timed_level_log_entry& operator<<(const T& val) {
     output_ = true;
     oss_ << val;
     return *this;
@@ -217,13 +217,13 @@ class timed_level_logger {
   int const line_;
 };
 
-class no_logger {
+class no_log_entry {
  public:
-  no_logger(logger&, logger::level_type) {}
-  no_logger(logger&, logger::level_type, char const*, int) {}
+  no_log_entry(logger&, logger::level_type) {}
+  no_log_entry(logger&, logger::level_type, char const*, int) {}
 
   template <typename T>
-  no_logger& operator<<(const T&) {
+  no_log_entry& operator<<(const T&) {
     return *this;
   }
 };
@@ -231,13 +231,13 @@ class no_logger {
 namespace detail {
 
 template <bool LoggingEnabled>
-using logger_type =
-    typename std::conditional<LoggingEnabled, level_logger, no_logger>::type;
+using logger_type = typename std::conditional<LoggingEnabled, level_log_entry,
+                                              no_log_entry>::type;
 
 template <bool LoggingEnabled>
 using timed_logger_type =
-    typename std::conditional<LoggingEnabled, timed_level_logger,
-                              no_logger>::type;
+    typename std::conditional<LoggingEnabled, timed_level_log_entry,
+                              no_log_entry>::type;
 } // namespace detail
 
 template <unsigned MinLogLevel>
@@ -265,7 +265,7 @@ class log_proxy {
   }
 
   auto fatal(char const* file, int line) const {
-    return level_logger(lgr_, logger::FATAL, file, line);
+    return level_log_entry(lgr_, logger::FATAL, file, line);
   }
 
   auto error(char const* file, int line) const {
