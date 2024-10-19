@@ -25,6 +25,7 @@
 #include <stdexcept>
 
 #include <folly/Conv.h>
+#include <folly/lang/Assume.h>
 #include <folly/small_vector.h>
 
 #include <dwarfs/config.h>
@@ -55,6 +56,26 @@ constexpr std::array<std::pair<std::string_view, logger::level_type>, 6>
         {"trace", logger::TRACE},
     }};
 
+}
+
+char logger::level_char(level_type level) {
+  switch (level) {
+  case FATAL:
+    return 'F';
+  case ERROR:
+    return 'E';
+  case WARN:
+    return 'W';
+  case INFO:
+    return 'I';
+  case VERBOSE:
+    return 'V';
+  case DEBUG:
+    return 'D';
+  case TRACE:
+    return 'T';
+  }
+  folly::assume_unreachable();
 }
 
 std::ostream& operator<<(std::ostream& os, logger::level_type const& optval) {

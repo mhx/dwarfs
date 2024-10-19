@@ -25,6 +25,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <deque>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
