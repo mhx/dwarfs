@@ -72,10 +72,9 @@ struct os_access_mock::mock_dirent {
 
   size_t size() const;
 
-  mock_dirent* find(std::string const& name);
+  mock_dirent* find(std::string const& n);
 
-  void
-  add(std::string const& name, simplestat const& st, value_variant_type var);
+  void add(std::string const& n, simplestat const& st, value_variant_type var);
 };
 
 struct os_access_mock::mock_directory {
@@ -98,15 +97,14 @@ size_t os_access_mock::mock_dirent::size() const {
   return s;
 }
 
-auto os_access_mock::mock_dirent::find(std::string const& name)
-    -> mock_dirent* {
-  return std::get<std::unique_ptr<mock_directory>>(v)->find(name);
+auto os_access_mock::mock_dirent::find(std::string const& n) -> mock_dirent* {
+  return std::get<std::unique_ptr<mock_directory>>(v)->find(n);
 }
 
-void os_access_mock::mock_dirent::add(std::string const& name,
+void os_access_mock::mock_dirent::add(std::string const& n,
                                       simplestat const& st,
                                       value_variant_type var) {
-  return std::get<std::unique_ptr<mock_directory>>(v)->add(name, st,
+  return std::get<std::unique_ptr<mock_directory>>(v)->add(n, st,
                                                            std::move(var));
 }
 
