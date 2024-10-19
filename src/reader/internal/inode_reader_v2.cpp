@@ -386,13 +386,13 @@ inode_reader_<LoggerPolicy>::read_string(uint32_t inode, size_t size,
   if (!ec) {
     try {
       std::vector<block_range> brs(ranges.size());
-      size_t size{0};
+      size_t total_size{0};
       for (auto& r : ranges) {
         auto br = r.get();
-        size += br.size();
+        total_size += br.size();
         brs.emplace_back(std::move(br));
       }
-      res.reserve(size);
+      res.reserve(total_size);
       for (auto const& br : brs) {
         res.append(reinterpret_cast<char const*>(br.data()), br.size());
       }
