@@ -65,11 +65,11 @@ class fsinfo_features {
   std::vector<std::string_view> to_string_views() const;
 
   constexpr bool has(fsinfo_feature f) const {
-    return features_ & (1 << static_cast<size_t>(f));
+    return features_ & feature_bit(f);
   }
 
   constexpr fsinfo_features& set(fsinfo_feature f) {
-    features_ |= (1 << static_cast<size_t>(f));
+    features_ |= feature_bit(f);
     return *this;
   }
 
@@ -81,7 +81,7 @@ class fsinfo_features {
   }
 
   constexpr fsinfo_features& clear(fsinfo_feature f) {
-    features_ &= ~(1 << static_cast<size_t>(f));
+    features_ &= ~feature_bit(f);
     return *this;
   }
 
@@ -105,6 +105,11 @@ class fsinfo_features {
  private:
   // can be upgraded to std::bitset if needed and when it's constexpr
   using feature_type = uint64_t;
+
+  static constexpr feature_type feature_bit(fsinfo_feature n) {
+    return static_cast<feature_type>(1) << static_cast<size_t>(n);
+  }
+
   static constexpr size_t max_feature_bits{
       std::numeric_limits<feature_type>::digits};
   static constexpr size_t num_feature_bits{
