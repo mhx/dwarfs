@@ -190,11 +190,11 @@ class mkdwarfs_tester : public tester_common {
     return mkdwarfs_tester(std::make_shared<test::os_access_mock>());
   }
 
-  void add_stream_logger(std::ostream& os,
+  void add_stream_logger(std::ostream& st,
                          logger::level_type level = logger::VERBOSE) {
     lgr =
         std::make_unique<stream_logger>(std::make_shared<test::test_terminal>(),
-                                        os, logger_options{.threshold = level});
+                                        st, logger_options{.threshold = level});
   }
 
   void add_root_dir() { os->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0}); }
