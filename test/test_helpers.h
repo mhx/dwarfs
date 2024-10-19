@@ -221,7 +221,8 @@ class mock_filter : public writer::entry_filter {
   mock_filter(std::shared_ptr<filter_transformer_data> data)
       : data_{std::move(data)} {}
 
-  writer::filter_action filter(writer::entry_interface const& ei) const {
+  writer::filter_action
+  filter(writer::entry_interface const& ei) const override {
     data_->filter_calls.emplace_back(ei);
     return writer::filter_action::keep;
   }
@@ -235,7 +236,7 @@ class mock_transformer : public writer::entry_transformer {
   mock_transformer(std::shared_ptr<filter_transformer_data> data)
       : data_{std::move(data)} {}
 
-  void transform(writer::entry_interface& ei) {
+  void transform(writer::entry_interface& ei) override {
     data_->transform_calls.emplace_back(ei);
   }
 

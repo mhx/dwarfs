@@ -213,7 +213,7 @@ class filesystem : public ::benchmark::Fixture {
  public:
   static constexpr size_t NUM_ENTRIES = 8;
 
-  void SetUp(::benchmark::State const& state) {
+  void SetUp(::benchmark::State const& state) override {
     image = make_filesystem(&state);
     mm = std::make_shared<test::mmap_mock>(image);
     reader::filesystem_options opts;
@@ -228,7 +228,7 @@ class filesystem : public ::benchmark::Fixture {
     }
   }
 
-  void TearDown(::benchmark::State const&) {
+  void TearDown(::benchmark::State const&) override {
     inode_views.clear();
     image.clear();
     mm.reset();
@@ -319,7 +319,7 @@ class filesystem : public ::benchmark::Fixture {
 
 class filesystem_walk : public ::benchmark::Fixture {
  public:
-  void SetUp(::benchmark::State const&) {
+  void SetUp(::benchmark::State const&) override {
     mm = std::make_shared<test::mmap_mock>(get_image());
     reader::filesystem_options opts;
     opts.block_cache.max_bytes = 1 << 20;
@@ -328,7 +328,7 @@ class filesystem_walk : public ::benchmark::Fixture {
     // fs->dump(std::cout, {.features = reader::fsinfo_features::for_level(2)});
   }
 
-  void TearDown(::benchmark::State const&) {
+  void TearDown(::benchmark::State const&) override {
     mm.reset();
     fs.reset();
   }
