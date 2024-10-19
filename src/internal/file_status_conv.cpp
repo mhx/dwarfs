@@ -29,7 +29,7 @@ namespace dwarfs::internal {
 
 namespace fs = std::filesystem;
 
-fs::file_status file_mode_to_status(uint16_t mode) {
+fs::file_status file_mode_to_status(uint32_t mode) {
   fs::file_type ft;
 
   switch (mode & posix_file_type::mask) {
