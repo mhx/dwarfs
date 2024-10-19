@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <chrono>
 #include <cstring>
 #include <exception>
 #include <iterator>
@@ -28,6 +29,8 @@
 #include <folly/String.h>
 #include <folly/lang/Assume.h>
 #include <folly/small_vector.h>
+
+#include <boost/chrono/thread_clock.hpp>
 
 #include <dwarfs/config.h>
 
@@ -293,6 +296,61 @@ void stream_logger::set_threshold(level_type threshold) {
     set_policy<debug_logger_policy>();
   } else {
     set_policy<prod_logger_policy>();
+  }
+}
+
+class timed_level_log_entry::state {
+ public:
+  using thread_clock = boost::chrono::thread_clock;
+
+  state(logger& lgr, logger::level_type level, std::source_location loc,
+        bool with_cpu)
+      : lgr_{lgr}
+      , level_{level}
+      , start_time_{std::chrono::high_resolution_clock::now()}
+      , cpu_start_time_{cpu_now(with_cpu)}
+      , loc_{loc} {}
+
+  void log(std::ostringstream& oss) const {
+    std::chrono::duration<double> sec =
+        std::chrono::high_resolution_clock::now() - start_time_;
+    oss << " [" << time_with_unit(sec.count());
+    if (cpu_start_time_) {
+      boost::chrono::duration<double> cpu_time_sec =
+          thread_clock::now() - cpu_start_time_.value();
+      oss << ", " << time_with_unit(cpu_time_sec.count()) << " CPU";
+    }
+    oss << "]";
+    lgr_.write(level_, oss.str(), loc_);
+  }
+
+ private:
+  static std::optional<thread_clock::time_point> cpu_now(bool with_cpu) {
+    if (with_cpu) {
+      return thread_clock::now();
+    }
+    return std::nullopt;
+  }
+
+  logger& lgr_;
+  logger::level_type const level_;
+  std::chrono::time_point<std::chrono::high_resolution_clock> const start_time_;
+  std::optional<thread_clock::time_point> const cpu_start_time_;
+  std::source_location const loc_;
+};
+
+timed_level_log_entry::timed_level_log_entry(logger& lgr,
+                                             logger::level_type level,
+                                             std::source_location loc,
+                                             bool with_cpu) {
+  if (level <= lgr.threshold()) {
+    state_ = std::make_unique<state>(lgr, level, loc, with_cpu);
+  }
+}
+
+timed_level_log_entry::~timed_level_log_entry() {
+  if (state_ && output_) {
+    state_->log(oss_);
   }
 }
 
