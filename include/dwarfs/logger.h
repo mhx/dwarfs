@@ -64,6 +64,7 @@ class logger {
 
   virtual void write(level_type level, std::string_view output,
                      std::source_location loc) = 0;
+  virtual level_type threshold() const = 0;
 
   std::string_view policy_name() const { return policy_name_; }
 
@@ -100,6 +101,7 @@ class stream_logger : public logger {
 
   void write(level_type level, std::string_view output,
              std::source_location loc) override;
+  level_type threshold() const override;
 
   void set_threshold(level_type threshold);
   void set_with_context(bool with_context) { with_context_ = with_context; }
@@ -130,6 +132,7 @@ class null_logger : public logger {
   null_logger();
 
   void write(level_type, std::string_view, std::source_location) override {}
+  level_type threshold() const override { return FATAL; }
 };
 
 class level_log_entry {
@@ -249,10 +252,15 @@ template <typename LogPolicy>
 class log_proxy {
  public:
   log_proxy(logger& lgr)
-      : lgr_(lgr) {}
+      : lgr_(lgr)
+      , threshold_(lgr.threshold()) {}
 
-  static constexpr bool is_enabled_for(logger::level_type level) {
+  static constexpr bool policy_is_enabled_for(logger::level_type level) {
     return LogPolicy::is_enabled_for(level);
+  }
+
+  bool logger_is_enabled_for(logger::level_type level) const {
+    return level <= threshold_;
   }
 
   auto fatal(std::source_location loc) const {
@@ -353,11 +361,13 @@ class log_proxy {
 
  private:
   logger& lgr_;
+  logger::level_type threshold_;
 };
 
 #define LOG_DETAIL_LEVEL(level, lgr, method)                                   \
-  if constexpr (std::decay_t<decltype(lgr)>::is_enabled_for(                   \
+  if constexpr (std::decay_t<decltype(lgr)>::policy_is_enabled_for(            \
                     ::dwarfs::logger::level))                                  \
+    if (lgr.logger_is_enabled_for(::dwarfs::logger::level))                    \
   lgr.method(std::source_location::current())
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
