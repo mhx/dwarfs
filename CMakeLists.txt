@@ -703,6 +703,9 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
 
         /wd4456 # declaration hides previous local declaration
       )
+      if(DWARFS_GIT_BUILD)
+        target_compile_options(${tgt} PRIVATE /WX)
+      endif()
     endif()
   endif()
 
