@@ -36,17 +36,15 @@ namespace dwarfs::test {
 class test_logger : public ::dwarfs::logger {
  public:
   struct log_entry {
-    log_entry(level_type level, std::string const& output, char const* file,
-              int line)
+    log_entry(level_type level, std::string_view output,
+              std::source_location loc)
         : level{level}
         , output{output}
-        , file{file}
-        , line{line} {}
+        , loc{loc} {}
 
     level_type level;
     std::string output;
-    char const* file;
-    int line;
+    std::source_location loc;
   };
 
   test_logger(std::optional<level_type> threshold = std::nullopt)
@@ -61,17 +59,17 @@ class test_logger : public ::dwarfs::logger {
     }
   }
 
-  void write(level_type level, std::string const& output, char const* file,
-             int line) override {
+  void write(level_type level, std::string_view output,
+             std::source_location loc) override {
     if (output_ && level <= output_threshold_) {
       std::lock_guard lock(mx_);
-      std::cerr << level_char(level) << " [" << file << ":" << line << "] "
-                << output << "\n";
+      std::cerr << level_char(level) << " [" << loc.file_name() << ":"
+                << loc.line() << "] " << output << "\n";
     }
 
     if (level <= threshold_) {
       std::lock_guard lock(mx_);
-      log_.emplace_back(level, output, file, line);
+      log_.emplace_back(level, output, loc);
     }
   }
 

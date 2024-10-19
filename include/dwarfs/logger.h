@@ -29,8 +29,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <source_location>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -62,8 +62,8 @@ class logger {
 
   virtual ~logger() = default;
 
-  virtual void write(level_type level, const std::string& output,
-                     char const* file, int line) = 0;
+  virtual void write(level_type level, std::string_view output,
+                     std::source_location loc) = 0;
 
   std::string_view policy_name() const { return policy_name_; }
 
@@ -98,8 +98,8 @@ class stream_logger : public logger {
   stream_logger(std::shared_ptr<terminal const> term, std::ostream& os,
                 logger_options const& options = {});
 
-  void write(level_type level, const std::string& output, char const* file,
-             int line) override;
+  void write(level_type level, std::string_view output,
+             std::source_location loc) override;
 
   void set_threshold(level_type threshold);
   void set_with_context(bool with_context) { with_context_ = with_context; }
@@ -129,21 +129,20 @@ class null_logger : public logger {
  public:
   null_logger();
 
-  void write(level_type, const std::string&, char const*, int) override {}
+  void write(level_type, std::string_view, std::source_location) override {}
 };
 
 class level_log_entry {
  public:
   level_log_entry(logger& lgr, logger::level_type level,
-                  char const* file = nullptr, int line = 0)
+                  std::source_location loc)
       : lgr_(lgr)
       , level_(level)
-      , file_(file)
-      , line_(line) {}
+      , loc_(loc) {}
 
   level_log_entry(level_log_entry const&) = delete;
 
-  ~level_log_entry() { lgr_.write(level_, oss_.str(), file_, line_); }
+  ~level_log_entry() { lgr_.write(level_, oss_.str(), loc_); }
 
   template <typename T>
   level_log_entry& operator<<(const T& val) {
@@ -155,8 +154,7 @@ class level_log_entry {
   logger& lgr_;
   std::ostringstream oss_;
   logger::level_type const level_;
-  char const* const file_;
-  int const line_;
+  std::source_location const loc_;
 };
 
 class timed_level_log_entry {
@@ -164,14 +162,12 @@ class timed_level_log_entry {
   using thread_clock = boost::chrono::thread_clock;
 
   timed_level_log_entry(logger& lgr, logger::level_type level,
-                        char const* file = nullptr, int line = 0,
-                        bool with_cpu = false)
+                        std::source_location loc, bool with_cpu = false)
       : lgr_(lgr)
       , level_(level)
       , start_time_(std::chrono::high_resolution_clock::now())
       , with_cpu_(with_cpu)
-      , file_(file)
-      , line_(line) {
+      , loc_(loc) {
     if (with_cpu) {
       cpu_start_time_ = thread_clock::now();
     }
@@ -190,7 +186,7 @@ class timed_level_log_entry {
         oss_ << ", " << time_with_unit(cpu_time_sec.count()) << " CPU";
       }
       oss_ << "]";
-      lgr_.write(level_, oss_.str(), file_, line_);
+      lgr_.write(level_, oss_.str(), loc_);
     }
   }
 
@@ -209,14 +205,13 @@ class timed_level_log_entry {
   thread_clock::time_point cpu_start_time_;
   bool output_{false};
   bool const with_cpu_;
-  char const* const file_;
-  int const line_;
+  std::source_location const loc_;
 };
 
 class no_log_entry {
  public:
   no_log_entry(logger&, logger::level_type) {}
-  no_log_entry(logger&, logger::level_type, char const*, int) {}
+  no_log_entry(logger&, logger::level_type, std::source_location) {}
 
   template <typename T>
   no_log_entry& operator<<(const T&) {
@@ -260,98 +255,98 @@ class log_proxy {
     return LogPolicy::is_enabled_for(level);
   }
 
-  auto fatal(char const* file, int line) const {
-    return level_log_entry(lgr_, logger::FATAL, file, line);
+  auto fatal(std::source_location loc) const {
+    return level_log_entry(lgr_, logger::FATAL, loc);
   }
 
-  auto error(char const* file, int line) const {
+  auto error(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::ERROR>(
-        lgr_, logger::ERROR, file, line);
+        lgr_, logger::ERROR, loc);
   }
 
-  auto warn(char const* file, int line) const {
+  auto warn(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::WARN>(
-        lgr_, logger::WARN, file, line);
+        lgr_, logger::WARN, loc);
   }
 
-  auto info(char const* file, int line) const {
+  auto info(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::INFO>(
-        lgr_, logger::INFO, file, line);
+        lgr_, logger::INFO, loc);
   }
 
-  auto verbose(char const* file, int line) const {
+  auto verbose(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::VERBOSE>(
-        lgr_, logger::VERBOSE, file, line);
+        lgr_, logger::VERBOSE, loc);
   }
 
-  auto debug(char const* file, int line) const {
+  auto debug(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::DEBUG>(
-        lgr_, logger::DEBUG, file, line);
+        lgr_, logger::DEBUG, loc);
   }
 
-  auto trace(char const* file, int line) const {
+  auto trace(std::source_location loc) const {
     return typename LogPolicy::template logger_type<logger::TRACE>(
-        lgr_, logger::TRACE, file, line);
+        lgr_, logger::TRACE, loc);
   }
 
-  auto timed_error(char const* file, int line) const {
+  auto timed_error(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::ERROR>(
-        lgr_, logger::ERROR, file, line);
+        lgr_, logger::ERROR, loc);
   }
 
-  auto timed_warn(char const* file, int line) const {
+  auto timed_warn(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::WARN>(
-        lgr_, logger::WARN, file, line);
+        lgr_, logger::WARN, loc);
   }
 
-  auto timed_info(char const* file, int line) const {
+  auto timed_info(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::INFO>(
-        lgr_, logger::INFO, file, line);
+        lgr_, logger::INFO, loc);
   }
 
-  auto timed_verbose(char const* file, int line) const {
+  auto timed_verbose(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
-        lgr_, logger::VERBOSE, file, line);
+        lgr_, logger::VERBOSE, loc);
   }
 
-  auto timed_debug(char const* file, int line) const {
+  auto timed_debug(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
-        lgr_, logger::DEBUG, file, line);
+        lgr_, logger::DEBUG, loc);
   }
 
-  auto timed_trace(char const* file, int line) const {
+  auto timed_trace(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::TRACE>(
-        lgr_, logger::TRACE, file, line);
+        lgr_, logger::TRACE, loc);
   }
 
-  auto cpu_timed_error(char const* file, int line) const {
+  auto cpu_timed_error(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::ERROR>(
-        lgr_, logger::ERROR, file, line, true);
+        lgr_, logger::ERROR, loc, true);
   }
 
-  auto cpu_timed_warn(char const* file, int line) const {
+  auto cpu_timed_warn(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::WARN>(
-        lgr_, logger::WARN, file, line, true);
+        lgr_, logger::WARN, loc, true);
   }
 
-  auto cpu_timed_info(char const* file, int line) const {
+  auto cpu_timed_info(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::INFO>(
-        lgr_, logger::INFO, file, line, true);
+        lgr_, logger::INFO, loc, true);
   }
 
-  auto cpu_timed_verbose(char const* file, int line) const {
+  auto cpu_timed_verbose(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
-        lgr_, logger::VERBOSE, file, line, true);
+        lgr_, logger::VERBOSE, loc, true);
   }
 
-  auto cpu_timed_debug(char const* file, int line) const {
+  auto cpu_timed_debug(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
-        lgr_, logger::DEBUG, file, line, true);
+        lgr_, logger::DEBUG, loc, true);
   }
 
-  auto cpu_timed_trace(char const* file, int line) const {
+  auto cpu_timed_trace(std::source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::TRACE>(
-        lgr_, logger::TRACE, file, line, true);
+        lgr_, logger::TRACE, loc, true);
   }
 
   logger& get_logger() const { return lgr_; }
@@ -363,31 +358,35 @@ class log_proxy {
 #define LOG_DETAIL_LEVEL(level, lgr, method)                                   \
   if constexpr (std::decay_t<decltype(lgr)>::is_enabled_for(                   \
                     ::dwarfs::logger::level))                                  \
-  lgr.method(__FILE__, __LINE__)
+  lgr.method(std::source_location::current())
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
 #define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
 #define LOG_PROXY_INIT(lgr) log_(lgr)
 #define LOG_GET_LOGGER log_.get_logger()
-#define LOG_FATAL log_.fatal(__FILE__, __LINE__)
+#define LOG_FATAL log_.fatal(std::source_location::current())
 #define LOG_ERROR LOG_DETAIL_LEVEL(ERROR, log_, error)
 #define LOG_WARN LOG_DETAIL_LEVEL(WARN, log_, warn)
 #define LOG_INFO LOG_DETAIL_LEVEL(INFO, log_, info)
 #define LOG_VERBOSE LOG_DETAIL_LEVEL(VERBOSE, log_, verbose)
 #define LOG_DEBUG LOG_DETAIL_LEVEL(DEBUG, log_, debug)
 #define LOG_TRACE LOG_DETAIL_LEVEL(TRACE, log_, trace)
-#define LOG_TIMED_ERROR log_.timed_error(__FILE__, __LINE__)
-#define LOG_TIMED_WARN log_.timed_warn(__FILE__, __LINE__)
-#define LOG_TIMED_INFO log_.timed_info(__FILE__, __LINE__)
-#define LOG_TIMED_VERBOSE log_.timed_verbose(__FILE__, __LINE__)
-#define LOG_TIMED_DEBUG log_.timed_debug(__FILE__, __LINE__)
-#define LOG_TIMED_TRACE log_.timed_trace(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_ERROR log_.cpu_timed_error(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_INFO log_.cpu_timed_info(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_VERBOSE log_.cpu_timed_verbose(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_DEBUG log_.cpu_timed_debug(__FILE__, __LINE__)
-#define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(__FILE__, __LINE__)
+#define LOG_TIMED_ERROR log_.timed_error(std::source_location::current())
+#define LOG_TIMED_WARN log_.timed_warn(std::source_location::current())
+#define LOG_TIMED_INFO log_.timed_info(std::source_location::current())
+#define LOG_TIMED_VERBOSE log_.timed_verbose(std::source_location::current())
+#define LOG_TIMED_DEBUG log_.timed_debug(std::source_location::current())
+#define LOG_TIMED_TRACE log_.timed_trace(std::source_location::current())
+#define LOG_CPU_TIMED_ERROR                                                    \
+  log_.cpu_timed_error(std::source_location::current())
+#define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(std::source_location::current())
+#define LOG_CPU_TIMED_INFO log_.cpu_timed_info(std::source_location::current())
+#define LOG_CPU_TIMED_VERBOSE                                                  \
+  log_.cpu_timed_verbose(std::source_location::current())
+#define LOG_CPU_TIMED_DEBUG                                                    \
+  log_.cpu_timed_debug(std::source_location::current())
+#define LOG_CPU_TIMED_TRACE                                                    \
+  log_.cpu_timed_trace(std::source_location::current())
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {
  public:
@@ -417,7 +416,7 @@ std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
       lgr, std::forward<Args>(args)...);
 }
 
-std::string get_logger_context(char const* path, int line);
+std::string get_logger_context(std::source_location loc);
 std::string get_current_time_string();
 
 } // namespace dwarfs
