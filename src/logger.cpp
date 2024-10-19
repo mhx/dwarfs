@@ -38,6 +38,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal_ansi.h>
@@ -290,6 +291,20 @@ void stream_logger::set_threshold(level_type threshold) {
     set_policy<prod_logger_policy>();
   }
 }
+
+namespace detail {
+
+bool logging_class_factory::is_policy_name(logger const& lgr,
+                                           std::string_view name) {
+  return lgr.policy_name() == name;
+}
+
+void logging_class_factory::on_policy_not_found(logger const& lgr) {
+  DWARFS_THROW(runtime_error,
+               fmt::format("no such logger policy: {}", lgr.policy_name()));
+}
+
+} // namespace detail
 
 std::string get_logger_context(char const* path, int line) {
   return fmt::format("[{0}:{1}] ", basename(path), line);
