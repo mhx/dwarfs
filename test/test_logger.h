@@ -59,6 +59,8 @@ class test_logger : public ::dwarfs::logger {
     }
   }
 
+  level_type threshold() const override { return threshold_; }
+
   void write(level_type level, std::string_view output,
              std::source_location loc) override {
     if (output_ && level <= output_threshold_) {

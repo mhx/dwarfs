@@ -152,6 +152,10 @@ void stream_logger::write_nolock(std::string_view output) {
   }
 }
 
+logger::level_type stream_logger::threshold() const {
+  return threshold_.load();
+}
+
 void stream_logger::write(level_type level, std::string_view output,
                           std::source_location loc) {
   if (level <= threshold_ || level == FATAL) {
