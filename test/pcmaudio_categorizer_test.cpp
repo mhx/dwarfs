@@ -788,7 +788,7 @@ TEST_F(pcmaudio_error_test_caf, no_error) {
 }
 
 TEST_F(pcmaudio_error_test_caf, no_error_unkown_data_size) {
-  caff_data_chunk_hdr.size = -1;
+  caff_data_chunk_hdr.size = std::numeric_limits<uint64_t>::max();
 
   auto builder = build_file();
   auto frag = categorize(builder);
