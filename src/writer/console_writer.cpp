@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <cstring>
 #include <sstream>
 #include <string_view>
