@@ -154,7 +154,7 @@ TEST_P(manpage_coverage_test, options) {
   auto man = render_manpage(tool.doc, 80, false);
   test::test_iolayer iol;
   std::array<std::string_view, 2> const args{tool_name, tool.help_option};
-  auto rv = main_adapter{tool.main}(args, iol.get());
+  auto rv [[maybe_unused]] = main_adapter{tool.main}(args, iol.get());
 
 #ifndef _WIN32
   // WinFSP exits with a non-zero code when displaying usage :-/
