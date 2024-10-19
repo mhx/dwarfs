@@ -181,3 +181,18 @@ if(WITH_BENCHMARKS)
   target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
 endif()
 
+foreach(tgt dwarfs_folly_lite dwarfs_follybenchmark_lite)
+  if(TARGET ${tgt})
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+      # See: https://github.com/cpp-best-practices/cppbestpractices/blob/master/02-Use_the_Tools_Available.md
+      target_compile_options(${tgt} PRIVATE
+        /wd4189
+        /wd4242
+        /wd4458
+        /wd4866
+        /wd5039
+        /wd5246
+      )
+    endif()
+  endif()
+endforeach()
