@@ -22,9 +22,7 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <cstddef>
-#include <ctime>
 #include <iosfwd>
 #include <memory>
 #include <mutex>
@@ -37,10 +35,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <boost/chrono/thread_clock.hpp>
-
 #include <dwarfs/detail/logging_class_factory.h>
-#include <dwarfs/util.h>
 
 namespace dwarfs {
 
@@ -162,53 +157,26 @@ class level_log_entry {
 
 class timed_level_log_entry {
  public:
-  using thread_clock = boost::chrono::thread_clock;
-
   timed_level_log_entry(logger& lgr, logger::level_type level,
-                        std::source_location loc, bool with_cpu = false)
-      : lgr_(lgr)
-      , level_(level)
-      , start_time_(std::chrono::high_resolution_clock::now())
-      , with_cpu_(with_cpu)
-      , loc_(loc) {
-    if (with_cpu) {
-      cpu_start_time_ = thread_clock::now();
-    }
-  }
-
+                        std::source_location loc, bool with_cpu = false);
   timed_level_log_entry(timed_level_log_entry const&) = delete;
-
-  ~timed_level_log_entry() {
-    if (output_) {
-      std::chrono::duration<double> sec =
-          std::chrono::high_resolution_clock::now() - start_time_;
-      oss_ << " [" << time_with_unit(sec.count());
-      if (with_cpu_) {
-        boost::chrono::duration<double> cpu_time_sec =
-            thread_clock::now() - cpu_start_time_;
-        oss_ << ", " << time_with_unit(cpu_time_sec.count()) << " CPU";
-      }
-      oss_ << "]";
-      lgr_.write(level_, oss_.str(), loc_);
-    }
-  }
+  ~timed_level_log_entry();
 
   template <typename T>
   timed_level_log_entry& operator<<(const T& val) {
-    output_ = true;
-    oss_ << val;
+    if (state_) {
+      output_ = true;
+      oss_ << val;
+    }
     return *this;
   }
 
  private:
-  logger& lgr_;
+  class state;
+
   std::ostringstream oss_;
-  logger::level_type const level_;
-  std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
-  thread_clock::time_point cpu_start_time_;
   bool output_{false};
-  bool const with_cpu_;
-  std::source_location const loc_;
+  std::unique_ptr<state const> state_;
 };
 
 class no_log_entry {
