@@ -642,15 +642,36 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
   if(NOT ${tgt} MATCHES "folly|fsst|thrift")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
        "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      target_compile_options(${tgt} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wold-style-cast>)
-      # target_compile_options(${tgt} PRIVATE -Wold-style-cast)
+      target_compile_options(${tgt} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:
+          -Wold-style-cast
+          -Wnon-virtual-dtor
+          -Wsuggest-override
+        >
+        -Wfloat-equal
+        -Wcast-align
+        -Wpointer-arith
+        -Wformat=2
+      )
       if(DWARFS_GIT_BUILD)
         target_compile_options(${tgt} PRIVATE -Werror)
       endif()
     endif()
 
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+      target_compile_options(${tgt} PRIVATE
+        -Wnull-dereference  # this is too flaky with GCC
+      )
+    endif()
+
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-      target_compile_options(${tgt} PRIVATE -Wuseless-cast)
+      target_compile_options(${tgt} PRIVATE
+        -Wuseless-cast
+        -Wlogical-op
+        -Wduplicated-cond
+        -Wduplicated-branches
+        -Wmisleading-indentation
+      )
     endif()
   endif()
 
