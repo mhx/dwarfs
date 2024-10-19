@@ -593,7 +593,7 @@ class metadata_ final : public metadata_v2::impl {
   };
 
   // TODO: merge with mode_rank in metadata_types
-  static inode_rank get_inode_rank(uint16_t mode) {
+  static inode_rank get_inode_rank(uint32_t mode) {
     switch (posix_file_type::from_mode(mode)) {
     case posix_file_type::directory:
       return inode_rank::INO_DIR;
@@ -742,7 +742,7 @@ class metadata_ final : public metadata_v2::impl {
     return reg_file_size_impl(iv, true);
   }
 
-  size_t file_size(inode_view_impl const& iv, uint16_t mode) const {
+  size_t file_size(inode_view_impl const& iv, uint32_t mode) const {
     switch (posix_file_type::from_mode(mode)) {
     case posix_file_type::regular:
       return reg_file_size(iv);
@@ -753,7 +753,7 @@ class metadata_ final : public metadata_v2::impl {
     }
   }
 
-  size_t file_size(inode_view const& iv, uint16_t mode) const {
+  size_t file_size(inode_view const& iv, uint32_t mode) const {
     return file_size(iv.raw(), mode);
   }
 
