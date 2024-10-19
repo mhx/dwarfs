@@ -131,7 +131,10 @@ if(WITH_BENCHMARKS)
   add_library(dwarfs_follybenchmark_lite OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/PerfScoped.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/StaticSingletonManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
@@ -160,7 +163,12 @@ if(WITH_BENCHMARKS)
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StandardLogHandlerFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StreamHandlerFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/xlog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/Pid.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
   )
   if(NOT WIN32)
@@ -173,15 +181,3 @@ if(WITH_BENCHMARKS)
   target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
 endif()
 
-if(WITH_BENCHMARKS)
-  target_sources(dwarfs_follybenchmark_lite PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
-  )
-endif()
