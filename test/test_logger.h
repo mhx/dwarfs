@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <string>

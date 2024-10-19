@@ -21,12 +21,11 @@
 
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <ctime>
-#include <iostream>
+#include <iosfwd>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -59,10 +58,7 @@ class logger {
     TRACE
   };
 
-  static char level_char(level_type level) {
-    static std::array<char, 7> lchars = {{'F', 'E', 'W', 'I', 'V', 'D', 'T'}};
-    return lchars.at(level);
-  }
+  static char level_char(level_type level);
 
   virtual ~logger() = default;
 
