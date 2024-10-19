@@ -26,7 +26,7 @@
 
 namespace dwarfs::internal {
 
-std::filesystem::file_status file_mode_to_status(uint16_t mode);
+std::filesystem::file_status file_mode_to_status(uint32_t mode);
 uint16_t file_status_to_mode(std::filesystem::file_status status);
 
 } // namespace dwarfs::internal
