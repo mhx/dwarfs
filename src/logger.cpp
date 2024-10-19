@@ -158,8 +158,8 @@ void stream_logger::write_nolock(std::string_view output) {
   }
 }
 
-void stream_logger::write(level_type level, const std::string& output,
-                          char const* file, int line) {
+void stream_logger::write(level_type level, std::string_view output,
+                          std::source_location loc) {
   if (level <= threshold_ || level == FATAL) {
     auto t = get_current_time_string();
     std::string_view prefix;
@@ -216,8 +216,8 @@ void stream_logger::write(level_type level, const std::string& output,
     std::string context;
     size_t context_len = 0;
 
-    if (with_context_ && file) {
-      context = get_logger_context(file, line);
+    if (with_context_ /*&& file*/) {
+      context = get_logger_context(loc);
       context_len = context.size();
       if (color_) {
         context = folly::to<std::string>(
@@ -306,8 +306,8 @@ void logging_class_factory::on_policy_not_found(logger const& lgr) {
 
 } // namespace detail
 
-std::string get_logger_context(char const* path, int line) {
-  return fmt::format("[{0}:{1}] ", basename(path), line);
+std::string get_logger_context(std::source_location loc) {
+  return fmt::format("[{0}:{1}] ", basename(loc.file_name()), loc.line());
 }
 
 std::string get_current_time_string() {
