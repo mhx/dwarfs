@@ -639,6 +639,21 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     target_compile_options(${tgt} PRIVATE -Wno-stringop-overflow)
   endif()
 
+  if(NOT ${tgt} MATCHES "folly|fsst|thrift")
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+       "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+      target_compile_options(${tgt} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wold-style-cast>)
+      # target_compile_options(${tgt} PRIVATE -Wold-style-cast)
+      if(DWARFS_GIT_BUILD)
+        target_compile_options(${tgt} PRIVATE -Werror)
+      endif()
+    endif()
+
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+      target_compile_options(${tgt} PRIVATE -Wuseless-cast)
+    endif()
+  endif()
+
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
