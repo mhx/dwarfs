@@ -46,6 +46,7 @@ else()
     GIT_REPOSITORY ${PARALLEL_HASHMAP_GIT_REPO}
     GIT_TAG v${PARALLEL_HASHMAP_PREFERRED_VERSION}
     EXCLUDE_FROM_ALL
+    SYSTEM
   )
   FetchContent_MakeAvailable(parallel-hashmap)
 endif()
