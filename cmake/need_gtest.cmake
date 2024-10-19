@@ -41,6 +41,7 @@ else()
     GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
     GIT_TAG v${GOOGLETEST_PREFERRED_VERSION}
     EXCLUDE_FROM_ALL
+    SYSTEM
   )
   # For Windows: Prevent overriding the parent project's compiler/linker settings
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

@@ -26,6 +26,7 @@ if(NOT range-v3_FOUND)
     GIT_REPOSITORY ${RANGE_V3_GIT_REPO}
     GIT_TAG ${RANGE_V3_PREFERRED_VERSION}
     EXCLUDE_FROM_ALL
+    SYSTEM
   )
   FetchContent_MakeAvailable(range-v3)
 endif()

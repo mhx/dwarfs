@@ -503,7 +503,7 @@ if(WITH_TESTS)
       ### include paths are searched first.
       get_target_property(gmock_include_dirs gmock INTERFACE_INCLUDE_DIRECTORIES)
       get_target_property(gtest_include_dirs gtest INTERFACE_INCLUDE_DIRECTORIES)
-      target_include_directories(${test} PRIVATE BEFORE ${gmock_include_dirs} ${gtest_include_dirs})
+      target_include_directories(${test} SYSTEM PRIVATE BEFORE ${gmock_include_dirs} ${gtest_include_dirs})
     endif()
 
     target_compile_definitions(${test}
@@ -597,7 +597,7 @@ if(WITH_LIBDWARFS AND WITH_FUZZ)
 endif()
 
 foreach(tgt ${LIBDWARFS_TARGETS})
-  target_include_directories(${tgt} PRIVATE
+  target_include_directories(${tgt} SYSTEM PRIVATE
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:phmap,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 endforeach()
@@ -626,7 +626,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     $<INSTALL_INTERFACE:include>
   )
 
-  target_include_directories(${tgt} PUBLIC
+  target_include_directories(${tgt} SYSTEM PUBLIC
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:range-v3::range-v3,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 
