@@ -44,7 +44,7 @@ class progress;
 
 class similarity_element_view {
  public:
-  ~similarity_element_view() = default;
+  virtual ~similarity_element_view() = default;
 
   virtual bool exists(size_t i) const = 0;
   virtual size_t size() const = 0;
