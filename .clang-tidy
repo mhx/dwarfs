@@ -20,15 +20,15 @@ Checks:
 ##  - cppcoreguidelines-macro-to-enum
 ##  - cppcoreguidelines-macro-usage
   - cppcoreguidelines-misleading-capture-default-by-value
-#  - cppcoreguidelines-missing-std-forward
+  - cppcoreguidelines-missing-std-forward
 #  - cppcoreguidelines-narrowing-conversions
-#  - cppcoreguidelines-no-malloc
-#  - cppcoreguidelines-no-suspend-with-lock
+  - cppcoreguidelines-no-malloc
+  - cppcoreguidelines-no-suspend-with-lock
 #  - cppcoreguidelines-noexcept-destructor
 #  - cppcoreguidelines-noexcept-move-operations
 #  - cppcoreguidelines-noexcept-swap
 #  - cppcoreguidelines-non-private-member-variables-in-classes
-#  - cppcoreguidelines-owning-memory
+  - cppcoreguidelines-owning-memory
 #  - cppcoreguidelines-prefer-member-initializer
 #  - cppcoreguidelines-pro-bounds-array-to-pointer-decay
 #  - cppcoreguidelines-pro-bounds-constant-array-index
