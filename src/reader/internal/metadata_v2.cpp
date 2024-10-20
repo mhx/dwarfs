@@ -324,7 +324,8 @@ void analyze_frozen(std::ostream& os,
 
 template <typename Function>
 void parse_metadata_options(
-    MappedFrozen<thrift::metadata::metadata> const& meta, Function&& func) {
+    MappedFrozen<thrift::metadata::metadata> const& meta,
+    Function const& func) {
   if (auto opt = meta.options()) {
     func("mtime_only", opt->mtime_only());
     func("packed_chunk_table", opt->packed_chunk_table());
@@ -765,7 +766,7 @@ class metadata_ final : public metadata_v2::impl {
 
   template <typename T>
   void walk(uint32_t self_index, uint32_t parent_index, set_type<int>& seen,
-            T&& func) const;
+            T const& func) const;
 
   template <typename T>
   void walk_tree(T&& func) const {
@@ -1557,7 +1558,7 @@ std::string metadata_<LoggerPolicy>::serialize_as_json(bool simple) const {
 template <typename LoggerPolicy>
 template <typename T>
 void metadata_<LoggerPolicy>::walk(uint32_t self_index, uint32_t parent_index,
-                                   set_type<int>& seen, T&& func) const {
+                                   set_type<int>& seen, T const& func) const {
   func(self_index, parent_index);
 
   auto entry = make_dir_entry_view_impl(self_index, parent_index);
