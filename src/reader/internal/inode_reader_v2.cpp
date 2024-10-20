@@ -441,6 +441,7 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
   auto rv = read_internal(inode, size, offset, maxiov, chunks, ec,
                           [&](size_t, const block_range& br) {
                             auto& iov = buf.buf.emplace_back();
+                            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
                             iov.iov_base = const_cast<uint8_t*>(br.data());
                             iov.iov_len = br.size();
                             buf.ranges.emplace_back(br);
