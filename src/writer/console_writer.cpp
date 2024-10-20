@@ -164,7 +164,6 @@ console_writer::console_writer(std::shared_ptr<terminal const> term,
                                std::ostream& os, progress_mode pg_mode,
                                display_mode mode, logger_options const& options)
     : stream_logger(term, os, options)
-    , frac_(0.0)
     , pg_mode_(pg_mode)
     , mode_(mode) {}
 
