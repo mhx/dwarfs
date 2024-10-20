@@ -95,8 +95,8 @@ int distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b)
 }
 
 template <typename GetI, typename GetK, typename Swap>
-void order_by_shortest_path(size_t count, GetI&& geti, GetK&& getk,
-                            Swap&& swapper) {
+void order_by_shortest_path(size_t count, GetI const& geti, GetK const& getk,
+                            Swap const& swapper) {
   for (size_t i = 0; i < count - 1; ++i) {
     auto bi = geti(i);
     int best_distance = std::numeric_limits<int>::max();

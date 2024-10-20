@@ -80,7 +80,7 @@ class sortable_span {
       : values_{values} {}
 
   template <typename P>
-  void select(P&& predicate) {
+  void select(P const& predicate) {
     index_.reserve(values_.size());
     for (size_t i = 0; i < values_.size(); ++i) {
       if (predicate(values_[i])) {

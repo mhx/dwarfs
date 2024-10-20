@@ -58,7 +58,7 @@ template <typename T, typename U>
 std::optional<bool> try_to(U&& s)
   requires(std::same_as<T, bool> && std::is_arithmetic_v<U>)
 {
-  return s != U{};
+  return std::forward<U>(s) != U{};
 }
 
 template <typename T>

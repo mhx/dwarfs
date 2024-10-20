@@ -92,7 +92,7 @@ class contextual_option {
   template <typename T>
   bool any_is(T&& pred) const {
     for (auto e : contextual_) {
-      if (pred(e.second)) {
+      if (std::forward<T>(pred)(e.second)) {
         return true;
       }
     }
@@ -102,7 +102,7 @@ class contextual_option {
   template <typename T>
   void visit_contextual(T&& visitor) const {
     for (auto const& [ctx, val] : contextual_) {
-      visitor(ctx, val);
+      std::forward<T>(visitor)(ctx, val);
     }
   }
 
