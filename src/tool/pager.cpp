@@ -80,10 +80,12 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
 
 void show_in_pager(pager_program const& pager, std::string text) {
   boost::asio::io_context ios;
+  // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
   bp::child proc(pager.name.wstring(), bp::args(pager.args),
                  bp::std_in =
                      boost::asio::const_buffer(text.data(), text.size()),
                  bp::std_out > stdout, ios);
+  // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
   ios.run();
   proc.wait();
 }
