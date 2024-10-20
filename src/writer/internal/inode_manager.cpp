@@ -384,7 +384,7 @@ class inode_ : public inode {
   void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
                   size_t chunk_size, T&& scanner) {
     while (size >= chunk_size) {
-      scanner(mm->span(offset, chunk_size));
+      std::forward<T>(scanner)(mm->span(offset, chunk_size));
       mm->release_until(offset);
       offset += chunk_size;
       size -= chunk_size;
