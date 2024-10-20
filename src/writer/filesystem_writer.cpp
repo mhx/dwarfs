@@ -1033,7 +1033,9 @@ void filesystem_writer_<LoggerPolicy>::configure(
 
   merger_ = std::make_unique<block_merger_type>(
       max_active_slots, options_.max_queue_size, expected_categories,
-      [this](auto&& holder) { on_block_merged(std::move(holder)); },
+      [this](auto&& holder) {
+        on_block_merged(std::forward<decltype(holder)>(holder));
+      },
       fsblock_merger_policy{options_.worst_case_block_size});
 }
 
