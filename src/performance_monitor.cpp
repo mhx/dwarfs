@@ -127,7 +127,7 @@ class single_timer {
 
 } // namespace
 
-class performance_monitor_impl : public performance_monitor {
+class performance_monitor_impl final : public performance_monitor {
  public:
   using timer_id = performance_monitor::timer_id;
   using time_type = performance_monitor::time_type;
