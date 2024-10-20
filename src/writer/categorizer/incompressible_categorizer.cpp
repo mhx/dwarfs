@@ -94,7 +94,7 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
     auto stats = [this] {
       return fmt::format("{} -> incompressible blocks: {}/{}, overall "
                          "compression ratio: {:.2f}%",
-                         u8string_to_string(path_.u8string()),
+                         path_to_utf8_string_sanitized(path_),
                          incompressible_blocks_, total_blocks_,
                          100.0 * total_output_size_ / total_input_size_);
     };

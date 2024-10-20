@@ -101,7 +101,7 @@ fs::path entry::fs_path() const {
 }
 
 std::string entry::path_as_string() const {
-  return u8string_to_string(fs_path().u8string());
+  return path_to_utf8_string_sanitized(fs_path());
 }
 
 std::string entry::dpath() const {
@@ -409,7 +409,7 @@ void dir::remove_empty_dirs(progress& prog) {
 }
 
 std::shared_ptr<entry> dir::find(fs::path const& path) {
-  auto name = u8string_to_string(path.filename().u8string());
+  auto name = path_to_utf8_string_sanitized(path.filename());
 
   if (!lookup_ && entries_.size() >= 16) {
     populate_lookup_table();
@@ -449,7 +449,7 @@ const std::string& link::linkname() const { return link_; }
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 
 void link::scan(os_access const& os, progress& prog) {
-  link_ = u8string_to_string(os.read_symlink(fs_path()).u8string());
+  link_ = path_to_utf8_string_sanitized(os.read_symlink(fs_path()));
   prog.original_size += size();
   prog.symlink_size += size();
 }

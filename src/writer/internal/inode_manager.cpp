@@ -351,7 +351,7 @@ class inode_ : public inode {
     if (mm) {
       if (auto size = mm->size(); size >= min_size) {
         return prog.create_context<scanner_progress>(
-            context, u8string_to_string(mm->path().u8string()), size);
+            context, path_to_utf8_string_sanitized(mm->path()), size);
       }
     }
     return nullptr;
