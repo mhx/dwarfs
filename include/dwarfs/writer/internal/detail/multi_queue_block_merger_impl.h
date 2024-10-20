@@ -277,9 +277,12 @@ class multi_queue_block_merger_impl : public block_merger_base,
       cached_max_worst_case_source_block_size_.reset();
     }
 
+    // NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
+    // This really becomes harder to read if we don't use a do-while loop
     do {
       active_slot_index_ = (active_slot_index_ + 1) % active_slots_.size();
     } while (active_slot_index_ != ix && !active_slots_[active_slot_index_]);
+    // NOLINTEND(cppcoreguidelines-avoid-do-while)
 
     if constexpr (debug) {
       if (not_last) {
