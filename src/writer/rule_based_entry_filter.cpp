@@ -189,7 +189,7 @@ template <typename LoggerPolicy>
 void rule_based_entry_filter_<LoggerPolicy>::set_root_path(
     fs::path const& path) {
   // TODO: this whole thing needs to be windowsized
-  root_path_ = u8string_to_string(path.u8string());
+  root_path_ = path_to_utf8_string_sanitized(path);
 
   if constexpr (kLocalPathSeparator != '/') {
     // Both '/' and '\\' are, surprisingly, valid path separators on Windows,

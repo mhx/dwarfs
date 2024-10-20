@@ -468,7 +468,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
     default:
       LOG_ERROR << "unsupported entry type: " << int(pe->type()) << " ("
-                << pe->fs_path() << ")";
+                << pe->path_as_string() << ")";
       prog.errors++;
       break;
     }
@@ -553,7 +553,8 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 
       prog.dirs_scanned++;
     } catch (const std::system_error& e) {
-      LOG_ERROR << "cannot read directory `" << ppath
+      LOG_ERROR << "cannot read directory `"
+                << path_to_utf8_string_sanitized(ppath)
                 << "`: " << exception_str(e);
       prog.errors++;
     }

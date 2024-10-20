@@ -124,7 +124,7 @@ file_stat::file_stat(fs::path const& path) {
                              status.type() == fs::file_type::not_found
                                  ? "file not found"
                                  : "unknown file type",
-                             u8string_to_string(path.u8string())));
+                             path_to_utf8_string_sanitized(path)));
   }
 
   valid_fields_ = file_stat::mode_valid;
