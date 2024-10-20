@@ -91,8 +91,10 @@ class lru_sequential_access_detector : public sequential_access_detector {
 
   void touch(size_t block_no) override {
     std::lock_guard lock(mx_);
-    lru_.set(block_no, block_no, true,
-             [this](size_t, size_t&&) { is_sequential_.reset(); });
+    lru_.set(
+        block_no, block_no, true,
+        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+        [this](size_t, size_t&&) { is_sequential_.reset(); });
   }
 
   std::optional<size_t> prefetch() const override {
@@ -330,6 +332,7 @@ class block_cache_ final : public block_cache::impl {
     cache_.~lru_type();
     new (&cache_) lru_type(max_blocks);
     cache_.setPruneHook(
+        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
         [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
           LOG_DEBUG << "evicting block " << block_no
                     << " from cache, decompression ratio = "
