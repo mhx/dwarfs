@@ -181,7 +181,7 @@ class block_request_set {
     std::push_heap(queue_.begin(), queue_.end());
   }
 
-  void merge(block_request_set&& other) {
+  void merge(block_request_set& other) {
     queue_.reserve(queue_.size() + other.queue_.size());
     std::move(other.queue_.begin(), other.queue_.end(),
               std::back_inserter(queue_));
@@ -623,7 +623,7 @@ class block_cache_ final : public block_cache::impl {
 
         if (auto other = di->second.lock()) {
           LOG_TRACE << "merging sets for block " << block_no;
-          other->merge(std::move(*brs));
+          other->merge(*brs);
           sets_merged_.fetch_add(1, std::memory_order_relaxed);
           brs.reset();
           return;
