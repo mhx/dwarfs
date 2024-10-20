@@ -990,19 +990,18 @@ dir_entry_view_impl::name(uint32_t index, global_metadata const& g) {
 }
 
 std::string dir_entry_view_impl::path() const {
+  // paths in metadata are guaranteed to be valid UTF-8
   return u8string_to_string(fs_path().u8string());
 }
 
 std::string dir_entry_view_impl::unix_path() const {
-#ifdef _WIN32
-  auto p = fs_path().u8string();
-  std::replace(p.begin(), p.end(),
-               static_cast<char>(std::filesystem::path::preferred_separator),
-               '/');
-  return u8string_to_string(p);
-#else
-  return path();
-#endif
+  static constexpr char preferred =
+      static_cast<char>(std::filesystem::path::preferred_separator);
+  auto p = path();
+  if constexpr (preferred != '/') {
+    std::replace(p.begin(), p.end(), preferred, '/');
+  }
+  return p;
 }
 
 std::wstring dir_entry_view_impl::wpath() const { return fs_path().wstring(); }
