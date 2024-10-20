@@ -165,8 +165,7 @@ class block_request {
 class block_request_set {
  public:
   block_request_set(std::shared_ptr<cached_block> block, size_t block_no)
-      : range_end_(0)
-      , block_(std::move(block))
+      : block_(std::move(block))
       , block_no_(block_no) {}
 
   ~block_request_set() { assert(queue_.empty()); }
@@ -206,7 +205,7 @@ class block_request_set {
 
  private:
   std::vector<block_request> queue_;
-  size_t range_end_;
+  size_t range_end_{0};
   std::shared_ptr<cached_block> block_;
   const size_t block_no_;
 };
