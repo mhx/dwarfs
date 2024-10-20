@@ -74,7 +74,10 @@ class lz4_block_compressor final : public block_compressor::impl {
            std::string const* /*metadata*/) const override {
     std::vector<uint8_t> compressed(sizeof(uint32_t) +
                                     LZ4_compressBound(to<int>(data.size())));
-    *reinterpret_cast<uint32_t*>(&compressed[0]) = data.size();
+    // TODO: this should have been a varint; also, if we ever support
+    //       big-endian systems, we'll have to properly convert this
+    uint32_t size = data.size();
+    std::memcpy(&compressed[0], &size, sizeof(size));
     auto csize =
         Policy::compress(&data[0], &compressed[sizeof(uint32_t)], data.size(),
                          compressed.size() - sizeof(uint32_t), level_);
@@ -154,6 +157,7 @@ class lz4_block_decompressor final : public block_decompressor::impl {
 
  private:
   static size_t get_uncompressed_size(const uint8_t* data) {
+    // TODO: enforce little-endian
     uint32_t size;
     ::memcpy(&size, data, sizeof(size));
     return size;
