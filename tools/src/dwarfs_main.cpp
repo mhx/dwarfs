@@ -1365,6 +1365,7 @@ int run_fuse(struct fuse_args& args,
     fuse_session_destroy(session);
   }
 
+  // NOLINTNEXTLINE
   ::free(fuse_opts.mountpoint);
 #else
   err = fuse_main(args.argc, args.argv, &fsops, &userdata);
