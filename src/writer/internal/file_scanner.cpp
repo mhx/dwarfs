@@ -77,7 +77,7 @@ class file_scanner_ final : public file_scanner::impl {
   void add_inode(file* p, int lineno);
 
   template <typename Lookup>
-  void finalize_hardlinks(Lookup&& lookup);
+  void finalize_hardlinks(Lookup const& lookup);
 
   template <bool UniqueOnly = false, typename KeyType>
   void finalize_files(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
@@ -444,7 +444,7 @@ void file_scanner_<LoggerPolicy>::add_inode(file* p, int lineno) {
 
 template <typename LoggerPolicy>
 template <typename Lookup>
-void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup&& lookup) {
+void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
   auto tv = LOG_TIMED_VERBOSE;
 
   for (auto& kv : hardlinks_) {
