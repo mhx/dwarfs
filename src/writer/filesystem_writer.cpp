@@ -624,7 +624,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   std::shared_ptr<compression_progress> pctx_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
-  volatile bool flush_;
+  volatile bool flush_{true};
   std::thread writer_thread_;
   uint32_t section_number_{0};
   std::vector<uint64_t> section_index_;
@@ -643,8 +643,7 @@ filesystem_writer_<LoggerPolicy>::filesystem_writer_(
     , wg_(wg)
     , prog_(prog)
     , options_(options)
-    , LOG_PROXY_INIT(lgr)
-    , flush_{true} {
+    , LOG_PROXY_INIT(lgr) {
   if (header_) {
     if (options_.remove_header) {
       LOG_WARN << "header will not be written because remove_header is set";
