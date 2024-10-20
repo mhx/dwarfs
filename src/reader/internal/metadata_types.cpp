@@ -722,7 +722,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
 }
 
 template <typename T>
-T unbundled(frozen::Bundled<T> const& bundle) {
+T const& unbundled(frozen::Bundled<T> const& bundle) {
   return bundle;
 }
 
