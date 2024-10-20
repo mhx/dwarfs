@@ -230,18 +230,18 @@ string_table::pack_generic(std::span<T const> input,
                                             : total_input_size - symtab.size());
       size_t num_compressed = 0;
 
-      do {
+      for (;;) {
         num_compressed = ::fsst_compress(
             enc.get(), size, len_vec.data(), ptr_vec.data(), buffer.size(),
             reinterpret_cast<unsigned char*>(buffer.data()), out_len_vec.data(),
             out_ptr_vec.data());
 
-        if (num_compressed == size) {
+        if (num_compressed == size || !options.force_pack_data) {
           break;
         }
 
         buffer.resize(2 * buffer.size());
-      } while (options.force_pack_data);
+      }
 
       pack_data = num_compressed == size;
     } else {
