@@ -29,7 +29,7 @@ template <typename F>
 class scope_exit {
  public:
   explicit scope_exit(F&& f)
-      : f_{std::forward<F>(f)} {}
+      : f_{std::move(f)} {}
   ~scope_exit() { f_(); }
 
  private:
