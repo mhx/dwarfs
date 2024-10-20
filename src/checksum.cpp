@@ -25,7 +25,8 @@
 #include <cstring>
 #include <functional>
 #include <ostream>
-#include <unordered_set>
+#include <ranges>
+#include <string_view>
 
 #include <openssl/evp.h>
 
@@ -42,9 +43,11 @@ namespace dwarfs {
 
 namespace {
 
-std::unordered_set<std::string> supported_algorithms{
-    "xxh3-64",
-    "xxh3-128",
+using namespace std::string_view_literals;
+
+constexpr std::array supported_algorithms{
+    "xxh3-64"sv,
+    "xxh3-128"sv,
 };
 
 std::string make_hexdigest(checksum::impl& cs) {
@@ -200,7 +203,10 @@ bool verify_impl(T&& alg, void const* data, size_t size, const void* digest,
 } // namespace
 
 bool checksum::is_available(std::string const& algo) {
-  return supported_algorithms.count(algo) or checksum_evp::is_available(algo);
+  // TODO: C++23: use std::ranges::contains
+  return std::ranges::find(supported_algorithms, algo) !=
+             supported_algorithms.end() ||
+         checksum_evp::is_available(algo);
 }
 
 std::vector<std::string> checksum::available_algorithms() {
