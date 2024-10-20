@@ -43,7 +43,7 @@ class fragment_chunkable : public chunkable {
   fragment_chunkable(inode const& ino, single_inode_fragment& frag,
                      file_off_t offset, mmif& mm,
                      categorizer_manager const* catmgr);
-  ~fragment_chunkable();
+  ~fragment_chunkable() override;
 
   file const* get_file() const override;
   size_t size() const override;

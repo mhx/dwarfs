@@ -39,7 +39,7 @@ namespace writer {
 class rule_based_entry_filter : public entry_filter {
  public:
   rule_based_entry_filter(logger& lgr, std::shared_ptr<file_access const> fa);
-  ~rule_based_entry_filter();
+  ~rule_based_entry_filter() override;
 
   void set_root_path(std::filesystem::path const& path) {
     impl_->set_root_path(path);
