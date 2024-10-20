@@ -57,7 +57,7 @@ class console_writer : public stream_logger {
 
   std::string statebuf_;
   int rewind_lines_{0};
-  double frac_;
+  double frac_{0.0};
   std::atomic<size_t> counter_{0};
   progress_mode const pg_mode_;
   display_mode const mode_;
