@@ -102,6 +102,7 @@ class cached_block_ final : public cached_block {
     // TODO: should be possible to do this on Windows and macOS as well
     auto page_size = ::sysconf(_SC_PAGESIZE);
     tmp.resize((data_.size() + page_size - 1) / page_size);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     if (::mincore(const_cast<uint8_t*>(data_.data()), data_.size(),
                   tmp.data()) == 0) {
       // i&1 == 1 means resident in memory
