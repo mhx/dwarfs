@@ -65,7 +65,6 @@ std::string render_manpage(manpage::document const doc, size_t const width,
 
         if (wp != std::string_view::npos) {
           fmt::format_to(out_it, style, "{}", t.substr(0, wp));
-          column += wp;
           t = t.substr(wp + space_offset);
         }
 
