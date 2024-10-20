@@ -115,6 +115,7 @@ mmap::advise(advice adv [[maybe_unused]], file_off_t offset [[maybe_unused]],
   size += misalign;
   size -= size % page_size_;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto data = const_cast<char*>(mf_.const_data() + offset);
 
   int native_adv = posix_advice(adv);
