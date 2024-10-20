@@ -115,7 +115,8 @@ class fast_multimap {
   }
 
   template <typename F>
-  DWARFS_FORCE_INLINE void for_each_value(KeyT const& key, F&& func) const {
+  DWARFS_FORCE_INLINE void
+  for_each_value(KeyT const& key, F const& func) const {
     if (auto it = values_.find(key); it != values_.end()) [[unlikely]] {
       func(it->second);
       if (auto it2 = collisions_.find(key); it2 != collisions_.end())
@@ -128,7 +129,7 @@ class fast_multimap {
   }
 
   template <typename F>
-  DWARFS_FORCE_INLINE bool any_value_is(KeyT const& key, F&& func) const {
+  DWARFS_FORCE_INLINE bool any_value_is(KeyT const& key, F const& func) const {
     if (auto it = values_.find(key); it != values_.end()) [[unlikely]] {
       if (func(it->second)) {
         return true;
@@ -347,7 +348,7 @@ class ConstantGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T>
-  static DWARFS_FORCE_INLINE void for_bytes_in_frame(T&& func) {
+  static DWARFS_FORCE_INLINE void for_bytes_in_frame(T const& func) {
     for (size_t i = 0; i < kGranularity; ++i) {
       func();
     }
@@ -415,7 +416,7 @@ class VariableGranularityPolicy : private GranularityPolicyBase {
   }
 
   template <typename T>
-  DWARFS_FORCE_INLINE void for_bytes_in_frame(T&& func) const {
+  DWARFS_FORCE_INLINE void for_bytes_in_frame(T const& func) const {
     for (size_t i = 0; i < granularity_; ++i) {
       func();
     }
