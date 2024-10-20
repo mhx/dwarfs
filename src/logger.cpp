@@ -25,6 +25,7 @@
 #include <stdexcept>
 
 #include <folly/Conv.h>
+#include <folly/String.h>
 #include <folly/lang/Assume.h>
 #include <folly/small_vector.h>
 
@@ -149,7 +150,12 @@ std::string_view stream_logger::get_newline() const { return "\n"; }
 
 void stream_logger::write_nolock(std::string_view output) {
   if (&os_ == &std::cerr) {
-    fmt::print(stderr, "{}", output);
+    try {
+      fmt::print(stderr, "{}", output);
+    } catch (...) {
+      fmt::print(stderr, "Unexpected error writing string:\n{}",
+                 folly::hexDump(output.data(), output.size()));
+    }
   } else {
     os_ << output;
   }
