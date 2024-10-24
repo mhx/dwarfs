@@ -217,6 +217,7 @@ class alignas(64) bloom_filter {
     BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
     bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
                                                << (ix & value_mask);
+    ++load_;
   }
 
   DWARFS_FORCE_INLINE bool test(size_t ix) const {
@@ -236,6 +237,11 @@ class alignas(64) bloom_filter {
       throw std::runtime_error("size mismatch");
     }
     std::transform(cbegin(), cend(), other.cbegin(), begin(), std::bit_or<>{});
+    load_ += other.load_;
+  }
+
+  double load_factor() const {
+    return static_cast<double>(load_) / (size_ * 8);
   }
 
  private:
@@ -249,6 +255,7 @@ class alignas(64) bloom_filter {
   }
 
   bits_type* bits_{nullptr};
+  size_t load_{0};
   size_t const index_mask_;
   size_t const size_;
 };
@@ -576,6 +583,11 @@ class active_block : private GranularityPolicy {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_->reserve(this->frames_to_bytes(capacity_in_frames_));
+  }
+
+  ~active_block() {
+    LOG_VERBOSE << "block " << num_ << " bloom filter load factor: "
+                << filter_.load_factor();
   }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
