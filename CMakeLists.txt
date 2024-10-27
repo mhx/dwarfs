@@ -429,6 +429,7 @@ if(WITH_TESTS)
       checksum_test
       chmod_transformer_test
       compat_test
+      cyclic_hash_test
       dwarfs_test
       entry_test
       error_test
@@ -577,6 +578,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     add_executable(converter_benchmark test/converter_benchmark.cpp)
     target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
     list(APPEND BENCHMARK_TARGETS converter_benchmark)
+
+    add_executable(cyclic_hash_benchmark test/cyclic_hash_benchmark.cpp)
+    target_link_libraries(cyclic_hash_benchmark PRIVATE dwarfs_writer benchmark::benchmark)
+    list(APPEND BENCHMARK_TARGETS cyclic_hash_benchmark)
   endif()
 
   # TODO: migrate to benchmark?

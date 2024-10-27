@@ -21,10 +21,20 @@
 
 #pragma once
 
+#include <array>
+#include <bit>
+#include <cassert>
 #include <cstdint>
 #include <stdexcept>
 
+#include <fmt/format.h>
+#include <iostream>
+
 #include <dwarfs/compiler.h>
+
+#include <immintrin.h> // For AVX intrinsics
+#include <smmintrin.h> // For SSE4.1 intrinsics
+#include <tmmintrin.h> // For SSSE3 intrinsics
 
 namespace dwarfs::writer::internal {
 
@@ -66,6 +76,229 @@ class rsync_hash {
   uint16_t a_{0};
   uint16_t b_{0};
   int32_t len_{0};
+};
+
+template <typename T>
+class parallel_cyclic_hash {
+ public:
+  static_assert(sizeof(T) >= 4, "T must be at least 4 bytes wide");
+  using value_type = T;
+  static size_t constexpr hash_count = sizeof(value_type);
+
+  constexpr parallel_cyclic_hash(size_t window_size)
+      : shift_{std::countr_zero(window_size / sizeof(value_type))} {
+    assert(std::popcount(window_size) == 1);
+    assert(window_size >= hash_count);
+  }
+
+  DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
+    for (size_t i = 0; i < hash_count; ++i) {
+      ptr[i] = a_[i] ^ b_[i];
+    }
+  }
+
+  DWARFS_FORCE_INLINE constexpr value_type operator()(size_t i) const {
+    // return a_ | (uint32_t(b_) << 16);
+
+    return a_[i] ^ b_[i];
+    // return a_[i] | (static_cast<uint64_t>(b_[i]) << (8 *
+    // sizeof(value_type)));
+  }
+
+  // static std::string to_string(value_type v) {
+  //   char buf[sizeof(value_type)];
+  //   std::memcpy(buf, &v, sizeof(value_type));
+  //   std::replace(std::begin(buf), std::end(buf), '\0', '_');
+  //   return std::string(buf, sizeof(value_type));
+  // }
+
+  DWARFS_FORCE_INLINE constexpr void update(T in) {
+    for (size_t i = 0; i < hash_count - 1; ++i) {
+      a_[i] += combine(last_in_, in, i);
+      b_[i] += a_[i];
+    }
+
+    a_[hash_count - 1] += in;
+    b_[hash_count - 1] += a_[hash_count - 1];
+
+    last_in_ = in;
+  }
+
+  DWARFS_FORCE_INLINE constexpr void update(T out, T in) {
+    for (size_t i = 0; i < hash_count - 1; ++i) {
+      auto tmp = combine(last_out_, out, i);
+      a_[i] = a_[i] - tmp + combine(last_in_, in, i);
+      b_[i] -= tmp << shift_;
+      b_[i] += a_[i];
+    }
+
+    a_[hash_count - 1] = a_[hash_count - 1] - out + in;
+    b_[hash_count - 1] -= out << shift_;
+    b_[hash_count - 1] += a_[hash_count - 1];
+
+    last_in_ = in;
+    last_out_ = out;
+  }
+
+  DWARFS_FORCE_INLINE constexpr void clear() {
+    last_in_ = 0;
+    last_out_ = 0;
+    for (size_t i = 0; i < hash_count; ++i) {
+      a_[i] = 0;
+      b_[i] = 0;
+    }
+  }
+
+ private:
+  static constexpr DWARFS_FORCE_INLINE value_type combine(value_type a,
+                                                          value_type b,
+                                                          int shift) {
+    int const a_rshift = 8 * (shift + 1);
+    int const b_lshift = 8 * (sizeof(value_type) - (shift + 1));
+    value_type const a_rshifted =
+        shift + 1 == sizeof(value_type) ? 0 : a >> a_rshift;
+    value_type const b_lshifted = b << b_lshift;
+    value_type r = a_rshifted | b_lshifted;
+
+    return r;
+  }
+
+  value_type last_in_{0};
+  value_type last_out_{0};
+  std::array<value_type, hash_count> a_{};
+  std::array<value_type, hash_count> b_{};
+  int const shift_{0};
+};
+
+class cyclic_hash_sse {
+ public:
+  using value_type = uint32_t;
+  using reg_type = __m128i;
+  static size_t constexpr hash_count = 4;
+
+  cyclic_hash_sse(size_t window_size)
+      : shift_{std::countr_zero(window_size / sizeof(value_type))} {
+    assert(std::popcount(window_size) == 1);
+    assert(window_size >= hash_count);
+  }
+
+  DWARFS_FORCE_INLINE value_type operator()(size_t i) const {
+    reg_type v = _mm_xor_si128(a_, b_);
+    std::array<value_type, 4> tmp;
+    _mm_storeu_si128(reinterpret_cast<reg_type*>(tmp.data()), v);
+    return tmp[i];
+  }
+
+  DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
+    reg_type v = _mm_xor_si128(a_, b_);
+    _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v);
+  }
+
+  DWARFS_FORCE_INLINE void update(uint32_t in) {
+    // std::cout << "  last_inout_ = ";
+    // print_m128i_u32(last_inout_);
+    last_inout_ = _mm_insert_epi32(last_inout_, in, 0);
+    reg_type vin = _mm_shuffle_epi8(last_inout_, combine_);
+    a_ = _mm_add_epi32(a_, vin);
+    b_ = _mm_add_epi32(b_, a_);
+
+    // for (size_t i = 0; i < hash_count - 1; ++i) {
+    //   a_[i] += combine(last_in_, in, i);
+    //   b_[i] += a_[i];
+    // }
+
+    // a_[hash_count - 1] += in;
+    // b_[hash_count - 1] += a_[hash_count - 1];
+
+    // last_in_ = in;
+
+    // last_inout_ = _mm_slli_si128(last_inout_, 4);
+    last_inout_ = _mm_slli_epi64(last_inout_, 32);
+    // std::cout << "             -> ";
+    // print_m128i_u32(last_inout_);
+  }
+
+  DWARFS_FORCE_INLINE void update(uint32_t out, uint32_t in) {
+    // std::cout << "  last_inout_ = ";
+    // print_m128i_u32(last_inout_);
+    last_inout_ = _mm_insert_epi32(last_inout_, in, 0);
+    last_inout_ = _mm_insert_epi32(last_inout_, out, 2);
+    // std::cout << "             -> ";
+    // print_m128i_u32(last_inout_);
+    reg_type vin = _mm_shuffle_epi8(last_inout_, combine_);
+    reg_type vout = _mm_srli_si128(last_inout_, 8);
+    vout = _mm_shuffle_epi8(vout, combine_);
+    a_ = _mm_sub_epi32(a_, vout);
+    vout = _mm_slli_epi32(vout, shift_);
+    a_ = _mm_add_epi32(a_, vin);
+    b_ = _mm_sub_epi32(b_, vout);
+    b_ = _mm_add_epi32(b_, a_);
+
+    // for (size_t i = 0; i < hash_count - 1; ++i) {
+    //   auto tmp = combine(last_out_, out, i);
+    //   a_[i] = a_[i] - tmp + combine(last_in_, in, i);
+    //   b_[i] -= tmp << shift_;
+    //   b_[i] += a_[i];
+    // }
+
+    // a_[hash_count - 1] = a_[hash_count - 1] - out + in;
+    // b_[hash_count - 1] -= out << shift_;
+    // b_[hash_count - 1] += a_[hash_count - 1];
+
+    // last_in_ = in;
+    // last_out_ = out;
+
+    // last_inout_ = _mm_slli_si128(last_inout_, 4);
+    last_inout_ = _mm_slli_epi64(last_inout_, 32);
+
+    // std::cout << "             -> ";
+    // print_m128i_u32(last_inout_);
+  }
+
+  static DWARFS_FORCE_INLINE constexpr uint32_t
+  repeating_window(uint8_t byte, size_t length) {
+    uint32_t v = static_cast<uint32_t>(byte);
+    v = v | (v << 8) | (v << 16) | (v << 24);
+    length /= sizeof(uint32_t);
+    uint32_t a{static_cast<uint32_t>(v * length)};
+    uint32_t b{static_cast<uint32_t>(v * (length * (length + 1)) / 2)};
+    return a ^ b;
+  }
+
+ private:
+  // static std::string to_string(value_type v) {
+  //   char buf[sizeof(value_type)];
+  //   std::memcpy(buf, &v, sizeof(value_type));
+  //   std::replace(std::begin(buf), std::end(buf), '\0', '_');
+  //   return std::string(buf, sizeof(value_type));
+  // }
+
+  // void print_m128i_u32(reg_type var)
+  // {
+  //     uint32_t val[4];
+  //     _mm_storeu_si128(reinterpret_cast<reg_type*>(val), var);
+  //     for (int i = 0; i < 4; ++i)
+  //     {
+  //         std::cout << fmt::format("0x{:08x} [{}], ", val[i],
+  //         to_string(val[i]));
+  //     }
+  //     std::cout << "\n";
+  // }
+
+  static std::array<uint8_t, 16> constexpr kCombineMask = {
+      5, 6, 7, 0, // a0: (a1 >> 8) | (x << 24)
+      6, 7, 0, 1, // a1: (a1 >> 16) | (x << 16)
+      7, 0, 1, 2, // a2: (a1 >> 24) | (x << 8)
+      0, 1, 2, 3  // a3: x
+  };
+
+  reg_type a_{_mm_setzero_si128()};
+  reg_type b_{_mm_setzero_si128()};
+  // [last_out, new_out, last_in, new_in]
+  reg_type last_inout_{_mm_setzero_si128()};
+  reg_type combine_{
+      _mm_loadu_si128(reinterpret_cast<reg_type const*>(kCombineMask.data()))};
+  int const shift_{0};
 };
 
 } // namespace dwarfs::writer::internal
