@@ -464,7 +464,11 @@ class granular_span_adapter : private GranularityPolicy {
   template <typename H>
   DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
     offset = this->frames_to_bytes(offset);
-    this->for_bytes_in_frame([&] { hasher.update(s_[offset++]); });
+    // this->for_bytes_in_frame([&] { hasher.update(s_[offset++]); });
+    this->for_bytes_in_frame([&] {
+      hasher.update_wide(*reinterpret_cast<uint32_t const*>(&s_[offset]));
+      offset += sizeof(uint32_t);
+    });
   }
 
   template <typename H>
@@ -472,7 +476,13 @@ class granular_span_adapter : private GranularityPolicy {
   update_hash(H& hasher, size_t from, size_t to) const {
     from = this->frames_to_bytes(from);
     to = this->frames_to_bytes(to);
-    this->for_bytes_in_frame([&] { hasher.update(s_[from++], s_[to++]); });
+    // this->for_bytes_in_frame([&] { hasher.update(s_[from++], s_[to++]); });
+    this->for_bytes_in_frame([&] {
+      hasher.update_wide(*reinterpret_cast<uint32_t const*>(&s_[from]),
+                    *reinterpret_cast<uint32_t const*>(&s_[to]));
+      from += sizeof(uint32_t);
+      to += sizeof(uint32_t);
+    });
   }
 
  private:
@@ -541,7 +551,11 @@ class granular_vector_adapter : private GranularityPolicy {
   template <typename H>
   DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
     offset = this->frames_to_bytes(offset);
-    this->for_bytes_in_frame([&] { hasher.update(v_[offset++]); });
+    // this->for_bytes_in_frame([&] { hasher.update(v_[offset++]); });
+    this->for_bytes_in_frame([&] {
+      hasher.update_wide(*reinterpret_cast<uint32_t const*>(&v_[offset]));
+      offset += sizeof(uint32_t);
+    });
   }
 
   template <typename H>
@@ -549,7 +563,13 @@ class granular_vector_adapter : private GranularityPolicy {
   update_hash(H& hasher, size_t from, size_t to) const {
     from = this->frames_to_bytes(from);
     to = this->frames_to_bytes(to);
-    this->for_bytes_in_frame([&] { hasher.update(v_[from++], v_[to++]); });
+    // this->for_bytes_in_frame([&] { hasher.update(v_[from++], v_[to++]); });
+    this->for_bytes_in_frame([&] {
+      hasher.update_wide(*reinterpret_cast<uint32_t const*>(&v_[from]),
+                    *reinterpret_cast<uint32_t const*>(&v_[to]));
+      from += sizeof(uint32_t);
+      to += sizeof(uint32_t);
+    });
   }
 
  private:
@@ -576,6 +596,7 @@ class active_block : private GranularityPolicy {
       , capacity_in_frames_(size_in_frames)
       , window_size_(window_size)
       , window_step_mask_(window_step - 1)
+      , hasher_{window_size}
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
@@ -640,7 +661,8 @@ class active_block : private GranularityPolicy {
 
   LOG_PROXY_DECL(LoggerPolicy);
   size_t const num_, capacity_in_frames_, window_size_, window_step_mask_;
-  rsync_hash hasher_;
+  size_t hasher_offset_{0};
+  cyclic_hash_sse hasher_;
   bloom_filter filter_;
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
@@ -722,7 +744,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
       for (int i = 0; i < 256; ++i) {
         auto val =
-            rsync_hash::repeating_window(i, frames_to_bytes(window_size_));
+            cyclic_hash_sse::repeating_window(i, frames_to_bytes(window_size_));
         DWARFS_CHECK(repeating_sequence_hash_values_[val].emplace(i).second,
                      "repeating sequence hash value / byte collision");
       }
@@ -899,15 +921,19 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
   v.append(src);
 
   if (window_size_ > 0) {
-    while (offset < v.size()) {
+    offset = hasher_offset_;
+    while (offset + 3 < v.size()) {
       if (offset < window_size_) [[unlikely]] {
         v.update_hash(hasher_, offset);
       } else {
         v.update_hash(hasher_, offset - window_size_, offset);
       }
-      if (++offset >= window_size_) [[likely]] {
+      offset += sizeof(uint32_t);
+      if (offset >= window_size_) [[likely]] {
         if ((offset & window_step_mask_) == 0) [[unlikely]] {
-          auto hashval = hasher_();
+          std::array<uint32_t, 4> hashvals;
+          hasher_.get(hashvals.data());
+          auto hashval = hashvals[0];
           if (!is_existing_repeating_sequence(hashval, offset - window_size_))
               [[likely]] {
             offsets_.insert(hashval, offset - window_size_);
@@ -917,6 +943,7 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
         }
       }
     }
+    hasher_offset_ = offset;
   }
 }
 
@@ -1126,21 +1153,21 @@ template <typename LoggerPolicy, typename SegmentingPolicy>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     chunkable& chkable, size_t size_in_frames) {
-  rsync_hash hasher;
+  cyclic_hash_sse hasher(window_size_);
   size_t offset_in_frames = 0;
   size_t frames_written = 0;
   size_t lookback_size_in_frames = window_size_ + window_step_;
   size_t next_hash_offset_in_frames =
-      lookback_size_in_frames +
+      (lookback_size_in_frames +
       (blocks_.empty() ? window_step_
-                       : blocks_.back().next_hash_distance_in_frames());
+                       : blocks_.back().next_hash_distance_in_frames())) & ~(sizeof(uint32_t) - 1);
   auto data = this->template create<
       granular_span_adapter<uint8_t const, GranularityPolicyT>>(chkable.span());
 
   DWARFS_CHECK(size_in_frames >= window_size_,
                "unexpected call to segment_and_add_data");
 
-  for (; offset_in_frames < window_size_; ++offset_in_frames) {
+  for (; offset_in_frames < window_size_; offset_in_frames += sizeof(uint32_t)) {
     data.update_hash(hasher, offset_in_frames);
   }
 
@@ -1164,107 +1191,132 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
         last_offset = offset;
       };
 
-  while (offset_in_frames < size_in_frames) {
-    ++stats_.bloom_lookups;
+  while (offset_in_frames + 3 < size_in_frames) {
+    std::array<uint32_t, 4> hashvals;
+    size_t match_len{0};
 
-    if (global_filter_.test(hasher())) [[unlikely]] {
-      ++stats_.bloom_hits;
+    hasher.get(hashvals.data());
 
-      if constexpr (is_multi_block_mode()) {
-        for (auto const& block : blocks_) {
-          block.for_each_offset_filter(hasher(), [&, this](auto off) {
+    for (size_t hashoff = 0; hashoff < 4; ++hashoff) {
+      auto hashval = hashvals[hashoff];
+      ++stats_.bloom_lookups;
+
+      if (global_filter_.test(hashval)) [[unlikely]] {
+        ++stats_.bloom_hits;
+
+        if constexpr (is_multi_block_mode()) {
+          for (auto const& block : blocks_) {
+            block.for_each_offset_filter(hashval, [&, this](auto off) {
+              this->add_match(matches, &block, off);
+            });
+          }
+        } else {
+          auto& block = blocks_.front();
+          block.for_each_offset(hashval, [&, this](auto off) {
             this->add_match(matches, &block, off);
           });
         }
-      } else {
-        auto& block = blocks_.front();
-        block.for_each_offset(hasher(), [&, this](auto off) {
-          this->add_match(matches, &block, off);
-        });
-      }
 
-      if (!matches.empty()) [[unlikely]] {
-        ++stats_.bloom_true_positives;
-        match_counts_.addValue(matches.size());
+        if (!matches.empty()) [[unlikely]] {
+          ++stats_.bloom_true_positives;
+          match_counts_.addValue(matches.size());
 
-        LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
-                  << frames_to_bytes(blocks_.back().size_in_frames())
-                  << ", chunkable @ " << frames_to_bytes(offset_in_frames)
-                  << "] found " << matches.size()
-                  << " matches (hash=" << fmt::format("{:08x}", hasher())
-                  << ", window size=" << window_size_ << ")";
+          LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
+                    << frames_to_bytes(blocks_.back().size_in_frames())
+                    << ", chunkable @ " << frames_to_bytes(offset_in_frames)
+                    << "] found " << matches.size()
+                    << " matches (hash=" << fmt::format("{:08x}", hashval)
+                    << ", window size=" << window_size_ << ")";
 
-        for (auto& m : matches) {
-          LOG_TRACE << cfg_.context << "  block " << m.block_num() << " @ "
-                    << m.offset();
+          for (auto& m : matches) {
+            LOG_TRACE << cfg_.context << "  block " << m.block_num() << " @ "
+                      << m.offset();
 
-          m.verify_and_extend(data, offset_in_frames - window_size_,
-                              window_size_, frames_written, size_in_frames);
+            m.verify_and_extend(data, offset_in_frames + hashoff - window_size_,
+                                window_size_, frames_written, size_in_frames);
 
-          LOG_TRACE << cfg_.context << "    -> " << m.offset() << " -> "
-                    << m.size();
-        }
+            LOG_TRACE << cfg_.context << "    -> " << m.offset() << " -> "
+                      << m.size();
+          }
 
-        stats_.total_matches += matches.size();
-        stats_.bad_matches +=
-            std::count_if(matches.begin(), matches.end(),
-                          [](auto const& m) { return m.size() == 0; });
+          stats_.total_matches += matches.size();
+          stats_.bad_matches +=
+              std::count_if(matches.begin(), matches.end(),
+                            [](auto const& m) { return m.size() == 0; });
 
-        auto best = std::max_element(matches.begin(), matches.end());
-        auto match_len = best->size();
+          auto best = std::max_element(matches.begin(), matches.end());
+          match_len = best->size();
 
-        if (match_len > 0) {
-          ++stats_.good_matches;
-          LOG_TRACE << cfg_.context << "successful match of length "
-                    << match_len << " @ " << best->offset();
+          if (match_len > 0) {
+            ++stats_.good_matches;
+            LOG_TRACE << cfg_.context << "successful match of length "
+                      << match_len << " @ " << best->offset();
 
-          auto block_num = best->block_num();
-          auto match_off = best->offset();
-          auto num_to_write = best->pos() - frames_written;
+            auto block_num = best->block_num();
+            auto match_off = best->offset();
+            auto num_to_write = best->pos() - frames_written;
 
-          // best->block can be invalidated by this call to add_data()!
-          add_data(chkable, frames_written, num_to_write);
-          frames_written += num_to_write;
-          finish_chunk(chkable);
+            // best->block can be invalidated by this call to add_data()!
+            add_data(chkable, frames_written, num_to_write);
+            frames_written += num_to_write;
+            finish_chunk(chkable);
 
-          chkable.add_chunk(block_num, frames_to_bytes(match_off),
-                            frames_to_bytes(match_len));
+            chkable.add_chunk(block_num, frames_to_bytes(match_off),
+                              frames_to_bytes(match_len));
 
-          prog_.chunk_count++;
-          frames_written += match_len;
+            prog_.chunk_count++;
+            frames_written += match_len;
 
-          prog_.saved_by_segmentation += frames_to_bytes(match_len);
+            prog_.saved_by_segmentation += frames_to_bytes(match_len);
 
-          offset_in_frames = frames_written;
+            offset_in_frames = frames_written;
 
-          if (size_in_frames - frames_written < window_size_) {
+            if (size_in_frames - frames_written < window_size_) {
+              break;
+            }
+
+            hasher.clear();
+
+            for (; offset_in_frames < frames_written + window_size_;
+                 offset_in_frames += sizeof(uint32_t)) {
+              data.update_hash(hasher, offset_in_frames);
+            }
+
+            update_progress(offset_in_frames);
+
+            next_hash_offset_in_frames =
+                frames_written + lookback_size_in_frames +
+                blocks_.back().next_hash_distance_in_frames();
+
+            next_hash_offset_in_frames &= ~(sizeof(uint32_t) - 1);
+            next_hash_offset_in_frames |= offset_in_frames & (sizeof(uint32_t) - 1);
+          }
+
+          matches.clear();
+
+          if (match_len > 0) {
             break;
           }
-
-          hasher.clear();
-
-          for (; offset_in_frames < frames_written + window_size_;
-               ++offset_in_frames) {
-            data.update_hash(hasher, offset_in_frames);
-          }
-
-          update_progress(offset_in_frames);
-
-          next_hash_offset_in_frames =
-              frames_written + lookback_size_in_frames +
-              blocks_.back().next_hash_distance_in_frames();
-        }
-
-        matches.clear();
-
-        if (match_len > 0) {
-          continue;
         }
       }
     }
 
+    if (size_in_frames - frames_written < window_size_) {
+      break;
+    }
+
+    if (match_len > 0) {
+      continue;
+    }
+
     // no matches found, see if we can append data
     // we need to keep at least lookback_size_in_frames frames unwritten
+
+    if (offset_in_frames % 4 != next_hash_offset_in_frames % 4) {
+      LOG_WARN << cfg_.context
+               << "hash offset mismatch: " << offset_in_frames
+               << " vs. " << next_hash_offset_in_frames;
+    }
 
     if (offset_in_frames == next_hash_offset_in_frames) [[unlikely]] {
       auto num_to_write =
@@ -1277,7 +1329,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     }
 
     data.update_hash(hasher, offset_in_frames - window_size_, offset_in_frames);
-    ++offset_in_frames;
+    offset_in_frames += sizeof(uint32_t);
   }
 
   update_progress(size_in_frames);

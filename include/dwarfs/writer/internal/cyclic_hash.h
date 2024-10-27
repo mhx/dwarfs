@@ -112,7 +112,27 @@ class parallel_cyclic_hash {
   //   return std::string(buf, sizeof(value_type));
   // }
 
-  DWARFS_FORCE_INLINE constexpr void update(T in) {
+  DWARFS_FORCE_INLINE constexpr void update(uint8_t in) {
+    in_ |= static_cast<value_type>(in) << (8 * num_);
+    if (++num_ == hash_count) {
+      update_wide(in_);
+      in_ = 0;
+      num_ = 0;
+    }
+  }
+
+  DWARFS_FORCE_INLINE constexpr void update(uint8_t out, uint8_t in) {
+    in_ |= static_cast<value_type>(in) << (8 * num_);
+    out_ |= static_cast<value_type>(out) << (8 * num_);
+    if (++num_ == hash_count) {
+      update_wide(out_, in_);
+      in_ = 0;
+      out_ = 0;
+      num_ = 0;
+    }
+  }
+
+  DWARFS_FORCE_INLINE constexpr void update_wide(T in) {
     for (size_t i = 0; i < hash_count - 1; ++i) {
       a_[i] += combine(last_in_, in, i);
       b_[i] += a_[i];
@@ -124,7 +144,7 @@ class parallel_cyclic_hash {
     last_in_ = in;
   }
 
-  DWARFS_FORCE_INLINE constexpr void update(T out, T in) {
+  DWARFS_FORCE_INLINE constexpr void update_wide(T out, T in) {
     for (size_t i = 0; i < hash_count - 1; ++i) {
       auto tmp = combine(last_out_, out, i);
       a_[i] = a_[i] - tmp + combine(last_in_, in, i);
@@ -163,6 +183,9 @@ class parallel_cyclic_hash {
     return r;
   }
 
+  value_type in_{0};
+  value_type out_{0};
+  int num_{0};
   value_type last_in_{0};
   value_type last_out_{0};
   std::array<value_type, hash_count> a_{};
@@ -194,7 +217,27 @@ class cyclic_hash_sse {
     _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v);
   }
 
-  DWARFS_FORCE_INLINE void update(uint32_t in) {
+  DWARFS_FORCE_INLINE void update(uint8_t in) {
+    in_ |= static_cast<value_type>(in) << (8 * num_);
+    if (++num_ == hash_count) {
+      update_wide(in_);
+      in_ = 0;
+      num_ = 0;
+    }
+  }
+
+  DWARFS_FORCE_INLINE void update(uint8_t out, uint8_t in) {
+    in_ |= static_cast<value_type>(in) << (8 * num_);
+    out_ |= static_cast<value_type>(out) << (8 * num_);
+    if (++num_ == hash_count) {
+      update_wide(out_, in_);
+      in_ = 0;
+      out_ = 0;
+      num_ = 0;
+    }
+  }
+
+  DWARFS_FORCE_INLINE void update_wide(uint32_t in) {
     // std::cout << "  last_inout_ = ";
     // print_m128i_u32(last_inout_);
     last_inout_ = _mm_insert_epi32(last_inout_, in, 0);
@@ -218,7 +261,7 @@ class cyclic_hash_sse {
     // print_m128i_u32(last_inout_);
   }
 
-  DWARFS_FORCE_INLINE void update(uint32_t out, uint32_t in) {
+  DWARFS_FORCE_INLINE void update_wide(uint32_t out, uint32_t in) {
     // std::cout << "  last_inout_ = ";
     // print_m128i_u32(last_inout_);
     last_inout_ = _mm_insert_epi32(last_inout_, in, 0);
@@ -265,6 +308,15 @@ class cyclic_hash_sse {
     return a ^ b;
   }
 
+  DWARFS_FORCE_INLINE void clear() {
+    last_inout_ = _mm_setzero_si128();
+    a_ = _mm_setzero_si128();
+    b_ = _mm_setzero_si128();
+    in_ = 0;
+    out_ = 0;
+    num_ = 0;
+  }
+
  private:
   // static std::string to_string(value_type v) {
   //   char buf[sizeof(value_type)];
@@ -292,6 +344,9 @@ class cyclic_hash_sse {
       0, 1, 2, 3  // a3: x
   };
 
+  value_type in_{0};
+  value_type out_{0};
+  int num_{0};
   reg_type a_{_mm_setzero_si128()};
   reg_type b_{_mm_setzero_si128()};
   // [last_out, new_out, last_in, new_in]

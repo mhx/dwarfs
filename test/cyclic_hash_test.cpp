@@ -47,6 +47,7 @@ TEST(cyclic_hash_test, parallel) {
   parallel_cyclic_hash<uint32_t> hash1(kWindowSize);
   parallel_cyclic_hash<uint32_t> hash2(kWindowSize);
   cyclic_hash_sse hash3(kWindowSize);
+  cyclic_hash_sse hash4(kWindowSize);
 
   for (size_t i = 0; i < input1.size(); i += sizeof(uint32_t)) {
     uint32_t in1, in2;
@@ -55,30 +56,38 @@ TEST(cyclic_hash_test, parallel) {
     std::memcpy(&in2, input2.data() + i, num);
     if (i < kWindowSize) {
       std::cout << "-----\n";
-      hash1.update(in1);
-      hash2.update(in2);
-      hash3.update(in1);
+      hash1.update_wide(in1);
+      hash2.update_wide(in2);
+      hash3.update_wide(in1);
+      for (size_t j = 0; j < sizeof(uint32_t); ++j) {
+        hash4.update(input2[i + j]);
+      }
     } else {
       std::cout << "=====\n";
       uint32_t out1, out2;
       std::memcpy(&out1, input1.data() + (i - kWindowSize), sizeof(uint32_t));
       std::memcpy(&out2, input2.data() + (i - kWindowSize), sizeof(uint32_t));
-      hash1.update(out1, in1);
-      hash2.update(out2, in2);
-      hash3.update(out1, in1);
+      hash1.update_wide(out1, in1);
+      hash2.update_wide(out2, in2);
+      hash3.update_wide(out1, in1);
+      for (size_t j = 0; j < sizeof(uint32_t); ++j) {
+        hash4.update(input2[i + j - kWindowSize], input2[i + j]);
+      }
     }
 
-    std::array<uint32_t, 4> h3v;
+    std::array<uint32_t, 4> h3v, h4v;
     hash3.get(h3v.data());
+    hash4.get(h4v.data());
 
     for (size_t j = 0; j < sizeof(uint32_t); ++j) {
       auto h1 = hash1(j);
       auto h2 = hash2(j);
       auto h3 = h3v[j];
+      auto h4 = h4v[j];
 
-      std::cout << fmt::format("{:02d}  {:}  {:}  {:08x}  {:08x}  {:08x}{}\n",
-                               i + j, input1[i + j], input2[i + j], h1, h3, h2,
-                               h1 != h3 ? "  <---" : "");
+      std::cout << fmt::format("{:02d}  {:}  {:}  {:08x}  {:08x}  {:08x}  {:08x}{}\n",
+                               i + j, input1[i + j], input2[i + j], h1, h3, h2, h4,
+                               h1 != h3 || h2 != h4 ? "  <---" : "");
     }
   }
 }
@@ -95,8 +104,8 @@ TEST(cyclic_hash_test, repeating_window) {
       cyclic_hash_sse hash2(window_size);
 
       for (size_t i = 0; i < window_size; i += sizeof(uint32_t)) {
-        hash1.update(inval);
-        hash2.update(inval);
+        hash1.update_wide(inval);
+        hash2.update_wide(inval);
       }
 
       std::array<uint32_t, 4> h1v, h2v;
@@ -117,8 +126,8 @@ TEST(cyclic_hash_test, repeating_window) {
       EXPECT_EQ(expected, h2v[3]);
 
       for (size_t i = 0; i < 128; i += sizeof(uint32_t)) {
-        hash1.update(inval, inval);
-        hash2.update(inval, inval);
+        hash1.update_wide(inval, inval);
+        hash2.update_wide(inval, inval);
         hash1.get(h1v.data());
         hash2.get(h2v.data());
         std::cout << fmt::format("{:08x}  {:08x}  {:08x}  {:08x}    {:08x}\n", h1v[0], h1v[1], h1v[2], h1v[3], expected);
