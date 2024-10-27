@@ -30,6 +30,8 @@
 #include <fmt/format.h>
 #include <iostream>
 
+#include <folly/hash/Hash.h>
+
 #include <dwarfs/compiler.h>
 
 #include <immintrin.h> // For AVX intrinsics
@@ -84,6 +86,7 @@ class parallel_cyclic_hash {
   static_assert(sizeof(T) >= 4, "T must be at least 4 bytes wide");
   using value_type = T;
   static size_t constexpr hash_count = sizeof(value_type);
+  static constexpr bool UseRevMix{true};
 
   constexpr parallel_cyclic_hash(size_t window_size)
       : shift_{std::countr_zero(window_size / sizeof(value_type))} {
@@ -94,13 +97,20 @@ class parallel_cyclic_hash {
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
     for (size_t i = 0; i < hash_count; ++i) {
       ptr[i] = a_[i] ^ b_[i];
+      if constexpr (UseRevMix) {
+        ptr[i] = folly::hash::jenkins_rev_mix32(ptr[i]);
+      }
     }
   }
 
   DWARFS_FORCE_INLINE constexpr value_type operator()(size_t i) const {
     // return a_ | (uint32_t(b_) << 16);
 
-    return a_[i] ^ b_[i];
+    auto rv = a_[i] ^ b_[i];
+    if (UseRevMix) {
+      rv = folly::hash::jenkins_rev_mix32(rv);
+    }
+    return rv;
     // return a_[i] | (static_cast<uint64_t>(b_[i]) << (8 *
     // sizeof(value_type)));
   }
@@ -198,6 +208,7 @@ class cyclic_hash_sse {
   using value_type = uint32_t;
   using reg_type = __m128i;
   static size_t constexpr hash_count = 4;
+  static constexpr bool UseRevMix{true};
 
   cyclic_hash_sse(size_t window_size)
       : shift_{std::countr_zero(window_size / sizeof(value_type))} {
@@ -206,15 +217,29 @@ class cyclic_hash_sse {
   }
 
   DWARFS_FORCE_INLINE value_type operator()(size_t i) const {
-    reg_type v = _mm_xor_si128(a_, b_);
+    reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
     std::array<value_type, 4> tmp;
     _mm_storeu_si128(reinterpret_cast<reg_type*>(tmp.data()), v);
     return tmp[i];
   }
 
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
-    reg_type v = _mm_xor_si128(a_, b_);
+    reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
     _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v);
+  }
+
+  static DWARFS_FORCE_INLINE reg_type jenkins_rev_mix32(reg_type key) {
+    if constexpr (UseRevMix) {
+      key = _mm_add_epi32(key, _mm_slli_epi32(key, 12));
+      key = _mm_xor_si128(key, _mm_srli_epi32(key, 22));
+      key = _mm_add_epi32(key, _mm_slli_epi32(key, 4));
+      key = _mm_xor_si128(key, _mm_srli_epi32(key, 9));
+      key = _mm_add_epi32(key, _mm_slli_epi32(key, 10));
+      key = _mm_xor_si128(key, _mm_srli_epi32(key, 2));
+      key = _mm_add_epi32(key, _mm_slli_epi32(key, 7));
+      key = _mm_add_epi32(key, _mm_slli_epi32(key, 12));
+    }
+    return key;
   }
 
   DWARFS_FORCE_INLINE void update(uint8_t in) {
@@ -305,7 +330,11 @@ class cyclic_hash_sse {
     length /= sizeof(uint32_t);
     uint32_t a{static_cast<uint32_t>(v * length)};
     uint32_t b{static_cast<uint32_t>(v * (length * (length + 1)) / 2)};
-    return a ^ b;
+    uint32_t rv = a ^ b;
+    if constexpr (UseRevMix) {
+      rv = folly::hash::jenkins_rev_mix32(rv);
+    }
+    return rv;
   }
 
   DWARFS_FORCE_INLINE void clear() {
