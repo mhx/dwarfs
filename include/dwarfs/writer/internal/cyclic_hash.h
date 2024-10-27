@@ -80,13 +80,15 @@ class rsync_hash {
   int32_t len_{0};
 };
 
+constexpr int kBShift = 7;
+
 template <typename T>
 class parallel_cyclic_hash {
  public:
   static_assert(sizeof(T) >= 4, "T must be at least 4 bytes wide");
   using value_type = T;
   static size_t constexpr hash_count = sizeof(value_type);
-  static constexpr bool UseRevMix{true};
+  static constexpr bool UseRevMix{false};
 
   constexpr parallel_cyclic_hash(size_t window_size)
       : shift_{std::countr_zero(window_size / sizeof(value_type))} {
@@ -96,7 +98,8 @@ class parallel_cyclic_hash {
 
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
     for (size_t i = 0; i < hash_count; ++i) {
-      ptr[i] = a_[i] ^ b_[i];
+      // ptr[i] = a_[i] ^ b_[i];
+      ptr[i] = a_[i] + (b_[i] >> kBShift);
       if constexpr (UseRevMix) {
         ptr[i] = folly::hash::jenkins_rev_mix32(ptr[i]);
       }
@@ -106,7 +109,8 @@ class parallel_cyclic_hash {
   DWARFS_FORCE_INLINE constexpr value_type operator()(size_t i) const {
     // return a_ | (uint32_t(b_) << 16);
 
-    auto rv = a_[i] ^ b_[i];
+    // auto rv = a_[i] ^ b_[i];
+    auto rv = a_[i] + (b_[i] >> kBShift);
     if (UseRevMix) {
       rv = folly::hash::jenkins_rev_mix32(rv);
     }
@@ -208,7 +212,7 @@ class cyclic_hash_sse {
   using value_type = uint32_t;
   using reg_type = __m128i;
   static size_t constexpr hash_count = 4;
-  static constexpr bool UseRevMix{true};
+  static constexpr bool UseRevMix{false};
 
   cyclic_hash_sse(size_t window_size)
       : shift_{std::countr_zero(window_size / sizeof(value_type))} {
@@ -217,14 +221,16 @@ class cyclic_hash_sse {
   }
 
   DWARFS_FORCE_INLINE value_type operator()(size_t i) const {
-    reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
+    // reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
+    reg_type v = jenkins_rev_mix32(_mm_add_epi32(a_, _mm_srli_epi32(b_, kBShift)));
     std::array<value_type, 4> tmp;
     _mm_storeu_si128(reinterpret_cast<reg_type*>(tmp.data()), v);
     return tmp[i];
   }
 
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
-    reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
+    // reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
+    reg_type v = jenkins_rev_mix32(_mm_add_epi32(a_, _mm_srli_epi32(b_, kBShift)));
     _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v);
   }
 
@@ -330,7 +336,8 @@ class cyclic_hash_sse {
     length /= sizeof(uint32_t);
     uint32_t a{static_cast<uint32_t>(v * length)};
     uint32_t b{static_cast<uint32_t>(v * (length * (length + 1)) / 2)};
-    uint32_t rv = a ^ b;
+    // uint32_t rv = a ^ b;
+    uint32_t rv = a + (b >> kBShift);
     if constexpr (UseRevMix) {
       rv = folly::hash::jenkins_rev_mix32(rv);
     }

@@ -213,18 +213,14 @@ class alignas(64) bloom_filter {
   }
 
   DWARFS_FORCE_INLINE void add(size_t ix) {
-    auto bits = bits_;
-    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
-    bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
-                                               << (ix & value_mask);
+    add_single(ix);
+    add_single(ix >> 8);
     ++load_;
   }
 
   DWARFS_FORCE_INLINE bool test(size_t ix) const {
-    auto bits = bits_;
-    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
-    return bits[(ix >> index_shift) & index_mask_] &
-           (static_cast<bits_type>(1) << (ix & value_mask));
+    return static_cast<int>(test_single(ix)) & static_cast<int>(test_single(ix >> 8));
+    // return test_single(ix) && test_single(ix >> 8);
   }
 
   // size in bits
@@ -245,6 +241,20 @@ class alignas(64) bloom_filter {
   }
 
  private:
+  DWARFS_FORCE_INLINE void add_single(size_t ix) {
+    auto bits = bits_;
+    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
+    bits[(ix >> index_shift) & index_mask_] |= static_cast<bits_type>(1)
+                                               << (ix & value_mask);
+  }
+
+  DWARFS_FORCE_INLINE bool test_single(size_t ix) const {
+    auto bits = bits_;
+    BOOST_ALIGN_ASSUME_ALIGNED(bits, sizeof(bits_type));
+    return bits[(ix >> index_shift) & index_mask_] &
+           (static_cast<bits_type>(1) << (ix & value_mask));
+  }
+
   DWARFS_FORCE_INLINE bits_type const* cbegin() const { return bits_; }
   DWARFS_FORCE_INLINE bits_type const* cend() const {
     return bits_ + (size_ >> index_shift);
