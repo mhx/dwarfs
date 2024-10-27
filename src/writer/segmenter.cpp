@@ -1223,7 +1223,7 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
           LOG_TRACE << cfg_.context << "[" << blocks_.back().num() << " @ "
                     << frames_to_bytes(blocks_.back().size_in_frames())
-                    << ", chunkable @ " << frames_to_bytes(offset_in_frames)
+                    << ", chunkable @ " << frames_to_bytes(offset_in_frames + hashoff)
                     << "] found " << matches.size()
                     << " matches (hash=" << fmt::format("{:08x}", hashval)
                     << ", window size=" << window_size_ << ")";
@@ -1277,9 +1277,9 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
 
             hasher.clear();
 
-            for (; offset_in_frames < frames_written + window_size_;
-                 offset_in_frames += sizeof(uint32_t)) {
+            for (size_t i = 0; i < window_size_; i += sizeof(uint32_t)) {
               data.update_hash(hasher, offset_in_frames);
+              offset_in_frames += sizeof(uint32_t);
             }
 
             update_progress(offset_in_frames);
@@ -1288,8 +1288,14 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
                 frames_written + lookback_size_in_frames +
                 blocks_.back().next_hash_distance_in_frames();
 
-            next_hash_offset_in_frames &= ~(sizeof(uint32_t) - 1);
-            next_hash_offset_in_frames |= offset_in_frames & (sizeof(uint32_t) - 1);
+            auto tmpoff = next_hash_offset_in_frames & ~(sizeof(uint32_t) - 1);
+            tmpoff |= offset_in_frames & (sizeof(uint32_t) - 1);
+            if (tmpoff > next_hash_offset_in_frames) {
+              tmpoff -= sizeof(uint32_t);
+            }
+            next_hash_offset_in_frames = tmpoff;
+
+            assert(offset_in_frames < next_hash_offset_in_frames);
           }
 
           matches.clear();
