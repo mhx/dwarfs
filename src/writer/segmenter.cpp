@@ -585,10 +585,10 @@ class active_block : private GranularityPolicy {
     data_->reserve(this->frames_to_bytes(capacity_in_frames_));
   }
 
-  ~active_block() {
-    LOG_VERBOSE << "block " << num_ << " bloom filter load factor: "
-                << filter_.load_factor();
-  }
+  // ~active_block() {
+  //   LOG_VERBOSE << "block " << num_
+  //               << " bloom filter load factor: " << filter_.load_factor();
+  // }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
 
