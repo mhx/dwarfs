@@ -1,18 +1,23 @@
 [submodule "folly"]
 	path = folly
 	url = https://github.com/facebook/folly
+	shallow = true
 [submodule "fbthrift"]
 	path = fbthrift
 	url = https://github.com/facebook/fbthrift
+	shallow = true
 [submodule "zstd"]
 	path = zstd
 	url = https://github.com/facebook/zstd
+	shallow = true
 [submodule "xxHash"]
 	path = xxHash
 	url = https://github.com/Cyan4973/xxHash
+	shallow = true
 [submodule "parallel-hashmap"]
 	path = parallel-hashmap
 	url = https://github.com/greg7mdp/parallel-hashmap
+	shallow = true
 [submodule "tools"]
 	path = tools
 	url = https://github.com/tamatebako/tebako-tools.git
