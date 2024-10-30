@@ -30,8 +30,8 @@ include(CheckCXXSourceCompiles)
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
+option(PREFER_SYSTEM_LIBFMT "use system libfmt if available" OFF)
 if(WIN32)
-  set(PREFER_SYSTEM_LIBFMT ON)
   set(PREFER_SYSTEM_ZSTD ON)
   set(PREFER_SYSTEM_XXHASH ON)
 else()
@@ -42,7 +42,6 @@ else()
   option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc" ON)
-  option(PREFER_SYSTEM_LIBFMT "use system libfmt if available" OFF)
   option(PREFER_SYSTEM_ZSTD "use system zstd if available" OFF)
   option(PREFER_SYSTEM_XXHASH "use system xxHash if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
@@ -347,7 +346,7 @@ endif()
 if(PREFER_SYSTEM_LIBFMT)
   find_package(fmt 10 CONFIG)
 else(PREFER_SYSTEM_LIBFMT)
-  
+
   include(FetchContent)
   FetchContent_Declare(
     fmt
@@ -356,13 +355,13 @@ else(PREFER_SYSTEM_LIBFMT)
     OVERRIDE_FIND_PACKAGE
   )
   FetchContent_MakeAvailable(fmt)
-  
+
   target_include_directories(fmt BEFORE PUBLIC
-    $<BUILD_INTERFACE:${fmt_SOURCE_DIR}/include>  
+    $<BUILD_INTERFACE:${fmt_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   )
 
-  include_directories(BEFORE ${fmt_SOURCE_DIR}/include)  
+  include_directories(BEFORE ${fmt_SOURCE_DIR}/include)
 endif(PREFER_SYSTEM_LIBFMT)
 
 find_package(Boost 1.67 REQUIRED COMPONENTS chrono iostreams program_options)
