@@ -298,9 +298,10 @@ class scanner_ final : public scanner::impl {
            entry_factory& ef, os_access const& os,
            const scanner_options& options);
 
-  void add_filter(std::unique_ptr<entry_filter> filter) override;
+  void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
-  void add_transformer(std::unique_ptr<entry_transformer> transformer) override;
+  void
+  add_transformer(std::unique_ptr<entry_transformer>&& transformer) override;
 
   void scan(filesystem_writer& fs_writer, std::filesystem::path const& path,
             writer_progress& wprog,
@@ -335,13 +336,14 @@ class scanner_ final : public scanner::impl {
 };
 
 template <typename LoggerPolicy>
-void scanner_<LoggerPolicy>::add_filter(std::unique_ptr<entry_filter> filter) {
+void scanner_<LoggerPolicy>::add_filter(
+    std::unique_ptr<entry_filter>&& filter) {
   filters_.push_back(std::move(filter));
 }
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::add_transformer(
-    std::unique_ptr<entry_transformer> transformer) {
+    std::unique_ptr<entry_transformer>&& transformer) {
   transformers_.push_back(std::move(transformer));
 }
 
