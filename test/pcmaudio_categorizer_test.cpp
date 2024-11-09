@@ -228,7 +228,7 @@ TEST(pcmaudio_categorizer, requirements) {
         e.what());
   } catch (...) {
     FAIL() << "unexpected exception: "
-           << folly::exceptionStr(std::current_exception());
+           << exception_str(std::current_exception());
   }
 
   catmgr.set_metadata_requirements(
