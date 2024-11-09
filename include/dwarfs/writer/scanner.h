@@ -51,11 +51,11 @@ class scanner {
           entry_factory& ef, os_access const& os,
           const scanner_options& options);
 
-  void add_filter(std::unique_ptr<entry_filter> filter) {
+  void add_filter(std::unique_ptr<entry_filter>&& filter) {
     impl_->add_filter(std::move(filter));
   }
 
-  void add_transformer(std::unique_ptr<entry_transformer> transformer) {
+  void add_transformer(std::unique_ptr<entry_transformer>&& transformer) {
     impl_->add_transformer(std::move(transformer));
   }
 
@@ -71,10 +71,10 @@ class scanner {
    public:
     virtual ~impl() = default;
 
-    virtual void add_filter(std::unique_ptr<entry_filter> filter) = 0;
+    virtual void add_filter(std::unique_ptr<entry_filter>&& filter) = 0;
 
     virtual void
-    add_transformer(std::unique_ptr<entry_transformer> transformer) = 0;
+    add_transformer(std::unique_ptr<entry_transformer>&& transformer) = 0;
 
     virtual void
     scan(filesystem_writer& fsw, const std::filesystem::path& path,
