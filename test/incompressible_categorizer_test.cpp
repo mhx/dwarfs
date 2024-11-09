@@ -125,7 +125,7 @@ TEST_F(incompressible_categorizer, requirements) {
     EXPECT_STREQ("unsupported metadata requirements: foo", e.what());
   } catch (...) {
     FAIL() << "unexpected exception: "
-           << folly::exceptionStr(std::current_exception());
+           << exception_str(std::current_exception());
   }
 
   catmgr->set_metadata_requirements(
