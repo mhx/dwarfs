@@ -30,6 +30,7 @@
 #include <folly/String.h>
 
 #include <dwarfs/error.h>
+#include <dwarfs/util.h>
 
 using namespace dwarfs;
 
@@ -66,7 +67,7 @@ TEST(error_test, runtime_error) {
     EXPECT_EQ(expected_line, e.line());
   } catch (...) {
     FAIL() << "expected runtime_error, got "
-           << folly::exceptionStr(std::current_exception());
+           << exception_str(std::current_exception());
   }
 }
 
@@ -85,7 +86,7 @@ TEST(error_test, system_error) {
     EXPECT_EQ(expected_line, e.line());
   } catch (...) {
     FAIL() << "expected system_error, got "
-           << folly::exceptionStr(std::current_exception());
+           << exception_str(std::current_exception());
   }
 }
 
