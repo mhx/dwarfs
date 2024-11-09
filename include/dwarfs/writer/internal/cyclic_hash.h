@@ -80,12 +80,12 @@ class rsync_hash {
   int32_t len_{0};
 };
 
-constexpr int kBShift = 7;
+constexpr int kTmpShift = 19;
 
 template <typename T>
 class parallel_cyclic_hash {
  public:
-  static_assert(sizeof(T) >= 4, "T must be at least 4 bytes wide");
+  static_assert(sizeof(T) == 4, "T must be exactly 4 bytes wide");
   using value_type = T;
   static size_t constexpr hash_count = sizeof(value_type);
   static constexpr bool UseRevMix{false};
@@ -99,22 +99,31 @@ class parallel_cyclic_hash {
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
     for (size_t i = 0; i < hash_count; ++i) {
       // ptr[i] = a_[i] ^ b_[i];
-      ptr[i] = a_[i] + (b_[i] >> kBShift);
-      if constexpr (UseRevMix) {
-        ptr[i] = folly::hash::jenkins_rev_mix32(ptr[i]);
-      }
+      ptr[i] = (this->operator())(i);
     }
   }
 
   DWARFS_FORCE_INLINE constexpr value_type operator()(size_t i) const {
     // return a_ | (uint32_t(b_) << 16);
 
-    // auto rv = a_[i] ^ b_[i];
-    auto rv = a_[i] + (b_[i] >> kBShift);
-    if (UseRevMix) {
+    // std::cout << "--- operator(" << i << ") ---\n";
+    // std::cout << fmt::format("           a_[{}] = {:016x}\n", i, a_[i]);
+    // std::cout << fmt::format("           b_[{}] = {:016x}\n", i, b_[i]);
+
+    uint64_t tmp = a_[i] + b_[i];
+#if 1
+    // std::cout << fmt::format("             tmp = {:016x}\n", tmp);
+    uint32_t rv = tmp ^ (tmp >> kTmpShift);
+    // std::cout << fmt::format("              rv = {:08x}\n", rv);
+    if constexpr (UseRevMix) {
       rv = folly::hash::jenkins_rev_mix32(rv);
     }
     return rv;
+#else
+    return folly::hash::twang_32from64(tmp);
+#endif
+
+    // auto rv = a_[i] ^ b_[i];
     // return a_[i] | (static_cast<uint64_t>(b_[i]) << (8 *
     // sizeof(value_type)));
   }
@@ -160,14 +169,14 @@ class parallel_cyclic_hash {
 
   DWARFS_FORCE_INLINE constexpr void update_wide(T out, T in) {
     for (size_t i = 0; i < hash_count - 1; ++i) {
-      auto tmp = combine(last_out_, out, i);
+      uint64_t tmp = combine(last_out_, out, i);
       a_[i] = a_[i] - tmp + combine(last_in_, in, i);
       b_[i] -= tmp << shift_;
       b_[i] += a_[i];
     }
 
     a_[hash_count - 1] = a_[hash_count - 1] - out + in;
-    b_[hash_count - 1] -= out << shift_;
+    b_[hash_count - 1] -= static_cast<uint64_t>(out) << shift_;
     b_[hash_count - 1] += a_[hash_count - 1];
 
     last_in_ = in;
@@ -181,6 +190,26 @@ class parallel_cyclic_hash {
       a_[i] = 0;
       b_[i] = 0;
     }
+  }
+
+  static DWARFS_FORCE_INLINE constexpr uint32_t
+  repeating_window(uint8_t byte, size_t length) {
+    uint64_t v = static_cast<uint32_t>(byte);
+    v = v | (v << 8) | (v << 16) | (v << 24);
+    length /= sizeof(uint32_t);
+    uint64_t a{static_cast<uint64_t>(v * length)};
+    uint64_t b{static_cast<uint64_t>(v * (length * (length + 1)) / 2)};
+    // uint32_t rv = a ^ b;
+    uint64_t tmp = a + b;
+#if 1
+    uint32_t rv = tmp ^ (tmp >> kTmpShift);
+    if constexpr (UseRevMix) {
+      rv = folly::hash::jenkins_rev_mix32(rv);
+    }
+    return rv;
+#else
+    return folly::hash::twang_32from64(tmp);
+#endif
   }
 
  private:
@@ -202,10 +231,12 @@ class parallel_cyclic_hash {
   int num_{0};
   value_type last_in_{0};
   value_type last_out_{0};
-  std::array<value_type, hash_count> a_{};
-  std::array<value_type, hash_count> b_{};
+  std::array<uint64_t, hash_count> a_{};
+  std::array<uint64_t, hash_count> b_{};
   int const shift_{0};
 };
+
+using cyclic_hash_par = parallel_cyclic_hash<uint32_t>;
 
 class cyclic_hash_sse {
  public:
@@ -221,17 +252,35 @@ class cyclic_hash_sse {
   }
 
   DWARFS_FORCE_INLINE value_type operator()(size_t i) const {
-    // reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
-    reg_type v = jenkins_rev_mix32(_mm_add_epi32(a_, _mm_srli_epi32(b_, kBShift)));
     std::array<value_type, 4> tmp;
-    _mm_storeu_si128(reinterpret_cast<reg_type*>(tmp.data()), v);
+    get(tmp.data());
     return tmp[i];
   }
 
+  // a    [ a0 a2 ]               [ a1 a3 ]
+  // b    [ b0 b2 ]               [ b1 b3 ]
+  // x  = [ a0^b0 a2^b2 ]         [ a1^b1 a3^b3 ]
+  // xs = [ x<<32 x<<32 ]         [ x>>32 x>>32 ]
+  // x  = [ x^xs  x^xs  ]         [ x^xs  x^xs  ]
+  //      [ 00 xx 22 xx ]         [ xx 11 xx 33 ]
+  //blend [ 00 11 22 33 ]
+
   DWARFS_FORCE_INLINE void get(uint32_t* ptr) const {
     // reg_type v = jenkins_rev_mix32(_mm_xor_si128(a_, b_));
-    reg_type v = jenkins_rev_mix32(_mm_add_epi32(a_, _mm_srli_epi32(b_, kBShift)));
-    _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v);
+    // std::cout << "--- get() ---\n";
+    reg_type v0 = _mm_add_epi64(a02_, b02_);
+    // std::cout << "           v0 = "; print_m128i_u32(v0);
+    v0 = _mm_xor_si128(v0, _mm_slli_epi64(v0, 32));
+    // std::cout << "             -> "; print_m128i_u32(v0);
+    reg_type v1 = _mm_add_epi64(a13_, b13_);
+    // std::cout << "           v1 = "; print_m128i_u32(v1);
+    v1 = _mm_xor_si128(v1, _mm_srli_epi64(v1, 32));
+    // std::cout << "             -> "; print_m128i_u32(v1);
+    v0 = _mm_blend_epi16(v0, v1, 0b00110011);
+    // std::cout << "           rv = "; print_m128i_u32(v0);
+    v0 = jenkins_rev_mix32(v0);
+    // std::cout << "             -> "; print_m128i_u32(v0);
+    _mm_storeu_si128(reinterpret_cast<reg_type*>(ptr), v0);
   }
 
   static DWARFS_FORCE_INLINE reg_type jenkins_rev_mix32(reg_type key) {
@@ -269,12 +318,30 @@ class cyclic_hash_sse {
   }
 
   DWARFS_FORCE_INLINE void update_wide(uint32_t in) {
-    // std::cout << "  last_inout_ = ";
-    // print_m128i_u32(last_inout_);
+    // std::cout << fmt::format("--- update_wide({}) ---\n", in);
+    // std::cout << "  last_inout_ = "; print_m128i_u32(last_inout_);
     last_inout_ = _mm_insert_epi32(last_inout_, in, 0);
-    reg_type vin = _mm_shuffle_epi8(last_inout_, combine_);
-    a_ = _mm_add_epi32(a_, vin);
-    b_ = _mm_add_epi32(b_, a_);
+    // std::cout << "             -> "; print_m128i_u32(last_inout_);
+    reg_type vin1 = _mm_shuffle_epi8(last_inout_, combine_);
+    reg_type vin0 = _mm_srli_si128(vin1, 4);
+    // std::cout << "         vin0 = "; print_m128i_u32(vin0);
+    // std::cout << "         vin1 = "; print_m128i_u32(vin1);
+    reg_type zero = _mm_setzero_si128();
+    vin0 = _mm_blend_epi16(vin0, zero, 0b11001100);
+    vin1 = _mm_blend_epi16(vin1, zero, 0b11001100);
+    // std::cout << "         vin0 = "; print_m128i_u32(vin0);
+    // std::cout << "         vin1 = "; print_m128i_u32(vin1);
+    // [in0 in1 in2 in3] -> [in0 000 in2 000] [in1 000 in3 000]
+
+    a02_ = _mm_add_epi64(a02_, vin0);
+    a13_ = _mm_add_epi64(a13_, vin1);
+    b02_ = _mm_add_epi64(b02_, a02_);
+    b13_ = _mm_add_epi64(b13_, a13_);
+
+    // std::cout << "         a02_ = "; print_m128i_u32(a02_);
+    // std::cout << "         a13_ = "; print_m128i_u32(a13_);
+    // std::cout << "         b02_ = "; print_m128i_u32(b02_);
+    // std::cout << "         b13_ = "; print_m128i_u32(b13_);
 
     // for (size_t i = 0; i < hash_count - 1; ++i) {
     //   a_[i] += combine(last_in_, in, i);
@@ -299,14 +366,26 @@ class cyclic_hash_sse {
     last_inout_ = _mm_insert_epi32(last_inout_, out, 2);
     // std::cout << "             -> ";
     // print_m128i_u32(last_inout_);
-    reg_type vin = _mm_shuffle_epi8(last_inout_, combine_);
-    reg_type vout = _mm_srli_si128(last_inout_, 8);
-    vout = _mm_shuffle_epi8(vout, combine_);
-    a_ = _mm_sub_epi32(a_, vout);
-    vout = _mm_slli_epi32(vout, shift_);
-    a_ = _mm_add_epi32(a_, vin);
-    b_ = _mm_sub_epi32(b_, vout);
-    b_ = _mm_add_epi32(b_, a_);
+    reg_type vin1 = _mm_shuffle_epi8(last_inout_, combine_);
+    reg_type vin0 = _mm_srli_si128(vin1, 4);
+    reg_type vout1 = _mm_shuffle_epi8(_mm_srli_si128(last_inout_, 8), combine_);
+    reg_type vout0 = _mm_srli_si128(vout1, 4);
+    reg_type zero = _mm_setzero_si128();
+    vin0 = _mm_blend_epi16(vin0, zero, 0b11001100);
+    vin1 = _mm_blend_epi16(vin1, zero, 0b11001100);
+    vout0 = _mm_blend_epi16(vout0, zero, 0b11001100);
+    vout1 = _mm_blend_epi16(vout1, zero, 0b11001100);
+
+    a02_ = _mm_sub_epi64(a02_, vout0);
+    a13_ = _mm_sub_epi64(a13_, vout1);
+    vout0 = _mm_slli_epi64(vout0, shift_);
+    vout1 = _mm_slli_epi64(vout1, shift_);
+    a02_ = _mm_add_epi64(a02_, vin0);
+    a13_ = _mm_add_epi64(a13_, vin1);
+    b02_ = _mm_sub_epi64(b02_, vout0);
+    b13_ = _mm_sub_epi64(b13_, vout1);
+    b02_ = _mm_add_epi64(b02_, a02_);
+    b13_ = _mm_add_epi64(b13_, a13_);
 
     // for (size_t i = 0; i < hash_count - 1; ++i) {
     //   auto tmp = combine(last_out_, out, i);
@@ -331,13 +410,14 @@ class cyclic_hash_sse {
 
   static DWARFS_FORCE_INLINE constexpr uint32_t
   repeating_window(uint8_t byte, size_t length) {
-    uint32_t v = static_cast<uint32_t>(byte);
+    uint64_t v = static_cast<uint32_t>(byte);
     v = v | (v << 8) | (v << 16) | (v << 24);
     length /= sizeof(uint32_t);
-    uint32_t a{static_cast<uint32_t>(v * length)};
-    uint32_t b{static_cast<uint32_t>(v * (length * (length + 1)) / 2)};
+    uint64_t a{static_cast<uint64_t>(v * length)};
+    uint64_t b{static_cast<uint64_t>(v * (length * (length + 1)) / 2)};
     // uint32_t rv = a ^ b;
-    uint32_t rv = a + (b >> kBShift);
+    uint64_t tmp = a + b;
+    uint32_t rv = tmp ^ (tmp >> 32);
     if constexpr (UseRevMix) {
       rv = folly::hash::jenkins_rev_mix32(rv);
     }
@@ -346,32 +426,34 @@ class cyclic_hash_sse {
 
   DWARFS_FORCE_INLINE void clear() {
     last_inout_ = _mm_setzero_si128();
-    a_ = _mm_setzero_si128();
-    b_ = _mm_setzero_si128();
+    a02_ = _mm_setzero_si128();
+    a13_ = _mm_setzero_si128();
+    b02_ = _mm_setzero_si128();
+    b13_ = _mm_setzero_si128();
     in_ = 0;
     out_ = 0;
     num_ = 0;
   }
 
  private:
-  // static std::string to_string(value_type v) {
-  //   char buf[sizeof(value_type)];
-  //   std::memcpy(buf, &v, sizeof(value_type));
-  //   std::replace(std::begin(buf), std::end(buf), '\0', '_');
-  //   return std::string(buf, sizeof(value_type));
-  // }
+  static std::string to_string(value_type v) {
+    char buf[sizeof(value_type)];
+    std::memcpy(buf, &v, sizeof(value_type));
+    std::replace(std::begin(buf), std::end(buf), '\0', '_');
+    return std::string(buf, sizeof(value_type));
+  }
 
-  // void print_m128i_u32(reg_type var)
-  // {
-  //     uint32_t val[4];
-  //     _mm_storeu_si128(reinterpret_cast<reg_type*>(val), var);
-  //     for (int i = 0; i < 4; ++i)
-  //     {
-  //         std::cout << fmt::format("0x{:08x} [{}], ", val[i],
-  //         to_string(val[i]));
-  //     }
-  //     std::cout << "\n";
-  // }
+  static void print_m128i_u32(reg_type var)
+  {
+      uint32_t val[4];
+      _mm_storeu_si128(reinterpret_cast<reg_type*>(val), var);
+      for (int i = 0; i < 4; ++i)
+      {
+          std::cout << fmt::format("0x{:08x} [{}], ", val[i],
+          to_string(val[i]));
+      }
+      std::cout << "\n";
+  }
 
   static std::array<uint8_t, 16> constexpr kCombineMask = {
       5, 6, 7, 0, // a0: (a1 >> 8) | (x << 24)
@@ -383,8 +465,10 @@ class cyclic_hash_sse {
   value_type in_{0};
   value_type out_{0};
   int num_{0};
-  reg_type a_{_mm_setzero_si128()};
-  reg_type b_{_mm_setzero_si128()};
+  reg_type a02_{_mm_setzero_si128()};
+  reg_type a13_{_mm_setzero_si128()};
+  reg_type b02_{_mm_setzero_si128()};
+  reg_type b13_{_mm_setzero_si128()};
   // [last_out, new_out, last_in, new_in]
   reg_type last_inout_{_mm_setzero_si128()};
   reg_type combine_{

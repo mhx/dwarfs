@@ -672,7 +672,7 @@ class active_block : private GranularityPolicy {
   LOG_PROXY_DECL(LoggerPolicy);
   size_t const num_, capacity_in_frames_, window_size_, window_step_mask_;
   size_t hasher_offset_{0};
-  cyclic_hash_sse hasher_;
+  cyclic_hash_par hasher_;
   bloom_filter filter_;
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
@@ -754,7 +754,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
 
       for (int i = 0; i < 256; ++i) {
         auto val =
-            cyclic_hash_sse::repeating_window(i, frames_to_bytes(window_size_));
+            cyclic_hash_par::repeating_window(i, frames_to_bytes(window_size_));
         DWARFS_CHECK(repeating_sequence_hash_values_[val].emplace(i).second,
                      "repeating sequence hash value / byte collision");
       }
@@ -1163,7 +1163,7 @@ template <typename LoggerPolicy, typename SegmentingPolicy>
 DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::segment_and_add_data(
     chunkable& chkable, size_t size_in_frames) {
-  cyclic_hash_sse hasher(window_size_);
+  cyclic_hash_par hasher(window_size_);
   size_t offset_in_frames = 0;
   size_t frames_written = 0;
   size_t lookback_size_in_frames = window_size_ + window_step_;
