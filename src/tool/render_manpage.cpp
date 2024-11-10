@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <iterator>
 #include <stdexcept>
 
 #include <dwarfs/tool/render_manpage.h>
