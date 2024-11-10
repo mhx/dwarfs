@@ -110,9 +110,7 @@ class performance_monitor_proxy {
 
   performance_monitor::timer_id
   setup_timer(std::string const& name,
-              std::initializer_list<std::string_view> context) const {
-    return mon_ ? mon_->setup_timer(namespace_, name, context) : 0;
-  }
+              std::initializer_list<std::string_view> context) const;
 
   section_timer scoped_section(performance_monitor::timer_id id) const {
     return mon_ ? section_timer(mon_.get(), id) : section_timer();
@@ -135,8 +133,10 @@ class performance_monitor_proxy {
       performance_monitor::create(enabled_namespaces);
 
 #define PERFMON_PROXY_DECL(instname) performance_monitor_proxy instname;
-#define PERFMON_PROXY_INIT(instname, monitor, name_space)                      \
-  , instname { monitor, name_space }
+#define PERFMON_PROXY_INIT(instname, ...)                                      \
+  , instname { __VA_ARGS__ }
+#define PERFMON_PROXY_COLON_INIT(instname, ...)                                \
+  : instname { __VA_ARGS__ }
 #define PERFMON_TIMER_DECL(id)                                                 \
   performance_monitor::timer_id const perfmon_##id##_id_;
 #define PERFMON_TIMER_INIT(instname, id, ...)                                  \
@@ -168,8 +168,10 @@ class performance_monitor_proxy {
   PERFMON_PROXY_SETUP((scope).PERFMON_PROXY_INSTNAME, monitor, name_space)
 
 #define PERFMON_CLS_PROXY_DECL PERFMON_PROXY_DECL(PERFMON_PROXY_INSTNAME)
-#define PERFMON_CLS_PROXY_INIT(monitor, name_space)                            \
-  PERFMON_PROXY_INIT(PERFMON_PROXY_INSTNAME, monitor, name_space)
+#define PERFMON_CLS_PROXY_INIT(...)                                            \
+  PERFMON_PROXY_INIT(PERFMON_PROXY_INSTNAME, __VA_ARGS__)
+#define PERFMON_CLS_PROXY_COLON_INIT(...)                                      \
+  PERFMON_PROXY_COLON_INIT(PERFMON_PROXY_INSTNAME, __VA_ARGS__)
 #define PERFMON_CLS_TIMER_DECL(id) PERFMON_TIMER_DECL(id)
 #define PERFMON_CLS_TIMER_INIT(id, ...)                                        \
   PERFMON_TIMER_INIT(PERFMON_PROXY_INSTNAME, id, __VA_ARGS__)
@@ -185,7 +187,8 @@ class performance_monitor_proxy {
 #define PERFMON_CREATE(monitor, enabled_namespaces)
 
 #define PERFMON_PROXY_DECL(instname)
-#define PERFMON_PROXY_INIT(instname, monitor, name_space)
+#define PERFMON_PROXY_INIT(instname, ...)
+#define PERFMON_PROXY_COLON_INIT(instname, ...)
 #define PERFMON_TIMER_DECL(id)
 #define PERFMON_TIMER_INIT(instname, id, ...)
 #define PERFMON_SCOPED_SECTION(instname, id)
@@ -203,7 +206,8 @@ class performance_monitor_proxy {
 #define PERFMON_EXT_PROXY_SETUP(scope, monitor, name_space)
 
 #define PERFMON_CLS_PROXY_DECL
-#define PERFMON_CLS_PROXY_INIT(monitor, name_space)
+#define PERFMON_CLS_PROXY_INIT(...)
+#define PERFMON_CLS_PROXY_COLON_INIT(...)
 #define PERFMON_CLS_TIMER_DECL(id)
 #define PERFMON_CLS_TIMER_INIT(id, ...)
 #define PERFMON_CLS_SCOPED_SECTION(id)

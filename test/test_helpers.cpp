@@ -245,6 +245,9 @@ std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
   return m;
 }
 
+void os_access_mock::set_perfmon(std::shared_ptr<performance_monitor const>) const {
+}
+
 void os_access_mock::add(fs::path const& path, simplestat const& st) {
   add_internal(path, st, std::monostate{});
 }

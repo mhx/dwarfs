@@ -41,6 +41,7 @@
 #include <dwarfs/file_access.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/performance_monitor.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/writer/entry_filter.h>
@@ -119,6 +120,8 @@ class os_access_mock : public os_access {
   }
 
   void setenv(std::string name, std::string value);
+
+  void set_perfmon(std::shared_ptr<performance_monitor const> perfmon) const override;
 
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;

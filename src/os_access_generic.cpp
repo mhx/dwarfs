@@ -34,6 +34,7 @@
 
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access_generic.h>
+#include <dwarfs/performance_monitor.h>
 #include <dwarfs/util.h>
 
 namespace dwarfs {
@@ -86,6 +87,39 @@ class generic_dir_reader final : public dir_reader {
 
 } // namespace
 
+class os_access_generic::state {
+ public:
+  state(std::shared_ptr<performance_monitor const> perfmon)
+      // clang-format off
+      PERFMON_CLS_PROXY_COLON_INIT(perfmon, "os_access_generic")
+      PERFMON_CLS_TIMER_INIT(map_file, "map_file")
+      // clang-format on
+      {}
+
+  std::unique_ptr<mmif> map_file(fs::path const& path) const {
+    PERFMON_CLS_SCOPED_SECTION(map_file);
+    return std::make_unique<mmap>(path);
+  }
+
+  std::unique_ptr<mmif>
+  map_file(fs::path const& path, size_t size) const {
+    PERFMON_CLS_SCOPED_SECTION(map_file);
+    return std::make_unique<mmap>(path, size);
+  }
+
+ private:
+  PERFMON_CLS_PROXY_DECL
+  PERFMON_CLS_TIMER_DECL(map_file)
+};
+
+os_access_generic::os_access_generic() = default;
+os_access_generic::~os_access_generic() = default;
+
+void os_access_generic::set_perfmon(
+    std::shared_ptr<performance_monitor const> perfmon) const {
+  state_ = std::make_unique<state>(std::move(perfmon));
+}
+
 std::unique_ptr<dir_reader>
 os_access_generic::opendir(fs::path const& path) const {
   return std::make_unique<generic_dir_reader>(path);
@@ -100,12 +134,12 @@ fs::path os_access_generic::read_symlink(fs::path const& path) const {
 }
 
 std::unique_ptr<mmif> os_access_generic::map_file(fs::path const& path) const {
-  return std::make_unique<mmap>(path);
+  return state_ ? state_->map_file(path) : std::make_unique<mmap>(path);
 }
 
 std::unique_ptr<mmif>
 os_access_generic::map_file(fs::path const& path, size_t size) const {
-  return std::make_unique<mmap>(path, size);
+  return state_ ? state_->map_file(path, size) : std::make_unique<mmap>(path, size);
 }
 
 int os_access_generic::access(fs::path const& path, int mode) const {

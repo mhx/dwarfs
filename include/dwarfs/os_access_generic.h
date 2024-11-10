@@ -32,9 +32,15 @@
 namespace dwarfs {
 
 class mmif;
+class performance_monitor;
 
 class os_access_generic : public os_access {
  public:
+  os_access_generic();
+  ~os_access_generic() override;
+
+  void set_perfmon(std::shared_ptr<performance_monitor const> perfmon) const override;
+
   std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const override;
   file_stat symlink_info(std::filesystem::path const& path) const override;
@@ -55,5 +61,9 @@ class os_access_generic : public os_access {
   thread_get_cpu_time(std::thread::id tid, std::error_code& ec) const override;
   std::filesystem::path
   find_executable(std::filesystem::path const& name) const override;
+
+ private:
+  class state;
+  std::unique_ptr<state> mutable state_;
 };
 } // namespace dwarfs

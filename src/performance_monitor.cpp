@@ -378,6 +378,12 @@ performance_monitor_proxy::performance_monitor_proxy(
     : mon_{mon && mon->is_enabled(mon_namespace) ? std::move(mon) : nullptr}
     , namespace_{mon_namespace} {}
 
+performance_monitor::timer_id
+performance_monitor_proxy::setup_timer(std::string const& name,
+            std::initializer_list<std::string_view> context) const {
+  return mon_ ? mon_->setup_timer(namespace_, name, context) : 0;
+}
+
 std::unique_ptr<performance_monitor> performance_monitor::create(
     std::unordered_set<std::string> const& enabled_namespaces,
     std::shared_ptr<file_access const> fa,

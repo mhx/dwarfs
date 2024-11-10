@@ -35,6 +35,7 @@
 namespace dwarfs {
 
 class mmif;
+class performance_monitor;
 
 class dir_reader {
  public:
@@ -46,6 +47,8 @@ class dir_reader {
 class os_access {
  public:
   virtual ~os_access() = default;
+
+  virtual void set_perfmon(std::shared_ptr<performance_monitor const> perfmon) const = 0;
 
   virtual std::unique_ptr<dir_reader>
   opendir(std::filesystem::path const& path) const = 0;

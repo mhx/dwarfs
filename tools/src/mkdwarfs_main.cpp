@@ -66,8 +66,10 @@
 #include <dwarfs/match.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
+#include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
@@ -398,6 +400,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   int compress_niceness;
   uint16_t uid, gid;
   categorize_optval categorizer_list;
+#if DWARFS_PERFMON_ENABLED
+  std::string perfmon_str;
+  sys_string trace_file_str;
+#endif
 
   integral_value_parser<size_t> max_lookback_parser;
   integral_value_parser<unsigned> window_size_parser(0, 24);
@@ -524,6 +530,14 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("no-progress",
         po::value<bool>(&no_progress)->zero_tokens(),
         "don't show progress")
+#if DWARFS_PERFMON_ENABLED
+    ("perfmon",
+        po::value<std::string>(&perfmon_str),
+        "enable performance monitor")
+    ("perfmon-trace",
+        po_sys_value<sys_string>(&trace_file_str),
+        "write performance monitor trace file")
+#endif
     ;
 
   po::options_description filesystem_opts("File system options");
@@ -767,6 +781,28 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
             << basic_opts << "\n";
     return 0;
   }
+
+#if DWARFS_PERFMON_ENABLED
+  std::unordered_set<std::string> perfmon_enabled;
+  std::optional<std::filesystem::path> perfmon_trace_file;
+
+  if (!perfmon_str.empty()) {
+    split_to(perfmon_str, ',', perfmon_enabled);
+  }
+
+  if (!trace_file_str.empty()) {
+    perfmon_trace_file = iol.os->canonical(trace_file_str);
+  }
+
+  std::shared_ptr<performance_monitor> perfmon = performance_monitor::create(
+      perfmon_enabled, iol.file, perfmon_trace_file);
+
+  iol.os->set_perfmon(perfmon);
+
+  scope_exit perfmon_summarize([perfmon, &iol] {
+    perfmon->summarize(iol.out);
+  });
+#endif
 
   if (level >= levels.size()) {
     iol.err << "error: invalid compression level\n";
