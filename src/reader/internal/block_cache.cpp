@@ -385,10 +385,10 @@ class block_cache_ final : public block_cache::impl {
 
     scope_exit do_prefetch{[&] {
       if (auto next = seq_access_detector_->prefetch()) {
-        sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
+        std::lock_guard lock(mx_);
 
-        {
-          std::lock_guard lock(mx_);
+        if (cache_.findWithoutPromotion(*next) == cache_.end()) {
+          sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
           create_cached_block(*next, std::promise<block_range>{}, 0,
                               std::numeric_limits<size_t>::max());
         }
