@@ -878,7 +878,7 @@ class metadata_ final : public metadata_v2::impl {
   build_nlinks(metadata_options const& options) const {
     packed_int_vector<uint32_t> packed_nlinks;
 
-    if (options.enable_nlink) {
+    if (options.enable_nlink && dev_inode_offset_ > file_inode_offset_) {
       auto td = LOG_TIMED_DEBUG;
 
       std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
