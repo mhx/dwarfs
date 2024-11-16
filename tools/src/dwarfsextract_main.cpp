@@ -27,6 +27,7 @@
 #include <boost/program_options.hpp>
 
 #include <dwarfs/config.h>
+#include <dwarfs/glob_matcher.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
@@ -77,6 +78,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("output,o",
         po_sys_value<sys_string>(&output),
         "output file or directory")
+    ("pattern",
+        po::value<std::vector<std::string>>(),
+        "only extract files matching these patterns")
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
@@ -111,10 +115,17 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   tool::add_common_options(opts, logopts);
 
+  po::positional_options_description pos;
+  pos.add("pattern", -1);
+
   po::variables_map vm;
 
   try {
-    po::store(po::parse_command_line(argc, argv, opts), vm);
+    po::store(po::basic_command_line_parser<sys_char>(argc, argv)
+                  .options(opts)
+                  .positional(pos)
+                  .run(),
+              vm);
     po::notify(vm);
   } catch (po::error const& e) {
     iol.err << "error: " << e.what() << "\n";
@@ -139,6 +150,13 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
             << usage << "\n"
             << opts << "\n";
     return 0;
+  }
+
+  std::unique_ptr<glob_matcher> matcher;
+
+  if (vm.count("pattern")) {
+    matcher = std::make_unique<glob_matcher>(
+        vm["pattern"].as<std::vector<std::string>>());
   }
 
   int rv = 0;
@@ -214,7 +232,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
       };
     }
 
-    rv = fsx.extract(fs, fsx_opts) ? 0 : 2;
+    rv = fsx.extract(fs, matcher.get(), fsx_opts) ? 0 : 2;
 
     fsx.close();
 

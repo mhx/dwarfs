@@ -2000,6 +2000,37 @@ TEST(dwarfsextract_test, mtree) {
   EXPECT_THAT(out, ::testing::HasSubstr("type=file"));
 }
 
+TEST(dwarfsextract_test, patterns) {
+  auto mkdt = mkdwarfs_tester::create_empty();
+  mkdt.add_test_file_tree();
+  ASSERT_EQ(0, mkdt.run({"-i", "/", "-o", "-", "--with-devices"}) != 0)
+      << mkdt.err();
+  auto t = dwarfsextract_tester::create_with_image(mkdt.out());
+  ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "**/*.enc",
+                      "{dev,etc,lib,var}/[m-ot-z]*"}))
+      << t.err();
+  auto out = t.out();
+  EXPECT_TRUE(out.starts_with("#mtree")) << out;
+  std::vector<std::string> const expected{
+      "./dev",
+      "./dev/tty37",
+      "./etc",
+      "./etc/netconfig",
+      "./usr",
+      "./usr/lib64",
+      "./usr/lib64/tcl8.6",
+      "./usr/lib64/tcl8.6/encoding",
+      "./usr/lib64/tcl8.6/encoding/cp950.enc",
+      "./usr/lib64/tcl8.6/encoding/iso8859-8.enc",
+  };
+  auto mtree = test::parse_mtree(out);
+  std::vector<std::string> actual;
+  for (auto const& entry : mtree) {
+    actual.push_back(entry.first);
+  }
+  EXPECT_EQ(expected, actual);
+}
+
 TEST(dwarfsextract_test, stdout_progress_error) {
   auto t = dwarfsextract_tester::create_with_image();
   EXPECT_NE(0,
