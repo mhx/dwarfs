@@ -1085,31 +1085,12 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   EXPECT_NO_THROW(ext.extract(fs));
   EXPECT_NO_THROW(ext.close());
 
-  std::istringstream iss(oss.str());
-  std::string line;
-  size_t num = 0;
   ref_entries.erase("");
 
-  while (std::getline(iss, line, '\n')) {
-    if (line == "#mtree") {
-      continue;
-    }
+  auto mtree = test::parse_mtree(oss.str());
 
-    std::vector<std::string> parts;
-    split_to(line, ' ', parts);
-    auto name = parts.front().substr(2);
-    parts.erase(parts.begin());
-    std::unordered_map<std::string, std::string> kv;
-
-    for (auto const& p : parts) {
-      auto pos = p.find('=');
-      if (pos == std::string::npos) {
-        throw std::runtime_error("unexpected mtree line: " + line);
-      }
-      kv[p.substr(0, pos)] = p.substr(pos + 1);
-    }
-
-    ++num;
+  for (auto [path, kv] : mtree) {
+    auto name = path.substr(2);
 
     auto ri = ref_entries.find(name);
     EXPECT_FALSE(ri == ref_entries.end());
@@ -1127,7 +1108,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     }
   }
 
-  EXPECT_EQ(ref_entries.size(), num);
+  EXPECT_EQ(ref_entries.size(), mtree.size());
 
   std::map<std::string, std::vector<std::string>> testdirs{
       {"empty", {"empty/alsoempty"}},
