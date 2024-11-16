@@ -576,6 +576,40 @@ std::string create_random_string(size_t size, size_t seed) {
   return create_random_string(size, tmprng);
 }
 
+std::vector<
+    std::pair<std::string, std::unordered_map<std::string, std::string>>>
+parse_mtree(std::string_view mtree) {
+  std::vector<
+      std::pair<std::string, std::unordered_map<std::string, std::string>>>
+      rv;
+  std::istringstream iss{std::string{mtree}};
+  std::string line;
+
+  while (std::getline(iss, line, '\n')) {
+    if (line == "#mtree") {
+      continue;
+    }
+
+    auto parts = split_to<std::vector<std::string>>(line, ' ');
+    auto path = parts.front();
+    parts.erase(parts.begin());
+
+    std::unordered_map<std::string, std::string> attrs;
+
+    for (auto const& p : parts) {
+      auto pos = p.find('=');
+      if (pos == std::string::npos) {
+        throw std::runtime_error("unexpected mtree line: " + line);
+      }
+      attrs[p.substr(0, pos)] = p.substr(pos + 1);
+    }
+
+    rv.emplace_back(std::move(path), std::move(attrs));
+  }
+
+  return rv;
+}
+
 bool skip_slow_tests() {
   static bool skip = getenv_is_enabled("DWARFS_SKIP_SLOW_TESTS");
   return skip;
