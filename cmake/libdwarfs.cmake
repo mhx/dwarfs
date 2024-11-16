@@ -30,6 +30,7 @@ add_library(
   src/file_stat.cpp
   src/file_util.cpp
   src/fstypes.cpp
+  src/glob_matcher.cpp
   src/history.cpp
   src/library_dependencies.cpp
   src/logger.cpp
@@ -46,6 +47,7 @@ add_library(
   src/internal/features.cpp
   src/internal/file_status_conv.cpp
   src/internal/fs_section.cpp
+  src/internal/glob_to_regex.cpp
   src/internal/string_table.cpp
   src/internal/wcwidth.c
   src/internal/worker_group.cpp
