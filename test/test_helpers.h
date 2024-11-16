@@ -364,6 +364,10 @@ std::string create_random_string(size_t size, uint8_t min, uint8_t max,
 std::string create_random_string(size_t size, std::mt19937_64& gen);
 std::string create_random_string(size_t size, size_t seed = 0);
 
+std::vector<
+    std::pair<std::string, std::unordered_map<std::string, std::string>>>
+parse_mtree(std::string_view mtree);
+
 bool skip_slow_tests();
 
 #define DWARFS_SLOW_TEST()                                                     \
