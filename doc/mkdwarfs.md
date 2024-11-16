@@ -693,10 +693,11 @@ Patterns support `?` and `*` wildcards matching a single character
 and any number of characters, respectively. These patterns don't match
 across directory separators (`/`).
 
-Patterns also support the `**` wildcard, which matches across directory
-separators.
+Patterns also support the `**` globstar wildcard, which matches across
+directory separators.
 
-Patterns also support character classes.
+Patterns also support character classes (`[avt]`), ranges (`[a-h]`),
+and complementation (`[!a-h]`).
 
 Here's an exemplary rule set:
 

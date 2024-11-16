@@ -80,6 +80,30 @@ R"(
   "usr/lib64",
   "usr/lib64/gcrt1.o",
 }},
+{
+  "NoIgnoreCase",
+R"(
++ mc*
++ *led*
+- *
+)", {
+  "",
+}},
+{
+  "IgnoreCase",
+R"(
++i mc*
++i *led*
+- *
+)", {
+  "",
+  "usr",
+  "usr/lib",
+  "usr/lib/Mcrt1.o",
+  "usr/lib64",
+  "usr/lib64/xtables",
+  "usr/lib64/xtables/libxt_LED.so",
+}},
     // clang-format on
 };
 

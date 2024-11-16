@@ -1370,6 +1370,43 @@ TEST(mkdwarfs_test, cannot_combine_input_list_and_filter) {
               ::testing::HasSubstr("cannot combine --input-list and --filter"));
 }
 
+TEST(mkdwarfs_test, rules_must_start_with_plus_or_minus) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "% *"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("rules must start with + or -"));
+}
+
+TEST(mkdwarfs_test, empty_filter_rule) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", ""}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("empty filter rule"));
+}
+
+TEST(mkdwarfs_test, invalid_filter_rule) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+i"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid filter rule"));
+}
+
+TEST(mkdwarfs_test, no_pattern_in_filter_rule) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+  "}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("no pattern in filter rule"));
+}
+
+TEST(mkdwarfs_test, no_prefix_in_filter_rule) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", " foo"}));
+  EXPECT_THAT(t.err(), ::testing::HasSubstr("no prefix in filter rule"));
+}
+
+TEST(mkdwarfs_test, unknown_option_in_filter_rule) {
+  auto t = mkdwarfs_tester::create_empty();
+  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "+x foo"}));
+  EXPECT_THAT(t.err(),
+              ::testing::HasSubstr("unknown option 'x' in filter rule"));
+}
+
 TEST(mkdwarfs_test, cannot_open_input_list_file) {
   mkdwarfs_tester t;
   EXPECT_NE(0, t.run({"--input-list", "missing.list", "-o", "-"}));
@@ -1637,12 +1674,6 @@ TEST(mkdwarfs_test, invalid_progress_mode) {
   t.iol->set_terminal_fancy(true);
   EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "--progress=grmpf"}));
   EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid progress mode"));
-}
-
-TEST(mkdwarfs_test, invalid_filter_rule) {
-  mkdwarfs_tester t;
-  EXPECT_NE(0, t.run({"-i", "/", "-o", "-", "-F", "grmpf"}));
-  EXPECT_THAT(t.err(), ::testing::HasSubstr("could not parse filter rule"));
 }
 
 TEST(mkdwarfs_test, time_resolution_zero) {
