@@ -44,6 +44,17 @@ to disk:
   case the default is to extract the files to the current directory, or
   to write the archive data to stdout.
 
+- `--pattern=`*glob-pattern*:
+  If specified, only extract entries matching the pattern. Can be specified
+  multiple times, in which case all files matching one or more patterns will
+  be extracted. Can also be specified without `--pattern` for simplicity.
+  If prefixed with `i:`, the glob pattern match will be case-insensitive,
+  e.g. `i:**/*.txt` would match all `.txt`, `.TXT` and `.tXt` files. If you
+  want the *actual* pattern to start with `i:`, you have to prefix the
+  pattern with `:`, i.e. `:i:...`. The glob patterns support the wildcards
+  `*` and `?`, character classes (`[avt]`), ranges (`[a-h]`), complementation
+  (`[!a-h]`) and globstar (`**`).
+
 - `-O`, `--image-offset=`*value*|`auto`:
   Specify the byte offset at which the filesystem is located in the image.
   Use `auto` to detect the offset automatically. This is also the default.
