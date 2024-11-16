@@ -30,6 +30,7 @@
 
 namespace dwarfs {
 
+class glob_matcher;
 class library_dependencies;
 class logger;
 class os_access;
@@ -72,7 +73,13 @@ class filesystem_extractor {
   bool extract(reader::filesystem_v2 const& fs,
                filesystem_extractor_options const& opts =
                    filesystem_extractor_options()) {
-    return impl_->extract(fs, opts);
+    return impl_->extract(fs, nullptr, opts);
+  }
+
+  bool extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
+               filesystem_extractor_options const& opts =
+                   filesystem_extractor_options()) {
+    return impl_->extract(fs, matcher, opts);
   }
 
   class impl {
@@ -84,8 +91,9 @@ class filesystem_extractor {
     virtual void open_stream(std::ostream& os, std::string const& format) = 0;
     virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
-    virtual bool extract(reader::filesystem_v2 const& fs,
-                         filesystem_extractor_options const& opts) = 0;
+    virtual bool
+    extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
+            filesystem_extractor_options const& opts) = 0;
   };
 
  private:
