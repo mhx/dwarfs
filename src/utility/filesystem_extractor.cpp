@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <unordered_set>
 
 // This is required to avoid Windows.h being pulled in by libarchive
 // and polluting our environment with all sorts of shit.
@@ -41,6 +42,7 @@
 
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/glob_matcher.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/os_access.h>
@@ -189,7 +191,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  bool extract(reader::filesystem_v2 const& fs,
+  bool extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
                filesystem_extractor_options const& opts) override;
 
  private:
@@ -249,7 +251,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
 template <typename LoggerPolicy>
 bool filesystem_extractor_<LoggerPolicy>::extract(
-    reader::filesystem_v2 const& fs, filesystem_extractor_options const& opts) {
+    reader::filesystem_v2 const& fs, glob_matcher const* matcher,
+    filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
   auto lr = ::archive_entry_linkresolver_new();
@@ -351,6 +354,23 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     }
   };
 
+  std::unordered_set<std::filesystem::path> matched_dirs;
+
+  if (matcher) {
+    fs.walk([&](auto entry) {
+      if (!entry.inode().is_directory()) {
+        if (matcher->match(entry.unix_path())) {
+          while (auto parent = entry.parent()) {
+            if (!matched_dirs.insert(parent->fs_path()).second) {
+              break;
+            }
+            entry = *parent;
+          }
+        }
+      }
+    });
+  }
+
   fs.walk_data_order([&](auto entry) {
     // TODO: we can surely early abort walk() somehow
     if (entry.is_root() || hard_error) {
@@ -358,6 +378,23 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     }
 
     auto inode = entry.inode();
+
+    if (matcher) {
+      LOG_TRACE << "checking " << entry.unix_path();
+      if (inode.is_directory()) {
+        if (!matched_dirs.contains(entry.fs_path())) {
+          LOG_TRACE << "skipping directory " << entry.fs_path();
+          // no need to extract this directory
+          return;
+        }
+      } else {
+        if (!matcher->match(entry.unix_path())) {
+          LOG_TRACE << "skipping " << entry.fs_path();
+          // no match, skip this entry
+          return;
+        }
+      }
+    }
 
     auto ae = ::archive_entry_new();
     auto stbuf = fs.getattr(inode);
