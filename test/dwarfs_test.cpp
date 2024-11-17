@@ -1229,6 +1229,63 @@ TEST(filesystem, uid_gid_count) {
   EXPECT_EQ(349999, st99999.gid());
 }
 
+TEST(filesystem, uid_gid_override) {
+  test::test_logger lgr;
+
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add("", {1, 040755, 1, 0, 0, 10, 42, 0, 0, 0});
+  input->add("foo16.txt", {2, 0100755, 1, 60000, 65535, 5, 42, 0, 0, 0},
+             "hello");
+  input->add("foo32.txt", {3, 0100755, 1, 65536, 4294967295, 5, 42, 0, 0, 0},
+             "world");
+
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  {
+    reader::filesystem_options opts{.metadata = {
+                                        .fs_uid = 99999,
+                                        .fs_gid = 80000,
+                                    }};
+
+    reader::filesystem_v2 fs(lgr, *input, mm, opts);
+
+    auto dev16 = fs.find("/foo16.txt");
+    auto dev32 = fs.find("/foo32.txt");
+
+    ASSERT_TRUE(dev16);
+    ASSERT_TRUE(dev32);
+
+    auto st16 = fs.getattr(dev16->inode());
+    auto st32 = fs.getattr(dev32->inode());
+
+    EXPECT_EQ(99999, st16.uid());
+    EXPECT_EQ(80000, st16.gid());
+    EXPECT_EQ(99999, st32.uid());
+    EXPECT_EQ(80000, st32.gid());
+  }
+
+  {
+    reader::filesystem_v2 fs(lgr, *input, mm);
+
+    auto dev16 = fs.find("/foo16.txt");
+    auto dev32 = fs.find("/foo32.txt");
+
+    ASSERT_TRUE(dev16);
+    ASSERT_TRUE(dev32);
+
+    auto st16 = fs.getattr(dev16->inode());
+    auto st32 = fs.getattr(dev32->inode());
+
+    EXPECT_EQ(60000, st16.uid());
+    EXPECT_EQ(65535, st16.gid());
+    EXPECT_EQ(65536, st32.uid());
+    EXPECT_EQ(4294967295, st32.gid());
+  }
+}
+
 TEST(section_index_regression, github183) {
   static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
 

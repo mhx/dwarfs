@@ -47,6 +47,14 @@ options:
   If you have a lot of CPUs, increasing this number can help
   speed up access to files in the filesystem.
 
+- `-o uid=`*num*:
+  Override the user ID for the whole file system. This option
+  is not supported on Windows.
+
+- `-o gid=`*num*:
+  Override the group ID for the whole file system. This option
+  is not supported on Windows.
+
 - `-o decratio=`*value*:
   The ratio over which a block is fully decompressed. Blocks
   are only decompressed partially, so each block has to carry
