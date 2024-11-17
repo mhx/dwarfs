@@ -1800,8 +1800,8 @@ metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
 
   stbuf.set_ino(inode + inode_offset_);
   stbuf.set_blksize(options_.block_size);
-  stbuf.set_uid(iv.getuid());
-  stbuf.set_gid(iv.getgid());
+  stbuf.set_uid(options_.fs_uid.value_or(iv.getuid()));
+  stbuf.set_gid(options_.fs_gid.value_or(iv.getgid()));
   stbuf.set_mtime(resolution * (timebase + ivr.mtime_offset()));
 
   if (mtime_only) {
