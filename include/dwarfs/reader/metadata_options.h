@@ -32,6 +32,7 @@ struct metadata_options {
   bool enable_nlink{false};
   bool readonly{false};
   bool check_consistency{false};
+  bool enable_case_insensitive_lookup{true};
   size_t block_size{512};
   std::optional<file_stat::uid_type> fs_uid{};
   std::optional<file_stat::gid_type> fs_gid{};

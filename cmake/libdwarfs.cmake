@@ -162,7 +162,7 @@ add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH PkgConfig::ZSTD)
-target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
+target_link_libraries(dwarfs_reader PUBLIC dwarfs_common PkgConfig::LIBICUUC)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PkgConfig::ZSTD)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)

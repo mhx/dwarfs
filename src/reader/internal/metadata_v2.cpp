@@ -46,6 +46,8 @@
 
 #include <range/v3/view/enumerate.hpp>
 
+#include <unicode/unistr.h>
+
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -416,7 +418,7 @@ class metadata_ final : public metadata_v2::impl {
       , symlinks_(meta_.compact_symlinks()
                       ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                       : string_table(meta_.symlinks()))
-      // clang-format off
+      , dir_icase_cache_{build_dir_icase_cache()} // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "metadata_v2")
       PERFMON_CLS_TIMER_INIT(find)
       PERFMON_CLS_TIMER_INIT(getattr)
@@ -921,6 +923,54 @@ class metadata_ final : public metadata_v2::impl {
     return packed_nlinks;
   }
 
+  static std::string utf8_to_lower(std::string str) {
+    auto ustr = icu::UnicodeString::fromUTF8(str);
+    ustr.toLower();
+    str.clear();
+    ustr.toUTF8String(str);
+    return str;
+  }
+
+  std::vector<packed_int_vector<uint32_t>> build_dir_icase_cache() const {
+    std::vector<packed_int_vector<uint32_t>> cache;
+
+    if (options_.enable_case_insensitive_lookup) {
+      auto td = LOG_TIMED_DEBUG;
+      size_t num_cached_dirs = 0;
+      size_t total_cache_size = 0;
+
+      cache.reserve(meta_.directories().size());
+
+      for (uint32_t inode = 0; inode < meta_.directories().size() - 1;
+           ++inode) {
+        auto& pv = cache.emplace_back();
+        directory_view dir{inode, global_};
+        auto range = dir.entry_range();
+        std::vector<std::string> names(range.size());
+        std::transform(range.begin(), range.end(), names.begin(), [&](auto ix) {
+          return utf8_to_lower(dir_entry_view_impl::name(ix, global_));
+        });
+        std::vector<uint32_t> entries(range.size());
+        std::iota(entries.begin(), entries.end(), 0);
+        std::sort(entries.begin(), entries.end(),
+                  [&](auto a, auto b) { return names[a] < names[b]; });
+        if (!std::is_sorted(entries.begin(), entries.end())) {
+          pv.reset(std::bit_width(entries.size()), entries.size());
+          for (size_t i = 0; i < entries.size(); ++i) {
+            pv.set(i, entries[i]);
+          }
+          ++num_cached_dirs;
+          total_cache_size += pv.size_in_bytes();
+        }
+      }
+
+      td << "built case-insensitive directory cache for " << num_cached_dirs
+         << " directories (" << size_with_unit(total_cache_size) << ")";
+    }
+
+    return cache;
+  }
+
   size_t total_file_entries() const {
     return (dev_inode_offset_ - file_inode_offset_) +
            (meta_.dir_entries()
@@ -944,6 +994,7 @@ class metadata_ final : public metadata_v2::impl {
   const int unique_files_;
   const metadata_options options_;
   const string_table symlinks_;
+  std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(getattr)
@@ -1695,15 +1746,43 @@ metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
 
   auto range = dir.entry_range();
 
-  auto it = std::lower_bound(
-      range.begin(), range.end(), name, [&](auto ix, std::string_view name) {
-        return internal::dir_entry_view_impl::name(ix, global_) < name;
-      });
+  if (options_.enable_case_insensitive_lookup) {
+    auto const& cache = dir_icase_cache_[dir.inode()];
+    auto ixr = boost::irange<uint32_t>(0, range.size());
+    auto key = utf8_to_lower(std::string(name));
 
-  if (it != range.end()) {
-    if (internal::dir_entry_view_impl::name(*it, global_) == name) {
-      return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
-          *it, global_.self_dir_entry(dir.inode()), global_)};
+    auto it = std::lower_bound(
+        ixr.begin(), ixr.end(), key, [&](auto ix, std::string const& key) {
+          if (!cache.empty()) {
+            ix = cache[ix];
+          }
+          return utf8_to_lower(internal::dir_entry_view_impl::name(
+                     range[ix], global_)) < key;
+        });
+
+    if (it != ixr.end()) {
+      auto ix = *it;
+      if (!cache.empty()) {
+        ix = cache[ix];
+      }
+      ix = range[ix];
+      if (utf8_to_lower(internal::dir_entry_view_impl::name(ix, global_)) ==
+          key) {
+        return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+            ix, global_.self_dir_entry(dir.inode()), global_)};
+      }
+    }
+  } else {
+    auto it = std::lower_bound(
+        range.begin(), range.end(), name, [&](auto ix, std::string_view name) {
+          return internal::dir_entry_view_impl::name(ix, global_) < name;
+        });
+
+    if (it != range.end()) {
+      if (internal::dir_entry_view_impl::name(*it, global_) == name) {
+        return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+            *it, global_.self_dir_entry(dir.inode()), global_)};
+      }
     }
   }
 
