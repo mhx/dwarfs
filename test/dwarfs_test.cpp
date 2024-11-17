@@ -28,6 +28,7 @@
 #include <sstream>
 #include <vector>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 // This needs to be included *after* gtest.h
@@ -2052,5 +2053,185 @@ TEST(filesystem, multi_image) {
     ASSERT_TRUE(baz);
 
     EXPECT_EQ("baz", fs.read_string(fs.open(baz->inode())));
+  }
+}
+
+TEST(filesystem, case_insensitive_lookup) {
+  auto input = std::make_shared<test::os_access_mock>();
+
+  input->add_dir("");
+  input->add_dir(u8"hEllÖwÖrLD");
+  input->add_dir(u8"FÜñKÿStrÍñg");
+  input->add_dir(u8"unícødérøcks");
+  input->add_dir(u8"JÄLAPEÑOPEPPÉR");
+  input->add_dir(u8"SpIcYsÜsHiRoLL");
+  input->add_dir(u8"CAFÉMØCHAlatte");
+  input->add_dir(u8"ČhàŧGƤŦ");
+  input->add_dir(u8"lõREMÏpSüM");
+  input->add_dir(u8"ŠåmpŁËŠTrInG");
+  input->add_dir(u8"pythonprogramming");
+  input->add_dir(u8"DÃTâScïÊNcË");
+  input->add_dir(u8"AIISFÛTÛRË");
+  input->add_dir(u8"readability");
+  input->add_file(u8"TëStCãSeSçÉNâRïÖ", "testcasescenario");
+  input->add_file(u8"lõREMÏpSüM/ÆSTHETÎCcøding", "aestheticcoding");
+  input->add_file(u8"lõREMÏpSüM/smîLëyFÀÇë😊", "smileyface");
+  input->add_file(u8"lõREMÏpSüM/NØRTHèast", "northeast");
+  input->add_file(u8"lõREMÏpSüM/SPACEadventure", "spaceadventure");
+  input->add_file(u8"lõREMÏpSüM/cõMPLEXïTy🚀", "complexity");
+  input->add_file(u8"lõREMÏpSüM/thisisatest", "thisisatest");
+  input->add_file(u8"lõREMÏpSüM/thisISaTEST", "thisisatest");
+
+  std::vector<std::u8string> case_sensitive_dirs{
+      u8"/hEllÖwÖrLD",        u8"/FÜñKÿStrÍñg",    u8"/unícødérøcks",
+      u8"/JÄLAPEÑOPEPPÉR",    u8"/SpIcYsÜsHiRoLL", u8"/CAFÉMØCHAlatte",
+      u8"/ČhàŧGƤŦ",           u8"/lõREMÏpSüM",     u8"/ŠåmpŁËŠTrInG",
+      u8"/pythonprogramming", u8"/DÃTâScïÊNcË",    u8"/AIISFÛTÛRË",
+      u8"/readability",
+  };
+
+  std::vector<std::pair<std::u8string, std::string>> case_sensitive_files{
+      {u8"/TëStCãSeSçÉNâRïÖ", "testcasescenario"},
+      {u8"/lõREMÏpSüM/ÆSTHETÎCcøding", "aestheticcoding"},
+      {u8"/lõREMÏpSüM/smîLëyFÀÇë😊", "smileyface"},
+      {u8"/lõREMÏpSüM/NØRTHèast", "northeast"},
+      {u8"/lõREMÏpSüM/SPACEadventure", "spaceadventure"},
+      {u8"/lõREMÏpSüM/cõMPLEXïTy🚀", "complexity"},
+      {u8"/lõREMÏpSüM/thisisatest", "thisisatest"},
+      {u8"/lõREMÏpSüM/thisISaTEST", "thisisatest"},
+  };
+
+  std::vector<std::u8string> case_insensitive_dirs{
+      u8"/HELlÖwÖRLD",        u8"/FÜÑKÿSTríÑg",    u8"/uNÍcødéRøcks",
+      u8"/JÄLApeñOPePPÉR",    u8"/SpiCysÜshiRoLL", u8"/CAféMØchAlatte",
+      u8"/čhàŧgƥŧ",           u8"/lõremÏpsüM",     u8"/šåmpŁëšTrInG",
+      u8"/pyTHonproGRamming", u8"/DãtÂScïêNcË",    u8"/AiisFÛTÛRË",
+      u8"/reADabiLIty",
+  };
+
+  std::vector<std::pair<std::u8string, std::string>> case_insensitive_files{
+      {u8"/TësTcãSeSçéNâRïÖ", "testcasescenario"},
+      {u8"/lõRemïpSüM/ÆstHETÎCcØDing", "aestheticcoding"},
+      {u8"/lõremïPSüM/smîlËYfàÇë😊", "smileyface"},
+      {u8"/lõREMÏPsÜM/NØRthÈAst", "northeast"},
+      {u8"/lõRemïPsüM/SPACEadvENTure", "spaceadventure"},
+      {u8"/LÕREMÏpSüM/CõMPlexïTy🚀", "complexity"},
+      {u8"/lõrEMÏpSüM/thiSISatest", "thisisatest"},
+  };
+
+  std::vector<std::u8string> non_matching_entries{
+      u8"/HELlÖwÖRLDx",
+      u8"/FÜÑKÿSTríÑj",
+      u8"/uNÍcødéRcks",
+      u8"/JÄLApeñOPePPÉ",
+      u8"/SpiCysÜshiRoLLx",
+      u8"/CAféMØchAltte",
+      u8"/čhàŧgƥŧx",
+      u8"/lõremÏpsü",
+      u8"/šåmpŁëšTrnG",
+      u8"/pyTHonproGRammin",
+      u8"/DãtÂScïêNcËx",
+      u8"/AiisFÛTÛTË",
+      u8"/reADabiLItx",
+      u8"/TësRcãSeSçéNâRïÖ",
+      u8"/lõRemïpüM/ÆstHETÎCcØDing",
+      u8"/lõremïPSüM/mîlËYfàÇë😊",
+      u8"/lõRMÏPsÜM/NØRthÈAst",
+      u8"/lõRemïPsüM/SPACEadvENTurex",
+      u8"/LÕREMÏpSüM/CõMPexïTy🚀",
+      u8"/lõrEMÏpSüM/thiSISatesy",
+  };
+
+  test::test_logger lgr;
+  auto fsimage = build_dwarfs(lgr, input, "null");
+
+  auto mm = std::make_shared<test::mmap_mock>(std::move(fsimage));
+
+  lgr.clear();
+
+  {
+    reader::filesystem_v2 fs(lgr, *input, mm,
+                             {.metadata = {.case_insensitive_lookup = false}});
+
+    EXPECT_TRUE(lgr.empty());
+
+    for (auto const& dir : case_sensitive_dirs) {
+      auto name = u8string_to_string(dir);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+    }
+
+    for (auto const& [file, content] : case_sensitive_files) {
+      auto name = u8string_to_string(file);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+      EXPECT_EQ(content, fs.read_string(fs.open(dev->inode()))) << name;
+    }
+
+    for (auto const& dir : case_insensitive_dirs) {
+      auto name = u8string_to_string(dir);
+      auto dev = fs.find(name);
+      EXPECT_FALSE(dev) << name;
+    }
+
+    for (auto const& [file, content] : case_insensitive_files) {
+      auto name = u8string_to_string(file);
+      auto dev = fs.find(name);
+      EXPECT_FALSE(dev) << name;
+    }
+
+    for (auto const& ent : non_matching_entries) {
+      auto name = u8string_to_string(ent);
+      auto dev = fs.find(name);
+      EXPECT_FALSE(dev) << name;
+    }
+  }
+
+  lgr.clear();
+
+  {
+    reader::filesystem_v2 fs(lgr, *input, mm,
+                             {.metadata = {.case_insensitive_lookup = true}});
+
+    EXPECT_THAT(
+        lgr.get_log(),
+        testing::Contains(testing::ResultOf(
+            [](const auto& entry) { return entry.output; },
+            testing::AllOf(testing::HasSubstr(u8string_to_string(
+                               u8"case-insensitive collision in directory "
+                               u8"\"lõREMÏpSüM\" (inode=")),
+                           testing::HasSubstr("thisISaTEST, thisisatest")))));
+
+    for (auto const& dir : case_sensitive_dirs) {
+      auto name = u8string_to_string(dir);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+    }
+
+    for (auto const& [file, content] : case_sensitive_files) {
+      auto name = u8string_to_string(file);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+      EXPECT_EQ(content, fs.read_string(fs.open(dev->inode()))) << name;
+    }
+
+    for (auto const& dir : case_insensitive_dirs) {
+      auto name = u8string_to_string(dir);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+    }
+
+    for (auto const& [file, content] : case_insensitive_files) {
+      auto name = u8string_to_string(file);
+      auto dev = fs.find(name);
+      EXPECT_TRUE(dev) << name;
+      EXPECT_EQ(content, fs.read_string(fs.open(dev->inode()))) << name;
+    }
+
+    for (auto const& ent : non_matching_entries) {
+      auto name = u8string_to_string(ent);
+      auto dev = fs.find(name);
+      EXPECT_FALSE(dev) << name;
+    }
   }
 }

@@ -21,21 +21,12 @@
 
 #pragma once
 
-#include <cstddef>
-#include <optional>
+#include <string>
+#include <string_view>
 
-#include <dwarfs/file_stat.h>
+namespace dwarfs::internal {
 
-namespace dwarfs::reader {
+std::string utf8_case_fold(std::string_view in);
+std::string utf8_case_fold_unchecked(std::string_view in);
 
-struct metadata_options {
-  bool enable_nlink{false};
-  bool readonly{false};
-  bool check_consistency{false};
-  bool case_insensitive_lookup{false};
-  size_t block_size{512};
-  std::optional<file_stat::uid_type> fs_uid{};
-  std::optional<file_stat::gid_type> fs_gid{};
-};
-
-} // namespace dwarfs::reader
+} // namespace dwarfs::internal
