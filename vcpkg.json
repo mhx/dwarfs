@@ -11,6 +11,7 @@
     "boost-multi-index",
     "boost-process",
     "boost-program-options",
+    "boost-sort",
     "boost-thread",
     "boost-uuid",
     "boost-variant",
