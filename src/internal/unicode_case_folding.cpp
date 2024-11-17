@@ -1,0 +1,3027 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
+ * This file is part of dwarfs.
+ *
+ * dwarfs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dwarfs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#if __has_include(<utf8cpp/utf8.h>)
+#include <utf8cpp/utf8.h>
+#else
+#include <utf8.h>
+#endif
+
+#include <dwarfs/internal/unicode_case_folding.h>
+
+namespace dwarfs::internal {
+
+namespace {
+
+char32_t case_fold_char_slow(char32_t in) {
+  switch (in) {
+  case 0x00B5:
+    return 0x03BC; // [C] MICRO SIGN
+  case 0x00C0:
+    return 0x00E0; // [C] LATIN CAPITAL LETTER A WITH GRAVE
+  case 0x00C1:
+    return 0x00E1; // [C] LATIN CAPITAL LETTER A WITH ACUTE
+  case 0x00C2:
+    return 0x00E2; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX
+  case 0x00C3:
+    return 0x00E3; // [C] LATIN CAPITAL LETTER A WITH TILDE
+  case 0x00C4:
+    return 0x00E4; // [C] LATIN CAPITAL LETTER A WITH DIAERESIS
+  case 0x00C5:
+    return 0x00E5; // [C] LATIN CAPITAL LETTER A WITH RING ABOVE
+  case 0x00C6:
+    return 0x00E6; // [C] LATIN CAPITAL LETTER AE
+  case 0x00C7:
+    return 0x00E7; // [C] LATIN CAPITAL LETTER C WITH CEDILLA
+  case 0x00C8:
+    return 0x00E8; // [C] LATIN CAPITAL LETTER E WITH GRAVE
+  case 0x00C9:
+    return 0x00E9; // [C] LATIN CAPITAL LETTER E WITH ACUTE
+  case 0x00CA:
+    return 0x00EA; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX
+  case 0x00CB:
+    return 0x00EB; // [C] LATIN CAPITAL LETTER E WITH DIAERESIS
+  case 0x00CC:
+    return 0x00EC; // [C] LATIN CAPITAL LETTER I WITH GRAVE
+  case 0x00CD:
+    return 0x00ED; // [C] LATIN CAPITAL LETTER I WITH ACUTE
+  case 0x00CE:
+    return 0x00EE; // [C] LATIN CAPITAL LETTER I WITH CIRCUMFLEX
+  case 0x00CF:
+    return 0x00EF; // [C] LATIN CAPITAL LETTER I WITH DIAERESIS
+  case 0x00D0:
+    return 0x00F0; // [C] LATIN CAPITAL LETTER ETH
+  case 0x00D1:
+    return 0x00F1; // [C] LATIN CAPITAL LETTER N WITH TILDE
+  case 0x00D2:
+    return 0x00F2; // [C] LATIN CAPITAL LETTER O WITH GRAVE
+  case 0x00D3:
+    return 0x00F3; // [C] LATIN CAPITAL LETTER O WITH ACUTE
+  case 0x00D4:
+    return 0x00F4; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX
+  case 0x00D5:
+    return 0x00F5; // [C] LATIN CAPITAL LETTER O WITH TILDE
+  case 0x00D6:
+    return 0x00F6; // [C] LATIN CAPITAL LETTER O WITH DIAERESIS
+  case 0x00D8:
+    return 0x00F8; // [C] LATIN CAPITAL LETTER O WITH STROKE
+  case 0x00D9:
+    return 0x00F9; // [C] LATIN CAPITAL LETTER U WITH GRAVE
+  case 0x00DA:
+    return 0x00FA; // [C] LATIN CAPITAL LETTER U WITH ACUTE
+  case 0x00DB:
+    return 0x00FB; // [C] LATIN CAPITAL LETTER U WITH CIRCUMFLEX
+  case 0x00DC:
+    return 0x00FC; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS
+  case 0x00DD:
+    return 0x00FD; // [C] LATIN CAPITAL LETTER Y WITH ACUTE
+  case 0x00DE:
+    return 0x00FE; // [C] LATIN CAPITAL LETTER THORN
+  case 0x0100:
+    return 0x0101; // [C] LATIN CAPITAL LETTER A WITH MACRON
+  case 0x0102:
+    return 0x0103; // [C] LATIN CAPITAL LETTER A WITH BREVE
+  case 0x0104:
+    return 0x0105; // [C] LATIN CAPITAL LETTER A WITH OGONEK
+  case 0x0106:
+    return 0x0107; // [C] LATIN CAPITAL LETTER C WITH ACUTE
+  case 0x0108:
+    return 0x0109; // [C] LATIN CAPITAL LETTER C WITH CIRCUMFLEX
+  case 0x010A:
+    return 0x010B; // [C] LATIN CAPITAL LETTER C WITH DOT ABOVE
+  case 0x010C:
+    return 0x010D; // [C] LATIN CAPITAL LETTER C WITH CARON
+  case 0x010E:
+    return 0x010F; // [C] LATIN CAPITAL LETTER D WITH CARON
+  case 0x0110:
+    return 0x0111; // [C] LATIN CAPITAL LETTER D WITH STROKE
+  case 0x0112:
+    return 0x0113; // [C] LATIN CAPITAL LETTER E WITH MACRON
+  case 0x0114:
+    return 0x0115; // [C] LATIN CAPITAL LETTER E WITH BREVE
+  case 0x0116:
+    return 0x0117; // [C] LATIN CAPITAL LETTER E WITH DOT ABOVE
+  case 0x0118:
+    return 0x0119; // [C] LATIN CAPITAL LETTER E WITH OGONEK
+  case 0x011A:
+    return 0x011B; // [C] LATIN CAPITAL LETTER E WITH CARON
+  case 0x011C:
+    return 0x011D; // [C] LATIN CAPITAL LETTER G WITH CIRCUMFLEX
+  case 0x011E:
+    return 0x011F; // [C] LATIN CAPITAL LETTER G WITH BREVE
+  case 0x0120:
+    return 0x0121; // [C] LATIN CAPITAL LETTER G WITH DOT ABOVE
+  case 0x0122:
+    return 0x0123; // [C] LATIN CAPITAL LETTER G WITH CEDILLA
+  case 0x0124:
+    return 0x0125; // [C] LATIN CAPITAL LETTER H WITH CIRCUMFLEX
+  case 0x0126:
+    return 0x0127; // [C] LATIN CAPITAL LETTER H WITH STROKE
+  case 0x0128:
+    return 0x0129; // [C] LATIN CAPITAL LETTER I WITH TILDE
+  case 0x012A:
+    return 0x012B; // [C] LATIN CAPITAL LETTER I WITH MACRON
+  case 0x012C:
+    return 0x012D; // [C] LATIN CAPITAL LETTER I WITH BREVE
+  case 0x012E:
+    return 0x012F; // [C] LATIN CAPITAL LETTER I WITH OGONEK
+  case 0x0132:
+    return 0x0133; // [C] LATIN CAPITAL LIGATURE IJ
+  case 0x0134:
+    return 0x0135; // [C] LATIN CAPITAL LETTER J WITH CIRCUMFLEX
+  case 0x0136:
+    return 0x0137; // [C] LATIN CAPITAL LETTER K WITH CEDILLA
+  case 0x0139:
+    return 0x013A; // [C] LATIN CAPITAL LETTER L WITH ACUTE
+  case 0x013B:
+    return 0x013C; // [C] LATIN CAPITAL LETTER L WITH CEDILLA
+  case 0x013D:
+    return 0x013E; // [C] LATIN CAPITAL LETTER L WITH CARON
+  case 0x013F:
+    return 0x0140; // [C] LATIN CAPITAL LETTER L WITH MIDDLE DOT
+  case 0x0141:
+    return 0x0142; // [C] LATIN CAPITAL LETTER L WITH STROKE
+  case 0x0143:
+    return 0x0144; // [C] LATIN CAPITAL LETTER N WITH ACUTE
+  case 0x0145:
+    return 0x0146; // [C] LATIN CAPITAL LETTER N WITH CEDILLA
+  case 0x0147:
+    return 0x0148; // [C] LATIN CAPITAL LETTER N WITH CARON
+  case 0x014A:
+    return 0x014B; // [C] LATIN CAPITAL LETTER ENG
+  case 0x014C:
+    return 0x014D; // [C] LATIN CAPITAL LETTER O WITH MACRON
+  case 0x014E:
+    return 0x014F; // [C] LATIN CAPITAL LETTER O WITH BREVE
+  case 0x0150:
+    return 0x0151; // [C] LATIN CAPITAL LETTER O WITH DOUBLE ACUTE
+  case 0x0152:
+    return 0x0153; // [C] LATIN CAPITAL LIGATURE OE
+  case 0x0154:
+    return 0x0155; // [C] LATIN CAPITAL LETTER R WITH ACUTE
+  case 0x0156:
+    return 0x0157; // [C] LATIN CAPITAL LETTER R WITH CEDILLA
+  case 0x0158:
+    return 0x0159; // [C] LATIN CAPITAL LETTER R WITH CARON
+  case 0x015A:
+    return 0x015B; // [C] LATIN CAPITAL LETTER S WITH ACUTE
+  case 0x015C:
+    return 0x015D; // [C] LATIN CAPITAL LETTER S WITH CIRCUMFLEX
+  case 0x015E:
+    return 0x015F; // [C] LATIN CAPITAL LETTER S WITH CEDILLA
+  case 0x0160:
+    return 0x0161; // [C] LATIN CAPITAL LETTER S WITH CARON
+  case 0x0162:
+    return 0x0163; // [C] LATIN CAPITAL LETTER T WITH CEDILLA
+  case 0x0164:
+    return 0x0165; // [C] LATIN CAPITAL LETTER T WITH CARON
+  case 0x0166:
+    return 0x0167; // [C] LATIN CAPITAL LETTER T WITH STROKE
+  case 0x0168:
+    return 0x0169; // [C] LATIN CAPITAL LETTER U WITH TILDE
+  case 0x016A:
+    return 0x016B; // [C] LATIN CAPITAL LETTER U WITH MACRON
+  case 0x016C:
+    return 0x016D; // [C] LATIN CAPITAL LETTER U WITH BREVE
+  case 0x016E:
+    return 0x016F; // [C] LATIN CAPITAL LETTER U WITH RING ABOVE
+  case 0x0170:
+    return 0x0171; // [C] LATIN CAPITAL LETTER U WITH DOUBLE ACUTE
+  case 0x0172:
+    return 0x0173; // [C] LATIN CAPITAL LETTER U WITH OGONEK
+  case 0x0174:
+    return 0x0175; // [C] LATIN CAPITAL LETTER W WITH CIRCUMFLEX
+  case 0x0176:
+    return 0x0177; // [C] LATIN CAPITAL LETTER Y WITH CIRCUMFLEX
+  case 0x0178:
+    return 0x00FF; // [C] LATIN CAPITAL LETTER Y WITH DIAERESIS
+  case 0x0179:
+    return 0x017A; // [C] LATIN CAPITAL LETTER Z WITH ACUTE
+  case 0x017B:
+    return 0x017C; // [C] LATIN CAPITAL LETTER Z WITH DOT ABOVE
+  case 0x017D:
+    return 0x017E; // [C] LATIN CAPITAL LETTER Z WITH CARON
+  case 0x017F:
+    return 0x0073; // [C] LATIN SMALL LETTER LONG S
+  case 0x0181:
+    return 0x0253; // [C] LATIN CAPITAL LETTER B WITH HOOK
+  case 0x0182:
+    return 0x0183; // [C] LATIN CAPITAL LETTER B WITH TOPBAR
+  case 0x0184:
+    return 0x0185; // [C] LATIN CAPITAL LETTER TONE SIX
+  case 0x0186:
+    return 0x0254; // [C] LATIN CAPITAL LETTER OPEN O
+  case 0x0187:
+    return 0x0188; // [C] LATIN CAPITAL LETTER C WITH HOOK
+  case 0x0189:
+    return 0x0256; // [C] LATIN CAPITAL LETTER AFRICAN D
+  case 0x018A:
+    return 0x0257; // [C] LATIN CAPITAL LETTER D WITH HOOK
+  case 0x018B:
+    return 0x018C; // [C] LATIN CAPITAL LETTER D WITH TOPBAR
+  case 0x018E:
+    return 0x01DD; // [C] LATIN CAPITAL LETTER REVERSED E
+  case 0x018F:
+    return 0x0259; // [C] LATIN CAPITAL LETTER SCHWA
+  case 0x0190:
+    return 0x025B; // [C] LATIN CAPITAL LETTER OPEN E
+  case 0x0191:
+    return 0x0192; // [C] LATIN CAPITAL LETTER F WITH HOOK
+  case 0x0193:
+    return 0x0260; // [C] LATIN CAPITAL LETTER G WITH HOOK
+  case 0x0194:
+    return 0x0263; // [C] LATIN CAPITAL LETTER GAMMA
+  case 0x0196:
+    return 0x0269; // [C] LATIN CAPITAL LETTER IOTA
+  case 0x0197:
+    return 0x0268; // [C] LATIN CAPITAL LETTER I WITH STROKE
+  case 0x0198:
+    return 0x0199; // [C] LATIN CAPITAL LETTER K WITH HOOK
+  case 0x019C:
+    return 0x026F; // [C] LATIN CAPITAL LETTER TURNED M
+  case 0x019D:
+    return 0x0272; // [C] LATIN CAPITAL LETTER N WITH LEFT HOOK
+  case 0x019F:
+    return 0x0275; // [C] LATIN CAPITAL LETTER O WITH MIDDLE TILDE
+  case 0x01A0:
+    return 0x01A1; // [C] LATIN CAPITAL LETTER O WITH HORN
+  case 0x01A2:
+    return 0x01A3; // [C] LATIN CAPITAL LETTER OI
+  case 0x01A4:
+    return 0x01A5; // [C] LATIN CAPITAL LETTER P WITH HOOK
+  case 0x01A6:
+    return 0x0280; // [C] LATIN LETTER YR
+  case 0x01A7:
+    return 0x01A8; // [C] LATIN CAPITAL LETTER TONE TWO
+  case 0x01A9:
+    return 0x0283; // [C] LATIN CAPITAL LETTER ESH
+  case 0x01AC:
+    return 0x01AD; // [C] LATIN CAPITAL LETTER T WITH HOOK
+  case 0x01AE:
+    return 0x0288; // [C] LATIN CAPITAL LETTER T WITH RETROFLEX HOOK
+  case 0x01AF:
+    return 0x01B0; // [C] LATIN CAPITAL LETTER U WITH HORN
+  case 0x01B1:
+    return 0x028A; // [C] LATIN CAPITAL LETTER UPSILON
+  case 0x01B2:
+    return 0x028B; // [C] LATIN CAPITAL LETTER V WITH HOOK
+  case 0x01B3:
+    return 0x01B4; // [C] LATIN CAPITAL LETTER Y WITH HOOK
+  case 0x01B5:
+    return 0x01B6; // [C] LATIN CAPITAL LETTER Z WITH STROKE
+  case 0x01B7:
+    return 0x0292; // [C] LATIN CAPITAL LETTER EZH
+  case 0x01B8:
+    return 0x01B9; // [C] LATIN CAPITAL LETTER EZH REVERSED
+  case 0x01BC:
+    return 0x01BD; // [C] LATIN CAPITAL LETTER TONE FIVE
+  case 0x01C4:
+    return 0x01C6; // [C] LATIN CAPITAL LETTER DZ WITH CARON
+  case 0x01C5:
+    return 0x01C6; // [C] LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON
+  case 0x01C7:
+    return 0x01C9; // [C] LATIN CAPITAL LETTER LJ
+  case 0x01C8:
+    return 0x01C9; // [C] LATIN CAPITAL LETTER L WITH SMALL LETTER J
+  case 0x01CA:
+    return 0x01CC; // [C] LATIN CAPITAL LETTER NJ
+  case 0x01CB:
+    return 0x01CC; // [C] LATIN CAPITAL LETTER N WITH SMALL LETTER J
+  case 0x01CD:
+    return 0x01CE; // [C] LATIN CAPITAL LETTER A WITH CARON
+  case 0x01CF:
+    return 0x01D0; // [C] LATIN CAPITAL LETTER I WITH CARON
+  case 0x01D1:
+    return 0x01D2; // [C] LATIN CAPITAL LETTER O WITH CARON
+  case 0x01D3:
+    return 0x01D4; // [C] LATIN CAPITAL LETTER U WITH CARON
+  case 0x01D5:
+    return 0x01D6; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS AND MACRON
+  case 0x01D7:
+    return 0x01D8; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS AND ACUTE
+  case 0x01D9:
+    return 0x01DA; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS AND CARON
+  case 0x01DB:
+    return 0x01DC; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS AND GRAVE
+  case 0x01DE:
+    return 0x01DF; // [C] LATIN CAPITAL LETTER A WITH DIAERESIS AND MACRON
+  case 0x01E0:
+    return 0x01E1; // [C] LATIN CAPITAL LETTER A WITH DOT ABOVE AND MACRON
+  case 0x01E2:
+    return 0x01E3; // [C] LATIN CAPITAL LETTER AE WITH MACRON
+  case 0x01E4:
+    return 0x01E5; // [C] LATIN CAPITAL LETTER G WITH STROKE
+  case 0x01E6:
+    return 0x01E7; // [C] LATIN CAPITAL LETTER G WITH CARON
+  case 0x01E8:
+    return 0x01E9; // [C] LATIN CAPITAL LETTER K WITH CARON
+  case 0x01EA:
+    return 0x01EB; // [C] LATIN CAPITAL LETTER O WITH OGONEK
+  case 0x01EC:
+    return 0x01ED; // [C] LATIN CAPITAL LETTER O WITH OGONEK AND MACRON
+  case 0x01EE:
+    return 0x01EF; // [C] LATIN CAPITAL LETTER EZH WITH CARON
+  case 0x01F1:
+    return 0x01F3; // [C] LATIN CAPITAL LETTER DZ
+  case 0x01F2:
+    return 0x01F3; // [C] LATIN CAPITAL LETTER D WITH SMALL LETTER Z
+  case 0x01F4:
+    return 0x01F5; // [C] LATIN CAPITAL LETTER G WITH ACUTE
+  case 0x01F6:
+    return 0x0195; // [C] LATIN CAPITAL LETTER HWAIR
+  case 0x01F7:
+    return 0x01BF; // [C] LATIN CAPITAL LETTER WYNN
+  case 0x01F8:
+    return 0x01F9; // [C] LATIN CAPITAL LETTER N WITH GRAVE
+  case 0x01FA:
+    return 0x01FB; // [C] LATIN CAPITAL LETTER A WITH RING ABOVE AND ACUTE
+  case 0x01FC:
+    return 0x01FD; // [C] LATIN CAPITAL LETTER AE WITH ACUTE
+  case 0x01FE:
+    return 0x01FF; // [C] LATIN CAPITAL LETTER O WITH STROKE AND ACUTE
+  case 0x0200:
+    return 0x0201; // [C] LATIN CAPITAL LETTER A WITH DOUBLE GRAVE
+  case 0x0202:
+    return 0x0203; // [C] LATIN CAPITAL LETTER A WITH INVERTED BREVE
+  case 0x0204:
+    return 0x0205; // [C] LATIN CAPITAL LETTER E WITH DOUBLE GRAVE
+  case 0x0206:
+    return 0x0207; // [C] LATIN CAPITAL LETTER E WITH INVERTED BREVE
+  case 0x0208:
+    return 0x0209; // [C] LATIN CAPITAL LETTER I WITH DOUBLE GRAVE
+  case 0x020A:
+    return 0x020B; // [C] LATIN CAPITAL LETTER I WITH INVERTED BREVE
+  case 0x020C:
+    return 0x020D; // [C] LATIN CAPITAL LETTER O WITH DOUBLE GRAVE
+  case 0x020E:
+    return 0x020F; // [C] LATIN CAPITAL LETTER O WITH INVERTED BREVE
+  case 0x0210:
+    return 0x0211; // [C] LATIN CAPITAL LETTER R WITH DOUBLE GRAVE
+  case 0x0212:
+    return 0x0213; // [C] LATIN CAPITAL LETTER R WITH INVERTED BREVE
+  case 0x0214:
+    return 0x0215; // [C] LATIN CAPITAL LETTER U WITH DOUBLE GRAVE
+  case 0x0216:
+    return 0x0217; // [C] LATIN CAPITAL LETTER U WITH INVERTED BREVE
+  case 0x0218:
+    return 0x0219; // [C] LATIN CAPITAL LETTER S WITH COMMA BELOW
+  case 0x021A:
+    return 0x021B; // [C] LATIN CAPITAL LETTER T WITH COMMA BELOW
+  case 0x021C:
+    return 0x021D; // [C] LATIN CAPITAL LETTER YOGH
+  case 0x021E:
+    return 0x021F; // [C] LATIN CAPITAL LETTER H WITH CARON
+  case 0x0220:
+    return 0x019E; // [C] LATIN CAPITAL LETTER N WITH LONG RIGHT LEG
+  case 0x0222:
+    return 0x0223; // [C] LATIN CAPITAL LETTER OU
+  case 0x0224:
+    return 0x0225; // [C] LATIN CAPITAL LETTER Z WITH HOOK
+  case 0x0226:
+    return 0x0227; // [C] LATIN CAPITAL LETTER A WITH DOT ABOVE
+  case 0x0228:
+    return 0x0229; // [C] LATIN CAPITAL LETTER E WITH CEDILLA
+  case 0x022A:
+    return 0x022B; // [C] LATIN CAPITAL LETTER O WITH DIAERESIS AND MACRON
+  case 0x022C:
+    return 0x022D; // [C] LATIN CAPITAL LETTER O WITH TILDE AND MACRON
+  case 0x022E:
+    return 0x022F; // [C] LATIN CAPITAL LETTER O WITH DOT ABOVE
+  case 0x0230:
+    return 0x0231; // [C] LATIN CAPITAL LETTER O WITH DOT ABOVE AND MACRON
+  case 0x0232:
+    return 0x0233; // [C] LATIN CAPITAL LETTER Y WITH MACRON
+  case 0x023A:
+    return 0x2C65; // [C] LATIN CAPITAL LETTER A WITH STROKE
+  case 0x023B:
+    return 0x023C; // [C] LATIN CAPITAL LETTER C WITH STROKE
+  case 0x023D:
+    return 0x019A; // [C] LATIN CAPITAL LETTER L WITH BAR
+  case 0x023E:
+    return 0x2C66; // [C] LATIN CAPITAL LETTER T WITH DIAGONAL STROKE
+  case 0x0241:
+    return 0x0242; // [C] LATIN CAPITAL LETTER GLOTTAL STOP
+  case 0x0243:
+    return 0x0180; // [C] LATIN CAPITAL LETTER B WITH STROKE
+  case 0x0244:
+    return 0x0289; // [C] LATIN CAPITAL LETTER U BAR
+  case 0x0245:
+    return 0x028C; // [C] LATIN CAPITAL LETTER TURNED V
+  case 0x0246:
+    return 0x0247; // [C] LATIN CAPITAL LETTER E WITH STROKE
+  case 0x0248:
+    return 0x0249; // [C] LATIN CAPITAL LETTER J WITH STROKE
+  case 0x024A:
+    return 0x024B; // [C] LATIN CAPITAL LETTER SMALL Q WITH HOOK TAIL
+  case 0x024C:
+    return 0x024D; // [C] LATIN CAPITAL LETTER R WITH STROKE
+  case 0x024E:
+    return 0x024F; // [C] LATIN CAPITAL LETTER Y WITH STROKE
+  case 0x0345:
+    return 0x03B9; // [C] COMBINING GREEK YPOGEGRAMMENI
+  case 0x0370:
+    return 0x0371; // [C] GREEK CAPITAL LETTER HETA
+  case 0x0372:
+    return 0x0373; // [C] GREEK CAPITAL LETTER ARCHAIC SAMPI
+  case 0x0376:
+    return 0x0377; // [C] GREEK CAPITAL LETTER PAMPHYLIAN DIGAMMA
+  case 0x037F:
+    return 0x03F3; // [C] GREEK CAPITAL LETTER YOT
+  case 0x0386:
+    return 0x03AC; // [C] GREEK CAPITAL LETTER ALPHA WITH TONOS
+  case 0x0388:
+    return 0x03AD; // [C] GREEK CAPITAL LETTER EPSILON WITH TONOS
+  case 0x0389:
+    return 0x03AE; // [C] GREEK CAPITAL LETTER ETA WITH TONOS
+  case 0x038A:
+    return 0x03AF; // [C] GREEK CAPITAL LETTER IOTA WITH TONOS
+  case 0x038C:
+    return 0x03CC; // [C] GREEK CAPITAL LETTER OMICRON WITH TONOS
+  case 0x038E:
+    return 0x03CD; // [C] GREEK CAPITAL LETTER UPSILON WITH TONOS
+  case 0x038F:
+    return 0x03CE; // [C] GREEK CAPITAL LETTER OMEGA WITH TONOS
+  case 0x0391:
+    return 0x03B1; // [C] GREEK CAPITAL LETTER ALPHA
+  case 0x0392:
+    return 0x03B2; // [C] GREEK CAPITAL LETTER BETA
+  case 0x0393:
+    return 0x03B3; // [C] GREEK CAPITAL LETTER GAMMA
+  case 0x0394:
+    return 0x03B4; // [C] GREEK CAPITAL LETTER DELTA
+  case 0x0395:
+    return 0x03B5; // [C] GREEK CAPITAL LETTER EPSILON
+  case 0x0396:
+    return 0x03B6; // [C] GREEK CAPITAL LETTER ZETA
+  case 0x0397:
+    return 0x03B7; // [C] GREEK CAPITAL LETTER ETA
+  case 0x0398:
+    return 0x03B8; // [C] GREEK CAPITAL LETTER THETA
+  case 0x0399:
+    return 0x03B9; // [C] GREEK CAPITAL LETTER IOTA
+  case 0x039A:
+    return 0x03BA; // [C] GREEK CAPITAL LETTER KAPPA
+  case 0x039B:
+    return 0x03BB; // [C] GREEK CAPITAL LETTER LAMDA
+  case 0x039C:
+    return 0x03BC; // [C] GREEK CAPITAL LETTER MU
+  case 0x039D:
+    return 0x03BD; // [C] GREEK CAPITAL LETTER NU
+  case 0x039E:
+    return 0x03BE; // [C] GREEK CAPITAL LETTER XI
+  case 0x039F:
+    return 0x03BF; // [C] GREEK CAPITAL LETTER OMICRON
+  case 0x03A0:
+    return 0x03C0; // [C] GREEK CAPITAL LETTER PI
+  case 0x03A1:
+    return 0x03C1; // [C] GREEK CAPITAL LETTER RHO
+  case 0x03A3:
+    return 0x03C3; // [C] GREEK CAPITAL LETTER SIGMA
+  case 0x03A4:
+    return 0x03C4; // [C] GREEK CAPITAL LETTER TAU
+  case 0x03A5:
+    return 0x03C5; // [C] GREEK CAPITAL LETTER UPSILON
+  case 0x03A6:
+    return 0x03C6; // [C] GREEK CAPITAL LETTER PHI
+  case 0x03A7:
+    return 0x03C7; // [C] GREEK CAPITAL LETTER CHI
+  case 0x03A8:
+    return 0x03C8; // [C] GREEK CAPITAL LETTER PSI
+  case 0x03A9:
+    return 0x03C9; // [C] GREEK CAPITAL LETTER OMEGA
+  case 0x03AA:
+    return 0x03CA; // [C] GREEK CAPITAL LETTER IOTA WITH DIALYTIKA
+  case 0x03AB:
+    return 0x03CB; // [C] GREEK CAPITAL LETTER UPSILON WITH DIALYTIKA
+  case 0x03C2:
+    return 0x03C3; // [C] GREEK SMALL LETTER FINAL SIGMA
+  case 0x03CF:
+    return 0x03D7; // [C] GREEK CAPITAL KAI SYMBOL
+  case 0x03D0:
+    return 0x03B2; // [C] GREEK BETA SYMBOL
+  case 0x03D1:
+    return 0x03B8; // [C] GREEK THETA SYMBOL
+  case 0x03D5:
+    return 0x03C6; // [C] GREEK PHI SYMBOL
+  case 0x03D6:
+    return 0x03C0; // [C] GREEK PI SYMBOL
+  case 0x03D8:
+    return 0x03D9; // [C] GREEK LETTER ARCHAIC KOPPA
+  case 0x03DA:
+    return 0x03DB; // [C] GREEK LETTER STIGMA
+  case 0x03DC:
+    return 0x03DD; // [C] GREEK LETTER DIGAMMA
+  case 0x03DE:
+    return 0x03DF; // [C] GREEK LETTER KOPPA
+  case 0x03E0:
+    return 0x03E1; // [C] GREEK LETTER SAMPI
+  case 0x03E2:
+    return 0x03E3; // [C] COPTIC CAPITAL LETTER SHEI
+  case 0x03E4:
+    return 0x03E5; // [C] COPTIC CAPITAL LETTER FEI
+  case 0x03E6:
+    return 0x03E7; // [C] COPTIC CAPITAL LETTER KHEI
+  case 0x03E8:
+    return 0x03E9; // [C] COPTIC CAPITAL LETTER HORI
+  case 0x03EA:
+    return 0x03EB; // [C] COPTIC CAPITAL LETTER GANGIA
+  case 0x03EC:
+    return 0x03ED; // [C] COPTIC CAPITAL LETTER SHIMA
+  case 0x03EE:
+    return 0x03EF; // [C] COPTIC CAPITAL LETTER DEI
+  case 0x03F0:
+    return 0x03BA; // [C] GREEK KAPPA SYMBOL
+  case 0x03F1:
+    return 0x03C1; // [C] GREEK RHO SYMBOL
+  case 0x03F4:
+    return 0x03B8; // [C] GREEK CAPITAL THETA SYMBOL
+  case 0x03F5:
+    return 0x03B5; // [C] GREEK LUNATE EPSILON SYMBOL
+  case 0x03F7:
+    return 0x03F8; // [C] GREEK CAPITAL LETTER SHO
+  case 0x03F9:
+    return 0x03F2; // [C] GREEK CAPITAL LUNATE SIGMA SYMBOL
+  case 0x03FA:
+    return 0x03FB; // [C] GREEK CAPITAL LETTER SAN
+  case 0x03FD:
+    return 0x037B; // [C] GREEK CAPITAL REVERSED LUNATE SIGMA SYMBOL
+  case 0x03FE:
+    return 0x037C; // [C] GREEK CAPITAL DOTTED LUNATE SIGMA SYMBOL
+  case 0x03FF:
+    return 0x037D; // [C] GREEK CAPITAL REVERSED DOTTED LUNATE SIGMA SYMBOL
+  case 0x0400:
+    return 0x0450; // [C] CYRILLIC CAPITAL LETTER IE WITH GRAVE
+  case 0x0401:
+    return 0x0451; // [C] CYRILLIC CAPITAL LETTER IO
+  case 0x0402:
+    return 0x0452; // [C] CYRILLIC CAPITAL LETTER DJE
+  case 0x0403:
+    return 0x0453; // [C] CYRILLIC CAPITAL LETTER GJE
+  case 0x0404:
+    return 0x0454; // [C] CYRILLIC CAPITAL LETTER UKRAINIAN IE
+  case 0x0405:
+    return 0x0455; // [C] CYRILLIC CAPITAL LETTER DZE
+  case 0x0406:
+    return 0x0456; // [C] CYRILLIC CAPITAL LETTER BYELORUSSIAN-UKRAINIAN I
+  case 0x0407:
+    return 0x0457; // [C] CYRILLIC CAPITAL LETTER YI
+  case 0x0408:
+    return 0x0458; // [C] CYRILLIC CAPITAL LETTER JE
+  case 0x0409:
+    return 0x0459; // [C] CYRILLIC CAPITAL LETTER LJE
+  case 0x040A:
+    return 0x045A; // [C] CYRILLIC CAPITAL LETTER NJE
+  case 0x040B:
+    return 0x045B; // [C] CYRILLIC CAPITAL LETTER TSHE
+  case 0x040C:
+    return 0x045C; // [C] CYRILLIC CAPITAL LETTER KJE
+  case 0x040D:
+    return 0x045D; // [C] CYRILLIC CAPITAL LETTER I WITH GRAVE
+  case 0x040E:
+    return 0x045E; // [C] CYRILLIC CAPITAL LETTER SHORT U
+  case 0x040F:
+    return 0x045F; // [C] CYRILLIC CAPITAL LETTER DZHE
+  case 0x0410:
+    return 0x0430; // [C] CYRILLIC CAPITAL LETTER A
+  case 0x0411:
+    return 0x0431; // [C] CYRILLIC CAPITAL LETTER BE
+  case 0x0412:
+    return 0x0432; // [C] CYRILLIC CAPITAL LETTER VE
+  case 0x0413:
+    return 0x0433; // [C] CYRILLIC CAPITAL LETTER GHE
+  case 0x0414:
+    return 0x0434; // [C] CYRILLIC CAPITAL LETTER DE
+  case 0x0415:
+    return 0x0435; // [C] CYRILLIC CAPITAL LETTER IE
+  case 0x0416:
+    return 0x0436; // [C] CYRILLIC CAPITAL LETTER ZHE
+  case 0x0417:
+    return 0x0437; // [C] CYRILLIC CAPITAL LETTER ZE
+  case 0x0418:
+    return 0x0438; // [C] CYRILLIC CAPITAL LETTER I
+  case 0x0419:
+    return 0x0439; // [C] CYRILLIC CAPITAL LETTER SHORT I
+  case 0x041A:
+    return 0x043A; // [C] CYRILLIC CAPITAL LETTER KA
+  case 0x041B:
+    return 0x043B; // [C] CYRILLIC CAPITAL LETTER EL
+  case 0x041C:
+    return 0x043C; // [C] CYRILLIC CAPITAL LETTER EM
+  case 0x041D:
+    return 0x043D; // [C] CYRILLIC CAPITAL LETTER EN
+  case 0x041E:
+    return 0x043E; // [C] CYRILLIC CAPITAL LETTER O
+  case 0x041F:
+    return 0x043F; // [C] CYRILLIC CAPITAL LETTER PE
+  case 0x0420:
+    return 0x0440; // [C] CYRILLIC CAPITAL LETTER ER
+  case 0x0421:
+    return 0x0441; // [C] CYRILLIC CAPITAL LETTER ES
+  case 0x0422:
+    return 0x0442; // [C] CYRILLIC CAPITAL LETTER TE
+  case 0x0423:
+    return 0x0443; // [C] CYRILLIC CAPITAL LETTER U
+  case 0x0424:
+    return 0x0444; // [C] CYRILLIC CAPITAL LETTER EF
+  case 0x0425:
+    return 0x0445; // [C] CYRILLIC CAPITAL LETTER HA
+  case 0x0426:
+    return 0x0446; // [C] CYRILLIC CAPITAL LETTER TSE
+  case 0x0427:
+    return 0x0447; // [C] CYRILLIC CAPITAL LETTER CHE
+  case 0x0428:
+    return 0x0448; // [C] CYRILLIC CAPITAL LETTER SHA
+  case 0x0429:
+    return 0x0449; // [C] CYRILLIC CAPITAL LETTER SHCHA
+  case 0x042A:
+    return 0x044A; // [C] CYRILLIC CAPITAL LETTER HARD SIGN
+  case 0x042B:
+    return 0x044B; // [C] CYRILLIC CAPITAL LETTER YERU
+  case 0x042C:
+    return 0x044C; // [C] CYRILLIC CAPITAL LETTER SOFT SIGN
+  case 0x042D:
+    return 0x044D; // [C] CYRILLIC CAPITAL LETTER E
+  case 0x042E:
+    return 0x044E; // [C] CYRILLIC CAPITAL LETTER YU
+  case 0x042F:
+    return 0x044F; // [C] CYRILLIC CAPITAL LETTER YA
+  case 0x0460:
+    return 0x0461; // [C] CYRILLIC CAPITAL LETTER OMEGA
+  case 0x0462:
+    return 0x0463; // [C] CYRILLIC CAPITAL LETTER YAT
+  case 0x0464:
+    return 0x0465; // [C] CYRILLIC CAPITAL LETTER IOTIFIED E
+  case 0x0466:
+    return 0x0467; // [C] CYRILLIC CAPITAL LETTER LITTLE YUS
+  case 0x0468:
+    return 0x0469; // [C] CYRILLIC CAPITAL LETTER IOTIFIED LITTLE YUS
+  case 0x046A:
+    return 0x046B; // [C] CYRILLIC CAPITAL LETTER BIG YUS
+  case 0x046C:
+    return 0x046D; // [C] CYRILLIC CAPITAL LETTER IOTIFIED BIG YUS
+  case 0x046E:
+    return 0x046F; // [C] CYRILLIC CAPITAL LETTER KSI
+  case 0x0470:
+    return 0x0471; // [C] CYRILLIC CAPITAL LETTER PSI
+  case 0x0472:
+    return 0x0473; // [C] CYRILLIC CAPITAL LETTER FITA
+  case 0x0474:
+    return 0x0475; // [C] CYRILLIC CAPITAL LETTER IZHITSA
+  case 0x0476:
+    return 0x0477; // [C] CYRILLIC CAPITAL LETTER IZHITSA WITH DOUBLE GRAVE
+                   // ACCENT
+  case 0x0478:
+    return 0x0479; // [C] CYRILLIC CAPITAL LETTER UK
+  case 0x047A:
+    return 0x047B; // [C] CYRILLIC CAPITAL LETTER ROUND OMEGA
+  case 0x047C:
+    return 0x047D; // [C] CYRILLIC CAPITAL LETTER OMEGA WITH TITLO
+  case 0x047E:
+    return 0x047F; // [C] CYRILLIC CAPITAL LETTER OT
+  case 0x0480:
+    return 0x0481; // [C] CYRILLIC CAPITAL LETTER KOPPA
+  case 0x048A:
+    return 0x048B; // [C] CYRILLIC CAPITAL LETTER SHORT I WITH TAIL
+  case 0x048C:
+    return 0x048D; // [C] CYRILLIC CAPITAL LETTER SEMISOFT SIGN
+  case 0x048E:
+    return 0x048F; // [C] CYRILLIC CAPITAL LETTER ER WITH TICK
+  case 0x0490:
+    return 0x0491; // [C] CYRILLIC CAPITAL LETTER GHE WITH UPTURN
+  case 0x0492:
+    return 0x0493; // [C] CYRILLIC CAPITAL LETTER GHE WITH STROKE
+  case 0x0494:
+    return 0x0495; // [C] CYRILLIC CAPITAL LETTER GHE WITH MIDDLE HOOK
+  case 0x0496:
+    return 0x0497; // [C] CYRILLIC CAPITAL LETTER ZHE WITH DESCENDER
+  case 0x0498:
+    return 0x0499; // [C] CYRILLIC CAPITAL LETTER ZE WITH DESCENDER
+  case 0x049A:
+    return 0x049B; // [C] CYRILLIC CAPITAL LETTER KA WITH DESCENDER
+  case 0x049C:
+    return 0x049D; // [C] CYRILLIC CAPITAL LETTER KA WITH VERTICAL STROKE
+  case 0x049E:
+    return 0x049F; // [C] CYRILLIC CAPITAL LETTER KA WITH STROKE
+  case 0x04A0:
+    return 0x04A1; // [C] CYRILLIC CAPITAL LETTER BASHKIR KA
+  case 0x04A2:
+    return 0x04A3; // [C] CYRILLIC CAPITAL LETTER EN WITH DESCENDER
+  case 0x04A4:
+    return 0x04A5; // [C] CYRILLIC CAPITAL LIGATURE EN GHE
+  case 0x04A6:
+    return 0x04A7; // [C] CYRILLIC CAPITAL LETTER PE WITH MIDDLE HOOK
+  case 0x04A8:
+    return 0x04A9; // [C] CYRILLIC CAPITAL LETTER ABKHASIAN HA
+  case 0x04AA:
+    return 0x04AB; // [C] CYRILLIC CAPITAL LETTER ES WITH DESCENDER
+  case 0x04AC:
+    return 0x04AD; // [C] CYRILLIC CAPITAL LETTER TE WITH DESCENDER
+  case 0x04AE:
+    return 0x04AF; // [C] CYRILLIC CAPITAL LETTER STRAIGHT U
+  case 0x04B0:
+    return 0x04B1; // [C] CYRILLIC CAPITAL LETTER STRAIGHT U WITH STROKE
+  case 0x04B2:
+    return 0x04B3; // [C] CYRILLIC CAPITAL LETTER HA WITH DESCENDER
+  case 0x04B4:
+    return 0x04B5; // [C] CYRILLIC CAPITAL LIGATURE TE TSE
+  case 0x04B6:
+    return 0x04B7; // [C] CYRILLIC CAPITAL LETTER CHE WITH DESCENDER
+  case 0x04B8:
+    return 0x04B9; // [C] CYRILLIC CAPITAL LETTER CHE WITH VERTICAL STROKE
+  case 0x04BA:
+    return 0x04BB; // [C] CYRILLIC CAPITAL LETTER SHHA
+  case 0x04BC:
+    return 0x04BD; // [C] CYRILLIC CAPITAL LETTER ABKHASIAN CHE
+  case 0x04BE:
+    return 0x04BF; // [C] CYRILLIC CAPITAL LETTER ABKHASIAN CHE WITH DESCENDER
+  case 0x04C0:
+    return 0x04CF; // [C] CYRILLIC LETTER PALOCHKA
+  case 0x04C1:
+    return 0x04C2; // [C] CYRILLIC CAPITAL LETTER ZHE WITH BREVE
+  case 0x04C3:
+    return 0x04C4; // [C] CYRILLIC CAPITAL LETTER KA WITH HOOK
+  case 0x04C5:
+    return 0x04C6; // [C] CYRILLIC CAPITAL LETTER EL WITH TAIL
+  case 0x04C7:
+    return 0x04C8; // [C] CYRILLIC CAPITAL LETTER EN WITH HOOK
+  case 0x04C9:
+    return 0x04CA; // [C] CYRILLIC CAPITAL LETTER EN WITH TAIL
+  case 0x04CB:
+    return 0x04CC; // [C] CYRILLIC CAPITAL LETTER KHAKASSIAN CHE
+  case 0x04CD:
+    return 0x04CE; // [C] CYRILLIC CAPITAL LETTER EM WITH TAIL
+  case 0x04D0:
+    return 0x04D1; // [C] CYRILLIC CAPITAL LETTER A WITH BREVE
+  case 0x04D2:
+    return 0x04D3; // [C] CYRILLIC CAPITAL LETTER A WITH DIAERESIS
+  case 0x04D4:
+    return 0x04D5; // [C] CYRILLIC CAPITAL LIGATURE A IE
+  case 0x04D6:
+    return 0x04D7; // [C] CYRILLIC CAPITAL LETTER IE WITH BREVE
+  case 0x04D8:
+    return 0x04D9; // [C] CYRILLIC CAPITAL LETTER SCHWA
+  case 0x04DA:
+    return 0x04DB; // [C] CYRILLIC CAPITAL LETTER SCHWA WITH DIAERESIS
+  case 0x04DC:
+    return 0x04DD; // [C] CYRILLIC CAPITAL LETTER ZHE WITH DIAERESIS
+  case 0x04DE:
+    return 0x04DF; // [C] CYRILLIC CAPITAL LETTER ZE WITH DIAERESIS
+  case 0x04E0:
+    return 0x04E1; // [C] CYRILLIC CAPITAL LETTER ABKHASIAN DZE
+  case 0x04E2:
+    return 0x04E3; // [C] CYRILLIC CAPITAL LETTER I WITH MACRON
+  case 0x04E4:
+    return 0x04E5; // [C] CYRILLIC CAPITAL LETTER I WITH DIAERESIS
+  case 0x04E6:
+    return 0x04E7; // [C] CYRILLIC CAPITAL LETTER O WITH DIAERESIS
+  case 0x04E8:
+    return 0x04E9; // [C] CYRILLIC CAPITAL LETTER BARRED O
+  case 0x04EA:
+    return 0x04EB; // [C] CYRILLIC CAPITAL LETTER BARRED O WITH DIAERESIS
+  case 0x04EC:
+    return 0x04ED; // [C] CYRILLIC CAPITAL LETTER E WITH DIAERESIS
+  case 0x04EE:
+    return 0x04EF; // [C] CYRILLIC CAPITAL LETTER U WITH MACRON
+  case 0x04F0:
+    return 0x04F1; // [C] CYRILLIC CAPITAL LETTER U WITH DIAERESIS
+  case 0x04F2:
+    return 0x04F3; // [C] CYRILLIC CAPITAL LETTER U WITH DOUBLE ACUTE
+  case 0x04F4:
+    return 0x04F5; // [C] CYRILLIC CAPITAL LETTER CHE WITH DIAERESIS
+  case 0x04F6:
+    return 0x04F7; // [C] CYRILLIC CAPITAL LETTER GHE WITH DESCENDER
+  case 0x04F8:
+    return 0x04F9; // [C] CYRILLIC CAPITAL LETTER YERU WITH DIAERESIS
+  case 0x04FA:
+    return 0x04FB; // [C] CYRILLIC CAPITAL LETTER GHE WITH STROKE AND HOOK
+  case 0x04FC:
+    return 0x04FD; // [C] CYRILLIC CAPITAL LETTER HA WITH HOOK
+  case 0x04FE:
+    return 0x04FF; // [C] CYRILLIC CAPITAL LETTER HA WITH STROKE
+  case 0x0500:
+    return 0x0501; // [C] CYRILLIC CAPITAL LETTER KOMI DE
+  case 0x0502:
+    return 0x0503; // [C] CYRILLIC CAPITAL LETTER KOMI DJE
+  case 0x0504:
+    return 0x0505; // [C] CYRILLIC CAPITAL LETTER KOMI ZJE
+  case 0x0506:
+    return 0x0507; // [C] CYRILLIC CAPITAL LETTER KOMI DZJE
+  case 0x0508:
+    return 0x0509; // [C] CYRILLIC CAPITAL LETTER KOMI LJE
+  case 0x050A:
+    return 0x050B; // [C] CYRILLIC CAPITAL LETTER KOMI NJE
+  case 0x050C:
+    return 0x050D; // [C] CYRILLIC CAPITAL LETTER KOMI SJE
+  case 0x050E:
+    return 0x050F; // [C] CYRILLIC CAPITAL LETTER KOMI TJE
+  case 0x0510:
+    return 0x0511; // [C] CYRILLIC CAPITAL LETTER REVERSED ZE
+  case 0x0512:
+    return 0x0513; // [C] CYRILLIC CAPITAL LETTER EL WITH HOOK
+  case 0x0514:
+    return 0x0515; // [C] CYRILLIC CAPITAL LETTER LHA
+  case 0x0516:
+    return 0x0517; // [C] CYRILLIC CAPITAL LETTER RHA
+  case 0x0518:
+    return 0x0519; // [C] CYRILLIC CAPITAL LETTER YAE
+  case 0x051A:
+    return 0x051B; // [C] CYRILLIC CAPITAL LETTER QA
+  case 0x051C:
+    return 0x051D; // [C] CYRILLIC CAPITAL LETTER WE
+  case 0x051E:
+    return 0x051F; // [C] CYRILLIC CAPITAL LETTER ALEUT KA
+  case 0x0520:
+    return 0x0521; // [C] CYRILLIC CAPITAL LETTER EL WITH MIDDLE HOOK
+  case 0x0522:
+    return 0x0523; // [C] CYRILLIC CAPITAL LETTER EN WITH MIDDLE HOOK
+  case 0x0524:
+    return 0x0525; // [C] CYRILLIC CAPITAL LETTER PE WITH DESCENDER
+  case 0x0526:
+    return 0x0527; // [C] CYRILLIC CAPITAL LETTER SHHA WITH DESCENDER
+  case 0x0528:
+    return 0x0529; // [C] CYRILLIC CAPITAL LETTER EN WITH LEFT HOOK
+  case 0x052A:
+    return 0x052B; // [C] CYRILLIC CAPITAL LETTER DZZHE
+  case 0x052C:
+    return 0x052D; // [C] CYRILLIC CAPITAL LETTER DCHE
+  case 0x052E:
+    return 0x052F; // [C] CYRILLIC CAPITAL LETTER EL WITH DESCENDER
+  case 0x0531:
+    return 0x0561; // [C] ARMENIAN CAPITAL LETTER AYB
+  case 0x0532:
+    return 0x0562; // [C] ARMENIAN CAPITAL LETTER BEN
+  case 0x0533:
+    return 0x0563; // [C] ARMENIAN CAPITAL LETTER GIM
+  case 0x0534:
+    return 0x0564; // [C] ARMENIAN CAPITAL LETTER DA
+  case 0x0535:
+    return 0x0565; // [C] ARMENIAN CAPITAL LETTER ECH
+  case 0x0536:
+    return 0x0566; // [C] ARMENIAN CAPITAL LETTER ZA
+  case 0x0537:
+    return 0x0567; // [C] ARMENIAN CAPITAL LETTER EH
+  case 0x0538:
+    return 0x0568; // [C] ARMENIAN CAPITAL LETTER ET
+  case 0x0539:
+    return 0x0569; // [C] ARMENIAN CAPITAL LETTER TO
+  case 0x053A:
+    return 0x056A; // [C] ARMENIAN CAPITAL LETTER ZHE
+  case 0x053B:
+    return 0x056B; // [C] ARMENIAN CAPITAL LETTER INI
+  case 0x053C:
+    return 0x056C; // [C] ARMENIAN CAPITAL LETTER LIWN
+  case 0x053D:
+    return 0x056D; // [C] ARMENIAN CAPITAL LETTER XEH
+  case 0x053E:
+    return 0x056E; // [C] ARMENIAN CAPITAL LETTER CA
+  case 0x053F:
+    return 0x056F; // [C] ARMENIAN CAPITAL LETTER KEN
+  case 0x0540:
+    return 0x0570; // [C] ARMENIAN CAPITAL LETTER HO
+  case 0x0541:
+    return 0x0571; // [C] ARMENIAN CAPITAL LETTER JA
+  case 0x0542:
+    return 0x0572; // [C] ARMENIAN CAPITAL LETTER GHAD
+  case 0x0543:
+    return 0x0573; // [C] ARMENIAN CAPITAL LETTER CHEH
+  case 0x0544:
+    return 0x0574; // [C] ARMENIAN CAPITAL LETTER MEN
+  case 0x0545:
+    return 0x0575; // [C] ARMENIAN CAPITAL LETTER YI
+  case 0x0546:
+    return 0x0576; // [C] ARMENIAN CAPITAL LETTER NOW
+  case 0x0547:
+    return 0x0577; // [C] ARMENIAN CAPITAL LETTER SHA
+  case 0x0548:
+    return 0x0578; // [C] ARMENIAN CAPITAL LETTER VO
+  case 0x0549:
+    return 0x0579; // [C] ARMENIAN CAPITAL LETTER CHA
+  case 0x054A:
+    return 0x057A; // [C] ARMENIAN CAPITAL LETTER PEH
+  case 0x054B:
+    return 0x057B; // [C] ARMENIAN CAPITAL LETTER JHEH
+  case 0x054C:
+    return 0x057C; // [C] ARMENIAN CAPITAL LETTER RA
+  case 0x054D:
+    return 0x057D; // [C] ARMENIAN CAPITAL LETTER SEH
+  case 0x054E:
+    return 0x057E; // [C] ARMENIAN CAPITAL LETTER VEW
+  case 0x054F:
+    return 0x057F; // [C] ARMENIAN CAPITAL LETTER TIWN
+  case 0x0550:
+    return 0x0580; // [C] ARMENIAN CAPITAL LETTER REH
+  case 0x0551:
+    return 0x0581; // [C] ARMENIAN CAPITAL LETTER CO
+  case 0x0552:
+    return 0x0582; // [C] ARMENIAN CAPITAL LETTER YIWN
+  case 0x0553:
+    return 0x0583; // [C] ARMENIAN CAPITAL LETTER PIWR
+  case 0x0554:
+    return 0x0584; // [C] ARMENIAN CAPITAL LETTER KEH
+  case 0x0555:
+    return 0x0585; // [C] ARMENIAN CAPITAL LETTER OH
+  case 0x0556:
+    return 0x0586; // [C] ARMENIAN CAPITAL LETTER FEH
+  case 0x10A0:
+    return 0x2D00; // [C] GEORGIAN CAPITAL LETTER AN
+  case 0x10A1:
+    return 0x2D01; // [C] GEORGIAN CAPITAL LETTER BAN
+  case 0x10A2:
+    return 0x2D02; // [C] GEORGIAN CAPITAL LETTER GAN
+  case 0x10A3:
+    return 0x2D03; // [C] GEORGIAN CAPITAL LETTER DON
+  case 0x10A4:
+    return 0x2D04; // [C] GEORGIAN CAPITAL LETTER EN
+  case 0x10A5:
+    return 0x2D05; // [C] GEORGIAN CAPITAL LETTER VIN
+  case 0x10A6:
+    return 0x2D06; // [C] GEORGIAN CAPITAL LETTER ZEN
+  case 0x10A7:
+    return 0x2D07; // [C] GEORGIAN CAPITAL LETTER TAN
+  case 0x10A8:
+    return 0x2D08; // [C] GEORGIAN CAPITAL LETTER IN
+  case 0x10A9:
+    return 0x2D09; // [C] GEORGIAN CAPITAL LETTER KAN
+  case 0x10AA:
+    return 0x2D0A; // [C] GEORGIAN CAPITAL LETTER LAS
+  case 0x10AB:
+    return 0x2D0B; // [C] GEORGIAN CAPITAL LETTER MAN
+  case 0x10AC:
+    return 0x2D0C; // [C] GEORGIAN CAPITAL LETTER NAR
+  case 0x10AD:
+    return 0x2D0D; // [C] GEORGIAN CAPITAL LETTER ON
+  case 0x10AE:
+    return 0x2D0E; // [C] GEORGIAN CAPITAL LETTER PAR
+  case 0x10AF:
+    return 0x2D0F; // [C] GEORGIAN CAPITAL LETTER ZHAR
+  case 0x10B0:
+    return 0x2D10; // [C] GEORGIAN CAPITAL LETTER RAE
+  case 0x10B1:
+    return 0x2D11; // [C] GEORGIAN CAPITAL LETTER SAN
+  case 0x10B2:
+    return 0x2D12; // [C] GEORGIAN CAPITAL LETTER TAR
+  case 0x10B3:
+    return 0x2D13; // [C] GEORGIAN CAPITAL LETTER UN
+  case 0x10B4:
+    return 0x2D14; // [C] GEORGIAN CAPITAL LETTER PHAR
+  case 0x10B5:
+    return 0x2D15; // [C] GEORGIAN CAPITAL LETTER KHAR
+  case 0x10B6:
+    return 0x2D16; // [C] GEORGIAN CAPITAL LETTER GHAN
+  case 0x10B7:
+    return 0x2D17; // [C] GEORGIAN CAPITAL LETTER QAR
+  case 0x10B8:
+    return 0x2D18; // [C] GEORGIAN CAPITAL LETTER SHIN
+  case 0x10B9:
+    return 0x2D19; // [C] GEORGIAN CAPITAL LETTER CHIN
+  case 0x10BA:
+    return 0x2D1A; // [C] GEORGIAN CAPITAL LETTER CAN
+  case 0x10BB:
+    return 0x2D1B; // [C] GEORGIAN CAPITAL LETTER JIL
+  case 0x10BC:
+    return 0x2D1C; // [C] GEORGIAN CAPITAL LETTER CIL
+  case 0x10BD:
+    return 0x2D1D; // [C] GEORGIAN CAPITAL LETTER CHAR
+  case 0x10BE:
+    return 0x2D1E; // [C] GEORGIAN CAPITAL LETTER XAN
+  case 0x10BF:
+    return 0x2D1F; // [C] GEORGIAN CAPITAL LETTER JHAN
+  case 0x10C0:
+    return 0x2D20; // [C] GEORGIAN CAPITAL LETTER HAE
+  case 0x10C1:
+    return 0x2D21; // [C] GEORGIAN CAPITAL LETTER HE
+  case 0x10C2:
+    return 0x2D22; // [C] GEORGIAN CAPITAL LETTER HIE
+  case 0x10C3:
+    return 0x2D23; // [C] GEORGIAN CAPITAL LETTER WE
+  case 0x10C4:
+    return 0x2D24; // [C] GEORGIAN CAPITAL LETTER HAR
+  case 0x10C5:
+    return 0x2D25; // [C] GEORGIAN CAPITAL LETTER HOE
+  case 0x10C7:
+    return 0x2D27; // [C] GEORGIAN CAPITAL LETTER YN
+  case 0x10CD:
+    return 0x2D2D; // [C] GEORGIAN CAPITAL LETTER AEN
+  case 0x13F8:
+    return 0x13F0; // [C] CHEROKEE SMALL LETTER YE
+  case 0x13F9:
+    return 0x13F1; // [C] CHEROKEE SMALL LETTER YI
+  case 0x13FA:
+    return 0x13F2; // [C] CHEROKEE SMALL LETTER YO
+  case 0x13FB:
+    return 0x13F3; // [C] CHEROKEE SMALL LETTER YU
+  case 0x13FC:
+    return 0x13F4; // [C] CHEROKEE SMALL LETTER YV
+  case 0x13FD:
+    return 0x13F5; // [C] CHEROKEE SMALL LETTER MV
+  case 0x1C80:
+    return 0x0432; // [C] CYRILLIC SMALL LETTER ROUNDED VE
+  case 0x1C81:
+    return 0x0434; // [C] CYRILLIC SMALL LETTER LONG-LEGGED DE
+  case 0x1C82:
+    return 0x043E; // [C] CYRILLIC SMALL LETTER NARROW O
+  case 0x1C83:
+    return 0x0441; // [C] CYRILLIC SMALL LETTER WIDE ES
+  case 0x1C84:
+    return 0x0442; // [C] CYRILLIC SMALL LETTER TALL TE
+  case 0x1C85:
+    return 0x0442; // [C] CYRILLIC SMALL LETTER THREE-LEGGED TE
+  case 0x1C86:
+    return 0x044A; // [C] CYRILLIC SMALL LETTER TALL HARD SIGN
+  case 0x1C87:
+    return 0x0463; // [C] CYRILLIC SMALL LETTER TALL YAT
+  case 0x1C88:
+    return 0xA64B; // [C] CYRILLIC SMALL LETTER UNBLENDED UK
+  case 0x1C89:
+    return 0x1C8A; // [C] CYRILLIC CAPITAL LETTER TJE
+  case 0x1C90:
+    return 0x10D0; // [C] GEORGIAN MTAVRULI CAPITAL LETTER AN
+  case 0x1C91:
+    return 0x10D1; // [C] GEORGIAN MTAVRULI CAPITAL LETTER BAN
+  case 0x1C92:
+    return 0x10D2; // [C] GEORGIAN MTAVRULI CAPITAL LETTER GAN
+  case 0x1C93:
+    return 0x10D3; // [C] GEORGIAN MTAVRULI CAPITAL LETTER DON
+  case 0x1C94:
+    return 0x10D4; // [C] GEORGIAN MTAVRULI CAPITAL LETTER EN
+  case 0x1C95:
+    return 0x10D5; // [C] GEORGIAN MTAVRULI CAPITAL LETTER VIN
+  case 0x1C96:
+    return 0x10D6; // [C] GEORGIAN MTAVRULI CAPITAL LETTER ZEN
+  case 0x1C97:
+    return 0x10D7; // [C] GEORGIAN MTAVRULI CAPITAL LETTER TAN
+  case 0x1C98:
+    return 0x10D8; // [C] GEORGIAN MTAVRULI CAPITAL LETTER IN
+  case 0x1C99:
+    return 0x10D9; // [C] GEORGIAN MTAVRULI CAPITAL LETTER KAN
+  case 0x1C9A:
+    return 0x10DA; // [C] GEORGIAN MTAVRULI CAPITAL LETTER LAS
+  case 0x1C9B:
+    return 0x10DB; // [C] GEORGIAN MTAVRULI CAPITAL LETTER MAN
+  case 0x1C9C:
+    return 0x10DC; // [C] GEORGIAN MTAVRULI CAPITAL LETTER NAR
+  case 0x1C9D:
+    return 0x10DD; // [C] GEORGIAN MTAVRULI CAPITAL LETTER ON
+  case 0x1C9E:
+    return 0x10DE; // [C] GEORGIAN MTAVRULI CAPITAL LETTER PAR
+  case 0x1C9F:
+    return 0x10DF; // [C] GEORGIAN MTAVRULI CAPITAL LETTER ZHAR
+  case 0x1CA0:
+    return 0x10E0; // [C] GEORGIAN MTAVRULI CAPITAL LETTER RAE
+  case 0x1CA1:
+    return 0x10E1; // [C] GEORGIAN MTAVRULI CAPITAL LETTER SAN
+  case 0x1CA2:
+    return 0x10E2; // [C] GEORGIAN MTAVRULI CAPITAL LETTER TAR
+  case 0x1CA3:
+    return 0x10E3; // [C] GEORGIAN MTAVRULI CAPITAL LETTER UN
+  case 0x1CA4:
+    return 0x10E4; // [C] GEORGIAN MTAVRULI CAPITAL LETTER PHAR
+  case 0x1CA5:
+    return 0x10E5; // [C] GEORGIAN MTAVRULI CAPITAL LETTER KHAR
+  case 0x1CA6:
+    return 0x10E6; // [C] GEORGIAN MTAVRULI CAPITAL LETTER GHAN
+  case 0x1CA7:
+    return 0x10E7; // [C] GEORGIAN MTAVRULI CAPITAL LETTER QAR
+  case 0x1CA8:
+    return 0x10E8; // [C] GEORGIAN MTAVRULI CAPITAL LETTER SHIN
+  case 0x1CA9:
+    return 0x10E9; // [C] GEORGIAN MTAVRULI CAPITAL LETTER CHIN
+  case 0x1CAA:
+    return 0x10EA; // [C] GEORGIAN MTAVRULI CAPITAL LETTER CAN
+  case 0x1CAB:
+    return 0x10EB; // [C] GEORGIAN MTAVRULI CAPITAL LETTER JIL
+  case 0x1CAC:
+    return 0x10EC; // [C] GEORGIAN MTAVRULI CAPITAL LETTER CIL
+  case 0x1CAD:
+    return 0x10ED; // [C] GEORGIAN MTAVRULI CAPITAL LETTER CHAR
+  case 0x1CAE:
+    return 0x10EE; // [C] GEORGIAN MTAVRULI CAPITAL LETTER XAN
+  case 0x1CAF:
+    return 0x10EF; // [C] GEORGIAN MTAVRULI CAPITAL LETTER JHAN
+  case 0x1CB0:
+    return 0x10F0; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HAE
+  case 0x1CB1:
+    return 0x10F1; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HE
+  case 0x1CB2:
+    return 0x10F2; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HIE
+  case 0x1CB3:
+    return 0x10F3; // [C] GEORGIAN MTAVRULI CAPITAL LETTER WE
+  case 0x1CB4:
+    return 0x10F4; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HAR
+  case 0x1CB5:
+    return 0x10F5; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HOE
+  case 0x1CB6:
+    return 0x10F6; // [C] GEORGIAN MTAVRULI CAPITAL LETTER FI
+  case 0x1CB7:
+    return 0x10F7; // [C] GEORGIAN MTAVRULI CAPITAL LETTER YN
+  case 0x1CB8:
+    return 0x10F8; // [C] GEORGIAN MTAVRULI CAPITAL LETTER ELIFI
+  case 0x1CB9:
+    return 0x10F9; // [C] GEORGIAN MTAVRULI CAPITAL LETTER TURNED GAN
+  case 0x1CBA:
+    return 0x10FA; // [C] GEORGIAN MTAVRULI CAPITAL LETTER AIN
+  case 0x1CBD:
+    return 0x10FD; // [C] GEORGIAN MTAVRULI CAPITAL LETTER AEN
+  case 0x1CBE:
+    return 0x10FE; // [C] GEORGIAN MTAVRULI CAPITAL LETTER HARD SIGN
+  case 0x1CBF:
+    return 0x10FF; // [C] GEORGIAN MTAVRULI CAPITAL LETTER LABIAL SIGN
+  case 0x1E00:
+    return 0x1E01; // [C] LATIN CAPITAL LETTER A WITH RING BELOW
+  case 0x1E02:
+    return 0x1E03; // [C] LATIN CAPITAL LETTER B WITH DOT ABOVE
+  case 0x1E04:
+    return 0x1E05; // [C] LATIN CAPITAL LETTER B WITH DOT BELOW
+  case 0x1E06:
+    return 0x1E07; // [C] LATIN CAPITAL LETTER B WITH LINE BELOW
+  case 0x1E08:
+    return 0x1E09; // [C] LATIN CAPITAL LETTER C WITH CEDILLA AND ACUTE
+  case 0x1E0A:
+    return 0x1E0B; // [C] LATIN CAPITAL LETTER D WITH DOT ABOVE
+  case 0x1E0C:
+    return 0x1E0D; // [C] LATIN CAPITAL LETTER D WITH DOT BELOW
+  case 0x1E0E:
+    return 0x1E0F; // [C] LATIN CAPITAL LETTER D WITH LINE BELOW
+  case 0x1E10:
+    return 0x1E11; // [C] LATIN CAPITAL LETTER D WITH CEDILLA
+  case 0x1E12:
+    return 0x1E13; // [C] LATIN CAPITAL LETTER D WITH CIRCUMFLEX BELOW
+  case 0x1E14:
+    return 0x1E15; // [C] LATIN CAPITAL LETTER E WITH MACRON AND GRAVE
+  case 0x1E16:
+    return 0x1E17; // [C] LATIN CAPITAL LETTER E WITH MACRON AND ACUTE
+  case 0x1E18:
+    return 0x1E19; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX BELOW
+  case 0x1E1A:
+    return 0x1E1B; // [C] LATIN CAPITAL LETTER E WITH TILDE BELOW
+  case 0x1E1C:
+    return 0x1E1D; // [C] LATIN CAPITAL LETTER E WITH CEDILLA AND BREVE
+  case 0x1E1E:
+    return 0x1E1F; // [C] LATIN CAPITAL LETTER F WITH DOT ABOVE
+  case 0x1E20:
+    return 0x1E21; // [C] LATIN CAPITAL LETTER G WITH MACRON
+  case 0x1E22:
+    return 0x1E23; // [C] LATIN CAPITAL LETTER H WITH DOT ABOVE
+  case 0x1E24:
+    return 0x1E25; // [C] LATIN CAPITAL LETTER H WITH DOT BELOW
+  case 0x1E26:
+    return 0x1E27; // [C] LATIN CAPITAL LETTER H WITH DIAERESIS
+  case 0x1E28:
+    return 0x1E29; // [C] LATIN CAPITAL LETTER H WITH CEDILLA
+  case 0x1E2A:
+    return 0x1E2B; // [C] LATIN CAPITAL LETTER H WITH BREVE BELOW
+  case 0x1E2C:
+    return 0x1E2D; // [C] LATIN CAPITAL LETTER I WITH TILDE BELOW
+  case 0x1E2E:
+    return 0x1E2F; // [C] LATIN CAPITAL LETTER I WITH DIAERESIS AND ACUTE
+  case 0x1E30:
+    return 0x1E31; // [C] LATIN CAPITAL LETTER K WITH ACUTE
+  case 0x1E32:
+    return 0x1E33; // [C] LATIN CAPITAL LETTER K WITH DOT BELOW
+  case 0x1E34:
+    return 0x1E35; // [C] LATIN CAPITAL LETTER K WITH LINE BELOW
+  case 0x1E36:
+    return 0x1E37; // [C] LATIN CAPITAL LETTER L WITH DOT BELOW
+  case 0x1E38:
+    return 0x1E39; // [C] LATIN CAPITAL LETTER L WITH DOT BELOW AND MACRON
+  case 0x1E3A:
+    return 0x1E3B; // [C] LATIN CAPITAL LETTER L WITH LINE BELOW
+  case 0x1E3C:
+    return 0x1E3D; // [C] LATIN CAPITAL LETTER L WITH CIRCUMFLEX BELOW
+  case 0x1E3E:
+    return 0x1E3F; // [C] LATIN CAPITAL LETTER M WITH ACUTE
+  case 0x1E40:
+    return 0x1E41; // [C] LATIN CAPITAL LETTER M WITH DOT ABOVE
+  case 0x1E42:
+    return 0x1E43; // [C] LATIN CAPITAL LETTER M WITH DOT BELOW
+  case 0x1E44:
+    return 0x1E45; // [C] LATIN CAPITAL LETTER N WITH DOT ABOVE
+  case 0x1E46:
+    return 0x1E47; // [C] LATIN CAPITAL LETTER N WITH DOT BELOW
+  case 0x1E48:
+    return 0x1E49; // [C] LATIN CAPITAL LETTER N WITH LINE BELOW
+  case 0x1E4A:
+    return 0x1E4B; // [C] LATIN CAPITAL LETTER N WITH CIRCUMFLEX BELOW
+  case 0x1E4C:
+    return 0x1E4D; // [C] LATIN CAPITAL LETTER O WITH TILDE AND ACUTE
+  case 0x1E4E:
+    return 0x1E4F; // [C] LATIN CAPITAL LETTER O WITH TILDE AND DIAERESIS
+  case 0x1E50:
+    return 0x1E51; // [C] LATIN CAPITAL LETTER O WITH MACRON AND GRAVE
+  case 0x1E52:
+    return 0x1E53; // [C] LATIN CAPITAL LETTER O WITH MACRON AND ACUTE
+  case 0x1E54:
+    return 0x1E55; // [C] LATIN CAPITAL LETTER P WITH ACUTE
+  case 0x1E56:
+    return 0x1E57; // [C] LATIN CAPITAL LETTER P WITH DOT ABOVE
+  case 0x1E58:
+    return 0x1E59; // [C] LATIN CAPITAL LETTER R WITH DOT ABOVE
+  case 0x1E5A:
+    return 0x1E5B; // [C] LATIN CAPITAL LETTER R WITH DOT BELOW
+  case 0x1E5C:
+    return 0x1E5D; // [C] LATIN CAPITAL LETTER R WITH DOT BELOW AND MACRON
+  case 0x1E5E:
+    return 0x1E5F; // [C] LATIN CAPITAL LETTER R WITH LINE BELOW
+  case 0x1E60:
+    return 0x1E61; // [C] LATIN CAPITAL LETTER S WITH DOT ABOVE
+  case 0x1E62:
+    return 0x1E63; // [C] LATIN CAPITAL LETTER S WITH DOT BELOW
+  case 0x1E64:
+    return 0x1E65; // [C] LATIN CAPITAL LETTER S WITH ACUTE AND DOT ABOVE
+  case 0x1E66:
+    return 0x1E67; // [C] LATIN CAPITAL LETTER S WITH CARON AND DOT ABOVE
+  case 0x1E68:
+    return 0x1E69; // [C] LATIN CAPITAL LETTER S WITH DOT BELOW AND DOT ABOVE
+  case 0x1E6A:
+    return 0x1E6B; // [C] LATIN CAPITAL LETTER T WITH DOT ABOVE
+  case 0x1E6C:
+    return 0x1E6D; // [C] LATIN CAPITAL LETTER T WITH DOT BELOW
+  case 0x1E6E:
+    return 0x1E6F; // [C] LATIN CAPITAL LETTER T WITH LINE BELOW
+  case 0x1E70:
+    return 0x1E71; // [C] LATIN CAPITAL LETTER T WITH CIRCUMFLEX BELOW
+  case 0x1E72:
+    return 0x1E73; // [C] LATIN CAPITAL LETTER U WITH DIAERESIS BELOW
+  case 0x1E74:
+    return 0x1E75; // [C] LATIN CAPITAL LETTER U WITH TILDE BELOW
+  case 0x1E76:
+    return 0x1E77; // [C] LATIN CAPITAL LETTER U WITH CIRCUMFLEX BELOW
+  case 0x1E78:
+    return 0x1E79; // [C] LATIN CAPITAL LETTER U WITH TILDE AND ACUTE
+  case 0x1E7A:
+    return 0x1E7B; // [C] LATIN CAPITAL LETTER U WITH MACRON AND DIAERESIS
+  case 0x1E7C:
+    return 0x1E7D; // [C] LATIN CAPITAL LETTER V WITH TILDE
+  case 0x1E7E:
+    return 0x1E7F; // [C] LATIN CAPITAL LETTER V WITH DOT BELOW
+  case 0x1E80:
+    return 0x1E81; // [C] LATIN CAPITAL LETTER W WITH GRAVE
+  case 0x1E82:
+    return 0x1E83; // [C] LATIN CAPITAL LETTER W WITH ACUTE
+  case 0x1E84:
+    return 0x1E85; // [C] LATIN CAPITAL LETTER W WITH DIAERESIS
+  case 0x1E86:
+    return 0x1E87; // [C] LATIN CAPITAL LETTER W WITH DOT ABOVE
+  case 0x1E88:
+    return 0x1E89; // [C] LATIN CAPITAL LETTER W WITH DOT BELOW
+  case 0x1E8A:
+    return 0x1E8B; // [C] LATIN CAPITAL LETTER X WITH DOT ABOVE
+  case 0x1E8C:
+    return 0x1E8D; // [C] LATIN CAPITAL LETTER X WITH DIAERESIS
+  case 0x1E8E:
+    return 0x1E8F; // [C] LATIN CAPITAL LETTER Y WITH DOT ABOVE
+  case 0x1E90:
+    return 0x1E91; // [C] LATIN CAPITAL LETTER Z WITH CIRCUMFLEX
+  case 0x1E92:
+    return 0x1E93; // [C] LATIN CAPITAL LETTER Z WITH DOT BELOW
+  case 0x1E94:
+    return 0x1E95; // [C] LATIN CAPITAL LETTER Z WITH LINE BELOW
+  case 0x1E9B:
+    return 0x1E61; // [C] LATIN SMALL LETTER LONG S WITH DOT ABOVE
+  case 0x1E9E:
+    return 0x00DF; // [S] LATIN CAPITAL LETTER SHARP S
+  case 0x1EA0:
+    return 0x1EA1; // [C] LATIN CAPITAL LETTER A WITH DOT BELOW
+  case 0x1EA2:
+    return 0x1EA3; // [C] LATIN CAPITAL LETTER A WITH HOOK ABOVE
+  case 0x1EA4:
+    return 0x1EA5; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND ACUTE
+  case 0x1EA6:
+    return 0x1EA7; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND GRAVE
+  case 0x1EA8:
+    return 0x1EA9; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND HOOK ABOVE
+  case 0x1EAA:
+    return 0x1EAB; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND TILDE
+  case 0x1EAC:
+    return 0x1EAD; // [C] LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND DOT BELOW
+  case 0x1EAE:
+    return 0x1EAF; // [C] LATIN CAPITAL LETTER A WITH BREVE AND ACUTE
+  case 0x1EB0:
+    return 0x1EB1; // [C] LATIN CAPITAL LETTER A WITH BREVE AND GRAVE
+  case 0x1EB2:
+    return 0x1EB3; // [C] LATIN CAPITAL LETTER A WITH BREVE AND HOOK ABOVE
+  case 0x1EB4:
+    return 0x1EB5; // [C] LATIN CAPITAL LETTER A WITH BREVE AND TILDE
+  case 0x1EB6:
+    return 0x1EB7; // [C] LATIN CAPITAL LETTER A WITH BREVE AND DOT BELOW
+  case 0x1EB8:
+    return 0x1EB9; // [C] LATIN CAPITAL LETTER E WITH DOT BELOW
+  case 0x1EBA:
+    return 0x1EBB; // [C] LATIN CAPITAL LETTER E WITH HOOK ABOVE
+  case 0x1EBC:
+    return 0x1EBD; // [C] LATIN CAPITAL LETTER E WITH TILDE
+  case 0x1EBE:
+    return 0x1EBF; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND ACUTE
+  case 0x1EC0:
+    return 0x1EC1; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND GRAVE
+  case 0x1EC2:
+    return 0x1EC3; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND HOOK ABOVE
+  case 0x1EC4:
+    return 0x1EC5; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND TILDE
+  case 0x1EC6:
+    return 0x1EC7; // [C] LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND DOT BELOW
+  case 0x1EC8:
+    return 0x1EC9; // [C] LATIN CAPITAL LETTER I WITH HOOK ABOVE
+  case 0x1ECA:
+    return 0x1ECB; // [C] LATIN CAPITAL LETTER I WITH DOT BELOW
+  case 0x1ECC:
+    return 0x1ECD; // [C] LATIN CAPITAL LETTER O WITH DOT BELOW
+  case 0x1ECE:
+    return 0x1ECF; // [C] LATIN CAPITAL LETTER O WITH HOOK ABOVE
+  case 0x1ED0:
+    return 0x1ED1; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND ACUTE
+  case 0x1ED2:
+    return 0x1ED3; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND GRAVE
+  case 0x1ED4:
+    return 0x1ED5; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND HOOK ABOVE
+  case 0x1ED6:
+    return 0x1ED7; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND TILDE
+  case 0x1ED8:
+    return 0x1ED9; // [C] LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND DOT BELOW
+  case 0x1EDA:
+    return 0x1EDB; // [C] LATIN CAPITAL LETTER O WITH HORN AND ACUTE
+  case 0x1EDC:
+    return 0x1EDD; // [C] LATIN CAPITAL LETTER O WITH HORN AND GRAVE
+  case 0x1EDE:
+    return 0x1EDF; // [C] LATIN CAPITAL LETTER O WITH HORN AND HOOK ABOVE
+  case 0x1EE0:
+    return 0x1EE1; // [C] LATIN CAPITAL LETTER O WITH HORN AND TILDE
+  case 0x1EE2:
+    return 0x1EE3; // [C] LATIN CAPITAL LETTER O WITH HORN AND DOT BELOW
+  case 0x1EE4:
+    return 0x1EE5; // [C] LATIN CAPITAL LETTER U WITH DOT BELOW
+  case 0x1EE6:
+    return 0x1EE7; // [C] LATIN CAPITAL LETTER U WITH HOOK ABOVE
+  case 0x1EE8:
+    return 0x1EE9; // [C] LATIN CAPITAL LETTER U WITH HORN AND ACUTE
+  case 0x1EEA:
+    return 0x1EEB; // [C] LATIN CAPITAL LETTER U WITH HORN AND GRAVE
+  case 0x1EEC:
+    return 0x1EED; // [C] LATIN CAPITAL LETTER U WITH HORN AND HOOK ABOVE
+  case 0x1EEE:
+    return 0x1EEF; // [C] LATIN CAPITAL LETTER U WITH HORN AND TILDE
+  case 0x1EF0:
+    return 0x1EF1; // [C] LATIN CAPITAL LETTER U WITH HORN AND DOT BELOW
+  case 0x1EF2:
+    return 0x1EF3; // [C] LATIN CAPITAL LETTER Y WITH GRAVE
+  case 0x1EF4:
+    return 0x1EF5; // [C] LATIN CAPITAL LETTER Y WITH DOT BELOW
+  case 0x1EF6:
+    return 0x1EF7; // [C] LATIN CAPITAL LETTER Y WITH HOOK ABOVE
+  case 0x1EF8:
+    return 0x1EF9; // [C] LATIN CAPITAL LETTER Y WITH TILDE
+  case 0x1EFA:
+    return 0x1EFB; // [C] LATIN CAPITAL LETTER MIDDLE-WELSH LL
+  case 0x1EFC:
+    return 0x1EFD; // [C] LATIN CAPITAL LETTER MIDDLE-WELSH V
+  case 0x1EFE:
+    return 0x1EFF; // [C] LATIN CAPITAL LETTER Y WITH LOOP
+  case 0x1F08:
+    return 0x1F00; // [C] GREEK CAPITAL LETTER ALPHA WITH PSILI
+  case 0x1F09:
+    return 0x1F01; // [C] GREEK CAPITAL LETTER ALPHA WITH DASIA
+  case 0x1F0A:
+    return 0x1F02; // [C] GREEK CAPITAL LETTER ALPHA WITH PSILI AND VARIA
+  case 0x1F0B:
+    return 0x1F03; // [C] GREEK CAPITAL LETTER ALPHA WITH DASIA AND VARIA
+  case 0x1F0C:
+    return 0x1F04; // [C] GREEK CAPITAL LETTER ALPHA WITH PSILI AND OXIA
+  case 0x1F0D:
+    return 0x1F05; // [C] GREEK CAPITAL LETTER ALPHA WITH DASIA AND OXIA
+  case 0x1F0E:
+    return 0x1F06; // [C] GREEK CAPITAL LETTER ALPHA WITH PSILI AND PERISPOMENI
+  case 0x1F0F:
+    return 0x1F07; // [C] GREEK CAPITAL LETTER ALPHA WITH DASIA AND PERISPOMENI
+  case 0x1F18:
+    return 0x1F10; // [C] GREEK CAPITAL LETTER EPSILON WITH PSILI
+  case 0x1F19:
+    return 0x1F11; // [C] GREEK CAPITAL LETTER EPSILON WITH DASIA
+  case 0x1F1A:
+    return 0x1F12; // [C] GREEK CAPITAL LETTER EPSILON WITH PSILI AND VARIA
+  case 0x1F1B:
+    return 0x1F13; // [C] GREEK CAPITAL LETTER EPSILON WITH DASIA AND VARIA
+  case 0x1F1C:
+    return 0x1F14; // [C] GREEK CAPITAL LETTER EPSILON WITH PSILI AND OXIA
+  case 0x1F1D:
+    return 0x1F15; // [C] GREEK CAPITAL LETTER EPSILON WITH DASIA AND OXIA
+  case 0x1F28:
+    return 0x1F20; // [C] GREEK CAPITAL LETTER ETA WITH PSILI
+  case 0x1F29:
+    return 0x1F21; // [C] GREEK CAPITAL LETTER ETA WITH DASIA
+  case 0x1F2A:
+    return 0x1F22; // [C] GREEK CAPITAL LETTER ETA WITH PSILI AND VARIA
+  case 0x1F2B:
+    return 0x1F23; // [C] GREEK CAPITAL LETTER ETA WITH DASIA AND VARIA
+  case 0x1F2C:
+    return 0x1F24; // [C] GREEK CAPITAL LETTER ETA WITH PSILI AND OXIA
+  case 0x1F2D:
+    return 0x1F25; // [C] GREEK CAPITAL LETTER ETA WITH DASIA AND OXIA
+  case 0x1F2E:
+    return 0x1F26; // [C] GREEK CAPITAL LETTER ETA WITH PSILI AND PERISPOMENI
+  case 0x1F2F:
+    return 0x1F27; // [C] GREEK CAPITAL LETTER ETA WITH DASIA AND PERISPOMENI
+  case 0x1F38:
+    return 0x1F30; // [C] GREEK CAPITAL LETTER IOTA WITH PSILI
+  case 0x1F39:
+    return 0x1F31; // [C] GREEK CAPITAL LETTER IOTA WITH DASIA
+  case 0x1F3A:
+    return 0x1F32; // [C] GREEK CAPITAL LETTER IOTA WITH PSILI AND VARIA
+  case 0x1F3B:
+    return 0x1F33; // [C] GREEK CAPITAL LETTER IOTA WITH DASIA AND VARIA
+  case 0x1F3C:
+    return 0x1F34; // [C] GREEK CAPITAL LETTER IOTA WITH PSILI AND OXIA
+  case 0x1F3D:
+    return 0x1F35; // [C] GREEK CAPITAL LETTER IOTA WITH DASIA AND OXIA
+  case 0x1F3E:
+    return 0x1F36; // [C] GREEK CAPITAL LETTER IOTA WITH PSILI AND PERISPOMENI
+  case 0x1F3F:
+    return 0x1F37; // [C] GREEK CAPITAL LETTER IOTA WITH DASIA AND PERISPOMENI
+  case 0x1F48:
+    return 0x1F40; // [C] GREEK CAPITAL LETTER OMICRON WITH PSILI
+  case 0x1F49:
+    return 0x1F41; // [C] GREEK CAPITAL LETTER OMICRON WITH DASIA
+  case 0x1F4A:
+    return 0x1F42; // [C] GREEK CAPITAL LETTER OMICRON WITH PSILI AND VARIA
+  case 0x1F4B:
+    return 0x1F43; // [C] GREEK CAPITAL LETTER OMICRON WITH DASIA AND VARIA
+  case 0x1F4C:
+    return 0x1F44; // [C] GREEK CAPITAL LETTER OMICRON WITH PSILI AND OXIA
+  case 0x1F4D:
+    return 0x1F45; // [C] GREEK CAPITAL LETTER OMICRON WITH DASIA AND OXIA
+  case 0x1F59:
+    return 0x1F51; // [C] GREEK CAPITAL LETTER UPSILON WITH DASIA
+  case 0x1F5B:
+    return 0x1F53; // [C] GREEK CAPITAL LETTER UPSILON WITH DASIA AND VARIA
+  case 0x1F5D:
+    return 0x1F55; // [C] GREEK CAPITAL LETTER UPSILON WITH DASIA AND OXIA
+  case 0x1F5F:
+    return 0x1F57; // [C] GREEK CAPITAL LETTER UPSILON WITH DASIA AND
+                   // PERISPOMENI
+  case 0x1F68:
+    return 0x1F60; // [C] GREEK CAPITAL LETTER OMEGA WITH PSILI
+  case 0x1F69:
+    return 0x1F61; // [C] GREEK CAPITAL LETTER OMEGA WITH DASIA
+  case 0x1F6A:
+    return 0x1F62; // [C] GREEK CAPITAL LETTER OMEGA WITH PSILI AND VARIA
+  case 0x1F6B:
+    return 0x1F63; // [C] GREEK CAPITAL LETTER OMEGA WITH DASIA AND VARIA
+  case 0x1F6C:
+    return 0x1F64; // [C] GREEK CAPITAL LETTER OMEGA WITH PSILI AND OXIA
+  case 0x1F6D:
+    return 0x1F65; // [C] GREEK CAPITAL LETTER OMEGA WITH DASIA AND OXIA
+  case 0x1F6E:
+    return 0x1F66; // [C] GREEK CAPITAL LETTER OMEGA WITH PSILI AND PERISPOMENI
+  case 0x1F6F:
+    return 0x1F67; // [C] GREEK CAPITAL LETTER OMEGA WITH DASIA AND PERISPOMENI
+  case 0x1F88:
+    return 0x1F80; // [S] GREEK CAPITAL LETTER ALPHA WITH PSILI AND
+                   // PROSGEGRAMMENI
+  case 0x1F89:
+    return 0x1F81; // [S] GREEK CAPITAL LETTER ALPHA WITH DASIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F8A:
+    return 0x1F82; // [S] GREEK CAPITAL LETTER ALPHA WITH PSILI AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F8B:
+    return 0x1F83; // [S] GREEK CAPITAL LETTER ALPHA WITH DASIA AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F8C:
+    return 0x1F84; // [S] GREEK CAPITAL LETTER ALPHA WITH PSILI AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F8D:
+    return 0x1F85; // [S] GREEK CAPITAL LETTER ALPHA WITH DASIA AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F8E:
+    return 0x1F86; // [S] GREEK CAPITAL LETTER ALPHA WITH PSILI AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1F8F:
+    return 0x1F87; // [S] GREEK CAPITAL LETTER ALPHA WITH DASIA AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1F98:
+    return 0x1F90; // [S] GREEK CAPITAL LETTER ETA WITH PSILI AND PROSGEGRAMMENI
+  case 0x1F99:
+    return 0x1F91; // [S] GREEK CAPITAL LETTER ETA WITH DASIA AND PROSGEGRAMMENI
+  case 0x1F9A:
+    return 0x1F92; // [S] GREEK CAPITAL LETTER ETA WITH PSILI AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F9B:
+    return 0x1F93; // [S] GREEK CAPITAL LETTER ETA WITH DASIA AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F9C:
+    return 0x1F94; // [S] GREEK CAPITAL LETTER ETA WITH PSILI AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F9D:
+    return 0x1F95; // [S] GREEK CAPITAL LETTER ETA WITH DASIA AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1F9E:
+    return 0x1F96; // [S] GREEK CAPITAL LETTER ETA WITH PSILI AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1F9F:
+    return 0x1F97; // [S] GREEK CAPITAL LETTER ETA WITH DASIA AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1FA8:
+    return 0x1FA0; // [S] GREEK CAPITAL LETTER OMEGA WITH PSILI AND
+                   // PROSGEGRAMMENI
+  case 0x1FA9:
+    return 0x1FA1; // [S] GREEK CAPITAL LETTER OMEGA WITH DASIA AND
+                   // PROSGEGRAMMENI
+  case 0x1FAA:
+    return 0x1FA2; // [S] GREEK CAPITAL LETTER OMEGA WITH PSILI AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1FAB:
+    return 0x1FA3; // [S] GREEK CAPITAL LETTER OMEGA WITH DASIA AND VARIA AND
+                   // PROSGEGRAMMENI
+  case 0x1FAC:
+    return 0x1FA4; // [S] GREEK CAPITAL LETTER OMEGA WITH PSILI AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1FAD:
+    return 0x1FA5; // [S] GREEK CAPITAL LETTER OMEGA WITH DASIA AND OXIA AND
+                   // PROSGEGRAMMENI
+  case 0x1FAE:
+    return 0x1FA6; // [S] GREEK CAPITAL LETTER OMEGA WITH PSILI AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1FAF:
+    return 0x1FA7; // [S] GREEK CAPITAL LETTER OMEGA WITH DASIA AND PERISPOMENI
+                   // AND PROSGEGRAMMENI
+  case 0x1FB8:
+    return 0x1FB0; // [C] GREEK CAPITAL LETTER ALPHA WITH VRACHY
+  case 0x1FB9:
+    return 0x1FB1; // [C] GREEK CAPITAL LETTER ALPHA WITH MACRON
+  case 0x1FBA:
+    return 0x1F70; // [C] GREEK CAPITAL LETTER ALPHA WITH VARIA
+  case 0x1FBB:
+    return 0x1F71; // [C] GREEK CAPITAL LETTER ALPHA WITH OXIA
+  case 0x1FBC:
+    return 0x1FB3; // [S] GREEK CAPITAL LETTER ALPHA WITH PROSGEGRAMMENI
+  case 0x1FBE:
+    return 0x03B9; // [C] GREEK PROSGEGRAMMENI
+  case 0x1FC8:
+    return 0x1F72; // [C] GREEK CAPITAL LETTER EPSILON WITH VARIA
+  case 0x1FC9:
+    return 0x1F73; // [C] GREEK CAPITAL LETTER EPSILON WITH OXIA
+  case 0x1FCA:
+    return 0x1F74; // [C] GREEK CAPITAL LETTER ETA WITH VARIA
+  case 0x1FCB:
+    return 0x1F75; // [C] GREEK CAPITAL LETTER ETA WITH OXIA
+  case 0x1FCC:
+    return 0x1FC3; // [S] GREEK CAPITAL LETTER ETA WITH PROSGEGRAMMENI
+  case 0x1FD3:
+    return 0x0390; // [S] GREEK SMALL LETTER IOTA WITH DIALYTIKA AND OXIA
+  case 0x1FD8:
+    return 0x1FD0; // [C] GREEK CAPITAL LETTER IOTA WITH VRACHY
+  case 0x1FD9:
+    return 0x1FD1; // [C] GREEK CAPITAL LETTER IOTA WITH MACRON
+  case 0x1FDA:
+    return 0x1F76; // [C] GREEK CAPITAL LETTER IOTA WITH VARIA
+  case 0x1FDB:
+    return 0x1F77; // [C] GREEK CAPITAL LETTER IOTA WITH OXIA
+  case 0x1FE3:
+    return 0x03B0; // [S] GREEK SMALL LETTER UPSILON WITH DIALYTIKA AND OXIA
+  case 0x1FE8:
+    return 0x1FE0; // [C] GREEK CAPITAL LETTER UPSILON WITH VRACHY
+  case 0x1FE9:
+    return 0x1FE1; // [C] GREEK CAPITAL LETTER UPSILON WITH MACRON
+  case 0x1FEA:
+    return 0x1F7A; // [C] GREEK CAPITAL LETTER UPSILON WITH VARIA
+  case 0x1FEB:
+    return 0x1F7B; // [C] GREEK CAPITAL LETTER UPSILON WITH OXIA
+  case 0x1FEC:
+    return 0x1FE5; // [C] GREEK CAPITAL LETTER RHO WITH DASIA
+  case 0x1FF8:
+    return 0x1F78; // [C] GREEK CAPITAL LETTER OMICRON WITH VARIA
+  case 0x1FF9:
+    return 0x1F79; // [C] GREEK CAPITAL LETTER OMICRON WITH OXIA
+  case 0x1FFA:
+    return 0x1F7C; // [C] GREEK CAPITAL LETTER OMEGA WITH VARIA
+  case 0x1FFB:
+    return 0x1F7D; // [C] GREEK CAPITAL LETTER OMEGA WITH OXIA
+  case 0x1FFC:
+    return 0x1FF3; // [S] GREEK CAPITAL LETTER OMEGA WITH PROSGEGRAMMENI
+  case 0x2126:
+    return 0x03C9; // [C] OHM SIGN
+  case 0x212A:
+    return 0x006B; // [C] KELVIN SIGN
+  case 0x212B:
+    return 0x00E5; // [C] ANGSTROM SIGN
+  case 0x2132:
+    return 0x214E; // [C] TURNED CAPITAL F
+  case 0x2160:
+    return 0x2170; // [C] ROMAN NUMERAL ONE
+  case 0x2161:
+    return 0x2171; // [C] ROMAN NUMERAL TWO
+  case 0x2162:
+    return 0x2172; // [C] ROMAN NUMERAL THREE
+  case 0x2163:
+    return 0x2173; // [C] ROMAN NUMERAL FOUR
+  case 0x2164:
+    return 0x2174; // [C] ROMAN NUMERAL FIVE
+  case 0x2165:
+    return 0x2175; // [C] ROMAN NUMERAL SIX
+  case 0x2166:
+    return 0x2176; // [C] ROMAN NUMERAL SEVEN
+  case 0x2167:
+    return 0x2177; // [C] ROMAN NUMERAL EIGHT
+  case 0x2168:
+    return 0x2178; // [C] ROMAN NUMERAL NINE
+  case 0x2169:
+    return 0x2179; // [C] ROMAN NUMERAL TEN
+  case 0x216A:
+    return 0x217A; // [C] ROMAN NUMERAL ELEVEN
+  case 0x216B:
+    return 0x217B; // [C] ROMAN NUMERAL TWELVE
+  case 0x216C:
+    return 0x217C; // [C] ROMAN NUMERAL FIFTY
+  case 0x216D:
+    return 0x217D; // [C] ROMAN NUMERAL ONE HUNDRED
+  case 0x216E:
+    return 0x217E; // [C] ROMAN NUMERAL FIVE HUNDRED
+  case 0x216F:
+    return 0x217F; // [C] ROMAN NUMERAL ONE THOUSAND
+  case 0x2183:
+    return 0x2184; // [C] ROMAN NUMERAL REVERSED ONE HUNDRED
+  case 0x24B6:
+    return 0x24D0; // [C] CIRCLED LATIN CAPITAL LETTER A
+  case 0x24B7:
+    return 0x24D1; // [C] CIRCLED LATIN CAPITAL LETTER B
+  case 0x24B8:
+    return 0x24D2; // [C] CIRCLED LATIN CAPITAL LETTER C
+  case 0x24B9:
+    return 0x24D3; // [C] CIRCLED LATIN CAPITAL LETTER D
+  case 0x24BA:
+    return 0x24D4; // [C] CIRCLED LATIN CAPITAL LETTER E
+  case 0x24BB:
+    return 0x24D5; // [C] CIRCLED LATIN CAPITAL LETTER F
+  case 0x24BC:
+    return 0x24D6; // [C] CIRCLED LATIN CAPITAL LETTER G
+  case 0x24BD:
+    return 0x24D7; // [C] CIRCLED LATIN CAPITAL LETTER H
+  case 0x24BE:
+    return 0x24D8; // [C] CIRCLED LATIN CAPITAL LETTER I
+  case 0x24BF:
+    return 0x24D9; // [C] CIRCLED LATIN CAPITAL LETTER J
+  case 0x24C0:
+    return 0x24DA; // [C] CIRCLED LATIN CAPITAL LETTER K
+  case 0x24C1:
+    return 0x24DB; // [C] CIRCLED LATIN CAPITAL LETTER L
+  case 0x24C2:
+    return 0x24DC; // [C] CIRCLED LATIN CAPITAL LETTER M
+  case 0x24C3:
+    return 0x24DD; // [C] CIRCLED LATIN CAPITAL LETTER N
+  case 0x24C4:
+    return 0x24DE; // [C] CIRCLED LATIN CAPITAL LETTER O
+  case 0x24C5:
+    return 0x24DF; // [C] CIRCLED LATIN CAPITAL LETTER P
+  case 0x24C6:
+    return 0x24E0; // [C] CIRCLED LATIN CAPITAL LETTER Q
+  case 0x24C7:
+    return 0x24E1; // [C] CIRCLED LATIN CAPITAL LETTER R
+  case 0x24C8:
+    return 0x24E2; // [C] CIRCLED LATIN CAPITAL LETTER S
+  case 0x24C9:
+    return 0x24E3; // [C] CIRCLED LATIN CAPITAL LETTER T
+  case 0x24CA:
+    return 0x24E4; // [C] CIRCLED LATIN CAPITAL LETTER U
+  case 0x24CB:
+    return 0x24E5; // [C] CIRCLED LATIN CAPITAL LETTER V
+  case 0x24CC:
+    return 0x24E6; // [C] CIRCLED LATIN CAPITAL LETTER W
+  case 0x24CD:
+    return 0x24E7; // [C] CIRCLED LATIN CAPITAL LETTER X
+  case 0x24CE:
+    return 0x24E8; // [C] CIRCLED LATIN CAPITAL LETTER Y
+  case 0x24CF:
+    return 0x24E9; // [C] CIRCLED LATIN CAPITAL LETTER Z
+  case 0x2C00:
+    return 0x2C30; // [C] GLAGOLITIC CAPITAL LETTER AZU
+  case 0x2C01:
+    return 0x2C31; // [C] GLAGOLITIC CAPITAL LETTER BUKY
+  case 0x2C02:
+    return 0x2C32; // [C] GLAGOLITIC CAPITAL LETTER VEDE
+  case 0x2C03:
+    return 0x2C33; // [C] GLAGOLITIC CAPITAL LETTER GLAGOLI
+  case 0x2C04:
+    return 0x2C34; // [C] GLAGOLITIC CAPITAL LETTER DOBRO
+  case 0x2C05:
+    return 0x2C35; // [C] GLAGOLITIC CAPITAL LETTER YESTU
+  case 0x2C06:
+    return 0x2C36; // [C] GLAGOLITIC CAPITAL LETTER ZHIVETE
+  case 0x2C07:
+    return 0x2C37; // [C] GLAGOLITIC CAPITAL LETTER DZELO
+  case 0x2C08:
+    return 0x2C38; // [C] GLAGOLITIC CAPITAL LETTER ZEMLJA
+  case 0x2C09:
+    return 0x2C39; // [C] GLAGOLITIC CAPITAL LETTER IZHE
+  case 0x2C0A:
+    return 0x2C3A; // [C] GLAGOLITIC CAPITAL LETTER INITIAL IZHE
+  case 0x2C0B:
+    return 0x2C3B; // [C] GLAGOLITIC CAPITAL LETTER I
+  case 0x2C0C:
+    return 0x2C3C; // [C] GLAGOLITIC CAPITAL LETTER DJERVI
+  case 0x2C0D:
+    return 0x2C3D; // [C] GLAGOLITIC CAPITAL LETTER KAKO
+  case 0x2C0E:
+    return 0x2C3E; // [C] GLAGOLITIC CAPITAL LETTER LJUDIJE
+  case 0x2C0F:
+    return 0x2C3F; // [C] GLAGOLITIC CAPITAL LETTER MYSLITE
+  case 0x2C10:
+    return 0x2C40; // [C] GLAGOLITIC CAPITAL LETTER NASHI
+  case 0x2C11:
+    return 0x2C41; // [C] GLAGOLITIC CAPITAL LETTER ONU
+  case 0x2C12:
+    return 0x2C42; // [C] GLAGOLITIC CAPITAL LETTER POKOJI
+  case 0x2C13:
+    return 0x2C43; // [C] GLAGOLITIC CAPITAL LETTER RITSI
+  case 0x2C14:
+    return 0x2C44; // [C] GLAGOLITIC CAPITAL LETTER SLOVO
+  case 0x2C15:
+    return 0x2C45; // [C] GLAGOLITIC CAPITAL LETTER TVRIDO
+  case 0x2C16:
+    return 0x2C46; // [C] GLAGOLITIC CAPITAL LETTER UKU
+  case 0x2C17:
+    return 0x2C47; // [C] GLAGOLITIC CAPITAL LETTER FRITU
+  case 0x2C18:
+    return 0x2C48; // [C] GLAGOLITIC CAPITAL LETTER HERU
+  case 0x2C19:
+    return 0x2C49; // [C] GLAGOLITIC CAPITAL LETTER OTU
+  case 0x2C1A:
+    return 0x2C4A; // [C] GLAGOLITIC CAPITAL LETTER PE
+  case 0x2C1B:
+    return 0x2C4B; // [C] GLAGOLITIC CAPITAL LETTER SHTA
+  case 0x2C1C:
+    return 0x2C4C; // [C] GLAGOLITIC CAPITAL LETTER TSI
+  case 0x2C1D:
+    return 0x2C4D; // [C] GLAGOLITIC CAPITAL LETTER CHRIVI
+  case 0x2C1E:
+    return 0x2C4E; // [C] GLAGOLITIC CAPITAL LETTER SHA
+  case 0x2C1F:
+    return 0x2C4F; // [C] GLAGOLITIC CAPITAL LETTER YERU
+  case 0x2C20:
+    return 0x2C50; // [C] GLAGOLITIC CAPITAL LETTER YERI
+  case 0x2C21:
+    return 0x2C51; // [C] GLAGOLITIC CAPITAL LETTER YATI
+  case 0x2C22:
+    return 0x2C52; // [C] GLAGOLITIC CAPITAL LETTER SPIDERY HA
+  case 0x2C23:
+    return 0x2C53; // [C] GLAGOLITIC CAPITAL LETTER YU
+  case 0x2C24:
+    return 0x2C54; // [C] GLAGOLITIC CAPITAL LETTER SMALL YUS
+  case 0x2C25:
+    return 0x2C55; // [C] GLAGOLITIC CAPITAL LETTER SMALL YUS WITH TAIL
+  case 0x2C26:
+    return 0x2C56; // [C] GLAGOLITIC CAPITAL LETTER YO
+  case 0x2C27:
+    return 0x2C57; // [C] GLAGOLITIC CAPITAL LETTER IOTATED SMALL YUS
+  case 0x2C28:
+    return 0x2C58; // [C] GLAGOLITIC CAPITAL LETTER BIG YUS
+  case 0x2C29:
+    return 0x2C59; // [C] GLAGOLITIC CAPITAL LETTER IOTATED BIG YUS
+  case 0x2C2A:
+    return 0x2C5A; // [C] GLAGOLITIC CAPITAL LETTER FITA
+  case 0x2C2B:
+    return 0x2C5B; // [C] GLAGOLITIC CAPITAL LETTER IZHITSA
+  case 0x2C2C:
+    return 0x2C5C; // [C] GLAGOLITIC CAPITAL LETTER SHTAPIC
+  case 0x2C2D:
+    return 0x2C5D; // [C] GLAGOLITIC CAPITAL LETTER TROKUTASTI A
+  case 0x2C2E:
+    return 0x2C5E; // [C] GLAGOLITIC CAPITAL LETTER LATINATE MYSLITE
+  case 0x2C2F:
+    return 0x2C5F; // [C] GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI
+  case 0x2C60:
+    return 0x2C61; // [C] LATIN CAPITAL LETTER L WITH DOUBLE BAR
+  case 0x2C62:
+    return 0x026B; // [C] LATIN CAPITAL LETTER L WITH MIDDLE TILDE
+  case 0x2C63:
+    return 0x1D7D; // [C] LATIN CAPITAL LETTER P WITH STROKE
+  case 0x2C64:
+    return 0x027D; // [C] LATIN CAPITAL LETTER R WITH TAIL
+  case 0x2C67:
+    return 0x2C68; // [C] LATIN CAPITAL LETTER H WITH DESCENDER
+  case 0x2C69:
+    return 0x2C6A; // [C] LATIN CAPITAL LETTER K WITH DESCENDER
+  case 0x2C6B:
+    return 0x2C6C; // [C] LATIN CAPITAL LETTER Z WITH DESCENDER
+  case 0x2C6D:
+    return 0x0251; // [C] LATIN CAPITAL LETTER ALPHA
+  case 0x2C6E:
+    return 0x0271; // [C] LATIN CAPITAL LETTER M WITH HOOK
+  case 0x2C6F:
+    return 0x0250; // [C] LATIN CAPITAL LETTER TURNED A
+  case 0x2C70:
+    return 0x0252; // [C] LATIN CAPITAL LETTER TURNED ALPHA
+  case 0x2C72:
+    return 0x2C73; // [C] LATIN CAPITAL LETTER W WITH HOOK
+  case 0x2C75:
+    return 0x2C76; // [C] LATIN CAPITAL LETTER HALF H
+  case 0x2C7E:
+    return 0x023F; // [C] LATIN CAPITAL LETTER S WITH SWASH TAIL
+  case 0x2C7F:
+    return 0x0240; // [C] LATIN CAPITAL LETTER Z WITH SWASH TAIL
+  case 0x2C80:
+    return 0x2C81; // [C] COPTIC CAPITAL LETTER ALFA
+  case 0x2C82:
+    return 0x2C83; // [C] COPTIC CAPITAL LETTER VIDA
+  case 0x2C84:
+    return 0x2C85; // [C] COPTIC CAPITAL LETTER GAMMA
+  case 0x2C86:
+    return 0x2C87; // [C] COPTIC CAPITAL LETTER DALDA
+  case 0x2C88:
+    return 0x2C89; // [C] COPTIC CAPITAL LETTER EIE
+  case 0x2C8A:
+    return 0x2C8B; // [C] COPTIC CAPITAL LETTER SOU
+  case 0x2C8C:
+    return 0x2C8D; // [C] COPTIC CAPITAL LETTER ZATA
+  case 0x2C8E:
+    return 0x2C8F; // [C] COPTIC CAPITAL LETTER HATE
+  case 0x2C90:
+    return 0x2C91; // [C] COPTIC CAPITAL LETTER THETHE
+  case 0x2C92:
+    return 0x2C93; // [C] COPTIC CAPITAL LETTER IAUDA
+  case 0x2C94:
+    return 0x2C95; // [C] COPTIC CAPITAL LETTER KAPA
+  case 0x2C96:
+    return 0x2C97; // [C] COPTIC CAPITAL LETTER LAULA
+  case 0x2C98:
+    return 0x2C99; // [C] COPTIC CAPITAL LETTER MI
+  case 0x2C9A:
+    return 0x2C9B; // [C] COPTIC CAPITAL LETTER NI
+  case 0x2C9C:
+    return 0x2C9D; // [C] COPTIC CAPITAL LETTER KSI
+  case 0x2C9E:
+    return 0x2C9F; // [C] COPTIC CAPITAL LETTER O
+  case 0x2CA0:
+    return 0x2CA1; // [C] COPTIC CAPITAL LETTER PI
+  case 0x2CA2:
+    return 0x2CA3; // [C] COPTIC CAPITAL LETTER RO
+  case 0x2CA4:
+    return 0x2CA5; // [C] COPTIC CAPITAL LETTER SIMA
+  case 0x2CA6:
+    return 0x2CA7; // [C] COPTIC CAPITAL LETTER TAU
+  case 0x2CA8:
+    return 0x2CA9; // [C] COPTIC CAPITAL LETTER UA
+  case 0x2CAA:
+    return 0x2CAB; // [C] COPTIC CAPITAL LETTER FI
+  case 0x2CAC:
+    return 0x2CAD; // [C] COPTIC CAPITAL LETTER KHI
+  case 0x2CAE:
+    return 0x2CAF; // [C] COPTIC CAPITAL LETTER PSI
+  case 0x2CB0:
+    return 0x2CB1; // [C] COPTIC CAPITAL LETTER OOU
+  case 0x2CB2:
+    return 0x2CB3; // [C] COPTIC CAPITAL LETTER DIALECT-P ALEF
+  case 0x2CB4:
+    return 0x2CB5; // [C] COPTIC CAPITAL LETTER OLD COPTIC AIN
+  case 0x2CB6:
+    return 0x2CB7; // [C] COPTIC CAPITAL LETTER CRYPTOGRAMMIC EIE
+  case 0x2CB8:
+    return 0x2CB9; // [C] COPTIC CAPITAL LETTER DIALECT-P KAPA
+  case 0x2CBA:
+    return 0x2CBB; // [C] COPTIC CAPITAL LETTER DIALECT-P NI
+  case 0x2CBC:
+    return 0x2CBD; // [C] COPTIC CAPITAL LETTER CRYPTOGRAMMIC NI
+  case 0x2CBE:
+    return 0x2CBF; // [C] COPTIC CAPITAL LETTER OLD COPTIC OOU
+  case 0x2CC0:
+    return 0x2CC1; // [C] COPTIC CAPITAL LETTER SAMPI
+  case 0x2CC2:
+    return 0x2CC3; // [C] COPTIC CAPITAL LETTER CROSSED SHEI
+  case 0x2CC4:
+    return 0x2CC5; // [C] COPTIC CAPITAL LETTER OLD COPTIC SHEI
+  case 0x2CC6:
+    return 0x2CC7; // [C] COPTIC CAPITAL LETTER OLD COPTIC ESH
+  case 0x2CC8:
+    return 0x2CC9; // [C] COPTIC CAPITAL LETTER AKHMIMIC KHEI
+  case 0x2CCA:
+    return 0x2CCB; // [C] COPTIC CAPITAL LETTER DIALECT-P HORI
+  case 0x2CCC:
+    return 0x2CCD; // [C] COPTIC CAPITAL LETTER OLD COPTIC HORI
+  case 0x2CCE:
+    return 0x2CCF; // [C] COPTIC CAPITAL LETTER OLD COPTIC HA
+  case 0x2CD0:
+    return 0x2CD1; // [C] COPTIC CAPITAL LETTER L-SHAPED HA
+  case 0x2CD2:
+    return 0x2CD3; // [C] COPTIC CAPITAL LETTER OLD COPTIC HEI
+  case 0x2CD4:
+    return 0x2CD5; // [C] COPTIC CAPITAL LETTER OLD COPTIC HAT
+  case 0x2CD6:
+    return 0x2CD7; // [C] COPTIC CAPITAL LETTER OLD COPTIC GANGIA
+  case 0x2CD8:
+    return 0x2CD9; // [C] COPTIC CAPITAL LETTER OLD COPTIC DJA
+  case 0x2CDA:
+    return 0x2CDB; // [C] COPTIC CAPITAL LETTER OLD COPTIC SHIMA
+  case 0x2CDC:
+    return 0x2CDD; // [C] COPTIC CAPITAL LETTER OLD NUBIAN SHIMA
+  case 0x2CDE:
+    return 0x2CDF; // [C] COPTIC CAPITAL LETTER OLD NUBIAN NGI
+  case 0x2CE0:
+    return 0x2CE1; // [C] COPTIC CAPITAL LETTER OLD NUBIAN NYI
+  case 0x2CE2:
+    return 0x2CE3; // [C] COPTIC CAPITAL LETTER OLD NUBIAN WAU
+  case 0x2CEB:
+    return 0x2CEC; // [C] COPTIC CAPITAL LETTER CRYPTOGRAMMIC SHEI
+  case 0x2CED:
+    return 0x2CEE; // [C] COPTIC CAPITAL LETTER CRYPTOGRAMMIC GANGIA
+  case 0x2CF2:
+    return 0x2CF3; // [C] COPTIC CAPITAL LETTER BOHAIRIC KHEI
+  case 0xA640:
+    return 0xA641; // [C] CYRILLIC CAPITAL LETTER ZEMLYA
+  case 0xA642:
+    return 0xA643; // [C] CYRILLIC CAPITAL LETTER DZELO
+  case 0xA644:
+    return 0xA645; // [C] CYRILLIC CAPITAL LETTER REVERSED DZE
+  case 0xA646:
+    return 0xA647; // [C] CYRILLIC CAPITAL LETTER IOTA
+  case 0xA648:
+    return 0xA649; // [C] CYRILLIC CAPITAL LETTER DJERV
+  case 0xA64A:
+    return 0xA64B; // [C] CYRILLIC CAPITAL LETTER MONOGRAPH UK
+  case 0xA64C:
+    return 0xA64D; // [C] CYRILLIC CAPITAL LETTER BROAD OMEGA
+  case 0xA64E:
+    return 0xA64F; // [C] CYRILLIC CAPITAL LETTER NEUTRAL YER
+  case 0xA650:
+    return 0xA651; // [C] CYRILLIC CAPITAL LETTER YERU WITH BACK YER
+  case 0xA652:
+    return 0xA653; // [C] CYRILLIC CAPITAL LETTER IOTIFIED YAT
+  case 0xA654:
+    return 0xA655; // [C] CYRILLIC CAPITAL LETTER REVERSED YU
+  case 0xA656:
+    return 0xA657; // [C] CYRILLIC CAPITAL LETTER IOTIFIED A
+  case 0xA658:
+    return 0xA659; // [C] CYRILLIC CAPITAL LETTER CLOSED LITTLE YUS
+  case 0xA65A:
+    return 0xA65B; // [C] CYRILLIC CAPITAL LETTER BLENDED YUS
+  case 0xA65C:
+    return 0xA65D; // [C] CYRILLIC CAPITAL LETTER IOTIFIED CLOSED LITTLE YUS
+  case 0xA65E:
+    return 0xA65F; // [C] CYRILLIC CAPITAL LETTER YN
+  case 0xA660:
+    return 0xA661; // [C] CYRILLIC CAPITAL LETTER REVERSED TSE
+  case 0xA662:
+    return 0xA663; // [C] CYRILLIC CAPITAL LETTER SOFT DE
+  case 0xA664:
+    return 0xA665; // [C] CYRILLIC CAPITAL LETTER SOFT EL
+  case 0xA666:
+    return 0xA667; // [C] CYRILLIC CAPITAL LETTER SOFT EM
+  case 0xA668:
+    return 0xA669; // [C] CYRILLIC CAPITAL LETTER MONOCULAR O
+  case 0xA66A:
+    return 0xA66B; // [C] CYRILLIC CAPITAL LETTER BINOCULAR O
+  case 0xA66C:
+    return 0xA66D; // [C] CYRILLIC CAPITAL LETTER DOUBLE MONOCULAR O
+  case 0xA680:
+    return 0xA681; // [C] CYRILLIC CAPITAL LETTER DWE
+  case 0xA682:
+    return 0xA683; // [C] CYRILLIC CAPITAL LETTER DZWE
+  case 0xA684:
+    return 0xA685; // [C] CYRILLIC CAPITAL LETTER ZHWE
+  case 0xA686:
+    return 0xA687; // [C] CYRILLIC CAPITAL LETTER CCHE
+  case 0xA688:
+    return 0xA689; // [C] CYRILLIC CAPITAL LETTER DZZE
+  case 0xA68A:
+    return 0xA68B; // [C] CYRILLIC CAPITAL LETTER TE WITH MIDDLE HOOK
+  case 0xA68C:
+    return 0xA68D; // [C] CYRILLIC CAPITAL LETTER TWE
+  case 0xA68E:
+    return 0xA68F; // [C] CYRILLIC CAPITAL LETTER TSWE
+  case 0xA690:
+    return 0xA691; // [C] CYRILLIC CAPITAL LETTER TSSE
+  case 0xA692:
+    return 0xA693; // [C] CYRILLIC CAPITAL LETTER TCHE
+  case 0xA694:
+    return 0xA695; // [C] CYRILLIC CAPITAL LETTER HWE
+  case 0xA696:
+    return 0xA697; // [C] CYRILLIC CAPITAL LETTER SHWE
+  case 0xA698:
+    return 0xA699; // [C] CYRILLIC CAPITAL LETTER DOUBLE O
+  case 0xA69A:
+    return 0xA69B; // [C] CYRILLIC CAPITAL LETTER CROSSED O
+  case 0xA722:
+    return 0xA723; // [C] LATIN CAPITAL LETTER EGYPTOLOGICAL ALEF
+  case 0xA724:
+    return 0xA725; // [C] LATIN CAPITAL LETTER EGYPTOLOGICAL AIN
+  case 0xA726:
+    return 0xA727; // [C] LATIN CAPITAL LETTER HENG
+  case 0xA728:
+    return 0xA729; // [C] LATIN CAPITAL LETTER TZ
+  case 0xA72A:
+    return 0xA72B; // [C] LATIN CAPITAL LETTER TRESILLO
+  case 0xA72C:
+    return 0xA72D; // [C] LATIN CAPITAL LETTER CUATRILLO
+  case 0xA72E:
+    return 0xA72F; // [C] LATIN CAPITAL LETTER CUATRILLO WITH COMMA
+  case 0xA732:
+    return 0xA733; // [C] LATIN CAPITAL LETTER AA
+  case 0xA734:
+    return 0xA735; // [C] LATIN CAPITAL LETTER AO
+  case 0xA736:
+    return 0xA737; // [C] LATIN CAPITAL LETTER AU
+  case 0xA738:
+    return 0xA739; // [C] LATIN CAPITAL LETTER AV
+  case 0xA73A:
+    return 0xA73B; // [C] LATIN CAPITAL LETTER AV WITH HORIZONTAL BAR
+  case 0xA73C:
+    return 0xA73D; // [C] LATIN CAPITAL LETTER AY
+  case 0xA73E:
+    return 0xA73F; // [C] LATIN CAPITAL LETTER REVERSED C WITH DOT
+  case 0xA740:
+    return 0xA741; // [C] LATIN CAPITAL LETTER K WITH STROKE
+  case 0xA742:
+    return 0xA743; // [C] LATIN CAPITAL LETTER K WITH DIAGONAL STROKE
+  case 0xA744:
+    return 0xA745; // [C] LATIN CAPITAL LETTER K WITH STROKE AND DIAGONAL STROKE
+  case 0xA746:
+    return 0xA747; // [C] LATIN CAPITAL LETTER BROKEN L
+  case 0xA748:
+    return 0xA749; // [C] LATIN CAPITAL LETTER L WITH HIGH STROKE
+  case 0xA74A:
+    return 0xA74B; // [C] LATIN CAPITAL LETTER O WITH LONG STROKE OVERLAY
+  case 0xA74C:
+    return 0xA74D; // [C] LATIN CAPITAL LETTER O WITH LOOP
+  case 0xA74E:
+    return 0xA74F; // [C] LATIN CAPITAL LETTER OO
+  case 0xA750:
+    return 0xA751; // [C] LATIN CAPITAL LETTER P WITH STROKE THROUGH DESCENDER
+  case 0xA752:
+    return 0xA753; // [C] LATIN CAPITAL LETTER P WITH FLOURISH
+  case 0xA754:
+    return 0xA755; // [C] LATIN CAPITAL LETTER P WITH SQUIRREL TAIL
+  case 0xA756:
+    return 0xA757; // [C] LATIN CAPITAL LETTER Q WITH STROKE THROUGH DESCENDER
+  case 0xA758:
+    return 0xA759; // [C] LATIN CAPITAL LETTER Q WITH DIAGONAL STROKE
+  case 0xA75A:
+    return 0xA75B; // [C] LATIN CAPITAL LETTER R ROTUNDA
+  case 0xA75C:
+    return 0xA75D; // [C] LATIN CAPITAL LETTER RUM ROTUNDA
+  case 0xA75E:
+    return 0xA75F; // [C] LATIN CAPITAL LETTER V WITH DIAGONAL STROKE
+  case 0xA760:
+    return 0xA761; // [C] LATIN CAPITAL LETTER VY
+  case 0xA762:
+    return 0xA763; // [C] LATIN CAPITAL LETTER VISIGOTHIC Z
+  case 0xA764:
+    return 0xA765; // [C] LATIN CAPITAL LETTER THORN WITH STROKE
+  case 0xA766:
+    return 0xA767; // [C] LATIN CAPITAL LETTER THORN WITH STROKE THROUGH
+                   // DESCENDER
+  case 0xA768:
+    return 0xA769; // [C] LATIN CAPITAL LETTER VEND
+  case 0xA76A:
+    return 0xA76B; // [C] LATIN CAPITAL LETTER ET
+  case 0xA76C:
+    return 0xA76D; // [C] LATIN CAPITAL LETTER IS
+  case 0xA76E:
+    return 0xA76F; // [C] LATIN CAPITAL LETTER CON
+  case 0xA779:
+    return 0xA77A; // [C] LATIN CAPITAL LETTER INSULAR D
+  case 0xA77B:
+    return 0xA77C; // [C] LATIN CAPITAL LETTER INSULAR F
+  case 0xA77D:
+    return 0x1D79; // [C] LATIN CAPITAL LETTER INSULAR G
+  case 0xA77E:
+    return 0xA77F; // [C] LATIN CAPITAL LETTER TURNED INSULAR G
+  case 0xA780:
+    return 0xA781; // [C] LATIN CAPITAL LETTER TURNED L
+  case 0xA782:
+    return 0xA783; // [C] LATIN CAPITAL LETTER INSULAR R
+  case 0xA784:
+    return 0xA785; // [C] LATIN CAPITAL LETTER INSULAR S
+  case 0xA786:
+    return 0xA787; // [C] LATIN CAPITAL LETTER INSULAR T
+  case 0xA78B:
+    return 0xA78C; // [C] LATIN CAPITAL LETTER SALTILLO
+  case 0xA78D:
+    return 0x0265; // [C] LATIN CAPITAL LETTER TURNED H
+  case 0xA790:
+    return 0xA791; // [C] LATIN CAPITAL LETTER N WITH DESCENDER
+  case 0xA792:
+    return 0xA793; // [C] LATIN CAPITAL LETTER C WITH BAR
+  case 0xA796:
+    return 0xA797; // [C] LATIN CAPITAL LETTER B WITH FLOURISH
+  case 0xA798:
+    return 0xA799; // [C] LATIN CAPITAL LETTER F WITH STROKE
+  case 0xA79A:
+    return 0xA79B; // [C] LATIN CAPITAL LETTER VOLAPUK AE
+  case 0xA79C:
+    return 0xA79D; // [C] LATIN CAPITAL LETTER VOLAPUK OE
+  case 0xA79E:
+    return 0xA79F; // [C] LATIN CAPITAL LETTER VOLAPUK UE
+  case 0xA7A0:
+    return 0xA7A1; // [C] LATIN CAPITAL LETTER G WITH OBLIQUE STROKE
+  case 0xA7A2:
+    return 0xA7A3; // [C] LATIN CAPITAL LETTER K WITH OBLIQUE STROKE
+  case 0xA7A4:
+    return 0xA7A5; // [C] LATIN CAPITAL LETTER N WITH OBLIQUE STROKE
+  case 0xA7A6:
+    return 0xA7A7; // [C] LATIN CAPITAL LETTER R WITH OBLIQUE STROKE
+  case 0xA7A8:
+    return 0xA7A9; // [C] LATIN CAPITAL LETTER S WITH OBLIQUE STROKE
+  case 0xA7AA:
+    return 0x0266; // [C] LATIN CAPITAL LETTER H WITH HOOK
+  case 0xA7AB:
+    return 0x025C; // [C] LATIN CAPITAL LETTER REVERSED OPEN E
+  case 0xA7AC:
+    return 0x0261; // [C] LATIN CAPITAL LETTER SCRIPT G
+  case 0xA7AD:
+    return 0x026C; // [C] LATIN CAPITAL LETTER L WITH BELT
+  case 0xA7AE:
+    return 0x026A; // [C] LATIN CAPITAL LETTER SMALL CAPITAL I
+  case 0xA7B0:
+    return 0x029E; // [C] LATIN CAPITAL LETTER TURNED K
+  case 0xA7B1:
+    return 0x0287; // [C] LATIN CAPITAL LETTER TURNED T
+  case 0xA7B2:
+    return 0x029D; // [C] LATIN CAPITAL LETTER J WITH CROSSED-TAIL
+  case 0xA7B3:
+    return 0xAB53; // [C] LATIN CAPITAL LETTER CHI
+  case 0xA7B4:
+    return 0xA7B5; // [C] LATIN CAPITAL LETTER BETA
+  case 0xA7B6:
+    return 0xA7B7; // [C] LATIN CAPITAL LETTER OMEGA
+  case 0xA7B8:
+    return 0xA7B9; // [C] LATIN CAPITAL LETTER U WITH STROKE
+  case 0xA7BA:
+    return 0xA7BB; // [C] LATIN CAPITAL LETTER GLOTTAL A
+  case 0xA7BC:
+    return 0xA7BD; // [C] LATIN CAPITAL LETTER GLOTTAL I
+  case 0xA7BE:
+    return 0xA7BF; // [C] LATIN CAPITAL LETTER GLOTTAL U
+  case 0xA7C0:
+    return 0xA7C1; // [C] LATIN CAPITAL LETTER OLD POLISH O
+  case 0xA7C2:
+    return 0xA7C3; // [C] LATIN CAPITAL LETTER ANGLICANA W
+  case 0xA7C4:
+    return 0xA794; // [C] LATIN CAPITAL LETTER C WITH PALATAL HOOK
+  case 0xA7C5:
+    return 0x0282; // [C] LATIN CAPITAL LETTER S WITH HOOK
+  case 0xA7C6:
+    return 0x1D8E; // [C] LATIN CAPITAL LETTER Z WITH PALATAL HOOK
+  case 0xA7C7:
+    return 0xA7C8; // [C] LATIN CAPITAL LETTER D WITH SHORT STROKE OVERLAY
+  case 0xA7C9:
+    return 0xA7CA; // [C] LATIN CAPITAL LETTER S WITH SHORT STROKE OVERLAY
+  case 0xA7CB:
+    return 0x0264; // [C] LATIN CAPITAL LETTER RAMS HORN
+  case 0xA7CC:
+    return 0xA7CD; // [C] LATIN CAPITAL LETTER S WITH DIAGONAL STROKE
+  case 0xA7D0:
+    return 0xA7D1; // [C] LATIN CAPITAL LETTER CLOSED INSULAR G
+  case 0xA7D6:
+    return 0xA7D7; // [C] LATIN CAPITAL LETTER MIDDLE SCOTS S
+  case 0xA7D8:
+    return 0xA7D9; // [C] LATIN CAPITAL LETTER SIGMOID S
+  case 0xA7DA:
+    return 0xA7DB; // [C] LATIN CAPITAL LETTER LAMBDA
+  case 0xA7DC:
+    return 0x019B; // [C] LATIN CAPITAL LETTER LAMBDA WITH STROKE
+  case 0xA7F5:
+    return 0xA7F6; // [C] LATIN CAPITAL LETTER REVERSED HALF H
+  case 0xAB70:
+    return 0x13A0; // [C] CHEROKEE SMALL LETTER A
+  case 0xAB71:
+    return 0x13A1; // [C] CHEROKEE SMALL LETTER E
+  case 0xAB72:
+    return 0x13A2; // [C] CHEROKEE SMALL LETTER I
+  case 0xAB73:
+    return 0x13A3; // [C] CHEROKEE SMALL LETTER O
+  case 0xAB74:
+    return 0x13A4; // [C] CHEROKEE SMALL LETTER U
+  case 0xAB75:
+    return 0x13A5; // [C] CHEROKEE SMALL LETTER V
+  case 0xAB76:
+    return 0x13A6; // [C] CHEROKEE SMALL LETTER GA
+  case 0xAB77:
+    return 0x13A7; // [C] CHEROKEE SMALL LETTER KA
+  case 0xAB78:
+    return 0x13A8; // [C] CHEROKEE SMALL LETTER GE
+  case 0xAB79:
+    return 0x13A9; // [C] CHEROKEE SMALL LETTER GI
+  case 0xAB7A:
+    return 0x13AA; // [C] CHEROKEE SMALL LETTER GO
+  case 0xAB7B:
+    return 0x13AB; // [C] CHEROKEE SMALL LETTER GU
+  case 0xAB7C:
+    return 0x13AC; // [C] CHEROKEE SMALL LETTER GV
+  case 0xAB7D:
+    return 0x13AD; // [C] CHEROKEE SMALL LETTER HA
+  case 0xAB7E:
+    return 0x13AE; // [C] CHEROKEE SMALL LETTER HE
+  case 0xAB7F:
+    return 0x13AF; // [C] CHEROKEE SMALL LETTER HI
+  case 0xAB80:
+    return 0x13B0; // [C] CHEROKEE SMALL LETTER HO
+  case 0xAB81:
+    return 0x13B1; // [C] CHEROKEE SMALL LETTER HU
+  case 0xAB82:
+    return 0x13B2; // [C] CHEROKEE SMALL LETTER HV
+  case 0xAB83:
+    return 0x13B3; // [C] CHEROKEE SMALL LETTER LA
+  case 0xAB84:
+    return 0x13B4; // [C] CHEROKEE SMALL LETTER LE
+  case 0xAB85:
+    return 0x13B5; // [C] CHEROKEE SMALL LETTER LI
+  case 0xAB86:
+    return 0x13B6; // [C] CHEROKEE SMALL LETTER LO
+  case 0xAB87:
+    return 0x13B7; // [C] CHEROKEE SMALL LETTER LU
+  case 0xAB88:
+    return 0x13B8; // [C] CHEROKEE SMALL LETTER LV
+  case 0xAB89:
+    return 0x13B9; // [C] CHEROKEE SMALL LETTER MA
+  case 0xAB8A:
+    return 0x13BA; // [C] CHEROKEE SMALL LETTER ME
+  case 0xAB8B:
+    return 0x13BB; // [C] CHEROKEE SMALL LETTER MI
+  case 0xAB8C:
+    return 0x13BC; // [C] CHEROKEE SMALL LETTER MO
+  case 0xAB8D:
+    return 0x13BD; // [C] CHEROKEE SMALL LETTER MU
+  case 0xAB8E:
+    return 0x13BE; // [C] CHEROKEE SMALL LETTER NA
+  case 0xAB8F:
+    return 0x13BF; // [C] CHEROKEE SMALL LETTER HNA
+  case 0xAB90:
+    return 0x13C0; // [C] CHEROKEE SMALL LETTER NAH
+  case 0xAB91:
+    return 0x13C1; // [C] CHEROKEE SMALL LETTER NE
+  case 0xAB92:
+    return 0x13C2; // [C] CHEROKEE SMALL LETTER NI
+  case 0xAB93:
+    return 0x13C3; // [C] CHEROKEE SMALL LETTER NO
+  case 0xAB94:
+    return 0x13C4; // [C] CHEROKEE SMALL LETTER NU
+  case 0xAB95:
+    return 0x13C5; // [C] CHEROKEE SMALL LETTER NV
+  case 0xAB96:
+    return 0x13C6; // [C] CHEROKEE SMALL LETTER QUA
+  case 0xAB97:
+    return 0x13C7; // [C] CHEROKEE SMALL LETTER QUE
+  case 0xAB98:
+    return 0x13C8; // [C] CHEROKEE SMALL LETTER QUI
+  case 0xAB99:
+    return 0x13C9; // [C] CHEROKEE SMALL LETTER QUO
+  case 0xAB9A:
+    return 0x13CA; // [C] CHEROKEE SMALL LETTER QUU
+  case 0xAB9B:
+    return 0x13CB; // [C] CHEROKEE SMALL LETTER QUV
+  case 0xAB9C:
+    return 0x13CC; // [C] CHEROKEE SMALL LETTER SA
+  case 0xAB9D:
+    return 0x13CD; // [C] CHEROKEE SMALL LETTER S
+  case 0xAB9E:
+    return 0x13CE; // [C] CHEROKEE SMALL LETTER SE
+  case 0xAB9F:
+    return 0x13CF; // [C] CHEROKEE SMALL LETTER SI
+  case 0xABA0:
+    return 0x13D0; // [C] CHEROKEE SMALL LETTER SO
+  case 0xABA1:
+    return 0x13D1; // [C] CHEROKEE SMALL LETTER SU
+  case 0xABA2:
+    return 0x13D2; // [C] CHEROKEE SMALL LETTER SV
+  case 0xABA3:
+    return 0x13D3; // [C] CHEROKEE SMALL LETTER DA
+  case 0xABA4:
+    return 0x13D4; // [C] CHEROKEE SMALL LETTER TA
+  case 0xABA5:
+    return 0x13D5; // [C] CHEROKEE SMALL LETTER DE
+  case 0xABA6:
+    return 0x13D6; // [C] CHEROKEE SMALL LETTER TE
+  case 0xABA7:
+    return 0x13D7; // [C] CHEROKEE SMALL LETTER DI
+  case 0xABA8:
+    return 0x13D8; // [C] CHEROKEE SMALL LETTER TI
+  case 0xABA9:
+    return 0x13D9; // [C] CHEROKEE SMALL LETTER DO
+  case 0xABAA:
+    return 0x13DA; // [C] CHEROKEE SMALL LETTER DU
+  case 0xABAB:
+    return 0x13DB; // [C] CHEROKEE SMALL LETTER DV
+  case 0xABAC:
+    return 0x13DC; // [C] CHEROKEE SMALL LETTER DLA
+  case 0xABAD:
+    return 0x13DD; // [C] CHEROKEE SMALL LETTER TLA
+  case 0xABAE:
+    return 0x13DE; // [C] CHEROKEE SMALL LETTER TLE
+  case 0xABAF:
+    return 0x13DF; // [C] CHEROKEE SMALL LETTER TLI
+  case 0xABB0:
+    return 0x13E0; // [C] CHEROKEE SMALL LETTER TLO
+  case 0xABB1:
+    return 0x13E1; // [C] CHEROKEE SMALL LETTER TLU
+  case 0xABB2:
+    return 0x13E2; // [C] CHEROKEE SMALL LETTER TLV
+  case 0xABB3:
+    return 0x13E3; // [C] CHEROKEE SMALL LETTER TSA
+  case 0xABB4:
+    return 0x13E4; // [C] CHEROKEE SMALL LETTER TSE
+  case 0xABB5:
+    return 0x13E5; // [C] CHEROKEE SMALL LETTER TSI
+  case 0xABB6:
+    return 0x13E6; // [C] CHEROKEE SMALL LETTER TSO
+  case 0xABB7:
+    return 0x13E7; // [C] CHEROKEE SMALL LETTER TSU
+  case 0xABB8:
+    return 0x13E8; // [C] CHEROKEE SMALL LETTER TSV
+  case 0xABB9:
+    return 0x13E9; // [C] CHEROKEE SMALL LETTER WA
+  case 0xABBA:
+    return 0x13EA; // [C] CHEROKEE SMALL LETTER WE
+  case 0xABBB:
+    return 0x13EB; // [C] CHEROKEE SMALL LETTER WI
+  case 0xABBC:
+    return 0x13EC; // [C] CHEROKEE SMALL LETTER WO
+  case 0xABBD:
+    return 0x13ED; // [C] CHEROKEE SMALL LETTER WU
+  case 0xABBE:
+    return 0x13EE; // [C] CHEROKEE SMALL LETTER WV
+  case 0xABBF:
+    return 0x13EF; // [C] CHEROKEE SMALL LETTER YA
+  case 0xFB05:
+    return 0xFB06; // [S] LATIN SMALL LIGATURE LONG S T
+  case 0xFF21:
+    return 0xFF41; // [C] FULLWIDTH LATIN CAPITAL LETTER A
+  case 0xFF22:
+    return 0xFF42; // [C] FULLWIDTH LATIN CAPITAL LETTER B
+  case 0xFF23:
+    return 0xFF43; // [C] FULLWIDTH LATIN CAPITAL LETTER C
+  case 0xFF24:
+    return 0xFF44; // [C] FULLWIDTH LATIN CAPITAL LETTER D
+  case 0xFF25:
+    return 0xFF45; // [C] FULLWIDTH LATIN CAPITAL LETTER E
+  case 0xFF26:
+    return 0xFF46; // [C] FULLWIDTH LATIN CAPITAL LETTER F
+  case 0xFF27:
+    return 0xFF47; // [C] FULLWIDTH LATIN CAPITAL LETTER G
+  case 0xFF28:
+    return 0xFF48; // [C] FULLWIDTH LATIN CAPITAL LETTER H
+  case 0xFF29:
+    return 0xFF49; // [C] FULLWIDTH LATIN CAPITAL LETTER I
+  case 0xFF2A:
+    return 0xFF4A; // [C] FULLWIDTH LATIN CAPITAL LETTER J
+  case 0xFF2B:
+    return 0xFF4B; // [C] FULLWIDTH LATIN CAPITAL LETTER K
+  case 0xFF2C:
+    return 0xFF4C; // [C] FULLWIDTH LATIN CAPITAL LETTER L
+  case 0xFF2D:
+    return 0xFF4D; // [C] FULLWIDTH LATIN CAPITAL LETTER M
+  case 0xFF2E:
+    return 0xFF4E; // [C] FULLWIDTH LATIN CAPITAL LETTER N
+  case 0xFF2F:
+    return 0xFF4F; // [C] FULLWIDTH LATIN CAPITAL LETTER O
+  case 0xFF30:
+    return 0xFF50; // [C] FULLWIDTH LATIN CAPITAL LETTER P
+  case 0xFF31:
+    return 0xFF51; // [C] FULLWIDTH LATIN CAPITAL LETTER Q
+  case 0xFF32:
+    return 0xFF52; // [C] FULLWIDTH LATIN CAPITAL LETTER R
+  case 0xFF33:
+    return 0xFF53; // [C] FULLWIDTH LATIN CAPITAL LETTER S
+  case 0xFF34:
+    return 0xFF54; // [C] FULLWIDTH LATIN CAPITAL LETTER T
+  case 0xFF35:
+    return 0xFF55; // [C] FULLWIDTH LATIN CAPITAL LETTER U
+  case 0xFF36:
+    return 0xFF56; // [C] FULLWIDTH LATIN CAPITAL LETTER V
+  case 0xFF37:
+    return 0xFF57; // [C] FULLWIDTH LATIN CAPITAL LETTER W
+  case 0xFF38:
+    return 0xFF58; // [C] FULLWIDTH LATIN CAPITAL LETTER X
+  case 0xFF39:
+    return 0xFF59; // [C] FULLWIDTH LATIN CAPITAL LETTER Y
+  case 0xFF3A:
+    return 0xFF5A; // [C] FULLWIDTH LATIN CAPITAL LETTER Z
+  case 0x10400:
+    return 0x10428; // [C] DESERET CAPITAL LETTER LONG I
+  case 0x10401:
+    return 0x10429; // [C] DESERET CAPITAL LETTER LONG E
+  case 0x10402:
+    return 0x1042A; // [C] DESERET CAPITAL LETTER LONG A
+  case 0x10403:
+    return 0x1042B; // [C] DESERET CAPITAL LETTER LONG AH
+  case 0x10404:
+    return 0x1042C; // [C] DESERET CAPITAL LETTER LONG O
+  case 0x10405:
+    return 0x1042D; // [C] DESERET CAPITAL LETTER LONG OO
+  case 0x10406:
+    return 0x1042E; // [C] DESERET CAPITAL LETTER SHORT I
+  case 0x10407:
+    return 0x1042F; // [C] DESERET CAPITAL LETTER SHORT E
+  case 0x10408:
+    return 0x10430; // [C] DESERET CAPITAL LETTER SHORT A
+  case 0x10409:
+    return 0x10431; // [C] DESERET CAPITAL LETTER SHORT AH
+  case 0x1040A:
+    return 0x10432; // [C] DESERET CAPITAL LETTER SHORT O
+  case 0x1040B:
+    return 0x10433; // [C] DESERET CAPITAL LETTER SHORT OO
+  case 0x1040C:
+    return 0x10434; // [C] DESERET CAPITAL LETTER AY
+  case 0x1040D:
+    return 0x10435; // [C] DESERET CAPITAL LETTER OW
+  case 0x1040E:
+    return 0x10436; // [C] DESERET CAPITAL LETTER WU
+  case 0x1040F:
+    return 0x10437; // [C] DESERET CAPITAL LETTER YEE
+  case 0x10410:
+    return 0x10438; // [C] DESERET CAPITAL LETTER H
+  case 0x10411:
+    return 0x10439; // [C] DESERET CAPITAL LETTER PEE
+  case 0x10412:
+    return 0x1043A; // [C] DESERET CAPITAL LETTER BEE
+  case 0x10413:
+    return 0x1043B; // [C] DESERET CAPITAL LETTER TEE
+  case 0x10414:
+    return 0x1043C; // [C] DESERET CAPITAL LETTER DEE
+  case 0x10415:
+    return 0x1043D; // [C] DESERET CAPITAL LETTER CHEE
+  case 0x10416:
+    return 0x1043E; // [C] DESERET CAPITAL LETTER JEE
+  case 0x10417:
+    return 0x1043F; // [C] DESERET CAPITAL LETTER KAY
+  case 0x10418:
+    return 0x10440; // [C] DESERET CAPITAL LETTER GAY
+  case 0x10419:
+    return 0x10441; // [C] DESERET CAPITAL LETTER EF
+  case 0x1041A:
+    return 0x10442; // [C] DESERET CAPITAL LETTER VEE
+  case 0x1041B:
+    return 0x10443; // [C] DESERET CAPITAL LETTER ETH
+  case 0x1041C:
+    return 0x10444; // [C] DESERET CAPITAL LETTER THEE
+  case 0x1041D:
+    return 0x10445; // [C] DESERET CAPITAL LETTER ES
+  case 0x1041E:
+    return 0x10446; // [C] DESERET CAPITAL LETTER ZEE
+  case 0x1041F:
+    return 0x10447; // [C] DESERET CAPITAL LETTER ESH
+  case 0x10420:
+    return 0x10448; // [C] DESERET CAPITAL LETTER ZHEE
+  case 0x10421:
+    return 0x10449; // [C] DESERET CAPITAL LETTER ER
+  case 0x10422:
+    return 0x1044A; // [C] DESERET CAPITAL LETTER EL
+  case 0x10423:
+    return 0x1044B; // [C] DESERET CAPITAL LETTER EM
+  case 0x10424:
+    return 0x1044C; // [C] DESERET CAPITAL LETTER EN
+  case 0x10425:
+    return 0x1044D; // [C] DESERET CAPITAL LETTER ENG
+  case 0x10426:
+    return 0x1044E; // [C] DESERET CAPITAL LETTER OI
+  case 0x10427:
+    return 0x1044F; // [C] DESERET CAPITAL LETTER EW
+  case 0x104B0:
+    return 0x104D8; // [C] OSAGE CAPITAL LETTER A
+  case 0x104B1:
+    return 0x104D9; // [C] OSAGE CAPITAL LETTER AI
+  case 0x104B2:
+    return 0x104DA; // [C] OSAGE CAPITAL LETTER AIN
+  case 0x104B3:
+    return 0x104DB; // [C] OSAGE CAPITAL LETTER AH
+  case 0x104B4:
+    return 0x104DC; // [C] OSAGE CAPITAL LETTER BRA
+  case 0x104B5:
+    return 0x104DD; // [C] OSAGE CAPITAL LETTER CHA
+  case 0x104B6:
+    return 0x104DE; // [C] OSAGE CAPITAL LETTER EHCHA
+  case 0x104B7:
+    return 0x104DF; // [C] OSAGE CAPITAL LETTER E
+  case 0x104B8:
+    return 0x104E0; // [C] OSAGE CAPITAL LETTER EIN
+  case 0x104B9:
+    return 0x104E1; // [C] OSAGE CAPITAL LETTER HA
+  case 0x104BA:
+    return 0x104E2; // [C] OSAGE CAPITAL LETTER HYA
+  case 0x104BB:
+    return 0x104E3; // [C] OSAGE CAPITAL LETTER I
+  case 0x104BC:
+    return 0x104E4; // [C] OSAGE CAPITAL LETTER KA
+  case 0x104BD:
+    return 0x104E5; // [C] OSAGE CAPITAL LETTER EHKA
+  case 0x104BE:
+    return 0x104E6; // [C] OSAGE CAPITAL LETTER KYA
+  case 0x104BF:
+    return 0x104E7; // [C] OSAGE CAPITAL LETTER LA
+  case 0x104C0:
+    return 0x104E8; // [C] OSAGE CAPITAL LETTER MA
+  case 0x104C1:
+    return 0x104E9; // [C] OSAGE CAPITAL LETTER NA
+  case 0x104C2:
+    return 0x104EA; // [C] OSAGE CAPITAL LETTER O
+  case 0x104C3:
+    return 0x104EB; // [C] OSAGE CAPITAL LETTER OIN
+  case 0x104C4:
+    return 0x104EC; // [C] OSAGE CAPITAL LETTER PA
+  case 0x104C5:
+    return 0x104ED; // [C] OSAGE CAPITAL LETTER EHPA
+  case 0x104C6:
+    return 0x104EE; // [C] OSAGE CAPITAL LETTER SA
+  case 0x104C7:
+    return 0x104EF; // [C] OSAGE CAPITAL LETTER SHA
+  case 0x104C8:
+    return 0x104F0; // [C] OSAGE CAPITAL LETTER TA
+  case 0x104C9:
+    return 0x104F1; // [C] OSAGE CAPITAL LETTER EHTA
+  case 0x104CA:
+    return 0x104F2; // [C] OSAGE CAPITAL LETTER TSA
+  case 0x104CB:
+    return 0x104F3; // [C] OSAGE CAPITAL LETTER EHTSA
+  case 0x104CC:
+    return 0x104F4; // [C] OSAGE CAPITAL LETTER TSHA
+  case 0x104CD:
+    return 0x104F5; // [C] OSAGE CAPITAL LETTER DHA
+  case 0x104CE:
+    return 0x104F6; // [C] OSAGE CAPITAL LETTER U
+  case 0x104CF:
+    return 0x104F7; // [C] OSAGE CAPITAL LETTER WA
+  case 0x104D0:
+    return 0x104F8; // [C] OSAGE CAPITAL LETTER KHA
+  case 0x104D1:
+    return 0x104F9; // [C] OSAGE CAPITAL LETTER GHA
+  case 0x104D2:
+    return 0x104FA; // [C] OSAGE CAPITAL LETTER ZA
+  case 0x104D3:
+    return 0x104FB; // [C] OSAGE CAPITAL LETTER ZHA
+  case 0x10570:
+    return 0x10597; // [C] VITHKUQI CAPITAL LETTER A
+  case 0x10571:
+    return 0x10598; // [C] VITHKUQI CAPITAL LETTER BBE
+  case 0x10572:
+    return 0x10599; // [C] VITHKUQI CAPITAL LETTER BE
+  case 0x10573:
+    return 0x1059A; // [C] VITHKUQI CAPITAL LETTER CE
+  case 0x10574:
+    return 0x1059B; // [C] VITHKUQI CAPITAL LETTER CHE
+  case 0x10575:
+    return 0x1059C; // [C] VITHKUQI CAPITAL LETTER DE
+  case 0x10576:
+    return 0x1059D; // [C] VITHKUQI CAPITAL LETTER DHE
+  case 0x10577:
+    return 0x1059E; // [C] VITHKUQI CAPITAL LETTER EI
+  case 0x10578:
+    return 0x1059F; // [C] VITHKUQI CAPITAL LETTER E
+  case 0x10579:
+    return 0x105A0; // [C] VITHKUQI CAPITAL LETTER FE
+  case 0x1057A:
+    return 0x105A1; // [C] VITHKUQI CAPITAL LETTER GA
+  case 0x1057C:
+    return 0x105A3; // [C] VITHKUQI CAPITAL LETTER HA
+  case 0x1057D:
+    return 0x105A4; // [C] VITHKUQI CAPITAL LETTER HHA
+  case 0x1057E:
+    return 0x105A5; // [C] VITHKUQI CAPITAL LETTER I
+  case 0x1057F:
+    return 0x105A6; // [C] VITHKUQI CAPITAL LETTER IJE
+  case 0x10580:
+    return 0x105A7; // [C] VITHKUQI CAPITAL LETTER JE
+  case 0x10581:
+    return 0x105A8; // [C] VITHKUQI CAPITAL LETTER KA
+  case 0x10582:
+    return 0x105A9; // [C] VITHKUQI CAPITAL LETTER LA
+  case 0x10583:
+    return 0x105AA; // [C] VITHKUQI CAPITAL LETTER LLA
+  case 0x10584:
+    return 0x105AB; // [C] VITHKUQI CAPITAL LETTER ME
+  case 0x10585:
+    return 0x105AC; // [C] VITHKUQI CAPITAL LETTER NE
+  case 0x10586:
+    return 0x105AD; // [C] VITHKUQI CAPITAL LETTER NJE
+  case 0x10587:
+    return 0x105AE; // [C] VITHKUQI CAPITAL LETTER O
+  case 0x10588:
+    return 0x105AF; // [C] VITHKUQI CAPITAL LETTER PE
+  case 0x10589:
+    return 0x105B0; // [C] VITHKUQI CAPITAL LETTER QA
+  case 0x1058A:
+    return 0x105B1; // [C] VITHKUQI CAPITAL LETTER RE
+  case 0x1058C:
+    return 0x105B3; // [C] VITHKUQI CAPITAL LETTER SE
+  case 0x1058D:
+    return 0x105B4; // [C] VITHKUQI CAPITAL LETTER SHE
+  case 0x1058E:
+    return 0x105B5; // [C] VITHKUQI CAPITAL LETTER TE
+  case 0x1058F:
+    return 0x105B6; // [C] VITHKUQI CAPITAL LETTER THE
+  case 0x10590:
+    return 0x105B7; // [C] VITHKUQI CAPITAL LETTER U
+  case 0x10591:
+    return 0x105B8; // [C] VITHKUQI CAPITAL LETTER VE
+  case 0x10592:
+    return 0x105B9; // [C] VITHKUQI CAPITAL LETTER XE
+  case 0x10594:
+    return 0x105BB; // [C] VITHKUQI CAPITAL LETTER Y
+  case 0x10595:
+    return 0x105BC; // [C] VITHKUQI CAPITAL LETTER ZE
+  case 0x10C80:
+    return 0x10CC0; // [C] OLD HUNGARIAN CAPITAL LETTER A
+  case 0x10C81:
+    return 0x10CC1; // [C] OLD HUNGARIAN CAPITAL LETTER AA
+  case 0x10C82:
+    return 0x10CC2; // [C] OLD HUNGARIAN CAPITAL LETTER EB
+  case 0x10C83:
+    return 0x10CC3; // [C] OLD HUNGARIAN CAPITAL LETTER AMB
+  case 0x10C84:
+    return 0x10CC4; // [C] OLD HUNGARIAN CAPITAL LETTER EC
+  case 0x10C85:
+    return 0x10CC5; // [C] OLD HUNGARIAN CAPITAL LETTER ENC
+  case 0x10C86:
+    return 0x10CC6; // [C] OLD HUNGARIAN CAPITAL LETTER ECS
+  case 0x10C87:
+    return 0x10CC7; // [C] OLD HUNGARIAN CAPITAL LETTER ED
+  case 0x10C88:
+    return 0x10CC8; // [C] OLD HUNGARIAN CAPITAL LETTER AND
+  case 0x10C89:
+    return 0x10CC9; // [C] OLD HUNGARIAN CAPITAL LETTER E
+  case 0x10C8A:
+    return 0x10CCA; // [C] OLD HUNGARIAN CAPITAL LETTER CLOSE E
+  case 0x10C8B:
+    return 0x10CCB; // [C] OLD HUNGARIAN CAPITAL LETTER EE
+  case 0x10C8C:
+    return 0x10CCC; // [C] OLD HUNGARIAN CAPITAL LETTER EF
+  case 0x10C8D:
+    return 0x10CCD; // [C] OLD HUNGARIAN CAPITAL LETTER EG
+  case 0x10C8E:
+    return 0x10CCE; // [C] OLD HUNGARIAN CAPITAL LETTER EGY
+  case 0x10C8F:
+    return 0x10CCF; // [C] OLD HUNGARIAN CAPITAL LETTER EH
+  case 0x10C90:
+    return 0x10CD0; // [C] OLD HUNGARIAN CAPITAL LETTER I
+  case 0x10C91:
+    return 0x10CD1; // [C] OLD HUNGARIAN CAPITAL LETTER II
+  case 0x10C92:
+    return 0x10CD2; // [C] OLD HUNGARIAN CAPITAL LETTER EJ
+  case 0x10C93:
+    return 0x10CD3; // [C] OLD HUNGARIAN CAPITAL LETTER EK
+  case 0x10C94:
+    return 0x10CD4; // [C] OLD HUNGARIAN CAPITAL LETTER AK
+  case 0x10C95:
+    return 0x10CD5; // [C] OLD HUNGARIAN CAPITAL LETTER UNK
+  case 0x10C96:
+    return 0x10CD6; // [C] OLD HUNGARIAN CAPITAL LETTER EL
+  case 0x10C97:
+    return 0x10CD7; // [C] OLD HUNGARIAN CAPITAL LETTER ELY
+  case 0x10C98:
+    return 0x10CD8; // [C] OLD HUNGARIAN CAPITAL LETTER EM
+  case 0x10C99:
+    return 0x10CD9; // [C] OLD HUNGARIAN CAPITAL LETTER EN
+  case 0x10C9A:
+    return 0x10CDA; // [C] OLD HUNGARIAN CAPITAL LETTER ENY
+  case 0x10C9B:
+    return 0x10CDB; // [C] OLD HUNGARIAN CAPITAL LETTER O
+  case 0x10C9C:
+    return 0x10CDC; // [C] OLD HUNGARIAN CAPITAL LETTER OO
+  case 0x10C9D:
+    return 0x10CDD; // [C] OLD HUNGARIAN CAPITAL LETTER NIKOLSBURG OE
+  case 0x10C9E:
+    return 0x10CDE; // [C] OLD HUNGARIAN CAPITAL LETTER RUDIMENTA OE
+  case 0x10C9F:
+    return 0x10CDF; // [C] OLD HUNGARIAN CAPITAL LETTER OEE
+  case 0x10CA0:
+    return 0x10CE0; // [C] OLD HUNGARIAN CAPITAL LETTER EP
+  case 0x10CA1:
+    return 0x10CE1; // [C] OLD HUNGARIAN CAPITAL LETTER EMP
+  case 0x10CA2:
+    return 0x10CE2; // [C] OLD HUNGARIAN CAPITAL LETTER ER
+  case 0x10CA3:
+    return 0x10CE3; // [C] OLD HUNGARIAN CAPITAL LETTER SHORT ER
+  case 0x10CA4:
+    return 0x10CE4; // [C] OLD HUNGARIAN CAPITAL LETTER ES
+  case 0x10CA5:
+    return 0x10CE5; // [C] OLD HUNGARIAN CAPITAL LETTER ESZ
+  case 0x10CA6:
+    return 0x10CE6; // [C] OLD HUNGARIAN CAPITAL LETTER ET
+  case 0x10CA7:
+    return 0x10CE7; // [C] OLD HUNGARIAN CAPITAL LETTER ENT
+  case 0x10CA8:
+    return 0x10CE8; // [C] OLD HUNGARIAN CAPITAL LETTER ETY
+  case 0x10CA9:
+    return 0x10CE9; // [C] OLD HUNGARIAN CAPITAL LETTER ECH
+  case 0x10CAA:
+    return 0x10CEA; // [C] OLD HUNGARIAN CAPITAL LETTER U
+  case 0x10CAB:
+    return 0x10CEB; // [C] OLD HUNGARIAN CAPITAL LETTER UU
+  case 0x10CAC:
+    return 0x10CEC; // [C] OLD HUNGARIAN CAPITAL LETTER NIKOLSBURG UE
+  case 0x10CAD:
+    return 0x10CED; // [C] OLD HUNGARIAN CAPITAL LETTER RUDIMENTA UE
+  case 0x10CAE:
+    return 0x10CEE; // [C] OLD HUNGARIAN CAPITAL LETTER EV
+  case 0x10CAF:
+    return 0x10CEF; // [C] OLD HUNGARIAN CAPITAL LETTER EZ
+  case 0x10CB0:
+    return 0x10CF0; // [C] OLD HUNGARIAN CAPITAL LETTER EZS
+  case 0x10CB1:
+    return 0x10CF1; // [C] OLD HUNGARIAN CAPITAL LETTER ENT-SHAPED SIGN
+  case 0x10CB2:
+    return 0x10CF2; // [C] OLD HUNGARIAN CAPITAL LETTER US
+  case 0x10D50:
+    return 0x10D70; // [C] GARAY CAPITAL LETTER A
+  case 0x10D51:
+    return 0x10D71; // [C] GARAY CAPITAL LETTER CA
+  case 0x10D52:
+    return 0x10D72; // [C] GARAY CAPITAL LETTER MA
+  case 0x10D53:
+    return 0x10D73; // [C] GARAY CAPITAL LETTER KA
+  case 0x10D54:
+    return 0x10D74; // [C] GARAY CAPITAL LETTER BA
+  case 0x10D55:
+    return 0x10D75; // [C] GARAY CAPITAL LETTER JA
+  case 0x10D56:
+    return 0x10D76; // [C] GARAY CAPITAL LETTER SA
+  case 0x10D57:
+    return 0x10D77; // [C] GARAY CAPITAL LETTER WA
+  case 0x10D58:
+    return 0x10D78; // [C] GARAY CAPITAL LETTER LA
+  case 0x10D59:
+    return 0x10D79; // [C] GARAY CAPITAL LETTER GA
+  case 0x10D5A:
+    return 0x10D7A; // [C] GARAY CAPITAL LETTER DA
+  case 0x10D5B:
+    return 0x10D7B; // [C] GARAY CAPITAL LETTER XA
+  case 0x10D5C:
+    return 0x10D7C; // [C] GARAY CAPITAL LETTER YA
+  case 0x10D5D:
+    return 0x10D7D; // [C] GARAY CAPITAL LETTER TA
+  case 0x10D5E:
+    return 0x10D7E; // [C] GARAY CAPITAL LETTER RA
+  case 0x10D5F:
+    return 0x10D7F; // [C] GARAY CAPITAL LETTER NYA
+  case 0x10D60:
+    return 0x10D80; // [C] GARAY CAPITAL LETTER FA
+  case 0x10D61:
+    return 0x10D81; // [C] GARAY CAPITAL LETTER NA
+  case 0x10D62:
+    return 0x10D82; // [C] GARAY CAPITAL LETTER PA
+  case 0x10D63:
+    return 0x10D83; // [C] GARAY CAPITAL LETTER HA
+  case 0x10D64:
+    return 0x10D84; // [C] GARAY CAPITAL LETTER OLD KA
+  case 0x10D65:
+    return 0x10D85; // [C] GARAY CAPITAL LETTER OLD NA
+  case 0x118A0:
+    return 0x118C0; // [C] WARANG CITI CAPITAL LETTER NGAA
+  case 0x118A1:
+    return 0x118C1; // [C] WARANG CITI CAPITAL LETTER A
+  case 0x118A2:
+    return 0x118C2; // [C] WARANG CITI CAPITAL LETTER WI
+  case 0x118A3:
+    return 0x118C3; // [C] WARANG CITI CAPITAL LETTER YU
+  case 0x118A4:
+    return 0x118C4; // [C] WARANG CITI CAPITAL LETTER YA
+  case 0x118A5:
+    return 0x118C5; // [C] WARANG CITI CAPITAL LETTER YO
+  case 0x118A6:
+    return 0x118C6; // [C] WARANG CITI CAPITAL LETTER II
+  case 0x118A7:
+    return 0x118C7; // [C] WARANG CITI CAPITAL LETTER UU
+  case 0x118A8:
+    return 0x118C8; // [C] WARANG CITI CAPITAL LETTER E
+  case 0x118A9:
+    return 0x118C9; // [C] WARANG CITI CAPITAL LETTER O
+  case 0x118AA:
+    return 0x118CA; // [C] WARANG CITI CAPITAL LETTER ANG
+  case 0x118AB:
+    return 0x118CB; // [C] WARANG CITI CAPITAL LETTER GA
+  case 0x118AC:
+    return 0x118CC; // [C] WARANG CITI CAPITAL LETTER KO
+  case 0x118AD:
+    return 0x118CD; // [C] WARANG CITI CAPITAL LETTER ENY
+  case 0x118AE:
+    return 0x118CE; // [C] WARANG CITI CAPITAL LETTER YUJ
+  case 0x118AF:
+    return 0x118CF; // [C] WARANG CITI CAPITAL LETTER UC
+  case 0x118B0:
+    return 0x118D0; // [C] WARANG CITI CAPITAL LETTER ENN
+  case 0x118B1:
+    return 0x118D1; // [C] WARANG CITI CAPITAL LETTER ODD
+  case 0x118B2:
+    return 0x118D2; // [C] WARANG CITI CAPITAL LETTER TTE
+  case 0x118B3:
+    return 0x118D3; // [C] WARANG CITI CAPITAL LETTER NUNG
+  case 0x118B4:
+    return 0x118D4; // [C] WARANG CITI CAPITAL LETTER DA
+  case 0x118B5:
+    return 0x118D5; // [C] WARANG CITI CAPITAL LETTER AT
+  case 0x118B6:
+    return 0x118D6; // [C] WARANG CITI CAPITAL LETTER AM
+  case 0x118B7:
+    return 0x118D7; // [C] WARANG CITI CAPITAL LETTER BU
+  case 0x118B8:
+    return 0x118D8; // [C] WARANG CITI CAPITAL LETTER PU
+  case 0x118B9:
+    return 0x118D9; // [C] WARANG CITI CAPITAL LETTER HIYO
+  case 0x118BA:
+    return 0x118DA; // [C] WARANG CITI CAPITAL LETTER HOLO
+  case 0x118BB:
+    return 0x118DB; // [C] WARANG CITI CAPITAL LETTER HORR
+  case 0x118BC:
+    return 0x118DC; // [C] WARANG CITI CAPITAL LETTER HAR
+  case 0x118BD:
+    return 0x118DD; // [C] WARANG CITI CAPITAL LETTER SSUU
+  case 0x118BE:
+    return 0x118DE; // [C] WARANG CITI CAPITAL LETTER SII
+  case 0x118BF:
+    return 0x118DF; // [C] WARANG CITI CAPITAL LETTER VIYO
+  case 0x16E40:
+    return 0x16E60; // [C] MEDEFAIDRIN CAPITAL LETTER M
+  case 0x16E41:
+    return 0x16E61; // [C] MEDEFAIDRIN CAPITAL LETTER S
+  case 0x16E42:
+    return 0x16E62; // [C] MEDEFAIDRIN CAPITAL LETTER V
+  case 0x16E43:
+    return 0x16E63; // [C] MEDEFAIDRIN CAPITAL LETTER W
+  case 0x16E44:
+    return 0x16E64; // [C] MEDEFAIDRIN CAPITAL LETTER ATIU
+  case 0x16E45:
+    return 0x16E65; // [C] MEDEFAIDRIN CAPITAL LETTER Z
+  case 0x16E46:
+    return 0x16E66; // [C] MEDEFAIDRIN CAPITAL LETTER KP
+  case 0x16E47:
+    return 0x16E67; // [C] MEDEFAIDRIN CAPITAL LETTER P
+  case 0x16E48:
+    return 0x16E68; // [C] MEDEFAIDRIN CAPITAL LETTER T
+  case 0x16E49:
+    return 0x16E69; // [C] MEDEFAIDRIN CAPITAL LETTER G
+  case 0x16E4A:
+    return 0x16E6A; // [C] MEDEFAIDRIN CAPITAL LETTER F
+  case 0x16E4B:
+    return 0x16E6B; // [C] MEDEFAIDRIN CAPITAL LETTER I
+  case 0x16E4C:
+    return 0x16E6C; // [C] MEDEFAIDRIN CAPITAL LETTER K
+  case 0x16E4D:
+    return 0x16E6D; // [C] MEDEFAIDRIN CAPITAL LETTER A
+  case 0x16E4E:
+    return 0x16E6E; // [C] MEDEFAIDRIN CAPITAL LETTER J
+  case 0x16E4F:
+    return 0x16E6F; // [C] MEDEFAIDRIN CAPITAL LETTER E
+  case 0x16E50:
+    return 0x16E70; // [C] MEDEFAIDRIN CAPITAL LETTER B
+  case 0x16E51:
+    return 0x16E71; // [C] MEDEFAIDRIN CAPITAL LETTER C
+  case 0x16E52:
+    return 0x16E72; // [C] MEDEFAIDRIN CAPITAL LETTER U
+  case 0x16E53:
+    return 0x16E73; // [C] MEDEFAIDRIN CAPITAL LETTER YU
+  case 0x16E54:
+    return 0x16E74; // [C] MEDEFAIDRIN CAPITAL LETTER L
+  case 0x16E55:
+    return 0x16E75; // [C] MEDEFAIDRIN CAPITAL LETTER Q
+  case 0x16E56:
+    return 0x16E76; // [C] MEDEFAIDRIN CAPITAL LETTER HP
+  case 0x16E57:
+    return 0x16E77; // [C] MEDEFAIDRIN CAPITAL LETTER NY
+  case 0x16E58:
+    return 0x16E78; // [C] MEDEFAIDRIN CAPITAL LETTER X
+  case 0x16E59:
+    return 0x16E79; // [C] MEDEFAIDRIN CAPITAL LETTER D
+  case 0x16E5A:
+    return 0x16E7A; // [C] MEDEFAIDRIN CAPITAL LETTER OE
+  case 0x16E5B:
+    return 0x16E7B; // [C] MEDEFAIDRIN CAPITAL LETTER N
+  case 0x16E5C:
+    return 0x16E7C; // [C] MEDEFAIDRIN CAPITAL LETTER R
+  case 0x16E5D:
+    return 0x16E7D; // [C] MEDEFAIDRIN CAPITAL LETTER O
+  case 0x16E5E:
+    return 0x16E7E; // [C] MEDEFAIDRIN CAPITAL LETTER AI
+  case 0x16E5F:
+    return 0x16E7F; // [C] MEDEFAIDRIN CAPITAL LETTER Y
+  case 0x1E900:
+    return 0x1E922; // [C] ADLAM CAPITAL LETTER ALIF
+  case 0x1E901:
+    return 0x1E923; // [C] ADLAM CAPITAL LETTER DAALI
+  case 0x1E902:
+    return 0x1E924; // [C] ADLAM CAPITAL LETTER LAAM
+  case 0x1E903:
+    return 0x1E925; // [C] ADLAM CAPITAL LETTER MIIM
+  case 0x1E904:
+    return 0x1E926; // [C] ADLAM CAPITAL LETTER BA
+  case 0x1E905:
+    return 0x1E927; // [C] ADLAM CAPITAL LETTER SINNYIIYHE
+  case 0x1E906:
+    return 0x1E928; // [C] ADLAM CAPITAL LETTER PE
+  case 0x1E907:
+    return 0x1E929; // [C] ADLAM CAPITAL LETTER BHE
+  case 0x1E908:
+    return 0x1E92A; // [C] ADLAM CAPITAL LETTER RA
+  case 0x1E909:
+    return 0x1E92B; // [C] ADLAM CAPITAL LETTER E
+  case 0x1E90A:
+    return 0x1E92C; // [C] ADLAM CAPITAL LETTER FA
+  case 0x1E90B:
+    return 0x1E92D; // [C] ADLAM CAPITAL LETTER I
+  case 0x1E90C:
+    return 0x1E92E; // [C] ADLAM CAPITAL LETTER O
+  case 0x1E90D:
+    return 0x1E92F; // [C] ADLAM CAPITAL LETTER DHA
+  case 0x1E90E:
+    return 0x1E930; // [C] ADLAM CAPITAL LETTER YHE
+  case 0x1E90F:
+    return 0x1E931; // [C] ADLAM CAPITAL LETTER WAW
+  case 0x1E910:
+    return 0x1E932; // [C] ADLAM CAPITAL LETTER NUN
+  case 0x1E911:
+    return 0x1E933; // [C] ADLAM CAPITAL LETTER KAF
+  case 0x1E912:
+    return 0x1E934; // [C] ADLAM CAPITAL LETTER YA
+  case 0x1E913:
+    return 0x1E935; // [C] ADLAM CAPITAL LETTER U
+  case 0x1E914:
+    return 0x1E936; // [C] ADLAM CAPITAL LETTER JIIM
+  case 0x1E915:
+    return 0x1E937; // [C] ADLAM CAPITAL LETTER CHI
+  case 0x1E916:
+    return 0x1E938; // [C] ADLAM CAPITAL LETTER HA
+  case 0x1E917:
+    return 0x1E939; // [C] ADLAM CAPITAL LETTER QAAF
+  case 0x1E918:
+    return 0x1E93A; // [C] ADLAM CAPITAL LETTER GA
+  case 0x1E919:
+    return 0x1E93B; // [C] ADLAM CAPITAL LETTER NYA
+  case 0x1E91A:
+    return 0x1E93C; // [C] ADLAM CAPITAL LETTER TU
+  case 0x1E91B:
+    return 0x1E93D; // [C] ADLAM CAPITAL LETTER NHA
+  case 0x1E91C:
+    return 0x1E93E; // [C] ADLAM CAPITAL LETTER VA
+  case 0x1E91D:
+    return 0x1E93F; // [C] ADLAM CAPITAL LETTER KHA
+  case 0x1E91E:
+    return 0x1E940; // [C] ADLAM CAPITAL LETTER GBE
+  case 0x1E91F:
+    return 0x1E941; // [C] ADLAM CAPITAL LETTER ZAL
+  case 0x1E920:
+    return 0x1E942; // [C] ADLAM CAPITAL LETTER KPO
+  case 0x1E921:
+    return 0x1E943; // [C] ADLAM CAPITAL LETTER SHA
+  default:
+    return in;
+  }
+}
+
+inline char32_t case_fold_char(char32_t in) {
+  if (in < 0xB5) [[likely]] {
+    if (in >= 0x41 && in <= 0x5A) {
+      in += 0x20;
+    }
+    return in;
+  }
+
+  return case_fold_char_slow(in);
+}
+
+template <typename InputIt, typename OutputIt>
+void case_fold_impl(InputIt start, InputIt end, OutputIt out) {
+  while (start < end) {
+    auto cp = utf8::next(start, end);
+    auto folded = case_fold_char(cp);
+    out = utf8::append(folded, out);
+  }
+}
+
+template <typename InputIt, typename OutputIt>
+void case_fold_unchecked_impl(InputIt start, InputIt end, OutputIt out) {
+  while (start < end) {
+    auto cp = utf8::unchecked::next(start);
+    auto folded = case_fold_char(cp);
+    out = utf8::unchecked::append(folded, out);
+  }
+}
+
+} // namespace
+
+std::string utf8_case_fold(std::string_view in) {
+  std::string out;
+  out.reserve(in.size());
+  case_fold_impl(in.begin(), in.end(), std::back_inserter(out));
+  return out;
+}
+
+std::string utf8_case_fold_unchecked(std::string_view in) {
+  std::string out;
+  out.reserve(in.size());
+  case_fold_unchecked_impl(in.begin(), in.end(), std::back_inserter(out));
+  return out;
+}
+
+} // namespace dwarfs::internal

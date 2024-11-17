@@ -179,6 +179,7 @@ struct options {
 #endif
   int enable_nlink{0};
   int readonly{0};
+  int case_insensitive{0};
   int cache_image{0};
   int cache_files{0};
   size_t cachesize{0};
@@ -258,6 +259,7 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
+    DWARFS_OPT("case_insensitive", case_insensitive, 1),
     DWARFS_OPT("cache_image", cache_image, 1),
     DWARFS_OPT("no_cache_image", cache_image, 0),
     DWARFS_OPT("cache_files", cache_files, 1),
@@ -1224,6 +1226,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o imagesize=NUM       filesystem image size in bytes\n"
      << "    -o enable_nlink        show correct hardlink numbers\n"
      << "    -o readonly            show read-only file system\n"
+     << "    -o case_insensitive    perform case-insensitive lookups\n"
      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
@@ -1464,6 +1467,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.inode_reader.readahead = opts.readahead;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
+  fsopts.metadata.case_insensitive_lookup = bool(opts.case_insensitive);
   fsopts.metadata.block_size = opts.blocksize;
 #ifndef _WIN32
   fsopts.metadata.fs_uid = opts.fs_uid;

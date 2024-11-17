@@ -1053,6 +1053,7 @@ TEST_P(tools_test, end_to_end) {
 
     std::vector<std::string> all_options{
         "-s",
+        "-ocase_insensitive",
 #ifndef _WIN32
         "-oenable_nlink",
         "-oreadonly",
@@ -1074,6 +1075,7 @@ TEST_P(tools_test, end_to_end) {
 
     for (unsigned bitmask = 0; bitmask < combinations; ++bitmask) {
       std::vector<std::string> args;
+      bool case_insensitive{false};
 #ifndef _WIN32
       bool enable_nlink{false};
       bool readonly{false};
@@ -1083,6 +1085,9 @@ TEST_P(tools_test, end_to_end) {
       for (size_t i = 0; i < all_options.size(); ++i) {
         if ((1 << i) & bitmask) {
           auto const& opt = all_options[i];
+          if (opt == "-ocase_insensitive") {
+            case_insensitive = true;
+          }
 #ifndef _WIN32
           if (opt == "-oreadonly") {
             readonly = true;
@@ -1139,6 +1144,12 @@ TEST_P(tools_test, end_to_end) {
           EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
         }
 #endif
+        EXPECT_TRUE(fs::exists(mountpoint / "format.sh")) << runner.cmdline();
+        EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "FORMAT.SH"))
+            << runner.cmdline();
+        EXPECT_EQ(case_insensitive, fs::exists(mountpoint / "fOrMaT.Sh"))
+            << runner.cmdline();
+
         auto perfmon =
             dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
 #if DWARFS_PERFMON_ENABLED

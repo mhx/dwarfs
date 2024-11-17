@@ -32,19 +32,28 @@
 
 #include <boost/algorithm/string.hpp>
 
+#include <boost/sort/flat_stable_sort/flat_stable_sort.hpp>
+
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#if FMT_VERSION >= 110000
+#include <fmt/ranges.h>
+#endif
 
 #include <folly/container/F14Set.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
+#include <folly/small_vector.h>
 #include <folly/stats/Histogram.h>
 
+#include <parallel_hashmap/phmap.h>
+
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
@@ -60,6 +69,7 @@
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
+#include <dwarfs/internal/unicode_case_folding.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
@@ -415,7 +425,7 @@ class metadata_ final : public metadata_v2::impl {
       , symlinks_(meta_.compact_symlinks()
                       ? string_table(lgr, "symlinks", *meta_.compact_symlinks())
                       : string_table(meta_.symlinks()))
-      // clang-format off
+      , dir_icase_cache_{build_dir_icase_cache()} // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "metadata_v2")
       PERFMON_CLS_TIMER_INIT(find)
       PERFMON_CLS_TIMER_INIT(getattr)
@@ -660,6 +670,10 @@ class metadata_ final : public metadata_v2::impl {
 
   nlohmann::json as_json(dir_entry_view entry) const;
   nlohmann::json as_json(directory_view dir, dir_entry_view entry) const;
+
+  std::optional<dir_entry_view>
+  find_impl(directory_view dir, auto const& range, auto const& name,
+            auto const& index_map, auto const& entry_name_transform) const;
 
   std::optional<dir_entry_view>
   find(directory_view dir, std::string_view name) const;
@@ -920,6 +934,79 @@ class metadata_ final : public metadata_v2::impl {
     return packed_nlinks;
   }
 
+  std::vector<packed_int_vector<uint32_t>> build_dir_icase_cache() const {
+    std::vector<packed_int_vector<uint32_t>> cache;
+
+    if (options_.case_insensitive_lookup) {
+      auto ti = LOG_TIMED_INFO;
+      size_t num_cached_dirs = 0;
+      size_t num_cached_files = 0;
+      size_t total_cache_size = 0;
+
+      cache.resize(meta_.directories().size());
+
+      for (uint32_t inode = 0; inode < meta_.directories().size() - 1;
+           ++inode) {
+        directory_view dir{inode, global_};
+        auto range = dir.entry_range();
+
+        // Cache the folded names of the directory entries; this significantly
+        // speeds up the sorting code.
+        std::vector<std::string> names(range.size());
+        std::transform(range.begin(), range.end(), names.begin(), [&](auto ix) {
+          return utf8_case_fold_unchecked(
+              dir_entry_view_impl::name(ix, global_));
+        });
+
+        // Check and report any collisions in the directory
+        phmap::flat_hash_map<std::string_view, folly::small_vector<uint32_t, 1>>
+            collisions;
+        collisions.reserve(range.size());
+        for (size_t i = 0; i < names.size(); ++i) {
+          collisions[names[i]].push_back(i);
+        }
+        for (auto& [name, indices] : collisions) {
+          if (indices.size() > 1) {
+            LOG_WARN << fmt::format(
+                "case-insensitive collision in directory \"{}\" (inode={}): {}",
+                dir.self_entry_view().unix_path(), inode,
+                fmt::join(indices | ranges::views::transform([&](auto i) {
+                            return dir_entry_view_impl::name(range[i], global_);
+                          }),
+                          ", "));
+          }
+        }
+
+        // It's faster to check here if the folded names are sorted than to
+        // check later if the indices in `entries` are sorted.
+        if (!std::is_sorted(names.begin(), names.end())) {
+          std::vector<uint32_t> entries(range.size());
+          std::iota(entries.begin(), entries.end(), 0);
+          boost::sort::flat_stable_sort(
+              entries.begin(), entries.end(),
+              [&](auto a, auto b) { return names[a] < names[b]; });
+          auto& pv = cache[inode];
+          pv.reset(std::bit_width(entries.size()), entries.size());
+          for (size_t i = 0; i < entries.size(); ++i) {
+            pv.set(i, entries[i]);
+          }
+          ++num_cached_dirs;
+          num_cached_files += entries.size();
+          total_cache_size += pv.size_in_bytes();
+        }
+      }
+
+      ti << "built case-insensitive directory cache for " << num_cached_files
+         << " entries in " << num_cached_dirs << " out of "
+         << meta_.directories().size() - 1 << " directories ("
+         << size_with_unit(total_cache_size +
+                           sizeof(decltype(cache)::value_type) * cache.size())
+         << ")";
+    }
+
+    return cache;
+  }
+
   size_t total_file_entries() const {
     return (dev_inode_offset_ - file_inode_offset_) +
            (meta_.dir_entries()
@@ -943,6 +1030,7 @@ class metadata_ final : public metadata_v2::impl {
   const int unique_files_;
   const metadata_options options_;
   const string_table symlinks_;
+  std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
   PERFMON_CLS_TIMER_DECL(getattr)
@@ -1689,24 +1777,51 @@ void metadata_<LoggerPolicy>::walk_data_order_impl(
 
 template <typename LoggerPolicy>
 std::optional<dir_entry_view>
+metadata_<LoggerPolicy>::find_impl(directory_view dir, auto const& range,
+                                   auto const& name, auto const& index_map,
+                                   auto const& entry_name_transform) const {
+  auto entry_name = [&](auto ix) {
+    return entry_name_transform(dir_entry_view_impl::name(ix, global_));
+  };
+
+  auto it = std::lower_bound(range.begin(), range.end(), name,
+                             [&](auto ix, auto const& name) {
+                               return entry_name(index_map(ix)) < name;
+                             });
+
+  if (it != range.end()) {
+    auto ix = index_map(*it);
+    if (entry_name(ix) == name) {
+      return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
+          ix, global_.self_dir_entry(dir.inode()), global_)};
+    }
+  }
+
+  return std::nullopt;
+}
+
+template <typename LoggerPolicy>
+std::optional<dir_entry_view>
 metadata_<LoggerPolicy>::find(directory_view dir, std::string_view name) const {
   PERFMON_CLS_SCOPED_SECTION(find)
 
   auto range = dir.entry_range();
 
-  auto it = std::lower_bound(
-      range.begin(), range.end(), name, [&](auto ix, std::string_view name) {
-        return internal::dir_entry_view_impl::name(ix, global_) < name;
-      });
-
-  if (it != range.end()) {
-    if (internal::dir_entry_view_impl::name(*it, global_) == name) {
-      return dir_entry_view{dir_entry_view_impl::from_dir_entry_index_shared(
-          *it, global_.self_dir_entry(dir.inode()), global_)};
-    }
+  if (!options_.case_insensitive_lookup) {
+    return find_impl(dir, range, name, std::identity{}, std::identity{});
   }
 
-  return std::nullopt;
+  auto const& cache = dir_icase_cache_[dir.inode()];
+
+  return find_impl(
+      dir, boost::irange(range.size()), utf8_case_fold(name),
+      [&cache, &range](auto ix) {
+        if (!cache.empty()) {
+          ix = cache[ix];
+        }
+        return range[ix];
+      },
+      utf8_case_fold_unchecked);
 }
 
 template <typename LoggerPolicy>
