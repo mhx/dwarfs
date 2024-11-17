@@ -169,6 +169,10 @@ TEST_P(manpage_coverage_test, options) {
   if (tool.is_fuse) {
     man_opts.erase("allow_root");
     man_opts.erase("allow_other");
+#ifdef _WIN32
+    man_opts.erase("uid");
+    man_opts.erase("gid");
+#endif
   } else {
     EXPECT_TRUE(help_opts.contains("help"))
         << tool_name << " missing help option";

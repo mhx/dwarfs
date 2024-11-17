@@ -21,6 +21,11 @@
 
 #pragma once
 
+#include <cstddef>
+#include <optional>
+
+#include <dwarfs/file_stat.h>
+
 namespace dwarfs::reader {
 
 struct metadata_options {
@@ -28,6 +33,8 @@ struct metadata_options {
   bool readonly{false};
   bool check_consistency{false};
   size_t block_size{512};
+  std::optional<file_stat::uid_type> fs_uid{};
+  std::optional<file_stat::gid_type> fs_gid{};
 };
 
 } // namespace dwarfs::reader

@@ -37,6 +37,7 @@
 #ifndef _WIN32
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #ifdef __APPLE__
 #include <sys/mount.h>
@@ -1055,6 +1056,7 @@ TEST_P(tools_test, end_to_end) {
 #ifndef _WIN32
         "-oenable_nlink",
         "-oreadonly",
+        "-ouid=2345,gid=3456",
 #endif
     };
 
@@ -1075,6 +1077,7 @@ TEST_P(tools_test, end_to_end) {
 #ifndef _WIN32
       bool enable_nlink{false};
       bool readonly{false};
+      bool uid_gid_override{false};
 #endif
 
       for (size_t i = 0; i < all_options.size(); ++i) {
@@ -1086,6 +1089,9 @@ TEST_P(tools_test, end_to_end) {
           }
           if (opt == "-oenable_nlink") {
             enable_nlink = true;
+          }
+          if (opt.find("-ouid=") != std::string::npos) {
+            uid_gid_override = true;
           }
 #endif
           args.push_back(opt);
@@ -1120,6 +1126,18 @@ TEST_P(tools_test, end_to_end) {
         // This doesn't really work on Windows (yet)
         EXPECT_TRUE(check_readonly(mountpoint / "format.sh", readonly))
             << runner.cmdline();
+        if (uid_gid_override) {
+          struct ::stat st;
+          ASSERT_EQ(0, ::lstat(mountpoint.string().c_str(), &st))
+              << runner.cmdline();
+          EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
+          EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
+          ASSERT_EQ(0,
+                    ::lstat((mountpoint / "format.sh").string().c_str(), &st))
+              << runner.cmdline();
+          EXPECT_EQ(st.st_uid, 2345) << runner.cmdline();
+          EXPECT_EQ(st.st_gid, 3456) << runner.cmdline();
+        }
 #endif
         auto perfmon =
             dwarfs::getxattr(mountpoint, "user.dwarfs.driver.perfmon");
