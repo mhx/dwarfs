@@ -169,6 +169,10 @@ struct options {
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
   char const* seq_detector_thresh_str{nullptr}; // TODO: const?? -> use string?
+#ifndef _WIN32
+  char const* uid_str{nullptr}; // TODO: const?? -> use string?
+  char const* gid_str{nullptr}; // TODO: const?? -> use string?
+#endif
 #if DWARFS_PERFMON_ENABLED
   char const* perfmon_enabled_str{nullptr};    // TODO: const?? -> use string?
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
@@ -189,6 +193,10 @@ struct options {
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
   size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};
+#ifndef _WIN32
+  std::optional<file_stat::uid_type> fs_uid;
+  std::optional<file_stat::gid_type> fs_gid;
+#endif
   bool is_help{false};
 #ifdef DWARFS_BUILTIN_MANPAGE
   bool is_man{false};
@@ -236,6 +244,10 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("readahead=%s", readahead_str, 0),
     DWARFS_OPT("debuglevel=%s", debuglevel_str, 0),
     DWARFS_OPT("workers=%s", workers_str, 0),
+#ifndef _WIN32
+    DWARFS_OPT("uid=%s", uid_str, 0),
+    DWARFS_OPT("gid=%s", gid_str, 0),
+#endif
     DWARFS_OPT("mlock=%s", mlock_str, 0),
     DWARFS_OPT("decratio=%s", decompress_ratio_str, 0),
     DWARFS_OPT("offset=%s", image_offset_str, 0),
@@ -1202,6 +1214,10 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o blocksize=SIZE      set file I/O block size (512K)\n"
      << "    -o readahead=SIZE      set readahead size (0)\n"
      << "    -o workers=NUM         number of worker threads (2)\n"
+#ifndef _WIN32
+     << "    -o uid=NUM             override user ID for file system\n"
+     << "    -o gid=NUM             override group ID for file system\n"
+#endif
      << "    -o mlock=NAME          mlock mode: (none), try, must\n"
      << "    -o decratio=NUM        ratio for full decompression (0.8)\n"
      << "    -o offset=NUM|auto     filesystem image offset in bytes (0)\n"
@@ -1449,6 +1465,10 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
   fsopts.metadata.block_size = opts.blocksize;
+#ifndef _WIN32
+  fsopts.metadata.fs_uid = opts.fs_uid;
+  fsopts.metadata.fs_gid = opts.fs_gid;
+#endif
   fsopts.inode_offset = inode_offset;
 
   if (opts.image_offset_str) {
@@ -1602,6 +1622,16 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                                     : reader::mlock_mode::NONE;
     opts.decompress_ratio =
         opts.decompress_ratio_str ? to<double>(opts.decompress_ratio_str) : 0.8;
+
+#ifndef _WIN32
+    if (opts.uid_str) {
+      opts.fs_uid = to<file_stat::uid_type>(opts.uid_str);
+    }
+
+    if (opts.gid_str) {
+      opts.fs_gid = to<file_stat::gid_type>(opts.gid_str);
+    }
+#endif
 
     if (opts.cache_tidy_strategy_str) {
       if (auto it = cache_tidy_strategy_map.find(opts.cache_tidy_strategy_str);
