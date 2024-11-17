@@ -450,6 +450,7 @@ if(WITH_TESTS)
       pcmaudio_categorizer_test
       speedometer_test
       terminal_test
+      unicode_test
       utils_test
       file_utils_test
       worker_group_test

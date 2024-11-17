@@ -104,6 +104,17 @@ options:
   overlays and want the file system to reflect its read-only
   state, you can set this option.
 
+- `-o case_insensitive`:
+  Perform case-insensitive lookups in the mounted file system,
+  i.e. an entry orignally named `ReadMe.txt` can be accessed as
+  `readme.txt`, `README.TXT`, or `rEaDmE.tXt`. This works across
+  all platforms. When mounting a file system with many files, this
+  may be slightly slower and consume slightly more memory as case-
+  insensitive lookup requires an additional mapping table that is
+  built on-demand. Note that this is not supported if the file
+  system contains directories with entries that only differ in
+  case.
+
 - `-o (no_)cache_image`:
   By default, `dwarfs` tries to ensure that the compressed file
   system image will not be cached by the kernel (i.e. the default
