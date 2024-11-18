@@ -47,6 +47,11 @@ std::unordered_set<std::string> supported_algorithms{
     "xxh3-128",
 };
 
+constexpr std::array unsupported_algorithms{
+    "shake128"sv,
+    "shake256"sv,
+};
+
 std::string make_hexdigest(checksum::impl& cs) {
   std::array<char, EVP_MAX_MD_SIZE> tmp;
   auto dig_size = cs.digest_size();
@@ -102,7 +107,9 @@ class checksum_evp : public checksum::impl {
     std::vector<std::string> available;
     ::EVP_MD_do_all(
         [](const ::EVP_MD*, const char* from, const char* to, void* vec) {
-          if (!to) {
+          // TODO: C++23: use std::ranges::contains
+          if (!to && std::ranges::find(unsupported_algorithms, from) ==
+                         unsupported_algorithms.end()) {
             reinterpret_cast<std::vector<std::string>*>(vec)->emplace_back(
                 from);
           }
