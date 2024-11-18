@@ -417,7 +417,7 @@ os_access_mock::opendir(fs::path const& path) const {
     std::vector<fs::path> files;
     for (auto const& e :
          std::get<std::unique_ptr<mock_directory>>(de->v)->ent) {
-      files.push_back(path / e.name);
+      files.push_back(path / string_to_u8string(e.name));
     }
     return std::make_unique<dir_reader_mock>(std::move(files),
                                              dir_reader_delay_);
