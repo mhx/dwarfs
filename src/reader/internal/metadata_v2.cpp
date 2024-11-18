@@ -394,8 +394,7 @@ class metadata_ final : public metadata_v2::impl {
       , global_(lgr, check_metadata_consistency(lgr, meta_,
                                                 options.check_consistency ||
                                                     force_consistency_check))
-      , root_(internal::dir_entry_view_impl::from_dir_entry_index_shared(
-            0, global_))
+      , root_(dir_entry_view_impl::from_dir_entry_index_shared(0, global_))
       , LOG_PROXY_INIT(lgr)
       , inode_offset_(inode_offset)
       , symlink_inode_offset_(find_inode_offset(inode_rank::INO_LNK))
@@ -560,8 +559,8 @@ class metadata_ final : public metadata_v2::impl {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
         meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
-    return inode_view{std::make_shared<internal::inode_view_impl>(
-        meta_.inodes()[index], inode, meta_)};
+    return inode_view{
+        std::make_shared<inode_view_impl>(meta_.inodes()[index], inode, meta_)};
   }
 
   inode_view_impl make_inode_view_impl(uint32_t inode) const {
