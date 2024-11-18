@@ -154,4 +154,10 @@ uint32_t directory_view::parent_inode() const {
   return ent;
 }
 
+dir_entry_view directory_view::self_entry_view() const {
+  return dir_entry_view{
+      internal::dir_entry_view_impl::from_dir_entry_index_shared(
+          g_->self_dir_entry(inode_), *g_)};
+}
+
 } // namespace dwarfs::reader
