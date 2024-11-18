@@ -156,6 +156,8 @@ class directory_view {
   directory_iterator begin() const { return directory_iterator{inode_, *g_}; }
   directory_iterator end() const { return directory_iterator{}; }
 
+  dir_entry_view self_entry_view() const;
+
  private:
   directory_view(uint32_t inode, internal::global_metadata const& g)
       : inode_{inode}
