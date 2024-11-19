@@ -23,7 +23,7 @@
 #include <string_view>
 #include <vector>
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/process.hpp>
 
 #include <dwarfs/os_access.h>
@@ -79,7 +79,7 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
 }
 
 void show_in_pager(pager_program const& pager, std::string text) {
-  boost::asio::io_service ios;
+  boost::asio::io_context ios;
   bp::child proc(pager.name.wstring(), bp::args(pager.args),
                  bp::std_in =
                      boost::asio::const_buffer(text.data(), text.size()),
