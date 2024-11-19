@@ -45,7 +45,7 @@
 #endif
 #endif
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/process.hpp>
 
 #include <fmt/format.h>
@@ -360,7 +360,7 @@ class subprocess {
       : subprocess(nullptr, prog, std::forward<Args>(args)...) {}
 
   template <subprocess_arg... Args>
-  subprocess(boost::asio::io_service& ios, std::filesystem::path const& prog,
+  subprocess(boost::asio::io_context& ios, std::filesystem::path const& prog,
              Args&&... args)
       : subprocess(&ios, prog, std::forward<Args>(args)...) {}
 
@@ -382,7 +382,7 @@ class subprocess {
 
   void run() {
     if (!ios_) {
-      throw std::runtime_error("processes with external io_service must be run "
+      throw std::runtime_error("processes with external io_context must be run "
                                "externally and then waited for");
     }
     ios_->run();
@@ -450,7 +450,7 @@ class subprocess {
 
  private:
   template <subprocess_arg... Args>
-  subprocess(boost::asio::io_service* ios, std::filesystem::path const& prog,
+  subprocess(boost::asio::io_context* ios, std::filesystem::path const& prog,
              Args&&... args)
       : prog_{prog} {
     (append_arg(cmdline_, std::forward<Args>(args)), ...);
@@ -458,7 +458,7 @@ class subprocess {
     ignore_sigpipe();
 
     if (!ios) {
-      ios_ = std::make_unique<boost::asio::io_service>();
+      ios_ = std::make_unique<boost::asio::io_context>();
       ios = ios_.get();
     }
 
@@ -492,7 +492,7 @@ class subprocess {
   }
 
   bp::child c_;
-  std::unique_ptr<boost::asio::io_service> ios_;
+  std::unique_ptr<boost::asio::io_context> ios_;
   std::future<std::string> out_;
   std::future<std::string> err_;
   std::string outs_;
