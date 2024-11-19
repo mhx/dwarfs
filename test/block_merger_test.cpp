@@ -69,8 +69,8 @@ struct block {
     return os << source_id << "." << index;
   }
 
-  size_t source_id;
-  size_t index;
+  size_t source_id{0};
+  size_t index{0};
 };
 
 struct sized_block {
