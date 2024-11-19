@@ -78,7 +78,7 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
   return std::nullopt;
 }
 
-void show_in_pager(pager_program const& pager, std::string text) {
+void show_in_pager(pager_program const& pager, std::string_view text) {
   boost::asio::io_context ios;
   // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
   bp::child proc(pager.name.wstring(), bp::args(pager.args),
