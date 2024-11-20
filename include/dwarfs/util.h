@@ -52,6 +52,8 @@ size_t utf8_display_width(std::string const& str);
 void utf8_truncate(std::string& str, size_t len);
 void utf8_sanitize(std::string& str);
 
+std::string error_cp_to_utf8(std::string_view error);
+
 void shorten_path_string(std::string& path, char separator, size_t max_len);
 
 std::filesystem::path canonical_path(std::filesystem::path p);

@@ -319,6 +319,41 @@ void setup_default_locale() {
   }
 }
 
+std::string error_cp_to_utf8(std::string_view error) {
+  std::string input(error);
+#ifdef _WIN32
+  UINT cp = GetACP();
+  // convert from codepage to UTF-16
+  int wclen = MultiByteToWideChar(cp, 0, input.c_str(), -1, NULL, 0);
+  if (wclen == 0) {
+    utf8_sanitize(input);
+    return input;
+  }
+  std::wstring wstr(wclen, L'\0');
+  MultiByteToWideChar(cp, 0, input.c_str(), -1, &wstr[0], wclen);
+
+  // convert from UTF-16 to UTF-8
+  int utf8len =
+      WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+  if (utf8len == 0) {
+    utf8_sanitize(input);
+    return input;
+  }
+  std::string utf8err(utf8len, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &utf8err[0], utf8len, NULL,
+                      NULL);
+
+  // remove the null terminator added by WideCharToMultiByte
+  if (!utf8err.empty() && utf8err.back() == '\0') {
+    utf8err.pop_back();
+  }
+
+  return utf8err;
+#else
+  return input;
+#endif
+}
+
 std::string_view basename(std::string_view path) {
   auto pos = path.find_last_of("/\\");
   if (pos == std::string_view::npos) {
