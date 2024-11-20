@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -48,6 +49,19 @@ class option_map {
     }
 
     return default_value;
+  }
+
+  template <typename T>
+  std::optional<T> get_optional(const std::string& key) {
+    auto i = opt_.find(key);
+
+    if (i != opt_.end()) {
+      std::string val = i->second;
+      opt_.erase(i);
+      return to<T>(val);
+    }
+
+    return std::nullopt;
   }
 
   size_t get_size(const std::string& key, size_t default_value = 0);
