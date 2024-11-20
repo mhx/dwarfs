@@ -1769,7 +1769,7 @@ TEST(tools_test, dwarfsextract_file_out) {
   auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
                                    "-f", "mtree", "-o", outfile);
   ASSERT_TRUE(out);
-  EXPECT_TRUE(out->empty());
+  EXPECT_TRUE(out->empty()) << *out;
 
   ASSERT_TRUE(fs::exists(outfile));
 
