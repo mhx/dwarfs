@@ -25,7 +25,11 @@
 #include <folly/portability/PThread.h>
 #include <folly/portability/Unistd.h>
 
+#if __has_include(<boost/process/v1/search_path.hpp>)
+#include <boost/process/v1/search_path.hpp>
+#else
 #include <boost/process/search_path.hpp>
+#endif
 
 #ifdef __APPLE__
 #include <mach/mach.h>
