@@ -105,7 +105,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     try {
       close();
     } catch (std::exception const& e) {
-      LOG_ERROR << "close() failed in destructor: " << e.what();
+      LOG_ERROR << "close() failed in destructor: "
+                << error_cp_to_utf8(e.what());
     } catch (...) {
       LOG_ERROR << "close() failed in destructor";
     }

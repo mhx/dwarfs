@@ -371,7 +371,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
         LOG_ERROR << fmt::format(
             "invalid file name in \"{}\", storing as \"{}\": {}",
             path_to_utf8_string_sanitized(name.parent_path()), pe->name(),
-            e.what());
+            error_cp_to_utf8(e.what()));
 
         prog.errors++;
 
