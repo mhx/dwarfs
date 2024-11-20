@@ -21,10 +21,15 @@
 
 #include <array>
 #include <cassert>
+#include <optional>
 
 #include <lzma.h>
 
 #include <fmt/format.h>
+
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
@@ -51,6 +56,48 @@ std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
     // {LZMA_SEEK_NEEDED, "request to change the input file position"},
 };
 
+std::array<std::pair<std::string_view, lzma_vli>, 6> constexpr kBinaryModes{{
+    {"x86", LZMA_FILTER_X86},
+    {"powerpc", LZMA_FILTER_POWERPC},
+    {"ia64", LZMA_FILTER_IA64},
+    {"arm", LZMA_FILTER_ARM},
+    {"armthumb", LZMA_FILTER_ARMTHUMB},
+    {"sparc", LZMA_FILTER_SPARC},
+}};
+
+std::array<std::pair<std::string_view, lzma_mode>,
+           2> constexpr kCompressionModes{{
+    {"fast", LZMA_MODE_FAST},
+    {"normal", LZMA_MODE_NORMAL},
+}};
+
+std::array<std::pair<std::string_view, lzma_match_finder>,
+           5> constexpr kMatchFinders{{
+    {"hc3", LZMA_MF_HC3},
+    {"hc4", LZMA_MF_HC4},
+    {"bt2", LZMA_MF_BT2},
+    {"bt3", LZMA_MF_BT3},
+    {"bt4", LZMA_MF_BT4},
+}};
+
+template <typename T, size_t N>
+T find_option(std::array<std::pair<std::string_view, T>, N> const& options,
+              std::string_view name, std::string_view what) {
+  for (auto const& [key, value] : options) {
+    if (key == name) {
+      return value;
+    }
+  }
+  DWARFS_THROW(runtime_error, fmt::format("unknown {} '{}'", what, name));
+}
+
+template <typename T, size_t N>
+std::string
+option_names(std::array<std::pair<std::string_view, T>, N> const& options) {
+  return options | ranges::views::keys | ranges::views::join(", ") |
+         ranges::to<std::string>;
+}
+
 std::string lzma_error_string(lzma_ret err) {
   if (auto it = lzma_error_desc.find(err); it != lzma_error_desc.end()) {
     return it->second;
@@ -60,8 +107,7 @@ std::string lzma_error_string(lzma_ret err) {
 
 class lzma_block_compressor final : public block_compressor::impl {
  public:
-  lzma_block_compressor(unsigned level, bool extreme,
-                        const std::string& binary_mode, unsigned dict_size);
+  explicit lzma_block_compressor(option_map& om);
   lzma_block_compressor(const lzma_block_compressor& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
@@ -102,24 +148,12 @@ class lzma_block_compressor final : public block_compressor::impl {
     return preset;
   }
 
-  static lzma_vli get_vli(const std::string& binary) {
-    if (binary.empty()) {
+  static lzma_vli get_vli(std::optional<std::string_view> binary) {
+    if (!binary) {
       return LZMA_VLI_UNKNOWN;
     }
 
-    std::unordered_map<std::string, lzma_vli> vm{
-        {"x86", LZMA_FILTER_X86},           {"powerpc", LZMA_FILTER_POWERPC},
-        {"ia64", LZMA_FILTER_IA64},         {"arm", LZMA_FILTER_ARM},
-        {"armthumb", LZMA_FILTER_ARMTHUMB}, {"sparc", LZMA_FILTER_SPARC},
-    };
-
-    auto i = vm.find(binary);
-
-    if (i == vm.end()) {
-      DWARFS_THROW(runtime_error, "unsupported binary mode");
-    }
-
-    return i->second;
+    return find_option(kBinaryModes, *binary, "binary mode");
   }
 
   lzma_options_lzma opt_lzma_;
@@ -127,20 +161,48 @@ class lzma_block_compressor final : public block_compressor::impl {
   std::string description_;
 };
 
-lzma_block_compressor::lzma_block_compressor(unsigned level, bool extreme,
-                                             const std::string& binary_mode,
-                                             unsigned dict_size)
-    : binary_vli_{get_vli(binary_mode)}
-    , description_{
-          fmt::format("lzma [level={}, dict_size={}{}{}]", level, dict_size,
-                      extreme ? ", extreme" : "",
-                      binary_mode.empty() ? "" : ", binary=" + binary_mode)} {
+lzma_block_compressor::lzma_block_compressor(option_map& om) {
+  auto level = om.get<unsigned>("level", 9u);
+  auto extreme = om.get<bool>("extreme", false);
+  auto binary_mode = om.get_optional<std::string>("binary");
+  auto dict_size = om.get_optional<unsigned>("dict_size");
+  auto mode = om.get_optional<std::string>("mode");
+  auto mf = om.get_optional<std::string>("mf");
+  auto nice = om.get_optional<unsigned>("nice");
+  auto depth = om.get_optional<unsigned>("depth");
+
+  description_ = fmt::format(
+      "lzma [level={}{}{}{}{}{}{}{}]", level,
+      dict_size ? ", dict_size=" + std::to_string(*dict_size) : "",
+      extreme ? ", extreme" : "", binary_mode ? ", binary=" + *binary_mode : "",
+      mode ? ", mode=" + *mode : "", mf ? ", mf=" + *mf : "",
+      nice ? ", nice=" + std::to_string(*nice) : "",
+      depth ? ", depth=" + std::to_string(*depth) : "");
+
+  binary_vli_ = get_vli(binary_mode);
+
   if (lzma_lzma_preset(&opt_lzma_, get_preset(level, extreme))) {
     DWARFS_THROW(runtime_error, "unsupported preset, possibly a bug");
   }
 
-  if (dict_size > 0) {
-    opt_lzma_.dict_size = 1 << dict_size;
+  if (dict_size) {
+    opt_lzma_.dict_size = 1 << *dict_size;
+  }
+
+  if (mode) {
+    opt_lzma_.mode = find_option(kCompressionModes, *mode, "compression mode");
+  }
+
+  if (mf) {
+    opt_lzma_.mf = find_option(kMatchFinders, *mf, "match finder");
+  }
+
+  if (nice) {
+    opt_lzma_.nice_len = *nice;
+  }
+
+  if (depth) {
+    opt_lzma_.depth = *depth;
   }
 }
 
@@ -367,9 +429,7 @@ class lzma_compression_factory : public compression_factory {
 
   std::unique_ptr<block_compressor::impl>
   make_compressor(option_map& om) const override {
-    return std::make_unique<lzma_block_compressor>(
-        om.get<unsigned>("level", 9u), om.get<bool>("extreme", false),
-        om.get<std::string>("binary"), om.get<unsigned>("dict_size", 0u));
+    return std::make_unique<lzma_block_compressor>(om);
   }
 
   std::unique_ptr<block_decompressor::impl>
@@ -384,7 +444,11 @@ class lzma_compression_factory : public compression_factory {
       "level=[0..9]",
       "dict_size=[12..30]",
       "extreme",
-      "binary={x86,powerpc,ia64,arm,armthumb,sparc}",
+      "binary={" + option_names(kBinaryModes) + "}",
+      "mode={" + option_names(kCompressionModes) + "}",
+      "mf={" + option_names(kMatchFinders) + "}",
+      "nice=[0..273]",
+      "depth=[0..4294967295]",
   };
 };
 
