@@ -324,6 +324,9 @@ void setup_default_locale() {
                 << "\n";
     }
   }
+#ifdef _WIN32
+  SetConsoleOutputCP(CP_UTF8);
+#endif
 }
 
 std::string error_cp_to_utf8(std::string_view error) {
