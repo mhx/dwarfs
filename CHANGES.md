@@ -1,5 +1,52 @@
 # Change Log
 
+## Version 0.10.2 - 2024-12-02
+
+- (fix) Gracefully handle localized error message on Windows.
+  These error messages can contain characters from a Windows
+  (non-UTF-8) code page, which could cause a fatal error in
+  `fmt::print` in the logging code. Call sites that log such
+  error messages now try to convert these from the code page
+  to UTF-8 or, if that fails, simply replace all characters
+  that are invalid from a UTF-8 point-of-view. Partial fix for
+  github #241.
+
+- (fix) Handle invalid wide chars in file names on Windows. For
+  some reason, Windows allows invalid UTF-16 characters in file
+  names. Try to handle these gracefully when converting to UTF-8.
+  Partial fix for github #241.
+
+- (fix) Workaround for new boost versions which have a `process`
+  component.
+
+- (fix) Workaround for a deprecated boost header.
+
+- (fix) Support for upcoming Boost 1.87.0. `io_service` was
+  deprecated and replaced by `io_context` in 1.66.0. The upcoming
+  Boost 1.87.0 will remove the deprecated API. (Thanks to Michael
+  Cho for the fix.)
+
+- (fix) Disable extended output algorithms (`shake(128|256)`).
+
+- (fix) Install libraries to `CMAKE_INSTALL_LIBDIR`. Fixes github
+  #240.
+
+- (fix) mode/uid/gid checks were expecting 16-bit types.
+
+- (fix) stricter metadata checks and improved error messages.
+
+- (fix) Various fixes for `filesystem_extractor` to prevent memory
+  leaks, correctly handle errors during extraction, and prevent
+  creation of invalid archive outputs due to padding.
+
+- (fix) Various minor fixes: non-virtual dtors, missing includes,
+  `std::move` vs. `std::forward`, unused code removal.
+
+- (test) More test cases for stricter metadata checks. Also enable
+  the strict checks in in unit tests by default.
+
+- (docs) Fix typos in man pages.
+
 ## Version 0.10.1 - 2024-08-17
 
 - (fix) Allow building `utils_test` against a non-compatible,
