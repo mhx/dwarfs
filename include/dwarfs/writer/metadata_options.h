@@ -31,25 +31,29 @@
 #include <dwarfs/file_stat.h>
 #include <dwarfs/history_config.h>
 #include <dwarfs/writer/inode_options.h>
-#include <dwarfs/writer/metadata_options.h>
 
 namespace dwarfs::writer {
 
 class entry_interface;
 
-struct scanner_options {
-  std::optional<std::string> file_hash_algorithm{"xxh3-128"};
-  bool remove_empty_dirs{false};
-  bool with_devices{false};
-  bool with_specials{false};
-  inode_options inode;
-  std::optional<std::function<void(bool, writer::entry_interface const&)>>
-      debug_filter_function;
-  size_t num_segmenter_workers{1};
-  bool enable_history{true};
-  std::optional<std::vector<std::string>> command_line_arguments;
-  history_config history;
-  metadata_options metadata;
+struct metadata_options {
+  std::optional<file_stat::uid_type> uid{};
+  std::optional<file_stat::gid_type> gid{};
+  std::optional<uint64_t> timestamp{};
+  bool keep_all_times{false};
+  uint32_t time_resolution_sec{1};
+  bool pack_chunk_table{false};
+  bool pack_directories{false};
+  bool pack_shared_files_table{false};
+  bool plain_names_table{false};
+  bool pack_names{false};
+  bool pack_names_index{false};
+  bool plain_symlinks_table{false};
+  bool pack_symlinks{false};
+  bool pack_symlinks_index{false};
+  bool force_pack_string_tables{false};
+  bool no_create_timestamp{false};
+  size_t inode_size_cache_min_chunk_count{128};
 };
 
 } // namespace dwarfs::writer
