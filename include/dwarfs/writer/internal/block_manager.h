@@ -37,7 +37,7 @@ class block_manager {
   size_t get_logical_block() const;
   void set_written_block(size_t logical_block, size_t written_block,
                          fragment_category::value_type category);
-  void map_logical_blocks(std::vector<chunk_type>& vec);
+  void map_logical_blocks(std::vector<chunk_type>& vec) const;
   std::vector<fragment_category::value_type>
   get_written_block_categories() const;
 
