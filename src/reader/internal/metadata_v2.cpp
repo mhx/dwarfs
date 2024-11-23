@@ -555,6 +555,14 @@ class metadata_ final : public metadata_v2::impl {
   std::vector<file_stat::uid_type> get_all_uids() const override;
   std::vector<file_stat::gid_type> get_all_gids() const override;
 
+  std::unique_ptr<thrift::metadata::metadata> unpack() const override {
+    return std::make_unique<thrift::metadata::metadata>(unpack_metadata());
+  }
+
+  std::unique_ptr<thrift::metadata::metadata> thaw() const override {
+    return std::make_unique<thrift::metadata::metadata>(meta_.thaw());
+  }
+
  private:
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
