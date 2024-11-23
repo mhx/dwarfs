@@ -634,6 +634,14 @@ class metadata_v2_data {
             filesystem_info const* fsinfo,
             std::function<void(std::string const&, uint32_t)> const& icb) const;
 
+  std::unique_ptr<thrift::metadata::metadata> unpack() const {
+    return std::make_unique<thrift::metadata::metadata>(unpack_metadata());
+  }
+
+  std::unique_ptr<thrift::metadata::metadata> thaw() const {
+    return std::make_unique<thrift::metadata::metadata>(meta_.thaw());
+  }
+
  private:
   template <typename K>
   using set_type = phmap::flat_hash_set<K>;
@@ -2424,6 +2432,14 @@ nlohmann::json metadata_v2_utils::as_json() const { return data_.as_json(); }
 
 std::string metadata_v2_utils::serialize_as_json(bool simple) const {
   return data_.serialize_as_json(simple);
+}
+
+std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::thaw() const {
+  return data_.thaw();
+}
+
+std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::unpack() const {
+  return data_.unpack();
 }
 
 metadata_v2::metadata_v2(
