@@ -60,6 +60,10 @@ class mmif;
 class os_access;
 class performance_monitor;
 
+namespace thrift::metadata {
+class metadata;
+}
+
 namespace reader {
 
 struct cache_tidy_config;
@@ -473,6 +477,9 @@ class filesystem_v2 final : public filesystem_v2_lite {
 
   history const& get_history() const;
 
+  std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const;
+  std::unique_ptr<thrift::metadata::metadata> unpacked_metadata() const;
+
   class impl : public impl_lite {
    public:
     virtual int
@@ -484,6 +491,10 @@ class filesystem_v2 final : public filesystem_v2_lite {
     virtual std::string serialize_metadata_as_json(bool simple) const = 0;
     virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual history const& get_history() const = 0;
+    virtual std::unique_ptr<thrift::metadata::metadata>
+    thawed_metadata() const = 0;
+    virtual std::unique_ptr<thrift::metadata::metadata>
+    unpacked_metadata() const = 0;
   };
 
  private:
