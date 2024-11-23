@@ -332,6 +332,14 @@ class filesystem_ final {
     ir_.cache_blocks(block_numbers);
   }
 
+  std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const {
+    return metadata_v2_utils(meta_).thaw();
+  }
+
+  std::unique_ptr<thrift::metadata::metadata> unpacked_metadata() const {
+    return metadata_v2_utils(meta_).unpack();
+  }
+
  private:
   filesystem_parser make_fs_parser() const {
     return filesystem_parser(mm_, image_offset_, options_.image_size);
@@ -1354,6 +1362,13 @@ class filesystem_full_
     return fs().header();
   }
   history const& get_history() const override { return history_; }
+  std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const override {
+    return fs().thawed_metadata();
+  }
+  std::unique_ptr<thrift::metadata::metadata>
+  unpacked_metadata() const override {
+    return fs().unpacked_metadata();
+  }
 
  private:
   history history_;
@@ -1469,6 +1484,16 @@ std::optional<std::span<uint8_t const>> filesystem_v2::header() const {
 
 history const& filesystem_v2::get_history() const {
   return full_().get_history();
+}
+
+std::unique_ptr<thrift::metadata::metadata>
+filesystem_v2::thawed_metadata() const {
+  return full_().thawed_metadata();
+}
+
+std::unique_ptr<thrift::metadata::metadata>
+filesystem_v2::unpacked_metadata() const {
+  return full_().unpacked_metadata();
 }
 
 auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }
