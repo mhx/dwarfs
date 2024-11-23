@@ -115,17 +115,17 @@ make_filesystem(::benchmark::State const* state,
 
   options.with_devices = true;
   options.with_specials = true;
-  options.keep_all_times = false;
-  options.pack_chunk_table = true;
-  options.pack_directories = state ? state->range(0) : true;
-  options.pack_shared_files_table = true;
-  options.pack_names = state ? state->range(2) : true;
-  options.pack_names_index = state ? state->range(3) : true;
-  options.pack_symlinks = state ? state->range(2) : true;
-  options.pack_symlinks_index = state ? state->range(3) : true;
-  options.force_pack_string_tables = true;
-  options.plain_names_table = state ? state->range(1) : false;
-  options.plain_symlinks_table = state ? state->range(1) : false;
+  options.metadata.keep_all_times = false;
+  options.metadata.pack_chunk_table = true;
+  options.metadata.pack_directories = state ? state->range(0) : true;
+  options.metadata.pack_shared_files_table = true;
+  options.metadata.pack_names = state ? state->range(2) : true;
+  options.metadata.pack_names_index = state ? state->range(3) : true;
+  options.metadata.pack_symlinks = state ? state->range(2) : true;
+  options.metadata.pack_symlinks_index = state ? state->range(3) : true;
+  options.metadata.force_pack_string_tables = true;
+  options.metadata.plain_names_table = state ? state->range(1) : false;
+  options.metadata.plain_symlinks_table = state ? state->range(1) : false;
 
   test::test_logger lgr;
 
