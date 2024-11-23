@@ -95,6 +95,10 @@ class os_access_mock : public os_access {
 
   size_t size() const;
 
+  void
+  add_entries(std::span<std::pair<std::string_view, simplestat> const> entries,
+              std::function<std::string(std::string_view)> link_resolver = {});
+
   void add(std::filesystem::path const& path, simplestat const& st);
   void add(std::filesystem::path const& path, simplestat const& st,
            std::string const& contents);

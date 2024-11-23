@@ -63,6 +63,41 @@ file_stat make_file_stat(simplestat const& ss) {
   return rv;
 }
 
+file_stat::uid_type constexpr kUid1{1000};
+file_stat::uid_type constexpr kUid2{1337};
+file_stat::uid_type constexpr kUid3{0};
+file_stat::gid_type constexpr kGid1{100};
+file_stat::gid_type constexpr kGid2{0};
+file_stat::dev_type constexpr kDev1{0};
+file_stat::dev_type constexpr kDev2{259};
+file_stat::dev_type constexpr kDev3{261};
+
+std::array<std::pair<std::string_view, test::simplestat>,
+           15> constexpr kTestEntries{{
+    // clang-format off
+    {"",                 {  1, posix_file_type::directory | 0777, 1, kUid1, kGid1,       0, kDev1,    1,    2,    3}},
+    {"test.pl",          {  3, posix_file_type::regular   | 0644, 2, kUid1, kGid1,       0, kDev1, 1001, 1002, 1003}},
+    {"somelink",         {  4, posix_file_type::symlink   | 0777, 1, kUid1, kGid1,      16, kDev1, 2001, 2002, 2003}},
+    {"somedir",          {  5, posix_file_type::directory | 0777, 1, kUid1, kGid1,       0, kDev1, 3001, 3002, 3003}},
+    {"foo.pl",           {  6, posix_file_type::regular   | 0600, 2, kUid2, kGid2,   23456, kDev1, 4001, 4002, 4003}},
+    {"bar.pl",           {  6, posix_file_type::regular   | 0600, 2, kUid2, kGid2,   23456, kDev1, 4001, 4002, 4003}},
+    {"baz.pl",           { 16, posix_file_type::regular   | 0600, 2, kUid2, kGid2,   23456, kDev1, 8001, 8002, 8003}},
+    {"ipsum.txt",        {  7, posix_file_type::regular   | 0644, 1, kUid1, kGid1, 2000000, kDev1, 5001, 5002, 5003}},
+    {"somedir/ipsum.py", {  9, posix_file_type::regular   | 0644, 1, kUid1, kGid1,   10000, kDev1, 6001, 6002, 6003}},
+    {"somedir/bad",      { 10, posix_file_type::symlink   | 0777, 1, kUid1, kGid1,       6, kDev1, 7001, 7002, 7003}},
+    {"somedir/pipe",     { 12, posix_file_type::fifo      | 0644, 1, kUid1, kGid1,       0, kDev1, 8001, 8002, 8003}},
+    {"somedir/null",     { 13, posix_file_type::character | 0666, 1, kUid3, kGid2,       0, kDev2, 9001, 9002, 9003}},
+    {"somedir/zero",     { 14, posix_file_type::character | 0666, 1, kUid3, kGid2,       0, kDev3, 4000010001, 4000020002, 4000030003}},
+    {"somedir/empty",    {212, posix_file_type::regular   | 0644, 1, kUid1, kGid1,       0, kDev1, 8101, 8102, 8103}},
+    {"empty",            {210, posix_file_type::regular   | 0644, 3, kUid2, kGid2,       0, kDev1, 8201, 8202, 8203}},
+    // clang-format on
+}};
+
+std::unordered_map<std::string_view, std::string_view> const kTestLinks{
+    {"somelink", "somedir/ipsum.py"},
+    {"somedir/bad", "../foo"},
+};
+
 } // namespace
 
 struct os_access_mock::mock_dirent {
@@ -173,76 +208,31 @@ os_access_mock::os_access_mock()
 os_access_mock::~os_access_mock() = default;
 
 std::shared_ptr<os_access_mock> os_access_mock::create_test_instance() {
-  static const std::vector<std::pair<std::string, simplestat>> statmap{
-      {"", {1, posix_file_type::directory | 0777, 1, 1000, 100, 0, 0, 1, 2, 3}},
-      {"test.pl",
-       {3, posix_file_type::regular | 0644, 2, 1000, 100, 0, 0, 1001, 1002,
-        1003}},
-      {"somelink",
-       {4, posix_file_type::symlink | 0777, 1, 1000, 100, 16, 0, 2001, 2002,
-        2003}},
-      {"somedir",
-       {5, posix_file_type::directory | 0777, 1, 1000, 100, 0, 0, 3001, 3002,
-        3003}},
-      {"foo.pl",
-       {6, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 4001, 4002,
-        4003}},
-      {"bar.pl",
-       {6, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 4001, 4002,
-        4003}},
-      {"baz.pl",
-       {16, posix_file_type::regular | 0600, 2, 1337, 0, 23456, 0, 8001, 8002,
-        8003}},
-      {"ipsum.txt",
-       {7, posix_file_type::regular | 0644, 1, 1000, 100, 2000000, 0, 5001,
-        5002, 5003}},
-      {"somedir/ipsum.py",
-       {9, posix_file_type::regular | 0644, 1, 1000, 100, 10000, 0, 6001, 6002,
-        6003}},
-      {"somedir/bad",
-       {10, posix_file_type::symlink | 0777, 1, 1000, 100, 6, 0, 7001, 7002,
-        7003}},
-      {"somedir/pipe",
-       {12, posix_file_type::fifo | 0644, 1, 1000, 100, 0, 0, 8001, 8002,
-        8003}},
-      {"somedir/null",
-       {13, posix_file_type::character | 0666, 1, 0, 0, 0, 259, 9001, 9002,
-        9003}},
-      {"somedir/zero",
-       {14, posix_file_type::character | 0666, 1, 0, 0, 0, 261, 4000010001,
-        4000020002, 4000030003}},
-      {"somedir/empty",
-       {212, posix_file_type::regular | 0644, 1, 1000, 100, 0, 0, 8101, 8102,
-        8103}},
-      {"empty",
-       {210, posix_file_type::regular | 0644, 3, 1337, 0, 0, 0, 8201, 8202,
-        8203}},
-  };
-
-  static std::map<std::string, std::string> linkmap{
-      {"somelink", "somedir/ipsum.py"},
-      {"somedir/bad", "../foo"},
-  };
-
   auto m = std::make_shared<os_access_mock>();
 
-  for (auto const& kv : statmap) {
-    const auto& stat = kv.second;
+  m->add_entries(kTestEntries, [&](std::string_view name) {
+    return std::string(kTestLinks.at(name));
+  });
 
+  return m;
+}
+
+void os_access_mock::add_entries(
+    std::span<std::pair<std::string_view, simplestat> const> entries,
+    std::function<std::string(std::string_view)> link_resolver) {
+  for (auto const& [name, stat] : entries) {
     switch (stat.type()) {
     case posix_file_type::regular:
-      m->add(kv.first, stat, [size = stat.size] { return loremipsum(size); });
+      add(name, stat, [size = stat.size] { return loremipsum(size); });
       break;
     case posix_file_type::symlink:
-      m->add(kv.first, stat, linkmap.at(kv.first));
+      add(name, stat, link_resolver(name));
       break;
     default:
-      m->add(kv.first, stat);
+      add(name, stat);
       break;
     }
   }
-
-  return m;
 }
 
 void os_access_mock::add(fs::path const& path, simplestat const& st) {
