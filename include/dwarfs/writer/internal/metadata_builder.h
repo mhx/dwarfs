@@ -1,0 +1,141 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/**
+ * \author     Marcus Holland-Moritz (github@mhxnet.de)
+ * \copyright  Copyright (c) Marcus Holland-Moritz
+ *
+ * This file is part of dwarfs.
+ *
+ * dwarfs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dwarfs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <span>
+#include <utility>
+#include <vector>
+
+namespace dwarfs {
+
+class logger;
+
+namespace writer {
+struct metadata_options;
+}
+
+namespace thrift::metadata {
+class metadata;
+} // namespace thrift::metadata
+
+namespace writer::internal {
+
+class global_entry_data;
+class inode_manager;
+class block_manager;
+class dir;
+
+class metadata_builder {
+ public:
+  metadata_builder(logger& lgr, metadata_options const& options);
+  metadata_builder(logger& lgr, thrift::metadata::metadata const& md,
+                   metadata_options const& options);
+  metadata_builder(logger& lgr, thrift::metadata::metadata&& md,
+                   metadata_options const& options);
+  ~metadata_builder();
+
+  void set_devices(std::vector<uint64_t> devices) {
+    impl_->set_devices(std::move(devices));
+  }
+
+  void set_symlink_table_size(size_t size) {
+    impl_->set_symlink_table_size(size);
+  }
+
+  void set_block_size(uint32_t block_size) {
+    impl_->set_block_size(block_size);
+  }
+
+  void set_total_fs_size(uint64_t total_fs_size) {
+    impl_->set_total_fs_size(total_fs_size);
+  }
+
+  void set_total_hardlink_size(uint64_t total_hardlink_size) {
+    impl_->set_total_hardlink_size(total_hardlink_size);
+  }
+
+  void set_shared_files_table(std::vector<uint32_t> shared_files) {
+    impl_->set_shared_files_table(std::move(shared_files));
+  }
+
+  void set_category_names(std::vector<std::string> category_names) {
+    impl_->set_category_names(std::move(category_names));
+  }
+
+  void set_block_categories(std::vector<uint32_t> block_categories) {
+    impl_->set_block_categories(std::move(block_categories));
+  }
+
+  void add_symlink_table_entry(size_t index, uint32_t entry) {
+    impl_->add_symlink_table_entry(index, entry);
+  }
+
+  void gather_chunks(inode_manager const& im, block_manager const& bm,
+                     size_t chunk_count) {
+    impl_->gather_chunks(im, bm, chunk_count);
+  }
+
+  void gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
+                      uint32_t num_inodes) {
+    impl_->gather_entries(dirs, ge_data, num_inodes);
+  }
+
+  void gather_global_entry_data(global_entry_data const& ge_data) {
+    return impl_->gather_global_entry_data(ge_data);
+  }
+
+  thrift::metadata::metadata const& build() { return impl_->build(); }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual void set_devices(std::vector<uint64_t> devices) = 0;
+    virtual void set_symlink_table_size(size_t size) = 0;
+    virtual void set_block_size(uint32_t block_size) = 0;
+    virtual void set_total_fs_size(uint64_t total_fs_size) = 0;
+    virtual void set_total_hardlink_size(uint64_t total_hardlink_size) = 0;
+    virtual void set_shared_files_table(std::vector<uint32_t> shared_files) = 0;
+    virtual void
+    set_category_names(std::vector<std::string> category_names) = 0;
+    virtual void
+    set_block_categories(std::vector<uint32_t> block_categories) = 0;
+    virtual void add_symlink_table_entry(size_t index, uint32_t entry) = 0;
+    virtual void gather_chunks(inode_manager const& im, block_manager const& bm,
+                               size_t chunk_count) = 0;
+    virtual void
+    gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
+                   uint32_t num_inodes) = 0;
+    virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
+
+    virtual thrift::metadata::metadata const& build() = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
+};
+
+} // namespace writer::internal
+
+} // namespace dwarfs

@@ -59,8 +59,6 @@
 #include <dwarfs/writer/segmenter_factory.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/internal/features.h>
-#include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
@@ -72,10 +70,9 @@
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_manager.h>
 #include <dwarfs/writer/internal/inode_ordering.h>
+#include <dwarfs/writer/internal/metadata_builder.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
 #include <dwarfs/writer/internal/progress.h>
-
-#include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs::writer {
 
@@ -189,24 +186,7 @@ class save_directories_visitor : public visitor_base {
 
   void visit(dir* p) override { directories_.at(p->inode_num().value()) = p; }
 
-  void pack(thrift::metadata::metadata& mv2, global_entry_data& ge_data) {
-    for (auto p : directories_) {
-      if (!p->has_parent()) {
-        p->set_entry_index(mv2.dir_entries()->size());
-        p->pack_entry(mv2, ge_data);
-      }
-
-      p->pack(mv2, ge_data);
-    }
-
-    thrift::metadata::directory dummy;
-    dummy.parent_entry() = 0;
-    dummy.first_entry() = mv2.dir_entries()->size();
-    dummy.self_entry() = 0;
-    mv2.directories()->push_back(dummy);
-
-    directories_.clear();
-  }
+  std::span<dir*> get_directories() { return directories_; }
 
  private:
   std::vector<dir*> directories_;
@@ -228,36 +208,6 @@ class save_shared_files_visitor : public visitor_base {
       auto ufi = p->unique_file_id();
       DWARFS_CHECK(ufi >= num_unique_, "inconsistent file id");
       DWARFS_NOTHROW(shared_files_.at(ino - begin_shared_)) = ufi - num_unique_;
-    }
-  }
-
-  void pack_shared_files() {
-    if (!shared_files_.empty()) {
-      DWARFS_CHECK(std::is_sorted(shared_files_.begin(), shared_files_.end()),
-                   "shared files vector not sorted");
-      std::vector<uint32_t> compressed;
-      compressed.reserve(shared_files_.back() + 1);
-
-      uint32_t count = 0;
-      uint32_t index = 0;
-      for (auto i : shared_files_) {
-        if (i == index) {
-          ++count;
-        } else {
-          ++index;
-          DWARFS_CHECK(i == index, "inconsistent shared files vector");
-          DWARFS_CHECK(count >= 2, "unique file in shared files vector");
-          compressed.emplace_back(count - 2);
-          count = 1;
-        }
-      }
-
-      compressed.emplace_back(count - 2);
-
-      DWARFS_CHECK(compressed.size() == shared_files_.back() + 1,
-                   "unexpected compressed vector size");
-
-      shared_files_.swap(compressed);
     }
   }
 
@@ -736,17 +686,14 @@ void scanner_<LoggerPolicy>::scan(
     }
   }
 
-  global_entry_data ge_data(options_);
-  thrift::metadata::metadata mv2;
-  feature_set features;
-
-  mv2.symlink_table()->resize(first_file_inode - first_link_inode);
+  global_entry_data ge_data(options_.metadata);
+  metadata_builder mdb(LOG_GET_LOGGER, options_.metadata);
 
   LOG_INFO << "assigning device inodes...";
   uint32_t first_pipe_inode = first_device_inode;
   device_set_inode_visitor devsiv(first_pipe_inode);
   root->accept(devsiv);
-  mv2.devices() = std::move(devsiv.device_ids());
+  mdb.set_devices(std::move(devsiv.device_ids()));
 
   LOG_INFO << "assigning pipe/socket inodes...";
   uint32_t last_inode = first_pipe_inode;
@@ -754,6 +701,8 @@ void scanner_<LoggerPolicy>::scan(
   root->accept(pipsiv);
 
   LOG_INFO << "building metadata...";
+
+  mdb.set_symlink_table_size(first_file_inode - first_link_inode);
 
   wg_.add_job([&] {
     LOG_INFO << "saving names and symlinks...";
@@ -766,9 +715,9 @@ void scanner_<LoggerPolicy>::scan(
     root->walk([&](entry* ep) {
       ep->update(ge_data);
       if (auto lp = dynamic_cast<link*>(ep)) {
-        DWARFS_NOTHROW(mv2.symlink_table()->at(ep->inode_num().value() -
-                                               first_link_inode)) =
-            ge_data.get_symlink_table_entry(lp->linkname());
+        mdb.add_symlink_table_entry(
+            ep->inode_num().value() - first_link_inode,
+            ge_data.get_symlink_table_entry(lp->linkname()));
       }
     });
   });
@@ -899,124 +848,18 @@ void scanner_<LoggerPolicy>::scan(
   prog.run_sync([&] { root->set_name(std::string()); });
 
   LOG_INFO << "saving chunks...";
-  mv2.chunk_table()->resize(im.count() + 1);
-
-  auto& size_cache = mv2.reg_file_size_cache().emplace();
-  size_cache.min_chunk_count() = options_.inode_size_cache_min_chunk_count;
-
-  // TODO: we should be able to start this once all blocks have been
-  //       submitted for compression
-  mv2.chunks().value().reserve(prog.chunk_count);
-  im.for_each_inode_in_order([&](std::shared_ptr<inode> const& ino) {
-    auto const total_chunks = mv2.chunks()->size();
-    DWARFS_NOTHROW(mv2.chunk_table()->at(ino->num())) = total_chunks;
-    if (!ino->append_chunks_to(mv2.chunks().value())) {
-      std::ostringstream oss;
-      for (auto fp : ino->all()) {
-        oss << "\n  " << fp->path_as_string();
-      }
-      LOG_ERROR << "inconsistent fragments in inode " << ino->num()
-                << ", the following files will be empty:" << oss.str();
-    }
-    auto num_inode_chunks = mv2.chunks()->size() - total_chunks;
-    if (num_inode_chunks >= options_.inode_size_cache_min_chunk_count) {
-      LOG_DEBUG << "caching size " << ino->size() << " for inode " << ino->num()
-                << " with " << num_inode_chunks << " chunks";
-      size_cache.lookup()->emplace(ino->num(), ino->size());
-    }
-  });
-
-  blockmgr->map_logical_blocks(mv2.chunks().value());
-
-  // insert dummy inode to help determine number of chunks per inode
-  DWARFS_NOTHROW(mv2.chunk_table()->at(im.count())) = mv2.chunks()->size();
-
-  LOG_DEBUG << "total number of unique files: " << im.count();
-  LOG_DEBUG << "total number of chunks: " << mv2.chunks()->size();
+  mdb.gather_chunks(im, *blockmgr, prog.chunk_count);
 
   LOG_INFO << "saving directories...";
-  mv2.dir_entries() = std::vector<thrift::metadata::dir_entry>();
-  mv2.inodes()->resize(last_inode);
-  mv2.directories()->reserve(first_link_inode + 1);
   save_directories_visitor sdv(first_link_inode);
   root->accept(sdv);
-  sdv.pack(mv2, ge_data);
-
-  if (options_.pack_directories) {
-    // pack directories
-    uint32_t last_first_entry = 0;
-
-    for (auto& d : mv2.directories().value()) {
-      d.parent_entry() = 0; // this will be recovered
-      d.self_entry() = 0;   // this will be recovered
-      auto delta = d.first_entry().value() - last_first_entry;
-      last_first_entry = d.first_entry().value();
-      d.first_entry() = delta;
-    }
-  }
-
-  if (options_.pack_chunk_table) {
-    // delta-compress chunk table
-    std::adjacent_difference(mv2.chunk_table()->begin(),
-                             mv2.chunk_table()->end(),
-                             mv2.chunk_table()->begin());
-  }
+  mdb.gather_entries(sdv.get_directories(), ge_data, last_inode);
 
   LOG_INFO << "saving shared files table...";
   save_shared_files_visitor ssfv(first_file_inode, first_device_inode,
                                  fs.num_unique());
   root->accept(ssfv);
-  if (options_.pack_shared_files_table) {
-    ssfv.pack_shared_files();
-  }
-  mv2.shared_files_table() = std::move(ssfv.get_shared_files());
-
-  thrift::metadata::fs_options fsopts;
-  fsopts.mtime_only() = !options_.keep_all_times;
-  if (options_.time_resolution_sec > 1) {
-    fsopts.time_resolution_sec() = options_.time_resolution_sec;
-  }
-  fsopts.packed_chunk_table() = options_.pack_chunk_table;
-  fsopts.packed_directories() = options_.pack_directories;
-  fsopts.packed_shared_files_table() = options_.pack_shared_files_table;
-
-  if (options_.plain_names_table) {
-    mv2.names() = ge_data.get_names();
-  } else {
-    auto ti = LOG_TIMED_INFO;
-    mv2.compact_names() = string_table::pack(
-        ge_data.get_names(), string_table::pack_options(
-                                 options_.pack_names, options_.pack_names_index,
-                                 options_.force_pack_string_tables));
-    ti << "saving names table...";
-  }
-
-  if (options_.plain_symlinks_table) {
-    mv2.symlinks() = ge_data.get_symlinks();
-  } else {
-    auto ti = LOG_TIMED_INFO;
-    mv2.compact_symlinks() = string_table::pack(
-        ge_data.get_symlinks(),
-        string_table::pack_options(options_.pack_symlinks,
-                                   options_.pack_symlinks_index,
-                                   options_.force_pack_string_tables));
-    ti << "saving symlinks table...";
-  }
-
-  mv2.uids() = ge_data.get_uids();
-  mv2.gids() = ge_data.get_gids();
-  mv2.modes() = ge_data.get_modes();
-  mv2.timestamp_base() = ge_data.get_timestamp_base();
-  mv2.block_size() = segmenter_factory_.get_block_size();
-  mv2.total_fs_size() = prog.original_size;
-  mv2.total_hardlink_size() = prog.hardlink_size;
-  mv2.options() = fsopts;
-  mv2.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
-  if (!options_.no_create_timestamp) {
-    mv2.create_timestamp() = std::time(nullptr);
-  }
-  mv2.preferred_path_separator() =
-      static_cast<uint32_t>(std::filesystem::path::preferred_separator);
+  mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
   if (auto catmgr = options_.inode.categorizer_mgr) {
     std::unordered_map<fragment_category::value_type,
@@ -1041,13 +884,16 @@ void scanner_<LoggerPolicy>::scan(
                    written_categories.begin(),
                    [&](auto const& cat) { return category_indices.at(cat); });
 
-    mv2.category_names() = std::move(category_names);
-    mv2.block_categories() = std::move(written_categories);
+    mdb.set_category_names(std::move(category_names));
+    mdb.set_block_categories(std::move(written_categories));
   }
 
-  mv2.features() = features.get();
+  mdb.set_block_size(segmenter_factory_.get_block_size());
+  mdb.set_total_fs_size(prog.original_size);
+  mdb.set_total_hardlink_size(prog.hardlink_size);
+  mdb.gather_global_entry_data(ge_data);
 
-  auto [schema, data] = metadata_freezer::freeze(mv2);
+  auto [schema, data] = metadata_freezer::freeze(mdb.build());
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
