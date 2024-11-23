@@ -45,12 +45,12 @@ void block_manager::set_written_block(size_t logical_block,
   block_map_[logical_block] = std::make_pair(written_block, category);
 }
 
-void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) {
+void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) const {
   std::lock_guard lock{mx_};
   for (auto& c : vec) {
     size_t block = c.get_block();
     assert(block < num_blocks_);
-    c.block() = block_map_[block].value().first;
+    c.block() = block_map_.at(block).value().first;
   }
 }
 
