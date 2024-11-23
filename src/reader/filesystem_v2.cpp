@@ -319,6 +319,15 @@ class filesystem_ final : public filesystem_v2::impl {
     return meta_.get_block_category(block_no);
   }
 
+  std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const override {
+    return meta_.thaw();
+  }
+
+  std::unique_ptr<thrift::metadata::metadata>
+  unpacked_metadata() const override {
+    return meta_.unpack();
+  }
+
  private:
   filesystem_info const* get_info(fsinfo_options const& opts) const;
   void check_section(fs_section const& section) const;
@@ -1148,6 +1157,16 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return internal::filesystem_parser(mm, image_offset).header();
+}
+
+std::unique_ptr<thrift::metadata::metadata>
+filesystem_v2::thawed_metadata() const {
+  return impl_->thawed_metadata();
+}
+
+std::unique_ptr<thrift::metadata::metadata>
+filesystem_v2::unpacked_metadata() const {
+  return impl_->unpacked_metadata();
 }
 
 } // namespace dwarfs::reader

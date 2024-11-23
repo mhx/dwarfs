@@ -173,6 +173,14 @@ class metadata_v2 {
     return impl_->get_all_gids();
   }
 
+  std::unique_ptr<thrift::metadata::metadata> thaw() const {
+    return impl_->thaw();
+  }
+
+  std::unique_ptr<thrift::metadata::metadata> unpack() const {
+    return impl_->unpack();
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -244,6 +252,9 @@ class metadata_v2 {
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
 
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
+
+    virtual std::unique_ptr<thrift::metadata::metadata> thaw() const = 0;
+    virtual std::unique_ptr<thrift::metadata::metadata> unpack() const = 0;
   };
 
  private:
