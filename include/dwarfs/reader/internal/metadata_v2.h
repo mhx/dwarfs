@@ -262,6 +262,10 @@ class metadata_v2_utils {
 
   std::string serialize_as_json(bool simple) const;
 
+  std::unique_ptr<thrift::metadata::metadata> thaw() const;
+
+  std::unique_ptr<thrift::metadata::metadata> unpack() const;
+
  private:
   metadata_v2_data const& data_;
 };
