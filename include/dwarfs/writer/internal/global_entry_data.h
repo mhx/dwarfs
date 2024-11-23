@@ -32,7 +32,7 @@
 
 namespace dwarfs {
 
-struct scanner_options;
+struct metadata_options;
 
 namespace writer::internal {
 
@@ -44,8 +44,8 @@ class global_entry_data {
 
   enum class timestamp_type { ATIME, MTIME, CTIME };
 
-  global_entry_data(scanner_options const& options)
-      : options_(options) {}
+  global_entry_data(metadata_options const& options)
+      : options_{options} {}
 
   void add_uid(uid_type uid);
   void add_gid(gid_type gid);
@@ -106,7 +106,7 @@ class global_entry_data {
   gid_type next_gid_index_{0};
   mode_type next_mode_index_{0};
   uint64_t timestamp_base_{std::numeric_limits<uint64_t>::max()};
-  scanner_options const& options_;
+  metadata_options const& options_;
 };
 
 } // namespace writer::internal

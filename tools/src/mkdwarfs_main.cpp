@@ -626,13 +626,13 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         po::value<std::string>(&chmod_str),
         "recursively apply permission changes")
     ("no-create-timestamp",
-        po::value<bool>(&options.no_create_timestamp)->zero_tokens(),
+        po::value<bool>(&options.metadata.no_create_timestamp)->zero_tokens(),
         "don't add create timestamp to file system")
     ("set-time",
         po::value<std::string>(&timestamp),
         "set timestamp for whole file system (unixtime or 'now')")
     ("keep-all-times",
-        po::value<bool>(&options.keep_all_times)->zero_tokens(),
+        po::value<bool>(&options.metadata.keep_all_times)->zero_tokens(),
         "save atime and ctime in addition to mtime")
     ("time-resolution",
         po::value<std::string>(&time_resolution)->default_value("sec"),
@@ -974,24 +974,25 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
   if (vm.count("set-owner")) {
-    options.uid = uid;
+    options.metadata.uid = uid;
   }
 
   if (vm.count("set-group")) {
-    options.gid = gid;
+    options.metadata.gid = gid;
   }
 
   if (vm.count("set-time")) {
     if (timestamp == "now") {
-      options.timestamp = std::time(nullptr);
+      options.metadata.timestamp = std::time(nullptr);
     } else if (auto val = try_to<uint64_t>(timestamp)) {
-      options.timestamp = *val;
+      options.metadata.timestamp = *val;
     } else {
       try {
         auto tp = parse_time_point(timestamp);
-        options.timestamp = std::chrono::duration_cast<std::chrono::seconds>(
-                                tp.time_since_epoch())
-                                .count();
+        options.metadata.timestamp =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                tp.time_since_epoch())
+                .count();
       } catch (std::exception const& e) {
         iol.err << "error: " << e.what() << "\n";
         return 1;
@@ -1001,10 +1002,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (auto it = time_resolutions.find(time_resolution);
       it != time_resolutions.end()) {
-    options.time_resolution_sec = it->second;
+    options.metadata.time_resolution_sec = it->second;
   } else if (auto val = try_to<uint32_t>(time_resolution)) {
-    options.time_resolution_sec = *val;
-    if (options.time_resolution_sec == 0) {
+    options.metadata.time_resolution_sec = *val;
+    if (options.metadata.time_resolution_sec == 0) {
       iol.err << "error: the argument to '--time-resolution' must be nonzero\n";
       return 1;
     }
@@ -1016,45 +1017,45 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   if (!pack_metadata.empty() and pack_metadata != "none") {
     if (pack_metadata == "auto") {
-      options.force_pack_string_tables = false;
-      options.pack_chunk_table = false;
-      options.pack_directories = false;
-      options.pack_shared_files_table = false;
-      options.pack_names = true;
-      options.pack_names_index = false;
-      options.pack_symlinks = true;
-      options.pack_symlinks_index = false;
+      options.metadata.force_pack_string_tables = false;
+      options.metadata.pack_chunk_table = false;
+      options.metadata.pack_directories = false;
+      options.metadata.pack_shared_files_table = false;
+      options.metadata.pack_names = true;
+      options.metadata.pack_names_index = false;
+      options.metadata.pack_symlinks = true;
+      options.metadata.pack_symlinks_index = false;
     } else {
       auto pack_opts =
           split_to<std::vector<std::string_view>>(pack_metadata, ',');
       for (auto const& opt : pack_opts) {
         if (opt == "chunk_table") {
-          options.pack_chunk_table = true;
+          options.metadata.pack_chunk_table = true;
         } else if (opt == "directories") {
-          options.pack_directories = true;
+          options.metadata.pack_directories = true;
         } else if (opt == "shared_files") {
-          options.pack_shared_files_table = true;
+          options.metadata.pack_shared_files_table = true;
         } else if (opt == "names") {
-          options.pack_names = true;
+          options.metadata.pack_names = true;
         } else if (opt == "names_index") {
-          options.pack_names_index = true;
+          options.metadata.pack_names_index = true;
         } else if (opt == "symlinks") {
-          options.pack_symlinks = true;
+          options.metadata.pack_symlinks = true;
         } else if (opt == "symlinks_index") {
-          options.pack_symlinks_index = true;
+          options.metadata.pack_symlinks_index = true;
         } else if (opt == "force") {
-          options.force_pack_string_tables = true;
+          options.metadata.force_pack_string_tables = true;
         } else if (opt == "plain") {
-          options.plain_names_table = true;
-          options.plain_symlinks_table = true;
+          options.metadata.plain_names_table = true;
+          options.metadata.plain_symlinks_table = true;
         } else if (opt == "all") {
-          options.pack_chunk_table = true;
-          options.pack_directories = true;
-          options.pack_shared_files_table = true;
-          options.pack_names = true;
-          options.pack_names_index = true;
-          options.pack_symlinks = true;
-          options.pack_symlinks_index = true;
+          options.metadata.pack_chunk_table = true;
+          options.metadata.pack_directories = true;
+          options.metadata.pack_shared_files_table = true;
+          options.metadata.pack_names = true;
+          options.metadata.pack_names_index = true;
+          options.metadata.pack_symlinks = true;
+          options.metadata.pack_symlinks_index = true;
         } else {
           iol.err << "error: the argument ('" << opt
                   << "') to '--pack-metadata' is invalid\n";

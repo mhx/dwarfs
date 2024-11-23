@@ -154,28 +154,28 @@ void basic_end_to_end_test(
   options.with_devices = with_devices;
   options.with_specials = with_specials;
   options.inode.fragment_order.set_default(order_opts);
-  options.keep_all_times = keep_all_times;
-  options.pack_chunk_table = pack_chunk_table;
-  options.pack_directories = pack_directories;
-  options.pack_shared_files_table = pack_shared_files_table;
-  options.pack_names = pack_names;
-  options.pack_names_index = pack_names_index;
-  options.pack_symlinks = pack_symlinks;
-  options.pack_symlinks_index = pack_symlinks_index;
-  options.force_pack_string_tables = true;
-  options.plain_names_table = plain_names_table;
-  options.plain_symlinks_table = plain_symlinks_table;
+  options.metadata.keep_all_times = keep_all_times;
+  options.metadata.pack_chunk_table = pack_chunk_table;
+  options.metadata.pack_directories = pack_directories;
+  options.metadata.pack_shared_files_table = pack_shared_files_table;
+  options.metadata.pack_names = pack_names;
+  options.metadata.pack_names_index = pack_names_index;
+  options.metadata.pack_symlinks = pack_symlinks;
+  options.metadata.pack_symlinks_index = pack_symlinks_index;
+  options.metadata.force_pack_string_tables = true;
+  options.metadata.plain_names_table = plain_names_table;
+  options.metadata.plain_symlinks_table = plain_symlinks_table;
 
   if (set_uid) {
-    options.uid = 0;
+    options.metadata.uid = 0;
   }
 
   if (set_gid) {
-    options.gid = 0;
+    options.metadata.gid = 0;
   }
 
   if (set_time) {
-    options.timestamp = 4711;
+    options.metadata.timestamp = 4711;
   }
 
   test::test_logger lgr;
@@ -695,14 +695,14 @@ TEST_P(packing_test, regression_empty_fs) {
   cfg.blockhash_window_size = 8;
   cfg.block_size_bits = 10;
 
-  options.pack_chunk_table = pack_chunk_table;
-  options.pack_directories = pack_directories;
-  options.pack_shared_files_table = pack_shared_files_table;
-  options.pack_names = pack_names;
-  options.pack_names_index = pack_names_index;
-  options.pack_symlinks = pack_symlinks;
-  options.pack_symlinks_index = pack_symlinks_index;
-  options.force_pack_string_tables = true;
+  options.metadata.pack_chunk_table = pack_chunk_table;
+  options.metadata.pack_directories = pack_directories;
+  options.metadata.pack_shared_files_table = pack_shared_files_table;
+  options.metadata.pack_names = pack_names;
+  options.metadata.pack_names_index = pack_names_index;
+  options.metadata.pack_symlinks = pack_symlinks;
+  options.metadata.pack_symlinks_index = pack_symlinks_index;
+  options.metadata.force_pack_string_tables = true;
 
   test::test_logger lgr;
 
@@ -915,7 +915,7 @@ TEST_P(file_scanner, inode_ordering) {
 
   opts.file_hash_algorithm = file_hash_algo;
   opts.inode.fragment_order.set_default(order_opts);
-  opts.no_create_timestamp = true;
+  opts.metadata.no_create_timestamp = true;
 
   auto input = std::make_shared<test::os_access_mock>();
 #if defined(DWARFS_TEST_RUNNING_ON_ASAN) || defined(DWARFS_TEST_RUNNING_ON_TSAN)
@@ -1961,7 +1961,7 @@ TEST(filesystem, inode_size_cache) {
   }
 
   writer::scanner_options options;
-  options.inode_size_cache_min_chunk_count = 32;
+  options.metadata.inode_size_cache_min_chunk_count = 32;
 
   writer::segmenter::config cfg;
   cfg.block_size_bits = 16;
