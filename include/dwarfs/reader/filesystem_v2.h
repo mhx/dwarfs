@@ -52,6 +52,10 @@ class mmif;
 class os_access;
 class performance_monitor;
 
+namespace thrift::metadata {
+class metadata;
+}
+
 namespace reader {
 
 struct cache_tidy_config;
@@ -347,6 +351,9 @@ class filesystem_v2 {
     return impl_->get_block_category(block_number);
   }
 
+  std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const;
+  std::unique_ptr<thrift::metadata::metadata> unpacked_metadata() const;
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -442,6 +449,10 @@ class filesystem_v2 {
     virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
+    virtual std::unique_ptr<thrift::metadata::metadata>
+    thawed_metadata() const = 0;
+    virtual std::unique_ptr<thrift::metadata::metadata>
+    unpacked_metadata() const = 0;
   };
 
  private:
