@@ -32,6 +32,7 @@
 #include <dwarfs/match.h>
 #include <dwarfs/util.h>
 
+#include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/reader/internal/metadata_types.h>
 
 #include <dwarfs/gen-cpp2/metadata_types_custom_protocol.h>
@@ -184,22 +185,7 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
   return view;
 }
 
-// TODO: merge with inode_rank in metadata_v2
-int mode_rank(uint32_t mode) {
-  switch (posix_file_type::from_mode(mode)) {
-  case posix_file_type::directory:
-    return 0;
-  case posix_file_type::symlink:
-    return 1;
-  case posix_file_type::regular:
-    return 2;
-  case posix_file_type::block:
-  case posix_file_type::character:
-    return 3;
-  default:
-    return 4;
-  }
-}
+int mode_rank(uint32_t mode) { return static_cast<int>(get_inode_rank(mode)); }
 
 void check_empty_tables(global_metadata::Meta const& meta) {
   if (meta.inodes().empty()) {

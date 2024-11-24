@@ -67,6 +67,7 @@
 #include <dwarfs/vfs_stat.h>
 
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/packed_int_vector.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/unicode_case_folding.h>
@@ -598,37 +599,6 @@ class metadata_ final : public metadata_v2::impl {
   make_dir_entry_view_impl(uint32_t self_index, uint32_t parent_index) const {
     return dir_entry_view_impl::from_dir_entry_index(self_index, parent_index,
                                                      global_);
-  }
-
-  // This represents the order in which inodes are stored in inodes
-  // (or entry_table_v2_2 for older file systems)
-  enum class inode_rank {
-    INO_DIR,
-    INO_LNK,
-    INO_REG,
-    INO_DEV,
-    INO_OTH,
-  };
-
-  // TODO: merge with mode_rank in metadata_types
-  static inode_rank get_inode_rank(uint32_t mode) {
-    switch (posix_file_type::from_mode(mode)) {
-    case posix_file_type::directory:
-      return inode_rank::INO_DIR;
-    case posix_file_type::symlink:
-      return inode_rank::INO_LNK;
-    case posix_file_type::regular:
-      return inode_rank::INO_REG;
-    case posix_file_type::block:
-    case posix_file_type::character:
-      return inode_rank::INO_DEV;
-    case posix_file_type::socket:
-    case posix_file_type::fifo:
-      return inode_rank::INO_OTH;
-    default:
-      DWARFS_THROW(runtime_error,
-                   fmt::format("unknown file type: {:#06x}", mode));
-    }
   }
 
   size_t find_inode_offset(inode_rank rank) const {
