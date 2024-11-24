@@ -602,27 +602,7 @@ class metadata_ final : public metadata_v2::impl {
   }
 
   size_t find_inode_offset(inode_rank rank) const {
-    if (meta_.dir_entries()) {
-      auto range = boost::irange(size_t(0), meta_.inodes().size());
-
-      auto it = std::lower_bound(
-          range.begin(), range.end(), rank, [&](auto inode, inode_rank r) {
-            auto mode = meta_.modes()[meta_.inodes()[inode].mode_index()];
-            return get_inode_rank(mode) < r;
-          });
-
-      return *it;
-    } else {
-      auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
-
-      auto it = std::lower_bound(range.begin(), range.end(), rank,
-                                 [&](auto inode, inode_rank r) {
-                                   auto iv = make_inode_view_impl(inode);
-                                   return get_inode_rank(iv.mode()) < r;
-                                 });
-
-      return *it;
-    }
+    return find_inode_rank_offset(meta_, rank);
   }
 
   directory_view make_directory_view(inode_view_impl const& iv) const {
