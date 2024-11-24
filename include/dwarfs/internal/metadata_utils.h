@@ -23,6 +23,11 @@
 
 #include <cstdint>
 
+#include <thrift/lib/cpp2/frozen/FrozenUtil.h>
+
+#include <dwarfs/gen-cpp2/metadata_layouts.h>
+#include <dwarfs/gen-cpp2/metadata_types.h>
+
 namespace dwarfs::internal {
 
 // This represents the order in which inodes are stored in inodes
@@ -36,5 +41,12 @@ enum class inode_rank {
 };
 
 inode_rank get_inode_rank(uint32_t mode);
+
+size_t find_inode_rank_offset(
+    ::apache::thrift::frozen::Layout<thrift::metadata::metadata>::View meta,
+    inode_rank rank);
+
+size_t
+find_inode_rank_offset(thrift::metadata::metadata const& meta, inode_rank rank);
 
 } // namespace dwarfs::internal
