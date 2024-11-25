@@ -95,12 +95,8 @@ auto call_ec_throw(Fn&& fn) {
 
 using section_map = std::unordered_map<section_type, std::vector<fs_section>>;
 
-size_t
-get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
-  if (sec.compression() == compression_type::NONE) {
-    return sec.length();
-  }
-
+block_decompressor
+get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
   if (!sec.check_fast(*mm)) {
     DWARFS_THROW(
         runtime_error,
@@ -109,21 +105,28 @@ get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
 
   std::vector<uint8_t> tmp;
   auto span = sec.data(*mm);
-  block_decompressor bd(sec.compression(), span.data(), span.size(), tmp);
-  return bd.uncompressed_size();
+  return block_decompressor(sec.compression(), span.data(), span.size(), tmp);
 }
 
-std::optional<size_t>
-try_get_uncompressed_section_size(std::shared_ptr<mmif> mm,
-                                  fs_section const& sec) {
+std::optional<block_decompressor>
+try_get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
   if (sec.check_fast(*mm)) {
     try {
-      return get_uncompressed_section_size(mm, sec);
+      return get_block_decompressor(std::move(mm), sec);
     } catch (std::exception const&) {
     }
   }
 
   return std::nullopt;
+}
+
+size_t
+get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
+  if (sec.compression() == compression_type::NONE) {
+    return sec.length();
+  }
+
+  return get_block_decompressor(std::move(mm), sec).uncompressed_size();
 }
 
 std::span<uint8_t const>
@@ -612,13 +615,14 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
+      auto bd = try_get_block_decompressor(mm_, s);
       std::string block_size;
 
-      if (auto uncompressed_size = try_get_uncompressed_section_size(mm_, s)) {
-        float compression_ratio = float(s.length()) / uncompressed_size.value();
-        block_size =
-            fmt::format("blocksize={}, ratio={:.2f}%",
-                        uncompressed_size.value(), 100.0 * compression_ratio);
+      if (bd) {
+        auto uncompressed_size = bd->uncompressed_size();
+        float compression_ratio = float(s.length()) / uncompressed_size;
+        block_size = fmt::format("blocksize={}, ratio={:.2f}%",
+                                 uncompressed_size, 100.0 * compression_ratio);
       } else {
         block_size = fmt::format("blocksize={} (estimate)", s.length());
       }
@@ -632,8 +636,16 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
         ++block_no;
       }
 
+      std::string metadata;
+
+      if (bd) {
+        if (auto m = bd->metadata()) {
+          metadata = fmt::format(", metadata={}", *m);
+        }
+      }
+
       os << "SECTION " << s.description() << ", " << block_size << category
-         << "\n";
+         << metadata << "\n";
     }
   }
 
@@ -696,9 +708,16 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
           {"checksum_ok", checksum_ok},
       };
 
-      if (auto uncompressed_size = try_get_uncompressed_section_size(mm_, s)) {
-        section_info["size"] = uncompressed_size.value();
-        section_info["ratio"] = float(s.length()) / uncompressed_size.value();
+      auto bd = try_get_block_decompressor(mm_, s);
+
+      if (bd) {
+        auto uncompressed_size = bd->uncompressed_size();
+        section_info["size"] = uncompressed_size;
+        section_info["ratio"] = float(s.length()) / uncompressed_size;
+
+        if (auto m = bd->metadata()) {
+          section_info["metadata"] = nlohmann::json::parse(*m);
+        }
       }
 
       if (s.type() == section_type::BLOCK) {
