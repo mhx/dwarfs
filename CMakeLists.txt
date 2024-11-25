@@ -499,6 +499,7 @@ if(WITH_TESTS)
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
       test/metadata_requirements_test.cpp
+      test/metadata_test.cpp
       test/nilsimsa_test.cpp
       test/options_test.cpp
       test/packed_int_vector_test.cpp
