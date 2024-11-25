@@ -24,6 +24,7 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
+#include <dwarfs/logger.h>
 #include <dwarfs/malloc_byte_buffer.h>
 
 #include <dwarfs/writer/internal/metadata_freezer.h>
@@ -60,11 +61,33 @@ std::pair<shared_byte_buffer, shared_byte_buffer> freeze_to_buffer(T const& x) {
   return {schema_buffer.share(), data_buffer.share()};
 }
 
+template <typename LoggerPolicy>
+class metadata_freezer_ : public metadata_freezer::impl {
+ public:
+  explicit metadata_freezer_(logger& lgr)
+      : LOG_PROXY_INIT(lgr) {}
+
+  std::pair<shared_byte_buffer, shared_byte_buffer>
+  freeze(thrift::metadata::metadata const& data) const override {
+    auto ti = LOG_TIMED_VERBOSE;
+    auto rv = freeze_to_buffer(data);
+
+    ti << "freezing metadata to " << rv.second.size() << " bytes...";
+
+    return rv;
+  }
+
+ private:
+  LOG_PROXY_DECL(LoggerPolicy);
+};
+
 } // namespace
 
-std::pair<shared_byte_buffer, shared_byte_buffer>
-metadata_freezer::freeze(thrift::metadata::metadata const& data) {
-  return freeze_to_buffer(data);
-}
+metadata_freezer::metadata_freezer(logger& lgr)
+    : impl_{
+          make_unique_logging_object<impl, metadata_freezer_, logger_policies>(
+              lgr)} {}
+
+metadata_freezer::~metadata_freezer() = default;
 
 } // namespace dwarfs::writer::internal
