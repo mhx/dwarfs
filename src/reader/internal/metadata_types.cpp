@@ -146,7 +146,8 @@ unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
 
     for (size_t i = 0; i < dirent.size(); ++i) {
       auto ino = dirent[i].inode_num();
-      if (ino < directories.size()) {
+      // last entry is the sentinel, no need to recover self entry
+      if (ino < directories.size() - 1) {
         directories[ino].self_entry() = i;
       }
     }

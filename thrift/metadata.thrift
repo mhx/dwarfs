@@ -429,4 +429,7 @@ struct metadata {
   // The metadata associated with each block. Maps from block
   // number to index into `categorization_metadata_json`.
   32: optional map<UInt32, UInt32> block_category_metadata
+
+  // Which version(s) of DwarFS were used to rebuild this image.
+  33: optional list<string>     rebuild_dwarfs_versions
 }

@@ -102,6 +102,7 @@ add_library(
   src/writer/fragment_category.cpp
   src/writer/fragment_order_parser.cpp
   src/writer/inode_fragments.cpp
+  src/writer/metadata_options.cpp
   src/writer/rule_based_entry_filter.cpp
   src/writer/scanner.cpp
   src/writer/segmenter.cpp

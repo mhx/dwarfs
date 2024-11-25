@@ -393,7 +393,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   size_t num_workers, num_scanner_workers, num_segmenter_workers;
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false,
-       no_history_timestamps = false, no_history_command_line = false;
+       no_history_timestamps = false, no_history_command_line = false,
+       rebuild_metadata = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -500,6 +501,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
         "recompress an existing filesystem (none, block, metadata, all)")
+    ("rebuild-metadata",
+        po::value<bool>(&rebuild_metadata)->zero_tokens(),
+        "fully rebuild metadata")
     ("recompress-categories",
         po::value<std::string>(&recompress_categories),
         "only recompress blocks of these categories")
@@ -853,7 +857,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   path = iol.os->canonical(path);
 
-  bool recompress = vm.count("recompress");
+  bool recompress = vm.count("recompress") || rebuild_metadata;
   utility::rewrite_options rw_opts;
   if (recompress) {
     std::unordered_map<std::string, unsigned> const modes{
@@ -862,6 +866,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         {"block", 1},
         {"none", 0},
     };
+
+    if (recompress_opts.empty() && rebuild_metadata) {
+      recompress_opts = "metadata";
+    }
+
     if (auto it = modes.find(recompress_opts); it != modes.end()) {
       rw_opts.recompress_block = it->second & 1;
       rw_opts.recompress_metadata = it->second & 2;
@@ -1351,6 +1360,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     if (recompress) {
+      if (rebuild_metadata) {
+        rw_opts.rebuild_metadata = options.metadata;
+      }
       utility::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
                                   rw_opts);
     } else {
