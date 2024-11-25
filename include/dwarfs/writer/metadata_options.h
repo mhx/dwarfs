@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iosfwd>
 #include <optional>
 #include <string>
 #include <vector>
@@ -57,5 +58,7 @@ struct metadata_options {
   bool no_category_metadata{false};
   size_t inode_size_cache_min_chunk_count{128};
 };
+
+std::ostream& operator<<(std::ostream& os, metadata_options const& opts);
 
 } // namespace dwarfs::writer
