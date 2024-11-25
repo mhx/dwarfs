@@ -30,6 +30,10 @@
 #include <dwarfs/reader/internal/filesystem_parser.h>
 #include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
+#include <dwarfs/writer/internal/metadata_builder.h>
+#include <dwarfs/writer/internal/metadata_freezer.h>
+
+#include <dwarfs/gen-cpp2/metadata_types.h>
 
 namespace dwarfs::utility {
 
@@ -163,12 +167,31 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
 
     case section_type::METADATA_V2_SCHEMA:
     case section_type::METADATA_V2:
-      if (opts.recompress_metadata && !from_none_to_none(s)) {
-        log_recompress(s);
-        writer.write_section(s->type(), s->compression(),
-                             parser->section_data(*s));
+      if (opts.rebuild_metadata) {
+        DWARFS_CHECK(opts.recompress_metadata,
+                     "rebuild_metadata requires recompress_metadata");
+        if (s->type() == section_type::METADATA_V2) {
+          using namespace dwarfs::writer::internal;
+
+          auto md = fs.unpacked_metadata();
+          auto builder = metadata_builder(lgr, std::move(*md),
+                                          opts.rebuild_metadata.value());
+          auto [schema, data] =
+              metadata_freezer(LOG_GET_LOGGER).freeze(builder.build());
+
+          writer.write_metadata_v2_schema(
+              std::make_shared<block_data>(std::move(schema)));
+          writer.write_metadata_v2(
+              std::make_shared<block_data>(std::move(data)));
+        }
       } else {
-        copy_compressed(s);
+        if (opts.recompress_metadata && !from_none_to_none(s)) {
+          log_recompress(s);
+          writer.write_section(s->type(), s->compression(),
+                               parser->section_data(*s));
+        } else {
+          copy_compressed(s);
+        }
       }
       break;
 
