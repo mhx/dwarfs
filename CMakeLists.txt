@@ -483,7 +483,7 @@ if(WITH_TESTS OR WITH_BENCHMARKS OR WITH_FUZZ)
   if(WITH_BENCHMARKS)
     target_sources(dwarfs_test_helpers PRIVATE test/test_strings.cpp)
   endif()
-  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_common dwarfs_writer dwarfs_tool)
+  target_link_libraries(dwarfs_test_helpers PUBLIC dwarfs_reader dwarfs_writer dwarfs_tool)
   set_property(TARGET dwarfs_test_helpers PROPERTY CXX_STANDARD 20)
 endif()
 
@@ -508,6 +508,7 @@ if(WITH_TESTS)
       test/lazy_value_test.cpp
       test/lru_cache_test.cpp
       test/metadata_requirements_test.cpp
+      test/metadata_test.cpp
       test/nilsimsa_test.cpp
       test/options_test.cpp
       test/packed_int_vector_test.cpp
