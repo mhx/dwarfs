@@ -23,12 +23,14 @@
 #include <ctime>
 #include <filesystem>
 
+#include <thrift/lib/cpp2/protocol/DebugProtocol.h>
+
 #include <dwarfs/logger.h>
 #include <dwarfs/version.h>
-
 #include <dwarfs/writer/metadata_options.h>
 
 #include <dwarfs/internal/features.h>
+#include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/entry.h>
@@ -37,6 +39,8 @@
 #include <dwarfs/writer/internal/metadata_builder.h>
 
 #include <dwarfs/gen-cpp2/metadata_types.h>
+
+#include <thrift/lib/thrift/gen-cpp2/frozen_types_custom_protocol.h>
 
 namespace dwarfs::writer::internal {
 
@@ -55,13 +59,17 @@ class metadata_builder_ final : public metadata_builder::impl {
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{md}
-      , options_{options} {}
+      , options_{options} {
+    upgrade_metadata();
+  }
 
   metadata_builder_(logger& lgr, thrift::metadata::metadata&& md,
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{std::move(md)}
-      , options_{options} {}
+      , options_{options} {
+    upgrade_metadata();
+  }
 
   void set_devices(std::vector<uint64_t> devices) override {
     md_.devices() = std::move(devices);
@@ -121,6 +129,8 @@ class metadata_builder_ final : public metadata_builder::impl {
 
  private:
   thrift::metadata::inode_size_cache build_inode_size_cache() const;
+  void upgrade_metadata();
+  void upgrade_from_pre_v2_2();
 
   LOG_PROXY_DECL(LoggerPolicy);
   thrift::metadata::metadata md_;
@@ -337,6 +347,8 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   // TODO: don't overwrite all options when upgrading!
   md_.options() = fsopts;
   md_.features() = features_.get();
+
+  // TODO: try and keep metadata upgrade history
   md_.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
   if (!options_.no_create_timestamp) {
     md_.create_timestamp() = std::time(nullptr);
@@ -345,6 +357,209 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
       static_cast<uint32_t>(std::filesystem::path::preferred_separator);
 
   return md_;
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
+  // === v2.2 metadata ===
+  //
+  // - `directories` is indexed by directory inode number; this is exactly
+  //   the same as today.
+  // - `entry_table_v2_2` is indexed by "inode number" and returns an index
+  //   into `inodes`.
+  // - `inodes` sort of combine the inode data with data from the new
+  //   `dir_entries` array. Inodes are ordered by directory entry index
+  //   (i.e. `first_entry`, `parent_entry` can be used to directly index
+  //   into `inodes`).
+  // - The format cannot properly represent hardlinks. Rather, it represents
+  //   all shared files as hardlinks, which is not correct.
+  //
+  // In order to upgrade to the new format, we need to:
+  //
+  // - Keep the `directories` array as is.
+  // - Rebuild the `inodes` array to be indexed by inode number; the new
+  //   format potentially has *much* more inode numbers than the old format
+  //   because shared files don't share inode numbers anymore, only hardlinks
+  //   do. The order of the new `inodes` array is exactly the same as the
+  //   old `entry_table_v2_2` array, *except* for regular files, where order
+  //   needs to take shared files into account. This means regular file
+  //   inode numbers will change and this needs to be tracked. This also
+  //   means that both the `chunk_table` and `chunks` arrays need to be
+  //   rebuilt.
+  // - Build the `shared_files_table` array. If multiple entries in `inodes`
+  //   share the same `inode_v2_2`, they are considered shared files.
+  // - Don't try to perform any hardlink detection, as the old format doesn't
+  //   properly represent hardlinks.
+  // - Build the `dir_entries` array.
+  //
+  // Here's a rough outline of the upgrade process:
+  //
+  // - Determine the number of entries that reference the same `inode_v2_2`.
+  //   This will allow us to distinguish between unique and shared files.
+
+  LOG_DEBUG << "upgrading entry_table_v2_2 to dir_entries";
+
+  auto const lnk_offset = find_inode_rank_offset(md_, inode_rank::INO_LNK);
+  auto const reg_offset = find_inode_rank_offset(md_, inode_rank::INO_REG);
+  auto const dev_offset = find_inode_rank_offset(md_, inode_rank::INO_DEV);
+
+  LOG_TRACE << "lnk_offset: " << lnk_offset;
+  LOG_TRACE << "reg_offset: " << reg_offset;
+  LOG_TRACE << "dev_offset: " << dev_offset;
+
+  std::vector<uint32_t> reg_inode_refs(md_.chunk_table()->size() - 1, 0);
+
+  for (auto const& inode : md_.inodes().value()) {
+    auto const inode_v2_2 = inode.inode_v2_2().value();
+    if (reg_offset <= inode_v2_2 && inode_v2_2 < dev_offset) {
+      auto const index = inode_v2_2 - reg_offset;
+      if (index < reg_inode_refs.size()) {
+        ++reg_inode_refs[index];
+      }
+    }
+  }
+
+  auto const unique_files =
+      std::count_if(reg_inode_refs.begin(), reg_inode_refs.end(),
+                    [](auto ref) { return ref == 1; });
+
+  auto const num_reg_files =
+      std::accumulate(reg_inode_refs.begin(), reg_inode_refs.end(), 0,
+                      [](auto sum, auto ref) { return sum + ref; });
+
+  LOG_TRACE << "unique_files: " << unique_files;
+  LOG_TRACE << "num_reg_files: " << num_reg_files;
+
+  auto const& entry_table = md_.entry_table_v2_2().value();
+
+  thrift::metadata::metadata newmd;
+  auto& dir_entries = newmd.dir_entries().emplace();
+  dir_entries.reserve(md_.inodes()->size());
+  auto& shared_files = newmd.shared_files_table().emplace();
+  shared_files.reserve(num_reg_files - unique_files);
+  auto& chunks = newmd.chunks().ensure();
+  chunks.reserve(md_.chunks()->size());
+  auto& chunk_table = newmd.chunk_table().ensure();
+  chunk_table.reserve(md_.chunk_table()->size());
+  chunk_table.push_back(0);
+  auto& inodes = newmd.inodes().ensure();
+  inodes.resize(md_.inodes()->size());
+
+  newmd.directories().copy_from(md_.directories());
+  for (auto& d : newmd.directories().value()) {
+    d.parent_entry() = entry_table[d.parent_entry().value()];
+  }
+  auto& dirs = newmd.directories().value();
+
+  uint32_t const shared_offset = reg_offset + unique_files;
+  uint32_t unique_inode = reg_offset;
+  uint32_t shared_inode = shared_offset;
+  uint32_t shared_chunk_index = 0;
+  std::unordered_map<uint32_t, uint32_t> shared_inode_map;
+  std::vector<thrift::metadata::chunk> shared_chunks;
+  std::vector<uint32_t> shared_chunk_table;
+  shared_chunk_table.push_back(0);
+
+  for (auto const& inode : md_.inodes().value()) {
+    auto const self_index = dir_entries.size();
+    auto& de = dir_entries.emplace_back();
+    de.name_index() = inode.name_index_v2_2().value();
+    auto inode_v2_2 = inode.inode_v2_2().value();
+
+    if (inode_v2_2 < reg_offset) {
+      de.inode_num() = inode_v2_2;
+
+      // must reconstruct self_entry for directories
+      if (inode_v2_2 < lnk_offset) {
+        dirs.at(inode_v2_2).self_entry() = self_index;
+      }
+    } else if (inode_v2_2 < dev_offset) {
+      auto const index = inode_v2_2 - reg_offset;
+      auto const refs = reg_inode_refs[index];
+      auto const chunk_begin = md_.chunk_table()->at(index);
+      auto const chunk_end = md_.chunk_table()->at(index + 1);
+
+      if (refs == 1) {
+        chunk_table.push_back(chunk_table.back() + chunk_end - chunk_begin);
+        for (uint32_t i = chunk_begin; i < chunk_end; ++i) {
+          chunks.push_back(md_.chunks()->at(i));
+        }
+        de.inode_num() = unique_inode++;
+      } else {
+        auto [it, inserted] =
+            shared_inode_map.emplace(inode_v2_2, shared_inode);
+        if (inserted) {
+          for (uint32_t i = 0; i < refs; ++i) {
+            shared_files.push_back(shared_chunk_index);
+          }
+          ++shared_chunk_index;
+          shared_inode += refs;
+          shared_chunk_table.push_back(shared_chunk_table.back() + chunk_end -
+                                       chunk_begin);
+          for (uint32_t i = chunk_begin; i < chunk_end; ++i) {
+            shared_chunks.push_back(md_.chunks()->at(i));
+          }
+        }
+        de.inode_num() = it->second++;
+      }
+    } else {
+      de.inode_num() = (inode_v2_2 - dev_offset) + reg_offset + num_reg_files;
+      LOG_TRACE << "dev/oth inode: " << inode_v2_2 << " -> "
+                << de.inode_num().value();
+    }
+
+    auto& ni = inodes.at(de.inode_num().value());
+    ni.mode_index() = inode.mode_index().value();
+    ni.owner_index() = inode.owner_index().value();
+    ni.group_index() = inode.group_index().value();
+    ni.atime_offset() = inode.atime_offset().value();
+    ni.mtime_offset() = inode.mtime_offset().value();
+    ni.ctime_offset() = inode.ctime_offset().value();
+  }
+
+  std::transform(shared_chunk_table.begin(), shared_chunk_table.end(),
+                 shared_chunk_table.begin(),
+                 [&](auto i) { return i + chunks.size(); });
+
+  DWARFS_CHECK(chunk_table.back() == shared_chunk_table.front(),
+               "inconsistent chunk tables");
+
+  chunks.insert(chunks.end(), shared_chunks.begin(), shared_chunks.end());
+  chunk_table.insert(chunk_table.end(), shared_chunk_table.begin() + 1,
+                     shared_chunk_table.end());
+
+  newmd.symlink_table().copy_from(md_.symlink_table());
+  newmd.uids().copy_from(md_.uids());
+  newmd.gids().copy_from(md_.gids());
+  newmd.modes().copy_from(md_.modes());
+  newmd.names().copy_from(md_.names());
+  newmd.symlinks().copy_from(md_.symlinks());
+  newmd.timestamp_base().copy_from(md_.timestamp_base());
+  newmd.block_size().copy_from(md_.block_size());
+  newmd.total_fs_size().copy_from(md_.total_fs_size());
+  newmd.devices().copy_from(md_.devices());
+  newmd.options().copy_from(md_.options());
+
+  md_ = std::move(newmd);
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::upgrade_metadata() {
+  auto tv = LOG_TIMED_VERBOSE;
+
+  // std::cout << apache::thrift::debugString(md_);
+
+  if (apache::thrift::is_non_optional_field_set_manually_or_by_serializer(
+          md_.entry_table_v2_2())) {
+    DWARFS_CHECK(!md_.dir_entries().has_value(),
+                 "unexpected dir_entries in metadata");
+
+    upgrade_from_pre_v2_2();
+  }
+
+  // TODO: update uid, gid, timestamp, mtime_only, time_resolution_sec
+
+  tv << "upgrading metadata...";
 }
 
 } // namespace
