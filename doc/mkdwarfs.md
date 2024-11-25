@@ -239,6 +239,11 @@ Most other options are concerned with compression tuning:
   metadata to uncompressed metadata without having to rebuild or recompress
   all the other data.
 
+- `--rebuild-metadata`:
+  Completely rebuild the metadata block. This will upgrade the internal format
+  of the metadata to the latest version instead of just recompressing the
+  metadata block.
+
 - `--recompress-categories=`[`!`]*category*[`,`...]:
   When `--recompress` is set to `all` or `block`, this option controls
   which categories of blocks will be recompressed. Adding a `!` in front

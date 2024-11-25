@@ -39,6 +39,7 @@
 #include <folly/String.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
@@ -95,6 +96,34 @@ void remove_inode_numbers(nlohmann::json& j) {
     }
   });
 }
+
+std::map<std::string, std::string> const checksums_xxh3{
+    {"bench.sh", "f36b0707f57e12b1"},
+    {"foo/1/2/3/4/5/6/7/8/9/a", "189a846373f241e8"},
+    {"foo/1/2/3/4/5/6/7/8/9/b", "4aa8385890ef195b"},
+    {"foo/1/2/3/4/5/6/7/8/9/blubb", "f36b0707f57e12b1"},
+    {"foo/1/2/3/4/5/6/7/8/9/c", "f743b2af3e60e91f"},
+    {"foo/1/2/3/4/5/6/7/8/9/d", "fa2a5714cb578dab"},
+    {"foo/1/2/3/4/5/6/7/8/9/e", "13bc5fbf33dc0141"},
+    {"foo/1/2/3/4/5/6/7/8/9/f", "ea1aa9ade526f068"},
+    {"foo/1/2/3/4/5/6/7/8/9/g", "aa6aa985ddff426e"},
+    {"foo/1/2/3/4/5/6/7/8/9/h", "fdb55c845d7030f0"},
+    {"foo/1/2/3/4/5/6/7/8/9/i", "a198f272298349aa"},
+    {"foo/1/2/3/4/5/6/7/8/9/j", "57094636a0f3b971"},
+    {"foo/1/2/3/4/5/6/7/8/9/k", "f8d0f1f8278733de"},
+    {"foo/1/2/3/4/5/6/7/8/9/l", "b54e0c6ffb79df4f"},
+    {"foo/1/2/3/4/5/z", "f36b0707f57e12b1"},
+    {"foo/1/2/3/4/y", "f36b0707f57e12b1"},
+    {"foo/1/2/3/copy.sh", "67b2455044ceab01"},
+    {"foo/1/2/3/x", "f36b0707f57e12b1"},
+    {"foo/1/2/xxx.sh", "67b2455044ceab01"},
+    {"foo/1/fmt.sh", "67b2455044ceab01"},
+    {"foo/bar", "c294d3380580062d"},
+    {"foo/bla.sh", "f36b0707f57e12b1"},
+    {"format.sh", "67b2455044ceab01"},
+    {"perl-exec.sh", "bd546eb6e49fb736"},
+    {"test.py", "48d97f43e4e9758d"},
+};
 
 char const* reference_v0_2 = R"(
 {
@@ -823,6 +852,27 @@ std::vector<std::string> versions{
     "0.5.6", "0.6.2", "0.7.5", "0.8.0", "0.9.10",
 };
 
+using rebuild_metadata_type =
+    std::pair<bool, std::optional<writer::metadata_options>>;
+
+[[maybe_unused]] std::ostream&
+operator<<(std::ostream& os, rebuild_metadata_type const& rmt) {
+  os << (rmt.first ? "recompress" : "keep");
+  if (rmt.second) {
+    os << ", " << *rmt.second;
+  }
+  return os;
+}
+
+constexpr std::array<rebuild_metadata_type, 6> rebuild_metadata_options{{
+    {false, std::nullopt},
+    {true, std::nullopt},
+    {true, writer::metadata_options{}},
+    {true, writer::metadata_options{.pack_chunk_table = true}},
+    {true, writer::metadata_options{.pack_directories = true}},
+    {true, writer::metadata_options{.pack_shared_files_table = true}},
+}};
+
 std::string format_sh = R"(#!/bin/bash
 find test/ src/ include/ -type f -name '*.[ch]*' | xargs -d $'\n' clang-format -i
 )";
@@ -1179,20 +1229,43 @@ auto get_image_path(std::string const& version) {
 
 class compat_metadata : public testing::TestWithParam<std::string> {};
 
-void check_dynamic(std::string const& version,
-                   reader::filesystem_v2 const& fs) {
+void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
+                   bool rebuild_metadata [[maybe_unused]] = false) {
   auto meta = fs.metadata_as_json();
   nlohmann::json ref;
   if (version.starts_with("0.2.")) {
     ref = nlohmann::json::parse(reference_v0_2);
+    if (rebuild_metadata) {
+      ref["statvfs"]["f_files"] = 41;
+    }
   } else {
     ref = nlohmann::json::parse(reference_v0_4);
+    if (rebuild_metadata &&
+        (version.starts_with("0.3.") or version.starts_with("0.4."))) {
+      ref["statvfs"]["f_files"] = 44;
+    }
   }
 
   remove_inode_numbers(ref);
   remove_inode_numbers(meta);
 
   EXPECT_EQ(ref, meta) << nlohmann::json::diff(ref, meta).dump(2);
+}
+
+void check_checksums(reader::filesystem_v2 const& fs) {
+  std::map<std::string, std::string> fs_checksums;
+
+  fs.walk([&fs, &fs_checksums](auto const& de) {
+    auto iv = de.inode();
+    if (iv.is_regular_file()) {
+      auto content = fs.read_string(iv.inode_num());
+      checksum cs(checksum::xxh3_64);
+      cs.update(content.data(), content.size());
+      fs_checksums[de.unix_path()] = cs.hexdigest();
+    }
+  });
+
+  EXPECT_EQ(checksums_xxh3, fs_checksums);
 }
 
 TEST_P(compat_metadata, backwards_compat) {
@@ -1250,11 +1323,12 @@ INSTANTIATE_TEST_SUITE_P(dwarfs_compat, compat_filesystem,
                          ::testing::Combine(::testing::ValuesIn(versions),
                                             ::testing::Bool()));
 
-class rewrite
-    : public testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+class rewrite : public testing::TestWithParam<
+                    std::tuple<std::string, bool, rebuild_metadata_type>> {};
 
 TEST_P(rewrite, filesystem_rewrite) {
-  auto [version, recompress_block, recompress_metadata] = GetParam();
+  auto [version, recompress_block, metadata_cfg] = GetParam();
+  auto [recompress_metadata, rebuild_metadata] = metadata_cfg;
 
   test::test_logger lgr;
   test::os_access_mock os;
@@ -1263,6 +1337,7 @@ TEST_P(rewrite, filesystem_rewrite) {
   utility::rewrite_options opts;
   opts.recompress_block = recompress_block;
   opts.recompress_metadata = recompress_metadata;
+  opts.rebuild_metadata = rebuild_metadata;
 
   thread_pool pool(lgr, os, "rewriter", 2);
   block_compressor bc("null");
@@ -1292,7 +1367,8 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(mm));
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs);
+    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_checksums(fs);
   }
 
   rewritten.str(std::string());
@@ -1320,7 +1396,8 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_options fsopts;
     fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
-    check_dynamic(version, fs);
+    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_checksums(fs);
   }
 
   std::ostringstream rewritten2;
@@ -1376,7 +1453,8 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs);
+    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_checksums(fs);
   }
 
   std::ostringstream rewritten5;
@@ -1395,14 +1473,15 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs);
+    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_checksums(fs);
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs_compat, rewrite,
-                         ::testing::Combine(::testing::ValuesIn(versions),
-                                            ::testing::Bool(),
-                                            ::testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(
+    dwarfs_compat, rewrite,
+    ::testing::Combine(::testing::ValuesIn(versions), ::testing::Bool(),
+                       ::testing::ValuesIn(rebuild_metadata_options)));
 
 class set_uidgid_test : public testing::TestWithParam<char const*> {};
 
