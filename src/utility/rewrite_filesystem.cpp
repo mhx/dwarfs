@@ -122,9 +122,9 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
     switch (s->type()) {
     case section_type::BLOCK: {
       std::optional<fragment_category::value_type> cat;
-      bool recompress_block{true};
+      bool recompress_block{opts.recompress_block};
 
-      if (opts.recompress_block) {
+      if (recompress_block) {
         auto catstr = fs.get_block_category(block_no);
 
         if (catstr) {
