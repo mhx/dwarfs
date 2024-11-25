@@ -24,11 +24,14 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 
 #include <dwarfs/byte_buffer.h>
 
 namespace dwarfs {
+
+class logger;
 
 namespace thrift::metadata {
 class metadata;
@@ -38,8 +41,24 @@ namespace writer::internal {
 
 class metadata_freezer {
  public:
-  static std::pair<shared_byte_buffer, shared_byte_buffer>
-  freeze(thrift::metadata::metadata const& data);
+  metadata_freezer(logger& lgr);
+  ~metadata_freezer();
+
+  std::pair<shared_byte_buffer, shared_byte_buffer>
+  freeze(thrift::metadata::metadata const& data) const {
+    return impl_->freeze(data);
+  }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual std::pair<shared_byte_buffer, shared_byte_buffer>
+    freeze(thrift::metadata::metadata const& data) const = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
 };
 
 } // namespace writer::internal

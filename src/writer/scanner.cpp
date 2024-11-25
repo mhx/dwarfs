@@ -949,7 +949,7 @@ void scanner_<LoggerPolicy>::scan(
   mdb.set_total_hardlink_size(prog.hardlink_size);
   mdb.gather_global_entry_data(ge_data);
 
-  auto [schema, data] = metadata_freezer::freeze(mdb.build());
+  auto [schema, data] = metadata_freezer(LOG_GET_LOGGER).freeze(mdb.build());
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
