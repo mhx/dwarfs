@@ -27,12 +27,14 @@
 #include <vector>
 
 #include <dwarfs/history_config.h>
+#include <dwarfs/writer/metadata_options.h>
 
 namespace dwarfs::utility {
 
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
+  std::optional<writer::metadata_options> rebuild_metadata;
   std::unordered_set<std::string> recompress_categories;
   bool recompress_categories_exclude{false};
   bool enable_history{true};
