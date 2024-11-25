@@ -22,10 +22,13 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
 namespace dwarfs {
+
+class logger;
 
 namespace thrift::metadata {
 class metadata;
@@ -35,8 +38,24 @@ namespace writer::internal {
 
 class metadata_freezer {
  public:
-  static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-  freeze(const thrift::metadata::metadata& data);
+  metadata_freezer(logger& lgr);
+  ~metadata_freezer();
+
+  std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+  freeze(thrift::metadata::metadata const& data) const {
+    return impl_->freeze(data);
+  }
+
+  class impl {
+   public:
+    virtual ~impl() = default;
+
+    virtual std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+    freeze(thrift::metadata::metadata const& data) const = 0;
+  };
+
+ private:
+  std::unique_ptr<impl> impl_;
 };
 
 } // namespace writer::internal
