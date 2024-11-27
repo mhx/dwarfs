@@ -849,7 +849,8 @@ TEST_P(compression_regression, github45) {
   reader::filesystem_v2::identify(lgr, *input, mm, idss, 3);
 
   std::string line;
-  std::regex const re("^SECTION num=\\d+, type=BLOCK, compression=(\\w+).*");
+  std::regex const re(
+      "^SECTION \\[[^\\]]+\\] num=\\d+, type=BLOCK, compression=(\\w+).*");
   std::set<std::string> compressions;
   while (std::getline(idss, line)) {
     std::smatch m;
