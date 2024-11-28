@@ -637,6 +637,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("time-resolution",
         po::value<std::string>(&time_resolution)->default_value("sec"),
         resolution_desc.c_str())
+    ("no-category-names",
+        po::value<bool>(&options.metadata.no_category_names)->zero_tokens(),
+        "don't add category names to file system")
+    ("no-category-metadata",
+        po::value<bool>(&options.metadata.no_category_metadata)->zero_tokens(),
+        "don't add category metadata to file system")
     ("pack-metadata,P",
         po::value<std::string>(&pack_metadata)->default_value("auto"),
         "pack certain metadata elements (auto, all, none, chunk_table, "

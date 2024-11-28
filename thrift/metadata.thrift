@@ -415,4 +415,18 @@ struct metadata {
 
   // Size cache for highly fragmented file inodes
   30: optional inode_size_cache reg_file_size_cache
+
+  //==========================================================//
+  // fields added with dwarfs-0.11.0, file system version 2.5 //
+  //==========================================================//
+
+  // Unique block categorization metadata JSON strings. These
+  // can be used to compress a block with a metadata-dependent
+  // algorithm after having been compressed with a general
+  // purpose algorithm.
+  31: optional list<string>     category_metadata_json
+
+  // The metadata associated with each block. Maps from block
+  // number to index into `categorization_metadata_json`.
+  32: optional map<UInt32, UInt32> block_category_metadata
 }
