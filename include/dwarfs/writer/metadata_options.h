@@ -53,6 +53,8 @@ struct metadata_options {
   bool pack_symlinks_index{false};
   bool force_pack_string_tables{false};
   bool no_create_timestamp{false};
+  bool no_category_names{false};
+  bool no_category_metadata{false};
   size_t inode_size_cache_min_chunk_count{128};
 };
 
