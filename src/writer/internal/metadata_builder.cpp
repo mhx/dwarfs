@@ -95,6 +95,16 @@ class metadata_builder_ final : public metadata_builder::impl {
     md_.block_categories() = std::move(block_categories);
   }
 
+  void
+  set_category_metadata_json(std::vector<std::string> metadata_json) override {
+    md_.category_metadata_json() = std::move(metadata_json);
+  }
+
+  void set_block_category_metadata(
+      std::map<uint32_t, uint32_t> block_metadata) override {
+    md_.block_category_metadata() = std::move(block_metadata);
+  }
+
   void add_symlink_table_entry(size_t index, uint32_t entry) override {
     DWARFS_NOTHROW(md_.symlink_table()->at(index)) = entry;
   }
@@ -314,6 +324,17 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     ti << "saving symlinks table...";
   }
 
+  if (options_.no_category_names) {
+    md_.category_names().reset();
+    md_.block_categories().reset();
+  }
+
+  if (options_.no_category_names || options_.no_category_metadata) {
+    md_.category_metadata_json().reset();
+    md_.block_category_metadata().reset();
+  }
+
+  // TODO: don't overwrite all options when upgrading!
   md_.options() = fsopts;
   md_.features() = features_.get();
   md_.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;

@@ -87,6 +87,15 @@ class metadata_builder {
     impl_->set_block_categories(std::move(block_categories));
   }
 
+  void set_category_metadata_json(std::vector<std::string> metadata_json) {
+    impl_->set_category_metadata_json(std::move(metadata_json));
+  }
+
+  void
+  set_block_category_metadata(std::map<uint32_t, uint32_t> block_metadata) {
+    impl_->set_block_category_metadata(std::move(block_metadata));
+  }
+
   void add_symlink_table_entry(size_t index, uint32_t entry) {
     impl_->add_symlink_table_entry(index, entry);
   }
@@ -121,6 +130,10 @@ class metadata_builder {
     set_category_names(std::vector<std::string> category_names) = 0;
     virtual void
     set_block_categories(std::vector<uint32_t> block_categories) = 0;
+    virtual void
+    set_category_metadata_json(std::vector<std::string> metadata_json) = 0;
+    virtual void set_block_category_metadata(
+        std::map<uint32_t, uint32_t> block_metadata) = 0;
     virtual void add_symlink_table_entry(size_t index, uint32_t entry) = 0;
     virtual void gather_chunks(inode_manager const& im, block_manager const& bm,
                                size_t chunk_count) = 0;
