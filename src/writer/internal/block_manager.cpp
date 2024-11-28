@@ -36,7 +36,7 @@ size_t block_manager::get_logical_block() const {
 
 void block_manager::set_written_block(size_t logical_block,
                                       size_t written_block,
-                                      fragment_category::value_type category) {
+                                      fragment_category category) {
   std::lock_guard lock{mx_};
   assert(logical_block < num_blocks_);
   if (block_map_.size() < num_blocks_) {
@@ -54,9 +54,9 @@ void block_manager::map_logical_blocks(std::vector<chunk_type>& vec) const {
   }
 }
 
-std::vector<fragment_category::value_type>
+std::vector<fragment_category>
 block_manager::get_written_block_categories() const {
-  std::vector<fragment_category::value_type> result;
+  std::vector<fragment_category> result;
 
   {
     std::lock_guard lock{mx_};

@@ -40,6 +40,8 @@
 
 #include <fmt/format.h>
 
+#include <range/v3/view/enumerate.hpp>
+
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/history.h>
@@ -770,8 +772,7 @@ void scanner_<LoggerPolicy>::scan(
                   [blockmgr, logical_block_num,
                    category](auto physical_block_num) {
                     blockmgr->set_written_block(logical_block_num,
-                                                physical_block_num,
-                                                category.value());
+                                                physical_block_num, category);
                   },
                   meta);
             });
@@ -862,30 +863,51 @@ void scanner_<LoggerPolicy>::scan(
   mdb.set_shared_files_table(std::move(ssfv.get_shared_files()));
 
   if (auto catmgr = options_.inode.categorizer_mgr) {
-    std::unordered_map<fragment_category::value_type,
-                       fragment_category::value_type>
+    std::unordered_map<fragment_category::value_type, uint32_t>
         category_indices;
+    std::unordered_map<fragment_category, uint32_t> category_metadata_indices;
     std::vector<std::string> category_names;
+    std::vector<std::string> category_metadata;
 
     category_indices.reserve(frag_info.info.size());
     category_names.reserve(frag_info.info.size());
 
     for (auto const& ci : frag_info.info) {
-      auto [it, inserted] =
-          category_indices.emplace(ci.category, category_names.size());
-      if (inserted) {
+      if (category_indices.emplace(ci.category, category_names.size()).second) {
         category_names.emplace_back(catmgr->category_name(ci.category));
       }
     }
 
+    for (auto const& cat : frag_info.categories) {
+      auto metadata = catmgr->category_metadata(cat);
+      if (!metadata.empty()) {
+        if (category_metadata_indices.emplace(cat, category_metadata.size())
+                .second) {
+          category_metadata.emplace_back(std::move(metadata));
+        }
+      }
+    }
+
     auto written_categories = blockmgr->get_written_block_categories();
+    std::vector<uint32_t> block_categories(written_categories.size());
+    std::map<uint32_t, uint32_t> block_cat_metadata;
 
     std::transform(written_categories.begin(), written_categories.end(),
-                   written_categories.begin(),
-                   [&](auto const& cat) { return category_indices.at(cat); });
+                   block_categories.begin(), [&](auto const& cat) {
+                     return category_indices.at(cat.value());
+                   });
+
+    for (auto const& [i, cat] : ranges::views::enumerate(written_categories)) {
+      if (auto it = category_metadata_indices.find(cat);
+          it != category_metadata_indices.end()) {
+        block_cat_metadata.emplace(i, it->second);
+      }
+    }
 
     mdb.set_category_names(std::move(category_names));
-    mdb.set_block_categories(std::move(written_categories));
+    mdb.set_block_categories(std::move(block_categories));
+    mdb.set_category_metadata_json(std::move(category_metadata));
+    mdb.set_block_category_metadata(std::move(block_cat_metadata));
   }
 
   mdb.set_block_size(segmenter_factory_.get_block_size());

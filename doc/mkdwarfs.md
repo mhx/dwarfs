@@ -368,6 +368,22 @@ Most other options are concerned with compression tuning:
   Don't add a creation timestamp. This is useful when bit-identical file
   system images are required to be produced from the same input.
 
+- `--no-category-names`:
+  Don't add category names to the file system. This is only relevant if
+  the file system uses categories at all. Adding category names allows
+  for setting per-category options when rewriting a file system, to get
+  per-category info with `dwarfsck`, or to see the categories that have
+  been identified in a file. This implicitly adds `--no-category-metadata`.
+
+- `--no-category-metadata`:
+  Don't add category metadata to the file system. This goes beyond just
+  the category names and additionally stores the metadata identified
+  during categorization. This metadata is needed for metadata-dependent
+  compression algorithms (e.g. FLAC). So if you're planning to recompress
+  categorized blocks from a metadata-independent to a metadata-dependent
+  compression algorithm, this is going to be impossible if the metadata
+  information is not available.
+
 - `--file-hash=none`|*name*:
   Select the hashing function to be used for file deduplication. If `none`
   is chosen, file deduplication is disabled. By default, the built-in
