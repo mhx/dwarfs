@@ -294,6 +294,8 @@ void analyze_frozen(std::ostream& os,
     }                                                                          \
   } while (0)
 
+#define META_OPT_MAP_SIZE(x) META_OPT_LIST_SIZE(x)
+
 #define META_OPT_STRING_LIST_SIZE(x)                                           \
   do {                                                                         \
     if (auto list = meta.x()) {                                                \
@@ -402,6 +404,8 @@ void analyze_frozen(std::ostream& os,
 
   META_OPT_STRING_LIST_SIZE(category_names);
   META_OPT_LIST_SIZE(block_categories);
+  META_OPT_STRING_LIST_SIZE(category_metadata_json);
+  META_OPT_MAP_SIZE(block_category_metadata);
 
 #undef META_LIST_SIZE
 #undef META_OPT_STRING_SET_SIZE

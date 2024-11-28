@@ -154,7 +154,7 @@ void run_segmenter_benchmark(::benchmark::State& state, unsigned granularity,
                            auto logical_block_num) {
           auto physical_block_num = written.size();
           written.push_back(blk);
-          blkmgr->set_written_block(logical_block_num, physical_block_num, 0);
+          blkmgr->set_written_block(logical_block_num, physical_block_num, {});
         });
 
     // begin benchmarking code
