@@ -38,16 +38,14 @@ class block_manager {
 
   size_t get_logical_block() const;
   void set_written_block(size_t logical_block, size_t written_block,
-                         fragment_category::value_type category);
+                         fragment_category category);
   void map_logical_blocks(std::vector<chunk_type>& vec) const;
-  std::vector<fragment_category::value_type>
-  get_written_block_categories() const;
+  std::vector<fragment_category> get_written_block_categories() const;
 
  private:
   std::mutex mutable mx_;
   size_t mutable num_blocks_{0};
-  std::vector<std::optional<std::pair<size_t, fragment_category::value_type>>>
-      block_map_;
+  std::vector<std::optional<std::pair<size_t, fragment_category>>> block_map_;
 };
 
 } // namespace dwarfs::writer::internal
