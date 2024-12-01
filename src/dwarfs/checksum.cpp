@@ -36,11 +36,18 @@
 
 namespace dwarfs {
 
+using namespace std::literals::string_view_literals;
+
 namespace {
 
 std::unordered_set<std::string> supported_algorithms{
     "xxh3-64",
     "xxh3-128",
+};
+
+constexpr std::array unsupported_algorithms{
+    "shake128"sv,
+    "shake256"sv,
 };
 
 class checksum_evp : public checksum::impl {
@@ -76,7 +83,8 @@ class checksum_evp : public checksum::impl {
     std::vector<std::string> available;
     ::EVP_MD_do_all(
         [](const ::EVP_MD*, const char* from, const char* to, void* vec) {
-          if (!to) {
+          if (!to && std::ranges::find(unsupported_algorithms, from) ==
+                         unsupported_algorithms.end()) {
             reinterpret_cast<std::vector<std::string>*>(vec)->emplace_back(
                 from);
           }
