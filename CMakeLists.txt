@@ -649,6 +649,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
           -Wold-style-cast
           -Wnon-virtual-dtor
           -Wsuggest-override
+          -Wpessimizing-move
         >
         -Wfloat-equal
         -Wcast-align
