@@ -675,6 +675,9 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
         -Wduplicated-branches
         -Wmisleading-indentation
       )
+      if("${CMAKE_CXX_COMPILER_VERSION}" VERSION_GREATER_EQUAL "14")
+        target_compile_options(${tgt} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wnrvo -Wno-error=nrvo>)
+      endif()
     endif()
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
