@@ -1841,7 +1841,8 @@ metadata_<LoggerPolicy>::find(std::string_view path) const {
     auto iv = dev->inode();
 
     if (!iv.is_directory()) {
-      return std::nullopt;
+      dev.reset();
+      break;
     }
 
     auto name = path;

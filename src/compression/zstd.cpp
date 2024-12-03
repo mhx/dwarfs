@@ -79,11 +79,10 @@ class zstd_block_compressor final : public block_compressor::impl {
  private:
   static std::shared_ptr<zstd_context_manager> get_context_manager() {
     std::lock_guard lock(s_mx);
-    if (auto mgr = s_ctxmgr.lock()) {
-      return mgr;
+    auto mgr = s_ctxmgr.lock();
+    if (!mgr) {
+      s_ctxmgr = mgr = std::make_shared<zstd_context_manager>();
     }
-    auto mgr = std::make_shared<zstd_context_manager>();
-    s_ctxmgr = mgr;
     return mgr;
   }
 
