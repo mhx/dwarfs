@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include <folly/CPortability.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
@@ -359,6 +360,9 @@ scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
     , entry_factory_{ef}
     , os_{os} {}
 
+FOLLY_PUSH_WARNING
+FOLLY_GCC_DISABLE_WARNING("-Wnrvo")
+
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
@@ -485,6 +489,8 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
 
   return nullptr;
 }
+
+FOLLY_POP_WARNING
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::dump_state(
