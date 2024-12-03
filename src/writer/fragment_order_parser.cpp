@@ -47,7 +47,10 @@ const std::map<std::string_view, fragment_order_mode> order_choices{
 } // namespace
 
 std::string fragment_order_parser::choices() {
-  return ranges::views::keys(order_choices) | ranges::views::join(", ") |
+  // The string_view is needed because ranges::views::join() will include
+  // the null terminator when using a string literal.
+  static std::string_view constexpr kJoiner{", "};
+  return ranges::views::keys(order_choices) | ranges::views::join(kJoiner) |
          ranges::to<std::string>();
 }
 

@@ -94,7 +94,10 @@ T find_option(std::array<std::pair<std::string_view, T>, N> const& options,
 template <typename T, size_t N>
 std::string
 option_names(std::array<std::pair<std::string_view, T>, N> const& options) {
-  return options | ranges::views::keys | ranges::views::join(", ") |
+  // The string_view is needed because ranges::views::join() will include
+  // the null terminator when using a string literal.
+  static std::string_view constexpr kJoiner{", "};
+  return options | ranges::views::keys | ranges::views::join(kJoiner) |
          ranges::to<std::string>;
 }
 
