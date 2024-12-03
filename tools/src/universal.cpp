@@ -98,7 +98,10 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // nope, just print the help
 
-  auto tools = ranges::views::keys(functions) | ranges::views::join(", ") |
+  // The string_view is needed because ranges::views::join() will include
+  // the null terminator when using a string literal.
+  static std::string_view constexpr kJoiner{", "};
+  auto tools = ranges::views::keys(functions) | ranges::views::join(kJoiner) |
                ranges::to<std::string>;
 
   // clang-format off
