@@ -30,6 +30,22 @@
 
 namespace dwarfs::writer::internal {
 
+namespace {
+
+template <typename MapT>
+void index_map(MapT& map) {
+  using mapped_type = typename MapT::mapped_type;
+  static_assert(std::is_integral_v<mapped_type>);
+  auto keys = map | ranges::views::keys | ranges::to<std::vector>;
+  ranges::sort(keys);
+  mapped_type ix{0};
+  for (auto& k : keys) {
+    map[k] = ix++;
+  }
+}
+
+} // namespace
+
 template <typename T, typename U>
 std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
   std::vector<std::pair<T, U>> pairs{map.begin(), map.end()};
@@ -59,13 +75,9 @@ auto global_entry_data::get_symlinks() const -> std::vector<std::string> {
   return get_vector(symlinks_);
 }
 
-void global_entry_data::index(map_type<std::string, uint32_t>& map) {
-  auto keys = map | ranges::views::keys | ranges::to<std::vector>;
-  ranges::sort(keys);
-  std::decay_t<decltype(map)>::mapped_type ix{0};
-  for (auto& k : keys) {
-    map[k] = ix++;
-  }
+void global_entry_data::index() {
+  index_map(names_);
+  index_map(symlinks_);
 }
 
 uint64_t global_entry_data::get_time_offset(uint64_t time) const {

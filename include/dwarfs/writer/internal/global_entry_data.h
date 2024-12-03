@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include <folly/container/F14Map.h>
+#include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/file_stat.h>
 
@@ -59,10 +59,7 @@ class global_entry_data {
   void add_name(std::string const& name) { names_.emplace(name, 0); }
   void add_link(std::string const& link) { symlinks_.emplace(link, 0); }
 
-  void index() {
-    index(names_);
-    index(symlinks_);
-  }
+  void index();
 
   size_t get_uid_index(uid_type uid) const;
   size_t get_gid_index(gid_type gid) const;
@@ -86,12 +83,10 @@ class global_entry_data {
 
  private:
   template <typename K, typename V>
-  using map_type = folly::F14FastMap<K, V>;
+  using map_type = phmap::flat_hash_map<K, V>;
 
   template <typename T, typename U>
   std::vector<T> get_vector(map_type<T, U> const& map) const;
-
-  static void index(map_type<std::string, uint32_t>& map);
 
   template <typename T>
   void add(T val, map_type<T, T>& map, T& next_index) {
