@@ -668,7 +668,7 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
       target_compile_options(${tgt} PRIVATE
-        -Wuseless-cast
+        $<$<COMPILE_LANGUAGE:CXX>:-Wuseless-cast>
         -Wlogical-op
         -Wduplicated-cond
         -Wduplicated-branches
