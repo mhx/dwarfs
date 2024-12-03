@@ -19,12 +19,13 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <map>
+#include <array>
 #include <stdexcept>
 #include <vector>
 
 #include <fmt/format.h>
 
+#include <range/v3/algorithm/find.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
@@ -36,13 +37,14 @@ namespace dwarfs::writer {
 
 namespace {
 
-const std::map<std::string_view, fragment_order_mode> order_choices{
+std::array<std::pair<std::string_view, fragment_order_mode>,
+           5> constexpr order_choices{{
     {"none", fragment_order_mode::NONE},
     {"path", fragment_order_mode::PATH},
     {"revpath", fragment_order_mode::REVPATH},
     {"similarity", fragment_order_mode::SIMILARITY},
     {"nilsimsa", fragment_order_mode::NILSIMSA},
-};
+}};
 
 } // namespace
 
@@ -63,7 +65,10 @@ fragment_order_parser::parse(std::string_view arg) const {
   option_map om(arg);
   auto algo = om.choice();
 
-  if (auto it = order_choices.find(algo); it != order_choices.end()) {
+  if (auto it = ranges::find(
+          order_choices, algo,
+          &std::pair<std::string_view, fragment_order_mode>::first);
+      it != order_choices.end()) {
     rv.mode = it->second;
   } else {
     throw std::runtime_error(fmt::format("invalid inode order mode: {}", algo));
