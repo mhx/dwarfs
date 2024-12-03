@@ -94,7 +94,7 @@ fs::path entry::fs_path() const {
 #endif
 
   if (auto parent = parent_.lock()) {
-    return parent->fs_path() / self;
+    self = parent->fs_path() / self;
   }
 
   return self;
@@ -107,29 +107,30 @@ std::string entry::path_as_string() const {
 std::string entry::dpath() const {
   auto p = path_as_string();
   if (is_root_path(p)) {
-    return std::string(1, kLocalPathSeparator);
-  }
-  if (type() == E_DIR) {
+    p = std::string(1, kLocalPathSeparator);
+  } else if (type() == E_DIR) {
     p += kLocalPathSeparator;
   }
   return p;
 }
 
 std::string entry::unix_dpath() const {
-  auto p = name_;
+  std::string p;
 
-  if (is_root_path(p)) {
-    return "/";
-  }
+  if (is_root_path(name_)) {
+    p = "/";
+  } else {
+    p = name_;
 
-  if (type() == E_DIR && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
-    p += '/';
-  }
+    if (type() == E_DIR && !p.empty() && !p.ends_with(kLocalPathSeparator)) {
+      p += '/';
+    }
 
-  if (auto parent = parent_.lock()) {
-    return parent->unix_dpath() + p;
-  } else if constexpr (kLocalPathSeparator != '/') {
-    std::replace(p.begin(), p.end(), kLocalPathSeparator, '/');
+    if (auto parent = parent_.lock()) {
+      p = parent->unix_dpath() + p;
+    } else if constexpr (kLocalPathSeparator != '/') {
+      std::replace(p.begin(), p.end(), kLocalPathSeparator, '/');
+    }
   }
 
   return p;
