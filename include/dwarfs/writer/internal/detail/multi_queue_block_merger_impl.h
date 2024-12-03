@@ -206,7 +206,8 @@ class multi_queue_block_merger_impl : public block_merger_base,
             return blk.has_value() ? std::to_string(this->block_size(*blk))
                                    : "&";
           }) |
-          ranges::views::join(", ") | ranges::to<std::string>();
+          ranges::views::join(std::string_view(", ")) |
+          ranges::to<std::string>();
 
       auto const text =
           fmt::format("blocks({}): {} -> {}", src, q.size(), queued_sizes);
