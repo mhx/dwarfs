@@ -608,12 +608,14 @@ TEST_F(metadata_test, set_owner) {
   // TODO
   // This is easy, we only need to set a single uid and update
   // all entries accordingly.
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, set_group) {
   // TODO
   // This is easy, we only need to set a single gid and update
   // all entries accordingly.
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, chmod) {
@@ -621,26 +623,31 @@ TEST_F(metadata_test, chmod) {
   // This is a little more tricky. We need to keep track of which
   // old mode gets mapped to which new mode and then update all
   // entries after we've modified the mode list.
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, no_create_timestamp) {
   // TODO
   // Ensure that this can only be removed, but not set after the fact
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, set_time) {
   // TODO
   // Easy
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, keep_all_times) {
   // TODO
   // Ensure that this is one-way: if all times are kept, ctime/atime
   // can be removed. But they can never be recovered.
+  // We must check that this creates consistent metadata!
 }
 
 TEST_F(metadata_test, time_resolution) {
   // TODO
   // Ensure this is one-way: we can only decrease the resolution,
   // but never increase it.
+  // We must check that this creates consistent metadata!
 }

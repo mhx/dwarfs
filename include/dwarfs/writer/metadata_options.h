@@ -40,6 +40,8 @@ class entry_interface;
 struct metadata_options {
   std::optional<file_stat::uid_type> uid{};
   std::optional<file_stat::gid_type> gid{};
+  std::optional<file_stat::mode_type> umask{};
+  std::optional<std::vector<std::string>> chmod{};
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
   uint32_t time_resolution_sec{1};

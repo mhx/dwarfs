@@ -23,8 +23,11 @@
 #include <ctime>
 #include <filesystem>
 
+#include <range/v3/view/enumerate.hpp>
+
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 
+#include <dwarfs/file_type.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -33,6 +36,7 @@
 #include <dwarfs/internal/metadata_utils.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/writer/internal/block_manager.h>
+#include <dwarfs/writer/internal/chmod_transformer.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode_manager.h>
@@ -341,14 +345,82 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     ti << "saving symlinks table...";
   }
 
-  if (options_.no_category_names) {
-    md_.category_names().reset();
-    md_.block_categories().reset();
-  }
+  if (is_rewrite_) {
+    bool const update_uid = options_.uid.has_value();
+    bool const update_gid = options_.gid.has_value();
+    bool const update_mode = options_.umask.has_value() &&
+                             options_.chmod.has_value() &&
+                             !options_.chmod->empty();
+    std::unordered_map<uint32_t, uint32_t> mode_index_map;
 
-  if (options_.no_category_names || options_.no_category_metadata) {
-    md_.category_metadata_json().reset();
-    md_.block_category_metadata().reset();
+    if (update_uid) {
+      md_.uids() = std::vector<file_stat::uid_type>{*options_.uid};
+    }
+
+    if (update_gid) {
+      md_.gids() = std::vector<file_stat::gid_type>{*options_.gid};
+    }
+
+    if (update_mode) {
+      std::vector<file_stat::mode_type> new_modes;
+      std::unordered_map<file_stat::mode_type, uint32_t> new_mode_index;
+      std::vector<chmod_transformer> xfms;
+
+      for (auto const& spec : options_.chmod.value()) {
+        xfms.emplace_back(spec, options_.umask.value());
+      }
+
+      for (auto const& [old_index, old_mode] :
+           ranges::views::enumerate(md_.modes().value())) {
+        auto new_mode = old_mode & 07777;
+        auto type = posix_file_type::from_mode(old_mode);
+        bool const is_dir = type == posix_file_type::directory;
+
+        for (auto const& xfm : xfms) {
+          if (auto m = xfm.transform(new_mode, is_dir); m.has_value()) {
+            new_mode = m.value();
+          }
+        }
+
+        new_mode |= static_cast<decltype(new_mode)>(type);
+
+        auto [it, inserted] =
+            new_mode_index.emplace(new_mode, new_modes.size());
+
+        if (inserted) {
+          new_modes.push_back(new_mode);
+        }
+
+        mode_index_map[old_index] = it->second;
+      }
+
+      md_.modes() = std::move(new_modes);
+    }
+
+    if (update_uid) {
+      for (auto& inode : md_.inodes().value()) {
+        if (update_uid) {
+          inode.owner_index() = 0;
+        }
+        if (update_gid) {
+          inode.group_index() = 0;
+        }
+        if (update_mode) {
+          auto const old_ix = inode.mode_index().value();
+          inode.mode_index() = mode_index_map.at(old_ix);
+        }
+      }
+    }
+
+    if (options_.no_category_names) {
+      md_.category_names().reset();
+      md_.block_categories().reset();
+    }
+
+    if (options_.no_category_names || options_.no_category_metadata) {
+      md_.category_metadata_json().reset();
+      md_.block_category_metadata().reset();
+    }
   }
 
   // TODO: don't overwrite all options when upgrading!

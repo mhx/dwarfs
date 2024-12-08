@@ -982,6 +982,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     auto mask = get_current_umask();
 
+    if (rebuild_metadata) {
+      options.metadata.umask = mask;
+      options.metadata.chmod =
+          std::vector<std::string>(chmod_exprs.begin(), chmod_exprs.end());
+    }
+
     for (auto expr : chmod_exprs) {
       transformers.push_back(
           writer::create_chmod_entry_transformer(expr, mask));
