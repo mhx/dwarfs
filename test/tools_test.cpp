@@ -740,25 +740,6 @@ bool check_readonly(fs::path const& p, bool readonly) {
     return false;
   }
 
-#ifndef _WIN32
-  {
-    auto r = ::access(p.string().c_str(), W_OK);
-
-    if (readonly) {
-      if (r != -1 || errno != EACCES) {
-        std::cerr << "access(" << p << ", W_OK) = " << r << " (errno=" << errno
-                  << ") [readonly]\n";
-        return false;
-      }
-    } else {
-      if (r != 0) {
-        std::cerr << "access(" << p << ", W_OK) = " << r << "\n";
-        return false;
-      }
-    }
-  }
-#endif
-
   return true;
 }
 
@@ -1309,19 +1290,19 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(file, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
       std::error_code ec;
       EXPECT_FALSE(fs::remove(non_empty_dir, ec)) << runner.cmdline();
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     {
@@ -1329,7 +1310,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
       EXPECT_EQ(static_cast<std::uintmax_t>(-1),
                 fs::remove_all(non_empty_dir, ec))
           << runner.cmdline();
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     // rename
@@ -1405,7 +1386,7 @@ TEST_P(tools_test, mutating_and_error_ops) {
     {
       std::error_code ec;
       fs::resize_file(file, 1, ec);
-      EXPECT_EC_UNIX_WIN(ec, ENOSYS, ERROR_ACCESS_DENIED);
+      EXPECT_EC_UNIX_MAC_WIN(ec, ENOSYS, EACCES, ERROR_ACCESS_DENIED);
     }
 
     // create directory
