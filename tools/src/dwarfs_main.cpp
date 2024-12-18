@@ -224,7 +224,6 @@ struct dwarfs_userdata {
   PERFMON_EXT_TIMER_DECL(op_init)
   PERFMON_EXT_TIMER_DECL(op_lookup)
   PERFMON_EXT_TIMER_DECL(op_getattr)
-  PERFMON_EXT_TIMER_DECL(op_access)
   PERFMON_EXT_TIMER_DECL(op_readlink)
   PERFMON_EXT_TIMER_DECL(op_open)
   PERFMON_EXT_TIMER_DECL(op_read)
@@ -494,55 +493,6 @@ int op_getattr(char const* path, native_stat* st, struct fuse_file_info*) {
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
 
   return -op_getattr_common(log_, userdata, st, [&] {
-    return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
-  });
-}
-#endif
-
-template <typename LogProxy, typename Find>
-int op_access_common(LogProxy& log_, dwarfs_userdata& userdata, int mode,
-                     file_stat::uid_type uid, file_stat::gid_type gid,
-                     Find const& find) {
-  return checked_call(log_, [&] {
-    if (auto iv = find()) {
-      std::error_code ec;
-      userdata.fs.access(*iv, mode, uid, gid, ec);
-      return ec.value();
-    }
-    return ENOENT;
-  });
-}
-
-#if DWARFS_FUSE_LOWLEVEL
-template <typename LoggerPolicy>
-void op_access(fuse_req_t req, fuse_ino_t ino, int mode) {
-  dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
-  LOG_PROXY(LoggerPolicy, userdata.lgr);
-
-  LOG_DEBUG << __func__ << "(" << ino << ")" << get_caller_context(req);
-  PERFMON_SET_CONTEXT(ino)
-
-  auto ctx = fuse_req_ctx(req);
-
-  int err =
-      op_access_common(log_, userdata, mode, ctx->uid, ctx->gid,
-                       [&userdata, ino] { return userdata.fs.find(ino); });
-
-  fuse_reply_err(req, err);
-}
-#else
-template <typename LoggerPolicy>
-int op_access(char const* path, int mode) {
-  dUSERDATA;
-  PERFMON_EXT_SCOPED_SECTION(userdata, op_access)
-  LOG_PROXY(LoggerPolicy, userdata.lgr);
-
-  LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
-
-  auto ctx = fuse_get_context();
-
-  return -op_access_common(log_, userdata, mode, ctx->uid, ctx->gid, [&] {
     return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
   });
 }
@@ -1304,7 +1254,6 @@ void init_fuse_ops(struct fuse_lowlevel_ops& ops,
   ops.init = &op_init<LoggerPolicy>;
   ops.lookup = &op_lookup<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
-  ops.access = &op_access<LoggerPolicy>;
   if (userdata.fs.has_symlinks()) {
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
@@ -1321,7 +1270,6 @@ void init_fuse_ops(struct fuse_operations& ops,
                    dwarfs_userdata const& userdata) {
   ops.init = &op_init<LoggerPolicy>;
   ops.getattr = &op_getattr<LoggerPolicy>;
-  ops.access = &op_access<LoggerPolicy>;
   if (userdata.fs.has_symlinks()) {
     ops.readlink = &op_readlink<LoggerPolicy>;
   }
@@ -1502,7 +1450,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_init)
   PERFMON_EXT_TIMER_SETUP(userdata, op_lookup, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_getattr, "inode")
-  PERFMON_EXT_TIMER_SETUP(userdata, op_access, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_readlink, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_open, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_read, "inode", "size")
