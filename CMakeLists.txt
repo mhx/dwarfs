@@ -715,6 +715,13 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     endif()
   endif()
 
+  if(${tgt} MATCHES "fuzz_")
+    target_compile_options(${tgt} PRIVATE
+      -Wno-gnu-statement-expression-from-macro-expansion
+      -Wno-old-style-cast
+    )
+  endif()
+
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD 20)
   set_property(TARGET ${tgt} PROPERTY CXX_STANDARD_REQUIRED ON)
   set_property(TARGET ${tgt} PROPERTY CXX_EXTENSIONS OFF)
