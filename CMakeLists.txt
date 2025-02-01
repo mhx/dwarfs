@@ -596,6 +596,10 @@ if(WITH_LIBDWARFS AND WITH_FUZZ)
   add_executable(fuzz_mkdwarfs test/fuzz_mkdwarfs.cpp)
   target_link_libraries(fuzz_mkdwarfs PRIVATE mkdwarfs_main dwarfs_test_helpers)
   list(APPEND BINARY_TARGETS fuzz_mkdwarfs)
+
+  add_executable(fuzz_reader test/fuzz_reader.cpp)
+  target_link_libraries(fuzz_reader PRIVATE dwarfs_reader)
+  list(APPEND BINARY_TARGETS fuzz_reader)
 endif()
 
 foreach(tgt ${LIBDWARFS_TARGETS})
