@@ -61,20 +61,21 @@ class stack_ctor {
   }
 };
 
+bool dir_has_self_entry(global_metadata::Meta const& meta) {
+  auto layout = meta.findFirstOfType<
+      std::unique_ptr<frozen::Layout<thrift::metadata::metadata>>>();
+  return (*layout)
+             ->directoriesField.layout.itemField.layout.self_entryField.layout
+             .bits > 0;
+}
+
 std::optional<global_metadata::bundled_directories_view>
 unpack_directories(logger& lgr, global_metadata::Meta const& meta) {
-  auto has_self_entry = [&] {
-    auto layout = meta.findFirstOfType<
-        std::unique_ptr<frozen::Layout<thrift::metadata::metadata>>>();
-    return (*layout)
-               ->directoriesField.layout.itemField.layout.self_entryField.layout
-               .bits > 0;
-  };
-
   auto opts = meta.options();
   auto dep = meta.dir_entries();
 
-  if ((!opts or !opts->packed_directories()) and (!dep or has_self_entry())) {
+  if ((!opts or !opts->packed_directories()) and
+      (!dep or dir_has_self_entry(meta))) {
     return std::nullopt;
   }
 
@@ -372,6 +373,10 @@ void check_packed_tables(global_metadata::Meta const& meta) {
                     [](auto i) { return i.parent_entry() != 0; })) {
       DWARFS_THROW(runtime_error, "parent_entry set in packed directory");
     }
+    if (std::any_of(meta.directories().begin(), meta.directories().end(),
+                    [](auto i) { return i.self_entry() != 0; })) {
+      DWARFS_THROW(runtime_error, "self_entry set in packed directory");
+    }
     if (auto expected =
             std::accumulate(meta.directories().begin(),
                             meta.directories().end(), static_cast<size_t>(0),
@@ -393,16 +398,61 @@ void check_packed_tables(global_metadata::Meta const& meta) {
       DWARFS_THROW(runtime_error, "first_entry values not sorted");
     }
 
-    for (auto d : meta.directories()) {
-      if (auto i = d.first_entry(); i > num_entries) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("first_entry out of range: {} > {}", i, num_entries));
+    auto const num_dirs = meta.directories().size();
+    auto const has_self = dir_has_self_entry(meta);
+
+    for (size_t i = 0; i < num_dirs; ++i) {
+      bool const is_last = i == num_dirs - 1;
+      auto const d = meta.directories()[i];
+      auto const f = d.first_entry();
+      auto const p = d.parent_entry();
+      auto const s = d.self_entry();
+
+      if (f > num_entries) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("[{}] first_entry out of range: {} > {}", i, f,
+                                 num_entries));
       }
-      if (auto i = d.parent_entry(); i >= num_entries) {
-        DWARFS_THROW(
-            runtime_error,
-            fmt::format("parent_entry out of range: {} >= {}", i, num_entries));
+
+      if (s > num_entries) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("[{}] self_entry out of range: {} > {}", i, s,
+                                 num_entries));
+      }
+
+      if (p >= num_entries) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("[{}] parent_entry out of range: {} >= {}", i,
+                                 p, num_entries));
+      }
+
+      if (f == p) {
+        DWARFS_THROW(runtime_error,
+                     fmt::format("[{}] first_entry == parent_entry", i));
+      }
+
+      if (i == 0 || is_last) {
+        if (p != 0) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format("[{}] parent_entry {} != 0 for root directory", i,
+                          p));
+        }
+        if (has_self && s != 0) {
+          DWARFS_THROW(
+              runtime_error,
+              fmt::format("[{}] self_entry {} != 0 for root directory", i, s));
+        }
+      } else if (has_self) {
+        if (f == s) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("[{}] first_entry == self_entry", i));
+        }
+
+        if (s == p) {
+          DWARFS_THROW(runtime_error,
+                       fmt::format("[{}] self_entry == parent_entry", i));
+        }
       }
     }
   }
