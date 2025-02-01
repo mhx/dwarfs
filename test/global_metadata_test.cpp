@@ -165,13 +165,15 @@ TEST_F(global_metadata_test, check_packed_tables) {
   EXPECT_THAT([&] { check(raw); },
               throws_error("first_entry values not sorted"));
 
-  ds[0].first_entry() = 0;
+  ds[0].first_entry() = 1;
   ds[1].first_entry() = 3; // sentinel value may be equal to entry count
-  EXPECT_THAT([&] { check(raw); }, throws_error("first_entry out of range"));
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("[1] first_entry out of range"));
 
   ds[1].first_entry() = 2;
   ds[1].parent_entry() = 2;
-  EXPECT_THAT([&] { check(raw); }, throws_error("parent_entry out of range"));
+  EXPECT_THAT([&] { check(raw); },
+              throws_error("[1] parent_entry out of range"));
   ds[1].parent_entry() = 0;
 
   auto& ct = *raw.chunk_table();
@@ -193,7 +195,7 @@ TEST_F(global_metadata_test, check_packed_tables) {
   ds[1].first_entry() = 0;
   EXPECT_THAT([&] { check(raw); },
               throws_error("first_entry inconsistency in packed directories"));
-  ds[1].first_entry() = 2;
+  ds[1].first_entry() = 1;
 
   opts.packed_chunk_table() = true;
   EXPECT_THAT([&] { check(raw); },
@@ -211,6 +213,10 @@ TEST_F(global_metadata_test, check_string_tables) {
   raw.gids()->resize(1);
   raw.dir_entries().emplace();
   raw.dir_entries()->resize(2);
+
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 1;
 
   raw.names()->resize(2);
   EXPECT_THAT([&] { check(raw); }, throws_error("unexpected number of names"));
@@ -282,6 +288,10 @@ TEST_F(global_metadata_test, check_chunks) {
   raw.dir_entries()->resize(2);
   auto& c = raw.chunks()->emplace_back();
 
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 1;
+
   raw.block_size() = 3;
   EXPECT_THAT([&] { check(raw); }, throws_error("invalid block size"));
   raw.block_size() = 65536;
@@ -308,6 +318,10 @@ TEST_F(global_metadata_test, check_partitioning) {
   raw.gids()->resize(1);
   raw.names()->resize(1);
   raw.block_size() = 1024;
+
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 1;
 
   raw.modes()->push_back(dwarfs::posix_file_type::regular);
   raw.modes()->push_back(dwarfs::posix_file_type::directory);
@@ -340,6 +354,10 @@ TEST_F(global_metadata_test, check_metadata) {
   raw.dir_entries().emplace();
   raw.dir_entries()->resize(2);
   raw.block_size() = 1024;
+
+  auto& ds = *raw.directories();
+  ds[0].first_entry() = 1;
+  ds[1].first_entry() = 1;
 
   raw.modes()->push_back(dwarfs::posix_file_type::directory);
   raw.modes()->push_back(dwarfs::posix_file_type::regular);
