@@ -80,28 +80,32 @@ jobs:
           cmake --build ${{ runner.temp }}\build --target copy_artifacts
         if: env.do_install == 'true'
 
-      - name: Prepare Artifact Upload
-        shell: cmd
-        run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-        if: env.do_install == 'true'
+      # - name: Prepare Artifact Upload
+      #   shell: cmd
+      #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
+      #   if: env.do_install == 'true'
 
-      - name: Upload Binary Tarball
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.binary_tarball }}
-          path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
-          if-no-files-found: error
-          compression-level: 0
-        if: env.do_install == 'true'
+      # - name: Upload Binary Tarball
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.binary_tarball }}
+      #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
+      #     if-no-files-found: error
+      #     compression-level: 0
+      #   env:
+      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+      #   if: env.do_install == 'true'
 
-      - name: Upload Universal Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.universal_binary }}
-          path: ${{ runner.temp }}\build\${{ env.universal_binary }}
-          if-no-files-found: error
-          compression-level: 0
-        if: env.do_install == 'true'
+      # - name: Upload Universal Binary
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.universal_binary }}
+      #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
+      #     if-no-files-found: error
+      #     compression-level: 0
+      #   env:
+      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+      #   if: env.do_install == 'true'
 
   package-source:
     runs-on:
@@ -369,27 +373,31 @@ jobs:
           file: ${{ runner.temp }}/dwarfs-coverage.txt
           fail_ci_if_error: false
 
-      - name: Prepare Artifact Upload
-        run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
-        if: ${{ endsWith(matrix.build_type, '-static') }}
+      # - name: Prepare Artifact Upload
+      #   run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
+      #   if: ${{ endsWith(matrix.build_type, '-static') }}
 
-      - name: Upload Binary Tarball
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.binary_tarball }}
-          path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
-          if-no-files-found: error
-          compression-level: 0
-        if: ${{ endsWith(matrix.build_type, '-static') }}
+      # - name: Upload Binary Tarball
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.binary_tarball }}
+      #     path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
+      #     if-no-files-found: error
+      #     compression-level: 0
+      #   env:
+      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+      #   if: ${{ endsWith(matrix.build_type, '-static') }}
 
-      - name: Upload Universal Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.universal_binary }}
-          path: ${{ runner.temp }}/artifacts/${{ env.universal_binary }}
-          if-no-files-found: error
-          compression-level: 0
-        if: ${{ endsWith(matrix.build_type, '-static') }}
+      # - name: Upload Universal Binary
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.universal_binary }}
+      #     path: ${{ runner.temp }}/artifacts/${{ env.universal_binary }}
+      #     if-no-files-found: error
+      #     compression-level: 0
+      #   env:
+      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+      #   if: ${{ endsWith(matrix.build_type, '-static') }}
 
   macos:
     needs: package-source
