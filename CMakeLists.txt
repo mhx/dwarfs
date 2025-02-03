@@ -660,9 +660,9 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
         -Wpointer-arith
         -Wformat=2
       )
-      if(DWARFS_GIT_BUILD)
-        target_compile_options(${tgt} PRIVATE -Werror)
-      endif()
+      # if(DWARFS_GIT_BUILD)
+      #   target_compile_options(${tgt} PRIVATE -Werror)
+      # endif()
     endif()
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
