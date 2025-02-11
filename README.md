@@ -29,7 +29,6 @@ A fast high compression read-only file system for Linux and Windows.
 - [Windows Support](#windows-support)
   - [Building on Windows](#building-on-windows)
 - [macOS Support](#macos-support)
-  - [Building on macOS](#building-on-macos)
 - [Use Cases](#use-cases)
   - [Astrophotography](#astrophotography)
 - [Dealing with Bit Rot](#dealing-with-bit-rot)
@@ -635,63 +634,13 @@ $ brew test dwarfs
 ```
 
 The macOS version of the DwarFS filesystem driver relies on the awesome
-[macFUSE](https://osxfuse.github.io/) project. Until a formula has been
-added, you will have to build the DwarFS FUSE driver manually.
-
-### Building on macOS
-
-Building on macOS should be relatively straightforward:
-
-- Install [Homebrew](https://brew.sh/)
-
-- Use Homebrew to install the necessary dependencies:
+[macFUSE](https://osxfuse.github.io/) project and is available from
+gromgit's [homebrew-fuse tap](https://github.com/gromgit/homebrew-fuse):
 
 ```
-$ brew install cmake ninja macfuse brotli howard-hinnant-date double-conversion \
-               fmt glog libarchive libevent flac openssl nlohmann-json pkg-config \
-               range-v3 utf8cpp xxhash boost zstd
+$ brew tap gromgit/homebrew-fuse
+$ brew install dwarfs-fuse-mac
 ```
-
-- When installing macFUSE for the first time, you'll need to explicitly
-  allow the software in *System Preferences* / *Privacy & Security*. It's
-  quite likely that you'll have to reboot after this.
-
-- Download a release tarball from the [releases page](https://github.com/mhx/dwarfs/releases)
-  and extract it:
-
-```
-$ wget https://github.com/mhx/dwarfs/releases/download/v0.10.0/dwarfs-0.10.0.tar.xz
-$ tar xf dwarfs-0.10.0.tar.xz
-```
-
-- Build DwarFS and run its tests:
-
-```
-$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON
-$ cmake --build dwarfs-build
-$ ctest --test-dir dwarfs-build -j
-```
-
-- If you don't need the FUSE driver, you can omit `macfuse` from the `brew install`
-  and use the following instead of the first `cmake` command above:
-
-```
-$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON -DWITH_FUSE_DRIVER=OFF
-```
-
-- To *only* build the FUSE driver, you can use this instead:
-
-```
-$ cmake --fresh -B dwarfs-build -S dwarfs-0.10.0 -GNinja -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF
-```
-
-- Install DwarFS:
-
-```
-$ sudo cmake --install dwarfs-build
-```
-
-That's it!
 
 ## Use Cases
 
