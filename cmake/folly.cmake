@@ -56,7 +56,17 @@ set(CMAKE_DISABLE_FIND_PACKAGE_LibAIO ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_LibUring ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_Libsodium ON)
 
+if(NOT PREFER_SYSTEM_FAST_FLOAT)
+  set(FASTFLOAT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fast_float)
+endif()
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/folly EXCLUDE_FROM_ALL SYSTEM)
+
+if(NOT PREFER_SYSTEM_FAST_FLOAT)
+  get_target_property(_tmpdirs folly_deps INTERFACE_INCLUDE_DIRECTORIES)
+  list(REMOVE_ITEM _tmpdirs "${CMAKE_CURRENT_SOURCE_DIR}/fast_float")
+  set_target_properties(folly_deps PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${_tmpdirs}")
+endif()
 
 if(NOT DWARFS_FMT_LIB)
   get_target_property(FOLLY_DEPS_INTERFACE_LINK_LIBRARIES folly_deps INTERFACE_LINK_LIBRARIES)
@@ -124,6 +134,14 @@ target_include_directories(
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/folly>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/folly>
 )
+
+if(NOT PREFER_SYSTEM_FAST_FLOAT)
+  target_include_directories(
+    dwarfs_folly_lite SYSTEM PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fast_float>
+  )
+endif()
+
 apply_folly_compile_options_to_target(dwarfs_folly_lite)
 target_link_libraries(dwarfs_folly_lite PUBLIC folly_deps)
 
