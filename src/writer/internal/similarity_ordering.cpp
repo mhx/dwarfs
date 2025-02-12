@@ -27,7 +27,7 @@
 #include <variant>
 
 #include <folly/Function.h>
-#include <folly/experimental/Bits.h>
+#include <folly/lang/BitsClass.h>
 
 #include <range/v3/view/enumerate.hpp>
 
