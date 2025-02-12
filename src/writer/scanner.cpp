@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <folly/CPortability.h>
+#include <folly/portability/Unistd.h>
 #include <folly/system/HardwareConcurrency.h>
 
 #include <fmt/format.h>
