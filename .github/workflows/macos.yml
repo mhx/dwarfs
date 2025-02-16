@@ -77,6 +77,9 @@ jobs:
           - { os: macos-13, xcode: '14.3.1' , build_type: Release, extra_opts: '' }
           - { os: macos-14, xcode: '15.0.1' , build_type: Release, extra_opts: '' }
           - { os: macos-14, xcode: '15.4'   , build_type: Release, extra_opts: '' }
+          - { os: macos-13, xcode: '14.3.1' , build_type: Release, extra_opts: '-DOPENSSL_VERSION=1.1' }
+          - { os: macos-14, xcode: '15.0.1' , build_type: Release, extra_opts: '-DOPENSSL_VERSION=1.1' }
+          - { os: macos-14, xcode: '15.4'   , build_type: Release, extra_opts: '-DOPENSSL_VERSION=1.1' }
 
 #  We are running two configurations:
 #   - ALL in order to run regression tests
