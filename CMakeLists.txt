@@ -194,11 +194,17 @@ endif(MSVC)
 set(PATCH_FOLLY OFF)
 set(PATCH_FBTHRIFT OFF)
 
+if(DEFINED OPENSSL_ROOT_DIR)
+# This is required because dwarfs itself does not do FindOpenSSL
+include_directories("${OPENSSL_ROOT_DIR}/include")
+endif(DEFINED OPENSSL_ROOT_DIR)
+
 if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
   message(STATUS "Adding __musl__ compile definition")
   add_compile_definitions(__musl__)
   include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
+
   if (NOT NO_PATCH)
     set(PATCH_FOLLY ON)
   endif(NOT NO_PATCH)

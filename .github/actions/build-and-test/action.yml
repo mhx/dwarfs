@@ -40,16 +40,16 @@ runs:
                 -DWITH_TESTS=${{ matrix.setup.tests }}                   \
                 -DTEBAKO_BUILD_SCOPE=${{ matrix.setup.scope }}           \
                 -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}       \
-                ${{ matrix.config.extra_opts }} .
+                ${{ matrix.config.extra_opts }} ${{ env.EXTRA_OPTS }} .
 
       - name: Load Cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_FLD }}
-          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-${{ github.sha }}
+          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ github.ref }}-
-            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-
 
       - name: Build
         shell: bash
