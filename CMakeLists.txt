@@ -154,7 +154,11 @@ set(TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 
 include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 
-include_directories(${DEPS_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/folly)
+
+set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
+set(FBTHRIFT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/fbthrift")
+include_directories(${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
+
 link_directories(${DEPS_LIB_DIR})
 
 set(IS_MSYS OFF)
@@ -232,8 +236,7 @@ if ("${OSTYPE_TXT}" MATCHES "msys")
   endif(NOT NO_PATCH)
 endif()
 
-if (${PATCH_FOLLY})
-  set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
+if (${PATCH_FOLLY})  
   message(STATUS "Patching folly with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh ${FOLLY_ROOT}'")
   execute_process(
     COMMAND "${GNU_BASH}"
@@ -253,7 +256,6 @@ if (${PATCH_FOLLY})
 endif(${PATCH_FOLLY})
 
 if (${PATCH_FBTHRIFT})
-  set(FBTHRIFT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/fbthrift")
   message(STATUS "Patching fbthrift with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-fbthrift.sh ${FBTHRIFT_ROOT}'")
   execute_process(
     COMMAND "${GNU_BASH}"
