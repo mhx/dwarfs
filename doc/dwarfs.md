@@ -146,23 +146,17 @@ options:
   in particular will slow down the driver. This defaults to `info`
   in foreground mode (`-f`, `-d`) and to `warn` in background mode.
 
-- `-o tidy_strategy=`*name*:
-  Use one of the following strategies to tidy the block cache:
-
-  - `none`:
-    This is the default strategy that never tidies the cache.
-    Blocks will only be evicted from the cache if the cache is
-    full and a more recently used block is added to the cache.
-
-  - `time`:
-    Time based tidying strategy. Every `tidy_interval`, the block
-    cache is traversed and all blocks that have not been accessed
-    for more then `tidy_max_age` will be removed.
-
-  - `swap`:
-    Swap based tidying strategy. Every `tidy_interval`, the block
-    cache is traversed and all blocks that have been fully or
-    partially swapped out by the kernel will be removed.
+- `-o tidy_strategy=none`|`time`|`swap`:
+  Use one of the following strategies to tidy the block cache.
+  `none` is the default strategy that never tidies the cache. Blocks
+  will only be evicted from the cache if the cache is full and a more
+  recently used block is added to the cache. `time` enables a
+  time-based tidying strategy. Every `tidy_interval`, the block cache
+  is traversed and all blocks that have not been accessed for more
+  than `tidy_max_age` will be removed. `swap` enables a swap-based
+  tidying strategy. Every `tidy_interval`, the block cache is
+  traversed and all blocks that have been fully or partially swapped
+  out by the kernel will be removed.
 
 - `-o tidy_interval=`*time*:
   Used only if `tidy_strategy` is not `none`. This is the interval
