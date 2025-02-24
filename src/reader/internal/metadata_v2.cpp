@@ -90,6 +90,7 @@ namespace fs = std::filesystem;
 namespace {
 
 using ::apache::thrift::frozen::MappedFrozen;
+using ::apache::thrift::frozen::View;
 
 ::apache::thrift::frozen::schema::Schema
 deserialize_schema(std::span<uint8_t const> data) {
@@ -426,6 +427,17 @@ void analyze_frozen(std::ostream& os,
         l.reg_file_size_cacheField.layout.valueField.layout.lookupField);
   }
 
+  if (auto list = meta.metadata_version_history()) {
+    size_t history_size =
+        list_size(*list, l.metadata_version_historyField.layout.valueField);
+    for (auto const& entry : *list) {
+      if (entry.dwarfs_version()) {
+        history_size += entry.dwarfs_version()->size();
+      }
+    }
+    add_size("metadata_version_history", list->size(), history_size);
+  }
+
   if (auto version = meta.dwarfs_version()) {
     add_size_unique("dwarfs_version", version->size());
   }
@@ -450,14 +462,31 @@ void analyze_frozen(std::ostream& os,
 }
 
 template <typename Function>
+void parse_fs_options(View<thrift::metadata::fs_options> opt,
+                      Function const& func) {
+  func("mtime_only", opt.mtime_only());
+  func("packed_chunk_table", opt.packed_chunk_table());
+  func("packed_directories", opt.packed_directories());
+  func("packed_shared_files_table", opt.packed_shared_files_table());
+}
+
+std::vector<std::string>
+get_fs_options(View<thrift::metadata::fs_options> opt) {
+  std::vector<std::string> rv;
+  parse_fs_options(opt, [&](std::string_view name, bool value) {
+    if (value) {
+      rv.emplace_back(name);
+    }
+  });
+  return rv;
+}
+
+template <typename Function>
 void parse_metadata_options(
     MappedFrozen<thrift::metadata::metadata> const& meta,
     Function const& func) {
   if (auto opt = meta.options()) {
-    func("mtime_only", opt->mtime_only());
-    func("packed_chunk_table", opt->packed_chunk_table());
-    func("packed_directories", opt->packed_directories());
-    func("packed_shared_files_table", opt->packed_shared_files_table());
+    parse_fs_options(*opt, func);
   }
   if (auto names = meta.compact_names()) {
     func("packed_names", static_cast<bool>(names->symtab()));
@@ -644,6 +673,14 @@ class metadata_v2_data {
 
   std::unique_ptr<thrift::metadata::metadata> thaw() const {
     return std::make_unique<thrift::metadata::metadata>(meta_.thaw());
+  }
+
+  std::unique_ptr<thrift::metadata::fs_options> thaw_fs_options() const {
+    if (meta_.options().has_value()) {
+      return std::make_unique<thrift::metadata::fs_options>(
+          meta_.options()->thaw());
+    }
+    return nullptr;
   }
 
  private:
@@ -1552,6 +1589,44 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
       meta["unique_files"] = unique_files_;
     }
 
+    if (auto history = meta_.metadata_version_history(); history.has_value()) {
+      nlohmann::json jhistory = nlohmann::json::array();
+
+      for (auto const& ent : *history) {
+        nlohmann::json jent;
+
+        jent["major"] = ent.major();
+        jent["minor"] = ent.minor();
+
+        if (ent.dwarfs_version().has_value()) {
+          jent["dwarfs_version"] = ent.dwarfs_version().value();
+        }
+
+        jent["block_size"] = ent.block_size();
+
+        if (auto entopts = ent.options(); entopts.has_value()) {
+          nlohmann::json options;
+
+          options["mtime_only"] = entopts->mtime_only();
+
+          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
+            options["time_resolution"] = res.value();
+          }
+
+          options["packed_chunk_table"] = entopts->packed_chunk_table();
+          options["packed_directories"] = entopts->packed_directories();
+          options["packed_shared_files_table"] =
+              entopts->packed_shared_files_table();
+
+          jent["options"] = std::move(options);
+        }
+
+        jhistory.push_back(std::move(jent));
+      }
+
+      meta["metadata_version_history"] = std::move(jhistory);
+    }
+
     info["meta"] = std::move(meta);
   }
 
@@ -1670,6 +1745,24 @@ void metadata_v2_data::dump(
           }
         }
         os << "\n";
+      }
+    }
+  }
+
+  if (auto history = meta_.metadata_version_history(); history.has_value()) {
+    os << "previous metadata versions:\n";
+    for (auto const& ent : *history) {
+      os << "  [" << static_cast<int>(ent.major()) << "."
+         << static_cast<int>(ent.minor()) << "] "
+         << size_with_unit(ent.block_size()) << " blocks, "
+         << ent.dwarfs_version().value_or("<unknown library version>") << "\n";
+      if (auto he_opts = ent.options()) {
+        if (auto str_opts = get_fs_options(*he_opts); !str_opts.empty()) {
+          os << "        options: " << boost::join(str_opts, ", ") << "\n";
+        }
+        if (auto res = he_opts->time_resolution_sec()) {
+          os << "        time resolution: " << *res << " seconds\n";
+        }
       }
     }
   }
@@ -2444,6 +2537,11 @@ std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::thaw() const {
 
 std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::unpack() const {
   return data_.unpack();
+}
+
+std::unique_ptr<thrift::metadata::fs_options>
+metadata_v2_utils::thaw_fs_options() const {
+  return data_.thaw_fs_options();
 }
 
 metadata_v2::metadata_v2(
