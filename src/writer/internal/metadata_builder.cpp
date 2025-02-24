@@ -25,6 +25,7 @@
 
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 
+#include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/version.h>
 #include <dwarfs/writer/metadata_options.h>
@@ -56,19 +57,23 @@ class metadata_builder_ final : public metadata_builder::impl {
       , options_{options} {}
 
   metadata_builder_(logger& lgr, thrift::metadata::metadata const& md,
+                    thrift::metadata::fs_options const* orig_fs_options,
+                    filesystem_version const& orig_fs_version,
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{md}
       , options_{options} {
-    upgrade_metadata();
+    upgrade_metadata(orig_fs_options, orig_fs_version);
   }
 
   metadata_builder_(logger& lgr, thrift::metadata::metadata&& md,
+                    thrift::metadata::fs_options const* orig_fs_options,
+                    filesystem_version const& orig_fs_version,
                     metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , md_{std::move(md)}
       , options_{options} {
-    upgrade_metadata();
+    upgrade_metadata(orig_fs_options, orig_fs_version);
   }
 
   void set_devices(std::vector<uint64_t> devices) override {
@@ -129,7 +134,8 @@ class metadata_builder_ final : public metadata_builder::impl {
 
  private:
   thrift::metadata::inode_size_cache build_inode_size_cache() const;
-  void upgrade_metadata();
+  void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
+                        filesystem_version const& orig_fs_version);
   void upgrade_from_pre_v2_2();
 
   LOG_PROXY_DECL(LoggerPolicy);
@@ -544,10 +550,22 @@ void metadata_builder_<LoggerPolicy>::upgrade_from_pre_v2_2() {
 }
 
 template <typename LoggerPolicy>
-void metadata_builder_<LoggerPolicy>::upgrade_metadata() {
+void metadata_builder_<LoggerPolicy>::upgrade_metadata(
+    thrift::metadata::fs_options const* orig_fs_options,
+    filesystem_version const& orig_fs_version) {
   auto tv = LOG_TIMED_VERBOSE;
 
   // std::cout << apache::thrift::debugString(md_);
+
+  thrift::metadata::history_entry histent;
+  histent.major() = orig_fs_version.major;
+  histent.minor() = orig_fs_version.minor;
+  histent.dwarfs_version().copy_from(md_.dwarfs_version());
+  histent.block_size() = md_.block_size().value();
+  if (orig_fs_options) {
+    histent.options().ensure();
+    histent.options() = *orig_fs_options;
+  }
 
   if (apache::thrift::is_non_optional_field_set_manually_or_by_serializer(
           md_.entry_table_v2_2())) {
@@ -558,8 +576,12 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata() {
   }
 
   // TODO: update uid, gid, timestamp, mtime_only, time_resolution_sec
+  // TODO: do we need to do this here???
 
   tv << "upgrading metadata...";
+
+  md_.metadata_version_history().ensure();
+  md_.metadata_version_history()->push_back(std::move(histent));
 }
 
 } // namespace
@@ -569,18 +591,21 @@ metadata_builder::metadata_builder(logger& lgr, metadata_options const& options)
           make_unique_logging_object<impl, metadata_builder_, logger_policies>(
               lgr, options)} {}
 
-metadata_builder::metadata_builder(logger& lgr,
-                                   thrift::metadata::metadata const& md,
-                                   metadata_options const& options)
+metadata_builder::metadata_builder(
+    logger& lgr, thrift::metadata::metadata const& md,
+    thrift::metadata::fs_options const* orig_fs_options,
+    filesystem_version const& orig_fs_version, metadata_options const& options)
     : impl_{
           make_unique_logging_object<impl, metadata_builder_, logger_policies>(
-              lgr, md, options)} {}
+              lgr, md, orig_fs_options, orig_fs_version, options)} {}
 
-metadata_builder::metadata_builder(logger& lgr, thrift::metadata::metadata&& md,
-                                   metadata_options const& options)
+metadata_builder::metadata_builder(
+    logger& lgr, thrift::metadata::metadata&& md,
+    thrift::metadata::fs_options const* orig_fs_options,
+    filesystem_version const& orig_fs_version, metadata_options const& options)
     : impl_{
           make_unique_logging_object<impl, metadata_builder_, logger_policies>(
-              lgr, std::move(md), options)} {}
+              lgr, std::move(md), orig_fs_options, orig_fs_version, options)} {}
 
 metadata_builder::~metadata_builder() = default;
 

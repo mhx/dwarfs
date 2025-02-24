@@ -55,8 +55,9 @@ struct vfs_stat;
 class performance_monitor;
 
 namespace thrift::metadata {
+class fs_options;
 class metadata;
-}
+} // namespace thrift::metadata
 
 namespace reader {
 
@@ -265,6 +266,8 @@ class metadata_v2_utils {
   std::unique_ptr<thrift::metadata::metadata> thaw() const;
 
   std::unique_ptr<thrift::metadata::metadata> unpack() const;
+
+  std::unique_ptr<thrift::metadata::fs_options> thaw_fs_options() const;
 
  private:
   metadata_v2_data const& data_;

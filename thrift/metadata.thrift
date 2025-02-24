@@ -196,6 +196,22 @@ struct inode_size_cache {
    2: UInt64               min_chunk_count
 }
 
+/*
+ * This structure contains the version of the metadata format used
+ * for tracking metadata rewrite history.
+ */
+struct history_entry {
+   // major and minor version numbers corresponding to the block header
+   1: UInt8                major
+   2: UInt8                minor
+
+   // version string of dwarfs library used to create the metadata
+   3: optional string      dwarfs_version
+
+   4: UInt32               block_size
+   5: optional fs_options  options
+}
+
 /**
  * File System Metadata
  *
@@ -436,4 +452,7 @@ struct metadata {
   // The metadata associated with each block. Maps from block
   // number to index into `categorization_metadata_json`.
   32: optional map<UInt32, UInt32> block_category_metadata
+
+   // version strings for all metadata versions
+  33: optional list<history_entry> metadata_version_history
 }

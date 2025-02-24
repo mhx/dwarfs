@@ -45,6 +45,7 @@
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/file_stat.h>
+#include <dwarfs/fstypes.h>
 #include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/fsinfo_features.h>
 #include <dwarfs/reader/metadata_types.h>
@@ -61,8 +62,9 @@ class os_access;
 class performance_monitor;
 
 namespace thrift::metadata {
+class fs_options;
 class metadata;
-}
+} // namespace thrift::metadata
 
 namespace reader {
 
@@ -99,6 +101,8 @@ class filesystem_v2_lite {
       logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
+
+  filesystem_version version() const { return lite_->version(); }
 
   void walk(std::function<void(dir_entry_view)> const& func) const {
     lite_->walk(func);
@@ -334,6 +338,7 @@ class filesystem_v2_lite {
    public:
     virtual ~impl_lite() = default;
 
+    virtual filesystem_version version() const = 0;
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual void
@@ -480,6 +485,8 @@ class filesystem_v2 final : public filesystem_v2_lite {
   std::unique_ptr<thrift::metadata::metadata> thawed_metadata() const;
   std::unique_ptr<thrift::metadata::metadata> unpacked_metadata() const;
 
+  std::unique_ptr<thrift::metadata::fs_options> thawed_fs_options() const;
+
   class impl : public impl_lite {
    public:
     virtual int
@@ -495,6 +502,8 @@ class filesystem_v2 final : public filesystem_v2_lite {
     thawed_metadata() const = 0;
     virtual std::unique_ptr<thrift::metadata::metadata>
     unpacked_metadata() const = 0;
+    virtual std::unique_ptr<thrift::metadata::fs_options>
+    thawed_fs_options() const = 0;
   };
 
  private:

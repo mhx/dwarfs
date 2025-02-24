@@ -29,6 +29,8 @@
 
 namespace dwarfs {
 
+struct filesystem_version;
+
 class logger;
 
 namespace writer {
@@ -36,6 +38,7 @@ struct metadata_options;
 }
 
 namespace thrift::metadata {
+class fs_options;
 class metadata;
 } // namespace thrift::metadata
 
@@ -48,11 +51,19 @@ class dir;
 
 class metadata_builder {
  public:
+  // Start with empty metadata
   metadata_builder(logger& lgr, metadata_options const& options);
+
+  // Start with existing metadata, upgrade if necessary
   metadata_builder(logger& lgr, thrift::metadata::metadata const& md,
+                   thrift::metadata::fs_options const* orig_fs_options,
+                   filesystem_version const& orig_fs_version,
                    metadata_options const& options);
   metadata_builder(logger& lgr, thrift::metadata::metadata&& md,
+                   thrift::metadata::fs_options const* orig_fs_options,
+                   filesystem_version const& orig_fs_version,
                    metadata_options const& options);
+
   ~metadata_builder();
 
   void set_devices(std::vector<uint64_t> devices) {
