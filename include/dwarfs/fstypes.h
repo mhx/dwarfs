@@ -108,6 +108,11 @@ struct filesystem_info {
   std::vector<std::optional<size_t>> uncompressed_block_sizes;
 };
 
+struct filesystem_version {
+  uint8_t major{0};
+  uint8_t minor{0};
+};
+
 bool is_known_compression_type(compression_type type);
 
 bool is_known_section_type(section_type type);
