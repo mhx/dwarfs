@@ -79,10 +79,12 @@ std::string make_fragmented_file(size_t fragment_size, size_t fragment_count) {
 }
 
 auto rebuild_metadata(logger& lgr, thrift::metadata::metadata const& md,
+                      thrift::metadata::fs_options const* fs_options,
+                      filesystem_version const& fs_version,
                       writer::metadata_options const& options) {
   using namespace writer::internal;
   return metadata_freezer(lgr).freeze(
-      metadata_builder(lgr, md, options).build());
+      metadata_builder(lgr, md, fs_options, fs_version, options).build());
 }
 
 template <typename T>
@@ -153,8 +155,9 @@ TEST_F(metadata_test, basic) {
   // std::cout << ::apache::thrift::debugString(unpacked1) << std::endl;
 
   {
+    auto fsopts = fs.thawed_fs_options();
     auto [schema, data] = rebuild_metadata(
-        lgr, unpacked1,
+        lgr, unpacked1, fsopts.get(), fs.version(),
         {.plain_names_table = true, .no_create_timestamp = true});
     reader::internal::metadata_v2 mv2(lgr, schema.span(), data.span(), {});
     using utils = reader::internal::metadata_v2_utils;
@@ -163,6 +166,25 @@ TEST_F(metadata_test, basic) {
     auto unpacked2 = *utils(mv2).unpack();
 
     // std::cout << ::apache::thrift::debugString(unpacked2) << std::endl;
+
+    auto history = unpacked2.metadata_version_history();
+
+    ASSERT_TRUE(history.has_value());
+    EXPECT_EQ(history->size(), 1);
+    auto hent = history->at(0);
+    EXPECT_EQ(hent.major().value(), fs.version().major);
+    EXPECT_EQ(hent.minor().value(), fs.version().minor);
+    ASSERT_TRUE(hent.dwarfs_version().has_value());
+    ASSERT_TRUE(unpacked1.dwarfs_version().has_value());
+    EXPECT_EQ(hent.dwarfs_version().value(),
+              unpacked1.dwarfs_version().value());
+    EXPECT_EQ(hent.block_size().value(), unpacked1.block_size().value());
+    ASSERT_TRUE(hent.options().has_value());
+    ASSERT_TRUE(unpacked1.options().has_value());
+    EXPECT_EQ(hent.options().value(), unpacked1.options().value())
+        << thrift_diff(hent.options().value(), unpacked1.options().value());
+
+    unpacked2.metadata_version_history().reset();
 
     EXPECT_EQ(unpacked1, unpacked2) << thrift_diff(unpacked1, unpacked2);
     EXPECT_NE(thawed1, thawed2) << thrift_diff(thawed1, thawed2);

@@ -219,6 +219,7 @@ class filesystem_ final {
   info_as_json(fsinfo_options const& opts, history const& hist) const;
   nlohmann::json metadata_as_json() const;
   std::string serialize_metadata_as_json(bool simple) const;
+  filesystem_version version() const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
   void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
   dir_entry_view root() const;
@@ -340,6 +341,10 @@ class filesystem_ final {
     return metadata_v2_utils(meta_).unpack();
   }
 
+  std::unique_ptr<thrift::metadata::fs_options> thawed_fs_options() const {
+    return metadata_v2_utils(meta_).thaw_fs_options();
+  }
+
  private:
   filesystem_parser make_fs_parser() const {
     return filesystem_parser(mm_, image_offset_, options_.image_size);
@@ -375,6 +380,7 @@ class filesystem_ final {
   std::vector<fs_section> history_sections_;
   file_off_t const image_offset_;
   filesystem_options const options_;
+  filesystem_version version_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find_path)
   PERFMON_CLS_TIMER_DECL(find_inode)
@@ -506,6 +512,7 @@ filesystem_<LoggerPolicy>::filesystem_(
   }
 
   header_ = parser.header();
+  version_ = parser.fs_version();
 
   section_map sections;
 
@@ -786,6 +793,11 @@ template <typename LoggerPolicy>
 std::string
 filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
   return metadata_v2_utils(meta_).serialize_as_json(simple);
+}
+
+template <typename LoggerPolicy>
+filesystem_version filesystem_<LoggerPolicy>::version() const {
+  return version_;
 }
 
 template <typename LoggerPolicy>
@@ -1148,6 +1160,7 @@ class filesystem_common_ : public Base {
                      std::shared_ptr<performance_monitor const> const& perfmon)
       : fs_{lgr, os, std::move(mm), options, perfmon} {}
 
+  filesystem_version version() const override { return fs_.version(); }
   void walk(std::function<void(dir_entry_view)> const& func) const override {
     fs_.walk(func);
   }
@@ -1369,6 +1382,10 @@ class filesystem_full_
   unpacked_metadata() const override {
     return fs().unpacked_metadata();
   }
+  std::unique_ptr<thrift::metadata::fs_options>
+  thawed_fs_options() const override {
+    return fs().thawed_fs_options();
+  }
 
  private:
   history history_;
@@ -1494,6 +1511,11 @@ filesystem_v2::thawed_metadata() const {
 std::unique_ptr<thrift::metadata::metadata>
 filesystem_v2::unpacked_metadata() const {
   return full_().unpacked_metadata();
+}
+
+std::unique_ptr<thrift::metadata::fs_options>
+filesystem_v2::thawed_fs_options() const {
+  return full_().thawed_fs_options();
 }
 
 auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }

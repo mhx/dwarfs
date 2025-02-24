@@ -1229,8 +1229,66 @@ auto get_image_path(std::string const& version) {
 
 class compat_metadata : public testing::TestWithParam<std::string> {};
 
+void check_history(nlohmann::json info, reader::filesystem_v2 const& origfs,
+                   nlohmann::json originfo) {
+  auto meta = info["meta"];
+  auto origmeta = originfo["meta"];
+
+  auto history = meta["metadata_version_history"];
+
+  ASSERT_GE(history.size(), 1);
+
+  if (origmeta.contains("metadata_version_history")) {
+    auto orighistory = origmeta["metadata_version_history"];
+    ASSERT_EQ(history.size(), orighistory.size() + 1);
+    for (size_t i = 0; i < orighistory.size(); ++i) {
+      EXPECT_EQ(history[i], orighistory[i]);
+    }
+  } else {
+    EXPECT_EQ(history.size(), 1);
+  }
+
+  auto hent = history.back();
+
+  // std::cerr << origmeta.dump(2) << std::endl;
+  // std::cerr << hent.dump(2) << std::endl;
+
+  EXPECT_EQ(hent["major"], origfs.version().major);
+  EXPECT_EQ(hent["minor"], origfs.version().minor);
+
+  if (originfo.contains("created_by")) {
+    EXPECT_EQ(hent["dwarfs_version"], originfo["created_by"]);
+  } else {
+    EXPECT_FALSE(hent.contains("dwarfs_version"));
+  }
+
+  EXPECT_EQ(hent["block_size"], originfo["block_size"]);
+
+  if (originfo.contains("options")) {
+    nlohmann::json expected{
+        {"mtime_only", false},
+        {"packed_chunk_table", false},
+        {"packed_directories", false},
+        {"packed_shared_files_table", false},
+    };
+
+    if (originfo.contains("time_resolution")) {
+      expected["time_resolution"] = originfo["time_resolution"];
+    }
+
+    for (auto const& opt : originfo["options"]) {
+      expected[opt.template get<std::string>()] = true;
+    }
+
+    EXPECT_EQ(expected, hent["options"]);
+  } else {
+    EXPECT_FALSE(hent.contains("options"));
+  }
+}
+
 void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
-                   bool rebuild_metadata [[maybe_unused]] = false) {
+                   std::shared_ptr<mmif> origmm = nullptr,
+                   bool rebuild_metadata = false) {
   auto meta = fs.metadata_as_json();
   nlohmann::json ref;
   if (version.starts_with("0.2.")) {
@@ -1244,6 +1302,18 @@ void check_dynamic(std::string const& version, reader::filesystem_v2 const& fs,
         (version.starts_with("0.3.") or version.starts_with("0.4."))) {
       ref["statvfs"]["f_files"] = 44;
     }
+  }
+
+  if (rebuild_metadata) {
+    test::test_logger lgr;
+    test::os_access_mock os;
+    reader::filesystem_options fsopts;
+    fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
+    reader::filesystem_v2 orig(lgr, os, origmm, fsopts);
+    reader::fsinfo_options io{
+        .features = {reader::fsinfo_feature::metadata_details,
+                     reader::fsinfo_feature::metadata_summary}};
+    check_history(fs.info_as_json(io), orig, orig.info_as_json(io));
   }
 
   remove_inode_numbers(ref);
@@ -1353,13 +1423,14 @@ TEST_P(rewrite, filesystem_rewrite) {
     utility::rewrite_filesystem(lgr, fs, fsw, resolver, opts);
   };
 
+  std::shared_ptr<mmif> origmm = std::make_shared<mmap>(filename);
+
   {
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog);
     fsw.add_default_compressor(bc);
-    auto mm = std::make_shared<mmap>(filename);
-    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
-    EXPECT_FALSE(reader::filesystem_v2::header(mm));
-    rewrite_fs(fsw, mm);
+    EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, origmm, idss));
+    EXPECT_FALSE(reader::filesystem_v2::header(origmm));
+    rewrite_fs(fsw, origmm);
   }
 
   {
@@ -1367,7 +1438,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_NO_THROW(reader::filesystem_v2::identify(lgr, os, mm, idss));
     EXPECT_FALSE(reader::filesystem_v2::header(mm));
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
   }
 
@@ -1380,7 +1451,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     writer::filesystem_writer fsw(rewritten, lgr, pool, prog, fsw_opts,
                                   &hdr_iss);
     fsw.add_default_compressor(bc);
-    rewrite_fs(fsw, std::make_shared<mmap>(filename));
+    rewrite_fs(fsw, origmm);
   }
 
   {
@@ -1396,7 +1467,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     reader::filesystem_options fsopts;
     fsopts.image_offset = reader::filesystem_options::IMAGE_OFFSET_AUTO;
     reader::filesystem_v2 fs(lgr, os, mm, fsopts);
-    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
   }
 
@@ -1438,13 +1509,14 @@ TEST_P(rewrite, filesystem_rewrite) {
   }
 
   std::ostringstream rewritten4;
+  origmm = std::make_shared<test::mmap_mock>(rewritten3.str());
 
   {
     writer::filesystem_writer_options fsw_opts;
     fsw_opts.remove_header = true;
     writer::filesystem_writer fsw(rewritten4, lgr, pool, prog, fsw_opts);
     fsw.add_default_compressor(bc);
-    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten3.str()));
+    rewrite_fs(fsw, origmm);
   }
 
   {
@@ -1453,18 +1525,19 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten4.str().data(), rewritten4.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
   }
 
   std::ostringstream rewritten5;
+  origmm = std::make_shared<test::mmap_mock>(rewritten4.str());
 
   {
     writer::filesystem_writer_options fsw_opts;
     fsw_opts.no_section_index = true;
     writer::filesystem_writer fsw(rewritten5, lgr, pool, prog, fsw_opts);
     fsw.add_default_compressor(bc);
-    rewrite_fs(fsw, std::make_shared<test::mmap_mock>(rewritten4.str()));
+    rewrite_fs(fsw, origmm);
   }
 
   {
@@ -1473,7 +1546,7 @@ TEST_P(rewrite, filesystem_rewrite) {
     EXPECT_FALSE(reader::filesystem_v2::header(mm))
         << folly::hexDump(rewritten5.str().data(), rewritten5.str().size());
     reader::filesystem_v2 fs(lgr, os, mm);
-    check_dynamic(version, fs, rebuild_metadata.has_value());
+    check_dynamic(version, fs, origmm, rebuild_metadata.has_value());
     check_checksums(fs);
   }
 }
