@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include <dwarfs/fstypes.h>
 #include <dwarfs/types.h>
 
 #include <dwarfs/internal/fs_section.h>
@@ -64,9 +65,10 @@ class filesystem_parser {
 
   std::string version() const;
 
-  int major_version() const { return major_; }
-  int minor_version() const { return minor_; }
-  int header_version() const { return version_; }
+  int major_version() const { return fs_version_.major; }
+  int minor_version() const { return fs_version_.minor; }
+  int header_version() const { return header_version_; }
+  filesystem_version const& fs_version() const { return fs_version_; }
 
   file_off_t image_offset() const { return image_offset_; }
 
@@ -84,9 +86,8 @@ class filesystem_parser {
   file_off_t const image_offset_{0};
   file_off_t const image_size_{std::numeric_limits<file_off_t>::max()};
   file_off_t offset_{0};
-  int version_{0};
-  uint8_t major_{0};
-  uint8_t minor_{0};
+  int header_version_{0};
+  filesystem_version fs_version_{};
   std::vector<uint64_t> index_;
 };
 

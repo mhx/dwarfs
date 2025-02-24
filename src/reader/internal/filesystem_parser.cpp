@@ -175,11 +175,11 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
     DWARFS_THROW(runtime_error, "newer minor version");
   }
 
-  version_ = fh->minor >= 2 ? 2 : 1;
-  major_ = fh->major;
-  minor_ = fh->minor;
+  header_version_ = fh->minor >= 2 ? 2 : 1;
+  fs_version_.major = fh->major;
+  fs_version_.minor = fh->minor;
 
-  if (minor_ >= 4) {
+  if (fs_version_.minor >= 4) {
     find_index();
   }
 
@@ -189,7 +189,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
 std::optional<fs_section> filesystem_parser::next_section() {
   if (index_.empty()) {
     if (std::cmp_less(offset_, image_offset_ + image_size_)) {
-      auto section = fs_section(*mm_, offset_, version_);
+      auto section = fs_section(*mm_, offset_, header_version_);
       offset_ = section.end();
       return section;
     }
@@ -201,7 +201,8 @@ std::optional<fs_section> filesystem_parser::next_section() {
                                  ? index_[offset_] & section_offset_mask
                                  : image_size_;
       return fs_section(mm_, static_cast<section_type>(id >> 48),
-                        image_offset_ + offset, next_offset - offset, version_);
+                        image_offset_ + offset, next_offset - offset,
+                        header_version_);
     }
   }
 
@@ -218,7 +219,7 @@ std::optional<std::span<uint8_t const>> filesystem_parser::header() const {
 void filesystem_parser::rewind() {
   if (index_.empty()) {
     offset_ = image_offset_;
-    if (version_ == 1) {
+    if (header_version_ == 1) {
       offset_ += sizeof(file_header);
     }
   } else {
@@ -227,10 +228,11 @@ void filesystem_parser::rewind() {
 }
 
 std::string filesystem_parser::version() const {
-  return fmt::format("{0}.{1} [{2}]", major_, minor_, version_);
+  return fmt::format("{0}.{1} [{2}]", fs_version_.major, fs_version_.minor,
+                     header_version_);
 }
 
-bool filesystem_parser::has_checksums() const { return version_ >= 2; }
+bool filesystem_parser::has_checksums() const { return header_version_ >= 2; }
 
 bool filesystem_parser::has_index() const { return !index_.empty(); }
 
@@ -261,7 +263,7 @@ void filesystem_parser::find_index() {
     return;
   }
 
-  auto section = fs_section(*mm_, index_pos, version_);
+  auto section = fs_section(*mm_, index_pos, header_version_);
 
   if (section.type() != section_type::SECTION_INDEX) {
     return;

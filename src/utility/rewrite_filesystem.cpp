@@ -174,8 +174,10 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
           using namespace dwarfs::writer::internal;
 
           auto md = fs.unpacked_metadata();
-          auto builder = metadata_builder(lgr, std::move(*md),
-                                          opts.rebuild_metadata.value());
+          auto fsopts = fs.thawed_fs_options();
+          auto builder =
+              metadata_builder(lgr, std::move(*md), fsopts.get(), fs.version(),
+                               opts.rebuild_metadata.value());
           auto [schema, data] =
               metadata_freezer(LOG_GET_LOGGER).freeze(builder.build());
 
