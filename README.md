@@ -5,8 +5,6 @@
 [![Alpine](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/alpine.yml)
 [![Windows-MSys](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml/badge.svg)](https://github.com/tamatebako/dwarfs/actions/workflows/windows-msys.yml)
 
-[![Build Status](https://api.cirrus-ci.com/github/tamatebako/dwarfs.svg?task=ubuntu-aarch64)](https://cirrus-ci.com/github/tamatebako/dwarfs)
-
 # DwarFS
 
 The **D**eduplicating **W**arp-speed **A**dvanced **R**ead-only **F**ile **S**ystem.
