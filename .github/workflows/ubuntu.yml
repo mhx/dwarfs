@@ -58,18 +58,27 @@ env:
 
 jobs:
   build:
-    name: ${{ matrix.config.os }} [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }} ]
-    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.architecture.platform }}/${{ matrix.config.os }} [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }} ]
+    runs-on: ${{ matrix.architecture.host }}
+    container:
+      image: 'ghcr.io/${{ github.repository_owner }}/tebako-${{ matrix.config.os }}-dev'
+      options: --privileged     # for fuse to work for full mode
     strategy:
       fail-fast: false
       matrix:
+        architecture:
+          - { host: 'ubuntu-22.04', platform: linux/amd64 }
+          - { host: 'ubuntu-22.04-arm', platform: linux/arm64 }
         config:
           - { os: ubuntu-20.04, env: { CC: gcc-10,   CXX: g++-10     }, build_type: Release, extra_opts: '' }
           - { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: Release, extra_opts: '' }
-          - { os: ubuntu-22.04, env: { CC: gcc-12,   CXX: g++-12     }, build_type: Release, extra_opts: '' }
+# .......................................
+# Tebako is staying with Ubuntu 20.04 for now
+#          - { os: ubuntu-22.04, env: { CC: gcc-12,   CXX: g++-12     }, build_type: Release, extra_opts: '' }
 # https://github.com/llvm/llvm-project/issues/56357
 # On Ubuntu 22  affects clang versions prior to 15 (file entry.cpp)
-          - { os: ubuntu-22.04, env: { CC: clang-15, CXX: clang++-15 }, build_type: Release, extra_opts: '' }
+#          - { os: ubuntu-22.04, env: { CC: clang-15, CXX: clang++-15 }, build_type: Release, extra_opts: '' }
+# .......................................
 
 #  We are running two configurations:
 #   - ALL in order to run regression tests
@@ -79,12 +88,15 @@ jobs:
           - { scope: 'MKD',  tests: 'OFF' }
 
         include:
-          - config: { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_ASAN=1' }
-            setup:  { scope: 'ALL', tests: 'ON'  }
-          - config: { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_TSAN=1' }
-            setup:  { scope: 'ALL', tests: 'ON'  }
-          - config: { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_UBSAN=1' }
-            setup:  { scope: 'ALL', tests: 'ON'  }
+          - config:       { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_ASAN=1' }
+            setup:        { scope: 'ALL', tests: 'ON'  }
+            architecture: { host: 'ubuntu-22.04', platform: linux/amd64 }
+          - config:       { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_TSAN=1' }
+            setup:        { scope: 'ALL', tests: 'ON'  }
+            architecture: { host: 'ubuntu-22.04', platform: linux/amd64 }
+          - config:       { os: ubuntu-20.04, env: { CC: clang-12, CXX: clang++-12 }, build_type: RelWithDebInfo, extra_opts: '-DENABLE_UBSAN=1' }
+            setup:        { scope: 'ALL', tests: 'ON'  }
+            architecture: { host: 'ubuntu-22.04', platform: linux/amd64 }
 
     env: ${{ matrix.config.env }}
     steps:
@@ -95,24 +107,17 @@ jobs:
 
       - name: Install packages
         run: |
-          sudo apt-get -y update
-          sudo apt-get -y install \
-          binutils-dev libevent-dev acl-dev libfmt-dev libjemalloc-dev ccache         \
-          libdouble-conversion-dev libiberty-dev liblz4-dev libssl-dev liblzma-dev    \
-          libunwind-dev libdwarf-dev libelf-dev libgoogle-glog-dev libutfcpp-dev      \
-          libboost-filesystem-dev libboost-program-options-dev libboost-system-dev    \
-          libboost-iostreams-dev  libboost-date-time-dev libboost-context-dev         \
-          libboost-regex-dev libboost-thread-dev libbrotli-dev
+          sudo apt-get -y install ccache
 
       - name: Install libfuse 3 (Full mode)
         if: ${{ matrix.setup.scope == 'ALL' }}
         run: |
-          sudo apt-get install libfuse3-dev
+          sudo apt-get -y install libfuse3-dev fuse3
 
       - name: Remove libfuse 3 (tebako-optimized mode)
         if: ${{ matrix.setup.scope != 'ALL' }}
         run: |
-          sudo apt-get remove fuse3 libfuse3-dev fuse libfuse-dev
+          sudo apt-get -y remove fuse3 libfuse3-dev fuse libfuse-dev
 
 # **** Not building man pages ever ****
 # sudo apt install ronn does not install a version good enough - it cannot process one of the files
