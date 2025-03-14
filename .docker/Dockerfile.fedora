@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG ARCH=amd64
-FROM $ARCH/fedora:rawhide
+FROM $ARCH/fedora:latest
 RUN dnf update -y
 RUN dnf install -y \
         bash-completion \
