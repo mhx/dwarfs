@@ -21,10 +21,7 @@
 
 #include <algorithm>
 #include <array>
-#include <numeric>
-#include <optional>
 #include <random>
-#include <span>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -35,106 +32,17 @@
 #include <dwarfs/config.h>
 #include <dwarfs/error.h>
 #include <dwarfs/reader/block_cache_options.h>
-#include <dwarfs/reader/block_range.h>
 #include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs_tool_main.h>
 
-#include <dwarfs/reader/internal/cached_block.h>
-
 #include "mmap_mock.h"
 #include "test_helpers.h"
 #include "test_logger.h"
 
 using namespace dwarfs;
-
-namespace {
-
-class mock_cached_block : public reader::internal::cached_block {
- public:
-  mock_cached_block() = default;
-  mock_cached_block(std::span<uint8_t const> span)
-      : span_{span} {}
-
-  size_t range_end() const override { return span_ ? span_->size() : 0; }
-  const uint8_t* data() const override {
-    return span_ ? span_->data() : nullptr;
-  }
-  void decompress_until(size_t) override {}
-  size_t uncompressed_size() const override { return 0; }
-  void touch() override {}
-  bool last_used_before(std::chrono::steady_clock::time_point) const override {
-    return false;
-  }
-  bool any_pages_swapped_out(std::vector<uint8_t>&) const override {
-    return false;
-  }
-
- private:
-  std::optional<std::span<uint8_t const>> span_;
-};
-
-} // namespace
-
-TEST(block_range, uncompressed) {
-  std::vector<uint8_t> data(100);
-  std::iota(data.begin(), data.end(), 0);
-
-  {
-    reader::block_range range{data.data(), 0, data.size()};
-    EXPECT_EQ(range.data(), data.data());
-    EXPECT_EQ(range.size(), 100);
-    EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin()));
-  }
-
-  {
-    reader::block_range range{data.data(), 10, 20};
-    EXPECT_EQ(range.size(), 20);
-    EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
-  }
-
-  EXPECT_THAT([] { reader::block_range range(nullptr, 0, 0); },
-              ::testing::ThrowsMessage<dwarfs::runtime_error>(
-                  ::testing::HasSubstr("block_range: block data is null")));
-}
-
-TEST(block_range, compressed) {
-  std::vector<uint8_t> data(100);
-  std::iota(data.begin(), data.end(), 0);
-
-  {
-    auto block = std::make_shared<mock_cached_block>(data);
-    reader::block_range range{block, 0, data.size()};
-    EXPECT_EQ(range.data(), data.data());
-    EXPECT_EQ(range.size(), 100);
-    EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin()));
-  }
-
-  {
-    auto block = std::make_shared<mock_cached_block>(data);
-    reader::block_range range{block, 10, 20};
-    EXPECT_EQ(range.size(), 20);
-    EXPECT_TRUE(std::equal(range.begin(), range.end(), data.begin() + 10));
-  }
-
-  EXPECT_THAT(
-      [] {
-        auto block = std::make_shared<mock_cached_block>();
-        reader::block_range range(block, 0, 0);
-      },
-      ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          ::testing::HasSubstr("block_range: block data is null")));
-
-  EXPECT_THAT(
-      [&] {
-        auto block = std::make_shared<mock_cached_block>(data);
-        reader::block_range range(block, 100, 1);
-      },
-      ::testing::ThrowsMessage<dwarfs::runtime_error>(
-          ::testing::HasSubstr("block_range: size out of range (101 > 100)")));
-}
 
 class options_test
     : public ::testing::TestWithParam<reader::block_cache_options> {

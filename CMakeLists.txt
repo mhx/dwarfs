@@ -428,6 +428,7 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS
       badfs_test
       block_merger_test
+      block_range_test
       checksum_test
       chmod_transformer_test
       compat_test
