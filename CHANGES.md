@@ -1,5 +1,74 @@
 # Change Log
 
+## Version 0.11.0 - 2025-03-15
+
+- (fix) Remove the `access` implementation from the FUSE driver.
+  There's no point here trying to be more clever than FUSE's
+  default. This makes sure DwarFS will behave more like other
+  FUSE file systems. See github discussion #244 for details.
+
+- (fix) Limit the number of chunks returned in `inodeinfo`
+  xattr. Highly fragmented files would have *megabytes* in
+  `inodeinfo`, which not only breaks the xattr interface, but
+  can also dramatically slow down tools like `eza` who like to
+  read xattrs for no apparent reason.
+
+- (fix) Avoid nested indentation due to `ronn-ng` bug. Fixes
+  github #249.
+
+- (feat) Support case-insensitive lookups. Fixes github #232.
+
+- (feat) Allow setting image size in FUSE driver. Fixes github
+  #239.
+
+- (feat) Support extracting a subset of files with `dwarfsextract`
+  using the new `--pattern` option. The same glob patterns can be
+  used as for the filter rules in `mkdwarfs`. Fixes github #243.
+
+- (feat) Allow overriding UID / GID for the whole file system
+  when using the FUSE driver on non-Windows platforms. See github
+  discussion #244.
+
+- (feat) Expose more LZMA options (`mode`, `mf`, `nice`, `depth`).
+
+- (feat) Improve filter patterns, which now support ranges and
+  complementation.
+
+- (feat) Improve speed of filesystem `walk` / `walk_data_order`
+  calls by 80% / 40%. The impact of this will largely depend on
+  what the code is being run for each inode, but, for example,
+  the speed of listing more than 14 million files with `dwarfsck`
+  will take about 16 seconds compared to 17 seconds with the
+  previous release.
+
+- (feat) Added an inode size cache to the metadata to speed up
+  file size computation for large, highly fragmented files. The
+  configuration is currently fixed using a conservative default.
+  Only files with at least 128 chunks will be added to the cache,
+  so in a lot of cases this cache may be completely empty and not
+  contribute to the size of the file system image at all.
+
+- (feat) Use bit-packing for hardlink, shared files, and chunk
+  tables. This will consume less memory when loading a DwarFS
+  image.
+
+- (feat) Show total hardlink size in `dwarfsck` output.
+
+- (feat) Library: return a `dir_entry_view` from `readdir` and
+  `find`. This is more consistent, but was previously not easily
+  possible due to the lack of a "self" dir entry in the metadata.
+  The "self" entry has been added and will only impact the size
+  of the metadata if `directories` metadata is not packed.
+
+- (feat) Library: prefer `std::string_view` over `char const*`.
+
+- (feat) Library: add directory iterator to `directory_view`.
+
+- (feat) Library: support for `maxiov` parameter in `readv` call.
+
+- (refactor) *Lots* of internal refactoring to improve overall
+  code quality.
+
 ## Version 0.10.2 - 2024-12-02
 
 - (fix) Gracefully handle localized error message on Windows.
