@@ -508,7 +508,7 @@ if(WITH_TESTS)
       ### include paths are searched first.
       get_target_property(gmock_include_dirs gmock INTERFACE_INCLUDE_DIRECTORIES)
       get_target_property(gtest_include_dirs gtest INTERFACE_INCLUDE_DIRECTORIES)
-      target_include_directories(${test} SYSTEM PRIVATE BEFORE ${gmock_include_dirs} ${gtest_include_dirs})
+      target_include_directories(${test} SYSTEM BEFORE PRIVATE ${gmock_include_dirs} ${gtest_include_dirs})
     endif()
 
     target_compile_definitions(${test}
