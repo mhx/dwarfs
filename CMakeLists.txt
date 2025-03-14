@@ -631,6 +631,12 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:include>
     )
+  else()
+    # This is a workaround to *enforce* the include path in case we're in a
+    # setup where libdwarfs is installed in a local path but some of its
+    # dependencies are installed in a system path *AND* there's a different
+    # version of libdwafs *ALSO* installed in the system path.
+    target_include_directories(${tgt} BEFORE PUBLIC ${DWARFS_INCLUDE_DIR})
   endif()
 
   target_include_directories(${tgt} SYSTEM PUBLIC
