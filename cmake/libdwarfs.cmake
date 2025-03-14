@@ -293,7 +293,6 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     DIRECTORY include/dwarfs
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     PATTERN include/dwarfs/internal EXCLUDE
-    PATTERN include/dwarfs/tool EXCLUDE
     PATTERN include/dwarfs/*/internal EXCLUDE
   )
 

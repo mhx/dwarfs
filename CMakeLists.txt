@@ -609,10 +609,6 @@ foreach(tgt ${LIBDWARFS_TARGETS})
   )
 endforeach()
 
-foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
-  target_include_directories(${tgt} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tools/include>)
-endforeach()
-
 foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
             ${BINARY_TARGETS} ${TEST_TARGETS} ${MAIN_TARGETS})
   if(NOT TARGET ${tgt})
@@ -628,10 +624,12 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
     target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
   endif(USE_JEMALLOC)
 
-  target_include_directories(${tgt} PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  )
+  if(WITH_LIBDWARFS)
+    target_include_directories(${tgt} PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+    )
+  endif()
 
   target_include_directories(${tgt} SYSTEM PUBLIC
     $<BUILD_INTERFACE:$<TARGET_PROPERTY:range-v3::range-v3,INTERFACE_INCLUDE_DIRECTORIES>>

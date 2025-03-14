@@ -21,21 +21,22 @@ cmake_minimum_required(VERSION 3.28.0)
 add_library(
   dwarfs_tool OBJECT
 
-  src/tool/iolayer.cpp
-  src/tool/main_adapter.cpp
-  src/tool/safe_main.cpp
-  src/tool/sys_char.cpp
-  src/tool/tool.cpp
+  tools/src/tool/iolayer.cpp
+  tools/src/tool/main_adapter.cpp
+  tools/src/tool/safe_main.cpp
+  tools/src/tool/sys_char.cpp
+  tools/src/tool/tool.cpp
 )
 
 if(WITH_MAN_OPTION)
   target_sources(dwarfs_tool PRIVATE
-    src/tool/pager.cpp
-    src/tool/render_manpage.cpp
+    tools/src/tool/pager.cpp
+    tools/src/tool/render_manpage.cpp
   )
 endif()
 
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
+target_include_directories(dwarfs_tool PUBLIC tools/include)
 
 target_compile_definitions(
   dwarfs_tool PRIVATE DWARFS_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
