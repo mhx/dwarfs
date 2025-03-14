@@ -259,6 +259,7 @@ else()
   add_library(dwarfs_writer ALIAS dwarfs::dwarfs_writer)
   add_library(dwarfs_rewrite ALIAS dwarfs::dwarfs_rewrite)
   add_library(dwarfs_extractor ALIAS dwarfs::dwarfs_extractor)
+  set(USE_JEMALLOC ${DWARFS_WITH_JEMALLOC})
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs_tool.cmake)
