@@ -19,7 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <array>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -97,6 +96,7 @@
 #include <dwarfs/reader/iovec_read_buf.h>
 #include <dwarfs/reader/mlock_mode.h>
 #include <dwarfs/scope_exit.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/tool.h>
@@ -107,6 +107,8 @@
 #include <dwarfs_tool_manpage.h>
 
 namespace {
+
+using namespace std::string_view_literals;
 
 #ifdef DWARFS_FSP_COMPAT
 using native_stat = struct ::fuse_stat;
@@ -269,12 +271,11 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
 #endif
     FUSE_OPT_END};
 
-std::unordered_map<std::string_view, reader::cache_tidy_strategy> const
-    cache_tidy_strategy_map{
-        {"none", reader::cache_tidy_strategy::NONE},
-        {"time", reader::cache_tidy_strategy::EXPIRY_TIME},
-        {"swap", reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT},
-    };
+constexpr sorted_array_map cache_tidy_strategy_map{
+    std::pair{"none"sv, reader::cache_tidy_strategy::NONE},
+    std::pair{"time"sv, reader::cache_tidy_strategy::EXPIRY_TIME},
+    std::pair{"swap"sv, reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT},
+};
 
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
 constexpr std::string_view perfmon_xattr{"user.dwarfs.driver.perfmon"};
