@@ -35,65 +35,62 @@
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/types.h>
 
 namespace dwarfs {
 
 namespace {
 
-std::unordered_map<lzma_ret, char const*> const lzma_error_desc{
-    {LZMA_NO_CHECK, "input stream has no integrity check"},
-    {LZMA_UNSUPPORTED_CHECK, "cannot calculate the integrity check"},
-    {LZMA_GET_CHECK, "integrity check type is now available"},
-    {LZMA_MEM_ERROR, "cannot allocate memory"},
-    {LZMA_MEMLIMIT_ERROR, "memory usage limit was reached"},
-    {LZMA_FORMAT_ERROR, "file format not recognized"},
-    {LZMA_OPTIONS_ERROR, "invalid or unsupported options"},
-    {LZMA_DATA_ERROR, "data is corrupt"},
-    {LZMA_BUF_ERROR, "no progress is possible"},
-    {LZMA_PROG_ERROR, "programming error"},
+using namespace std::string_view_literals;
+
+constexpr sorted_array_map lzma_error_desc{
+    std::pair{LZMA_NO_CHECK, "input stream has no integrity check"},
+    std::pair{LZMA_UNSUPPORTED_CHECK, "cannot calculate the integrity check"},
+    std::pair{LZMA_GET_CHECK, "integrity check type is now available"},
+    std::pair{LZMA_MEM_ERROR, "cannot allocate memory"},
+    std::pair{LZMA_MEMLIMIT_ERROR, "memory usage limit was reached"},
+    std::pair{LZMA_FORMAT_ERROR, "file format not recognized"},
+    std::pair{LZMA_OPTIONS_ERROR, "invalid or unsupported options"},
+    std::pair{LZMA_DATA_ERROR, "data is corrupt"},
+    std::pair{LZMA_BUF_ERROR, "no progress is possible"},
+    std::pair{LZMA_PROG_ERROR, "programming error"},
     // TODO: re-add when this has arrived in the mainstream...
     // {LZMA_SEEK_NEEDED, "request to change the input file position"},
 };
 
-std::array<std::pair<std::string_view, lzma_vli>, 6> constexpr kBinaryModes{{
-    {"x86", LZMA_FILTER_X86},
-    {"powerpc", LZMA_FILTER_POWERPC},
-    {"ia64", LZMA_FILTER_IA64},
-    {"arm", LZMA_FILTER_ARM},
-    {"armthumb", LZMA_FILTER_ARMTHUMB},
-    {"sparc", LZMA_FILTER_SPARC},
-}};
+constexpr sorted_array_map kBinaryModes{
+    std::pair{"x86"sv, LZMA_FILTER_X86},
+    std::pair{"powerpc"sv, LZMA_FILTER_POWERPC},
+    std::pair{"ia64"sv, LZMA_FILTER_IA64},
+    std::pair{"arm"sv, LZMA_FILTER_ARM},
+    std::pair{"armthumb"sv, LZMA_FILTER_ARMTHUMB},
+    std::pair{"sparc"sv, LZMA_FILTER_SPARC},
+};
 
-std::array<std::pair<std::string_view, lzma_mode>,
-           2> constexpr kCompressionModes{{
-    {"fast", LZMA_MODE_FAST},
-    {"normal", LZMA_MODE_NORMAL},
-}};
+constexpr sorted_array_map kCompressionModes{
+    std::pair{"fast"sv, LZMA_MODE_FAST},
+    std::pair{"normal"sv, LZMA_MODE_NORMAL},
+};
 
-std::array<std::pair<std::string_view, lzma_match_finder>,
-           5> constexpr kMatchFinders{{
-    {"hc3", LZMA_MF_HC3},
-    {"hc4", LZMA_MF_HC4},
-    {"bt2", LZMA_MF_BT2},
-    {"bt3", LZMA_MF_BT3},
-    {"bt4", LZMA_MF_BT4},
-}};
+constexpr sorted_array_map kMatchFinders{
+    std::pair{"hc3"sv, LZMA_MF_HC3}, std::pair{"hc4"sv, LZMA_MF_HC4},
+    std::pair{"bt2"sv, LZMA_MF_BT2}, std::pair{"bt3"sv, LZMA_MF_BT3},
+    std::pair{"bt4"sv, LZMA_MF_BT4},
+};
 
 template <typename T, size_t N>
-T find_option(std::array<std::pair<std::string_view, T>, N> const& options,
+T find_option(sorted_array_map<std::string_view, T, N> const& options,
               std::string_view name, std::string_view what) {
-  for (auto const& [key, value] : options) {
-    if (key == name) {
-      return value;
-    }
+  if (auto value = options.get(name)) {
+    return *value;
   }
   DWARFS_THROW(runtime_error, fmt::format("unknown {} '{}'", what, name));
 }
 
 template <typename T, size_t N>
 std::string
-option_names(std::array<std::pair<std::string_view, T>, N> const& options) {
+option_names(sorted_array_map<std::string_view, T, N> const& options) {
   // The string_view is needed because ranges::views::join() will include
   // the null terminator when using a string literal.
   static std::string_view constexpr kJoiner{", "};
