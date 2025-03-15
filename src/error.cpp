@@ -93,4 +93,10 @@ void assertion_failed(std::string_view expr, std::string_view msg,
   do_terminate();
 }
 
+void handle_panic(std::string_view msg, std::source_location loc) {
+  std::cerr << "Panic: " << msg << " in " << loc.file_name() << "("
+            << loc.line() << ")\n";
+  do_terminate();
+}
+
 } // namespace dwarfs

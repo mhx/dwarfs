@@ -74,16 +74,22 @@ class system_error : public std::system_error {
 #define DWARFS_CHECK(expr, message)                                            \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      assertion_failed(#expr, message, std::source_location::current());       \
+      ::dwarfs::assertion_failed(#expr, message,                               \
+                                 std::source_location::current());             \
     }                                                                          \
-  } while (0)
+  } while (false)
+
+#define DWARFS_PANIC(message)                                                  \
+  do {                                                                         \
+    ::dwarfs::handle_panic(message, std::source_location::current());          \
+  } while (false)
 
 #define DWARFS_NOTHROW(expr)                                                   \
   [&]() -> decltype(expr) {                                                    \
     try {                                                                      \
       return expr;                                                             \
     } catch (...) {                                                            \
-      handle_nothrow(#expr, std::source_location::current());                  \
+      ::dwarfs::handle_nothrow(#expr, std::source_location::current());        \
     }                                                                          \
   }()
 
@@ -95,5 +101,8 @@ handle_nothrow(std::string_view expr, std::source_location loc);
 [[noreturn]] void
 assertion_failed(std::string_view expr, std::string_view message,
                  std::source_location loc);
+
+[[noreturn]] void
+handle_panic(std::string_view message, std::source_location loc);
 
 } // namespace dwarfs
