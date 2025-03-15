@@ -241,89 +241,95 @@ constexpr std::array<level_defaults, 10> levels{{
     // clang-format on
 }};
 
-const std::unordered_map<std::string, std::vector<std::string>>
-    categorize_defaults_common{
-        // clang-format off
-        {"--compression", {"incompressible::null"}},
-        // clang-format on
-    };
+using categorize_defaults_type =
+    std::unordered_map<std::string, std::vector<std::string>>;
 
-const std::unordered_map<std::string, std::vector<std::string>>
-    categorize_defaults_fast{
-        // clang-format off
-        {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
-        {"--window-size", {"pcmaudio/waveform::0", "fits/image::0"}},
-        {"--compression", {
+categorize_defaults_type const& categorize_defaults_common() {
+  static categorize_defaults_type const defaults{
+      // clang-format off
+      {"--compression", {"incompressible::null"}},
+      // clang-format on
+  };
+
+  return defaults;
+}
+
+categorize_defaults_type const& categorize_defaults_level(unsigned level) {
+  static categorize_defaults_type const defaults_fast{
+      // clang-format off
+      {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
+      {"--window-size", {"pcmaudio/waveform::0", "fits/image::0"}},
+      {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-                           "pcmaudio/waveform::flac:level=3",
+                         "pcmaudio/waveform::flac:level=3",
 #else
-                           "pcmaudio/waveform::zstd:level=3",
+                         "pcmaudio/waveform::zstd:level=3",
 #endif
 #ifdef DWARFS_HAVE_RICEPP
-                           "fits/image::ricepp",
+                         "fits/image::ricepp",
 #else
-                           "fits/image::zstd:level=3",
+                         "fits/image::zstd:level=3",
 #endif
-                          }},
-        // clang-format on
-    };
+                        }},
+      // clang-format on
+  };
 
-const std::unordered_map<std::string, std::vector<std::string>>
-    categorize_defaults_medium{
-        // clang-format off
-        {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
-        {"--window-size", {"pcmaudio/waveform::20", "fits/image::0"}},
-        {"--compression", {
+  static categorize_defaults_type const defaults_medium{
+      // clang-format off
+      {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
+      {"--window-size", {"pcmaudio/waveform::20", "fits/image::0"}},
+      {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-                           "pcmaudio/waveform::flac:level=5",
+                         "pcmaudio/waveform::flac:level=5",
 #else
-                           "pcmaudio/waveform::zstd:level=5",
+                         "pcmaudio/waveform::zstd:level=5",
 #endif
 #ifdef DWARFS_HAVE_RICEPP
-                           "fits/image::ricepp",
+                         "fits/image::ricepp",
 #else
-                           "fits/image::zstd:level=5",
+                         "fits/image::zstd:level=5",
 #endif
-                          }},
-        // clang-format on
-    };
+                        }},
+      // clang-format on
+  };
 
-const std::unordered_map<std::string, std::vector<std::string>>
-    categorize_defaults_slow{
-        // clang-format off
-        {"--order",       {"fits/image::revpath"}},
-        {"--window-size", {"pcmaudio/waveform::16", "fits/image::0"}},
-        {"--compression", {
+  static categorize_defaults_type const defaults_slow{
+      // clang-format off
+      {"--order",       {"fits/image::revpath"}},
+      {"--window-size", {"pcmaudio/waveform::16", "fits/image::0"}},
+      {"--compression", {
 #ifdef DWARFS_HAVE_FLAC
-                           "pcmaudio/waveform::flac:level=8",
+                         "pcmaudio/waveform::flac:level=8",
 #else
-                           "pcmaudio/waveform::zstd:level=8",
+                         "pcmaudio/waveform::zstd:level=8",
 #endif
 #ifdef DWARFS_HAVE_RICEPP
-                           "fits/image::ricepp",
+                         "fits/image::ricepp",
 #else
-                           "fits/image::zstd:level=8",
+                         "fits/image::zstd:level=8",
 #endif
-                          }},
-        // clang-format on
-    };
+                        }},
+      // clang-format on
+  };
 
-constexpr std::array<
-    std::unordered_map<std::string, std::vector<std::string>> const*, 10>
-    categorize_defaults_level{{
-        // clang-format off
-        /* 0 */ &categorize_defaults_fast,
-        /* 1 */ &categorize_defaults_fast,
-        /* 2 */ &categorize_defaults_fast,
-        /* 3 */ &categorize_defaults_fast,
-        /* 4 */ &categorize_defaults_fast,
-        /* 5 */ &categorize_defaults_medium,
-        /* 6 */ &categorize_defaults_medium,
-        /* 7 */ &categorize_defaults_medium,
-        /* 8 */ &categorize_defaults_slow,
-        /* 9 */ &categorize_defaults_slow,
-        // clang-format on
-    }};
+  static constexpr std::array<categorize_defaults_type const*, 10>
+      defaults_level{{
+          // clang-format off
+          /* 0 */ &defaults_fast,
+          /* 1 */ &defaults_fast,
+          /* 2 */ &defaults_fast,
+          /* 3 */ &defaults_fast,
+          /* 4 */ &defaults_fast,
+          /* 5 */ &defaults_medium,
+          /* 6 */ &defaults_medium,
+          /* 7 */ &defaults_medium,
+          /* 8 */ &defaults_slow,
+          /* 9 */ &defaults_slow,
+          // clang-format on
+      }};
+
+  return *defaults_level.at(level);
+}
 
 constexpr unsigned default_level = 7;
 
@@ -350,9 +356,7 @@ class categorize_optval {
     }
   }
 
-  void
-  add_defaults(std::unordered_map<std::string, std::vector<std::string>> const&
-                   defaults) {
+  void add_defaults(categorize_defaults_type const& defaults) {
     for (auto const& [key, values] : defaults) {
       auto& vs = defaults_[key];
       vs.insert(vs.end(), values.begin(), values.end());
@@ -360,7 +364,7 @@ class categorize_optval {
   }
 
  private:
-  std::unordered_map<std::string, std::vector<std::string>> defaults_;
+  categorize_defaults_type defaults_;
 };
 
 std::ostream& operator<<(std::ostream& os, categorize_optval const& optval) {
@@ -777,8 +781,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto const& defaults = levels[level];
 
-  categorizer_list.add_defaults(categorize_defaults_common);
-  categorizer_list.add_defaults(*categorize_defaults_level[level]);
+  categorizer_list.add_defaults(categorize_defaults_common());
+  categorizer_list.add_defaults(categorize_defaults_level(level));
 
   if (!vm.count("block-size-bits")) {
     sf_config.block_size_bits = defaults.block_size_bits;
