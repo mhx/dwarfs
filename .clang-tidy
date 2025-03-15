@@ -47,6 +47,7 @@ Checks:
   - cppcoreguidelines-virtual-class-destructor
 #  - performance-*
   - bugprone-move-forwarding-reference
+  - cert-*
 WarningsAsErrors: 'bugprone-use-after-move'
 UseColor: true
 ExtraArgsBefore: ['-Wno-unknown-warning-option']
