@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <deque>
 #include <mutex>
 #include <string_view>
@@ -183,7 +184,8 @@ class performance_monitor_impl final : public performance_monitor {
     return ticks.QuadPart;
 #else
     struct timespec ts;
-    ::clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    auto rv [[maybe_unused]] = ::clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    assert(rv == 0);
     return UINT64_C(1'000'000'000) * ts.tv_sec + ts.tv_nsec;
 #endif
   }
