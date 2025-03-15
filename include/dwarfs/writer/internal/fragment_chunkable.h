@@ -50,7 +50,7 @@ class fragment_chunkable : public chunkable {
   std::string description() const override;
   std::span<uint8_t const> span() const override;
   void add_chunk(size_t block, size_t offset, size_t size) override;
-  void release_until(size_t offset) override;
+  std::error_code release_until(size_t offset) override;
 
  private:
   inode const& ino_;

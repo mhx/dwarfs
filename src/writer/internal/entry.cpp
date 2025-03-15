@@ -264,6 +264,8 @@ void file::scan(mmif* mm, progress& prog,
 
       while (s >= chunk_size) {
         cs.update(mm->as<void>(offset), chunk_size);
+        // release_until() is best-effort, we can ignore the return value
+        // NOLINTNEXTLINE(bugprone-unused-return-value)
         mm->release_until(offset);
         offset += chunk_size;
         s -= chunk_size;

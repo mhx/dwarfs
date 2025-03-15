@@ -61,8 +61,8 @@ void fragment_chunkable::add_chunk(size_t block, size_t offset, size_t size) {
   frag_.add_chunk(block, offset, size);
 }
 
-void fragment_chunkable::release_until(size_t offset) {
-  mm_.release_until(offset_ + offset);
+std::error_code fragment_chunkable::release_until(size_t offset) {
+  return mm_.release_until(offset_ + offset);
 }
 
 } // namespace dwarfs::writer::internal
