@@ -384,7 +384,7 @@ class inode_ : public inode {
   void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
                   size_t chunk_size, T&& scanner) {
     while (size >= chunk_size) {
-      std::forward<T>(scanner)(mm->span(offset, chunk_size));
+      scanner(mm->span(offset, chunk_size));
       // release_until() is best-effort, we can ignore the return value
       // NOLINTNEXTLINE(bugprone-unused-return-value)
       mm->release_until(offset);
