@@ -1071,7 +1071,10 @@ segmenter_<LoggerPolicy, SegmentingPolicy>::append_to_block(
   prog_.filesystem_size += size_in_bytes;
 
   if (block.full()) [[unlikely]] {
-    chkable.release_until(offset_in_bytes + size_in_bytes);
+    if (auto ec = chkable.release_until(offset_in_bytes + size_in_bytes)) {
+      LOG_DEBUG << cfg_.context
+                << "error releasing chunkable: " << ec.message();
+    }
     finish_chunk(chkable);
     block_ready();
   }

@@ -23,6 +23,7 @@
 
 #include <span>
 #include <string_view>
+#include <system_error>
 
 namespace dwarfs {
 
@@ -39,7 +40,7 @@ class chunkable {
   virtual std::string description() const = 0;
   virtual std::span<uint8_t const> span() const = 0;
   virtual void add_chunk(size_t block, size_t offset, size_t size) = 0;
-  virtual void release_until(size_t offset) = 0;
+  virtual std::error_code release_until(size_t offset) = 0;
 };
 
 } // namespace writer::internal
