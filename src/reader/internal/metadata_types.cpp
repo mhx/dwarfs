@@ -499,7 +499,7 @@ void check_compact_strings(
   if (!v.index().empty()) {
     if (v.packed_index()) {
       expected_data_size =
-          std::accumulate(v.index().begin(), v.index().end(), 0);
+          std::accumulate(v.index().begin(), v.index().end(), size_t{0});
       longest_item_len = *std::max_element(v.index().begin(), v.index().end());
     } else {
       auto idx = v.index();
