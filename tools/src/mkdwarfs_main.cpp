@@ -68,6 +68,7 @@
 #include <dwarfs/os_access.h>
 #include <dwarfs/reader/filesystem_options.h>
 #include <dwarfs/reader/filesystem_v2.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/terminal.h>
 #include <dwarfs/thread_pool.h>
@@ -101,30 +102,31 @@ namespace dwarfs::tool {
 
 namespace {
 
-const std::map<std::string, writer::console_writer::progress_mode>
-    progress_modes{
-        {"none", writer::console_writer::NONE},
-        {"simple", writer::console_writer::SIMPLE},
-        {"ascii", writer::console_writer::ASCII},
-        {"unicode", writer::console_writer::UNICODE},
-    };
+using namespace std::string_view_literals;
 
-const std::string default_progress_mode = "unicode";
-
-const std::map<std::string, writer::debug_filter_mode> debug_filter_modes{
-    {"included", writer::debug_filter_mode::INCLUDED},
-    {"included-files", writer::debug_filter_mode::INCLUDED_FILES},
-    {"excluded", writer::debug_filter_mode::EXCLUDED},
-    {"excluded-files", writer::debug_filter_mode::EXCLUDED_FILES},
-    {"files", writer::debug_filter_mode::FILES},
-    {"all", writer::debug_filter_mode::ALL},
+constexpr sorted_array_map progress_modes{
+    std::pair{"none"sv, writer::console_writer::NONE},
+    std::pair{"simple"sv, writer::console_writer::SIMPLE},
+    std::pair{"ascii"sv, writer::console_writer::ASCII},
+    std::pair{"unicode"sv, writer::console_writer::UNICODE},
 };
 
-const std::map<std::string, uint32_t> time_resolutions{
-    {"sec", 1},
-    {"min", 60},
-    {"hour", 3600},
-    {"day", 86400},
+constexpr auto default_progress_mode = "unicode";
+
+constexpr sorted_array_map debug_filter_modes{
+    std::pair{"included"sv, writer::debug_filter_mode::INCLUDED},
+    std::pair{"included-files"sv, writer::debug_filter_mode::INCLUDED_FILES},
+    std::pair{"excluded"sv, writer::debug_filter_mode::EXCLUDED},
+    std::pair{"excluded-files"sv, writer::debug_filter_mode::EXCLUDED_FILES},
+    std::pair{"files"sv, writer::debug_filter_mode::FILES},
+    std::pair{"all"sv, writer::debug_filter_mode::ALL},
+};
+
+constexpr sorted_array_map time_resolutions{
+    std::pair{"sec"sv, 1},
+    std::pair{"min"sv, 60},
+    std::pair{"hour"sv, 3600},
+    std::pair{"day"sv, 86400},
 };
 
 constexpr size_t min_block_size_bits{10};
