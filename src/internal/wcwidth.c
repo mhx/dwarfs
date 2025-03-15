@@ -26,7 +26,7 @@ struct width_interval {
 // From https://github.com/jquast/wcwidth/blob/master/wcwidth/table_zero.py
 // from https://github.com/jquast/wcwidth/pull/64
 // at commit 1b9b6585b0080ea5cb88dc9815796505724793fe (2022-12-16):
-static struct width_interval ZERO_WIDTH[] = {
+static const struct width_interval ZERO_WIDTH[] = {
         {0x00300, 0x0036f},  // Combining Grave Accent  ..Combining Latin Small Le
         {0x00483, 0x00489},  // Combining Cyrillic Titlo..Combining Cyrillic Milli
         {0x00591, 0x005bd},  // Hebrew Accent Etnahta   ..Hebrew Point Meteg
@@ -375,7 +375,7 @@ static struct width_interval ZERO_WIDTH[] = {
 // https://github.com/jquast/wcwidth/blob/master/wcwidth/table_wide.py
 // from https://github.com/jquast/wcwidth/pull/64
 // at commit 1b9b6585b0080ea5cb88dc9815796505724793fe (2022-12-16):
-static struct width_interval WIDE_EASTASIAN[] = {
+static const struct width_interval WIDE_EASTASIAN[] = {
         {0x01100, 0x0115f},  // Hangul Choseong Kiyeok  ..Hangul Choseong Filler
         {0x0231a, 0x0231b},  // Watch                   ..Hourglass
         {0x02329, 0x0232a},  // Left-pointing Angle Brac..Right-pointing Angle Bra
@@ -499,7 +499,7 @@ static struct width_interval WIDE_EASTASIAN[] = {
         {0x30000, 0x3fffd},  // Cjk Unified Ideograph-30..(nil)
 };
 
-static bool intable(struct width_interval* table, int table_length, int c) {
+static bool intable(struct width_interval const* table, int table_length, int c) {
         // First quick check for Latin1 etc. characters.
         if (c < table[0].start) return false;
 
