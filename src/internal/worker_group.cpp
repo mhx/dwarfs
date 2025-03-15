@@ -93,6 +93,9 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     try {
       stop();
     } catch (...) {
+      DWARFS_PANIC(
+          fmt::format("exception thrown in worker group destructor: {}",
+                      exception_str(std::current_exception())));
     }
   }
 

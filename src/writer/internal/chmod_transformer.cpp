@@ -25,6 +25,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/error.h>
+
 #include <dwarfs/writer/internal/chmod_transformer.h>
 
 namespace dwarfs::writer::internal {
@@ -172,6 +174,9 @@ chmod_transformer_::chmod_transformer_(std::string_view spec, mode_type umask)
         break;
       case 'o':
         bits = kAllOtherBits;
+        break;
+      default:
+        DWARFS_PANIC("internal error: invalid ugo in mode spec");
         break;
       }
 
@@ -329,6 +334,10 @@ chmod_transformer_::transform(mode_type mode, bool isdir) const {
 
     case '-':
       mode &= ~bits;
+      break;
+
+    default:
+      DWARFS_PANIC("internal error: invalid operator in modifier");
       break;
     }
   }

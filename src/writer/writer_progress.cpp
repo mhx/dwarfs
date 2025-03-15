@@ -22,6 +22,8 @@
 #include <folly/portability/Windows.h>
 #include <folly/system/ThreadName.h>
 
+#include <dwarfs/error.h>
+#include <dwarfs/util.h>
 #include <dwarfs/writer/writer_progress.h>
 
 #include <dwarfs/writer/internal/progress.h>
@@ -62,6 +64,9 @@ writer_progress::~writer_progress() noexcept {
       cond_.notify_all();
       thread_.join();
     } catch (...) {
+      DWARFS_PANIC(
+          fmt::format("exception thrown in writer_progress destructor: {}",
+                      exception_str(std::current_exception())));
     }
   }
 }
