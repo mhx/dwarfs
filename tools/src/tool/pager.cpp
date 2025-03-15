@@ -35,9 +35,13 @@ namespace {
 
 namespace bp = boost::process;
 
-std::vector<pager_program> const pagers{
-    {"less", {"-R"}},
-};
+std::span<pager_program const> get_pagers() {
+  static std::vector<pager_program> const pagers{
+      {"less", {"-R"}},
+  };
+
+  return pagers;
+}
 
 } // namespace
 
@@ -69,7 +73,7 @@ std::optional<pager_program> find_pager_program(os_access const& os) {
     }
   }
 
-  for (auto const& p : pagers) {
+  for (auto const& p : get_pagers()) {
     if (auto exe = os.find_executable(p.name); !exe.empty()) {
       return pager_program{exe, p.args};
     }
