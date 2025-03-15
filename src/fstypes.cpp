@@ -19,25 +19,25 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
-
-#include <folly/Conv.h>
 
 #include <fmt/format.h>
 
 #include <dwarfs/compression.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/sorted_array_map.h>
 
 namespace dwarfs {
 
 namespace {
 
+using namespace std::string_view_literals;
+
 // clang-format off
-const std::map<section_type, std::string_view> sections{
-#define SECTION_TYPE_(x) {section_type::x, #x}
+constexpr sorted_array_map sections{
+#define SECTION_TYPE_(x) std::pair{section_type::x, #x ## sv}
     SECTION_TYPE_(BLOCK),
     SECTION_TYPE_(METADATA_V2_SCHEMA),
     SECTION_TYPE_(METADATA_V2),
@@ -46,8 +46,8 @@ const std::map<section_type, std::string_view> sections{
 #undef SECTION_TYPE_
 };
 
-const std::map<compression_type, std::string_view> compressions {
-#define DWARFS_COMPRESSION_TYPE_(name, _) {compression_type::name, #name}
+constexpr sorted_array_map compressions {
+#define DWARFS_COMPRESSION_TYPE_(name, _) std::pair{compression_type::name, #name ## sv}
 #define DWARFS_COMMA_ ,
   DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_, DWARFS_COMMA_)
 #undef DWARFS_COMPRESSION_TYPE_
@@ -55,22 +55,21 @@ const std::map<compression_type, std::string_view> compressions {
 };
 // clang-format on
 
-template <typename HT>
-std::string get_default(const HT& ht, const typename HT::key_type& key) {
-  if (auto it = ht.find(key); it != ht.end()) {
-    return folly::to<std::string>(it->second);
+std::string get_default(auto const& map, auto key) {
+  if (auto value = map.get(key)) {
+    return std::string{*value};
   }
-
-  return folly::to<std::string>("unknown (", key, ")");
+  return fmt::format("unknown ({})", static_cast<int>(key));
 }
+
 } // namespace
 
 bool is_known_compression_type(compression_type type) {
-  return compressions.count(type) > 0;
+  return compressions.contains(type);
 }
 
 bool is_known_section_type(section_type type) {
-  return sections.count(type) > 0;
+  return sections.contains(type);
 }
 
 std::string get_compression_name(compression_type type) {
@@ -83,7 +82,7 @@ std::string get_section_name(section_type type) {
 
 void section_header::dump(std::ostream& os) const {
   os << "[V1] type=" << get_default(sections, type) << ", compression="
-     << get_default(compressions, static_cast<compression_type>(compression))
+     << get_compression_name(static_cast<compression_type>(compression))
      << ", length=" << length;
 }
 
@@ -98,7 +97,7 @@ void section_header_v2::dump(std::ostream& os) const {
      << "] num=" << number
      << ", type=" << get_default(sections, static_cast<section_type>(type))
      << ", compression="
-     << get_default(compressions, static_cast<compression_type>(compression))
+     << get_compression_name(static_cast<compression_type>(compression))
      << ", length=" << length
      << ", checksum=" << fmt::format("{:#018x}", xxh3_64);
 }
