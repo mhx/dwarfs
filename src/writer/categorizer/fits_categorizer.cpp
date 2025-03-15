@@ -32,7 +32,6 @@
 #include <boost/program_options.hpp>
 
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 
 #include <folly/Synchronized.h>
 #include <folly/lang/Bits.h>
@@ -46,26 +45,24 @@
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 
-namespace std {
-
-inline ostream& operator<<(ostream& os, endian e) {
-  switch (e) {
-  case endian::big:
-    os << "big";
-    break;
-  case endian::little:
-    os << "little";
-    break;
-  default:
-    throw runtime_error("internal error: unhandled endianness value");
-  }
-  return os;
-}
-
-} // namespace std
-
 template <>
-struct fmt::formatter<std::endian> : ostream_formatter {};
+struct fmt::formatter<std::endian> : formatter<std::string_view> {
+  template <typename FormatContext>
+  auto format(std::endian e, FormatContext& ctx) const {
+    std::string_view sv{"<unknown endian>"};
+    switch (e) {
+    case std::endian::little:
+      sv = "little";
+      break;
+    case std::endian::big:
+      sv = "big";
+      break;
+    default:
+      throw std::runtime_error("internal error: unhandled endianness value");
+    }
+    return formatter<std::string_view>::format(sv, ctx);
+  }
+};
 
 namespace dwarfs::writer {
 
@@ -272,7 +269,7 @@ struct fits_metadata {
 };
 
 std::ostream& operator<<(std::ostream& os, fits_metadata const& m) {
-  os << "[" << m.endianness << "-endian, "
+  os << "[" << fmt::format("{}", m.endianness) << "-endian, "
      << "bytes=" << static_cast<int>(m.bytes_per_sample) << ", "
      << "unused=" << static_cast<int>(m.unused_lsb_count) << ", "
      << "components=" << static_cast<int>(m.component_count) << "]";
