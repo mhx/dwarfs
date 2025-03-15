@@ -35,9 +35,10 @@
 namespace dwarfs {
 
 struct logger_options;
-struct iolayer;
 
 namespace tool {
+
+struct iolayer;
 
 std::string
 tool_header(std::string_view tool_name, std::string_view extra_info = "");
