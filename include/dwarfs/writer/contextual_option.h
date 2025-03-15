@@ -118,7 +118,8 @@ class contextual_option {
     if (auto it = contextual_.find(ctx); it != contextual_.end()) {
       return it->second;
     }
-    return default_.value();
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    return default_.value(); // throw if unset
   }
 
   std::optional<value_type> default_;
