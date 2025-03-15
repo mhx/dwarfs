@@ -451,6 +451,7 @@ if(WITH_TESTS)
       packed_ptr_test
       pcm_sample_transformer_test
       pcmaudio_categorizer_test
+      sorted_array_map_test
       speedometer_test
       terminal_test
       unicode_test
@@ -580,6 +581,10 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     add_executable(converter_benchmark test/converter_benchmark.cpp)
     target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
     list(APPEND BENCHMARK_TARGETS converter_benchmark)
+
+    add_executable(sorted_array_map_benchmark test/sorted_array_map_benchmark.cpp)
+    target_link_libraries(sorted_array_map_benchmark PRIVATE benchmark::benchmark)
+    list(APPEND BENCHMARK_TARGETS sorted_array_map_benchmark)
   endif()
 
   # TODO: migrate to benchmark?
