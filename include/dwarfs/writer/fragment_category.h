@@ -46,6 +46,7 @@ class fragment_category {
   explicit fragment_category(value_type v)
       : value_{v} {}
 
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
   fragment_category(value_type v, value_type subcategory)
       : value_{v}
       , subcategory_{subcategory} {}

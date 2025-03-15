@@ -32,6 +32,7 @@ namespace dwarfs::internal {
 namespace {
 
 char32_t case_fold_char_slow(char32_t in) {
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch (in) {
   case 0x00B5:
     return 0x03BC; // [C] MICRO SIGN
@@ -2977,6 +2978,7 @@ char32_t case_fold_char_slow(char32_t in) {
   default:
     return in;
   }
+  // NOLINTEND(bugprone-branch-clone)
 }
 
 inline char32_t case_fold_char(char32_t in) {

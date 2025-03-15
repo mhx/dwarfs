@@ -134,6 +134,7 @@ class performance_monitor_proxy {
   std::shared_ptr<performance_monitor> monitor =                               \
       performance_monitor::create(enabled_namespaces);
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define PERFMON_PROXY_DECL(instname) performance_monitor_proxy instname;
 #define PERFMON_PROXY_INIT(instname, monitor, name_space)                      \
   , instname { monitor, name_space }
@@ -145,6 +146,7 @@ class performance_monitor_proxy {
   auto perfmon_scoped_section_ = instname.scoped_section(perfmon_##id##_id_);
 #define PERFMON_PROXY_SETUP(instname, monitor, name_space)                     \
   instname = performance_monitor_proxy(monitor, name_space);
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define PERFMON_SECTION_ARG perfmon_scoped_section_
 #define PERFMON_SECTION_ARG_ perfmon_scoped_section_,

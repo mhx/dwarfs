@@ -499,6 +499,7 @@ static const struct width_interval WIDE_EASTASIAN[] = {
         {0x30000, 0x3fffd},  // Cjk Unified Ideograph-30..(nil)
 };
 
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 static bool intable(struct width_interval const* table, int table_length, int c) {
         // First quick check for Latin1 etc. characters.
         if (c < table[0].start) return false;
