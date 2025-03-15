@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <filesystem>
 #include <span>
 #include <string>
@@ -44,20 +45,25 @@ class mmif : public boost::noncopyable {
  public:
   virtual ~mmif() = default;
 
-  template <typename T>
-  T const* as(file_off_t offset = 0) const {
+  template <typename T, std::integral U>
+  T const* as(U offset = 0) const {
     return reinterpret_cast<T const*>(
         reinterpret_cast<char const*>(this->addr()) + offset);
   }
 
-  template <typename T = uint8_t>
-  std::span<T const> span(file_off_t offset, size_t length) const {
+  template <typename T = uint8_t, std::integral U>
+  std::span<T const> span(U offset, size_t length) const {
     return std::span(this->as<T>(offset), length);
   }
 
-  template <typename T = uint8_t>
-  std::span<T const> span(file_off_t offset = 0) const {
+  template <typename T = uint8_t, std::integral U>
+  std::span<T const> span(U offset) const {
     return span<T>(offset, size() - offset);
+  }
+
+  template <typename T = uint8_t>
+  std::span<T const> span() const {
+    return span<T>(0);
   }
 
   virtual void const* addr() const = 0;
