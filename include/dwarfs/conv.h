@@ -80,7 +80,8 @@ T to(U&& s) {
   if constexpr (std::same_as<T, std::decay_t<U>>) {
     return std::forward<U>(s);
   } else {
-    return try_to<T>(std::forward<U>(s)).value();
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    return try_to<T>(std::forward<U>(s)).value(); // throw if conversion fails
   }
 }
 
