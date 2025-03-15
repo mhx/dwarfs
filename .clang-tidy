@@ -48,6 +48,11 @@ Checks:
 #  - performance-*
   - bugprone-move-forwarding-reference
   - cert-*
+  - bugprone-*
+  - -bugprone-easily-swappable-parameters
+  - -bugprone-narrowing-conversions
+  - -bugprone-implicit-widening-of-multiplication-result
+  - -bugprone-unchecked-optional-access
 WarningsAsErrors: 'bugprone-use-after-move'
 UseColor: true
 ExtraArgsBefore: ['-Wno-unknown-warning-option']
