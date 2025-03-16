@@ -87,6 +87,7 @@ class progress {
 
   std::vector<std::shared_ptr<context>> get_active_contexts() const;
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   std::atomic<object const*> current{nullptr};
   std::atomic<uint64_t> total_bytes_read{0};
   std::atomic<size_t> current_size{0};
@@ -115,6 +116,7 @@ class progress {
   std::atomic<uint64_t> saved_by_segmentation{0};
   std::atomic<uint64_t> filesystem_size{0};
   std::atomic<uint64_t> compressed_size{0};
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
   struct scan_progress {
     std::atomic<size_t> scans{0};

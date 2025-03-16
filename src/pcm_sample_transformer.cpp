@@ -33,6 +33,7 @@ namespace dwarfs {
 
 namespace {
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 template <typename UnpackedType>
 class basic_pcm_sample_transformer {
  public:
@@ -163,6 +164,7 @@ class basic_pcm_sample_transformer {
     }
   }
 };
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
 template <typename UnpackedType, pcm_sample_endianness End,
           pcm_sample_signedness Sig, pcm_sample_padding Pad, int Bytes,
