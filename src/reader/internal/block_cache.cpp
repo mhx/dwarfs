@@ -179,6 +179,7 @@ class block_request_set {
     }
 
     queue_.emplace_back(begin, end, std::move(promise));
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::push_heap(queue_.begin(), queue_.end());
   }
 
@@ -186,11 +187,13 @@ class block_request_set {
     queue_.reserve(queue_.size() + other.queue_.size());
     std::ranges::move(other.queue_, std::back_inserter(queue_));
     other.queue_.clear();
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::make_heap(queue_.begin(), queue_.end());
     range_end_ = std::max(range_end_, other.range_end_);
   }
 
   block_request get() {
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::pop_heap(queue_.begin(), queue_.end());
     block_request tmp = std::move(queue_.back());
     queue_.pop_back();
