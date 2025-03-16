@@ -18,21 +18,35 @@ Checks:
   - -cppcoreguidelines-narrowing-conversions
   - -cppcoreguidelines-pro-bounds-constant-array-index
   - -cppcoreguidelines-special-member-functions
-# TODO:
-  - -cppcoreguidelines-init-variables
-  - -cppcoreguidelines-pro-bounds-pointer-arithmetic
-  - -cppcoreguidelines-pro-type-member-init
-  - -cppcoreguidelines-pro-type-reinterpret-cast
   - modernize-*
   - -modernize-use-trailing-return-type
   - -modernize-macro-to-enum
   - -modernize-avoid-c-arrays
+  - performance-*
+  - -performance-enum-size
+  - portability-*
+  - -portability-template-virtual-member-function
+  - readability-*
+  - -readability-magic-numbers
+  - -readability-identifier-length
+  - -readability-implicit-bool-conversion
+  - -readability-named-parameter
+  - -readability-redundant-member-init
+  - -readability-math-missing-parentheses
+  - -readability-isolate-declaration
+  - -readability-qualified-auto
 # TODO
+  - -cppcoreguidelines-init-variables
+  - -cppcoreguidelines-pro-bounds-pointer-arithmetic
+  - -cppcoreguidelines-pro-type-member-init
+  - -cppcoreguidelines-pro-type-reinterpret-cast
   - -modernize-pass-by-value
   - -modernize-use-nodiscard
   - -modernize-use-designated-initializers
-#  - performance-*
-#  - readability-*
+  - -readability-avoid-nested-conditional-operator
+  - -readability-convert-member-functions-to-static
+  - -readability-function-cognitive-complexity
+  - -readability-function-size
 WarningsAsErrors: 'bugprone-use-after-move'
 UseColor: true
 ExtraArgsBefore: ['-Wno-unknown-warning-option']
