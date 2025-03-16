@@ -35,7 +35,6 @@ on:
 #      - 'docs/**'
 #      - '**.adoc'
 #      - '**.md'
-#      - '.cirrus.yml'
 #      - '.github/workflows/*.yml'
 #      - '!.github/workflows/windows.yml'
 #  pull_request:
@@ -43,7 +42,6 @@ on:
 #      - 'docs/**'
 #      - '**.adoc'
 #      - '**.md'
-#      - '.cirrus.yml'
 #      - '.github/workflows/*.yml'
 #      - '!.github/workflows/windows.yml'
   workflow_dispatch:

@@ -40,7 +40,6 @@ on:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
-      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/macos.yml'
   pull_request:
@@ -48,7 +47,6 @@ on:
       - 'docs/**'
       - '**.adoc'
       - '**.md'
-      - '.cirrus.yml'
       - '.github/workflows/*.yml'
       - '!.github/workflows/macos.yml'
   workflow_dispatch:
