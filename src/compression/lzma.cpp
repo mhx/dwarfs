@@ -250,9 +250,9 @@ std::vector<uint8_t>
 lzma_block_compressor::compress(const std::vector<uint8_t>& data,
                                 std::string const* /*metadata*/) const {
   auto lzma_opts = opt_lzma_;
-  std::array<lzma_filter, 3> filters{{{binary_vli_, NULL},
+  std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
                                       {LZMA_FILTER_LZMA2, &lzma_opts},
-                                      {LZMA_VLI_UNKNOWN, NULL}}};
+                                      {LZMA_VLI_UNKNOWN, nullptr}}};
 
   std::vector<uint8_t> best = compress(data, &filters[1]);
 
@@ -378,7 +378,7 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
   }
 
   pos -= index_size;
-  lzma_index* index = NULL;
+  lzma_index* index = nullptr;
 
   if (auto ret = lzma_index_decoder(&s, &index, UINT64_MAX); ret != LZMA_OK) {
     DWARFS_THROW(runtime_error,
@@ -404,7 +404,7 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   // TODO: wrap this in some RAII container, as error handling is horrible...
   lzma_end(&s);
-  lzma_index_end(index, NULL);
+  lzma_index_end(index, nullptr);
 
   return usize;
 }
