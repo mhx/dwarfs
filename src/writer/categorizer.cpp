@@ -61,7 +61,8 @@ class categorizer_job_ final : public categorizer_job::impl {
       : LOG_PROXY_INIT(lgr)
       , mgr_{mgr}
       , path_{path}
-      , cat_mapper_{std::bind(&categorizer_manager_private::category,
+      , cat_mapper_{// NOLINTNEXTLINE(modernize-avoid-bind)
+                    std::bind(&categorizer_manager_private::category,
                               std::cref(mgr_), _1)} {}
 
   void set_total_size(size_t total_size) override;
