@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
@@ -63,10 +64,10 @@ size_t copy_stream(std::istream& is, std::ostream& os) {
   std::streambuf* rdbuf = is.rdbuf();
   std::streamsize count{0};
   std::streamsize transferred;
-  char buffer[1024];
+  std::array<char, 1024> buffer;
 
-  while ((transferred = rdbuf->sgetn(buffer, sizeof(buffer))) > 0) {
-    os.write(buffer, transferred);
+  while ((transferred = rdbuf->sgetn(buffer.data(), buffer.size())) > 0) {
+    os.write(buffer.data(), transferred);
     count += transferred;
   }
 
