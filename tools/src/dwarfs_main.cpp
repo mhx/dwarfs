@@ -949,11 +949,12 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
                  uint32_t position
 #endif
 ) {
+  static constexpr std::string_view fname{__func__};
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_getxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ", " << name << ", " << size
+  LOG_DEBUG << fname << "(" << ino << ", " << name << ", " << size
 #ifdef __APPLE__
             << ", " << position
 #endif
@@ -967,11 +968,11 @@ void op_getxattr(fuse_req_t req, fuse_ino_t ino, char const* name, size_t size
                                   [&] { return userdata.fs.find(ino); });
 
     if (err != 0) {
-      LOG_TRACE << __func__ << ": err=" << err;
+      LOG_TRACE << fname << ": err=" << err;
       return err;
     }
 
-    LOG_TRACE << __func__ << ": value.size=" << value.size()
+    LOG_TRACE << fname << ": value.size=" << value.size()
               << ", extra_size=" << extra_size;
 
     if (size == 0) {
@@ -1078,11 +1079,12 @@ int op_listxattr_common(LogProxy& log_, std::string& xattr_names,
 #if DWARFS_FUSE_LOWLEVEL
 template <typename LoggerPolicy>
 void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
+  static constexpr std::string_view fname{__func__};
   dUSERDATA;
   PERFMON_EXT_SCOPED_SECTION(userdata, op_listxattr)
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
-  LOG_DEBUG << __func__ << "(" << ino << ", " << size << ")"
+  LOG_DEBUG << fname << "(" << ino << ", " << size << ")"
             << get_caller_context(req);
   PERFMON_SET_CONTEXT(ino)
 
@@ -1095,7 +1097,7 @@ void op_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
       return err;
     }
 
-    LOG_TRACE << __func__ << ": xattrs.size=" << xattrs.size();
+    LOG_TRACE << fname << ": xattrs.size=" << xattrs.size();
 
     if (size == 0) {
       fuse_reply_xattr(req, xattrs.size());
