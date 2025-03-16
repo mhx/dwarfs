@@ -169,12 +169,12 @@ class multi_queue_block_merger_impl : public block_merger_base,
   void dump_state(std::string what, termcolor color) const {
     std::cout << terminal_ansi::colored_impl(fmt::format("**** {} ****", what),
                                              color)
-              << std::endl;
+              << '\n';
 
     std::cout << "index: " << active_slot_index_
               << ", queueable: " << queueable_size() << "/"
               << max_queueable_size_ << ", releaseable: " << releaseable_size_
-              << std::endl;
+              << '\n';
 
     std::cout << "active: ";
     for (size_t i = 0; i < active_slots_.size(); ++i) {
@@ -187,13 +187,13 @@ class multi_queue_block_merger_impl : public block_merger_base,
         std::cout << terminal_ansi::colored_impl("- ", termcolor::GRAY);
       }
     }
-    std::cout << std::endl;
+    std::cout << '\n';
 
     std::cout << "queued: ";
     for (auto const& src : source_queue_) {
       std::cout << src << " ";
     }
-    std::cout << std::endl;
+    std::cout << '\n';
 
     for (auto const& [src, q] : block_queues_) {
       if (q.empty()) {
@@ -218,7 +218,7 @@ class multi_queue_block_merger_impl : public block_merger_base,
         std::cout << text;
       }
 
-      std::cout << std::endl;
+      std::cout << '\n';
     }
   }
 
