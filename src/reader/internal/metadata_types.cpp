@@ -656,7 +656,7 @@ void check_chunks(global_metadata::Meta const& meta) {
 std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
   std::array<size_t, 6> offsets;
 
-  for (int r = 0; r < static_cast<int>(offsets.size()); ++r) {
+  for (int r = 0; std::cmp_less(r, offsets.size()); ++r) {
     if (auto dep = meta.dir_entries()) {
       auto pred = [r, modes = meta.modes()](auto ino) {
         return mode_rank(modes[ino.mode_index()]) < r;

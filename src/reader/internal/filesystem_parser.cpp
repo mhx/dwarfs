@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -115,7 +116,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
     , image_offset_{find_image_offset(*mm_, image_offset)}
     , image_size_{
           std::min<file_off_t>(image_size, mm_->size() - image_offset_)} {
-  if (image_size_ < static_cast<file_off_t>(sizeof(file_header))) {
+  if (std::cmp_less(image_size_, sizeof(file_header))) {
     DWARFS_THROW(runtime_error, "file too small");
   }
 
@@ -146,16 +147,16 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
 
 std::optional<fs_section> filesystem_parser::next_section() {
   if (index_.empty()) {
-    if (offset_ < image_offset_ + image_size_) {
+    if (std::cmp_less(offset_, image_offset_ + image_size_)) {
       auto section = fs_section(*mm_, offset_, version_);
       offset_ = section.end();
       return section;
     }
   } else {
-    if (offset_ < static_cast<file_off_t>(index_.size())) {
+    if (std::cmp_less(offset_, index_.size())) {
       uint64_t id = index_[offset_++];
       uint64_t offset = id & section_offset_mask;
-      uint64_t next_offset = offset_ < static_cast<file_off_t>(index_.size())
+      uint64_t next_offset = std::cmp_less(offset_, index_.size())
                                  ? index_[offset_] & section_offset_mask
                                  : image_size_;
       return fs_section(mm_, static_cast<section_type>(id >> 48),
@@ -212,7 +213,7 @@ void filesystem_parser::find_index() {
     index_pos &= section_offset_mask;
     index_pos += image_offset_;
 
-    if (index_pos < static_cast<uint64_t>(image_offset_ + image_size_)) {
+    if (std::cmp_less(index_pos, image_offset_ + image_size_)) {
       auto section = fs_section(*mm_, index_pos, version_);
 
       if (section.check_fast(*mm_)) {

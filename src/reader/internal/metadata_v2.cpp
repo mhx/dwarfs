@@ -99,7 +99,7 @@ void check_schema(std::span<uint8_t const> data) {
   }
   for (auto const& kvl : *schema.layouts()) {
     auto const& layout = kvl.second;
-    if (kvl.first >= static_cast<int64_t>(schema.layouts()->size())) {
+    if (std::cmp_greater_equal(kvl.first, schema.layouts()->size())) {
       DWARFS_THROW(runtime_error, "invalid layout key in schema");
     }
     if (*layout.size() < 0) {
@@ -434,8 +434,8 @@ class metadata_ final : public metadata_v2::impl {
       PERFMON_CLS_TIMER_INIT(reg_file_size)
       PERFMON_CLS_TIMER_INIT(unpack_metadata) // clang-format on
   {
-    if (static_cast<int>(meta_.directories().size() - 1) !=
-        symlink_inode_offset_) {
+    if (std::cmp_not_equal(meta_.directories().size() - 1,
+                           symlink_inode_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format("metadata inconsistency: number of directories ({}) does "
@@ -443,8 +443,8 @@ class metadata_ final : public metadata_v2::impl {
                       meta_.directories().size() - 1, symlink_inode_offset_));
     }
 
-    if (static_cast<int>(meta_.symlink_table().size()) !=
-        (file_inode_offset_ - symlink_inode_offset_)) {
+    if (std::cmp_not_equal(meta_.symlink_table().size(),
+                           file_inode_offset_ - symlink_inode_offset_)) {
       DWARFS_THROW(
           runtime_error,
           fmt::format(
@@ -689,11 +689,11 @@ class metadata_ final : public metadata_v2::impl {
       inode -= unique_files_;
 
       if (!shared_files_.empty()) {
-        if (inode < static_cast<int>(shared_files_.size())) {
+        if (std::cmp_less(inode, shared_files_.size())) {
           inode = shared_files_[inode] + unique_files_;
         }
       } else if (auto sfp = meta_.shared_files_table()) {
-        if (inode < static_cast<int>(sfp->size())) {
+        if (std::cmp_less(inode, sfp->size())) {
           inode = (*sfp)[inode] + unique_files_;
         }
       }
@@ -896,19 +896,19 @@ class metadata_ final : public metadata_v2::impl {
 
       std::vector<uint32_t> nlinks(dev_inode_offset_ - file_inode_offset_);
 
+      auto add_link = [&](int index) {
+        if (index >= 0 && std::cmp_less(index, nlinks.size())) {
+          ++nlinks[index];
+        }
+      };
+
       if (auto de = meta_.dir_entries()) {
         for (auto e : *de) {
-          int index = int(e.inode_num()) - file_inode_offset_;
-          if (index >= 0 && index < int(nlinks.size())) {
-            ++nlinks[index];
-          }
+          add_link(int(e.inode_num()) - file_inode_offset_);
         }
       } else {
         for (auto e : meta_.inodes()) {
-          int index = int(e.inode_v2_2()) - file_inode_offset_;
-          if (index >= 0 && index < int(nlinks.size())) {
-            ++nlinks[index];
-          }
+          add_link(int(e.inode_v2_2()) - file_inode_offset_);
         }
       }
 
