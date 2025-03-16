@@ -35,14 +35,14 @@ namespace {
 class null_block_compressor final : public block_compressor::impl {
  public:
   null_block_compressor() = default;
-  null_block_compressor(const null_block_compressor& rhs) = default;
+  null_block_compressor(null_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<null_block_compressor>(*this);
   }
 
   std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data,
+  compress(std::vector<uint8_t> const& data,
            std::string const* /*metadata*/) const override {
     return data;
   }
@@ -67,7 +67,7 @@ class null_block_compressor final : public block_compressor::impl {
 
 class null_block_decompressor final : public block_decompressor::impl {
  public:
-  null_block_decompressor(const uint8_t* data, size_t size,
+  null_block_decompressor(uint8_t const* data, size_t size,
                           std::vector<uint8_t>& target)
       : decompressed_(target)
       , data_(data)
@@ -107,8 +107,8 @@ class null_block_decompressor final : public block_decompressor::impl {
 
  private:
   std::vector<uint8_t>& decompressed_;
-  const uint8_t* const data_;
-  const size_t uncompressed_size_;
+  uint8_t const* const data_;
+  size_t const uncompressed_size_;
 };
 
 class null_compression_factory : public compression_factory {

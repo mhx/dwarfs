@@ -69,7 +69,7 @@ class similarity::impl {
 
   uint32_t finalize() {
     std::partial_sort(vec_.begin(), vec_.begin() + 4, vec_.end(),
-                      [](const auto& a, const auto& b) {
+                      [](auto const& a, auto const& b) {
                         return a.first > b.first ||
                                (a.first == b.first && a.second < b.second);
                       });

@@ -55,7 +55,7 @@ template <typename LoggerPolicy, typename Policy>
 class basic_worker_group final : public worker_group::impl, private Policy {
  public:
   template <typename... Args>
-  basic_worker_group(logger& lgr, os_access const& os, const char* group_name,
+  basic_worker_group(logger& lgr, os_access const& os, char const* group_name,
                      size_t num_workers, size_t max_queue_len,
                      int niceness [[maybe_unused]], Args&&... args)
       : Policy(std::forward<Args>(args)...)
@@ -83,8 +83,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     check_set_affinity_from_enviroment(group_name);
   }
 
-  basic_worker_group(const basic_worker_group&) = delete;
-  basic_worker_group& operator=(const basic_worker_group&) = delete;
+  basic_worker_group(basic_worker_group const&) = delete;
+  basic_worker_group& operator=(basic_worker_group const&) = delete;
 
   /**
    * Stop and destroy a worker group
@@ -233,7 +233,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
     return false;
   }
 
-  void check_set_affinity_from_enviroment(const char* group_name) {
+  void check_set_affinity_from_enviroment(char const* group_name) {
     if (auto var = os_.getenv("DWARFS_WORKER_GROUP_AFFINITY")) {
       auto groups = split_to<std::vector<std::string_view>>(var.value(), ':');
 
@@ -336,7 +336,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
   mutable std::mutex mx_;
   std::atomic<bool> running_;
   std::atomic<size_t> pending_;
-  const size_t max_queue_len_;
+  size_t const max_queue_len_;
 };
 
 class no_policy {
@@ -353,7 +353,7 @@ using default_worker_group = basic_worker_group<LoggerPolicy, no_policy>;
 } // namespace
 
 worker_group::worker_group(logger& lgr, os_access const& os,
-                           const char* group_name, size_t num_workers,
+                           char const* group_name, size_t num_workers,
                            size_t max_queue_len, int niceness)
     : impl_{make_unique_logging_object<impl, default_worker_group,
                                        logger_policies>(

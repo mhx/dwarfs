@@ -88,7 +88,7 @@ class entry : public entry_interface {
   virtual type_t type() const = 0;
   bool is_directory() const override;
   virtual void walk(std::function<void(entry*)> const& f);
-  virtual void walk(std::function<void(const entry*)> const& f) const;
+  virtual void walk(std::function<void(entry const*)> const& f) const;
   void pack(thrift::metadata::inode_data& entry_v2,
             global_entry_data const& data) const;
   void update(global_entry_data& data) const;
@@ -174,7 +174,7 @@ class dir : public entry {
   type_t type() const override;
   void add(std::shared_ptr<entry> e);
   void walk(std::function<void(entry*)> const& f) override;
-  void walk(std::function<void(const entry*)> const& f) const override;
+  void walk(std::function<void(entry const*)> const& f) const override;
   void accept(entry_visitor& v, bool preorder) override;
   void sort();
   void
@@ -208,7 +208,7 @@ class link : public entry {
   using entry::entry;
 
   type_t type() const override;
-  const std::string& linkname() const;
+  std::string const& linkname() const;
   void accept(entry_visitor& v, bool preorder) override;
   void scan(os_access const& os, progress& prog) override;
 

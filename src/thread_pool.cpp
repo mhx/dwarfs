@@ -29,7 +29,7 @@ thread_pool::thread_pool() = default;
 thread_pool::~thread_pool() = default;
 
 thread_pool::thread_pool(logger& lgr, os_access const& os,
-                         const char* group_name, size_t num_workers,
+                         char const* group_name, size_t num_workers,
                          size_t max_queue_len, int niceness)
     : wg_{std::make_unique<internal::worker_group>(
           lgr, os, group_name, num_workers, max_queue_len, niceness)} {}

@@ -159,7 +159,7 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
 } // namespace
 
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
-  const size_t num_cpu = std::max(hardware_concurrency(), 1u);
+  size_t const num_cpu = std::max(hardware_concurrency(), 1u);
 
   auto algo_list = checksum::available_algorithms();
   auto checksum_desc = fmt::format("print checksums for all files ({})",

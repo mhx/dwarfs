@@ -35,7 +35,7 @@ namespace {
 
 template <class T>
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-freeze_to_buffer(const T& x) {
+freeze_to_buffer(T const& x) {
   using namespace ::apache::thrift::frozen;
 
   Layout<T> layout;
@@ -62,7 +62,7 @@ freeze_to_buffer(const T& x) {
 } // namespace
 
 std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-metadata_freezer::freeze(const thrift::metadata::metadata& data) {
+metadata_freezer::freeze(thrift::metadata::metadata const& data) {
   return freeze_to_buffer(data);
 }
 

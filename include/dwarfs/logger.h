@@ -187,7 +187,7 @@ class no_log_entry {
   no_log_entry(logger&, logger::level_type, std::source_location) {}
 
   template <typename T>
-  no_log_entry& operator<<(const T&) {
+  no_log_entry& operator<<(T const&) {
     return *this;
   }
 };

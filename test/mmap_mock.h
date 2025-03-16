@@ -26,17 +26,17 @@ namespace test {
 
 class mmap_mock : public mmif {
  public:
-  mmap_mock(const std::string& data)
+  mmap_mock(std::string const& data)
       : mmap_mock{data, "<mock-file>"} {}
 
-  mmap_mock(const std::string& data, std::filesystem::path const& path)
+  mmap_mock(std::string const& data, std::filesystem::path const& path)
       : data_{data}
       , path_{path} {}
 
-  mmap_mock(const std::string& data, size_t size)
+  mmap_mock(std::string const& data, size_t size)
       : mmap_mock{data, size, "<mock-file>"} {}
 
-  mmap_mock(const std::string& data, size_t size,
+  mmap_mock(std::string const& data, size_t size,
             std::filesystem::path const& path)
       : data_{data, 0, std::min(size, data.size())}
       , path_{path} {}

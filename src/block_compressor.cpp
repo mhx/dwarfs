@@ -36,12 +36,12 @@
 
 namespace dwarfs {
 
-block_compressor::block_compressor(const std::string& spec) {
+block_compressor::block_compressor(std::string const& spec) {
   impl_ = compression_registry::instance().make_compressor(spec);
 }
 
 block_decompressor::block_decompressor(compression_type type,
-                                       const uint8_t* data, size_t size,
+                                       uint8_t const* data, size_t size,
                                        std::vector<uint8_t>& target) {
   impl_ = compression_registry::instance().make_decompressor(
       type, std::span<uint8_t const>(data, size), target);

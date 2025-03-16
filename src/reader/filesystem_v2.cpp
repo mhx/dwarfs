@@ -151,7 +151,7 @@ metadata_v2
 make_metadata(logger& lgr, mmif& mm, section_map const& sections,
               std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
-              const metadata_options& options, int inode_offset,
+              metadata_options const& options, int inode_offset,
               bool force_buffers, mlock_mode lock_mode,
               bool force_consistency_check,
               std::shared_ptr<performance_monitor const> const& perfmon) {
@@ -213,7 +213,7 @@ template <typename LoggerPolicy>
 class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-              const filesystem_options& options,
+              filesystem_options const& options,
               std::shared_ptr<performance_monitor const> const& perfmon);
 
   int check(filesystem_check_level level, size_t num_threads) const override;
@@ -654,7 +654,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
   }
 
   meta_.dump(
-      os, opts, get_info(opts), [&](const std::string& indent, uint32_t inode) {
+      os, opts, get_info(opts), [&](std::string const& indent, uint32_t inode) {
         std::error_code ec;
         auto chunks = meta_.get_chunks(inode, ec);
         if (!ec) {
@@ -1116,7 +1116,7 @@ filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
 
 filesystem_v2::filesystem_v2(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-    const filesystem_options& options,
+    filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl,
                                        internal::filesystem_, logger_policies>(

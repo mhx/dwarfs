@@ -36,7 +36,7 @@ using namespace dwarfs;
 
 namespace {
 
-const auto testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
+auto const testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
 
 std::vector<std::string> files;
 

@@ -212,7 +212,7 @@ class block_request_set {
   std::vector<block_request> queue_;
   size_t range_end_{0};
   std::shared_ptr<cached_block> block_;
-  const size_t block_no_;
+  size_t const block_no_;
 };
 
 // multi-threaded block cache
@@ -261,7 +261,7 @@ class block_cache_ final : public block_cache::impl {
 
     LOG_DEBUG << "cached blocks:";
 
-    for (const auto& cb : cache_) {
+    for (auto const& cb : cache_) {
       LOG_DEBUG << "  block " << cb.first << ", decompression ratio = "
                 << double(cb.second->range_end()) /
                        double(cb.second->uncompressed_size());
@@ -428,7 +428,7 @@ class block_cache_ final : public block_cache::impl {
     // That is a mighty long lock, let's see how it works...
     std::lock_guard lock(mx_);
 
-    const auto range_end = offset + size;
+    auto const range_end = offset + size;
 
     // See if the block is currently active (about-to-be decompressed)
     auto ia = active_.find(block_no);
@@ -444,7 +444,7 @@ class block_cache_ final : public block_cache::impl {
       auto end =
           std::remove_if(ia->second.begin(), ia->second.end(),
                          [&brs, range_end, &add_to_set](
-                             const std::weak_ptr<block_request_set>& wp) {
+                             std::weak_ptr<block_request_set> const& wp) {
                            if (auto rs = wp.lock()) {
                              bool can_add_to_set = range_end <= rs->range_end();
 
@@ -798,7 +798,7 @@ class block_cache_ final : public block_cache::impl {
   PERFMON_CLS_TIMER_DECL(decompress)
   std::unique_ptr<sequential_access_detector> seq_access_detector_;
   os_access const& os_;
-  const block_cache_options options_;
+  block_cache_options const options_;
   cache_tidy_config tidy_config_;
 };
 
@@ -806,7 +806,7 @@ class block_cache_ final : public block_cache::impl {
 
 block_cache::block_cache(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-    const block_cache_options& options,
+    block_cache_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
           lgr, os, std::move(mm), options, perfmon)) {}

@@ -48,7 +48,7 @@ class cached_block {
   virtual ~cached_block() = default;
 
   virtual size_t range_end() const = 0;
-  virtual const uint8_t* data() const = 0;
+  virtual uint8_t const* data() const = 0;
   virtual void decompress_until(size_t end) = 0;
   virtual size_t uncompressed_size() const = 0;
   virtual void touch() = 0;

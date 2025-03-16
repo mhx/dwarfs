@@ -385,7 +385,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace std::chrono_literals;
 
-  const size_t num_cpu = std::max(hardware_concurrency(), 1u);
+  size_t const num_cpu = std::max(hardware_concurrency(), 1u);
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
   static constexpr size_t const kDefaultBloomFilterSize{4};
 
@@ -702,9 +702,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
 
   if (vm.count("long-help")) {
-    std::string_view constexpr block_data_hdr{"Block Data"};
-    std::string_view constexpr schema_history_hdr{"Schema/History"};
-    std::string_view constexpr metadata_hdr{"Metadata"};
+    constexpr std::string_view block_data_hdr{"Block Data"};
+    constexpr std::string_view schema_history_hdr{"Schema/History"};
+    constexpr std::string_view metadata_hdr{"Metadata"};
     size_t l_dc{block_data_hdr.size()}, l_sc{schema_history_hdr.size()},
         l_mc{metadata_hdr.size()}, l_or{0};
     for (auto const& l : levels) {

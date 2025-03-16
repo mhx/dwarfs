@@ -63,18 +63,18 @@ file_stat make_file_stat(simplestat const& ss) {
   return rv;
 }
 
-file_stat::uid_type constexpr kUid1{1000};
-file_stat::uid_type constexpr kUid2{1337};
-file_stat::uid_type constexpr kUid3{0};
-file_stat::gid_type constexpr kGid1{100};
-file_stat::gid_type constexpr kGid2{0};
-file_stat::dev_type constexpr kDev1{0};
-file_stat::dev_type constexpr kDev2{259};
-file_stat::dev_type constexpr kDev3{261};
+constexpr file_stat::uid_type kUid1{1000};
+constexpr file_stat::uid_type kUid2{1337};
+constexpr file_stat::uid_type kUid3{0};
+constexpr file_stat::gid_type kGid1{100};
+constexpr file_stat::gid_type kGid2{0};
+constexpr file_stat::dev_type kDev1{0};
+constexpr file_stat::dev_type kDev2{259};
+constexpr file_stat::dev_type kDev3{261};
 
-std::array<std::pair<std::string_view, test::simplestat>,
-           15> constexpr kTestEntries{{
-    // clang-format off
+constexpr std::array<std::pair<std::string_view, test::simplestat>, 15>
+    kTestEntries{{
+        // clang-format off
     {"",                 {  1, posix_file_type::directory | 0777, 1, kUid1, kGid1,       0, kDev1,    1,    2,    3}},
     {"test.pl",          {  3, posix_file_type::regular   | 0644, 2, kUid1, kGid1,       0, kDev1, 1001, 1002, 1003}},
     {"somelink",         {  4, posix_file_type::symlink   | 0777, 1, kUid1, kGid1,      16, kDev1, 2001, 2002, 2003}},
@@ -90,8 +90,8 @@ std::array<std::pair<std::string_view, test::simplestat>,
     {"somedir/zero",     { 14, posix_file_type::character | 0666, 1, kUid3, kGid2,       0, kDev3, 4000010001, 4000020002, 4000030003}},
     {"somedir/empty",    {212, posix_file_type::regular   | 0644, 1, kUid1, kGid1,       0, kDev1, 8101, 8102, 8103}},
     {"empty",            {210, posix_file_type::regular   | 0644, 3, kUid2, kGid2,       0, kDev1, 8201, 8202, 8203}},
-    // clang-format on
-}};
+        // clang-format on
+    }};
 
 std::unordered_map<std::string_view, std::string_view> const kTestLinks{
     {"somelink", "somedir/ipsum.py"},

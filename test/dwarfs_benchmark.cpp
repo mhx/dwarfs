@@ -235,7 +235,7 @@ class filesystem : public ::benchmark::Fixture {
     fs.reset();
   }
 
-  void read_bench(::benchmark::State& state, const char* file) {
+  void read_bench(::benchmark::State& state, char const* file) {
     auto dev = fs->find(file);
     auto iv = dev->inode();
     auto st = fs->getattr(iv);
@@ -250,7 +250,7 @@ class filesystem : public ::benchmark::Fixture {
     }
   }
 
-  void read_string_bench(::benchmark::State& state, const char* file) {
+  void read_string_bench(::benchmark::State& state, char const* file) {
     auto dev = fs->find(file);
     auto i = fs->open(dev->inode());
 
@@ -336,8 +336,8 @@ class filesystem_walk : public ::benchmark::Fixture {
   std::unique_ptr<reader::filesystem_v2> fs;
 
  private:
-  constexpr static int kDimension{32};
-  constexpr static size_t kPatternLength{16};
+  static constexpr int kDimension{32};
+  static constexpr size_t kPatternLength{16};
 
   static std::string make_data(std::mt19937_64& rng, size_t size) {
     std::string data;

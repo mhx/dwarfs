@@ -35,9 +35,9 @@ namespace dwarfs {
 namespace {
 
 struct lz4_compression_policy {
-  static size_t compress(const void* src, void* dest, size_t size,
+  static size_t compress(void const* src, void* dest, size_t size,
                          size_t destsize, int /*level*/) {
-    return to<size_t>(LZ4_compress_default(static_cast<const char*>(src),
+    return to<size_t>(LZ4_compress_default(static_cast<char const*>(src),
                                            static_cast<char*>(dest),
                                            to<int>(size), to<int>(destsize)));
   }
@@ -46,9 +46,9 @@ struct lz4_compression_policy {
 };
 
 struct lz4hc_compression_policy {
-  static size_t compress(const void* src, void* dest, size_t size,
+  static size_t compress(void const* src, void* dest, size_t size,
                          size_t destsize, int level) {
-    return to<size_t>(LZ4_compress_HC(static_cast<const char*>(src),
+    return to<size_t>(LZ4_compress_HC(static_cast<char const*>(src),
                                       static_cast<char*>(dest), to<int>(size),
                                       to<int>(destsize), level));
   }
@@ -63,14 +63,14 @@ class lz4_block_compressor final : public block_compressor::impl {
  public:
   explicit lz4_block_compressor(int level = 0)
       : level_(level) {}
-  lz4_block_compressor(const lz4_block_compressor& rhs) = default;
+  lz4_block_compressor(lz4_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<lz4_block_compressor>(*this);
   }
 
   std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data,
+  compress(std::vector<uint8_t> const& data,
            std::string const* /*metadata*/) const override {
     std::vector<uint8_t> compressed(sizeof(uint32_t) +
                                     LZ4_compressBound(to<int>(data.size())));
@@ -109,12 +109,12 @@ class lz4_block_compressor final : public block_compressor::impl {
   }
 
  private:
-  const int level_;
+  int const level_;
 };
 
 class lz4_block_decompressor final : public block_decompressor::impl {
  public:
-  lz4_block_decompressor(const uint8_t* data, size_t size,
+  lz4_block_decompressor(uint8_t const* data, size_t size,
                          std::vector<uint8_t>& target)
       : decompressed_(target)
       , data_(data + sizeof(uint32_t))
@@ -140,7 +140,7 @@ class lz4_block_decompressor final : public block_decompressor::impl {
     }
 
     decompressed_.resize(uncompressed_size_);
-    auto rv = LZ4_decompress_safe(reinterpret_cast<const char*>(data_),
+    auto rv = LZ4_decompress_safe(reinterpret_cast<char const*>(data_),
                                   reinterpret_cast<char*>(&decompressed_[0]),
                                   static_cast<int>(input_size_),
                                   static_cast<int>(uncompressed_size_));
@@ -157,7 +157,7 @@ class lz4_block_decompressor final : public block_decompressor::impl {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  static size_t get_uncompressed_size(const uint8_t* data) {
+  static size_t get_uncompressed_size(uint8_t const* data) {
     // TODO: enforce little-endian
     uint32_t size;
     ::memcpy(&size, data, sizeof(size));
@@ -165,9 +165,9 @@ class lz4_block_decompressor final : public block_decompressor::impl {
   }
 
   std::vector<uint8_t>& decompressed_;
-  const uint8_t* const data_;
-  const size_t input_size_;
-  const size_t uncompressed_size_;
+  uint8_t const* const data_;
+  size_t const input_size_;
+  size_t const uncompressed_size_;
   std::string error_;
 };
 

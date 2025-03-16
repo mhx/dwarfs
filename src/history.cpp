@@ -47,7 +47,7 @@ void history::parse(std::span<uint8_t const> data) {
 }
 
 void history::parse_append(std::span<uint8_t const> data) {
-  folly::Range<const uint8_t*> range{data.data(), data.size()};
+  folly::Range<uint8_t const*> range{data.data(), data.size()};
   thrift::history::history tmp;
   apache::thrift::CompactSerializer::deserialize(range, tmp);
   history_->entries()->insert(history_->entries()->end(),

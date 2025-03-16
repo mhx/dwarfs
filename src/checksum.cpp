@@ -109,7 +109,7 @@ class checksum_evp : public checksum::impl {
   static std::vector<std::string> available_algorithms() {
     std::vector<std::string> available;
     ::EVP_MD_do_all(
-        [](const ::EVP_MD*, const char* from, const char* to, void* vec) {
+        [](::EVP_MD const*, char const* from, char const* to, void* vec) {
           // TODO: C++23: use std::ranges::contains
           if (!to && std::ranges::find(unsupported_algorithms, from) ==
                          unsupported_algorithms.end()) {
@@ -198,7 +198,7 @@ using checksum_xxh3_64 = checksum_xxh3<xxh3_64_policy>;
 using checksum_xxh3_128 = checksum_xxh3<xxh3_128_policy>;
 
 template <typename T>
-bool verify_impl(T&& alg, void const* data, size_t size, const void* digest,
+bool verify_impl(T&& alg, void const* data, size_t size, void const* digest,
                  size_t digest_size) {
   std::array<char, EVP_MAX_MD_SIZE> tmp;
   checksum cs(std::forward<T>(alg));
@@ -228,12 +228,12 @@ std::vector<std::string> checksum::available_algorithms() {
 }
 
 bool checksum::verify(algorithm alg, void const* data, size_t size,
-                      const void* digest, size_t digest_size) {
+                      void const* digest, size_t digest_size) {
   return verify_impl(alg, data, size, digest, digest_size);
 }
 
 bool checksum::verify(std::string const& alg, void const* data, size_t size,
-                      const void* digest, size_t digest_size) {
+                      void const* digest, size_t digest_size) {
   return verify_impl(alg, data, size, digest, digest_size);
 }
 

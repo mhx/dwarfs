@@ -59,7 +59,7 @@ TEST(error_test, runtime_error) {
   try {
     test_throw_runtime_error(true);
     FAIL() << "expected runtime_error to be thrown";
-  } catch (const runtime_error& e) {
+  } catch (runtime_error const& e) {
     EXPECT_EQ("error_test.cpp",
               std::filesystem::path(e.file()).filename().string());
     EXPECT_EQ(fmt::format("my test error [error_test.cpp:{}]", e.line()),
@@ -77,7 +77,7 @@ TEST(error_test, system_error) {
   try {
     test_throw_system_error(true);
     FAIL() << "expected system_error to be thrown";
-  } catch (const system_error& e) {
+  } catch (system_error const& e) {
     EXPECT_THAT(std::string(e.what()),
                 ::testing::MatchesRegex("my test system error: .*"));
     EXPECT_EQ("error_test.cpp",

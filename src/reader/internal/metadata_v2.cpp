@@ -386,7 +386,7 @@ get_category_info(MappedFrozen<thrift::metadata::metadata> const& meta,
   return catinfo;
 }
 
-const uint16_t READ_ONLY_MASK = ~uint16_t(
+uint16_t const READ_ONLY_MASK = ~uint16_t(
     fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write);
 
 } // namespace
@@ -488,7 +488,7 @@ class metadata_ final : public metadata_v2::impl {
 
   void dump(std::ostream& os, fsinfo_options const& opts,
             filesystem_info const* fsinfo,
-            std::function<void(const std::string&, uint32_t)> const& icb)
+            std::function<void(std::string const&, uint32_t)> const& icb)
       const override;
 
   nlohmann::json info_as_json(fsinfo_options const& opts,
@@ -663,12 +663,12 @@ class metadata_ final : public metadata_v2::impl {
 
   // TODO: see if we really need to pass the extra dir_entry_view in
   //       addition to directory_view
-  void dump(std::ostream& os, const std::string& indent,
+  void dump(std::ostream& os, std::string const& indent,
             dir_entry_view const& entry, fsinfo_options const& opts,
-            std::function<void(const std::string&, uint32_t)> const& icb) const;
-  void dump(std::ostream& os, const std::string& indent, directory_view dir,
+            std::function<void(std::string const&, uint32_t)> const& icb) const;
+  void dump(std::ostream& os, std::string const& indent, directory_view dir,
             dir_entry_view const& entry, fsinfo_options const& opts,
-            std::function<void(const std::string&, uint32_t)> const& icb) const;
+            std::function<void(std::string const&, uint32_t)> const& icb) const;
 
   nlohmann::json as_json(dir_entry_view const& entry) const;
   nlohmann::json as_json(directory_view dir, dir_entry_view const& entry) const;
@@ -1018,20 +1018,20 @@ class metadata_ final : public metadata_v2::impl {
 
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
-  const global_metadata global_;
+  global_metadata const global_;
   dir_entry_view root_;
   LOG_PROXY_DECL(LoggerPolicy);
-  const int inode_offset_;
-  const int symlink_inode_offset_;
-  const int file_inode_offset_;
-  const int dev_inode_offset_;
-  const int inode_count_;
-  const packed_int_vector<uint32_t> nlinks_;
-  const packed_int_vector<uint32_t> chunk_table_;
-  const packed_int_vector<uint32_t> shared_files_;
-  const int unique_files_;
-  const metadata_options options_;
-  const string_table symlinks_;
+  int const inode_offset_;
+  int const symlink_inode_offset_;
+  int const file_inode_offset_;
+  int const dev_inode_offset_;
+  int const inode_count_;
+  packed_int_vector<uint32_t> const nlinks_;
+  packed_int_vector<uint32_t> const chunk_table_;
+  packed_int_vector<uint32_t> const shared_files_;
+  int const unique_files_;
+  metadata_options const options_;
+  string_table const symlinks_;
   std::vector<packed_int_vector<uint32_t>> const dir_icase_cache_;
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(find)
@@ -1181,9 +1181,9 @@ void metadata_<LoggerPolicy>::check_consistency() const {
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, const std::string& indent, dir_entry_view const& entry,
+    std::ostream& os, std::string const& indent, dir_entry_view const& entry,
     fsinfo_options const& opts,
-    std::function<void(const std::string&, uint32_t)> const& icb) const {
+    std::function<void(std::string const&, uint32_t)> const& icb) const {
   auto iv = entry.inode();
   auto mode = iv.mode();
   auto inode = iv.inode_num();
@@ -1355,9 +1355,9 @@ metadata_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
 // TODO: can we move this to dir_entry_view?
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, const std::string& indent, directory_view dir,
+    std::ostream& os, std::string const& indent, directory_view dir,
     dir_entry_view const& entry, fsinfo_options const& opts,
-    std::function<void(const std::string&, uint32_t)> const& icb) const {
+    std::function<void(std::string const&, uint32_t)> const& icb) const {
   auto range = dir.entry_range();
 
   os << " (" << range.size() << " entries, parent=" << dir.parent_entry()
@@ -1372,7 +1372,7 @@ void metadata_<LoggerPolicy>::dump(
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, fsinfo_options const& opts, filesystem_info const* fsinfo,
-    std::function<void(const std::string&, uint32_t)> const& icb) const {
+    std::function<void(std::string const&, uint32_t)> const& icb) const {
   vfs_stat stbuf;
   statvfs(&stbuf);
 

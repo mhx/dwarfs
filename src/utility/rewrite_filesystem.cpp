@@ -72,7 +72,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
   size_t block_no{0};
 
   auto log_rewrite =
-      [&](bool compressing, const auto& s,
+      [&](bool compressing, auto const& s,
           std::optional<fragment_category::value_type> const& cat) {
         auto prefix = compressing ? "recompressing" : "copying";
         std::string catinfo;
@@ -91,12 +91,12 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
       };
 
   auto log_recompress =
-      [&](const auto& s,
+      [&](auto const& s,
           std::optional<fragment_category::value_type> const& cat =
               std::nullopt) { log_rewrite(true, s, cat); };
 
   auto copy_compressed =
-      [&](const auto& s,
+      [&](auto const& s,
           std::optional<fragment_category::value_type> const& cat =
               std::nullopt) {
         log_rewrite(false, s, cat);

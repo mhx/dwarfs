@@ -196,7 +196,7 @@ class fsblock_merger_policy {
 
 class raw_fsblock : public fsblock::impl {
  public:
-  raw_fsblock(section_type type, const block_compressor& bc,
+  raw_fsblock(section_type type, block_compressor const& bc,
               std::shared_ptr<block_data>&& data,
               std::shared_ptr<compression_progress> pctx,
               folly::Function<void(size_t)> set_block_cb)
@@ -286,9 +286,9 @@ class raw_fsblock : public fsblock::impl {
   }
 
  private:
-  const section_type type_;
+  section_type const type_;
   block_compressor const& bc_;
-  const size_t uncompressed_size_;
+  size_t const uncompressed_size_;
   mutable std::recursive_mutex mx_;
   std::shared_ptr<block_data> data_;
   std::future<void> future_;
@@ -459,7 +459,7 @@ class rewritten_fsblock : public fsblock::impl {
   }
 
  private:
-  const section_type type_;
+  section_type const type_;
   block_compressor const& bc_;
   mutable std::recursive_mutex mx_;
   std::span<uint8_t const> data_;
@@ -603,9 +603,9 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   void
   write_section_impl(section_type type, std::shared_ptr<block_data>&& data);
   void write(fsblock const& fsb);
-  void write(const char* data, size_t size);
+  void write(char const* data, size_t size);
   template <typename T>
-  void write(const T& obj);
+  void write(T const& obj);
   void write(std::span<uint8_t const> range);
   void writer_thread();
   void push_section_index(section_type type);
@@ -627,7 +627,7 @@ class filesystem_writer_ final : public filesystem_writer_detail {
   std::shared_ptr<compression_progress> pctx_;
   mutable std::mutex mx_;
   std::condition_variable cond_;
-  volatile bool flush_{true};
+  bool volatile flush_{true};
   std::thread writer_thread_;
   uint32_t section_number_{0};
   std::vector<uint64_t> section_index_;
@@ -719,7 +719,7 @@ template <typename LoggerPolicy>
 size_t filesystem_writer_<LoggerPolicy>::mem_used() const {
   size_t s = 0;
 
-  for (const auto& holder : queue_) {
+  for (auto const& holder : queue_) {
     s += holder.value()->size();
   }
 
@@ -727,7 +727,7 @@ size_t filesystem_writer_<LoggerPolicy>::mem_used() const {
 }
 
 template <typename LoggerPolicy>
-void filesystem_writer_<LoggerPolicy>::write(const char* data, size_t size) {
+void filesystem_writer_<LoggerPolicy>::write(char const* data, size_t size) {
   // TODO: error handling :-)
   os_.write(data, size);
   image_size_ += size;
@@ -736,13 +736,13 @@ void filesystem_writer_<LoggerPolicy>::write(const char* data, size_t size) {
 
 template <typename LoggerPolicy>
 template <typename T>
-void filesystem_writer_<LoggerPolicy>::write(const T& obj) {
-  write(reinterpret_cast<const char*>(&obj), sizeof(T));
+void filesystem_writer_<LoggerPolicy>::write(T const& obj) {
+  write(reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
 template <typename LoggerPolicy>
 void filesystem_writer_<LoggerPolicy>::write(std::span<uint8_t const> range) {
-  write(reinterpret_cast<const char*>(range.data()), range.size());
+  write(reinterpret_cast<char const*>(range.data()), range.size());
 }
 
 template <typename LoggerPolicy>

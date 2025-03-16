@@ -79,9 +79,9 @@ class multi_queue_block_merger_impl : public block_merger_base,
   multi_queue_block_merger_impl(multi_queue_block_merger_impl&&) = default;
   multi_queue_block_merger_impl&
   operator=(multi_queue_block_merger_impl&&) = default;
-  multi_queue_block_merger_impl(const multi_queue_block_merger_impl&) = delete;
+  multi_queue_block_merger_impl(multi_queue_block_merger_impl const&) = delete;
   multi_queue_block_merger_impl&
-  operator=(const multi_queue_block_merger_impl&) = delete;
+  operator=(multi_queue_block_merger_impl const&) = delete;
 
   void add(source_type src, block_type blk) override {
     auto const block_size = this->block_size(blk);

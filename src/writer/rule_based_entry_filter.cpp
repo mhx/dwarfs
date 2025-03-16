@@ -260,7 +260,7 @@ filter_action rule_based_entry_filter_<LoggerPolicy>::filter(
     relpath.erase(0, root_path_.size());
   }
 
-  for (const auto& r : filter_) {
+  for (auto const& r : filter_) {
     if (std::regex_match(r.floating ? path : relpath, r.re)) {
       LOG_TRACE << "[" << path << "] / [" << relpath << "] matched rule '"
                 << r.rule << "'";

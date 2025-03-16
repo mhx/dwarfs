@@ -49,7 +49,7 @@ class scanner {
  public:
   scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
           entry_factory& ef, os_access const& os,
-          const scanner_options& options);
+          scanner_options const& options);
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) {
     impl_->add_filter(std::move(filter));
@@ -60,7 +60,7 @@ class scanner {
   }
 
   void scan(
-      filesystem_writer& fsw, const std::filesystem::path& path,
+      filesystem_writer& fsw, std::filesystem::path const& path,
       writer_progress& prog,
       std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
       std::shared_ptr<file_access const> fa = nullptr) {
@@ -77,7 +77,7 @@ class scanner {
     add_transformer(std::unique_ptr<entry_transformer>&& transformer) = 0;
 
     virtual void
-    scan(filesystem_writer& fsw, const std::filesystem::path& path,
+    scan(filesystem_writer& fsw, std::filesystem::path const& path,
          writer_progress& prog,
          std::optional<std::span<std::filesystem::path const>> list,
          std::shared_ptr<file_access const> fa) = 0;
