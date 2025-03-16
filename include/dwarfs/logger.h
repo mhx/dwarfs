@@ -143,7 +143,8 @@ class level_log_entry {
   ~level_log_entry() { lgr_.write(level_, oss_.str(), loc_); }
 
   template <typename T>
-  level_log_entry& operator<<(const T& val) {
+  level_log_entry& operator<<(T const& val) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     oss_ << val;
     return *this;
   }
@@ -163,9 +164,10 @@ class timed_level_log_entry {
   ~timed_level_log_entry();
 
   template <typename T>
-  timed_level_log_entry& operator<<(const T& val) {
+  timed_level_log_entry& operator<<(T const& val) {
     if (state_) {
       output_ = true;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
       oss_ << val;
     }
     return *this;
