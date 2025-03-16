@@ -25,9 +25,7 @@
 #include <string_view>
 #include <system_error>
 
-namespace dwarfs {
-
-namespace writer::internal {
+namespace dwarfs::writer::internal {
 
 class file;
 
@@ -43,6 +41,4 @@ class chunkable {
   virtual std::error_code release_until(size_t offset) = 0;
 };
 
-} // namespace writer::internal
-
-} // namespace dwarfs
+} // namespace dwarfs::writer::internal
