@@ -134,11 +134,11 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
   void open_stream(std::ostream& os, std::string const& format) override {
 #ifdef _WIN32
-    if (::_pipe(pipefd_, 8192, _O_BINARY) != 0) {
+    if (::_pipe(pipefd_.data(), 8192, _O_BINARY) != 0) {
       DWARFS_THROW(system_error, "_pipe()");
     }
 #else
-    if (::pipe(pipefd_) != 0) {
+    if (::pipe(pipefd_.data()) != 0) {
       DWARFS_THROW(system_error, "pipe()");
     }
 #endif
@@ -247,7 +247,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   LOG_PROXY_DECL(debug_logger_policy);
   os_access const& os_;
   struct ::archive* a_{nullptr};
-  int pipefd_[2]{-1, -1};
+  std::array<int, 2> pipefd_{-1, -1};
   std::unique_ptr<std::thread> iot_;
 };
 
