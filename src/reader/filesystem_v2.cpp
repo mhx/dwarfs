@@ -95,24 +95,23 @@ auto call_ec_throw(Fn&& fn) {
 
 using section_map = std::unordered_map<section_type, std::vector<fs_section>>;
 
-block_decompressor
-get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
-  if (!sec.check_fast(*mm)) {
+block_decompressor get_block_decompressor(mmif& mm, fs_section const& sec) {
+  if (!sec.check_fast(mm)) {
     DWARFS_THROW(
         runtime_error,
         fmt::format("attempt to access damaged {} section", sec.name()));
   }
 
   std::vector<uint8_t> tmp;
-  auto span = sec.data(*mm);
+  auto span = sec.data(mm);
   return {sec.compression(), span.data(), span.size(), tmp};
 }
 
 std::optional<block_decompressor>
-try_get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
-  if (sec.check_fast(*mm)) {
+try_get_block_decompressor(mmif& mm, fs_section const& sec) {
+  if (sec.check_fast(mm)) {
     try {
-      return get_block_decompressor(std::move(mm), sec);
+      return get_block_decompressor(mm, sec);
     } catch (std::exception const&) { // NOLINT(bugprone-empty-catch)
     }
   }
@@ -120,23 +119,22 @@ try_get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
   return std::nullopt;
 }
 
-size_t
-get_uncompressed_section_size(std::shared_ptr<mmif> mm, fs_section const& sec) {
+size_t get_uncompressed_section_size(mmif& mm, fs_section const& sec) {
   if (sec.compression() == compression_type::NONE) {
     return sec.length();
   }
 
-  return get_block_decompressor(std::move(mm), sec).uncompressed_size();
+  return get_block_decompressor(mm, sec).uncompressed_size();
 }
 
 std::span<uint8_t const>
-get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
+get_section_data(mmif& mm, fs_section const& section,
                  std::vector<uint8_t>& buffer, bool force_buffer) {
   DWARFS_CHECK(
-      section.check_fast(*mm),
+      section.check_fast(mm),
       fmt::format("attempt to access damaged {} section", section.name()));
 
-  auto span = section.data(*mm);
+  auto span = section.data(mm);
   auto compression = section.compression();
 
   if (!force_buffer && compression == compression_type::NONE) {
@@ -150,8 +148,8 @@ get_section_data(std::shared_ptr<mmif> mm, fs_section const& section,
 }
 
 metadata_v2
-make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
-              section_map const& sections, std::vector<uint8_t>& schema_buffer,
+make_metadata(logger& lgr, mmif& mm, section_map const& sections,
+              std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
               const metadata_options& options, int inode_offset,
               bool force_buffers, mlock_mode lock_mode,
@@ -183,7 +181,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
       get_section_data(mm, meta_section, meta_buffer, force_buffers);
 
   if (lock_mode != mlock_mode::NONE) {
-    if (auto ec = mm->lock(meta_section.start(), meta_section_range.size())) {
+    if (auto ec = mm.lock(meta_section.start(), meta_section_range.size())) {
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
       } else {
@@ -194,7 +192,7 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
 
   // don't keep the compressed metadata in cache
   if (meta_section.compression() != compression_type::NONE) {
-    if (auto ec = mm->release(meta_section.start(), meta_section.length())) {
+    if (auto ec = mm.release(meta_section.start(), meta_section.length())) {
       LOG_INFO << "madvise() failed: " << ec.message();
     }
   }
@@ -401,7 +399,7 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
         info.compressed_block_sizes.push_back(s->length());
         if (opts.block_access >= block_access_level::unrestricted) {
           try {
-            auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
+            auto uncompressed_size = get_uncompressed_section_size(*mm_, *s);
             info.uncompressed_block_size += uncompressed_size;
             info.uncompressed_block_sizes.emplace_back(uncompressed_size);
           } catch (std::exception const&) {
@@ -418,7 +416,7 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
         info.compressed_metadata_size += s->length();
         try {
           info.uncompressed_metadata_size +=
-              get_uncompressed_section_size(mm_, *s);
+              get_uncompressed_section_size(*mm_, *s);
         } catch (std::exception const&) {
           info.uncompressed_metadata_size += s->length();
           info.uncompressed_metadata_size_is_estimate = true;
@@ -515,7 +513,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 
   std::vector<uint8_t> schema_buffer;
 
-  meta_ = make_metadata(lgr, mm_, sections, schema_buffer, meta_buffer_,
+  meta_ = make_metadata(lgr, *mm_, sections, schema_buffer, meta_buffer_,
                         options.metadata, options.inode_offset, false,
                         options.lock_mode, !parser.has_checksums(), perfmon);
 
@@ -530,7 +528,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     for (auto& section : it->second) {
       if (section.check_fast(*mm_)) {
         std::vector<uint8_t> buffer;
-        history_.parse_append(get_section_data(mm_, section, buffer, false));
+        history_.parse_append(get_section_data(*mm_, section, buffer, false));
       }
     }
   }
@@ -617,7 +615,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
     while (auto sp = parser.next_section()) {
       auto const& s = *sp;
 
-      auto bd = try_get_block_decompressor(mm_, s);
+      auto bd = try_get_block_decompressor(*mm_, s);
       std::string block_size;
 
       if (bd) {
@@ -710,7 +708,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
           {"checksum_ok", checksum_ok},
       };
 
-      auto bd = try_get_block_decompressor(mm_, s);
+      auto bd = try_get_block_decompressor(*mm_, s);
 
       if (bd) {
         auto uncompressed_size = bd->uncompressed_size();
@@ -1131,7 +1129,7 @@ int filesystem_v2::identify(logger& lgr, os_access const& os,
   filesystem_options fsopts;
   fsopts.metadata.enable_nlink = true;
   fsopts.image_offset = image_offset;
-  filesystem_v2 fs(lgr, os, mm, fsopts);
+  filesystem_v2 fs(lgr, os, std::move(mm), fsopts);
 
   auto errors = fs.check(check_integrity ? filesystem_check_level::FULL
                                          : filesystem_check_level::CHECKSUM,
@@ -1149,7 +1147,7 @@ filesystem_v2::header(std::shared_ptr<mmif> mm) {
 
 std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
-  return internal::filesystem_parser(mm, image_offset).header();
+  return internal::filesystem_parser(std::move(mm), image_offset).header();
 }
 
 } // namespace dwarfs::reader
