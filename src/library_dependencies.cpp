@@ -61,6 +61,7 @@ std::string get_jemalloc_version() {
   j = JEMALLOC_VERSION;
 #else
   size_t s = sizeof(j);
+  // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
   ::mallctl("version", &j, &s, nullptr, 0);
 #endif
   std::string rv{j};

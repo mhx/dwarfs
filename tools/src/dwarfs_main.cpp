@@ -319,8 +319,10 @@ void checked_reply_err(LogProxy& log_, fuse_req_t req, T&& f) {
 #endif
 
 #if DWARFS_FUSE_LOWLEVEL
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define dUSERDATA                                                              \
   auto& userdata = *reinterpret_cast<dwarfs_userdata*>(fuse_req_userdata(req))
+// NOLINTEND(bugprone-macro-parentheses)
 #else
 #define dUSERDATA                                                              \
   auto& userdata =                                                             \

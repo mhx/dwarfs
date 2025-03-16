@@ -386,7 +386,7 @@ class inode_ : public inode {
     while (size >= chunk_size) {
       scanner(mm->span(offset, chunk_size));
       // release_until() is best-effort, we can ignore the return value
-      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
       mm->release_until(offset);
       offset += chunk_size;
       size -= chunk_size;

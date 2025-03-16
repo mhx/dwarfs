@@ -150,7 +150,7 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   if (force_consistency_check) {
     global_metadata::check_consistency(lgr, meta);
   }
-  return meta;
+  return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
 void analyze_frozen(std::ostream& os,
