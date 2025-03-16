@@ -65,7 +65,7 @@ class filesystem_writer {
 
   internal::filesystem_writer_detail& get_internal() { return *impl_; }
 
- protected:
+ private:
   std::unique_ptr<internal::filesystem_writer_detail> impl_;
 };
 
