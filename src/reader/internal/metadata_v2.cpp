@@ -1431,7 +1431,7 @@ void metadata_<LoggerPolicy>::dump(
       std::vector<std::string> options;
       parse_metadata_options(meta_, [&](auto const& name, bool value) {
         if (value) {
-          options.push_back(name);
+          options.emplace_back(name);
         }
       });
       os << "options: " << boost::join(options, "\n         ") << "\n";
