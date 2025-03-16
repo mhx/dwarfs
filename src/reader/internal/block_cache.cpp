@@ -219,7 +219,7 @@ class block_cache_ final : public block_cache::impl {
  public:
   block_cache_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
                block_cache_options const& options,
-               std::shared_ptr<performance_monitor const> perfmon
+               std::shared_ptr<performance_monitor const> const& perfmon
                [[maybe_unused]])
       : cache_(0)
       , mm_(std::move(mm))
@@ -802,11 +802,11 @@ class block_cache_ final : public block_cache::impl {
 
 } // namespace
 
-block_cache::block_cache(logger& lgr, os_access const& os,
-                         std::shared_ptr<mmif> mm,
-                         const block_cache_options& options,
-                         std::shared_ptr<performance_monitor const> perfmon)
+block_cache::block_cache(
+    logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+    const block_cache_options& options,
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<impl, block_cache_, logger_policies>(
-          lgr, os, std::move(mm), options, std::move(perfmon))) {}
+          lgr, os, std::move(mm), options, perfmon)) {}
 
 } // namespace dwarfs::reader::internal

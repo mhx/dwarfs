@@ -397,7 +397,8 @@ class metadata_ final : public metadata_v2::impl {
   metadata_(logger& lgr, std::span<uint8_t const> schema,
             std::span<uint8_t const> data, metadata_options const& options,
             int inode_offset, bool force_consistency_check,
-            std::shared_ptr<performance_monitor const> perfmon [[maybe_unused]])
+            std::shared_ptr<performance_monitor const> const& perfmon
+            [[maybe_unused]])
       : data_(data)
       , meta_(
             check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_)))
@@ -2193,14 +2194,14 @@ std::vector<file_stat::gid_type> metadata_<LoggerPolicy>::get_all_gids() const {
   return rv;
 }
 
-metadata_v2::metadata_v2(logger& lgr, std::span<uint8_t const> schema,
-                         std::span<uint8_t const> data,
-                         metadata_options const& options, int inode_offset,
-                         bool force_consistency_check,
-                         std::shared_ptr<performance_monitor const> perfmon)
+metadata_v2::metadata_v2(
+    logger& lgr, std::span<uint8_t const> schema, std::span<uint8_t const> data,
+    metadata_options const& options, int inode_offset,
+    bool force_consistency_check,
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<metadata_v2::impl, metadata_,
                                        logger_policies>(
           lgr, schema, data, options, inode_offset, force_consistency_check,
-          std::move(perfmon))) {}
+          perfmon)) {}
 
 } // namespace dwarfs::reader::internal

@@ -153,11 +153,10 @@ metadata_v2
 make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
               section_map const& sections, std::vector<uint8_t>& schema_buffer,
               std::vector<uint8_t>& meta_buffer,
-              const metadata_options& options, int inode_offset = 0,
-              bool force_buffers = false,
-              mlock_mode lock_mode = mlock_mode::NONE,
-              bool force_consistency_check = false,
-              std::shared_ptr<performance_monitor const> perfmon = nullptr) {
+              const metadata_options& options, int inode_offset,
+              bool force_buffers, mlock_mode lock_mode,
+              bool force_consistency_check,
+              std::shared_ptr<performance_monitor const> const& perfmon) {
   LOG_PROXY(debug_logger_policy, lgr);
   auto schema_it = sections.find(section_type::METADATA_V2_SCHEMA);
   auto meta_it = sections.find(section_type::METADATA_V2);
@@ -217,7 +216,7 @@ class filesystem_ final : public filesystem_v2::impl {
  public:
   filesystem_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
               const filesystem_options& options,
-              std::shared_ptr<performance_monitor const> perfmon);
+              std::shared_ptr<performance_monitor const> const& perfmon);
 
   int check(filesystem_check_level level, size_t num_threads) const override;
   void dump(std::ostream& os, fsinfo_options const& opts) const override;
@@ -438,7 +437,7 @@ template <typename LoggerPolicy>
 filesystem_<LoggerPolicy>::filesystem_(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
     filesystem_options const& options,
-    std::shared_ptr<performance_monitor const> perfmon)
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{std::move(mm)}
@@ -1106,24 +1105,24 @@ filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
     : filesystem_v2(lgr, os, os.map_file(os.canonical(path))) {}
 
-filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
-                             std::filesystem::path const& path,
-                             filesystem_options const& options,
-                             std::shared_ptr<performance_monitor const> perfmon)
+filesystem_v2::filesystem_v2(
+    logger& lgr, os_access const& os, std::filesystem::path const& path,
+    filesystem_options const& options,
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : filesystem_v2(lgr, os, os.map_file(os.canonical(path)), options,
-                    std::move(perfmon)) {}
+                    perfmon) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::shared_ptr<mmif> mm)
     : filesystem_v2(lgr, os, std::move(mm), filesystem_options()) {}
 
-filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
-                             std::shared_ptr<mmif> mm,
-                             const filesystem_options& options,
-                             std::shared_ptr<performance_monitor const> perfmon)
+filesystem_v2::filesystem_v2(
+    logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+    const filesystem_options& options,
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<filesystem_v2::impl,
                                        internal::filesystem_, logger_policies>(
-          lgr, os, std::move(mm), options, std::move(perfmon))) {}
+          lgr, os, std::move(mm), options, perfmon)) {}
 
 int filesystem_v2::identify(logger& lgr, os_access const& os,
                             std::shared_ptr<mmif> mm, std::ostream& output,
