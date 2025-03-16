@@ -38,15 +38,17 @@ namespace dwarfs {
 class logger;
 class os_access;
 
-struct inode_options;
-
 namespace internal {
 
 class worker_group;
 
 }
 
-namespace writer::internal {
+namespace writer {
+
+struct inode_options;
+
+namespace internal {
 
 class file;
 class progress;
@@ -134,6 +136,6 @@ class inode_manager {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace writer::internal
-
+} // namespace internal
+} // namespace writer
 } // namespace dwarfs

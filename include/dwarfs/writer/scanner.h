@@ -30,7 +30,6 @@
 namespace dwarfs {
 
 class file_access;
-class filesystem_writer;
 class logger;
 class os_access;
 class thread_pool;
@@ -42,6 +41,7 @@ struct scanner_options;
 class entry_filter;
 class entry_transformer;
 class entry_factory;
+class filesystem_writer;
 class writer_progress;
 class segmenter_factory;
 
@@ -88,5 +88,4 @@ class scanner {
 };
 
 } // namespace writer
-
 } // namespace dwarfs

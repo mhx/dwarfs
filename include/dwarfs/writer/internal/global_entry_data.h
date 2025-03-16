@@ -30,11 +30,11 @@
 
 #include <dwarfs/file_stat.h>
 
-namespace dwarfs {
+namespace dwarfs::writer {
 
 struct scanner_options;
 
-namespace writer::internal {
+namespace internal {
 
 class global_entry_data {
  public:
@@ -109,6 +109,5 @@ class global_entry_data {
   scanner_options const& options_;
 };
 
-} // namespace writer::internal
-
-} // namespace dwarfs
+} // namespace internal
+} // namespace dwarfs::writer

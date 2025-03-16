@@ -35,14 +35,18 @@
 
 namespace dwarfs {
 
-struct cache_tidy_config;
-class block_cache;
 class logger;
-struct inode_reader_options;
-struct iovec_read_buf;
 class performance_monitor;
 
-namespace reader::internal {
+namespace reader {
+
+struct cache_tidy_config;
+struct inode_reader_options;
+struct iovec_read_buf;
+
+namespace internal {
+
+class block_cache;
 
 class inode_reader_v2 {
  public:
@@ -116,5 +120,6 @@ class inode_reader_v2 {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace reader::internal
+} // namespace internal
+} // namespace reader
 } // namespace dwarfs
