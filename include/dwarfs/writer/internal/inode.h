@@ -46,9 +46,11 @@ class chunk;
 class mmif;
 class os_access;
 
+namespace writer {
+
 struct inode_options;
 
-namespace writer::internal {
+namespace internal {
 
 class file;
 class progress;
@@ -85,6 +87,6 @@ class inode : public object {
 using sortable_inode_span =
     sortable_span<std::shared_ptr<inode> const, uint32_t>;
 
-} // namespace writer::internal
-
+} // namespace internal
+} // namespace writer
 } // namespace dwarfs

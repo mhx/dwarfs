@@ -42,10 +42,7 @@ namespace dwarfs {
 
 class logger;
 
-struct getattr_options;
-struct metadata_options;
 struct filesystem_info;
-struct fsinfo_options;
 struct vfs_stat;
 
 class performance_monitor;
@@ -54,7 +51,13 @@ namespace thrift::metadata {
 class metadata;
 }
 
-namespace reader::internal {
+namespace reader {
+
+struct fsinfo_options;
+struct getattr_options;
+struct metadata_options;
+
+namespace internal {
 
 class metadata_v2 {
  public:
@@ -250,5 +253,6 @@ class metadata_v2 {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace reader::internal
+} // namespace internal
+} // namespace reader
 } // namespace dwarfs

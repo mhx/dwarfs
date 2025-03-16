@@ -33,9 +33,6 @@
 
 namespace dwarfs {
 
-struct block_cache_options;
-struct cache_tidy_config;
-
 class logger;
 class mmif;
 class os_access;
@@ -47,7 +44,12 @@ class fs_section;
 
 }
 
-namespace reader::internal {
+namespace reader {
+
+struct block_cache_options;
+struct cache_tidy_config;
+
+namespace internal {
 
 class block_cache {
  public:
@@ -91,5 +93,6 @@ class block_cache {
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace reader::internal
+} // namespace internal
+} // namespace reader
 } // namespace dwarfs
