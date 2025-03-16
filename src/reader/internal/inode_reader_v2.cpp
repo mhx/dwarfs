@@ -284,7 +284,7 @@ inode_reader_<LoggerPolicy>::read_internal(uint32_t inode, size_t const size,
   while (it < end) {
     size_t chunksize = it->size();
 
-    if (static_cast<size_t>(offset) < chunksize) {
+    if (std::cmp_less(offset, chunksize)) {
       break;
     }
 

@@ -122,7 +122,7 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
 
   if (seq_jobs_.empty()) [[unlikely]] {
     for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
-      if (index_ >= 0 && static_cast<int>(index) >= index_) {
+      if (index_ >= 0 && std::cmp_greater_equal(index, index_)) {
         break;
       }
 

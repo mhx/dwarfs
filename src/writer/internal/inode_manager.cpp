@@ -420,7 +420,7 @@ class inode_ : public inode {
 
     for (auto [cat, size] : fragments_.get_category_sizes()) {
       if (auto max = opts.max_similarity_scan_size;
-          max && static_cast<size_t>(size) > *max) {
+          max && std::cmp_greater(size, *max)) {
         continue;
       }
 
