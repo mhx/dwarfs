@@ -58,7 +58,7 @@ class categorizer {
   virtual std::string
   category_metadata(std::string_view category_name, fragment_category c) const;
   virtual void set_metadata_requirements(std::string_view category_name,
-                                         std::string requirements);
+                                         std::string_view requirements);
   virtual bool
   subcategory_less(fragment_category a, fragment_category b) const = 0;
 };
@@ -153,9 +153,9 @@ class categorizer_manager : public category_resolver {
     return impl_->category_metadata(c);
   }
 
-  void
-  set_metadata_requirements(fragment_category::value_type c, std::string req) {
-    impl_->set_metadata_requirements(c, std::move(req));
+  void set_metadata_requirements(fragment_category::value_type c,
+                                 std::string_view req) {
+    impl_->set_metadata_requirements(c, req);
   }
 
   bool deterministic_less(fragment_category a, fragment_category b) const {
@@ -174,7 +174,7 @@ class categorizer_manager : public category_resolver {
     category_value(std::string_view name) const = 0;
     virtual std::string category_metadata(fragment_category c) const = 0;
     virtual void set_metadata_requirements(fragment_category::value_type c,
-                                           std::string req) = 0;
+                                           std::string_view req) = 0;
     virtual bool
     deterministic_less(fragment_category a, fragment_category b) const = 0;
   };

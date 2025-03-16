@@ -347,7 +347,7 @@ class fits_categorizer_ final : public fits_categorizer_base {
   }
 
   void set_metadata_requirements(std::string_view category_name,
-                                 std::string requirements) override;
+                                 std::string_view requirements) override;
 
   bool
   subcategory_less(fragment_category a, fragment_category b) const override;
@@ -425,7 +425,7 @@ inode_fragments fits_categorizer_<LoggerPolicy>::categorize(
 
 template <typename LoggerPolicy>
 void fits_categorizer_<LoggerPolicy>::set_metadata_requirements(
-    std::string_view category_name, std::string requirements) {
+    std::string_view category_name, std::string_view requirements) {
   if (!requirements.empty()) {
     auto req = nlohmann::json::parse(requirements);
     if (category_name == IMAGE_CATEGORY) {
