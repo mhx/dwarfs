@@ -283,78 +283,81 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
   std::atomic<uint64_t> bytes_written{0};
   uint64_t const bytes_total{vfs.blocks};
 
-  auto do_archive = [&](std::shared_ptr<::archive_entry> ae,
-                        reader::inode_view entry) { // TODO: inode vs. entry
-    if (auto size = ::archive_entry_size(ae.get());
-        entry.is_regular_file() && size > 0) {
-      auto fd = fs.open(entry);
-      std::string_view path{::archive_entry_pathname(ae.get())};
-      size_t pos = 0;
-      size_t remain = size;
+  auto do_archive =
+      [&](std::shared_ptr<::archive_entry> const& ae,
+          reader::inode_view const& entry) { // TODO: inode vs. entry
+        if (auto size = ::archive_entry_size(ae.get());
+            entry.is_regular_file() && size > 0) {
+          auto fd = fs.open(entry);
+          std::string_view path{::archive_entry_pathname(ae.get())};
+          size_t pos = 0;
+          size_t remain = size;
 
-      while (remain > 0 && hard_error == 0) {
-        size_t bs =
-            remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
+          while (remain > 0 && hard_error == 0) {
+            size_t bs =
+                remain < opts.max_queued_bytes ? remain : opts.max_queued_bytes;
 
-        sem.wait(bs);
+            sem.wait(bs);
 
-        std::error_code ec;
-        auto ranges = fs.readv(fd, bs, pos, ec);
+            std::error_code ec;
+            auto ranges = fs.readv(fd, bs, pos, ec);
 
-        if (!ec) {
-          archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
-                            ranges = std::move(ranges), ae, pos, bs, size, path,
-                            &bytes_written, bytes_total]() mutable {
-            try {
-              if (pos == 0) {
-                LOG_DEBUG << "extracting " << path << " (" << size << " bytes)";
-                check_result(::archive_write_header(a_, ae.get()));
-              }
-              for (auto& r : ranges) {
-                auto br = r.get();
-                LOG_TRACE << "[" << pos << "] writing " << br.size()
-                          << " bytes for " << path;
-                check_result(::archive_write_data(a_, br.data(), br.size()));
-                if (opts.progress) {
-                  bytes_written += br.size();
-                  opts.progress(path, bytes_written, bytes_total);
+            if (!ec) {
+              archiver.add_job([this, &sem, &hard_error, &soft_error, &opts,
+                                ranges = std::move(ranges), ae, pos, bs, size,
+                                path, &bytes_written, bytes_total]() mutable {
+                try {
+                  if (pos == 0) {
+                    LOG_DEBUG << "extracting " << path << " (" << size
+                              << " bytes)";
+                    check_result(::archive_write_header(a_, ae.get()));
+                  }
+                  for (auto& r : ranges) {
+                    auto br = r.get();
+                    LOG_TRACE << "[" << pos << "] writing " << br.size()
+                              << " bytes for " << path;
+                    check_result(
+                        ::archive_write_data(a_, br.data(), br.size()));
+                    if (opts.progress) {
+                      bytes_written += br.size();
+                      opts.progress(path, bytes_written, bytes_total);
+                    }
+                  }
+                  sem.post(bs);
+                } catch (archive_error const& e) {
+                  LOG_ERROR << exception_str(e);
+                  ++hard_error;
+                } catch (...) {
+                  if (opts.continue_on_error) {
+                    LOG_WARN << exception_str(std::current_exception());
+                    ++soft_error;
+                  } else {
+                    LOG_ERROR << exception_str(std::current_exception());
+                    ++hard_error;
+                  }
                 }
-              }
-              sem.post(bs);
-            } catch (archive_error const& e) {
-              LOG_ERROR << exception_str(e);
+              });
+            } else {
+              LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
+                        << " from  inode [" << fd << "]: " << ec.message();
               ++hard_error;
+              break;
+            }
+
+            pos += bs;
+            remain -= bs;
+          }
+        } else {
+          archiver.add_job([this, ae, &hard_error] {
+            try {
+              check_result(::archive_write_header(a_, ae.get()));
             } catch (...) {
-              if (opts.continue_on_error) {
-                LOG_WARN << exception_str(std::current_exception());
-                ++soft_error;
-              } else {
-                LOG_ERROR << exception_str(std::current_exception());
-                ++hard_error;
-              }
+              LOG_ERROR << exception_str(std::current_exception());
+              ++hard_error;
             }
           });
-        } else {
-          LOG_ERROR << "error reading " << bs << " bytes at offset " << pos
-                    << " from  inode [" << fd << "]: " << ec.message();
-          ++hard_error;
-          break;
         }
-
-        pos += bs;
-        remain -= bs;
-      }
-    } else {
-      archiver.add_job([this, ae, &hard_error] {
-        try {
-          check_result(::archive_write_header(a_, ae.get()));
-        } catch (...) {
-          LOG_ERROR << exception_str(std::current_exception());
-          ++hard_error;
-        }
-      });
-    }
-  };
+      };
 
   std::unordered_set<std::filesystem::path> matched_dirs;
 
