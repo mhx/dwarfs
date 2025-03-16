@@ -60,9 +60,7 @@ struct file_header {
   uint8_t major;             // major version
   uint8_t minor;             // minor version
 
-  std::string_view magic_sv() const {
-    return std::string_view(magic.data(), magic.size());
-  }
+  std::string_view magic_sv() const { return {magic.data(), magic.size()}; }
 };
 
 struct section_header {

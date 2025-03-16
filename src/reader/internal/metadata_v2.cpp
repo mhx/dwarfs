@@ -577,7 +577,7 @@ class metadata_ final : public metadata_v2::impl {
     // TODO: move compatibility details to metadata_types
     uint32_t index =
         meta_.dir_entries() ? inode : meta_.entry_table_v2_2()[inode];
-    return inode_view_impl(meta_.inodes()[index], inode, meta_);
+    return {meta_.inodes()[index], inode, meta_};
   }
 
   dir_entry_view
@@ -650,7 +650,7 @@ class metadata_ final : public metadata_v2::impl {
   directory_view make_directory_view(inode_view_impl const& iv) const {
     // TODO: revisit: is this the way to do it?
     DWARFS_CHECK(iv.is_directory(), "not a directory");
-    return directory_view(iv.inode_num(), global_);
+    return {iv.inode_num(), global_};
   }
 
   directory_view make_directory_view(inode_view iv) const {
@@ -708,7 +708,7 @@ class metadata_ final : public metadata_v2::impl {
       ec.clear();
       uint32_t begin = chunk_table_lookup(index);
       uint32_t end = chunk_table_lookup(index + 1);
-      return chunk_range(meta_, begin, end);
+      return {meta_, begin, end};
     }
 
     ec = make_error_code(std::errc::invalid_argument);

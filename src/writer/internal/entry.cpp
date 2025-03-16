@@ -222,7 +222,7 @@ void entry::set_ctime(uint64_t ctime) { stat_.set_ctime(ctime); }
 
 std::string_view file::hash() const {
   auto& h = data_->hash;
-  return std::string_view(h.data(), h.size());
+  return {h.data(), h.size()};
 }
 
 void file::set_inode(std::shared_ptr<inode> ino) {

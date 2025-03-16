@@ -249,9 +249,9 @@ class chunk_range {
     mutable chunk_view view_;
   };
 
-  iterator begin() const { return iterator(meta_, begin_); }
+  iterator begin() const { return {meta_, begin_}; }
 
-  iterator end() const { return iterator(meta_, end_); }
+  iterator end() const { return {meta_, end_}; }
 
   size_t size() const { return end_ - begin_; }
 

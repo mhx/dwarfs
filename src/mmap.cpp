@@ -71,9 +71,9 @@ int posix_advice(advice adv) {
 
 boost::filesystem::path boost_from_std_path(std::filesystem::path const& p) {
 #ifdef _WIN32
-  return boost::filesystem::path(p.wstring());
+  return {p.wstring()};
 #else
-  return boost::filesystem::path(p.string());
+  return {p.string()};
 #endif
 }
 

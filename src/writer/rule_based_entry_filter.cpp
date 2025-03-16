@@ -166,7 +166,7 @@ auto rule_based_entry_filter_<LoggerPolicy>::compile_filter_rule(
   LOG_DEBUG << "'" << rule << "' -> '" << re << "' [floating=" << floating
             << ", ignore_case=" << ignore_case << "]";
 
-  return filter_rule(type, floating, re, rule, ignore_case);
+  return {type, floating, re, rule, ignore_case};
 }
 
 template <typename LoggerPolicy>

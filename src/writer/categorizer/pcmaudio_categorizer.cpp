@@ -86,7 +86,7 @@ std::ostream& operator<<(std::ostream& os, endianness e) {
 
 std::string_view span_to_sv(std::span<uint8_t const> s) {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  return std::string_view{reinterpret_cast<char const*>(s.data()), s.size()};
+  return {reinterpret_cast<char const*>(s.data()), s.size()};
 }
 
 std::optional<endianness> parse_endianness(std::string_view e) {
@@ -311,12 +311,12 @@ class iff_parser final {
     }
 
     constexpr std::string_view id() const {
-      return std::string_view(header.id.data(), header.id.size());
+      return {header.id.data(), header.id.size()};
     }
 
     constexpr std::string_view fourcc() const {
       static_assert(sizeof(header.id) >= kFourCCSize);
-      return std::string_view(header.id.data(), kFourCCSize);
+      return {header.id.data(), kFourCCSize};
     }
 
     constexpr size_t size() const { return header.size; }
@@ -536,7 +536,7 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
                    "expected PCMAUDIO to have subcategory");
       return meta_.rlock()->lookup(c.subcategory());
     }
-    return std::string();
+    return {};
   }
 
   void set_metadata_requirements(std::string_view category_name,
@@ -748,7 +748,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     uint32_t bits_per_channel;
 
     constexpr std::string_view format_id_sv() const {
-      return std::string_view(format_id.data(), format_id.size());
+      return {format_id.data(), format_id.size()};
     }
   } FOLLY_PACK_ATTR;
 
@@ -913,7 +913,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     std::array<char, FormatPolicy::id_size> form;
 
     constexpr std::string_view form_sv() const {
-      return std::string_view(form.data(), form.size());
+      return {form.data(), form.size()};
     }
   } FOLLY_PACK_ATTR;
 

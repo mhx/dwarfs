@@ -40,11 +40,11 @@ std::chrono::milliseconds parse_time_with_unit(std::string const& str);
 std::chrono::system_clock::time_point parse_time_point(std::string const& str);
 
 inline std::u8string string_to_u8string(std::string const& in) {
-  return std::u8string(reinterpret_cast<char8_t const*>(in.data()), in.size());
+  return {reinterpret_cast<char8_t const*>(in.data()), in.size()};
 }
 
 inline std::string u8string_to_string(std::u8string const& in) {
-  return std::string(reinterpret_cast<char const*>(in.data()), in.size());
+  return {reinterpret_cast<char const*>(in.data()), in.size()};
 }
 
 size_t utf8_display_width(char const* p, size_t len);

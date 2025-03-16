@@ -69,11 +69,11 @@ class zstd_block_compressor final : public block_compressor::impl {
     return fmt::format("zstd [level={}]", level_);
   }
 
-  std::string metadata_requirements() const override { return std::string(); }
+  std::string metadata_requirements() const override { return {}; }
 
   compression_constraints
   get_compression_constraints(std::string const&) const override {
-    return compression_constraints();
+    return {};
   }
 
  private:

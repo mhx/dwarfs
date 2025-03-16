@@ -127,11 +127,11 @@ class lzma_block_compressor final : public block_compressor::impl {
 
   std::string describe() const override { return description_; }
 
-  std::string metadata_requirements() const override { return std::string(); }
+  std::string metadata_requirements() const override { return {}; }
 
   compression_constraints
   get_compression_constraints(std::string const&) const override {
-    return compression_constraints();
+    return {};
   }
 
  private:

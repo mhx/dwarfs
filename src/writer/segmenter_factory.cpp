@@ -52,8 +52,8 @@ class segmenter_factory_ final : public segmenter_factory::impl {
     cfg.bloom_filter_size = cfg_.bloom_filter_size.get(cat);
     cfg.block_size_bits = cfg_.block_size_bits;
 
-    return segmenter(lgr_, prog_, std::move(blkmgr), cfg, cc, cat_size,
-                     std::move(block_ready));
+    return {lgr_, prog_,    std::move(blkmgr),     cfg,
+            cc,   cat_size, std::move(block_ready)};
   }
 
   size_t get_block_size() const override {

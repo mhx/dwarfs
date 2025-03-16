@@ -105,7 +105,7 @@ get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
 
   std::vector<uint8_t> tmp;
   auto span = sec.data(*mm);
-  return block_decompressor(sec.compression(), span.data(), span.size(), tmp);
+  return {sec.compression(), span.data(), span.size(), tmp};
 }
 
 std::optional<block_decompressor>
@@ -200,11 +200,14 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> mm,
     }
   }
 
-  return metadata_v2(lgr,
-                     get_section_data(mm, schema_it->second.front(),
-                                      schema_buffer, force_buffers),
-                     meta_section_range, options, inode_offset,
-                     force_consistency_check, perfmon);
+  return {lgr,
+          get_section_data(mm, schema_it->second.front(), schema_buffer,
+                           force_buffers),
+          meta_section_range,
+          options,
+          inode_offset,
+          force_consistency_check,
+          perfmon};
 }
 
 } // namespace
