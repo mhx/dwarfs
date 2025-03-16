@@ -31,7 +31,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <range/v3/range/conversion.hpp>
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/compiler.h>
 #include <dwarfs/error.h>
@@ -401,11 +403,7 @@ void categorizer_registry::add_options(po::options_description& opts) const {
 }
 
 std::vector<std::string> categorizer_registry::categorizer_names() const {
-  std::vector<std::string> rv;
-  for (auto& f : factories_) {
-    rv.emplace_back(f.first);
-  }
-  return rv;
+  return factories_ | ranges::views::keys | ranges::to<std::vector>();
 }
 
 categorizer_registry::categorizer_registry() {
