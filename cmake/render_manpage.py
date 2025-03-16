@@ -293,6 +293,8 @@ class ManpageRenderer(mistletoe.base_renderer.BaseRenderer):
 
 namespace dwarfs::tool::manpage {
 
+// NOLINTBEGIN(readability-*)
+
 namespace {
 """
         ctx = RenderContext()
@@ -309,6 +311,8 @@ namespace {
             rv += f"    {{line{i}_indent_first, line{i}_indent_next, line{i}_elements}},\n"
         rv += f"""}}}};
 }} // namespace
+
+// NOLINTEND(readability-*)
 
 document get_{self.__document_name}_manpage() {{ return document_array; }}
 
