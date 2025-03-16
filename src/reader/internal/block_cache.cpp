@@ -147,7 +147,7 @@ class block_request {
   block_request(block_request&&) = default;
   block_request& operator=(block_request&&) = default;
 
-  bool operator<(const block_request& rhs) const { return end_ < rhs.end_; }
+  bool operator<(block_request const& rhs) const { return end_ < rhs.end_; }
 
   size_t end() const { return end_; }
 
