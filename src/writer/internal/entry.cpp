@@ -60,6 +60,7 @@ bool is_root_path(std::string_view path) {
 
 } // namespace
 
+// NOLINTBEGIN(performance-unnecessary-value-param,performance-move-const-arg)
 entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
              file_stat const& st)
 #ifdef _WIN32
@@ -71,6 +72,7 @@ entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
     , parent_{std::move(parent)}
     , stat_{st} {
 }
+// NOLINTEND(performance-unnecessary-value-param,performance-move-const-arg)
 
 bool entry::has_parent() const {
   if (parent_.lock()) {
