@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <range/v3/algorithm/sort.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/map.hpp>
@@ -137,9 +138,7 @@ void global_entry_data::add_gid(gid_type gid) {
 }
 
 void global_entry_data::add_mtime(uint64_t time) {
-  if (time < timestamp_base_) {
-    timestamp_base_ = time;
-  }
+  timestamp_base_ = std::min(time, timestamp_base_);
 }
 
 void global_entry_data::add_atime(uint64_t time) {

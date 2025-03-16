@@ -159,7 +159,7 @@ void do_checksum(logger& lgr, reader::filesystem_v2& fs, iolayer const& iol,
 } // namespace
 
 int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
-  size_t const num_cpu = std::max(hardware_concurrency(), 1u);
+  size_t const num_cpu = std::max(hardware_concurrency(), 1U);
 
   auto algo_list = checksum::available_algorithms();
   auto checksum_desc = fmt::format("print checksums for all files ({})",
@@ -190,7 +190,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
         po_sys_value<sys_string>(&input),
         "input filesystem")
     ("detail,d",
-        po::value<std::string>(&detail)->default_value(detail_default.c_str()),
+        po::value<std::string>(&detail)->default_value(detail_default),
         detail_desc.c_str())
     ("quiet,q",
         po::value<bool>(&quiet)->zero_tokens(),
@@ -248,7 +248,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.count("man")) {
+  if (vm.contains("man")) {
     tool::show_manpage(tool::manpage::get_dwarfsck_manpage(), iol);
     return 0;
   }
@@ -256,7 +256,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
-  if (vm.count("help") or !vm.count("input")) {
+  if (vm.contains("help") or !vm.contains("input")) {
     iol.out << tool::tool_header("dwarfsck")
             << library_dependencies::common_as_string() << "\n\n"
             << usage << "\n"
@@ -273,7 +273,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
       return 1;
     }
 
-    if (vm.count("checksum") && !checksum::is_available(checksum_algo)) {
+    if (vm.contains("checksum") && !checksum::is_available(checksum_algo)) {
       LOG_WARN << "checksum algorithm not available: " << checksum_algo;
       return 1;
     }

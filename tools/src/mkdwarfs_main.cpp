@@ -385,7 +385,7 @@ void validate(boost::any& v, std::vector<std::string> const& values,
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   using namespace std::chrono_literals;
 
-  size_t const num_cpu = std::max(hardware_concurrency(), 1u);
+  size_t const num_cpu = std::max(hardware_concurrency(), 1U);
   static constexpr size_t const kDefaultMaxActiveBlocks{1};
   static constexpr size_t const kDefaultBloomFilterSize{4};
 
@@ -417,7 +417,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   writer::scanner_options options;
   logger_options logopts;
 
-  auto order_desc = "inode fragments order (" + order_parser.choices() + ")";
+  auto order_desc = "inode fragments order (" +
+                    dwarfs::writer::fragment_order_parser::choices() + ")";
 
   auto progress_desc =
       fmt::format("progress mode ({})",
@@ -693,7 +694,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.count("man")) {
+  if (vm.contains("man")) {
     tool::show_manpage(tool::manpage::get_mkdwarfs_manpage(), iol);
     return 0;
   }
@@ -701,7 +702,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
 
-  if (vm.count("long-help")) {
+  if (vm.contains("long-help")) {
     constexpr std::string_view block_data_hdr{"Block Data"};
     constexpr std::string_view schema_history_hdr{"Schema/History"};
     constexpr std::string_view metadata_hdr{"Metadata"};
@@ -767,8 +768,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 0;
   }
 
-  if (vm.count("help") or !(vm.count("input") or vm.count("input-list")) or
-      (!vm.count("output") and !vm.count("debug-filter"))) {
+  if (vm.contains("help") or
+      !(vm.contains("input") or vm.contains("input-list")) or
+      (!vm.contains("output") and !vm.contains("debug-filter"))) {
     iol.out << tool::tool_header("mkdwarfs")
             << library_dependencies::common_as_string() << "\n\n"
             << usage << "\n"
@@ -786,19 +788,19 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   categorizer_list.add_defaults(categorize_defaults_common());
   categorizer_list.add_defaults(categorize_defaults_level(level));
 
-  if (!vm.count("block-size-bits")) {
+  if (!vm.contains("block-size-bits")) {
     sf_config.block_size_bits = defaults.block_size_bits;
   }
 
-  if (!vm.count("schema-compression")) {
+  if (!vm.contains("schema-compression")) {
     schema_compression = defaults.schema_history_compression;
   }
 
-  if (!vm.count("history-compression")) {
+  if (!vm.contains("history-compression")) {
     history_compression = defaults.schema_history_compression;
   }
 
-  if (!vm.count("metadata-compression")) {
+  if (!vm.contains("metadata-compression")) {
     metadata_compression = defaults.metadata_compression;
   }
 
@@ -812,8 +814,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   std::filesystem::path path(path_str);
   std::optional<std::vector<std::filesystem::path>> input_list;
 
-  if (vm.count("input-list")) {
-    if (vm.count("filter")) {
+  if (vm.contains("input-list")) {
+    if (vm.contains("filter")) {
       iol.err << "error: cannot combine --input-list and --filter\n";
       return 1;
     }
@@ -822,7 +824,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     options.with_devices = true;
     options.with_specials = true;
 
-    if (!vm.count("input")) {
+    if (!vm.contains("input")) {
       path = iol.os->current_path();
     }
 
@@ -855,7 +857,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   path = iol.os->canonical(path);
 
-  bool recompress = vm.count("recompress");
+  bool recompress = vm.contains("recompress");
   utility::rewrite_options rw_opts;
   if (recompress) {
     std::unordered_map<std::string, unsigned> const modes{
@@ -892,7 +894,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     return 1;
   }
 
-  if (vm.count("max-similarity-size")) {
+  if (vm.contains("max-similarity-size")) {
     auto size = parse_size_with_unit(max_similarity_size);
     if (size > 0) {
       options.inode.max_similarity_scan_size = size;
@@ -901,17 +903,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   size_t mem_limit = parse_size_with_unit(memory_limit);
 
-  if (!vm.count("num-scanner-workers")) {
+  if (!vm.contains("num-scanner-workers")) {
     num_scanner_workers = num_workers;
   }
 
-  if (!vm.count("num-segmenter-workers")) {
+  if (!vm.contains("num-segmenter-workers")) {
     num_segmenter_workers = num_workers;
   }
 
   options.num_segmenter_workers = num_segmenter_workers;
 
-  if (vm.count("debug-filter")) {
+  if (vm.contains("debug-filter")) {
     if (auto it = debug_filter_modes.find(debug_filter);
         it != debug_filter_modes.end()) {
       options.debug_filter_function =
@@ -926,7 +928,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (!progress_modes.count(progress_mode)) {
+  if (!progress_modes.contains(progress_mode)) {
     iol.err << "error: invalid progress mode '" << progress_mode << "'\n";
     return 1;
   }
@@ -966,7 +968,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::vector<std::unique_ptr<writer::entry_transformer>> transformers;
 
-  if (vm.count("chmod")) {
+  if (vm.contains("chmod")) {
     if (chmod_str == "norm") {
       chmod_str = "ug-st,=Xr";
     }
@@ -981,15 +983,15 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (vm.count("set-owner")) {
+  if (vm.contains("set-owner")) {
     options.uid = uid;
   }
 
-  if (vm.count("set-group")) {
+  if (vm.contains("set-group")) {
     options.gid = gid;
   }
 
-  if (vm.count("set-time")) {
+  if (vm.contains("set-time")) {
     if (timestamp == "now") {
       options.timestamp = std::time(nullptr);
     } else if (auto val = try_to<uint64_t>(timestamp)) {

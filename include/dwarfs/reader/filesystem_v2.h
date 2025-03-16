@@ -311,9 +311,9 @@ class filesystem_v2 {
     return impl_->header();
   }
 
-  void set_num_workers(size_t num) { return impl_->set_num_workers(num); }
+  void set_num_workers(size_t num) { impl_->set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) {
-    return impl_->set_cache_tidy_config(cfg);
+    impl_->set_cache_tidy_config(cfg);
   }
 
   size_t num_blocks() const { return impl_->num_blocks(); }

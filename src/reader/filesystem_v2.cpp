@@ -184,9 +184,8 @@ make_metadata(logger& lgr, mmif& mm, section_map const& sections,
     if (auto ec = mm.lock(meta_section.start(), meta_section_range.size())) {
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
-      } else {
-        LOG_WARN << "mlock() failed: " << ec.message();
       }
+      LOG_WARN << "mlock() failed: " << ec.message();
     }
   }
 

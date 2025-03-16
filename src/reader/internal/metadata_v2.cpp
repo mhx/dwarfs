@@ -94,7 +94,7 @@ void check_schema(std::span<uint8_t const> data) {
   if (schemaSize != data.size()) {
     DWARFS_THROW(runtime_error, "invalid schema size");
   }
-  if (schema.layouts()->count(*schema.rootLayout()) == 0) {
+  if (!schema.layouts()->contains(*schema.rootLayout())) {
     DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
   }
   for (auto const& kvl : *schema.layouts()) {
@@ -110,7 +110,7 @@ void check_schema(std::span<uint8_t const> data) {
     }
     for (auto const& kvf : *layout.fields()) {
       auto const& field = kvf.second;
-      if (schema.layouts()->count(*field.layoutId()) == 0) {
+      if (!schema.layouts()->contains(*field.layoutId())) {
         DWARFS_THROW(runtime_error, "invalid layoutId in field");
       }
     }
@@ -636,17 +636,16 @@ class metadata_ final : public metadata_v2::impl {
           });
 
       return *it;
-    } else {
-      auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
-
-      auto it = std::lower_bound(range.begin(), range.end(), rank,
-                                 [&](auto inode, inode_rank r) {
-                                   auto iv = make_inode_view_impl(inode);
-                                   return get_inode_rank(iv.mode()) < r;
-                                 });
-
-      return *it;
     }
+    auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
+
+    auto it = std::lower_bound(range.begin(), range.end(), rank,
+                               [&](auto inode, inode_rank r) {
+                                 auto iv = make_inode_view_impl(inode);
+                                 return get_inode_rank(iv.mode()) < r;
+                               });
+
+    return *it;
   }
 
   directory_view make_directory_view(inode_view_impl const& iv) const {
@@ -1158,7 +1157,7 @@ void metadata_<LoggerPolicy>::check_inode_size_cache() const {
 
     for (auto entry : cache->lookup()) {
       auto index = entry.first();
-      if (seen.find(index) == seen.end()) {
+      if (!seen.contains(index)) {
         LOG_ERROR << "unused inode size cache entry for index " << index
                   << " size " << entry.second();
         ++errors;

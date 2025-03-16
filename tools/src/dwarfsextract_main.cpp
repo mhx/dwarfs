@@ -133,7 +133,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-  if (vm.count("man")) {
+  if (vm.contains("man")) {
     tool::show_manpage(tool::manpage::get_dwarfsextract_manpage(), iol);
     return 0;
   }
@@ -141,7 +141,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
-  if (vm.count("help") or !vm.count("input")) {
+  if (vm.contains("help") or !vm.contains("input")) {
     library_dependencies deps;
     deps.add_common_libraries();
     utility::filesystem_extractor::add_library_dependencies(deps);
@@ -154,7 +154,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::unique_ptr<glob_matcher> matcher;
 
-  if (vm.count("pattern")) {
+  if (vm.contains("pattern")) {
     matcher = std::make_unique<glob_matcher>(
         vm["pattern"].as<std::vector<std::string>>());
   }

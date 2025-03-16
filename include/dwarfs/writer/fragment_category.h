@@ -129,13 +129,11 @@ struct fmt::formatter<dwarfs::writer::fragment_category>
       if (cat.has_subcategory()) {
         return formatter<std::string>::format(
             fmt::format("{}.{}", cat.value(), cat.subcategory()), ctx);
-      } else {
-        return formatter<std::string>::format(fmt::format("{}", cat.value()),
-                                              ctx);
       }
-    } else {
-      return formatter<std::string>::format("uninitialized", ctx);
+      return formatter<std::string>::format(fmt::format("{}", cat.value()),
+                                            ctx);
     }
+    return formatter<std::string>::format("uninitialized", ctx);
   }
 };
 

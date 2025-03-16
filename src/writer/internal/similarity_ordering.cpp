@@ -199,9 +199,8 @@ struct basic_cluster_tree_node {
   std::string description() const {
     if (is_leaf()) {
       return fmt::format("{} items", cluster().index.size());
-    } else {
-      return fmt::format("{} children", children().size());
     }
+    return fmt::format("{} children", children().size());
   }
 
   index_value_type first_index() const {
@@ -498,7 +497,8 @@ void similarity_ordering_<LoggerPolicy>::cluster_by_distance(
       if (d <= max_distance) {
         match = &cluster;
         break;
-      } else if (d < best_distance) {
+      }
+      if (d < best_distance) {
         best_distance = d;
         best_match = &cluster;
       }

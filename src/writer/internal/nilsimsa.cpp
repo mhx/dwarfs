@@ -52,7 +52,7 @@ constexpr std::array<uint8_t, 256> const TT53{
      0xF1, 0xCD, 0xE4, 0x6A, 0xE7, 0xA9, 0xFD, 0xC4, 0x37, 0xC8, 0xD2, 0xF6,
      0xDF, 0x58, 0x72, 0x4E}};
 
-constexpr inline uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
+constexpr uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
   return ((TT53[(a + n) & 0xFF] ^ TT53[b] * (n + n + 1)) + TT53[c ^ TT53[n]]);
 }
 

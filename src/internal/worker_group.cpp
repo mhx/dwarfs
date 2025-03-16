@@ -65,7 +65,7 @@ class basic_worker_group final : public worker_group::impl, private Policy {
       , pending_(0)
       , max_queue_len_(max_queue_len) {
     if (num_workers < 1) {
-      num_workers = std::max(hardware_concurrency(), 1u);
+      num_workers = std::max(hardware_concurrency(), 1U);
     }
 
     if (!group_name) {
@@ -286,9 +286,8 @@ class basic_worker_group final : public worker_group::impl, private Policy {
         if (jobs_.empty()) {
           if (running_) {
             continue;
-          } else {
-            break;
           }
+          break;
         }
 
         job = std::move(jobs_.front());

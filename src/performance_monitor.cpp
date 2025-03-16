@@ -241,7 +241,7 @@ class performance_monitor_impl final : public performance_monitor {
   }
 
   bool is_enabled(std::string const& ns) const override {
-    return enabled_namespaces_.find(ns) != enabled_namespaces_.end();
+    return enabled_namespaces_.contains(ns);
   }
 
   bool wants_context() const override { return trace_file_.has_value(); }
@@ -376,9 +376,9 @@ class performance_monitor_impl final : public performance_monitor {
 
 performance_monitor_proxy::performance_monitor_proxy(
     std::shared_ptr<performance_monitor const> mon,
-    std::string const& mon_namespace)
-    : mon_{mon && mon->is_enabled(mon_namespace) ? std::move(mon) : nullptr}
-    , namespace_{mon_namespace} {}
+    std::string const& proxy_namespace)
+    : mon_{mon && mon->is_enabled(proxy_namespace) ? std::move(mon) : nullptr}
+    , namespace_{proxy_namespace} {}
 
 std::unique_ptr<performance_monitor>
 performance_monitor::create(std::unordered_set<std::string> enabled_namespaces,

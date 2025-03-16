@@ -165,16 +165,13 @@ build_string_table(logger& lgr, std::string_view name,
   if (v.symtab()) {
     if (v.packed_index()) {
       return std::make_unique<packed_string_table<true, true>>(lgr, name, v);
-    } else {
-      return std::make_unique<packed_string_table<true, false>>(lgr, name, v);
     }
-  } else {
-    if (v.packed_index()) {
-      return std::make_unique<packed_string_table<false, true>>(lgr, name, v);
-    } else {
-      return std::make_unique<packed_string_table<false, false>>(lgr, name, v);
-    }
+    return std::make_unique<packed_string_table<true, false>>(lgr, name, v);
   }
+  if (v.packed_index()) {
+    return std::make_unique<packed_string_table<false, true>>(lgr, name, v);
+  }
+  return std::make_unique<packed_string_table<false, false>>(lgr, name, v);
 }
 
 } // namespace

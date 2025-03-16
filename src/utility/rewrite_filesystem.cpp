@@ -136,8 +136,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
           }
 
           if (!opts.recompress_categories.empty()) {
-            bool is_in_set{opts.recompress_categories.count(catstr.value()) >
-                           0};
+            bool is_in_set{opts.recompress_categories.contains(catstr.value())};
 
             recompress_block =
                 opts.recompress_categories_exclude ? !is_in_set : is_in_set;

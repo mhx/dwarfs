@@ -134,14 +134,14 @@ stream_logger::stream_logger(std::ostream& os, logger_options const& options)
     : stream_logger(std::make_shared<terminal_ansi>(), os, options) {}
 
 stream_logger::stream_logger(std::shared_ptr<terminal const> term,
-                             std::ostream& os, logger_options const& logopts)
+                             std::ostream& os, logger_options const& options)
     : os_(os)
     , color_(term->is_tty(os) && term->is_fancy())
     , enable_stack_trace_{getenv_is_enabled("DWARFS_LOGGER_STACK_TRACE")}
-    , with_context_(logopts.with_context ? logopts.with_context.value()
-                                         : logopts.threshold >= logger::VERBOSE)
+    , with_context_(options.with_context ? options.with_context.value()
+                                         : options.threshold >= logger::VERBOSE)
     , term_{std::move(term)} {
-  set_threshold(logopts.threshold);
+  set_threshold(options.threshold);
 }
 
 void stream_logger::preamble(std::ostream&) {}

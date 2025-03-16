@@ -61,13 +61,13 @@ int pxattr_main(int argc, sys_char** argv) {
             vm);
   po::notify(vm);
 
-  if (vm.count("help")) {
+  if (vm.contains("help")) {
     constexpr auto usage = "Usage: pxattr [OPTIONS...]\n";
     std::cout << tool::tool_header("pxattr") << usage << "\n" << desc << "\n";
     return 0;
   }
 
-  if (!vm.count("path")) {
+  if (!vm.contains("path")) {
     std::cerr << "no path specified\n";
     return 1;
   }
@@ -87,7 +87,7 @@ int pxattr_main(int argc, sys_char** argv) {
 
   fs::path path(pathstr);
 
-  if (vm.count("get")) {
+  if (vm.contains("get")) {
     std::error_code ec;
     std::string val = getxattr(path, name, ec);
     if (ec) {
@@ -95,21 +95,21 @@ int pxattr_main(int argc, sys_char** argv) {
       return 1;
     }
     std::cout << val << "\n";
-  } else if (vm.count("set")) {
+  } else if (vm.contains("set")) {
     std::error_code ec;
     setxattr(path, name, value, ec);
     if (ec) {
       std::cerr << "setxattr failed: " << ec.message() << "\n";
       return 1;
     }
-  } else if (vm.count("remove")) {
+  } else if (vm.contains("remove")) {
     std::error_code ec;
     removexattr(path, name, ec);
     if (ec) {
       std::cerr << "removexattr failed: " << ec.message() << "\n";
       return 1;
     }
-  } else if (vm.count("list")) {
+  } else if (vm.contains("list")) {
     std::error_code ec;
     std::vector<std::string> attrs = listxattr(path, ec);
     if (ec) {

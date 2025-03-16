@@ -364,7 +364,7 @@ class compression_metadata_requirements<nlohmann::json> {
 
   void check(std::optional<std::string> const& meta) const;
   void check(std::string const& meta) const;
-  void check(nlohmann::json const& meta) const;
+  void check(nlohmann::json const& jsn) const;
 
  private:
   std::vector<std::unique_ptr<detail::dynamic_metadata_requirement_base>> req_;

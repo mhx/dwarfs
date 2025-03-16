@@ -59,7 +59,7 @@ class fsinfo_features {
 
   static int max_level();
   static fsinfo_features for_level(int level);
-  static fsinfo_features parse(std::string_view str);
+  static fsinfo_features parse(std::string_view features);
 
   std::string to_string() const;
   std::vector<std::string_view> to_string_views() const;
