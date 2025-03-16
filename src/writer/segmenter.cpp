@@ -657,8 +657,10 @@ class segmenter_progress : public progress::context {
     return st;
   }
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   std::atomic<file const*> current_file{nullptr};
   std::atomic<size_t> bytes_processed{0};
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
  private:
   std::string const context_;

@@ -148,9 +148,11 @@ class progress {
     std::chrono::steady_clock::time_point const start_;
   };
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   scan_progress similarity;
   scan_progress categorize;
   scan_progress hash;
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
  private:
   void add_context(std::shared_ptr<context> const& ctx) const;

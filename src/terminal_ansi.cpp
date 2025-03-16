@@ -90,6 +90,7 @@ bool is_fancy_impl() { return true; }
 
 size_t width_impl() {
   struct ::winsize w;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
   auto rv = ::ioctl(STDERR_FILENO, TIOCGWINSZ, &w);
   return rv == 0 ? w.ws_col : default_width;
 }

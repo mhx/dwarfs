@@ -40,7 +40,9 @@ class scanner_progress : public progress::context {
 
   status get_status() const override;
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
   std::atomic<size_t> bytes_processed{0};
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
  private:
   termcolor const color_;

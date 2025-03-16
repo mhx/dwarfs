@@ -50,6 +50,7 @@ class mmif : public boost::noncopyable {
   T const* as(U offset = 0) const {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     auto raw = static_cast<std::byte const*>(this->addr()) + offset;
+    // NOLINTNEXTLINE(bugprone-casting-through-void)
     return static_cast<T const*>(static_cast<void const*>(raw));
   }
 

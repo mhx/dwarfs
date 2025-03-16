@@ -1,5 +1,6 @@
 #pragma once
 
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum)
 #cmakedefine DWARFS_HAVE_LIBMAGIC 1
 #cmakedefine DWARFS_HAVE_LIBLZ4 1
 #cmakedefine DWARFS_HAVE_LIBLZMA 1
@@ -11,3 +12,4 @@
 #cmakedefine DWARFS_BUILTIN_MANPAGE 1
 #cmakedefine DWARFS_PERFMON_ENABLED 1
 #cmakedefine DWARFS_STACKTRACE_ENABLED 1
+// NOLINTEND(cppcoreguidelines-macro-to-enum)
