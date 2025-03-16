@@ -30,10 +30,10 @@ class segmenter_factory_ final : public segmenter_factory::impl {
  public:
   segmenter_factory_(logger& lgr, writer_progress& prog,
                      std::shared_ptr<categorizer_manager> catmgr,
-                     const segmenter_factory::config& cfg)
+                     segmenter_factory::config const& cfg)
       : lgr_{lgr}
       , prog_{prog}
-      , catmgr_{catmgr}
+      , catmgr_{std::move(catmgr)}
       , cfg_{cfg} {}
 
   segmenter create(fragment_category cat, size_t cat_size,
