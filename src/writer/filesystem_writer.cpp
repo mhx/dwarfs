@@ -35,6 +35,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/checksum.h>
+#include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
@@ -664,6 +665,9 @@ filesystem_writer_<LoggerPolicy>::~filesystem_writer_() noexcept {
       flush();
     }
   } catch (...) {
+    DWARFS_PANIC(
+        fmt::format("exception thrown in filesystem_writer destructor: {}",
+                    exception_str(std::current_exception())));
   }
 }
 
