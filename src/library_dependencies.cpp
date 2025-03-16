@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 
 #include <fmt/format.h>
 
@@ -56,13 +57,14 @@ std::string version_to_string(uint64_t version, version_format fmt) {
 
 #ifdef DWARFS_USE_JEMALLOC
 std::string get_jemalloc_version() {
-  char const* j;
 #ifdef __APPLE__
-  j = JEMALLOC_VERSION;
+  char const* j = JEMALLOC_VERSION;
 #else
+  char const* j = nullptr;
   size_t s = sizeof(j);
   // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
   ::mallctl("version", &j, &s, nullptr, 0);
+  assert(j);
 #endif
   std::string rv{j};
   if (auto pos = rv.find('-'); pos != std::string::npos) {
