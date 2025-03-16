@@ -354,7 +354,7 @@ auto similarity_ordering_<LoggerPolicy>::find_duplicates(
         if (ev.bits_equal(*dst, *src)) {
           dm[*dst].push_back(*src);
         } else if (++dst != src) {
-          *dst = std::move(*src);
+          *dst = *src;
         }
       }
 
