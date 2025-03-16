@@ -335,15 +335,16 @@ constexpr unsigned default_level = 7;
 
 class categorize_optval {
  public:
-  std::string value;
-  bool is_explicit{false};
-
   categorize_optval() = default;
   explicit categorize_optval(std::string const& val, bool expl = false)
-      : value{val}
-      , is_explicit{expl} {}
+      : value_{val}
+      , is_explicit_{expl} {}
 
-  bool is_implicit_default() const { return !value.empty() && !is_explicit; }
+  bool empty() const { return value_.empty(); }
+  std::string const& value() const { return value_; }
+
+  bool is_implicit_default() const { return !empty() && !is_explicit_; }
+  bool is_explicit() const { return is_explicit_; }
 
   template <typename T>
   void add_implicit_defaults(T& cop) const {
@@ -365,10 +366,12 @@ class categorize_optval {
 
  private:
   categorize_defaults_type defaults_;
+  std::string value_;
+  bool is_explicit_{false};
 };
 
 std::ostream& operator<<(std::ostream& os, categorize_optval const& optval) {
-  return os << optval.value << (optval.is_explicit ? " (explicit)" : "");
+  return os << optval.value() << (optval.is_explicit() ? " (explicit)" : "");
 }
 
 void validate(boost::any& v, std::vector<std::string> const& values,
@@ -1166,9 +1169,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  if (!categorizer_list.value.empty()) {
+  if (!categorizer_list.empty()) {
     auto categorizers =
-        split_to<std::vector<std::string>>(categorizer_list.value, ',');
+        split_to<std::vector<std::string>>(categorizer_list.value(), ',');
 
     options.inode.categorizer_mgr =
         std::make_shared<writer::categorizer_manager>(lgr);
