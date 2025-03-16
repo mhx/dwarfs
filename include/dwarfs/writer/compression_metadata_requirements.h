@@ -86,7 +86,7 @@ bool parse_metadata_requirements_set(T& container, nlohmann::json& req,
           fmt::format("unexpected empty set for requirement '{}'", name));
     }
 
-    for (auto v : val[1]) {
+    for (auto const& v : val[1]) {
       std::optional<typename T::value_type> maybe_value;
 
       try {

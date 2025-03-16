@@ -278,13 +278,13 @@ class similarity_ordering_ final : public similarity_ordering::impl {
       basic_cluster_tree_node<
           basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
       basic_array_similarity_element_view<Bits, BitsType> const& ev,
-      std::shared_ptr<job_tracker> jt, int max_distance) const;
+      std::shared_ptr<job_tracker> const& jt, int max_distance) const;
 
   template <size_t Bits, typename BitsType, typename CountsType>
   void cluster(basic_cluster_tree_node<basic_cluster<Bits, BitsType, CountsType,
                                                      index_value_type>>& root,
                basic_array_similarity_element_view<Bits, BitsType> const& ev,
-               std::shared_ptr<job_tracker> jt) const;
+               std::shared_ptr<job_tracker> const& jt) const;
 
   template <size_t Bits, typename BitsType, typename CountsType>
   void collect_rec(
@@ -529,7 +529,7 @@ void similarity_ordering_<LoggerPolicy>::cluster_rec(
     basic_cluster_tree_node<
         basic_cluster<Bits, BitsType, CountsType, index_value_type>>& node,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    std::shared_ptr<job_tracker> jt, int max_distance) const {
+    std::shared_ptr<job_tracker> const& jt, int max_distance) const {
   cluster_by_distance(node, ev, max_distance);
 
   for (auto& cn : node.children()) {
@@ -556,7 +556,7 @@ void similarity_ordering_<LoggerPolicy>::cluster(
     basic_cluster_tree_node<
         basic_cluster<Bits, BitsType, CountsType, index_value_type>>& root,
     basic_array_similarity_element_view<Bits, BitsType> const& ev,
-    std::shared_ptr<job_tracker> jt) const {
+    std::shared_ptr<job_tracker> const& jt) const {
   jt->start_job();
   wg_.add_job([this, &root, &ev, jt] {
     cluster_rec(root, ev, jt, Bits / 2);

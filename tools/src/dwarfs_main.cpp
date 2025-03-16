@@ -816,7 +816,7 @@ void op_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
 
   checked_reply_err(log_, req, [&] {
     readdir_lowlevel_policy policy{req, ino, size};
-    return op_readdir_common(userdata.fs, policy, off, [](auto) {});
+    return op_readdir_common(userdata.fs, policy, off, [](auto const&) {});
   });
 }
 #else

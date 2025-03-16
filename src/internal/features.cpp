@@ -51,7 +51,7 @@ std::set<std::string> feature_set::get_supported() {
 };
 
 std::set<std::string>
-feature_set::get_unsupported(std::set<std::string> wanted_features) {
+feature_set::get_unsupported(std::set<std::string> const& wanted_features) {
   auto const supported_features = get_supported();
   std::set<std::string> missing;
   std::ranges::set_difference(wanted_features, supported_features,
