@@ -21,11 +21,13 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <dwarfs/block_compressor.h> // TODO: or the other way round?
@@ -54,9 +56,13 @@ enum class section_type : uint16_t {
 };
 
 struct file_header {
-  char magic[6]; // "DWARFS"
-  uint8_t major; // major version
-  uint8_t minor; // minor version
+  std::array<char, 6> magic; // "DWARFS"
+  uint8_t major;             // major version
+  uint8_t minor;             // minor version
+
+  std::string_view magic_sv() const {
+    return std::string_view(magic.data(), magic.size());
+  }
 };
 
 struct section_header {
@@ -70,15 +76,16 @@ struct section_header {
 };
 
 struct section_header_v2 {
-  char magic[6];            //  [0] "DWARFS" / file_header no longer needed
-  uint8_t major;            //  [6] major version
-  uint8_t minor;            //  [7] minor version
-  uint8_t sha2_512_256[32]; //  [8] SHA2-512/256 starting from next field
-  uint64_t xxh3_64;         // [40] XXH3-64 starting from next field
-  uint32_t number;          // [48] section number
-  uint16_t type;            // [52] section type
-  uint16_t compression;     // [54] compression
-  uint64_t length;          // [56] length of section
+  std::array<char, 6> magic; //  [0] "DWARFS" / file_header no longer needed
+  uint8_t major;             //  [6] major version
+  uint8_t minor;             //  [7] minor version
+  std::array<uint8_t, 32>    //  [8] SHA2-512/256 starting from next field
+      sha2_512_256;          //
+  uint64_t xxh3_64;          // [40] XXH3-64 starting from next field
+  uint32_t number;           // [48] section number
+  uint16_t type;             // [52] section type
+  uint16_t compression;      // [54] compression
+  uint64_t length;           // [56] length of section
 
   std::string to_string() const;
   void dump(std::ostream& os) const;

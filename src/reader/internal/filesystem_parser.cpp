@@ -121,7 +121,7 @@ filesystem_parser::filesystem_parser(std::shared_ptr<mmif> mm,
 
   auto fh = mm_->as<file_header>(image_offset_);
 
-  if (::memcmp(&fh->magic[0], "DWARFS", 6) != 0) {
+  if (fh->magic_sv() != "DWARFS") {
     DWARFS_THROW(runtime_error, "magic not found");
   }
 

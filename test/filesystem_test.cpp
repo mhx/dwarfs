@@ -207,7 +207,7 @@ std::string valid_v1_header() {
 std::string valid_v2_header(uint32_t section_number = 0) {
   section_header_v2 hdr;
   std::memset(&hdr, 0, sizeof(hdr));
-  std::memcpy(hdr.magic, "DWARFS", 6);
+  std::memcpy(hdr.magic.data(), "DWARFS", 6);
   hdr.major = 2;
   hdr.minor = 3;
   hdr.number = section_number;

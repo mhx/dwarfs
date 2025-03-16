@@ -500,7 +500,7 @@ void fsblock::build_section_header(section_header_v2& sh,
                                    std::optional<fs_section> const& sec) {
   auto range = fsb.data();
 
-  ::memcpy(&sh.magic[0], "DWARFS", 6);
+  ::memcpy(sh.magic.data(), "DWARFS", 6);
   sh.major = MAJOR_VERSION;
   sh.minor = MINOR_VERSION;
   sh.number = fsb.block_no();
@@ -520,9 +520,9 @@ void fsblock::build_section_header(section_header_v2& sh,
       auto xxh = sec->xxh3_64_value();
       auto sha = sec->sha2_512_256_value();
 
-      if (xxh && sha && sha->size() == sizeof(sh.sha2_512_256)) {
+      if (xxh && sha && sha->size() == sh.sha2_512_256.size()) {
         sh.xxh3_64 = xxh.value();
-        std::copy(sha->begin(), sha->end(), &sh.sha2_512_256[0]);
+        std::copy(sha->begin(), sha->end(), sh.sha2_512_256.data());
         return;
       }
     }
@@ -538,7 +538,8 @@ void fsblock::build_section_header(section_header_v2& sh,
   sha.update(&sh.xxh3_64,
              sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64));
   sha.update(range.data(), range.size());
-  DWARFS_CHECK(sha.finalize(&sh.sha2_512_256), "SHA512/256 checksum failed");
+  DWARFS_CHECK(sha.finalize(sh.sha2_512_256.data()),
+               "SHA512/256 checksum failed");
 }
 
 } // namespace

@@ -204,8 +204,8 @@ class fs_section_v2 final : public fs_section::impl {
         sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
     return checksum::verify(checksum::algorithm::SHA2_512_256,
                             mm.as<void>(start_ - hdr_sha_len),
-                            hdr_.length + hdr_sha_len, &hdr_.sha2_512_256,
-                            sizeof(hdr_.sha2_512_256));
+                            hdr_.length + hdr_sha_len, hdr_.sha2_512_256.data(),
+                            hdr_.sha2_512_256.size());
   }
 
   std::span<uint8_t const> data(mmif const& mm) const override {
@@ -221,8 +221,8 @@ class fs_section_v2 final : public fs_section::impl {
   }
 
   std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
-    return std::vector<uint8_t>(hdr_.sha2_512_256,
-                                hdr_.sha2_512_256 + sizeof(hdr_.sha2_512_256));
+    return std::vector<uint8_t>(hdr_.sha2_512_256.begin(),
+                                hdr_.sha2_512_256.end());
   }
 
  private:
