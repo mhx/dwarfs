@@ -25,6 +25,6 @@
 
 namespace dwarfs::tool {
 
-int safe_main(std::function<int(void)> fn);
+int safe_main(std::function<int(void)> const& fn);
 
 } // namespace dwarfs::tool
