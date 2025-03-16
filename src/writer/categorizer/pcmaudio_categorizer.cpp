@@ -25,6 +25,7 @@
 #include <map>
 #include <shared_mutex>
 #include <stack>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
@@ -81,6 +82,11 @@ std::ostream& operator<<(std::ostream& os, endianness e) {
     throw std::runtime_error("internal error: unhandled endianness value");
   }
   return os;
+}
+
+std::string_view span_to_sv(std::span<uint8_t const> s) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  return std::string_view{reinterpret_cast<char const*>(s.data()), s.size()};
 }
 
 std::optional<endianness> parse_endianness(std::string_view e) {
@@ -297,21 +303,23 @@ class iff_parser final {
     ChunkHeaderType header;
     size_t pos;
 
-    bool is(std::string_view ident) const {
-      assert(sizeof(header.id) == ident.size());
+    static constexpr size_t const kFourCCSize{4};
+
+    constexpr bool is(std::string_view ident) const {
+      assert(header.id.size() == ident.size());
       return ident == this->id();
     }
 
-    std::string_view id() const {
-      return std::string_view(header.id, sizeof(header.id));
+    constexpr std::string_view id() const {
+      return std::string_view(header.id.data(), header.id.size());
     }
 
-    std::string_view fourcc() const {
-      static_assert(sizeof(header.id) >= 4);
-      return std::string_view(header.id, 4);
+    constexpr std::string_view fourcc() const {
+      static_assert(sizeof(header.id) >= kFourCCSize);
+      return std::string_view(header.id.data(), kFourCCSize);
     }
 
-    size_t size() const { return header.size; }
+    constexpr size_t size() const { return header.size; }
   };
 
   iff_parser(logger& lgr, fs::path const& path, std::span<uint8_t const> data,
@@ -589,21 +597,21 @@ template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_aiff(
     inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
-  if (std::memcmp(data.data(), "FORM", 4) != 0 ||
-      std::memcmp(data.data() + 8, "AIFF", 4) != 0) {
+  if (auto d = span_to_sv(data);
+      !d.starts_with("FORM") || !d.substr(8).starts_with("AIFF")) {
     return false;
   }
 
   FOLLY_PACK_PUSH
 
   struct file_hdr_t {
-    char id[4];
+    std::array<char, 4> id;
     uint32_t size;
-    char form[4];
+    std::array<char, 4> form;
   } FOLLY_PACK_ATTR;
 
   struct chunk_hdr_t {
-    char id[4];
+    std::array<char, 4> id;
     uint32_t size;
   } FOLLY_PACK_ATTR;
 
@@ -713,31 +721,35 @@ template <typename LoggerPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
     inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
-  if (std::memcmp(data.data(), "caff", 4) != 0) {
+  if (auto d = span_to_sv(data); !d.starts_with("caff")) {
     return false;
   }
 
   FOLLY_PACK_PUSH
 
   struct caff_hdr_t {
-    char id[4];
+    std::array<char, 4> id;
     uint16_t version;
     uint16_t flags;
   } FOLLY_PACK_ATTR;
 
   struct chunk_hdr_t {
-    char id[4];
+    std::array<char, 4> id;
     uint64_t size;
   } FOLLY_PACK_ATTR;
 
   struct format_chk_t {
     double sample_rate;
-    char format_id[4];
+    std::array<char, 4> format_id;
     uint32_t format_flags;
     uint32_t bytes_per_packet;
     uint32_t frames_per_packet;
     uint32_t channels_per_frame;
     uint32_t bits_per_channel;
+
+    constexpr std::string_view format_id_sv() const {
+      return std::string_view(format_id.data(), format_id.size());
+    }
   } FOLLY_PACK_ATTR;
 
   struct data_chk_t {
@@ -792,10 +804,9 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_caf(
         return false;
       }
 
-      if (std::memcmp(fmt.format_id, "lpcm", 4) != 0) {
+      if (auto fmt_id = fmt.format_id_sv(); fmt_id != "lpcm") {
         // TODO: alaw, ulaw?
-        LOG_VERBOSE << "[CAF] " << path << ": unsupported `"
-                    << std::string_view(fmt.format_id, sizeof(fmt.format_id))
+        LOG_VERBOSE << "[CAF] " << path << ": unsupported `" << fmt_id
                     << "` format";
         return false;
       }
@@ -890,21 +901,24 @@ template <typename FormatPolicy>
 bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     inode_fragments& frag, fs::path const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
-  if (std::memcmp(data.data(), FormatPolicy::file_header_id.data(),
-                  FormatPolicy::id_size) != 0) {
+  if (auto d = span_to_sv(data); !d.starts_with(FormatPolicy::file_header_id)) {
     return false;
   }
 
   FOLLY_PACK_PUSH
 
   struct file_hdr_t {
-    char id[FormatPolicy::id_size];
+    std::array<char, FormatPolicy::id_size> id;
     typename FormatPolicy::SizeType size;
-    char form[FormatPolicy::id_size];
+    std::array<char, FormatPolicy::id_size> form;
+
+    constexpr std::string_view form_sv() const {
+      return std::string_view(form.data(), form.size());
+    }
   } FOLLY_PACK_ATTR;
 
   struct chunk_hdr_t {
-    char id[FormatPolicy::id_size];
+    std::array<char, FormatPolicy::id_size> id;
     typename FormatPolicy::SizeType size;
   } FOLLY_PACK_ATTR;
 
@@ -919,7 +933,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     uint16_t valid_bits_per_sample;
     uint32_t channel_mask;
     uint16_t sub_format_code;
-    uint8_t guid_remainder[14];
+    std::array<uint8_t, 14> guid_remainder;
   } FOLLY_PACK_ATTR;
 
   FOLLY_PACK_POP
@@ -938,8 +952,7 @@ bool pcmaudio_categorizer_<LoggerPolicy>::check_wav_like(
     return false;
   }
 
-  if (std::memcmp(file_header.form, FormatPolicy::wave_id.data(),
-                  FormatPolicy::id_size) != 0) {
+  if (file_header.form_sv() != FormatPolicy::wave_id) {
     return false;
   }
 
