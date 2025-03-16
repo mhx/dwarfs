@@ -564,7 +564,8 @@ class metadata_ final : public metadata_v2::impl {
 
   void check_inode_size_cache() const;
 
-  file_stat getattr_impl(inode_view iv, getattr_options const& opts) const;
+  file_stat
+  getattr_impl(inode_view const& iv, getattr_options const& opts) const;
 
   inode_view make_inode_view(uint32_t inode) const {
     // TODO: move compatibility details to metadata_types
@@ -654,7 +655,7 @@ class metadata_ final : public metadata_v2::impl {
     return {iv.inode_num(), global_};
   }
 
-  directory_view make_directory_view(inode_view iv) const {
+  directory_view make_directory_view(inode_view const& iv) const {
     return make_directory_view(iv.raw());
   }
 
@@ -662,15 +663,15 @@ class metadata_ final : public metadata_v2::impl {
 
   // TODO: see if we really need to pass the extra dir_entry_view in
   //       addition to directory_view
-  void dump(std::ostream& os, const std::string& indent, dir_entry_view entry,
-            fsinfo_options const& opts,
+  void dump(std::ostream& os, const std::string& indent,
+            dir_entry_view const& entry, fsinfo_options const& opts,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
   void dump(std::ostream& os, const std::string& indent, directory_view dir,
-            dir_entry_view entry, fsinfo_options const& opts,
+            dir_entry_view const& entry, fsinfo_options const& opts,
             std::function<void(const std::string&, uint32_t)> const& icb) const;
 
-  nlohmann::json as_json(dir_entry_view entry) const;
-  nlohmann::json as_json(directory_view dir, dir_entry_view entry) const;
+  nlohmann::json as_json(dir_entry_view const& entry) const;
+  nlohmann::json as_json(directory_view dir, dir_entry_view const& entry) const;
 
   std::optional<dir_entry_view>
   find_impl(directory_view dir, auto const& range, auto const& name,
@@ -1180,7 +1181,7 @@ void metadata_<LoggerPolicy>::check_consistency() const {
 
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
-    std::ostream& os, const std::string& indent, dir_entry_view entry,
+    std::ostream& os, const std::string& indent, dir_entry_view const& entry,
     fsinfo_options const& opts,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto iv = entry.inode();
@@ -1355,7 +1356,7 @@ metadata_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
 template <typename LoggerPolicy>
 void metadata_<LoggerPolicy>::dump(
     std::ostream& os, const std::string& indent, directory_view dir,
-    dir_entry_view entry, fsinfo_options const& opts,
+    dir_entry_view const& entry, fsinfo_options const& opts,
     std::function<void(const std::string&, uint32_t)> const& icb) const {
   auto range = dir.entry_range();
 
@@ -1515,8 +1516,9 @@ void metadata_<LoggerPolicy>::dump(
 }
 
 template <typename LoggerPolicy>
-nlohmann::json metadata_<LoggerPolicy>::as_json(directory_view dir,
-                                                dir_entry_view entry) const {
+nlohmann::json
+metadata_<LoggerPolicy>::as_json(directory_view dir,
+                                 dir_entry_view const& entry) const {
   nlohmann::json arr = nlohmann::json::array();
 
   auto range = dir.entry_range();
@@ -1529,7 +1531,8 @@ nlohmann::json metadata_<LoggerPolicy>::as_json(directory_view dir,
 }
 
 template <typename LoggerPolicy>
-nlohmann::json metadata_<LoggerPolicy>::as_json(dir_entry_view entry) const {
+nlohmann::json
+metadata_<LoggerPolicy>::as_json(dir_entry_view const& entry) const {
   nlohmann::json obj;
 
   auto iv = entry.inode();
@@ -1882,7 +1885,7 @@ metadata_<LoggerPolicy>::find(int inode, std::string_view name) const {
 
 template <typename LoggerPolicy>
 file_stat
-metadata_<LoggerPolicy>::getattr_impl(inode_view iv,
+metadata_<LoggerPolicy>::getattr_impl(inode_view const& iv,
                                       getattr_options const& opts) const {
   file_stat stbuf;
 

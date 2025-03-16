@@ -163,7 +163,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
                        const StoreFunc& store) const;
 
   void do_readahead(uint32_t inode, chunk_range::iterator it,
-                    chunk_range::iterator end, file_off_t read_offset,
+                    chunk_range::iterator const& end, file_off_t read_offset,
                     size_t size, file_off_t it_offset) const;
 
   block_cache cache_;
@@ -194,7 +194,7 @@ void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
 template <typename LoggerPolicy>
 void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
                                                chunk_range::iterator it,
-                                               chunk_range::iterator end,
+                                               chunk_range::iterator const& end,
                                                file_off_t const read_offset,
                                                size_t const size,
                                                file_off_t it_offset) const {

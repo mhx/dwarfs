@@ -373,7 +373,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     });
   }
 
-  fs.walk_data_order([&](auto entry) {
+  fs.walk_data_order([&](auto const& entry) {
     // TODO: we can surely early abort walk() somehow
     if (entry.is_root() || hard_error) {
       return;

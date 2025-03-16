@@ -319,12 +319,13 @@ class scanner_ final : public scanner::impl {
                                    progress& prog, file_scanner& fs);
 
   std::shared_ptr<entry>
-  add_entry(std::filesystem::path const& name, std::shared_ptr<dir> parent,
-            progress& prog, file_scanner& fs, bool debug_filter = false);
+  add_entry(std::filesystem::path const& name,
+            std::shared_ptr<dir> const& parent, progress& prog,
+            file_scanner& fs, bool debug_filter = false);
 
   void dump_state(std::string_view env_var, std::string_view what,
-                  std::shared_ptr<file_access const> fa,
-                  std::function<void(std::ostream&)> dumper) const;
+                  std::shared_ptr<file_access const> const& fa,
+                  std::function<void(std::ostream&)> const& dumper) const;
 
   LOG_PROXY_DECL(LoggerPolicy);
   worker_group& wg_;
@@ -367,8 +368,9 @@ FOLLY_GCC_DISABLE_WARNING("-Wnrvo")
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
 scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
-                                  std::shared_ptr<dir> parent, progress& prog,
-                                  file_scanner& fs, bool debug_filter) {
+                                  std::shared_ptr<dir> const& parent,
+                                  progress& prog, file_scanner& fs,
+                                  bool debug_filter) {
   try {
     auto pe = entry_factory_.create(os_, name, parent);
 
@@ -496,8 +498,8 @@ FOLLY_POP_WARNING
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::dump_state(
     std::string_view env_var, std::string_view what,
-    std::shared_ptr<file_access const> fa,
-    std::function<void(std::ostream&)> dumper) const {
+    std::shared_ptr<file_access const> const& fa,
+    std::function<void(std::ostream&)> const& dumper) const {
   if (auto dumpfile = os_.getenv(env_var)) {
     if (fa) {
       LOG_VERBOSE << "dumping " << what << " to " << *dumpfile;
@@ -828,7 +830,7 @@ void scanner_<LoggerPolicy>::scan(
                   meta);
             });
 
-        for (auto ino : span) {
+        for (auto const& ino : span) {
           prog.current.store(ino.get());
 
           // TODO: factor this code out

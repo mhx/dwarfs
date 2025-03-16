@@ -31,7 +31,8 @@ namespace dwarfs::internal {
 class feature_set {
  public:
   static std::set<std::string> get_supported();
-  static std::set<std::string> get_unsupported(std::set<std::string> features);
+  static std::set<std::string>
+  get_unsupported(std::set<std::string> const& wanted_features);
 
   void add(feature f);
 
