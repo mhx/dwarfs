@@ -43,6 +43,7 @@ auto progress::get_active_contexts() const
   {
     std::lock_guard lock(mx_);
 
+    // NOLINTNEXTLINE(modernize-use-ranges)
     contexts_.erase(std::remove_if(contexts_.begin(), contexts_.end(),
                                    [&rv](auto& wp) {
                                      if (auto sp = wp.lock()) {

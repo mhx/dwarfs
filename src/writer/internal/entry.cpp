@@ -395,6 +395,7 @@ void dir::pack(thrift::metadata::metadata& mv2,
 }
 
 void dir::remove_empty_dirs(progress& prog) {
+  // NOLINTNEXTLINE(modernize-use-ranges)
   auto last = std::remove_if(entries_.begin(), entries_.end(),
                              [&](std::shared_ptr<entry> const& e) {
                                if (auto d = dynamic_cast<dir*>(e.get())) {

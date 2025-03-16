@@ -118,6 +118,7 @@ class checksum_evp : public checksum::impl {
           }
         },
         &available);
+    // NOLINTNEXTLINE(modernize-use-ranges)
     available.erase(std::remove_if(available.begin(), available.end(),
                                    std::not_fn(is_available)),
                     available.end());
