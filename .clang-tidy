@@ -20,13 +20,17 @@ Checks:
   - -cppcoreguidelines-special-member-functions
 # TODO:
   - -cppcoreguidelines-init-variables
-# TODO:
   - -cppcoreguidelines-pro-bounds-pointer-arithmetic
-# TODO:
   - -cppcoreguidelines-pro-type-member-init
-# TODO:
   - -cppcoreguidelines-pro-type-reinterpret-cast
-#  - modernize-*
+  - modernize-*
+  - -modernize-use-trailing-return-type
+  - -modernize-macro-to-enum
+  - -modernize-avoid-c-arrays
+# TODO
+  - -modernize-pass-by-value
+  - -modernize-use-nodiscard
+  - -modernize-use-designated-initializers
 #  - performance-*
 #  - readability-*
 WarningsAsErrors: 'bugprone-use-after-move'
