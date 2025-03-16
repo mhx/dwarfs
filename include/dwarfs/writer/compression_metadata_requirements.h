@@ -215,7 +215,7 @@ class typed_metadata_requirement_base
                                   value_parser_type value_parser)
       : checked_metadata_requirement_base<Meta>(name)
       , mp_{mp}
-      , value_parser_{value_parser} {}
+      , value_parser_{std::move(value_parser)} {}
 
   void check(Meta const& m) const override { check_value(m.*mp_); }
 

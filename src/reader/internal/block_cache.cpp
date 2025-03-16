@@ -155,7 +155,9 @@ class block_request {
     promise_.set_value(block_range(std::move(block), begin_, end_ - begin_));
   }
 
-  void error(std::exception_ptr error) { promise_.set_exception(error); }
+  void error(std::exception_ptr error) {
+    promise_.set_exception(std::move(error));
+  }
 
  private:
   size_t begin_{0};

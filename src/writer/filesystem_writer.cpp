@@ -797,7 +797,7 @@ void filesystem_writer_<LoggerPolicy>::write_block_impl(
   auto fsb = std::make_unique<fsblock>(section_type::BLOCK, bc, std::move(data),
                                        pctx, std::move(physical_block_cb));
 
-  fsb->compress(wg_, meta);
+  fsb->compress(wg_, std::move(meta));
 
   merger_->add(cat, std::move(fsb));
 }

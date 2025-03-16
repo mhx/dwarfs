@@ -114,16 +114,16 @@ class metadata_v2 {
   }
 
   file_stat getattr(inode_view iv, std::error_code& ec) const {
-    return impl_->getattr(iv, ec);
+    return impl_->getattr(std::move(iv), ec);
   }
 
   file_stat getattr(inode_view iv, getattr_options const& opts,
                     std::error_code& ec) const {
-    return impl_->getattr(iv, opts, ec);
+    return impl_->getattr(std::move(iv), opts, ec);
   }
 
   std::optional<directory_view> opendir(inode_view iv) const {
-    return impl_->opendir(iv);
+    return impl_->opendir(std::move(iv));
   }
 
   std::optional<dir_entry_view>
@@ -135,16 +135,16 @@ class metadata_v2 {
 
   void access(inode_view iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const {
-    impl_->access(iv, mode, uid, gid, ec);
+    impl_->access(std::move(iv), mode, uid, gid, ec);
   }
 
   int open(inode_view iv, std::error_code& ec) const {
-    return impl_->open(iv, ec);
+    return impl_->open(std::move(iv), ec);
   }
 
   std::string
   readlink(inode_view iv, readlink_mode mode, std::error_code& ec) const {
-    return impl_->readlink(iv, mode, ec);
+    return impl_->readlink(std::move(iv), mode, ec);
   }
 
   void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
@@ -158,7 +158,7 @@ class metadata_v2 {
   bool has_symlinks() const { return impl_->has_symlinks(); }
 
   nlohmann::json get_inode_info(inode_view iv, size_t max_chunks) const {
-    return impl_->get_inode_info(iv, max_chunks);
+    return impl_->get_inode_info(std::move(iv), max_chunks);
   }
 
   std::optional<std::string> get_block_category(size_t block_number) const {
