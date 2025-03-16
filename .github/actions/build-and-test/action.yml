@@ -28,11 +28,16 @@ description: 'Build and test dwarfs'
 runs:
   using: "composite"
   steps:
-      - name: Configure
+      - name: Configure cache
+        if: env.CCACHE_FLD != ''
         shell: bash
         run: |
           echo "CCACHE_DIR=$PWD/${{ env.CCACHE_FLD }}"  >> $GITHUB_ENV
           mkdir -p ${{ env.CCACHE_FLD }}
+
+      - name: Configure
+        shell: bash
+        run: |
           cmake -B build                                                 \
                 -DFOLLY_NO_EXCEPTION_TRACER=ON                           \
                 -DWITH_MAN_PAGES=OFF                                     \
@@ -43,13 +48,14 @@ runs:
                 ${{ matrix.config.extra_opts }} ${{ env.EXTRA_OPTS }} .
 
       - name: Load Cache
+        if: env.CCACHE_FLD != ''
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_FLD }}
-          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-${{ github.sha }}
+          key: ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.architecture.platform }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-
-            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.architecture.platform }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-${{ github.ref }}-
+            ccache-${{ matrix.config.build_type }}-${{ matrix.config.os }}-${{ matrix.architecture.platform }}-${{ matrix.config.xcode }}${{ matrix.config.env.CC }}-${{ matrix.setup.scope }}-${{ matrix.config.extra_opts }}-${{ env.EXTRA_OPTS }}-
 
       - name: Build
         shell: bash

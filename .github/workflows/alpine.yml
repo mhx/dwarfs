@@ -52,60 +52,71 @@ concurrency:
   group: '${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.ref_name }}'
   cancel-in-progress: true
 
-env:
-  CCACHE_FLD: ccache
-
 jobs:
   build:
-    name: alpine 3.17 [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }}, OpenSSL ${{ matrix.openssl }} ]
+    name: ${{ matrix.architecture.platform }}/${{ matrix.config.os }} [ ${{ matrix.config.env.CC }}, scope ${{ matrix.setup.scope }}, ${{ matrix.config.build_type }} ${{ matrix.config.extra_opts }}, OpenSSL ${{ matrix.openssl }} ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        architecture:
+          - { host: 'ubuntu-22.04', platform: linux/amd64, CCACHE_FLD: ccache }
+#          - { host: 'ubuntu-22.04-arm', platform: linux/arm64 }
+        config:
+          - { os: 'alpine-3.17', env: { CC: gcc,   CXX: g++     }, build_type: Release, extra_opts: '' }
+          - { os: 'alpine-3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
 #  We are running two configurations:
 #   - ALL in order to run regression tests
 #   - MKD just to be sure that it build ok
-        config:
-          - { os: 'alpine:3.17', env: { CC: gcc,   CXX: g++     }, build_type: Release, extra_opts: '' }
-          - { os: 'alpine:3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
         setup:
           - { scope: 'ALL',  tests: 'ON' }
           - { scope: 'MKD',  tests: 'OFF' }
         openssl:
-          - '1.1'
           - '3'
+        include:
+          - architecture: { host: 'ubuntu-22.04', platform: linux/amd64 }
+            config: { os: 'alpine-3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
+            setup: { scope: 'ALL',  tests: 'ON' }
+            openssl: '1.1'
+          - architecture: { host: 'ubuntu-22.04-arm', platform: linux/arm64 }
+            config: { os: 'alpine-3.17', env: { CC: clang, CXX: clang++ }, build_type: Release, extra_opts: '' }
+            setup: { scope: 'ALL',  tests: 'ON' }
+            openssl: '3'
 
     env: ${{ matrix.config.env }}
     container:
-      image: ${{ matrix.config.os }}
-      options: --privileged
+      image: 'ghcr.io/${{ github.repository_owner }}/tebako-${{ matrix.config.os }}-dev'
+      options: --privileged     # for fuse to work for full mode
 
     steps:
-      - name: Install packages
-        run: |
-          apk --no-cache --upgrade add git bash build-base cmake   \
-            autoconf boost-static boost-dev flex-dev bison         \
-            binutils-dev libevent-dev acl-dev clang-dev fmt-dev    \
-            double-conversion-dev lz4-dev openssl-dev xz-dev       \
-            libunwind-dev libdwarf-dev glog-dev elfutils-dev       \
-            fuse3 fuse3-dev jemalloc-dev ccache tar brotli-dev
-
-      - name: Checkout
+      - name: Checkout linux/amd64
+        if: matrix.architecture.platform == 'linux/amd64'
         uses: actions/checkout@v4
         with:
           submodules: true
 
-      - name: Declare directory safe
-        run: git config --global --add safe.directory "$(pwd)"
+      - name: Checkout linux/amd64
+        if: matrix.architecture.platform == 'linux/arm64'
+        uses: actions/checkout@v1
+        with:
+          submodules: true
 
-      - name: Get number of CPU cores
-        run:  echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+      - name: Setup environment
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          if [ ${{ matrix.architecture.platform }} == 'linux/amd64' ]; then
+            echo "CCACHE_FLD=ccache"  >> $GITHUB_ENV
+          else
+            echo "CCACHE_FLD="  >> $GITHUB_ENV
+          fi
+          echo "CORES=$(nproc --all)" >> $GITHUB_ENV
+          apk --no-cache --upgrade add fuse3 fuse3-dev
 
       - name: Setup OpenSSL 1.1
         if: ${{ matrix.openssl == '1.1' }}
         run: |
          cmake -B build/setup-openssl -S tools/dwarfs-test-helper -DROOT=$PWD -DDEPS=$(cd .. && pwd)/openssl-1.1.1
-         cmake --build build/setup-openssl -j 16
+         cmake --build build/setup-openssl --parallel "$CORES"
          echo "EXTRA_OPTS=-DOPENSSL_ROOT_DIR=$(cd .. && pwd)/openssl-1.1.1" >> $GITHUB_ENV
 
       - name: Build and test
