@@ -94,16 +94,14 @@ class categorizer_job {
   categorizer_job();
   categorizer_job(std::unique_ptr<impl> impl);
 
-  void set_total_size(size_t total_size) {
-    return impl_->set_total_size(total_size);
-  }
+  void set_total_size(size_t total_size) { impl_->set_total_size(total_size); }
 
   void categorize_random_access(std::span<uint8_t const> data) {
-    return impl_->categorize_random_access(data);
+    impl_->categorize_random_access(data);
   }
 
   void categorize_sequential(std::span<uint8_t const> data) {
-    return impl_->categorize_sequential(data);
+    impl_->categorize_sequential(data);
   }
 
   inode_fragments result() { return impl_->result(); }
