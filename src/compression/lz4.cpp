@@ -37,8 +37,8 @@ namespace {
 struct lz4_compression_policy {
   static size_t compress(const void* src, void* dest, size_t size,
                          size_t destsize, int /*level*/) {
-    return to<size_t>(LZ4_compress_default(reinterpret_cast<const char*>(src),
-                                           reinterpret_cast<char*>(dest),
+    return to<size_t>(LZ4_compress_default(static_cast<const char*>(src),
+                                           static_cast<char*>(dest),
                                            to<int>(size), to<int>(destsize)));
   }
 
@@ -48,9 +48,9 @@ struct lz4_compression_policy {
 struct lz4hc_compression_policy {
   static size_t compress(const void* src, void* dest, size_t size,
                          size_t destsize, int level) {
-    return to<size_t>(LZ4_compress_HC(reinterpret_cast<const char*>(src),
-                                      reinterpret_cast<char*>(dest),
-                                      to<int>(size), to<int>(destsize), level));
+    return to<size_t>(LZ4_compress_HC(static_cast<const char*>(src),
+                                      static_cast<char*>(dest), to<int>(size),
+                                      to<int>(destsize), level));
   }
 
   static std::string describe(int level) {
