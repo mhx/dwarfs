@@ -229,12 +229,16 @@ class alignas(64) bloom_filter {
   // size in bits
   DWARFS_FORCE_INLINE size_t size() const { return size_; }
 
-  void clear() { std::fill(begin(), end(), 0); }
+  void clear() {
+    // NOLINTNEXTLINE(modernize-use-ranges)
+    std::fill(begin(), end(), 0);
+  }
 
   void merge(bloom_filter const& other) {
     if (size() != other.size()) {
       throw std::runtime_error("size mismatch");
     }
+    // NOLINTNEXTLINE(modernize-use-ranges)
     std::transform(cbegin(), cend(), other.cbegin(), begin(), std::bit_or<>{});
   }
 
