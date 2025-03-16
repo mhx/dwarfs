@@ -137,7 +137,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
         chunk_range chunks, std::error_code& ec) const override;
-  void dump(std::ostream& os, const std::string& indent,
+  void dump(std::ostream& os, std::string const& indent,
             chunk_range chunks) const override;
   void set_num_workers(size_t num) override { cache_.set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) override {
@@ -160,7 +160,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
   template <typename StoreFunc>
   size_t read_internal(uint32_t inode, size_t size, file_off_t read_offset,
                        size_t maxiov, chunk_range chunks, std::error_code& ec,
-                       const StoreFunc& store) const;
+                       StoreFunc const& store) const;
 
   void do_readahead(uint32_t inode, chunk_range::iterator it,
                     chunk_range::iterator const& end, file_off_t read_offset,
@@ -183,7 +183,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
 
 template <typename LoggerPolicy>
 void inode_reader_<LoggerPolicy>::dump(std::ostream& os,
-                                       const std::string& indent,
+                                       std::string const& indent,
                                        chunk_range chunks) const {
   for (auto const& [index, chunk] : ranges::views::enumerate(chunks)) {
     os << indent << "  [" << index << "] -> (block=" << chunk.block()
@@ -346,7 +346,7 @@ template <typename LoggerPolicy>
 template <typename StoreFunc>
 size_t inode_reader_<LoggerPolicy>::read_internal(
     uint32_t inode, size_t size, file_off_t offset, size_t const maxiov,
-    chunk_range chunks, std::error_code& ec, const StoreFunc& store) const {
+    chunk_range chunks, std::error_code& ec, StoreFunc const& store) const {
   auto ranges = read_internal(inode, size, offset, maxiov, chunks, ec);
 
   if (ec) {
@@ -413,7 +413,7 @@ size_t inode_reader_<LoggerPolicy>::read(char* buf, uint32_t inode, size_t size,
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
   return read_internal(inode, size, offset, kReadAllIOV, chunks, ec,
-                       [&](size_t num_read, const block_range& br) {
+                       [&](size_t num_read, block_range const& br) {
                          ::memcpy(buf + num_read, br.data(), br.size());
                        });
 }
@@ -439,7 +439,7 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
   PERFMON_SET_CONTEXT(static_cast<uint64_t>(offset), size);
 
   auto rv = read_internal(inode, size, offset, maxiov, chunks, ec,
-                          [&](size_t, const block_range& br) {
+                          [&](size_t, block_range const& br) {
                             auto& iov = buf.buf.emplace_back();
                             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
                             iov.iov_base = const_cast<uint8_t*>(br.data());

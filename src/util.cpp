@@ -461,7 +461,7 @@ std::vector<HANDLE> suspend_other_threads() {
   return handles;
 }
 
-void resume_suspended_threads(const std::vector<HANDLE>& handles) {
+void resume_suspended_threads(std::vector<HANDLE> const& handles) {
   for (auto th : handles) {
     ::ResumeThread(th);
     ::CloseHandle(th);

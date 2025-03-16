@@ -76,7 +76,7 @@ class metadata_v2 {
   void
   dump(std::ostream& os, fsinfo_options const& opts,
        filesystem_info const* fsinfo,
-       std::function<void(const std::string&, uint32_t)> const& icb) const {
+       std::function<void(std::string const&, uint32_t)> const& icb) const {
     impl_->dump(os, opts, fsinfo, icb);
   }
 
@@ -186,7 +186,7 @@ class metadata_v2 {
     virtual void dump(
         std::ostream& os, fsinfo_options const& opts,
         filesystem_info const* fsinfo,
-        std::function<void(const std::string&, uint32_t)> const& icb) const = 0;
+        std::function<void(std::string const&, uint32_t)> const& icb) const = 0;
 
     virtual nlohmann::json
     info_as_json(fsinfo_options const& opts,

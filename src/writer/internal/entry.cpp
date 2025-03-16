@@ -84,7 +84,7 @@ bool entry::has_parent() const {
 
 std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 
-void entry::set_name(const std::string& name) { name_ = name; }
+void entry::set_name(std::string const& name) { name_ = name; }
 
 std::u8string entry::u8name() const { return string_to_u8string(name_); }
 
@@ -161,7 +161,7 @@ bool entry::is_directory() const { return stat_.is_directory(); }
 
 void entry::walk(std::function<void(entry*)> const& f) { f(this); }
 
-void entry::walk(std::function<void(const entry*)> const& f) const { f(this); }
+void entry::walk(std::function<void(entry const*)> const& f) const { f(this); }
 
 void entry::update(global_entry_data& data) const {
   stat_.ensure_valid(file_stat::uid_valid | file_stat::gid_valid |
@@ -331,7 +331,7 @@ void dir::walk(std::function<void(entry*)> const& f) {
   }
 }
 
-void dir::walk(std::function<void(const entry*)> const& f) const {
+void dir::walk(std::function<void(entry const*)> const& f) const {
   f(this);
 
   for (entry_ptr const& e : entries_) {
@@ -452,7 +452,7 @@ void dir::populate_lookup_table() {
 
 entry::type_t link::type() const { return E_LINK; }
 
-const std::string& link::linkname() const { return link_; }
+std::string const& link::linkname() const { return link_; }
 
 void link::accept(entry_visitor& v, bool) { v.visit(this); }
 

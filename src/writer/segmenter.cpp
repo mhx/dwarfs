@@ -743,7 +743,7 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
   segment_and_add_data(chunkable& chkable, size_t size_in_frames);
 
   DWARFS_FORCE_INLINE size_t
-  bloom_filter_size(const segmenter::config& cfg) const {
+  bloom_filter_size(segmenter::config const& cfg) const {
     if constexpr (is_segmentation_enabled()) {
       auto hash_count =
           std::bit_ceil(std::max<size_t>(1, cfg.max_active_blocks) *
@@ -754,18 +754,18 @@ class segmenter_ final : public segmenter::impl, private SegmentingPolicy {
     return 0;
   }
 
-  static DWARFS_FORCE_INLINE size_t window_size(const segmenter::config& cfg) {
+  static DWARFS_FORCE_INLINE size_t window_size(segmenter::config const& cfg) {
     return cfg.blockhash_window_size > 0
                ? static_cast<size_t>(1) << cfg.blockhash_window_size
                : 0;
   }
 
-  static DWARFS_FORCE_INLINE size_t window_step(const segmenter::config& cfg) {
+  static DWARFS_FORCE_INLINE size_t window_step(segmenter::config const& cfg) {
     return std::max<size_t>(1, window_size(cfg) >> cfg.window_increment_shift);
   }
 
   size_t DWARFS_FORCE_INLINE
-  block_size_in_frames(const segmenter::config& cfg) const {
+  block_size_in_frames(segmenter::config const& cfg) const {
     auto raw_size = static_cast<size_t>(1) << cfg.block_size_bits;
     return bytes_to_frames(constrained_block_size(raw_size));
   }

@@ -2197,7 +2197,7 @@ TEST(filesystem, case_insensitive_lookup) {
     EXPECT_THAT(
         lgr.get_log(),
         testing::Contains(testing::ResultOf(
-            [](const auto& entry) { return entry.output; },
+            [](auto const& entry) { return entry.output; },
             testing::AllOf(testing::HasSubstr(u8string_to_string(
                                u8"case-insensitive collision in directory "
                                u8"\"lõREMÏpSüM\" (inode=")),

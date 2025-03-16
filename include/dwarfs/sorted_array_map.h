@@ -112,7 +112,7 @@ class sorted_array_map {
   constexpr const_reverse_iterator crend() const { return data_.crend(); }
 
  private:
-  constexpr static std::array<value_type, N>
+  static constexpr std::array<value_type, N>
   sort(std::array<value_type, N> arr) {
     if (!std::ranges::is_sorted(arr, std::less{}, &value_type::first)) {
       std::ranges::sort(arr, std::less{}, &value_type::first);

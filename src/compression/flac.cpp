@@ -66,7 +66,7 @@ class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
   }
 
   ::FLAC__StreamEncoderWriteStatus
-  write_callback(const FLAC__byte buffer[], size_t bytes, uint32_t,
+  write_callback(FLAC__byte const buffer[], size_t bytes, uint32_t,
                  uint32_t) override {
     size_t end = pos_ + bytes;
     if (data_.size() < end) {
@@ -136,8 +136,8 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
   }
 
   ::FLAC__StreamDecoderWriteStatus
-  write_callback(const ::FLAC__Frame* frame,
-                 const FLAC__int32* const buffer[]) override {
+  write_callback(::FLAC__Frame const* frame,
+                 FLAC__int32 const* const buffer[]) override {
     auto samples = frame->header.blocksize;
     auto channels = frame->header.channels;
     tmp_.resize(channels * samples);
@@ -203,13 +203,13 @@ class flac_block_compressor final : public block_compressor::impl {
       : level_{level}
       , exhaustive_{exhaustive} {}
 
-  flac_block_compressor(const flac_block_compressor& rhs) = default;
+  flac_block_compressor(flac_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<flac_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
                                 std::string const* metadata) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
@@ -309,7 +309,7 @@ class flac_block_compressor final : public block_compressor::impl {
     pcm_sample_transformer<FLAC__int32> xfm(pcm_end, pcm_sig, pcm_pad,
                                             bytes_per_sample, bits_per_sample);
 
-    const auto samples_per_call = kBlockSize / num_channels;
+    auto const samples_per_call = kBlockSize / num_channels;
     std::vector<FLAC__int32> buffer;
     size_t input_pos = 0;
 
@@ -392,7 +392,7 @@ class flac_block_compressor final : public block_compressor::impl {
 
 class flac_block_decompressor final : public block_decompressor::impl {
  public:
-  flac_block_decompressor(const uint8_t* data, size_t size,
+  flac_block_decompressor(uint8_t const* data, size_t size,
                           std::vector<uint8_t>& target)
       : flac_block_decompressor(folly::Range<uint8_t const*>(data, size),
                                 target) {}

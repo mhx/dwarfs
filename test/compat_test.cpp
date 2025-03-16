@@ -869,9 +869,9 @@ void walk_tree(reader::filesystem_v2 const& fs, T& cb,
 
 void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
                   std::string const& version, bool enable_nlink) {
-  const bool has_devices = not(version == "0.2.0" or version == "0.2.3");
-  const bool has_ac_time = version == "0.2.0" or version == "0.2.3";
-  const bool nlink_affects_blocks =
+  bool const has_devices = not(version == "0.2.0" or version == "0.2.3");
+  bool const has_ac_time = version == "0.2.0" or version == "0.2.3";
+  bool const nlink_affects_blocks =
       not(version.starts_with("0.2.") or version.starts_with("0.3.") or
           version.starts_with("0.4."));
   auto const expected_blocks =

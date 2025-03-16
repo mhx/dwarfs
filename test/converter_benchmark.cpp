@@ -35,15 +35,15 @@
 
 namespace {
 
-std::array<std::string_view, 5> constexpr integer_strings = {
+constexpr std::array<std::string_view, 5> integer_strings = {
     "0", "4711", "42", "1337", "1234567890",
 };
 
-std::array<std::string_view, 5> constexpr integer_strings_invalid = {
+constexpr std::array<std::string_view, 5> integer_strings_invalid = {
     "a", "4711a", "42a", "1337a", "1234567890a",
 };
 
-std::array<int, 5> constexpr integer_values = {0, 4711, 42, 1337, 1234567890};
+constexpr std::array<int, 5> integer_values = {0, 4711, 42, 1337, 1234567890};
 
 void int_to_string_folly_to(::benchmark::State& state) {
   for (auto _ : state) {
@@ -96,7 +96,7 @@ void string_to_int_lexical_cast_invalid(::benchmark::State& state) {
       try {
         auto v = boost::lexical_cast<int>(s);
         benchmark::DoNotOptimize(v);
-      } catch (const boost::bad_lexical_cast&) {
+      } catch (boost::bad_lexical_cast const&) {
       }
     }
   }

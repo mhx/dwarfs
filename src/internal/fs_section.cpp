@@ -182,7 +182,7 @@ class fs_section_v2 final : public fs_section::impl {
       return false;
     }
 
-    static auto constexpr kHdrCsLen =
+    static constexpr auto kHdrCsLen =
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
 
     auto ok = checksum::verify(

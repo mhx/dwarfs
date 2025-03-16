@@ -23,7 +23,7 @@
 
 namespace {
 
-const std::string s_loremipsum(
+std::string const s_loremipsum(
     "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo "
     "igula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis "
     "is parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies "
@@ -412,7 +412,7 @@ const std::string s_loremipsum(
 namespace dwarfs {
 namespace test {
 
-const std::string& loremipsum() { return s_loremipsum; }
+std::string const& loremipsum() { return s_loremipsum; }
 
 std::string loremipsum(size_t size) {
   std::string str;

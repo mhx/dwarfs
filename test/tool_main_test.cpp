@@ -75,7 +75,7 @@ namespace {
 
 // TODO: this is a workaround for older Clang versions
 struct fs_path_hash {
-  auto operator()(const std::filesystem::path& p) const noexcept {
+  auto operator()(std::filesystem::path const& p) const noexcept {
     return std::filesystem::hash_value(p);
   }
 };
@@ -173,7 +173,7 @@ struct random_file_tree_options {
   bool with_invalid_utf8{false};
 };
 
-auto constexpr default_fs_opts = reader::filesystem_options{
+constexpr auto default_fs_opts = reader::filesystem_options{
     .block_cache = {.max_bytes = 256 * 1024,
                     .sequential_access_detector_threshold = 4},
     .metadata = {.check_consistency = true}};
@@ -1695,7 +1695,7 @@ constexpr std::array<std::string_view, 6> const debug_filter_mode_names = {
     "included", "excluded", "included-files", "excluded-files", "files", "all",
 };
 
-const std::map<std::string_view, writer::debug_filter_mode> debug_filter_modes{
+std::map<std::string_view, writer::debug_filter_mode> const debug_filter_modes{
     {"included", writer::debug_filter_mode::INCLUDED},
     {"included-files", writer::debug_filter_mode::INCLUDED_FILES},
     {"excluded", writer::debug_filter_mode::EXCLUDED},

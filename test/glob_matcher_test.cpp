@@ -335,9 +335,9 @@ TEST(glob_matcher_test, python_case) {
 }
 
 TEST(glob_matcher_test, python_char_set) {
-  static std::string_view constexpr testcases =
+  static constexpr std::string_view testcases =
       R"(abcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)";
-  static std::string_view constexpr uppercase = R"(ABCDEFGHIJKLMNOPQRSTUVWXYZ)";
+  static constexpr std::string_view uppercase = R"(ABCDEFGHIJKLMNOPQRSTUVWXYZ)";
   using namespace std::literals;
 
   for (char c : testcases) {
@@ -391,9 +391,9 @@ TEST(glob_matcher_test, python_char_set) {
 }
 
 TEST(glob_matcher_test, python_range) {
-  static std::string_view constexpr testcases =
+  static constexpr std::string_view testcases =
       R"(abcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)";
-  static std::string_view constexpr uppercase = R"(ABCDEFGHIJKLMNOPQRSTUVWXYZ)";
+  static constexpr std::string_view uppercase = R"(ABCDEFGHIJKLMNOPQRSTUVWXYZ)";
   using namespace std::literals;
 
   for (char c : testcases) {

@@ -34,7 +34,7 @@
 
 namespace dwarfs {
 
-option_map::option_map(const std::string_view spec) {
+option_map::option_map(std::string_view const spec) {
   auto arg = split_to<std::vector<std::string_view>>(spec, ':');
 
   choice_ = arg[0];
@@ -59,7 +59,7 @@ option_map::option_map(const std::string_view spec) {
   }
 }
 
-size_t option_map::get_size(const std::string& key, size_t default_value) {
+size_t option_map::get_size(std::string const& key, size_t default_value) {
   auto i = opt_.find(key);
 
   if (i != opt_.end()) {
@@ -75,7 +75,7 @@ void option_map::report() {
   if (!opt_.empty()) {
     std::vector<std::string> invalid;
     std::ranges::transform(opt_, std::back_inserter(invalid),
-                           [](const auto& p) { return p.first; });
+                           [](auto const& p) { return p.first; });
     std::ranges::sort(invalid);
     DWARFS_THROW(runtime_error,
                  fmt::format("invalid option(s) for choice {}: {}", choice_,

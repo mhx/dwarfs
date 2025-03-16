@@ -47,13 +47,13 @@ class ricepp_block_compressor final : public block_compressor::impl {
   ricepp_block_compressor(size_t block_size)
       : block_size_{block_size} {}
 
-  ricepp_block_compressor(const ricepp_block_compressor& rhs) = default;
+  ricepp_block_compressor(ricepp_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<ricepp_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
                                 std::string const* metadata) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
@@ -174,7 +174,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
 
 class ricepp_block_decompressor final : public block_decompressor::impl {
  public:
-  ricepp_block_decompressor(const uint8_t* data, size_t size,
+  ricepp_block_decompressor(uint8_t const* data, size_t size,
                             std::vector<uint8_t>& target)
       : ricepp_block_decompressor(folly::Range<uint8_t const*>(data, size),
                                   target) {}

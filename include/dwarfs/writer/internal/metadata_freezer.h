@@ -36,7 +36,7 @@ namespace writer::internal {
 class metadata_freezer {
  public:
   static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-  freeze(const thrift::metadata::metadata& data);
+  freeze(thrift::metadata::metadata const& data);
 };
 
 } // namespace writer::internal

@@ -28,7 +28,7 @@ namespace dwarfs {
 
 namespace {
 
-ssize_t portable_getxattr(const char* path, const char* name, void* value,
+ssize_t portable_getxattr(char const* path, char const* name, void* value,
                           size_t size) {
 #ifdef __APPLE__
   return ::getxattr(path, name, value, size, 0, 0);
@@ -37,7 +37,7 @@ ssize_t portable_getxattr(const char* path, const char* name, void* value,
 #endif
 }
 
-int portable_setxattr(const char* path, const char* name, const void* value,
+int portable_setxattr(char const* path, char const* name, void const* value,
                       size_t size, int flags) {
 #ifdef __APPLE__
   return ::setxattr(path, name, value, size, 0, flags);
@@ -46,7 +46,7 @@ int portable_setxattr(const char* path, const char* name, const void* value,
 #endif
 }
 
-int portable_removexattr(const char* path, const char* name) {
+int portable_removexattr(char const* path, char const* name) {
 #ifdef __APPLE__
   return ::removexattr(path, name, 0);
 #else
@@ -54,7 +54,7 @@ int portable_removexattr(const char* path, const char* name) {
 #endif
 }
 
-ssize_t portable_listxattr(const char* path, char* list, size_t size) {
+ssize_t portable_listxattr(char const* path, char* list, size_t size) {
 #ifdef __APPLE__
   return ::listxattr(path, list, size, 0);
 #else

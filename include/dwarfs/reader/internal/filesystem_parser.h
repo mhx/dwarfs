@@ -40,7 +40,7 @@ namespace reader::internal {
 
 class filesystem_parser {
  private:
-  static uint64_t constexpr section_offset_mask{(UINT64_C(1) << 48) - 1};
+  static constexpr uint64_t section_offset_mask{(UINT64_C(1) << 48) - 1};
 
  public:
   static file_off_t find_image_offset(mmif& mm, file_off_t image_offset);

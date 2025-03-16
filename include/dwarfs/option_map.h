@@ -34,12 +34,12 @@ class option_map {
  public:
   explicit option_map(std::string_view spec);
 
-  const std::string& choice() const { return choice_; }
+  std::string const& choice() const { return choice_; }
 
   bool has_options() const { return !opt_.empty(); }
 
   template <typename T>
-  T get(const std::string& key, const T& default_value = T()) {
+  T get(std::string const& key, T const& default_value = T()) {
     auto i = opt_.find(key);
 
     if (i != opt_.end()) {
@@ -52,7 +52,7 @@ class option_map {
   }
 
   template <typename T>
-  std::optional<T> get_optional(const std::string& key) {
+  std::optional<T> get_optional(std::string const& key) {
     auto i = opt_.find(key);
 
     if (i != opt_.end()) {
@@ -64,7 +64,7 @@ class option_map {
     return std::nullopt;
   }
 
-  size_t get_size(const std::string& key, size_t default_value = 0);
+  size_t get_size(std::string const& key, size_t default_value = 0);
 
   void report();
 

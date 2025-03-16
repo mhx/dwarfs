@@ -298,7 +298,7 @@ class scanner_ final : public scanner::impl {
  public:
   scanner_(logger& lgr, worker_group& wg, segmenter_factory& sf,
            entry_factory& ef, os_access const& os,
-           const scanner_options& options);
+           scanner_options const& options);
 
   void add_filter(std::unique_ptr<entry_filter>&& filter) override;
 
@@ -354,7 +354,7 @@ template <typename LoggerPolicy>
 scanner_<LoggerPolicy>::scanner_(logger& lgr, worker_group& wg,
                                  segmenter_factory& sf, entry_factory& ef,
                                  os_access const& os,
-                                 const scanner_options& options)
+                                 scanner_options const& options)
     : LOG_PROXY_INIT(lgr)
     , wg_{wg}
     , options_{options}
@@ -483,7 +483,7 @@ scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
     }
 
     return pe;
-  } catch (const std::system_error& e) {
+  } catch (std::system_error const& e) {
     LOG_ERROR << fmt::format("error reading entry (path={}): {}",
                              path_to_utf8_string_sanitized(name),
                              exception_str(e));
@@ -563,7 +563,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
       queue.insert(queue.begin(), subdirs.begin(), subdirs.end());
 
       prog.dirs_scanned++;
-    } catch (const std::system_error& e) {
+    } catch (std::system_error const& e) {
       LOG_ERROR << "cannot read directory `"
                 << path_to_utf8_string_sanitized(ppath)
                 << "`: " << exception_str(e);
@@ -657,7 +657,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
 template <typename LoggerPolicy>
 void scanner_<LoggerPolicy>::scan(
-    filesystem_writer& fs_writer, const std::filesystem::path& path,
+    filesystem_writer& fs_writer, std::filesystem::path const& path,
     writer_progress& wprog,
     std::optional<std::span<std::filesystem::path const>> list,
     std::shared_ptr<file_access const> fa) {
@@ -1077,7 +1077,7 @@ void scanner_<LoggerPolicy>::scan(
 
 scanner::scanner(logger& lgr, thread_pool& pool, segmenter_factory& sf,
                  entry_factory& ef, os_access const& os,
-                 const scanner_options& options)
+                 scanner_options const& options)
     : impl_(
           make_unique_logging_object<impl, internal::scanner_, logger_policies>(
               lgr, pool.get_worker_group(), sf, ef, os, options)) {}

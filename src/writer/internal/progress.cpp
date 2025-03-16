@@ -55,7 +55,7 @@ auto progress::get_active_contexts() const
                     contexts_.end());
   }
 
-  std::ranges::stable_sort(rv, [](const auto& a, const auto& b) {
+  std::ranges::stable_sort(rv, [](auto const& a, auto const& b) {
     return a->get_priority() > b->get_priority();
   });
 

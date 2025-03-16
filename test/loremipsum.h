@@ -26,7 +26,7 @@
 namespace dwarfs {
 namespace test {
 
-const std::string& loremipsum();
+std::string const& loremipsum();
 std::string loremipsum(size_t size);
 } // namespace test
 } // namespace dwarfs

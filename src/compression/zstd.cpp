@@ -48,13 +48,13 @@ class zstd_block_compressor final : public block_compressor::impl {
       : ctxmgr_{get_context_manager()}
       , level_{level} {}
 
-  zstd_block_compressor(const zstd_block_compressor& rhs) = default;
+  zstd_block_compressor(zstd_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<zstd_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
                                 std::string const* metadata) const override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
@@ -90,11 +90,11 @@ class zstd_block_compressor final : public block_compressor::impl {
   static inline std::weak_ptr<zstd_context_manager> s_ctxmgr;
 
   std::shared_ptr<zstd_context_manager> ctxmgr_;
-  const int level_;
+  int const level_;
 };
 
 std::vector<uint8_t>
-zstd_block_compressor::compress(const std::vector<uint8_t>& data,
+zstd_block_compressor::compress(std::vector<uint8_t> const& data,
                                 std::string const* /*metadata*/) const {
   std::vector<uint8_t> compressed(ZSTD_compressBound(data.size()));
   auto ctx = ctxmgr_->make_context();
@@ -114,7 +114,7 @@ zstd_block_compressor::compress(const std::vector<uint8_t>& data,
 
 class zstd_block_decompressor final : public block_decompressor::impl {
  public:
-  zstd_block_decompressor(const uint8_t* data, size_t size,
+  zstd_block_decompressor(uint8_t const* data, size_t size,
                           std::vector<uint8_t>& target)
       : decompressed_(target)
       , data_(data)
@@ -169,9 +169,9 @@ class zstd_block_decompressor final : public block_decompressor::impl {
 
  private:
   std::vector<uint8_t>& decompressed_;
-  const uint8_t* const data_;
-  const size_t size_;
-  const unsigned long long uncompressed_size_;
+  uint8_t const* const data_;
+  size_t const size_;
+  unsigned long long const uncompressed_size_;
   std::string error_;
 };
 

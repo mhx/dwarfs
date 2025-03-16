@@ -62,7 +62,7 @@ int pxattr_main(int argc, sys_char** argv) {
   po::notify(vm);
 
   if (vm.count("help")) {
-    auto constexpr usage = "Usage: pxattr [OPTIONS...]\n";
+    constexpr auto usage = "Usage: pxattr [OPTIONS...]\n";
     std::cout << tool::tool_header("pxattr") << usage << "\n" << desc << "\n";
     return 0;
   }
@@ -116,7 +116,7 @@ int pxattr_main(int argc, sys_char** argv) {
       std::cerr << "listxattr failed: " << ec.message() << "\n";
       return 1;
     }
-    for (const auto& attr : attrs) {
+    for (auto const& attr : attrs) {
       std::cout << attr << "\n";
     }
   }

@@ -39,7 +39,7 @@ namespace po = boost::program_options;
 
 namespace boost {
 
-void validate(boost::any& v, const std::vector<std::string>&,
+void validate(boost::any& v, std::vector<std::string> const&,
               std::optional<bool>*, int) {
   po::validators::check_first_occurrence(v);
   v = std::make_optional(true);

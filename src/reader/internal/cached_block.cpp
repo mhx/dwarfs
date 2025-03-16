@@ -67,7 +67,7 @@ class cached_block_ final : public cached_block {
   // This can be called from any thread
   size_t range_end() const override { return range_end_.load(); }
 
-  const uint8_t* data() const override { return data_.data(); }
+  uint8_t const* data() const override { return data_.data(); }
 
   void decompress_until(size_t end) override {
     while (data_.size() < end) {

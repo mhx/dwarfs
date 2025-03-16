@@ -58,7 +58,7 @@ class worker_group {
    * \param num_workers     Number of worker threads.
    */
   explicit worker_group(
-      logger& lgr, os_access const& os, const char* group_name,
+      logger& lgr, os_access const& os, char const* group_name,
       size_t num_workers = 1,
       size_t max_queue_len = std::numeric_limits<size_t>::max(),
       int niceness = 0);

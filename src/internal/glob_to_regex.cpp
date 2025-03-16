@@ -31,7 +31,7 @@ namespace dwarfs::internal {
 
 namespace {
 
-std::string_view constexpr special_chars = R"(.^$|()[]{}+?*\)";
+constexpr std::string_view special_chars = R"(.^$|()[]{}+?*\)";
 
 std::string escape_special(char c) {
   std::string esc;

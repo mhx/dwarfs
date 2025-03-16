@@ -93,7 +93,7 @@ std::string
 option_names(sorted_array_map<std::string_view, T, N> const& options) {
   // The string_view is needed because ranges::views::join() will include
   // the null terminator when using a string literal.
-  static std::string_view constexpr kJoiner{", "};
+  static constexpr std::string_view kJoiner{", "};
   return options | ranges::views::keys | ranges::views::join(kJoiner) |
          ranges::to<std::string>;
 }
@@ -108,13 +108,13 @@ std::string lzma_error_string(lzma_ret err) {
 class lzma_block_compressor final : public block_compressor::impl {
  public:
   explicit lzma_block_compressor(option_map& om);
-  lzma_block_compressor(const lzma_block_compressor& rhs) = default;
+  lzma_block_compressor(lzma_block_compressor const& rhs) = default;
 
   std::unique_ptr<block_compressor::impl> clone() const override {
     return std::make_unique<lzma_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(const std::vector<uint8_t>& data,
+  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
                                 std::string const* metadata) const override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
@@ -136,7 +136,7 @@ class lzma_block_compressor final : public block_compressor::impl {
 
  private:
   std::vector<uint8_t>
-  compress(const std::vector<uint8_t>& data, const lzma_filter* filters) const;
+  compress(std::vector<uint8_t> const& data, lzma_filter const* filters) const;
 
   static uint32_t get_preset(unsigned level, bool extreme) {
     uint32_t preset = level;
@@ -207,8 +207,8 @@ lzma_block_compressor::lzma_block_compressor(option_map& om) {
 }
 
 std::vector<uint8_t>
-lzma_block_compressor::compress(const std::vector<uint8_t>& data,
-                                const lzma_filter* filters) const {
+lzma_block_compressor::compress(std::vector<uint8_t> const& data,
+                                lzma_filter const* filters) const {
   lzma_stream s = LZMA_STREAM_INIT;
 
   if (auto ret = lzma_stream_encoder(&s, filters, LZMA_CHECK_CRC64);
@@ -247,7 +247,7 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 }
 
 std::vector<uint8_t>
-lzma_block_compressor::compress(const std::vector<uint8_t>& data,
+lzma_block_compressor::compress(std::vector<uint8_t> const& data,
                                 std::string const* /*metadata*/) const {
   auto lzma_opts = opt_lzma_;
   std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
@@ -269,7 +269,7 @@ lzma_block_compressor::compress(const std::vector<uint8_t>& data,
 
 class lzma_block_decompressor final : public block_decompressor::impl {
  public:
-  lzma_block_decompressor(const uint8_t* data, size_t size,
+  lzma_block_decompressor(uint8_t const* data, size_t size,
                           std::vector<uint8_t>& target)
       : stream_(LZMA_STREAM_INIT)
       , decompressed_(target)
@@ -337,15 +337,15 @@ class lzma_block_decompressor final : public block_decompressor::impl {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  static size_t get_uncompressed_size(const uint8_t* data, size_t size);
+  static size_t get_uncompressed_size(uint8_t const* data, size_t size);
 
   lzma_stream stream_;
   std::vector<uint8_t>& decompressed_;
-  const size_t uncompressed_size_;
+  size_t const uncompressed_size_;
   std::string error_;
 };
 
-size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
+size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* data,
                                                       size_t size) {
   if (size < 2 * LZMA_STREAM_HEADER_SIZE) {
     DWARFS_THROW(runtime_error, "lzma compressed block is too small");
@@ -353,7 +353,7 @@ size_t lzma_block_decompressor::get_uncompressed_size(const uint8_t* data,
 
   lzma_stream s = LZMA_STREAM_INIT;
   file_off_t pos = size - LZMA_STREAM_HEADER_SIZE;
-  const uint32_t* ptr = reinterpret_cast<const uint32_t*>(data + size) - 1;
+  uint32_t const* ptr = reinterpret_cast<uint32_t const*>(data + size) - 1;
 
   while (*ptr == 0) {
     pos -= 4;

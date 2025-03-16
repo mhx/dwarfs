@@ -37,21 +37,21 @@ namespace dwarfs::writer {
 
 namespace {
 
-std::array<std::pair<std::string_view, fragment_order_mode>,
-           5> constexpr order_choices{{
-    {"none", fragment_order_mode::NONE},
-    {"path", fragment_order_mode::PATH},
-    {"revpath", fragment_order_mode::REVPATH},
-    {"similarity", fragment_order_mode::SIMILARITY},
-    {"nilsimsa", fragment_order_mode::NILSIMSA},
-}};
+constexpr std::array<std::pair<std::string_view, fragment_order_mode>, 5>
+    order_choices{{
+        {"none", fragment_order_mode::NONE},
+        {"path", fragment_order_mode::PATH},
+        {"revpath", fragment_order_mode::REVPATH},
+        {"similarity", fragment_order_mode::SIMILARITY},
+        {"nilsimsa", fragment_order_mode::NILSIMSA},
+    }};
 
 } // namespace
 
 std::string fragment_order_parser::choices() {
   // The string_view is needed because ranges::views::join() will include
   // the null terminator when using a string literal.
-  static std::string_view constexpr kJoiner{", "};
+  static constexpr std::string_view kJoiner{", "};
   return ranges::views::keys(order_choices) | ranges::views::join(kJoiner) |
          ranges::to<std::string>();
 }

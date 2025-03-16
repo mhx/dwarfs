@@ -45,8 +45,8 @@ class writer_progress {
   writer_progress(update_function_type func,
                   std::chrono::microseconds interval);
 
-  writer_progress(const writer_progress&) = delete;
-  writer_progress& operator=(const writer_progress&) = delete;
+  writer_progress(writer_progress const&) = delete;
+  writer_progress& operator=(writer_progress const&) = delete;
   writer_progress(writer_progress&&) = delete;
   writer_progress& operator=(writer_progress&&) = delete;
 

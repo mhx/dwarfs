@@ -100,7 +100,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // The string_view is needed because ranges::views::join() will include
   // the null terminator when using a string literal.
-  static std::string_view constexpr kJoiner{", "};
+  static constexpr std::string_view kJoiner{", "};
   auto tools = ranges::views::keys(functions) | ranges::views::join(kJoiner) |
                ranges::to<std::string>;
 

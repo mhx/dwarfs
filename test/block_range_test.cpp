@@ -42,7 +42,7 @@ class mock_cached_block : public reader::internal::cached_block {
       : span_{span} {}
 
   size_t range_end() const override { return span_ ? span_->size() : 0; }
-  const uint8_t* data() const override {
+  uint8_t const* data() const override {
     return span_ ? span_->data() : nullptr;
   }
   void decompress_until(size_t) override {}

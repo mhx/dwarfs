@@ -52,9 +52,9 @@ class block_compressor {
  public:
   block_compressor() = default;
 
-  explicit block_compressor(const std::string& spec);
+  explicit block_compressor(std::string const& spec);
 
-  block_compressor(const block_compressor& bc)
+  block_compressor(block_compressor const& bc)
       : impl_(bc.impl_->clone()) {}
 
   block_compressor(block_compressor&& bc) = default;
@@ -100,7 +100,7 @@ class block_compressor {
     virtual std::unique_ptr<impl> clone() const = 0;
 
     virtual std::vector<uint8_t>
-    compress(const std::vector<uint8_t>& data,
+    compress(std::vector<uint8_t> const& data,
              std::string const* metadata) const = 0;
     virtual std::vector<uint8_t>
     compress(std::vector<uint8_t>&& data,
@@ -121,7 +121,7 @@ class block_compressor {
 
 class block_decompressor {
  public:
-  block_decompressor(compression_type type, const uint8_t* data, size_t size,
+  block_decompressor(compression_type type, uint8_t const* data, size_t size,
                      std::vector<uint8_t>& target);
 
   bool decompress_frame(size_t frame_size = BUFSIZ) {
@@ -135,7 +135,7 @@ class block_decompressor {
   std::optional<std::string> metadata() const { return impl_->metadata(); }
 
   static std::vector<uint8_t>
-  decompress(compression_type type, const uint8_t* data, size_t size) {
+  decompress(compression_type type, uint8_t const* data, size_t size) {
     std::vector<uint8_t> target;
     block_decompressor bd(type, data, size, target);
     bd.decompress_frame(bd.uncompressed_size());
