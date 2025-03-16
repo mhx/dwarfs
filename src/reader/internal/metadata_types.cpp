@@ -768,7 +768,7 @@ check_metadata(logger& lgr, global_metadata::Meta const& meta, bool check) {
     }
   }
 
-  return meta;
+  return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
 template <typename T>

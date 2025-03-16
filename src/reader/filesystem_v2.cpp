@@ -113,7 +113,7 @@ try_get_block_decompressor(std::shared_ptr<mmif> mm, fs_section const& sec) {
   if (sec.check_fast(*mm)) {
     try {
       return get_block_decompressor(std::move(mm), sec);
-    } catch (std::exception const&) {
+    } catch (std::exception const&) { // NOLINT(bugprone-empty-catch)
     }
   }
 
