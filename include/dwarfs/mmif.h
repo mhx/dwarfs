@@ -22,6 +22,7 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
 #include <filesystem>
 #include <span>
 #include <string>
@@ -47,8 +48,9 @@ class mmif : public boost::noncopyable {
 
   template <typename T, std::integral U>
   T const* as(U offset = 0) const {
-    return reinterpret_cast<T const*>(
-        reinterpret_cast<char const*>(this->addr()) + offset);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    auto raw = static_cast<std::byte const*>(this->addr()) + offset;
+    return static_cast<T const*>(static_cast<void const*>(raw));
   }
 
   template <typename T = uint8_t, std::integral U>
