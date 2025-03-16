@@ -82,11 +82,11 @@ class brotli_block_compressor final : public block_compressor::impl {
     return fmt::format("brotli [quality={}, lgwin={}]", quality_, window_bits_);
   }
 
-  std::string metadata_requirements() const override { return std::string(); }
+  std::string metadata_requirements() const override { return {}; }
 
   compression_constraints
   get_compression_constraints(std::string const&) const override {
-    return compression_constraints();
+    return {};
   }
 
  private:

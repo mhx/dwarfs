@@ -75,7 +75,7 @@ std::string progress::status(size_t max_len) {
   if (fun) {
     return (*fun)(*this, max_len);
   }
-  return std::string();
+  return {};
 }
 
 } // namespace dwarfs::writer::internal

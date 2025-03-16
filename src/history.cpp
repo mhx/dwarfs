@@ -83,7 +83,7 @@ size_t history::size() const { return history_->entries()->size(); }
 std::vector<uint8_t> history::serialize() const {
   std::string buf;
   ::apache::thrift::CompactSerializer::serialize(*history_, &buf);
-  return std::vector<uint8_t>(buf.begin(), buf.end());
+  return {buf.begin(), buf.end()};
 }
 
 void history::dump(std::ostream& os) const {

@@ -121,7 +121,7 @@ class packed_string_table : public string_table::impl {
       return out;
     }
 
-    return std::string(beg, end);
+    return {beg, end};
   }
 
   std::vector<std::string> unpack() const override {

@@ -51,9 +51,9 @@ bool keep_temporary_directories() {
 
 std::error_code get_last_error_code() {
 #ifdef _WIN32
-  return std::error_code(::GetLastError(), std::system_category());
+  return {static_cast<int>(::GetLastError()), std::system_category()};
 #else
-  return std::error_code(errno, std::generic_category());
+  return {errno, std::generic_category()};
 #endif
 }
 

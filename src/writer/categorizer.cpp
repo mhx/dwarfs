@@ -253,7 +253,7 @@ template <typename LoggerPolicy>
 std::string categorizer_manager_<LoggerPolicy>::category_metadata(
     fragment_category c) const {
   if (c.value() == 0) {
-    return std::string();
+    return {};
   }
 
   auto cat = DWARFS_NOTHROW(categories_.at(c.value()));
@@ -340,7 +340,7 @@ category_prefix(categorizer_manager const* mgr, fragment_category cat) {
 
 std::string
 categorizer::category_metadata(std::string_view, fragment_category) const {
-  return std::string();
+  return {};
 }
 
 void categorizer::set_metadata_requirements(std::string_view,

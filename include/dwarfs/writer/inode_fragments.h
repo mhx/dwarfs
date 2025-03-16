@@ -58,7 +58,7 @@ class single_inode_fragment {
 
   std::span<chunk const> chunks() const {
     // TODO: workaround for older boost small_vector
-    return std::span(chunks_.data(), chunks_.size());
+    return {chunks_.data(), chunks_.size()};
   }
 
   void extend(file_off_t length) { length_ += length; }
@@ -85,7 +85,7 @@ class inode_fragments {
 
   std::span<single_inode_fragment const> span() const {
     // TODO: workaround for older boost small_vector
-    return std::span(fragments_.data(), fragments_.size());
+    return {fragments_.data(), fragments_.size()};
   }
 
   single_inode_fragment const& back() const { return fragments_.back(); }

@@ -343,7 +343,7 @@ class fits_categorizer_ final : public fits_categorizer_base {
       DWARFS_CHECK(c.has_subcategory(), "expected IMAGE to have subcategory");
       return meta_.rlock()->lookup(c.subcategory());
     }
-    return std::string();
+    return {};
   }
 
   void set_metadata_requirements(std::string_view category_name,

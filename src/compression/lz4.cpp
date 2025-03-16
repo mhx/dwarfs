@@ -101,11 +101,11 @@ class lz4_block_compressor final : public block_compressor::impl {
 
   std::string describe() const override { return Policy::describe(level_); }
 
-  std::string metadata_requirements() const override { return std::string(); }
+  std::string metadata_requirements() const override { return {}; }
 
   compression_constraints
   get_compression_constraints(std::string const&) const override {
-    return compression_constraints();
+    return {};
   }
 
  private:
