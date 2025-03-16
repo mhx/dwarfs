@@ -196,7 +196,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
   std::string category_metadata(fragment_category c) const override;
 
   void set_metadata_requirements(fragment_category::value_type c,
-                                 std::string req) override;
+                                 std::string_view req) override;
 
   bool
   deterministic_less(fragment_category a, fragment_category b) const override;
@@ -267,7 +267,7 @@ std::string categorizer_manager_<LoggerPolicy>::category_metadata(
 
 template <typename LoggerPolicy>
 void categorizer_manager_<LoggerPolicy>::set_metadata_requirements(
-    fragment_category::value_type c, std::string req) {
+    fragment_category::value_type c, std::string_view req) {
   auto cat = DWARFS_NOTHROW(categories_.at(c));
   auto categorizer = DWARFS_NOTHROW(categorizers_.at(cat.second));
 
@@ -347,7 +347,7 @@ categorizer::category_metadata(std::string_view, fragment_category) const {
 }
 
 void categorizer::set_metadata_requirements(std::string_view,
-                                            std::string requirements) {
+                                            std::string_view requirements) {
   if (!requirements.empty()) {
     compression_metadata_requirements().parse(
         nlohmann::json::parse(requirements));
