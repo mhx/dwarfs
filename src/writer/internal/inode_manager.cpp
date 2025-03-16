@@ -383,8 +383,10 @@ class inode_ : public inode {
   template <typename T>
   void scan_range(mmif* mm, scanner_progress* sprog, size_t offset, size_t size,
                   size_t chunk_size, T&& scanner) {
+    auto&& scan = std::forward<T>(scanner);
+
     while (size >= chunk_size) {
-      scanner(mm->span(offset, chunk_size));
+      scan(mm->span(offset, chunk_size));
       // release_until() is best-effort, we can ignore the return value
       // NOLINTNEXTLINE(bugprone-unused-return-value,cert-err33-c)
       mm->release_until(offset);
@@ -395,7 +397,8 @@ class inode_ : public inode {
       }
     }
 
-    scanner(mm->span(offset, size));
+    scan(mm->span(offset, size));
+
     if (sprog) {
       sprog->bytes_processed += size;
     }
