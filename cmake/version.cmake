@@ -160,10 +160,12 @@ char const* const DWARFS_GIT_ID = \"${PRJ_GIT_ID}\";
 
 #pragma once
 
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum)
 #define DWARFS_VERSION_MAJOR ${PRJ_VERSION_MAJOR}
 #define DWARFS_VERSION_MINOR ${PRJ_VERSION_MINOR}
 #define DWARFS_VERSION_PATCH ${PRJ_VERSION_PATCH}
 #define DWARFS_VERSION (DWARFS_VERSION_MAJOR * 10000 + DWARFS_VERSION_MINOR * 100 + DWARFS_VERSION_PATCH)
+// NOLINTEND(cppcoreguidelines-macro-to-enum)
 
 namespace dwarfs {
 

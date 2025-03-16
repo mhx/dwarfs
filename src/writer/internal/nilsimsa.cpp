@@ -56,6 +56,8 @@ constexpr inline uint8_t tran3(uint8_t a, uint8_t b, uint8_t c, uint8_t n) {
 
 } // namespace
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
 class nilsimsa::impl {
  public:
   impl() = default;
@@ -175,6 +177,8 @@ class nilsimsa::impl {
   std::array<uint8_t, 4> w_{};
   size_t size_{0};
 };
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
 nilsimsa::nilsimsa()
     : impl_{std::make_unique<impl>()} {}
