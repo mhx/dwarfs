@@ -18,6 +18,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+// NOLINTBEGIN(readability-*)
+
 struct width_interval {
         int start;
         int end;
@@ -542,3 +544,5 @@ int dwarfs_wcwidth(int ucs) {
 
         return intable(WIDE_EASTASIAN, sizeof(WIDE_EASTASIAN)/sizeof(struct width_interval), ucs) ? 2 : 1;
 }
+
+// NOLINTEND(readability-*)
