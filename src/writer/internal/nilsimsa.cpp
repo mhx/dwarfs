@@ -19,6 +19,8 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+
 #include <dwarfs/writer/internal/nilsimsa.h>
 
 namespace dwarfs::writer::internal {
@@ -88,7 +90,7 @@ class nilsimsa::impl {
 
     size_t threshold = total / acc_.size();
 
-    std::fill(hash.begin(), hash.end(), 0);
+    std::ranges::fill(hash, 0);
 
     for (size_t i = 0; i < acc_.size(); i++) {
       if (acc_[i] > threshold) {

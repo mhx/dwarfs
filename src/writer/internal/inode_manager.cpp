@@ -95,8 +95,8 @@ class inode_ : public inode {
   bool has_category(fragment_category cat) const override {
     DWARFS_CHECK(!fragments_.empty(),
                  "has_category() called with no fragments");
-    return std::any_of(fragments_.begin(), fragments_.end(),
-                       [cat](auto const& f) { return f.category() == cat; });
+    return std::ranges::any_of(
+        fragments_, [cat](auto const& f) { return f.category() == cat; });
   }
 
   std::optional<uint32_t>
@@ -610,7 +610,7 @@ class inode_manager_ final : public inode_manager::impl {
                   return catmgr.deterministic_less(a, b);
                 });
     } else {
-      std::sort(rv.categories.begin(), rv.categories.end());
+      std::ranges::sort(rv.categories);
     }
 
     return rv;

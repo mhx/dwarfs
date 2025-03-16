@@ -100,9 +100,8 @@ fsinfo_features fsinfo_features::parse(std::string_view features) {
   fsinfo_features result;
 
   for (auto const& f : split_view<std::string_view>(features, ',')) {
-    auto const it =
-        std::find_if(fsinfo_feature_names.begin(), fsinfo_feature_names.end(),
-                     [&f](auto const& p) { return f == p.second; });
+    auto const it = std::ranges::find_if(
+        fsinfo_feature_names, [&f](auto const& p) { return f == p.second; });
 
     if (it == fsinfo_feature_names.end()) {
       DWARFS_THROW(runtime_error, fmt::format("invalid feature: \"{}\"", f));

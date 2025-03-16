@@ -272,7 +272,7 @@ string_table::pack_generic(std::span<T const> input,
     output.buffer()->swap(buffer);
     output.symtab() = std::move(symtab);
     output.index()->resize(size);
-    std::copy(out_len_vec.begin(), out_len_vec.end(), output.index()->begin());
+    std::ranges::copy(out_len_vec, output.index()->begin());
   } else {
     // store uncompressed
     output.buffer()->reserve(total_input_size);

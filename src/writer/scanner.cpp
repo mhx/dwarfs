@@ -234,7 +234,7 @@ class save_shared_files_visitor : public visitor_base {
 
   void pack_shared_files() {
     if (!shared_files_.empty()) {
-      DWARFS_CHECK(std::is_sorted(shared_files_.begin(), shared_files_.end()),
+      DWARFS_CHECK(std::ranges::is_sorted(shared_files_),
                    "shared files vector not sorted");
       std::vector<uint32_t> compressed;
       compressed.reserve(shared_files_.back() + 1);

@@ -85,7 +85,7 @@ class glob_matcher_ final : public glob_matcher::impl {
   }
 
   bool match(std::string_view sv) const override {
-    return std::any_of(m_.begin(), m_.end(), [&sv](auto const& re) {
+    return std::ranges::any_of(m_, [&sv](auto const& re) {
       return std::regex_match(sv.begin(), sv.end(), re);
     });
   }

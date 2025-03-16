@@ -74,9 +74,9 @@ size_t option_map::get_size(const std::string& key, size_t default_value) {
 void option_map::report() {
   if (!opt_.empty()) {
     std::vector<std::string> invalid;
-    std::transform(opt_.begin(), opt_.end(), std::back_inserter(invalid),
-                   [](const auto& p) { return p.first; });
-    std::sort(invalid.begin(), invalid.end());
+    std::ranges::transform(opt_, std::back_inserter(invalid),
+                           [](const auto& p) { return p.first; });
+    std::ranges::sort(invalid);
     DWARFS_THROW(runtime_error,
                  fmt::format("invalid option(s) for choice {}: {}", choice_,
                              fmt::join(invalid, ", ")));

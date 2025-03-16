@@ -87,7 +87,7 @@ void library_dependencies::add_library(std::string const& name_version_string) {
   if (tmp.starts_with("lib")) {
     tmp.erase(0, 3);
   }
-  std::replace(tmp.begin(), tmp.end(), ' ', '-');
+  std::ranges::replace(tmp, ' ', '-');
   deps_.insert(tmp);
 }
 

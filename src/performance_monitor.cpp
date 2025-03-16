@@ -229,7 +229,7 @@ class performance_monitor_impl final : public performance_monitor {
       ts.emplace_back(t.get_namespace(), t.total_latency(), i);
     }
 
-    std::sort(ts.begin(), ts.end(), [](auto const& a, auto const& b) {
+    std::ranges::sort(ts, [](auto const& a, auto const& b) {
       return std::get<0>(a) < std::get<0>(b) ||
              (std::get<0>(a) == std::get<0>(b) &&
               std::get<1>(a) > std::get<1>(b));
@@ -302,8 +302,8 @@ class performance_monitor_impl final : public performance_monitor {
       }
     }
 
-    std::sort(events.begin(), events.end(),
-              [](auto const& a, auto const& b) { return a.ts < b.ts; });
+    std::ranges::sort(events,
+                      [](auto const& a, auto const& b) { return a.ts < b.ts; });
 
     bool first = true;
     auto const pid = ::getpid();

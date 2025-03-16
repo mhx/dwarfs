@@ -238,8 +238,8 @@ void stream_logger::write(level_type level, std::string_view output,
 
     if (output.find('\r') != std::string::npos) {
       tmp.reserve(output.size());
-      std::copy_if(output.begin(), output.end(), std::back_inserter(tmp),
-                   [](char c) { return c != '\r'; });
+      std::ranges::copy_if(output, std::back_inserter(tmp),
+                           [](char c) { return c != '\r'; });
       split_to(tmp, '\n', lines);
     } else {
       split_to(output, '\n', lines);
@@ -261,7 +261,7 @@ void stream_logger::write(level_type level, std::string_view output,
           << newline;
 
       if (clear_ctx) {
-        std::fill(t.begin(), t.end(), '.');
+        std::ranges::fill(t, '.');
         context.assign(context_len, ' ');
         clear_ctx = false;
       }

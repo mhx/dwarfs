@@ -145,7 +145,7 @@ unsigned get_unused_lsb_count<uint16_t>(std::span<uint8_t const> imagedata) {
   size_t size = imagedata.size_bytes() / kAlignment;
 
   alignas(kAlignment) std::array<uint64_t, kAlignment / sizeof(uint64_t)> b512;
-  std::fill(b512.begin(), b512.end(), 0);
+  std::ranges::fill(b512, 0);
 
   for (size_t i = 0; i < size; ++i) {
     for (size_t k = 0; k < b512.size(); ++k) {

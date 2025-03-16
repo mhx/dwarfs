@@ -60,7 +60,7 @@ void check_unsupported_metadata_requirements(nlohmann::json& req) {
     for (auto const& [k, v] : req.items()) {
       keys.emplace_back(k);
     }
-    std::sort(keys.begin(), keys.end());
+    std::ranges::sort(keys);
     throw std::runtime_error(fmt::format(
         "unsupported metadata requirements: {}", fmt::join(keys, ", ")));
   }
