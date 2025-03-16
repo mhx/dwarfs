@@ -74,13 +74,7 @@ entry::entry(fs::path const& path, std::shared_ptr<entry> parent,
 }
 // NOLINTEND(performance-unnecessary-value-param,performance-move-const-arg)
 
-bool entry::has_parent() const {
-  if (parent_.lock()) {
-    return true;
-  }
-
-  return false;
-}
+bool entry::has_parent() const { return static_cast<bool>(parent_.lock()); }
 
 std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 

@@ -77,10 +77,10 @@ class lz4_block_compressor final : public block_compressor::impl {
     // TODO: this should have been a varint; also, if we ever support
     //       big-endian systems, we'll have to properly convert this
     uint32_t size = data.size();
-    std::memcpy(&compressed[0], &size, sizeof(size));
-    auto csize =
-        Policy::compress(&data[0], &compressed[sizeof(uint32_t)], data.size(),
-                         compressed.size() - sizeof(uint32_t), level_);
+    std::memcpy(compressed.data(), &size, sizeof(size));
+    auto csize = Policy::compress(data.data(), &compressed[sizeof(uint32_t)],
+                                  data.size(),
+                                  compressed.size() - sizeof(uint32_t), level_);
     if (csize == 0) {
       DWARFS_THROW(runtime_error, "error during compression");
     }
@@ -141,7 +141,7 @@ class lz4_block_decompressor final : public block_decompressor::impl {
 
     decompressed_.resize(uncompressed_size_);
     auto rv = LZ4_decompress_safe(reinterpret_cast<char const*>(data_),
-                                  reinterpret_cast<char*>(&decompressed_[0]),
+                                  reinterpret_cast<char*>(decompressed_.data()),
                                   static_cast<int>(input_size_),
                                   static_cast<int>(uncompressed_size_));
 

@@ -660,7 +660,7 @@ void op_read(fuse_req_t req, fuse_ino_t ino, size_t size, file_off_t off,
       return -ec.value();
     }
 
-    return -fuse_reply_iov(req, buf.buf.empty() ? nullptr : &buf.buf[0],
+    return -fuse_reply_iov(req, buf.buf.empty() ? nullptr : buf.buf.data(),
                            buf.buf.size());
   });
 }
@@ -714,7 +714,7 @@ class readdir_lowlevel_policy {
   }
 
   void finalize() const {
-    fuse_reply_buf(req_, written_ > 0 ? &buf_[0] : nullptr, written_);
+    fuse_reply_buf(req_, written_ > 0 ? buf_.data() : nullptr, written_);
   }
 
  private:

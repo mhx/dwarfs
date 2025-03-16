@@ -144,7 +144,7 @@ class contextual_option_parser {
     try {
       auto pos = arg.find("::");
 
-      if (pos == arg.npos) {
+      if (pos == std::string_view::npos) {
         opt_.set_default(op_.parse(arg));
       } else {
         auto ctx = arg.substr(0, pos);

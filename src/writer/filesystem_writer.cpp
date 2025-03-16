@@ -688,10 +688,10 @@ void filesystem_writer_<LoggerPolicy>::writer_thread() {
       }
 
       if (queue_.empty()) {
-        if (flush_)
+        if (flush_) {
           break;
-        else
-          continue;
+        }
+        continue;
       }
 
       std::swap(holder, queue_.front());

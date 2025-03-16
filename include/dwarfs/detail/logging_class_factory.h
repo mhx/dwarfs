@@ -79,7 +79,8 @@ class logging_class_factory {
     if (is_policy_name(lgr, LoggerPolicy::name())) {
       return CreatePolicy::template create<T<LoggerPolicy>>(
           lgr, std::forward<Args>(args)...);
-    } else if constexpr (sizeof...(Rest) > 0) {
+    }
+    if constexpr (sizeof...(Rest) > 0) {
       return create_impl<T, CreatePolicy, Rest...>(lgr,
                                                    std::forward<Args>(args)...);
     }

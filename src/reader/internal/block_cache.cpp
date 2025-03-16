@@ -176,9 +176,7 @@ class block_request_set {
   size_t range_end() const { return range_end_; }
 
   void add(size_t begin, size_t end, std::promise<block_range>&& promise) {
-    if (end > range_end_) {
-      range_end_ = end;
-    }
+    range_end_ = std::max(end, range_end_);
 
     queue_.emplace_back(begin, end, std::move(promise));
     // NOLINTNEXTLINE(modernize-use-ranges)

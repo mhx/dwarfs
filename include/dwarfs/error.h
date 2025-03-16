@@ -98,11 +98,9 @@ void dump_exceptions();
 [[noreturn]] void
 handle_nothrow(std::string_view expr, std::source_location loc);
 
-[[noreturn]] void
-assertion_failed(std::string_view expr, std::string_view message,
-                 std::source_location loc);
+[[noreturn]] void assertion_failed(std::string_view expr, std::string_view msg,
+                                   std::source_location loc);
 
-[[noreturn]] void
-handle_panic(std::string_view message, std::source_location loc);
+[[noreturn]] void handle_panic(std::string_view msg, std::source_location loc);
 
 } // namespace dwarfs

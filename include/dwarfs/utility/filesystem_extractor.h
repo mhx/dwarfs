@@ -57,18 +57,18 @@ class filesystem_extractor {
 
   void
   open_archive(std::filesystem::path const& output, std::string const& format) {
-    return impl_->open_archive(output, format);
+    impl_->open_archive(output, format);
   }
 
   void open_stream(std::ostream& os, std::string const& format) {
-    return impl_->open_stream(os, format);
+    impl_->open_stream(os, format);
   }
 
   void open_disk(std::filesystem::path const& output) {
-    return impl_->open_disk(output);
+    impl_->open_disk(output);
   }
 
-  void close() { return impl_->close(); }
+  void close() { impl_->close(); }
 
   bool extract(reader::filesystem_v2 const& fs,
                filesystem_extractor_options const& opts =

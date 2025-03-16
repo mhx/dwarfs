@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -317,9 +318,7 @@ void console_writer::update(writer_progress& prog, bool last) {
     frac = 1.0;
   }
 
-  if (frac > frac_) {
-    frac_ = frac;
-  }
+  frac_ = std::max(frac, frac_);
 
   if (pg_mode_ == SIMPLE) {
     std::string tmp =

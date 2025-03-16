@@ -162,7 +162,7 @@ class lzma_block_compressor final : public block_compressor::impl {
 };
 
 lzma_block_compressor::lzma_block_compressor(option_map& om) {
-  auto level = om.get<unsigned>("level", 9u);
+  auto level = om.get<unsigned>("level", 9U);
   auto extreme = om.get<bool>("extreme", false);
   auto binary_mode = om.get_optional<std::string>("binary");
   auto dict_size = om.get_optional<unsigned>("dict_size");
@@ -257,7 +257,7 @@ lzma_block_compressor::compress(std::vector<uint8_t> const& data,
   std::vector<uint8_t> best = compress(data, &filters[1]);
 
   if (filters[0].id != LZMA_VLI_UNKNOWN) {
-    std::vector<uint8_t> compressed = compress(data, &filters[0]);
+    std::vector<uint8_t> compressed = compress(data, filters.data());
 
     if (compressed.size() < best.size()) {
       best.swap(compressed);

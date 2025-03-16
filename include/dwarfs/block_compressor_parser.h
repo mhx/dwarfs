@@ -31,7 +31,7 @@ namespace dwarfs {
 struct block_compressor_parser {
  public:
   block_compressor parse(std::string_view arg) const;
-  std::string to_string(block_compressor const& opts) const;
+  std::string to_string(block_compressor const& bc) const;
 };
 
 } // namespace dwarfs

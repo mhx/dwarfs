@@ -42,7 +42,7 @@ class performance_monitor {
  public:
   using timer_id = size_t;
   using time_type = uint64_t;
-  static constexpr inline size_t kNumInlineContext{3};
+  static constexpr size_t kNumInlineContext{3};
 
   static std::unique_ptr<performance_monitor>
   create(std::unordered_set<std::string> enabled_namespaces,

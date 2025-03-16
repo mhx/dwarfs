@@ -186,9 +186,9 @@ struct pcmaudio_metadata {
       return false;
     }
 
-    if (!(bits_per_sample == 8 || bits_per_sample == 16 ||
-          bits_per_sample == 20 || bits_per_sample == 24 ||
-          bits_per_sample == 32)) {
+    if (bits_per_sample != 8 && bits_per_sample != 16 &&
+        bits_per_sample != 20 && bits_per_sample != 24 &&
+        bits_per_sample != 32) {
       return false;
     }
 
@@ -201,7 +201,7 @@ struct pcmaudio_metadata {
     }
 
     if ((bits_per_sample == 20 || bits_per_sample == 24) &&
-        !(bytes_per_sample == 3 || bytes_per_sample == 4)) {
+        bytes_per_sample != 3 && bytes_per_sample != 4) {
       return false;
     }
 
