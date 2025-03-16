@@ -297,9 +297,9 @@ class iff_parser final {
     ChunkHeaderType header;
     size_t pos;
 
-    bool is(std::string_view id) const {
-      assert(sizeof(header.id) == id.size());
-      return std::memcmp(header.id, id.data(), sizeof(header.id)) == 0;
+    bool is(std::string_view ident) const {
+      assert(sizeof(header.id) == ident.size());
+      return ident == this->id();
     }
 
     std::string_view id() const {
