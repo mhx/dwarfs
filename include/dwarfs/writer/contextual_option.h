@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <iosfwd>
 #include <optional>
 #include <span>
@@ -91,18 +92,17 @@ class contextual_option {
 
   template <typename T>
   bool any_is(T&& pred) const {
-    for (auto e : contextual_) {
-      if (pred(e.second)) {
-        return true;
-      }
-    }
-    return default_ && pred(*default_);
+    auto&& p = std::forward<T>(pred);
+    return std::ranges::any_of(contextual_, p,
+                               &decltype(contextual_)::value_type::second) ||
+           (default_ && p(*default_));
   }
 
   template <typename T>
   void visit_contextual(T&& visitor) const {
+    auto&& v = std::forward<T>(visitor);
     for (auto const& [ctx, val] : contextual_) {
-      visitor(ctx, val);
+      v(ctx, val);
     }
   }
 
