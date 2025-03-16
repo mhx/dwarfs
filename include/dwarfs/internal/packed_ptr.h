@@ -60,6 +60,7 @@ class packed_ptr {
       : p_(build_packed_ptr(p, data)) {}
 
   void set(T* p) { p_ = build_packed_ptr(p, get_data()); }
+  // NOLINTNEXTLINE(performance-no-int-to-ptr)
   T* get() const { return reinterpret_cast<T*>(p_ & ~data_mask); }
 
   T* operator->() const { return get(); }
