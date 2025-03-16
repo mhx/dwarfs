@@ -65,10 +65,11 @@ class metadata_v2 {
   metadata_v2(metadata_v2&&) = default;
   metadata_v2& operator=(metadata_v2&&) = default;
 
-  metadata_v2(logger& lgr, std::span<uint8_t const> schema,
-              std::span<uint8_t const> data, metadata_options const& options,
-              int inode_offset = 0, bool force_consistency_check = false,
-              std::shared_ptr<performance_monitor const> perfmon = nullptr);
+  metadata_v2(
+      logger& lgr, std::span<uint8_t const> schema,
+      std::span<uint8_t const> data, metadata_options const& options,
+      int inode_offset = 0, bool force_consistency_check = false,
+      std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
   void check_consistency() const { impl_->check_consistency(); }
 

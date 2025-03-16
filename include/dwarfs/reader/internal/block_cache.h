@@ -55,7 +55,7 @@ class block_cache {
  public:
   block_cache(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
               const block_cache_options& options,
-              std::shared_ptr<performance_monitor const> perfmon);
+              std::shared_ptr<performance_monitor const> const& perfmon);
 
   size_t block_count() const { return impl_->block_count(); }
 

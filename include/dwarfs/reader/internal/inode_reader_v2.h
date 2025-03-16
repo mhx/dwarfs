@@ -54,7 +54,7 @@ class inode_reader_v2 {
 
   inode_reader_v2(logger& lgr, block_cache&& bc,
                   inode_reader_options const& opts,
-                  std::shared_ptr<performance_monitor const> perfmon);
+                  std::shared_ptr<performance_monitor const> const& perfmon);
 
   inode_reader_v2& operator=(inode_reader_v2&&) = default;
 

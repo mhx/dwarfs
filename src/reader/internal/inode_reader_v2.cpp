@@ -99,7 +99,7 @@ template <typename LoggerPolicy>
 class inode_reader_ final : public inode_reader_v2::impl {
  public:
   inode_reader_(logger& lgr, block_cache&& bc, inode_reader_options const& opts,
-                std::shared_ptr<performance_monitor const> perfmon
+                std::shared_ptr<performance_monitor const> const& perfmon
                 [[maybe_unused]])
       : cache_(std::move(bc))
       , opts_{opts}
@@ -457,9 +457,9 @@ size_t inode_reader_<LoggerPolicy>::readv(iovec_read_buf& buf, uint32_t inode,
 
 inode_reader_v2::inode_reader_v2(
     logger& lgr, block_cache&& bc, inode_reader_options const& opts,
-    std::shared_ptr<performance_monitor const> perfmon)
+    std::shared_ptr<performance_monitor const> const& perfmon)
     : impl_(make_unique_logging_object<inode_reader_v2::impl, inode_reader_,
-                                       logger_policies>(
-          lgr, std::move(bc), opts, std::move(perfmon))) {}
+                                       logger_policies>(lgr, std::move(bc),
+                                                        opts, perfmon)) {}
 
 } // namespace dwarfs::reader::internal
