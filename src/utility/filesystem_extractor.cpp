@@ -231,6 +231,8 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
   void check_result(int res) {
     switch (res) {
     case ARCHIVE_OK:
+    case ARCHIVE_EOF:
+    default:
       break;
     case ARCHIVE_WARN:
       LOG_WARN << std::string(archive_error_string(a_));
