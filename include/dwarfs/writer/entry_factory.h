@@ -43,7 +43,7 @@ class entry_factory {
   std::shared_ptr<internal::entry>
   create(os_access const& os, std::filesystem::path const& path,
          std::shared_ptr<internal::entry> parent = nullptr) {
-    return impl_->create(os, path, parent);
+    return impl_->create(os, path, std::move(parent));
   }
 
   class impl {

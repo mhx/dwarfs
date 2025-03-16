@@ -141,32 +141,34 @@ class filesystem_v2 {
   }
 
   file_stat getattr(inode_view entry, std::error_code& ec) const {
-    return impl_->getattr(entry, ec);
+    return impl_->getattr(std::move(entry), ec);
   }
 
-  file_stat getattr(inode_view entry) const { return impl_->getattr(entry); }
+  file_stat getattr(inode_view entry) const {
+    return impl_->getattr(std::move(entry));
+  }
 
   file_stat getattr(inode_view entry, getattr_options const& opts,
                     std::error_code& ec) const {
-    return impl_->getattr(entry, opts, ec);
+    return impl_->getattr(std::move(entry), opts, ec);
   }
 
   file_stat getattr(inode_view entry, getattr_options const& opts) const {
-    return impl_->getattr(entry, opts);
+    return impl_->getattr(std::move(entry), opts);
   }
 
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const {
-    return impl_->access(entry, mode, uid, gid);
+    return impl_->access(std::move(entry), mode, uid, gid);
   }
 
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const {
-    impl_->access(entry, mode, uid, gid, ec);
+    impl_->access(std::move(entry), mode, uid, gid, ec);
   }
 
   std::optional<directory_view> opendir(inode_view entry) const {
-    return impl_->opendir(entry);
+    return impl_->opendir(std::move(entry));
   }
 
   std::optional<dir_entry_view>
@@ -178,24 +180,24 @@ class filesystem_v2 {
 
   std::string
   readlink(inode_view entry, readlink_mode mode, std::error_code& ec) const {
-    return impl_->readlink(entry, mode, ec);
+    return impl_->readlink(std::move(entry), mode, ec);
   }
 
   std::string readlink(inode_view entry, std::error_code& ec) const {
-    return impl_->readlink(entry, readlink_mode::preferred, ec);
+    return impl_->readlink(std::move(entry), readlink_mode::preferred, ec);
   }
 
   std::string readlink(inode_view entry,
                        readlink_mode mode = readlink_mode::preferred) const {
-    return impl_->readlink(entry, mode);
+    return impl_->readlink(std::move(entry), mode);
   }
 
   void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
 
-  int open(inode_view entry) const { return impl_->open(entry); }
+  int open(inode_view entry) const { return impl_->open(std::move(entry)); }
 
   int open(inode_view entry, std::error_code& ec) const {
-    return impl_->open(entry, ec);
+    return impl_->open(std::move(entry), ec);
   }
 
   std::string read_string(uint32_t inode) const {
@@ -321,11 +323,11 @@ class filesystem_v2 {
   history const& get_history() const { return impl_->get_history(); }
 
   nlohmann::json get_inode_info(inode_view entry) const {
-    return impl_->get_inode_info(entry);
+    return impl_->get_inode_info(std::move(entry));
   }
 
   nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
-    return impl_->get_inode_info(entry, max_chunks);
+    return impl_->get_inode_info(std::move(entry), max_chunks);
   }
 
   std::vector<std::string> get_all_block_categories() const {

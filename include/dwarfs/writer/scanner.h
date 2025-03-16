@@ -64,7 +64,7 @@ class scanner {
       writer_progress& prog,
       std::optional<std::span<std::filesystem::path const>> list = std::nullopt,
       std::shared_ptr<file_access const> fa = nullptr) {
-    impl_->scan(fsw, path, prog, list, fa);
+    impl_->scan(fsw, path, prog, list, std::move(fa));
   }
 
   class impl {

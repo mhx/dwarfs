@@ -29,7 +29,7 @@ namespace dwarfs::writer {
 
 category_parser::category_parser(
     std::shared_ptr<category_resolver const> resolver)
-    : resolver_{resolver} {}
+    : resolver_{std::move(resolver)} {}
 
 std::vector<fragment_category::value_type>
 category_parser::parse(std::string_view arg) const {

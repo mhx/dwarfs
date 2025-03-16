@@ -163,7 +163,7 @@ void output_context_line(terminal const& term, std::ostream& os,
 console_writer::console_writer(std::shared_ptr<terminal const> term,
                                std::ostream& os, progress_mode pg_mode,
                                display_mode mode, logger_options const& options)
-    : stream_logger(term, os, options)
+    : stream_logger(std::move(term), os, options)
     , pg_mode_(pg_mode)
     , mode_(mode) {}
 

@@ -25,7 +25,7 @@ namespace dwarfs::writer::internal {
 
 scanner_progress::scanner_progress(std::string_view context, std::string file,
                                    size_t size)
-    : scanner_progress(termcolor::YELLOW, context, file, size) {}
+    : scanner_progress(termcolor::YELLOW, context, std::move(file), size) {}
 
 scanner_progress::scanner_progress(termcolor color, std::string_view context,
                                    std::string file, size_t size)
