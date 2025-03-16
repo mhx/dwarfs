@@ -404,16 +404,16 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
           try {
             auto uncompressed_size = get_uncompressed_section_size(mm_, *s);
             info.uncompressed_block_size += uncompressed_size;
-            info.uncompressed_block_sizes.push_back(uncompressed_size);
+            info.uncompressed_block_sizes.emplace_back(uncompressed_size);
           } catch (std::exception const&) {
             info.uncompressed_block_size += s->length();
             info.uncompressed_block_size_is_estimate = true;
-            info.uncompressed_block_sizes.push_back(std::nullopt);
+            info.uncompressed_block_sizes.emplace_back(std::nullopt);
           }
         } else {
           info.uncompressed_block_size += s->length();
           info.uncompressed_block_size_is_estimate = true;
-          info.uncompressed_block_sizes.push_back(std::nullopt);
+          info.uncompressed_block_sizes.emplace_back(std::nullopt);
         }
       } else if (s->type() == section_type::METADATA_V2) {
         info.compressed_metadata_size += s->length();
