@@ -388,11 +388,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   writer::segmenter_factory::config sf_config;
   sys_string path_str, input_list_str, output_str, header_str;
-  std::string memory_limit, script_arg, schema_compression,
-      metadata_compression, timestamp, time_resolution, progress_mode,
-      recompress_opts, pack_metadata, file_hash_algo, debug_filter,
-      max_similarity_size, chmod_str, history_compression,
-      recompress_categories;
+  std::string memory_limit, schema_compression, metadata_compression, timestamp,
+      time_resolution, progress_mode, recompress_opts, pack_metadata,
+      file_hash_algo, debug_filter, max_similarity_size, chmod_str,
+      history_compression, recompress_categories;
   std::vector<sys_string> filter;
   std::vector<std::string> order, max_lookback_blocks, window_size, window_step,
       bloom_filter_size, compression;
