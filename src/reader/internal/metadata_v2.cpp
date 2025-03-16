@@ -310,7 +310,7 @@ void analyze_frozen(std::ostream& os,
         l->reg_file_size_cacheField.layout.valueField.layout.lookupField);
   }
 
-  std::sort(usage.begin(), usage.end(), [](auto const& a, auto const& b) {
+  std::ranges::sort(usage, [](auto const& a, auto const& b) {
     return a.first > b.first || (a.first == b.first && a.second < b.second);
   });
 
@@ -816,7 +816,7 @@ class metadata_ final : public metadata_v2::impl {
         host_preferred = '/';
       }
       if (meta_preferred != host_preferred) {
-        std::replace(rv.begin(), rv.end(), meta_preferred, host_preferred);
+        std::ranges::replace(rv, meta_preferred, host_preferred);
       }
     }
 
@@ -915,7 +915,7 @@ class metadata_ final : public metadata_v2::impl {
       {
         auto tt = LOG_TIMED_TRACE;
 
-        uint32_t max = *std::max_element(nlinks.begin(), nlinks.end());
+        uint32_t max = *std::ranges::max_element(nlinks);
         packed_nlinks.reset(std::bit_width(max), nlinks.size());
 
         for (size_t i = 0; i < nlinks.size(); ++i) {
@@ -979,7 +979,7 @@ class metadata_ final : public metadata_v2::impl {
 
         // It's faster to check here if the folded names are sorted than to
         // check later if the indices in `entries` are sorted.
-        if (!std::is_sorted(names.begin(), names.end())) {
+        if (!std::ranges::is_sorted(names)) {
           std::vector<uint32_t> entries(range.size());
           std::iota(entries.begin(), entries.end(), 0);
           boost::sort::flat_stable_sort(

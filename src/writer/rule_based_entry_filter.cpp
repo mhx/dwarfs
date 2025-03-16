@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cassert>
 #include <regex>
 #include <unordered_set>
@@ -185,8 +186,7 @@ void rule_based_entry_filter_<LoggerPolicy>::set_root_path(
     // Both '/' and '\\' are, surprisingly, valid path separators on Windows,
     // and invalid characters in filenames. So on Windows, it's a lossless
     // transformation to replace all '\\' with '/'.
-    std::replace(root_path_.begin(), root_path_.end(), kLocalPathSeparator,
-                 '/');
+    std::ranges::replace(root_path_, kLocalPathSeparator, '/');
   }
 
   if (root_path_.ends_with('/')) {

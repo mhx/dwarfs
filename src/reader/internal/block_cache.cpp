@@ -108,12 +108,11 @@ class lru_sequential_access_detector : public sequential_access_detector {
       return std::nullopt;
     }
 
-    auto minmax = std::minmax_element(
-        lru_.begin(), lru_.end(),
-        [](auto const& a, auto const& b) { return a.first < b.first; });
+    auto minmax = std::ranges::minmax_element(
+        lru_, [](auto const& a, auto const& b) { return a.first < b.first; });
 
-    auto min = minmax.first->first;
-    auto max = minmax.second->first;
+    auto min = minmax.min->first;
+    auto max = minmax.max->first;
 
     is_sequential_ = max - min + 1 == seq_blocks_;
 
@@ -185,8 +184,7 @@ class block_request_set {
 
   void merge(block_request_set& other) {
     queue_.reserve(queue_.size() + other.queue_.size());
-    std::move(other.queue_.begin(), other.queue_.end(),
-              std::back_inserter(queue_));
+    std::ranges::move(other.queue_, std::back_inserter(queue_));
     other.queue_.clear();
     std::make_heap(queue_.begin(), queue_.end());
     range_end_ = std::max(range_end_, other.range_end_);

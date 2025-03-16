@@ -223,7 +223,7 @@ std::vector<std::string> checksum::available_algorithms() {
   available.insert(available.end(), supported_algorithms.begin(),
                    supported_algorithms.end());
   available.insert(available.end(), available_evp.begin(), available_evp.end());
-  std::sort(available.begin(), available.end());
+  std::ranges::sort(available);
   return available;
 }
 

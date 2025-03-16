@@ -508,7 +508,7 @@ void check_compact_strings(
                      fmt::format("invalid first compact {0} index: {1}", what,
                                  idx.front()));
       }
-      if (!std::is_sorted(idx.begin(), idx.end())) {
+      if (!std::ranges::is_sorted(idx)) {
         DWARFS_THROW(runtime_error,
                      fmt::format("compact {0} index not sorted", what));
       }
@@ -663,26 +663,24 @@ std::array<size_t, 6> check_partitioning(global_metadata::Meta const& meta) {
       };
       auto inodes = meta.inodes();
 
-      if (!std::is_partitioned(inodes.begin(), inodes.end(), pred)) {
+      if (!std::ranges::is_partitioned(inodes, pred)) {
         DWARFS_THROW(runtime_error, "inode table is not partitioned");
       }
 
-      offsets[r] = std::distance(
-          inodes.begin(),
-          std::partition_point(inodes.begin(), inodes.end(), pred));
+      offsets[r] = std::distance(inodes.begin(),
+                                 std::ranges::partition_point(inodes, pred));
     } else {
       auto pred = [r, modes = meta.modes(), inodes = meta.inodes()](auto ent) {
         return mode_rank(modes[inodes[ent].mode_index()]) < r;
       };
       auto entries = meta.entry_table_v2_2();
 
-      if (!std::is_partitioned(entries.begin(), entries.end(), pred)) {
+      if (!std::ranges::is_partitioned(entries, pred)) {
         DWARFS_THROW(runtime_error, "entry_table_v2_2 is not partitioned");
       }
 
-      offsets[r] = std::distance(
-          entries.begin(),
-          std::partition_point(entries.begin(), entries.end(), pred));
+      offsets[r] = std::distance(entries.begin(),
+                                 std::ranges::partition_point(entries, pred));
     }
   }
 
@@ -1049,7 +1047,7 @@ std::string dir_entry_view_impl::unix_path() const {
       static_cast<char>(std::filesystem::path::preferred_separator);
   auto p = path();
   if constexpr (preferred != '/') {
-    std::replace(p.begin(), p.end(), preferred, '/');
+    std::ranges::replace(p, preferred, '/');
   }
   return p;
 }

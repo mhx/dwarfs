@@ -129,7 +129,7 @@ std::string entry::unix_dpath() const {
     if (auto parent = parent_.lock()) {
       p = parent->unix_dpath() + p;
     } else if constexpr (kLocalPathSeparator != '/') {
-      std::replace(p.begin(), p.end(), kLocalPathSeparator, '/');
+      std::ranges::replace(p, kLocalPathSeparator, '/');
     }
   }
 
@@ -352,10 +352,9 @@ void dir::accept(entry_visitor& v, bool preorder) {
 }
 
 void dir::sort() {
-  std::sort(entries_.begin(), entries_.end(),
-            [](entry_ptr const& a, entry_ptr const& b) {
-              return a->name() < b->name();
-            });
+  std::ranges::sort(entries_, [](entry_ptr const& a, entry_ptr const& b) {
+    return a->name() < b->name();
+  });
 }
 
 void dir::scan(os_access const&, progress&) {}
@@ -427,8 +426,8 @@ std::shared_ptr<entry> dir::find(fs::path const& path) {
       return it->second;
     }
   } else {
-    auto it = std::find_if(entries_.begin(), entries_.end(),
-                           [name](auto& e) { return e->name() == name; });
+    auto it = std::ranges::find_if(
+        entries_, [name](auto& e) { return e->name() == name; });
     if (it != entries_.end()) {
       return *it;
     }
