@@ -12,7 +12,9 @@ MaxEmptyLinesToKeep: '1'
 NamespaceIndentation: None
 PenaltyReturnTypeOnItsOwnLine: '0'
 PointerAlignment: Left
-Standard: Cpp11
+QualifierAlignment: Custom
+QualifierOrder: [friend, static, constexpr, inline, type, const, volatile, restrict]
+Standard: c++20
 UseTab: Never
 
 ...
