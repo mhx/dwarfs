@@ -990,7 +990,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     if (timestamp == "now") {
       options.timestamp = std::time(nullptr);
     } else if (auto val = try_to<uint64_t>(timestamp)) {
-      options.timestamp = *val;
+      options.timestamp = val;
     } else {
       try {
         auto tp = parse_time_point(timestamp);
