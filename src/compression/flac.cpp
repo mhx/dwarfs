@@ -58,6 +58,7 @@ class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
       : data_{data}
       , pos_{data_.size()} {}
 
+  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
   ::FLAC__StreamEncoderReadStatus
   read_callback(FLAC__byte buffer[], size_t* bytes) override {
     ::memcpy(buffer, data_.data() + pos_, *bytes);
@@ -75,6 +76,7 @@ class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
     pos_ += bytes;
     return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
   }
+  // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
   ::FLAC__StreamEncoderSeekStatus
   seek_callback(FLAC__uint64 absolute_byte_offset) override {
@@ -113,6 +115,7 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
                  : pcm_sample_padding::Msb,
              bytes_per_sample_, header_.bits_per_sample().value()} {}
 
+  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
   ::FLAC__StreamDecoderReadStatus
   read_callback(FLAC__byte buffer[], size_t* bytes) override {
     if (pos_ >= data_.size()) {
@@ -153,6 +156,7 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
 
     return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
   }
+  // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
   void error_callback(::FLAC__StreamDecoderErrorStatus status) override {
     DWARFS_THROW(runtime_error,
