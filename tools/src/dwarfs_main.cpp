@@ -237,9 +237,10 @@ struct dwarfs_userdata {
 
 // TODO: better error handling
 
-#define DWARFS_OPT(t, p, v) {t, offsetof(struct options, p), v}
+#define DWARFS_OPT(t, p, v)                                                    \
+  ::fuse_opt { t, offsetof(struct options, p), v }
 
-constexpr struct ::fuse_opt dwarfs_opts[] = {
+constexpr std::array dwarfs_opts{
     // TODO: user, group, atime, mtime, ctime for those fs who don't have it?
     DWARFS_OPT("cachesize=%s", cachesize_str, 0),
     DWARFS_OPT("blocksize=%s", blocksize_str, 0),
@@ -269,7 +270,8 @@ constexpr struct ::fuse_opt dwarfs_opts[] = {
     DWARFS_OPT("perfmon=%s", perfmon_enabled_str, 0),
     DWARFS_OPT("perfmon_trace=%s", perfmon_trace_file_str, 0),
 #endif
-    FUSE_OPT_END};
+    ::fuse_opt(FUSE_OPT_END),
+};
 
 constexpr sorted_array_map cache_tidy_strategy_map{
     std::pair{"none"sv, reader::cache_tidy_strategy::NONE},
@@ -1500,7 +1502,7 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   opts.cache_image = 0;
   opts.cache_files = 1;
 
-  fuse_opt_parse(&args, &userdata.opts, dwarfs_opts, option_hdl);
+  fuse_opt_parse(&args, &userdata.opts, dwarfs_opts.data(), option_hdl);
 
 #if DWARFS_FUSE_LOWLEVEL
 #if FUSE_USE_VERSION >= 30
