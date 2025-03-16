@@ -45,7 +45,7 @@ class performance_monitor {
   static inline constexpr size_t kNumInlineContext{3};
 
   static std::unique_ptr<performance_monitor>
-  create(std::unordered_set<std::string> const& enabled_namespaces,
+  create(std::unordered_set<std::string> enabled_namespaces,
          std::shared_ptr<file_access const> fa = nullptr,
          std::optional<std::filesystem::path> trace_file = std::nullopt);
 

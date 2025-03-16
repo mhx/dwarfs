@@ -380,10 +380,10 @@ performance_monitor_proxy::performance_monitor_proxy(
     : mon_{mon && mon->is_enabled(mon_namespace) ? std::move(mon) : nullptr}
     , namespace_{mon_namespace} {}
 
-std::unique_ptr<performance_monitor> performance_monitor::create(
-    std::unordered_set<std::string> const& enabled_namespaces,
-    std::shared_ptr<file_access const> fa,
-    std::optional<std::filesystem::path> trace_file) {
+std::unique_ptr<performance_monitor>
+performance_monitor::create(std::unordered_set<std::string> enabled_namespaces,
+                            std::shared_ptr<file_access const> fa,
+                            std::optional<std::filesystem::path> trace_file) {
   return enabled_namespaces.empty()
              ? nullptr
              : std::make_unique<internal::performance_monitor_impl>(
