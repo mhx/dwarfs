@@ -563,17 +563,18 @@ void file_scanner_<LoggerPolicy>::dump_value(std::ostream& os,
   auto ino_num = p->inode_num();
 
   os << "{\n"
-     << "        \"ptr\": \""
+     << R"(        "ptr": ")"
      << fmt::format("{}", reinterpret_cast<void const*>(p)) << "\",\n"
-     << "        \"path\": " << nlohmann::json{p->path_as_string()}.dump()
+     << R"(        "path": )" << nlohmann::json{p->path_as_string()}.dump()
      << ",\n"
-     << "        \"size\": " << fmt::format("{}", p->size()) << ",\n"
-     << "        \"refcnt\": " << fmt::format("{}", p->refcount()) << ",\n"
-     << "        \"hash\": \"" << folly::hexlify(p->hash()) << "\",\n"
-     << "        \"invalid\": " << (p->is_invalid() ? "true" : "false") << ",\n"
-     << "        \"inode_num\": "
+     << R"(        "size": )" << fmt::format("{}", p->size()) << ",\n"
+     << R"(        "refcnt": )" << fmt::format("{}", p->refcount()) << ",\n"
+     << R"(        "hash": ")" << folly::hexlify(p->hash()) << "\",\n"
+     << R"(        "invalid": )" << (p->is_invalid() ? "true" : "false")
+     << ",\n"
+     << R"(        "inode_num": )"
      << (ino_num ? fmt::format("{}", *ino_num) : "null") << ",\n"
-     << "        \"inode\": \""
+     << R"(        "inode": ")"
      << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\"\n"
      << "      }";
 }
@@ -606,9 +607,9 @@ void file_scanner_<LoggerPolicy>::dump_inodes(std::ostream& os) const {
     }
     first = false;
     os << "    {\n"
-       << "      \"ptr\": \""
+       << R"(      "ptr": ")"
        << fmt::format("{}", reinterpret_cast<void const*>(ino.get())) << "\",\n"
-       << "      \"files\": ";
+       << R"(      "files": )";
     dump_value(os, ino->all());
     os << "\n    }";
   }
@@ -626,12 +627,12 @@ void file_scanner_<LoggerPolicy>::dump_inode_create_info(
     }
     first = false;
     os << "    {\n"
-       << "      \"inode\": \""
+       << R"(      "inode": ")"
        << fmt::format("{}", reinterpret_cast<void const*>(ici.i)) << "\",\n"
-       << "      \"file\": ";
+       << R"(      "file": )";
     dump_value(os, ici.f);
     os << ",\n"
-       << "      \"line\": " << fmt::format("{}", ici.line) << "\n"
+       << R"(      "line": )" << fmt::format("{}", ici.line) << "\n"
        << "    }";
   }
   os << "\n  ]";
