@@ -54,9 +54,9 @@ class filesystem_writer {
                     filesystem_writer_options const& options,
                     std::istream* header = nullptr);
 
-  ~filesystem_writer();
-  filesystem_writer(filesystem_writer&&);
-  filesystem_writer& operator=(filesystem_writer&&);
+  ~filesystem_writer() noexcept;
+  filesystem_writer(filesystem_writer&&) noexcept;
+  filesystem_writer& operator=(filesystem_writer&&) noexcept;
 
   void add_default_compressor(block_compressor bc);
   void add_category_compressor(fragment_category::value_type cat,
