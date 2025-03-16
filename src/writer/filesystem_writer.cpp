@@ -1147,9 +1147,10 @@ filesystem_writer::filesystem_writer(std::ostream& os, logger& lgr,
           lgr, os, pool.get_worker_group(), prog.get_internal(), options,
           header)} {}
 
-filesystem_writer::~filesystem_writer() = default;
-filesystem_writer::filesystem_writer(filesystem_writer&&) = default;
-filesystem_writer& filesystem_writer::operator=(filesystem_writer&&) = default;
+filesystem_writer::~filesystem_writer() noexcept = default;
+filesystem_writer::filesystem_writer(filesystem_writer&&) noexcept = default;
+filesystem_writer&
+filesystem_writer::operator=(filesystem_writer&&) noexcept = default;
 
 void filesystem_writer::add_default_compressor(block_compressor bc) {
   impl_->add_default_compressor(std::move(bc));
