@@ -200,9 +200,9 @@ class basic_worker_group final : public worker_group::impl, private Policy {
 
     std::lock_guard lock(mx_);
 
-    for (size_t i = 0; i < workers_.size(); ++i) {
+    for (auto const& worker : workers_) {
       std::error_code ec;
-      os_.thread_set_affinity(workers_[i].get_id(), cpus, ec);
+      os_.thread_set_affinity(worker.get_id(), cpus, ec);
       if (ec) {
         return false;
       }
