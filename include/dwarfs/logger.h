@@ -195,13 +195,12 @@ class no_log_entry {
 namespace detail {
 
 template <bool LoggingEnabled>
-using logger_type = typename std::conditional<LoggingEnabled, level_log_entry,
-                                              no_log_entry>::type;
+using logger_type =
+    std::conditional_t<LoggingEnabled, level_log_entry, no_log_entry>;
 
 template <bool LoggingEnabled>
 using timed_logger_type =
-    typename std::conditional<LoggingEnabled, timed_level_log_entry,
-                              no_log_entry>::type;
+    std::conditional_t<LoggingEnabled, timed_level_log_entry, no_log_entry>;
 } // namespace detail
 
 template <unsigned MinLogLevel>
