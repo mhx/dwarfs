@@ -26,7 +26,7 @@ set(ZSTD_LIBRARY_RELEASE
 set(ZSTD_LIBRARY_DEBUG
     "ZSTD_LIBRARY_DEBUG-NOTFOUND"
     CACHE FILEPATH "don't build folly with zstd" FORCE)
-set(FOLLY_USE_JEMALLOC ${USE_JEMALLOC})
+set(FOLLY_USE_JEMALLOC OFF CACHE BOOL "don't build folly with jemalloc" FORCE)
 
 # TODO: this is due to a bug in folly's Portability.h
 add_compile_definitions(FOLLY_CFG_NO_COROUTINES)
