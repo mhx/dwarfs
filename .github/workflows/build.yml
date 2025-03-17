@@ -136,8 +136,8 @@ jobs:
             --cap-add SYS_ADMIN --device /dev/fuse --privileged \
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
-            --mount type=bind,source=/home/mhx/github-local,target=/local \
+            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+            --mount type=bind,source=${HOME}/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=clang-release-ninja-source-notest \
             --env BUILD_ARCH=amd64 \
@@ -227,8 +227,8 @@ jobs:
             --cap-add SYS_ADMIN --device /dev/fuse --privileged \
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
-            --mount type=bind,source=/home/mhx/github-local,target=/local \
+            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+            --mount type=bind,source=${HOME}/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_FROM_TARBALL=1 \
             --env BUILD_TYPE=${{ matrix.build_type }} \
@@ -349,8 +349,8 @@ jobs:
             --cap-add SYS_ADMIN --device /dev/fuse --privileged \
             --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
             --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=/home/mhx/github-ccache,target=/ccache \
-            --mount type=bind,source=/home/mhx/github-local,target=/local \
+            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+            --mount type=bind,source=${HOME}/github-local,target=/local \
             --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
             --env BUILD_TYPE=${{ matrix.build_type }} \
             --env BUILD_ARCH=${{ matrix.arch }} \
