@@ -38,6 +38,11 @@ endif()
 target_link_libraries(dwarfs_tool PUBLIC dwarfs_common)
 target_include_directories(dwarfs_tool PUBLIC tools/include)
 
+if(USE_JEMALLOC AND JEMALLOC_FOUND)
+  target_link_libraries(dwarfs_tool PRIVATE PkgConfig::JEMALLOC)
+  target_compile_definitions(dwarfs_tool PRIVATE DWARFS_USE_JEMALLOC)
+endif()
+
 target_compile_definitions(
   dwarfs_tool PRIVATE DWARFS_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )

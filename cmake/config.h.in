@@ -8,7 +8,6 @@
 #cmakedefine DWARFS_HAVE_FLAC 1
 #cmakedefine DWARFS_HAVE_RICEPP 1
 #cmakedefine DWARFS_HAVE_LIBZSTD 1
-#cmakedefine DWARFS_USE_JEMALLOC 1
 #cmakedefine DWARFS_BUILTIN_MANPAGE 1
 #cmakedefine DWARFS_PERFMON_ENABLED 1
 #cmakedefine DWARFS_STACKTRACE_ENABLED 1

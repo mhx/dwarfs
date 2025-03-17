@@ -31,10 +31,6 @@
 
 #include <dwarfs/config.h>
 
-#ifdef DWARFS_USE_JEMALLOC
-#include <jemalloc/jemalloc.h>
-#endif
-
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/library_dependencies.h>
 
@@ -54,25 +50,6 @@ std::string version_to_string(uint64_t version, version_format fmt) {
 
   throw std::invalid_argument("unsupported version format");
 }
-
-#ifdef DWARFS_USE_JEMALLOC
-std::string get_jemalloc_version() {
-#ifdef __APPLE__
-  char const* j = JEMALLOC_VERSION;
-#else
-  char const* j = nullptr;
-  size_t s = sizeof(j);
-  // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
-  ::mallctl("version", &j, &s, nullptr, 0);
-  assert(j);
-#endif
-  std::string rv{j};
-  if (auto pos = rv.find('-'); pos != std::string::npos) {
-    rv.erase(pos, std::string::npos);
-  }
-  return rv;
-}
-#endif
 
 } // namespace
 
@@ -114,11 +91,6 @@ void library_dependencies::add_common_libraries() {
   add_library("libcrypto", OPENSSL_version_major(), OPENSSL_version_minor(),
               OPENSSL_version_patch());
   add_library("libboost", BOOST_VERSION, version_format::boost);
-
-#ifdef DWARFS_USE_JEMALLOC
-  add_library("libjemalloc", get_jemalloc_version());
-#endif
-
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
               PHMAP_VERSION_PATCH);
 

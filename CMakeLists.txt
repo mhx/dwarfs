@@ -236,7 +236,6 @@ if(WITH_LIBDWARFS)
 
   set(DWARFS_HAVE_CPPTRACE ${cpptrace_FOUND})
   set(DWARFS_HAVE_LIBZSTD ON)
-  set(DWARFS_USE_JEMALLOC ${USE_JEMALLOC})
   set(DWARFS_HAVE_RICEPP ${ENABLE_RICEPP})
   set(DWARFS_HAVE_LIBMAGIC ${LIBMAGIC_FOUND})
   set(DWARFS_HAVE_LIBLZ4 ${LIBLZ4_FOUND})
@@ -259,7 +258,6 @@ else()
   add_library(dwarfs_writer ALIAS dwarfs::dwarfs_writer)
   add_library(dwarfs_rewrite ALIAS dwarfs::dwarfs_rewrite)
   add_library(dwarfs_extractor ALIAS dwarfs::dwarfs_extractor)
-  set(USE_JEMALLOC ${DWARFS_WITH_JEMALLOC})
 endif()
 
 include(${CMAKE_SOURCE_DIR}/cmake/libdwarfs_tool.cmake)
@@ -625,11 +623,6 @@ foreach(tgt ${LIBDWARFS_TARGETS} ${LIBDWARFS_OBJECT_TARGETS} dwarfs_test_helpers
   set_target_properties(${tgt} PROPERTIES EXPORT_COMPILE_COMMANDS ON)
 
   target_link_libraries(${tgt} PUBLIC Boost::boost)
-
-  # TODO: need to get USE_JEMALLOC and others from imported libdwarfs
-  if(USE_JEMALLOC)
-    target_link_libraries(${tgt} PRIVATE PkgConfig::JEMALLOC)
-  endif(USE_JEMALLOC)
 
   if(WITH_LIBDWARFS)
     target_include_directories(${tgt} PUBLIC

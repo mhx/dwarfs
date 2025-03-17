@@ -36,6 +36,10 @@
 #include <dwarfs/tool/render_manpage.h>
 #endif
 
+#ifdef DWARFS_USE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#endif
+
 namespace po = boost::program_options;
 
 namespace boost {
@@ -50,6 +54,29 @@ void validate(boost::any& v, std::vector<std::string> const&,
 
 namespace dwarfs::tool {
 
+namespace {
+
+#ifdef DWARFS_USE_JEMALLOC
+std::string get_jemalloc_version() {
+#ifdef __APPLE__
+  char const* j = JEMALLOC_VERSION;
+#else
+  char const* j = nullptr;
+  size_t s = sizeof(j);
+  // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
+  ::mallctl("version", &j, &s, nullptr, 0);
+  assert(j);
+#endif
+  std::string rv{j};
+  if (auto pos = rv.find('-'); pos != std::string::npos) {
+    rv.erase(pos, std::string::npos);
+  }
+  return rv;
+}
+#endif
+
+} // namespace
+
 std::string tool_header(std::string_view tool_name, std::string_view extra_info,
                         extra_deps_fn const& extra_deps) {
   std::string date;
@@ -60,6 +87,10 @@ std::string tool_header(std::string_view tool_name, std::string_view extra_info,
 
   library_dependencies deps;
   deps.add_common_libraries();
+
+#ifdef DWARFS_USE_JEMALLOC
+  deps.add_library("libjemalloc", get_jemalloc_version());
+#endif
 
   if (extra_deps) {
     extra_deps(deps);
