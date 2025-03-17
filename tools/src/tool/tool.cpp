@@ -24,6 +24,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/config.h>
+#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/version.h>
@@ -49,12 +50,21 @@ void validate(boost::any& v, std::vector<std::string> const&,
 
 namespace dwarfs::tool {
 
-std::string
-tool_header(std::string_view tool_name, std::string_view extra_info) {
+std::string tool_header(std::string_view tool_name, std::string_view extra_info,
+                        extra_deps_fn const& extra_deps) {
   std::string date;
+
   if (DWARFS_GIT_DATE) {
     date = fmt::format(" [{}]", DWARFS_GIT_DATE);
   }
+
+  library_dependencies deps;
+  deps.add_common_libraries();
+
+  if (extra_deps) {
+    extra_deps(deps);
+  }
+
   return fmt::format(
       // clang-format off
     R"(     ___                  ___ ___)""\n"
@@ -62,8 +72,9 @@ tool_header(std::string_view tool_name, std::string_view extra_info) {
     R"(    | |) \ V  V / _` | '_| _|\__ \      Advanced Read-only File System)""\n"
     R"(    |___/ \_/\_/\__,_|_| |_| |___/         by Marcus Holland-Moritz)""\n\n"
       // clang-format on
-      "{} ({}{}{})\nbuilt for {}\n\n",
-      tool_name, DWARFS_GIT_ID, date, extra_info, DWARFS_BUILD_ID);
+      "{} ({}{}{})\nbuilt for {}\n\n{}",
+      tool_name, DWARFS_GIT_ID, date, extra_info, DWARFS_BUILD_ID,
+      deps.as_string());
 }
 
 void add_common_options(po::options_description& opts,

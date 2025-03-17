@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -35,13 +36,26 @@
 namespace dwarfs {
 
 struct logger_options;
+class library_dependencies;
 
 namespace tool {
 
 struct iolayer;
 
-std::string
-tool_header(std::string_view tool_name, std::string_view extra_info = "");
+using extra_deps_fn = std::function<void(library_dependencies&)>;
+
+std::string tool_header(std::string_view tool_name, std::string_view extra_info,
+                        extra_deps_fn const& extra_deps);
+
+inline std::string
+tool_header(std::string_view tool_name, std::string_view extra_info = {}) {
+  return tool_header(tool_name, extra_info, {});
+}
+
+inline std::string
+tool_header(std::string_view tool_name, extra_deps_fn const& extra_deps) {
+  return tool_header(tool_name, {}, extra_deps);
+}
 
 void add_common_options(boost::program_options::options_description& opts,
                         logger_options& logopts);

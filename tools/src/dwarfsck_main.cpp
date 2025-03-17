@@ -39,7 +39,6 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
-#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
@@ -257,8 +256,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
   if (vm.contains("help") or !vm.contains("input")) {
-    iol.out << tool::tool_header("dwarfsck")
-            << library_dependencies::common_as_string() << "\n\n"
+    iol.out << tool::tool_header("dwarfsck") << "\n\n"
             << usage << "\n"
             << opts << "\n";
     return 0;

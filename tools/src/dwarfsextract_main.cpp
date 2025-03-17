@@ -28,7 +28,6 @@
 
 #include <dwarfs/config.h>
 #include <dwarfs/glob_matcher.h>
-#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
@@ -142,11 +141,11 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsextract [OPTIONS...]\n";
 
   if (vm.contains("help") or !vm.contains("input")) {
-    library_dependencies deps;
-    deps.add_common_libraries();
-    utility::filesystem_extractor::add_library_dependencies(deps);
+    auto extra_deps = [](library_dependencies& deps) {
+      utility::filesystem_extractor::add_library_dependencies(deps);
+    };
 
-    iol.out << tool::tool_header("dwarfsextract") << deps.as_string() << "\n\n"
+    iol.out << tool::tool_header("dwarfsextract", extra_deps) << "\n\n"
             << usage << "\n"
             << opts << "\n";
     return 0;

@@ -61,7 +61,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/integral_value_parser.h>
-#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/match.h>
 #include <dwarfs/mmap.h>
@@ -717,8 +716,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool::tool_header("mkdwarfs")
-            << library_dependencies::common_as_string() << "\n\n"
+    iol.out << tool::tool_header("mkdwarfs") << "\n\n"
             << usage << opts << "\n"
             << "Compression level defaults:\n"
             << "  " << sep << "\n"
@@ -771,8 +769,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("help") or
       !(vm.contains("input") or vm.contains("input-list")) or
       (!vm.contains("output") and !vm.contains("debug-filter"))) {
-    iol.out << tool::tool_header("mkdwarfs")
-            << library_dependencies::common_as_string() << "\n\n"
+    iol.out << tool::tool_header("mkdwarfs") << "\n\n"
             << usage << "\n"
             << basic_opts << "\n";
     return 0;
