@@ -104,7 +104,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
                ranges::to<std::string>;
 
   // clang-format off
-  std::cout << tool_header("dwarfs-universal")
+  std::cout << tool_header_nodeps("dwarfs-universal")
             << "Command line options:\n"
             << "  --tool=<name>                     "
                  "which tool to run; available tools are:\n"
