@@ -1,6 +1,6 @@
 # Change Log
 
-## Version 0.11.0 - 2025-03-15
+## Version 0.11.0 - 2025-03-17
 
 - (fix) Remove the `access` implementation from the FUSE driver.
   There's no point here trying to be more clever than FUSE's
@@ -15,6 +15,11 @@
 
 - (fix) Avoid nested indentation due to `ronn-ng` bug. Fixes
   github #249.
+
+- (fix) Don't link library against `jemalloc`. This fixes both
+  issues with `pydwarfs` and issues building with `jemalloc`
+  support on macOS. Only the binaries are now linked against
+  `jemalloc`, which should be sufficient.
 
 - (feat) Support case-insensitive lookups. Fixes github #232.
 
