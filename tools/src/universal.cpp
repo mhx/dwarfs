@@ -34,6 +34,7 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs_tool_main.h>
@@ -41,6 +42,7 @@
 namespace {
 
 using namespace dwarfs::tool;
+using namespace std::string_view_literals;
 
 #ifdef _WIN32
 #define EXE_EXT ".exe"
@@ -48,11 +50,11 @@ using namespace dwarfs::tool;
 #define EXE_EXT ""
 #endif
 
-std::map<std::string_view, main_adapter::main_fn_type> const functions{
-    {"dwarfs", dwarfs_main},
-    {"mkdwarfs", mkdwarfs_main},
-    {"dwarfsck", dwarfsck_main},
-    {"dwarfsextract", dwarfsextract_main},
+constexpr dwarfs::sorted_array_map functions{
+    std::pair{"dwarfs"sv, &dwarfs_main},
+    std::pair{"mkdwarfs"sv, &mkdwarfs_main},
+    std::pair{"dwarfsck"sv, &dwarfsck_main},
+    std::pair{"dwarfsextract"sv, &dwarfsextract_main},
 };
 
 } // namespace
@@ -98,10 +100,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // nope, just print the help
 
-  // The string_view is needed because ranges::views::join() will include
-  // the null terminator when using a string literal.
-  static constexpr std::string_view kJoiner{", "};
-  auto tools = ranges::views::keys(functions) | ranges::views::join(kJoiner) |
+  auto tools = ranges::views::keys(functions) | ranges::views::join(", "sv) |
                ranges::to<std::string>;
 
   // clang-format off

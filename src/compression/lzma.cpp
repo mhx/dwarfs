@@ -91,10 +91,7 @@ T find_option(sorted_array_map<std::string_view, T, N> const& options,
 template <typename T, size_t N>
 std::string
 option_names(sorted_array_map<std::string_view, T, N> const& options) {
-  // The string_view is needed because ranges::views::join() will include
-  // the null terminator when using a string literal.
-  static constexpr std::string_view kJoiner{", "};
-  return options | ranges::views::keys | ranges::views::join(kJoiner) |
+  return options | ranges::views::keys | ranges::views::join(", "sv) |
          ranges::to<std::string>;
 }
 
