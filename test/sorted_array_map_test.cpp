@@ -19,10 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <string>
 #include <string_view>
+#include <version>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
+#include <range/v3/view/reverse.hpp>
 
 #include <dwarfs/sorted_array_map.h>
 
@@ -161,6 +168,27 @@ static_assert(!sv_map.get("zero"sv).has_value());
 static_assert(sv_map.contains("five"sv));
 static_assert(!sv_map.contains("six"sv));
 
+// should work with string literals
+static_assert(sv_map.at("one") == 1);
+static_assert(sv_map["two"] == 2);
+static_assert(sv_map.at("three") == 3);
+static_assert(sv_map.get("four").has_value());
+static_assert(!sv_map.get("zero").has_value());
+static_assert(sv_map.contains("five"));
+static_assert(!sv_map.contains("six"));
+
+#if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
+// should also work with std::string
+using namespace std::string_literals;
+static_assert(sv_map.at("one"s) == 1);
+static_assert(sv_map["two"s] == 2);
+static_assert(sv_map.at("three"s) == 3);
+static_assert(sv_map.get("four"s).has_value());
+static_assert(!sv_map.get("zero"s).has_value());
+static_assert(sv_map.contains("five"s));
+static_assert(!sv_map.contains("six"s));
+#endif
+
 static_assert(empty_map.empty());
 static_assert(empty_map.size() == 0);
 static_assert(empty_map.find(0) == empty_map.end());
@@ -190,6 +218,38 @@ TEST(sorted_array_map, constexpr_runtime) {
   EXPECT_EQ(std::distance(map.cbegin(), map.cend()), 3);
   EXPECT_EQ(std::distance(map.rbegin(), map.rend()), 3);
   EXPECT_EQ(std::distance(map.crbegin(), map.crend()), 3);
+
+  EXPECT_THAT(map | ranges::views::keys | ranges::to<std::vector>(),
+              testing::ElementsAre(1, 2, 3));
+  EXPECT_EQ(map | ranges::views::reverse | ranges::views::values |
+                ranges::views::join(", "sv) | ranges::to<std::string>(),
+            "three, two, one"sv);
+
+  EXPECT_THAT([] { sv_map.at("zero"sv); },
+              testing::Throws<std::out_of_range>());
+  EXPECT_THAT([] { sv_map["six"sv]; }, testing::Throws<std::out_of_range>());
+
+  EXPECT_EQ(sv_map.size(), 5);
+  EXPECT_EQ(sv_map.at("one"sv), 1);
+  EXPECT_EQ(sv_map["two"sv], 2);
+  EXPECT_EQ(sv_map.at("three"sv), 3);
+  EXPECT_EQ(sv_map.get("four"sv).value(), 4);
+  EXPECT_FALSE(sv_map.get("zero"sv).has_value());
+  EXPECT_TRUE(sv_map.contains("five"sv));
+  EXPECT_FALSE(sv_map.contains("six"sv));
+  EXPECT_NE(sv_map.find("two"sv), sv_map.end());
+  EXPECT_EQ(sv_map.find("six"sv), sv_map.end());
+  EXPECT_EQ(std::distance(sv_map.begin(), sv_map.end()), 5);
+  EXPECT_EQ(std::distance(sv_map.cbegin(), sv_map.cend()), 5);
+  EXPECT_EQ(std::distance(sv_map.rbegin(), sv_map.rend()), 5);
+  EXPECT_EQ(std::distance(sv_map.crbegin(), sv_map.crend()), 5);
+
+  EXPECT_EQ(sv_map | ranges::views::keys | ranges::views::join(", "sv) |
+                ranges::to<std::string>(),
+            "five, four, one, three, two"sv);
+  EXPECT_THAT(sv_map | ranges::views::values | ranges::views::reverse |
+                  ranges::to<std::vector>(),
+              testing::ElementsAre(2, 3, 1, 4, 5));
 }
 
 TEST(sorted_array_map, const_runtime) {
