@@ -716,8 +716,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool::tool_header("mkdwarfs") << "\n\n"
-            << usage << opts << "\n"
+    iol.out << tool::tool_header("mkdwarfs") << usage << opts << "\n"
             << "Compression level defaults:\n"
             << "  " << sep << "\n"
             << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
@@ -769,8 +768,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("help") or
       !(vm.contains("input") or vm.contains("input-list")) or
       (!vm.contains("output") and !vm.contains("debug-filter"))) {
-    iol.out << tool::tool_header("mkdwarfs") << "\n\n"
-            << usage << "\n"
+    iol.out << tool::tool_header("mkdwarfs") << usage << "\n"
             << basic_opts << "\n";
     return 0;
   }

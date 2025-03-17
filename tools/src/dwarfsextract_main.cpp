@@ -145,8 +145,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
       utility::filesystem_extractor::add_library_dependencies(deps);
     };
 
-    iol.out << tool::tool_header("dwarfsextract", extra_deps) << "\n\n"
-            << usage << "\n"
+    iol.out << tool::tool_header("dwarfsextract", extra_deps) << usage << "\n"
             << opts << "\n";
     return 0;
   }

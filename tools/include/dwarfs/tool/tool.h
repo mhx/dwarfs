@@ -47,6 +47,8 @@ using extra_deps_fn = std::function<void(library_dependencies&)>;
 std::string tool_header(std::string_view tool_name, std::string_view extra_info,
                         extra_deps_fn const& extra_deps);
 
+std::string tool_header_nodeps(std::string_view tool_name);
+
 inline std::string
 tool_header(std::string_view tool_name, std::string_view extra_info = {}) {
   return tool_header(tool_name, extra_info, {});

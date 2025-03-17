@@ -75,16 +75,29 @@ std::string get_jemalloc_version() {
 }
 #endif
 
-} // namespace
-
-std::string tool_header(std::string_view tool_name, std::string_view extra_info,
-                        extra_deps_fn const& extra_deps) {
+std::string
+tool_header_impl(std::string_view tool_name, std::string_view extra_info = {}) {
   std::string date;
 
   if (DWARFS_GIT_DATE) {
     date = fmt::format(" [{}]", DWARFS_GIT_DATE);
   }
 
+  return fmt::format(
+      // clang-format off
+    R"(     ___                  ___ ___)""\n"
+    R"(    |   \__ __ ____ _ _ _| __/ __|         Deduplicating Warp-speed)""\n"
+    R"(    | |) \ V  V / _` | '_| _|\__ \      Advanced Read-only File System)""\n"
+    R"(    |___/ \_/\_/\__,_|_| |_| |___/         by Marcus Holland-Moritz)""\n\n"
+      // clang-format on
+      "{} ({}{}{})\nbuilt for {}\n\n",
+      tool_name, DWARFS_GIT_ID, date, extra_info, DWARFS_BUILD_ID);
+}
+
+} // namespace
+
+std::string tool_header(std::string_view tool_name, std::string_view extra_info,
+                        extra_deps_fn const& extra_deps) {
   library_dependencies deps;
   deps.add_common_libraries();
 
@@ -96,16 +109,11 @@ std::string tool_header(std::string_view tool_name, std::string_view extra_info,
     extra_deps(deps);
   }
 
-  return fmt::format(
-      // clang-format off
-    R"(     ___                  ___ ___)""\n"
-    R"(    |   \__ __ ____ _ _ _| __/ __|         Deduplicating Warp-speed)""\n"
-    R"(    | |) \ V  V / _` | '_| _|\__ \      Advanced Read-only File System)""\n"
-    R"(    |___/ \_/\_/\__,_|_| |_| |___/         by Marcus Holland-Moritz)""\n\n"
-      // clang-format on
-      "{} ({}{}{})\nbuilt for {}\n\n{}",
-      tool_name, DWARFS_GIT_ID, date, extra_info, DWARFS_BUILD_ID,
-      deps.as_string());
+  return tool_header_impl(tool_name, extra_info) + deps.as_string() + "\n\n";
+}
+
+std::string tool_header_nodeps(std::string_view tool_name) {
+  return tool_header_impl(tool_name);
 }
 
 void add_common_options(po::options_description& opts,

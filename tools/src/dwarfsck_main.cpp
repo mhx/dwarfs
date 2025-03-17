@@ -256,9 +256,7 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
   if (vm.contains("help") or !vm.contains("input")) {
-    iol.out << tool::tool_header("dwarfsck") << "\n\n"
-            << usage << "\n"
-            << opts << "\n";
+    iol.out << tool::tool_header("dwarfsck") << usage << "\n" << opts << "\n";
     return 0;
   }
 

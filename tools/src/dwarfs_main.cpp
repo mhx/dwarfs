@@ -1161,7 +1161,6 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 void usage(std::ostream& os, std::filesystem::path const& progname) {
   os << tool::tool_header("dwarfs",
                           fmt::format(", fuse version {}", FUSE_USE_VERSION))
-     << "\n\n"
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif
