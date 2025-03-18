@@ -8,6 +8,7 @@ RUN apt install -y gnupg wget software-properties-common
 # RUN apt-add-repository 'deb https://apt.kitware.com/ubuntu/ jammy main'
 RUN apt install -y \
         bash-completion \
+        curl \
         vim \
         less
 RUN apt install -y \
@@ -72,7 +73,8 @@ RUN apt install -y \
         nlohmann-json3-dev \
         python3-mistletoe
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh
+# TODO: gcc-14 cannot build the current version of libunwind
+RUN bash /usr/local/bin/install-static-libs.sh gcc-13 clang-18
 ARG ARCH
 # upx-4.2.2 is broken for arm64 (https://github.com/upx/upx/issues/758)
 RUN wget -O - https://github.com/upx/upx/releases/download/v4.2.1/upx-4.2.1-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
