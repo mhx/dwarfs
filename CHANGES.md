@@ -1,5 +1,11 @@
 # Change Log
 
+## Version 0.11.1 - 2025-03-18
+
+- (fix) macOS Ventura's version of clang appears to be missing the
+  `<source_location>` header, despite Apple claiming otherwise. Fix
+  this by shipping a wrapper and providing a fallback implementation.
+
 ## Version 0.11.0 - 2025-03-17
 
 - (fix) Remove the `access` implementation from the FUSE driver.
