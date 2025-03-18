@@ -50,23 +50,22 @@ namespace {
 
 } // namespace
 
-error::error(std::string_view s, std::source_location loc) noexcept
+error::error(std::string_view s, source_location loc) noexcept
     : what_{fmt::format("{} [{}:{}]", s, basename(loc.file_name()), loc.line())}
     , loc_{loc} {}
 
-system_error::system_error(std::source_location loc) noexcept
+system_error::system_error(source_location loc) noexcept
     : system_error(errno, loc) {}
 
-system_error::system_error(std::string_view s,
-                           std::source_location loc) noexcept
+system_error::system_error(std::string_view s, source_location loc) noexcept
     : system_error(s, errno, loc) {}
 
 system_error::system_error(std::string_view s, int err,
-                           std::source_location loc) noexcept
+                           source_location loc) noexcept
     : std::system_error(err, std::generic_category(), std::string(s))
     , loc_{loc} {}
 
-system_error::system_error(int err, std::source_location loc) noexcept
+system_error::system_error(int err, source_location loc) noexcept
     : std::system_error(err, std::generic_category())
     , loc_{loc} {}
 
@@ -79,7 +78,7 @@ void dump_exceptions() {
 #endif
 }
 
-void handle_nothrow(std::string_view expr, std::source_location loc) {
+void handle_nothrow(std::string_view expr, source_location loc) {
   std::cerr << "Expression `" << expr << "` threw `"
             << exception_str(std::current_exception()) << "` in "
             << loc.file_name() << "(" << loc.line() << ")\n";
@@ -87,13 +86,13 @@ void handle_nothrow(std::string_view expr, std::source_location loc) {
 }
 
 void assertion_failed(std::string_view expr, std::string_view msg,
-                      std::source_location loc) {
+                      source_location loc) {
   std::cerr << "Assertion `" << expr << "` failed in " << loc.file_name() << "("
             << loc.line() << "): " << msg << "\n";
   do_terminate();
 }
 
-void handle_panic(std::string_view msg, std::source_location loc) {
+void handle_panic(std::string_view msg, source_location loc) {
   std::cerr << "Panic: " << msg << " in " << loc.file_name() << "("
             << loc.line() << ")\n";
   do_terminate();

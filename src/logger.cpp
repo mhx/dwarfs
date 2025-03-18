@@ -166,7 +166,7 @@ logger::level_type stream_logger::threshold() const {
 }
 
 void stream_logger::write(level_type level, std::string_view output,
-                          std::source_location loc) {
+                          source_location loc) {
   if (level <= threshold_ || level == FATAL) {
     auto t = get_current_time_string();
     std::string_view prefix;
@@ -303,7 +303,7 @@ class timed_level_log_entry::state {
  public:
   using thread_clock = boost::chrono::thread_clock;
 
-  state(logger& lgr, logger::level_type level, std::source_location loc,
+  state(logger& lgr, logger::level_type level, source_location loc,
         bool with_cpu)
       : lgr_{lgr}
       , level_{level}
@@ -336,12 +336,12 @@ class timed_level_log_entry::state {
   logger::level_type const level_;
   std::chrono::time_point<std::chrono::high_resolution_clock> const start_time_;
   std::optional<thread_clock::time_point> const cpu_start_time_;
-  std::source_location const loc_;
+  source_location const loc_;
 };
 
 timed_level_log_entry::timed_level_log_entry(logger& lgr,
                                              logger::level_type level,
-                                             std::source_location loc,
+                                             source_location loc,
                                              bool with_cpu) {
   if (level <= lgr.threshold()) {
     state_ = std::make_unique<state>(lgr, level, loc, with_cpu);
@@ -368,7 +368,7 @@ void logging_class_factory::on_policy_not_found(logger const& lgr) {
 
 } // namespace detail
 
-std::string get_logger_context(std::source_location loc) {
+std::string get_logger_context(source_location loc) {
   return fmt::format("[{0}:{1}] ", basename(loc.file_name()), loc.line());
 }
 

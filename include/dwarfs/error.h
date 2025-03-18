@@ -22,10 +22,11 @@
 #pragma once
 
 #include <exception>
-#include <source_location>
 #include <string>
 #include <string_view>
 #include <system_error>
+
+#include <dwarfs/source_location.h>
 
 namespace dwarfs {
 
@@ -38,25 +39,25 @@ class error : public std::exception {
   auto line() const { return loc_.line(); }
 
  protected:
-  error(std::string_view s, std::source_location loc) noexcept;
+  error(std::string_view s, source_location loc) noexcept;
 
  private:
   std::string what_;
-  std::source_location loc_;
+  source_location loc_;
 };
 
 class runtime_error : public error {
  public:
-  runtime_error(std::string_view s, std::source_location loc) noexcept
+  runtime_error(std::string_view s, source_location loc) noexcept
       : error(s, loc) {}
 };
 
 class system_error : public std::system_error {
  public:
-  system_error(std::source_location loc) noexcept;
-  system_error(std::string_view s, std::source_location loc) noexcept;
-  system_error(std::string_view s, int err, std::source_location loc) noexcept;
-  system_error(int err, std::source_location loc) noexcept;
+  system_error(source_location loc) noexcept;
+  system_error(std::string_view s, source_location loc) noexcept;
+  system_error(std::string_view s, int err, source_location loc) noexcept;
+  system_error(int err, source_location loc) noexcept;
 
   auto get_errno() const { return code().value(); }
 
@@ -65,23 +66,23 @@ class system_error : public std::system_error {
   auto line() const { return loc_.line(); }
 
  private:
-  std::source_location loc_;
+  source_location loc_;
 };
 
 #define DWARFS_THROW(cls, ...)                                                 \
-  throw cls(__VA_ARGS__, std::source_location::current())
+  throw cls(__VA_ARGS__, DWARFS_CURRENT_SOURCE_LOCATION)
 
 #define DWARFS_CHECK(expr, message)                                            \
   do {                                                                         \
     if (!(expr)) {                                                             \
       ::dwarfs::assertion_failed(#expr, message,                               \
-                                 std::source_location::current());             \
+                                 DWARFS_CURRENT_SOURCE_LOCATION);              \
     }                                                                          \
   } while (false)
 
 #define DWARFS_PANIC(message)                                                  \
   do {                                                                         \
-    ::dwarfs::handle_panic(message, std::source_location::current());          \
+    ::dwarfs::handle_panic(message, DWARFS_CURRENT_SOURCE_LOCATION);           \
   } while (false)
 
 #define DWARFS_NOTHROW(expr)                                                   \
@@ -89,18 +90,17 @@ class system_error : public std::system_error {
     try {                                                                      \
       return expr;                                                             \
     } catch (...) {                                                            \
-      ::dwarfs::handle_nothrow(#expr, std::source_location::current());        \
+      ::dwarfs::handle_nothrow(#expr, DWARFS_CURRENT_SOURCE_LOCATION);         \
     }                                                                          \
   }()
 
 void dump_exceptions();
 
-[[noreturn]] void
-handle_nothrow(std::string_view expr, std::source_location loc);
+[[noreturn]] void handle_nothrow(std::string_view expr, source_location loc);
 
 [[noreturn]] void assertion_failed(std::string_view expr, std::string_view msg,
-                                   std::source_location loc);
+                                   source_location loc);
 
-[[noreturn]] void handle_panic(std::string_view msg, std::source_location loc);
+[[noreturn]] void handle_panic(std::string_view msg, source_location loc);
 
 } // namespace dwarfs

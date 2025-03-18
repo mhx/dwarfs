@@ -27,7 +27,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <source_location>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -36,6 +35,7 @@
 #include <utility>
 
 #include <dwarfs/detail/logging_class_factory.h>
+#include <dwarfs/source_location.h>
 
 namespace dwarfs {
 
@@ -57,8 +57,8 @@ class logger {
 
   virtual ~logger() = default;
 
-  virtual void write(level_type level, std::string_view output,
-                     std::source_location loc) = 0;
+  virtual void
+  write(level_type level, std::string_view output, source_location loc) = 0;
   virtual level_type threshold() const = 0;
 
   std::string_view policy_name() const { return policy_name_; }
@@ -95,7 +95,7 @@ class stream_logger : public logger {
                 logger_options const& options = {});
 
   void write(level_type level, std::string_view output,
-             std::source_location loc) override;
+             source_location loc) override;
   level_type threshold() const override;
 
   void set_threshold(level_type threshold);
@@ -126,14 +126,13 @@ class null_logger : public logger {
  public:
   null_logger();
 
-  void write(level_type, std::string_view, std::source_location) override {}
+  void write(level_type, std::string_view, source_location) override {}
   level_type threshold() const override { return FATAL; }
 };
 
 class level_log_entry {
  public:
-  level_log_entry(logger& lgr, logger::level_type level,
-                  std::source_location loc)
+  level_log_entry(logger& lgr, logger::level_type level, source_location loc)
       : lgr_(lgr)
       , level_(level)
       , loc_(loc) {}
@@ -153,13 +152,13 @@ class level_log_entry {
   logger& lgr_;
   std::ostringstream oss_;
   logger::level_type const level_;
-  std::source_location const loc_;
+  source_location const loc_;
 };
 
 class timed_level_log_entry {
  public:
   timed_level_log_entry(logger& lgr, logger::level_type level,
-                        std::source_location loc, bool with_cpu = false);
+                        source_location loc, bool with_cpu = false);
   timed_level_log_entry(timed_level_log_entry const&) = delete;
   ~timed_level_log_entry();
 
@@ -184,7 +183,7 @@ class timed_level_log_entry {
 class no_log_entry {
  public:
   no_log_entry(logger&, logger::level_type) {}
-  no_log_entry(logger&, logger::level_type, std::source_location) {}
+  no_log_entry(logger&, logger::level_type, source_location) {}
 
   template <typename T>
   no_log_entry& operator<<(T const&) {
@@ -232,96 +231,96 @@ class log_proxy {
     return level <= threshold_;
   }
 
-  auto fatal(std::source_location loc) const {
+  auto fatal(source_location loc) const {
     return level_log_entry(lgr_, logger::FATAL, loc);
   }
 
-  auto error(std::source_location loc) const {
+  auto error(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::ERROR>(
         lgr_, logger::ERROR, loc);
   }
 
-  auto warn(std::source_location loc) const {
+  auto warn(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::WARN>(
         lgr_, logger::WARN, loc);
   }
 
-  auto info(std::source_location loc) const {
+  auto info(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::INFO>(
         lgr_, logger::INFO, loc);
   }
 
-  auto verbose(std::source_location loc) const {
+  auto verbose(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::VERBOSE>(
         lgr_, logger::VERBOSE, loc);
   }
 
-  auto debug(std::source_location loc) const {
+  auto debug(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, loc);
   }
 
-  auto trace(std::source_location loc) const {
+  auto trace(source_location loc) const {
     return typename LogPolicy::template logger_type<logger::TRACE>(
         lgr_, logger::TRACE, loc);
   }
 
-  auto timed_error(std::source_location loc) const {
+  auto timed_error(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::ERROR>(
         lgr_, logger::ERROR, loc);
   }
 
-  auto timed_warn(std::source_location loc) const {
+  auto timed_warn(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::WARN>(
         lgr_, logger::WARN, loc);
   }
 
-  auto timed_info(std::source_location loc) const {
+  auto timed_info(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::INFO>(
         lgr_, logger::INFO, loc);
   }
 
-  auto timed_verbose(std::source_location loc) const {
+  auto timed_verbose(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
         lgr_, logger::VERBOSE, loc);
   }
 
-  auto timed_debug(std::source_location loc) const {
+  auto timed_debug(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, loc);
   }
 
-  auto timed_trace(std::source_location loc) const {
+  auto timed_trace(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::TRACE>(
         lgr_, logger::TRACE, loc);
   }
 
-  auto cpu_timed_error(std::source_location loc) const {
+  auto cpu_timed_error(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::ERROR>(
         lgr_, logger::ERROR, loc, true);
   }
 
-  auto cpu_timed_warn(std::source_location loc) const {
+  auto cpu_timed_warn(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::WARN>(
         lgr_, logger::WARN, loc, true);
   }
 
-  auto cpu_timed_info(std::source_location loc) const {
+  auto cpu_timed_info(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::INFO>(
         lgr_, logger::INFO, loc, true);
   }
 
-  auto cpu_timed_verbose(std::source_location loc) const {
+  auto cpu_timed_verbose(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::VERBOSE>(
         lgr_, logger::VERBOSE, loc, true);
   }
 
-  auto cpu_timed_debug(std::source_location loc) const {
+  auto cpu_timed_debug(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::DEBUG>(
         lgr_, logger::DEBUG, loc, true);
   }
 
-  auto cpu_timed_trace(std::source_location loc) const {
+  auto cpu_timed_trace(source_location loc) const {
     return typename LogPolicy::template timed_logger_type<logger::TRACE>(
         lgr_, logger::TRACE, loc, true);
   }
@@ -337,35 +336,32 @@ class log_proxy {
   if constexpr (std::decay_t<decltype(lgr)>::policy_is_enabled_for(            \
                     ::dwarfs::logger::level))                                  \
     if ((lgr).logger_is_enabled_for(::dwarfs::logger::level))                  \
-  (lgr).method(std::source_location::current())
+  (lgr).method(DWARFS_CURRENT_SOURCE_LOCATION)
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
 #define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
 #define LOG_PROXY_INIT(lgr) log_(lgr)
 #define LOG_GET_LOGGER log_.get_logger()
-#define LOG_FATAL log_.fatal(std::source_location::current())
+#define LOG_FATAL log_.fatal(DWARFS_CURRENT_SOURCE_LOCATION)
 #define LOG_ERROR LOG_DETAIL_LEVEL(ERROR, log_, error)
 #define LOG_WARN LOG_DETAIL_LEVEL(WARN, log_, warn)
 #define LOG_INFO LOG_DETAIL_LEVEL(INFO, log_, info)
 #define LOG_VERBOSE LOG_DETAIL_LEVEL(VERBOSE, log_, verbose)
 #define LOG_DEBUG LOG_DETAIL_LEVEL(DEBUG, log_, debug)
 #define LOG_TRACE LOG_DETAIL_LEVEL(TRACE, log_, trace)
-#define LOG_TIMED_ERROR log_.timed_error(std::source_location::current())
-#define LOG_TIMED_WARN log_.timed_warn(std::source_location::current())
-#define LOG_TIMED_INFO log_.timed_info(std::source_location::current())
-#define LOG_TIMED_VERBOSE log_.timed_verbose(std::source_location::current())
-#define LOG_TIMED_DEBUG log_.timed_debug(std::source_location::current())
-#define LOG_TIMED_TRACE log_.timed_trace(std::source_location::current())
-#define LOG_CPU_TIMED_ERROR                                                    \
-  log_.cpu_timed_error(std::source_location::current())
-#define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(std::source_location::current())
-#define LOG_CPU_TIMED_INFO log_.cpu_timed_info(std::source_location::current())
+#define LOG_TIMED_ERROR log_.timed_error(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_TIMED_WARN log_.timed_warn(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_TIMED_INFO log_.timed_info(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_TIMED_VERBOSE log_.timed_verbose(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_TIMED_DEBUG log_.timed_debug(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_TIMED_TRACE log_.timed_trace(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_CPU_TIMED_ERROR log_.cpu_timed_error(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_CPU_TIMED_WARN log_.cpu_timed_warn(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_CPU_TIMED_INFO log_.cpu_timed_info(DWARFS_CURRENT_SOURCE_LOCATION)
 #define LOG_CPU_TIMED_VERBOSE                                                  \
-  log_.cpu_timed_verbose(std::source_location::current())
-#define LOG_CPU_TIMED_DEBUG                                                    \
-  log_.cpu_timed_debug(std::source_location::current())
-#define LOG_CPU_TIMED_TRACE                                                    \
-  log_.cpu_timed_trace(std::source_location::current())
+  log_.cpu_timed_verbose(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_CPU_TIMED_DEBUG log_.cpu_timed_debug(DWARFS_CURRENT_SOURCE_LOCATION)
+#define LOG_CPU_TIMED_TRACE log_.cpu_timed_trace(DWARFS_CURRENT_SOURCE_LOCATION)
 
 class prod_logger_policy : public MinimumLogLevelPolicy<logger::VERBOSE> {
  public:
@@ -395,7 +391,7 @@ std::shared_ptr<Base> make_shared_logging_object(logger& lgr, Args&&... args) {
       lgr, std::forward<Args>(args)...);
 }
 
-std::string get_logger_context(std::source_location loc);
+std::string get_logger_context(source_location loc);
 std::string get_current_time_string();
 
 } // namespace dwarfs
