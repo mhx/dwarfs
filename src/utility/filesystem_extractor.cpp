@@ -359,14 +359,18 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
         }
       };
 
-  std::unordered_set<std::filesystem::path> matched_dirs;
+  // Don't use an unordered_set<std::filesystem::path> here, this will break
+  // on macOS 13 due to clang not knowing how to hash std::filesystem::path.
+  std::unordered_set<std::string> matched_dirs;
 
   if (matcher) {
+    // Collect all directories that contain matching files to make sure
+    // we descend into them during the extraction walk below.
     fs.walk([&](auto entry) {
       if (!entry.inode().is_directory()) {
         if (matcher->match(entry.unix_path())) {
           while (auto parent = entry.parent()) {
-            if (!matched_dirs.insert(parent->fs_path()).second) {
+            if (!matched_dirs.insert(parent->unix_path()).second) {
               break;
             }
             entry = *parent;
@@ -385,16 +389,17 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     auto inode = entry.inode();
 
     if (matcher) {
-      LOG_TRACE << "checking " << entry.unix_path();
+      auto const unix_path = entry.unix_path();
+      LOG_TRACE << "checking " << unix_path;
       if (inode.is_directory()) {
-        if (!matched_dirs.contains(entry.fs_path())) {
-          LOG_TRACE << "skipping directory " << entry.fs_path();
+        if (!matched_dirs.contains(unix_path)) {
+          LOG_TRACE << "skipping directory " << unix_path;
           // no need to extract this directory
           return;
         }
       } else {
-        if (!matcher->match(entry.unix_path())) {
-          LOG_TRACE << "skipping " << entry.fs_path();
+        if (!matcher->match(unix_path)) {
+          LOG_TRACE << "skipping " << unix_path;
           // no match, skip this entry
           return;
         }
