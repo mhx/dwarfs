@@ -255,7 +255,6 @@ if(NOT STATIC_BUILD_DO_NOT_USE)
     set_target_properties(${tgt} PROPERTIES VERSION ${PRJ_VERSION_MAJOR}.${PRJ_VERSION_MINOR}.${PRJ_VERSION_PATCH})
   endforeach()
 
-  include(GNUInstallDirs)
   include(CMakePackageConfigHelpers)
 
   set(DWARFS_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/dwarfs CACHE STRING
