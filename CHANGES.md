@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.11.2 - 2025-03-20
+
+- (fix) macOS Ventura's version of clang appears to be missing an
+  implementation of `std::hash<std::filesystem::path`, making it
+  hard to define an `unordered_map<filesystem::path`. Work around
+  by simply using an `unordered_map<string>` instead.
+
+- (fix) Installing the binaries using cmake did not honor the
+  `CMAKE_INSTALL_BINDIR` or `CMAKE_INSTALL_SBINDIR` variables.
+  Fixes github #253.
+
 ## Version 0.11.1 - 2025-03-18
 
 - (fix) macOS Ventura's version of clang appears to be missing the
