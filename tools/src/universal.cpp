@@ -44,18 +44,28 @@ namespace {
 using namespace dwarfs::tool;
 using namespace std::string_view_literals;
 
-#ifdef _WIN32
-#define EXE_EXT ".exe"
-#else
-#define EXE_EXT ""
-#endif
-
 constexpr dwarfs::sorted_array_map functions{
     std::pair{"dwarfs"sv, &dwarfs_main},
     std::pair{"mkdwarfs"sv, &mkdwarfs_main},
     std::pair{"dwarfsck"sv, &dwarfsck_main},
     std::pair{"dwarfsextract"sv, &dwarfsextract_main},
 };
+
+bool looks_like_executable(std::filesystem::path const& path) {
+  auto ext = path.extension().string();
+
+  if (ext.empty()) {
+    return true;
+  }
+
+#ifdef _WIN32
+  if (ext == ".exe") {
+    return true;
+  }
+#endif
+
+  return false;
+}
 
 } // namespace
 
@@ -64,7 +74,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
 
   // first, see if we are called as a copy/hardlink/symlink
 
-  if (auto ext = path.extension().string(); ext.empty() || ext == EXE_EXT) {
+  if (looks_like_executable(path)) {
     auto stem = path.stem().string();
     if (auto it = functions.find(stem); it != functions.end()) {
       return main_adapter(it->second).safe(argc, argv);
