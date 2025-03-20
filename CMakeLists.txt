@@ -915,6 +915,17 @@ add_custom_target(
   format
   COMMAND clang-format -i ${ALL_SOURCES})
 
+add_custom_target(
+  check-format
+  COMMAND clang-format --dry-run --Werror ${ALL_SOURCES})
+
+add_custom_target(
+  tidy
+  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color
+              -source-filter='.*/src/.*'
+              -header-filter='.*/include/dwarfs/.*'
+  USES_TERMINAL)
+
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(CMAKE_BUILD_TYPE STREQUAL "Release")
     foreach(tgt ${BINARY_TARGETS})
