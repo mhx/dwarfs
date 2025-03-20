@@ -21,6 +21,7 @@ Checks:
   - modernize-*
   - -modernize-use-trailing-return-type
   - -modernize-macro-to-enum
+  # already covered by cppcoreguidelines-avoid-c-arrays
   - -modernize-avoid-c-arrays
   - performance-*
   - -performance-enum-size
