@@ -52,19 +52,12 @@ constexpr dwarfs::sorted_array_map functions{
 };
 
 bool looks_like_executable(std::filesystem::path const& path) {
-  auto ext = path.extension().string();
-
-  if (ext.empty()) {
-    return true;
-  }
-
+  auto const ext = path.extension().string();
+  return ext.empty()
 #ifdef _WIN32
-  if (ext == ".exe") {
-    return true;
-  }
+         || ext == ".exe"
 #endif
-
-  return false;
+      ;
 }
 
 } // namespace
