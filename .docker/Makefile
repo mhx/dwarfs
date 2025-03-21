@@ -1,4 +1,5 @@
 IMAGE_UBUNTU="dwarfs-buildenv"
+IMAGE_ALPINE="dwarfs-buildenv-alpine"
 IMAGE_UBUNTU2204="dwarfs-buildenv-ubuntu2204"
 IMAGE_FEDORA="dwarfs-buildenv-fedora"
 IMAGE_ARCH="dwarfs-buildenv-arch"
@@ -23,6 +24,12 @@ run:
 
 build_arm:
 	docker build -f Dockerfile.ubuntu -t $(IMAGE_UBUNTU) --build-arg ARCH=arm64v8 .
+
+build_alpine:
+	docker build -f Dockerfile.alpine -t $(IMAGE_ALPINE) .
+
+run_alpine:
+	@docker run $(COMMON_RUN_OPTS) $(IMAGE_ALPINE)
 
 build_ubuntu2204:
 	docker build -f Dockerfile.ubuntu-2204 -t $(IMAGE_UBUNTU2204) .
