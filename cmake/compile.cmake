@@ -62,7 +62,7 @@ if(NOT WIN32)
   if(LDD_EXE)
     execute_process(COMMAND ${LDD_EXE} --version ERROR_VARIABLE LDD_VERSION)
     if(LDD_VERSION MATCHES "musl libc")
-      add_compile_definitions(DWARFS_MUSL=1 _LARGEFILE64_SOURCE)
+      add_compile_definitions(_LARGEFILE64_SOURCE)
     endif()
   endif()
 

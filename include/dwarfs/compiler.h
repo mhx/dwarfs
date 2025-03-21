@@ -33,9 +33,10 @@
 #endif
 #endif
 
-#if !defined(DWARFS_SANITIZE_THREAD) && !defined(DWARFS_MUSL) &&               \
-    defined(__x86_64__) && __has_attribute(target_clones)
-#define DWARFS_MULTIVERSIONING 1
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_cpu_supports) && __has_attribute(target)
+#define DWARFS_USE_CPU_FEATURES 1
+#endif
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

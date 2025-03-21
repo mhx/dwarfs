@@ -20,6 +20,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <limits>
 #include <mutex>
 #include <numeric>
@@ -78,46 +79,111 @@ template <typename T, size_t N>
 int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
   int d = 0;
   for (size_t i = 0; i < N; ++i) {
-    d += folly::popcount(a[i] ^ b[i]);
+    d += std::popcount(a[i] ^ b[i]);
   }
   return d;
 }
 
-#ifdef DWARFS_MULTIVERSIONING
-#ifdef __clang__
-__attribute__((target_clones("avx512vpopcntdq", "popcnt", "default")))
+#if defined(DWARFS_USE_CPU_FEATURES) && defined(__x86_64__)
+#define DWARFS_USE_POPCNT
+#endif
+
+enum class cpu_feature {
+  none,
+  popcnt,
+};
+
+cpu_feature detect_cpu_feature() {
+#ifdef DWARFS_USE_POPCNT
+  static cpu_feature const feature = [] {
+    if (__builtin_cpu_supports("popcnt")) {
+      return cpu_feature::popcnt;
+    }
+    return cpu_feature::none;
+  }();
+  return feature;
 #else
-__attribute__((target_clones("popcnt", "default")))
+  return cpu_feature::none;
 #endif
+}
+
+template <typename Fn, typename... Args>
+decltype(auto) cpu_dispatch(Args&&... args) {
+#ifdef DWARFS_USE_POPCNT
+  auto feature = detect_cpu_feature();
+  switch (feature) {
+  case cpu_feature::popcnt:
+    return Fn::template call<cpu_feature::popcnt>(std::forward<Args>(args)...);
+  default:
+    break;
+  }
 #endif
-int distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+  return Fn::template call<cpu_feature::none>(std::forward<Args>(args)...);
+}
+
+int distance_default(std::array<uint64_t, 4> const& a,
+                     std::array<uint64_t, 4> const& b) {
   return distance<uint64_t, 4>(a, b);
+}
+
+#ifdef DWARFS_USE_POPCNT
+__attribute__((__target__("popcnt"))) int
+distance_popcnt(std::array<uint64_t, 4> const& a,
+                std::array<uint64_t, 4> const& b) {
+  return distance<uint64_t, 4>(a, b);
+}
+#endif
+
+struct distance_cpu {
+  template <cpu_feature CpuFeature>
+  static int
+  call(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+#ifdef DWARFS_USE_POPCNT
+    if constexpr (CpuFeature == cpu_feature::popcnt) {
+      return distance_popcnt(a, b);
+    }
+#endif
+    return distance_default(a, b);
+  }
+};
+
+struct order_by_shortest_path_cpu {
+  template <cpu_feature CpuFeature, typename GetI, typename GetK, typename Swap>
+  static void
+  call(size_t count, GetI const& geti, GetK const& getk, Swap const& swapper) {
+    for (size_t i = 0; i < count - 1; ++i) {
+      auto bi = geti(i);
+      int best_distance = std::numeric_limits<int>::max();
+      size_t best_index = 0;
+
+      for (size_t k = i + 1; k < count; ++k) {
+        auto bk = getk(k);
+        auto d = distance_cpu::template call<CpuFeature>(*bi, *bk);
+        if (d < best_distance) {
+          best_distance = d;
+          best_index = k;
+          if (best_distance <= 1) {
+            break;
+          }
+        }
+      }
+
+      if (best_index > 0 && i + 1 != best_index) {
+        swapper(i + 1, best_index);
+      }
+    }
+  }
+};
+
+int distance(std::array<uint64_t, 4> const& a,
+             std::array<uint64_t, 4> const& b) {
+  return cpu_dispatch<distance_cpu>(a, b);
 }
 
 template <typename GetI, typename GetK, typename Swap>
 void order_by_shortest_path(size_t count, GetI const& geti, GetK const& getk,
                             Swap const& swapper) {
-  for (size_t i = 0; i < count - 1; ++i) {
-    auto bi = geti(i);
-    int best_distance = std::numeric_limits<int>::max();
-    size_t best_index = 0;
-
-    for (size_t k = i + 1; k < count; ++k) {
-      auto bk = getk(k);
-      auto d = distance(*bi, *bk);
-      if (d < best_distance) {
-        best_distance = d;
-        best_index = k;
-        if (best_distance <= 1) {
-          break;
-        }
-      }
-    }
-
-    if (best_index > 0 && i + 1 != best_index) {
-      swapper(i + 1, best_index);
-    }
-  }
+  cpu_dispatch<order_by_shortest_path_cpu>(count, geti, getk, swapper);
 }
 
 template <size_t Bits, typename BitsType = uint64_t,
