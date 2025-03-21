@@ -74,7 +74,7 @@ RUN apt install -y \
         python3-mistletoe
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 # TODO: gcc-14 cannot build the current version of libunwind
-RUN bash /usr/local/bin/install-static-libs.sh gcc-13 clang-18
+RUN bash /usr/local/bin/install-static-libs.sh gcc-13 clang-18 :ubuntu
 ARG ARCH
 # upx-4.2.2 is broken for arm64 (https://github.com/upx/upx/issues/758)
 RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
