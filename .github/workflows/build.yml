@@ -320,6 +320,12 @@ jobs:
           - arch: arm64v8
             dist: ubuntu
             build_type: clang-debug-stacktrace-ninja-static
+          - arch: amd64
+            dist: alpine
+            build_type: gcc-release-ninja-static
+          - arch: arm64v8
+            dist: alpine
+            build_type: gcc-release-ninja-static
 
     runs-on:
       - self-hosted
