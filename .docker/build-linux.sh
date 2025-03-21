@@ -55,12 +55,15 @@ rm -rf build
 mkdir build
 cd build
 
-if [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
-  GCC_VERSION=12
-  CLANG_VERSION=15
+if [[ "$BUILD_DIST" == "alpine" ]]; then
+  GCC_VERSION=
+  CLANG_VERSION=-19
+elif [[ "$BUILD_DIST" == "ubuntu-2204" ]]; then
+  GCC_VERSION=-12
+  CLANG_VERSION=-15
 else
-  GCC_VERSION=14
-  CLANG_VERSION=18
+  GCC_VERSION=-14
+  CLANG_VERSION=-18
 fi
 
 case "-$BUILD_TYPE-" in
@@ -83,7 +86,7 @@ case "-$BUILD_TYPE-" in
   *-gcc-*)
     case "-$BUILD_DIST-" in
       *-ubuntu-*)
-        export CC=gcc-$GCC_VERSION CXX=g++-$GCC_VERSION
+        export CC=gcc$GCC_VERSION CXX=g++$GCC_VERSION
         ;;
     esac
     export COMPILER=gcc
@@ -94,7 +97,7 @@ case "-$BUILD_TYPE-" in
   *-clang-*)
     case "-$BUILD_DIST-" in
       *-ubuntu-*)
-        export CC=clang-$CLANG_VERSION CXX=clang++-$CLANG_VERSION
+        export CC=clang$CLANG_VERSION CXX=clang++$CLANG_VERSION
         ;;
       *)
         export CC=clang CXX=clang++
@@ -251,8 +254,8 @@ else
 
   if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
     rm -f /tmp-runner/dwarfs-coverage.txt
-    llvm-profdata-$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
-    llvm-cov-$CLANG_VERSION show -instr-profile=dwarfs.profdata \
+    llvm-profdata$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
+    llvm-cov$CLANG_VERSION show -instr-profile=dwarfs.profdata \
       $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
       >/tmp-runner/dwarfs-coverage.txt
   fi
