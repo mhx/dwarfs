@@ -1,0 +1,87 @@
+# syntax=docker/dockerfile:1
+ARG ARCH=amd64
+FROM $ARCH/alpine:latest
+RUN apk update
+RUN apk upgrade
+RUN apk add --no-cache \
+        bash-completion \
+        build-base \
+        wget \
+        curl \
+        vim \
+        tar \
+        ripgrep \
+        py3-pip \
+        less
+RUN apk add --no-cache \
+        gcc \
+        g++ \
+        clang19 \
+        git \
+        zstd \
+        ccache \
+        samurai \
+        cmake \
+        make \
+        bison \
+        flex \
+        ronn \
+        fuse \
+        fuse-dev \
+        fuse-static \
+        fuse3 \
+        fuse3-dev \
+        fuse3-static \
+        pkgconf \
+        binutils-dev \
+        acl-dev \
+        acl-static \
+        libarchive-dev \
+        libarchive-static \
+        boost1.84-dev \
+        boost1.84-dev \
+        boost1.84-static \
+        brotli-dev \
+        libevent-dev \
+        libevent-static \
+        date-dev \
+        jemalloc-dev \
+        jemalloc-static \
+        double-conversion-dev \
+        bzip2-dev \
+        bzip2-static \
+        xz-dev \
+        xz-static \
+        zstd-dev \
+        zstd-static \
+        lz4-dev \
+        range-v3-dev \
+        libxml2-dev \
+        libxml2-static \
+        zlib-static \
+        libmagic-static \
+        openssl-dev \
+        openssl-libs-static \
+        libunwind-dev \
+        libunwind-static \
+        libdwarf-dev \
+        elfutils-dev \
+        fmt-dev \
+        glog-dev \
+        utfcpp \
+        flac-dev \
+        libogg-static \
+        icu-static \
+        expat-static \
+        nlohmann-json
+
+ARG ARCH
+RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
+RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
+RUN git config --global --add safe.directory /workspace
+COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+RUN adduser -G users -s bash -u 1000 -D mhx
+RUN apk add --no-cache xxhash-dev
+USER mhx
+ENTRYPOINT /workspace/.docker/build-linux.sh
