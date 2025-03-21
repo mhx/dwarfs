@@ -140,9 +140,6 @@ class nilsimsa::impl {
     size_ += size;
   }
 
-#ifdef DWARFS_MULTIVERSIONING
-  // __attribute__((target_clones("arch=tigerlake", "default")))
-#endif
   void update_fast(uint8_t const* data, size_t size) {
     uint8_t w1 = w_[0];
     uint8_t w2 = w_[1];

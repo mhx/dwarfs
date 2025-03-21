@@ -45,17 +45,73 @@ int distance(std::array<T, N> const& a, std::array<T, N> const& b) {
   return d;
 }
 
-#ifdef DWARFS_MULTIVERSIONING
-#ifdef __clang__
-__attribute__((target_clones("avx512vpopcntdq", "popcnt", "default")))
+#if defined(DWARFS_USE_CPU_FEATURES) && defined(__x86_64__)
+#define DWARFS_USE_POPCNT
+#endif
+
+enum class cpu_feature {
+  none,
+  popcnt,
+};
+
+cpu_feature detect_cpu_feature() {
+#ifdef DWARFS_USE_POPCNT
+  static cpu_feature const feature = [] {
+    if (__builtin_cpu_supports("popcnt")) {
+      return cpu_feature::popcnt;
+    }
+    return cpu_feature::none;
+  }();
+  return feature;
 #else
-__attribute__((target_clones("popcnt", "default")))
+  return cpu_feature::none;
 #endif
+}
+
+template <typename Fn, typename... Args>
+decltype(auto) cpu_dispatch(Args&&... args) {
+#ifdef DWARFS_USE_POPCNT
+  auto feature = detect_cpu_feature();
+  switch (feature) {
+  case cpu_feature::popcnt:
+    return Fn::template call<cpu_feature::popcnt>(std::forward<Args>(args)...);
+  default:
+    break;
+  }
 #endif
-int distance(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+  return Fn::template call<cpu_feature::none>(std::forward<Args>(args)...);
+}
+
+int distance_default(std::array<uint64_t, 4> const& a,
+                     std::array<uint64_t, 4> const& b) {
   return distance<uint64_t, 4>(a, b);
 }
 
+#ifdef DWARFS_USE_POPCNT
+__attribute__((__target__("popcnt"))) int
+distance_popcnt(std::array<uint64_t, 4> const& a,
+                std::array<uint64_t, 4> const& b) {
+  return distance<uint64_t, 4>(a, b);
+}
+#endif
+
+struct distance_cpu {
+  template <cpu_feature CpuFeature>
+  static int
+  call(std::array<uint64_t, 4> const& a, std::array<uint64_t, 4> const& b) {
+#ifdef DWARFS_USE_POPCNT
+    if constexpr (CpuFeature == cpu_feature::popcnt) {
+      return distance_popcnt(a, b);
+    }
+#endif
+    return distance_default(a, b);
+  }
+};
+
+int distance(std::array<uint64_t, 4> const& a,
+             std::array<uint64_t, 4> const& b) {
+  return cpu_dispatch<distance_cpu>(a, b);
+}
 void nilsimsa_distance(::benchmark::State& state) {
   std::independent_bits_engine<std::mt19937_64,
                                std::numeric_limits<uint64_t>::digits, uint64_t>
@@ -73,6 +129,38 @@ void nilsimsa_distance(::benchmark::State& state) {
         d = distance(data[i++ % kNumData], data[k++ % kNumData]));
   }
 }
+
+#ifdef DWARFS_USE_POPCNT
+void nilsimsa_distance_cpu(::benchmark::State& state) {
+  std::independent_bits_engine<std::mt19937_64,
+                               std::numeric_limits<uint64_t>::digits, uint64_t>
+      rng;
+  static constexpr unsigned const kNumData{1024};
+  std::vector<std::array<uint64_t, 4>> data(kNumData);
+  for (auto& a : data) {
+    std::generate(begin(a), end(a), std::ref(rng));
+  }
+  unsigned i{0}, k{1};
+  int d;
+
+  switch (detect_cpu_feature()) {
+  case cpu_feature::popcnt:
+    for (auto _ : state) {
+      ::benchmark::DoNotOptimize(
+          d = distance_cpu::template call<cpu_feature::popcnt>(
+              data[i++ % kNumData], data[k++ % kNumData]));
+    }
+    break;
+  default:
+    for (auto _ : state) {
+      ::benchmark::DoNotOptimize(
+          d = distance_cpu::template call<cpu_feature::none>(
+              data[i++ % kNumData], data[k++ % kNumData]));
+    }
+    break;
+  }
+}
+#endif
 
 void nilsimsa_update(::benchmark::State& state) {
   std::independent_bits_engine<std::mt19937_64,
@@ -92,6 +180,9 @@ void nilsimsa_update(::benchmark::State& state) {
 } // namespace
 
 BENCHMARK(nilsimsa_distance);
+#ifdef DWARFS_USE_POPCNT
+BENCHMARK(nilsimsa_distance_cpu);
+#endif
 BENCHMARK(nilsimsa_update);
 
 BENCHMARK_MAIN();
