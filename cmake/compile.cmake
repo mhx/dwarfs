@@ -65,6 +65,12 @@ if(NOT WIN32)
       add_compile_definitions(DWARFS_MUSL=1 _LARGEFILE64_SOURCE)
     endif()
   endif()
+
+  include(CheckFunctionExists)
+  check_function_exists(close_range HAVE_CLOSE_RANGE)
+  if (HAVE_CLOSE_RANGE)
+    add_compile_definitions(DWARFS_HAVE_CLOSE_RANGE=1)
+  endif()
 endif()
 
 set(default_build_type "Release")
