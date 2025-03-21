@@ -35,7 +35,7 @@
 #include <fcntl.h>
 
 #ifndef _WIN32
-#if __has_include(<boost/process/v2/environment.hpp>)
+#if __has_include(<boost/process/v2/environment.hpp>) && defined(DWARFS_HAVE_CLOSE_RANGE)
 #define BOOST_PROCESS_VERSION 2
 #include <boost/process/v2/environment.hpp>
 #else
