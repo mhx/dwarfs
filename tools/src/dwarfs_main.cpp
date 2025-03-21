@@ -427,7 +427,7 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
     if (!ec) {
       struct ::fuse_entry_param e;
 
-      ::memset(&e.attr, 0, sizeof(e.attr));
+      e.attr = {};
       stbuf.copy_to(&e.attr);
       e.generation = 1;
       e.ino = e.attr.st_ino;
@@ -458,7 +458,7 @@ int op_getattr_common(LogProxy& log_, dwarfs_userdata& userdata,
     auto stbuf = userdata.fs.getattr(*iv, ec);
 
     if (!ec) {
-      ::memset(st, 0, sizeof(*st));
+      *st = {};
       stbuf.copy_to(st);
     }
 
@@ -774,7 +774,7 @@ int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
   file_off_t lastoff = fs.dirsize(*dir);
   native_stat st;
 
-  ::memset(&st, 0, sizeof(st));
+  st = {};
 
   while (off < lastoff && policy.keep_going()) {
     auto dev = fs.readdir(*dir, off);
@@ -847,7 +847,7 @@ int op_statfs_common(LogProxy& log_, dwarfs_userdata& userdata,
 
     userdata.fs.statvfs(&stbuf);
 
-    ::memset(st, 0, sizeof(*st));
+    *st = {};
     copy_vfs_stat(st, stbuf);
 
 #ifndef _WIN32
@@ -1205,8 +1205,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
   struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, "");
   fuse_opt_add_arg(&args, "-ho");
-  struct fuse_operations fsops;
-  ::memset(&fsops, 0, sizeof(fsops));
+  struct fuse_operations fsops{};
   fuse_main(args.argc, args.argv, &fsops, nullptr);
   fuse_opt_free_args(&args);
 #endif
@@ -1215,6 +1214,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
 int option_hdl(void* data, char const* arg, int key,
                struct fuse_args* /*outargs*/) {
   auto& opts = *reinterpret_cast<options*>(data);
+  std::string_view argsv{arg};
 
   switch (key) {
   case FUSE_OPT_KEY_NONOPT:
@@ -1227,18 +1227,18 @@ int option_hdl(void* data, char const* arg, int key,
       return 1;
     }
 
-    opts.fsimage = std::make_shared<std::string>(arg);
+    opts.fsimage = std::make_shared<std::string>(argsv);
 
     return 0;
 
   case FUSE_OPT_KEY_OPT:
-    if (::strncmp(arg, "-h", 2) == 0 || ::strncmp(arg, "--help", 6) == 0) {
+    if (argsv == "-h" || argsv == "--help") {
       opts.is_help = true;
       return -1;
     }
 
 #ifdef DWARFS_BUILTIN_MANPAGE
-    if (::strncmp(arg, "--man", 5) == 0) {
+    if (argsv == "--man") {
       opts.is_man = true;
       return -1;
     }
@@ -1298,12 +1298,10 @@ int run_fuse(struct fuse_args& args,
 #endif
              dwarfs_userdata& userdata) {
 #if DWARFS_FUSE_LOWLEVEL
-  struct fuse_lowlevel_ops fsops;
+  struct fuse_lowlevel_ops fsops{};
 #else
-  struct fuse_operations fsops;
+  struct fuse_operations fsops{};
 #endif
-
-  ::memset(&fsops, 0, sizeof(fsops));
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
     init_fuse_ops<debug_logger_policy>(fsops, userdata);
@@ -1356,9 +1354,7 @@ int run_fuse(struct fuse_args& args,
 
 int run_fuse(struct fuse_args& args, char* mountpoint, int mt, int fg,
              dwarfs_userdata& userdata) {
-  struct fuse_lowlevel_ops fsops;
-
-  ::memset(&fsops, 0, sizeof(fsops));
+  struct fuse_lowlevel_ops fsops{};
 
   if (userdata.opts.logopts.threshold >= logger::DEBUG) {
     init_fuse_ops<debug_logger_policy>(fsops, userdata);
