@@ -33,8 +33,8 @@
 #endif
 #endif
 
-#if !defined(DWARFS_SANITIZE_THREAD) && defined(__x86_64__) &&                 \
-    __has_attribute(target_clones)
+#if !defined(DWARFS_SANITIZE_THREAD) && !defined(DWARFS_MUSL) &&               \
+    defined(__x86_64__) && __has_attribute(target_clones)
 #define DWARFS_MULTIVERSIONING 1
 #endif
 
