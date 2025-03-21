@@ -177,6 +177,10 @@ fi
 
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
+if [[ "$BUILD_DIST" == "alpine" ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl"
+fi
+
 if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_SHARED_LIBS=1 -DCMAKE_POSITION_INDEPENDENT_CODE=1"
 fi
