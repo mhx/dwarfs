@@ -1039,7 +1039,7 @@ if(DEFINED ENV{GITHUB_REF_TYPE})
         )
       endforeach()
 
-      if (ENABLE_RICEPP)
+      if (ENABLE_RICEPP AND benchmark_FOUND)
         add_custom_command(
           OUTPUT _copy_artifacts APPEND
           COMMAND ${CMAKE_COMMAND} -E copy
