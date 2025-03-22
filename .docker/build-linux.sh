@@ -121,6 +121,13 @@ case "-$BUILD_TYPE-" in
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
     ;;
+  *-relsize-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
+    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
+    export CXXFLAGS="$CFLAGS"
+    export LDFLAGS="-Wl,--gc-sections"
+    ;;
   *-reldbg-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo"
     ;;
@@ -296,7 +303,10 @@ else
 
         $RUN_TESTS
       fi
+    fi
 
+    # for release and resize builds, strip the binaries
+    if [[ "-$BUILD_TYPE-" =~ -(release|relsize)- ]]; then
       $BUILD_TOOL strip
     fi
 
