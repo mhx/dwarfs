@@ -63,7 +63,8 @@ int pxattr_main(int argc, sys_char** argv) {
 
   if (vm.contains("help")) {
     constexpr auto usage = "Usage: pxattr [OPTIONS...]\n";
-    std::cout << tool::tool_header("pxattr") << usage << "\n" << desc << "\n";
+    std::cout << tool::tool_header_nodeps("pxattr") << usage << "\n"
+              << desc << "\n";
     return 0;
   }
 
