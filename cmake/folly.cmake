@@ -55,6 +55,7 @@ set(CMAKE_DISABLE_FIND_PACKAGE_Snappy ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_LibAIO ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_LibUring ON)
 set(CMAKE_DISABLE_FIND_PACKAGE_Libsodium ON)
+set(CMAKE_DISABLE_FIND_PACKAGE_LibDwarf ON)
 
 if(NOT PREFER_SYSTEM_FAST_FLOAT)
   set(FASTFLOAT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fast_float)
@@ -73,6 +74,15 @@ if(NOT DWARFS_FMT_LIB)
   list(REMOVE_ITEM FOLLY_DEPS_INTERFACE_LINK_LIBRARIES fmt::fmt)
   set_target_properties(folly_deps PROPERTIES INTERFACE_LINK_LIBRARIES "${FOLLY_DEPS_INTERFACE_LINK_LIBRARIES}")
 endif()
+
+# remove dependencies that are not needed
+get_target_property(_tmp_folly_deps folly_deps INTERFACE_LINK_LIBRARIES)
+list(REMOVE_ITEM _tmp_folly_deps ${LIBEVENT_LIB} ${OPENSSL_LIBRARIES})
+list(REMOVE_ITEM _tmp_folly_deps Boost::context Boost::atomic Boost::regex Boost::system)
+if(NOT WIN32)
+  list(REMOVE_ITEM _tmp_folly_deps Boost::thread)
+endif()
+set_target_properties(folly_deps PROPERTIES INTERFACE_LINK_LIBRARIES "${_tmp_folly_deps}")
 
 add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Conv.cpp
@@ -197,6 +207,8 @@ if(WITH_BENCHMARKS)
   set_property(TARGET dwarfs_follybenchmark_lite PROPERTY CXX_STANDARD 20)
   apply_folly_compile_options_to_target(dwarfs_follybenchmark_lite)
   target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
+  find_package(Boost REQUIRED COMPONENTS regex)
+  target_link_libraries(dwarfs_follybenchmark_lite PUBLIC Boost::regex)
 endif()
 
 foreach(tgt dwarfs_folly_lite dwarfs_follybenchmark_lite)
