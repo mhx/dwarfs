@@ -1135,8 +1135,8 @@ TEST(file_scanner, input_list) {
   auto input = test::os_access_mock::create_test_instance();
 
   std::vector<std::filesystem::path> input_list{
-      "somedir/ipsum.py",
-      "foo.pl",
+      "/somedir/ipsum.py",
+      "/foo.pl",
   };
 
   auto fsimage = build_dwarfs(lgr, input, "null", bmcfg, opts, {}, nullptr,

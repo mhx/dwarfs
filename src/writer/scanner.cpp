@@ -603,7 +603,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
         if (auto e = d->find(p.string())) {
           root = e;
         } else {
-          root = add_entry(p, d, prog, fs);
+          root = add_entry(d->fs_path() / p, d, prog, fs);
           if (root && root->type() == entry::E_DIR) {
             prog.dirs_scanned++;
           } else {
