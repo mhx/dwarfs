@@ -32,10 +32,7 @@ namespace dwarfs {
 class mmap : public mmif {
  public:
   explicit mmap(std::filesystem::path const& path);
-  explicit mmap(std::string const& path);
-  explicit mmap(char const* path);
   mmap(std::filesystem::path const& path, size_t size);
-  mmap(std::string const& path, size_t size);
 
   void const* addr() const override;
   size_t size() const override;

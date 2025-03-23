@@ -19,17 +19,15 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cassert>
 #include <cerrno>
 
 #ifdef _WIN32
+#include <boost/filesystem/path.hpp>
 #include <folly/portability/Windows.h>
 #else
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
-
-#include <boost/filesystem/path.hpp>
 
 #include <dwarfs/error.h>
 #include <dwarfs/mmap.h>
@@ -63,17 +61,17 @@ int posix_advice(advice adv) {
     return MADV_DONTNEED;
   }
 
-  assert(false);
+  DWARFS_PANIC("invalid advice");
 
   return MADV_NORMAL;
 }
 #endif
 
-boost::filesystem::path boost_from_std_path(std::filesystem::path const& p) {
+decltype(auto) get_file_path(std::filesystem::path const& path) {
 #ifdef _WIN32
-  return {p.wstring()};
+  return boost::filesystem::path{path.native()};
 #else
-  return {p.string()};
+  return path.native();
 #endif
 }
 
@@ -144,28 +142,18 @@ size_t mmap::size() const { return mf_.size(); }
 
 std::filesystem::path const& mmap::path() const { return path_; }
 
-mmap::mmap(char const* path)
-    : mmap(std::filesystem::path(path)) {}
-
-mmap::mmap(std::string const& path)
-    : mmap(std::filesystem::path(path)) {}
-
 mmap::mmap(std::filesystem::path const& path)
-    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly)
-    , page_size_(get_page_size())
+    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly}
+    , page_size_{get_page_size()}
     , path_{path} {
-  assert(mf_.is_open());
+  DWARFS_CHECK(mf_.is_open(), "failed to map file");
 }
 
-mmap::mmap(std::string const& path, size_t size)
-    : mmap(std::filesystem::path(path), size) {}
-
 mmap::mmap(std::filesystem::path const& path, size_t size)
-    : mf_(boost_from_std_path(path), boost::iostreams::mapped_file::readonly,
-          size)
-    , page_size_(get_page_size())
+    : mf_{get_file_path(path), boost::iostreams::mapped_file::readonly, size}
+    , page_size_{get_page_size()}
     , path_{path} {
-  assert(mf_.is_open());
+  DWARFS_CHECK(mf_.is_open(), "failed to map file");
 }
 
 } // namespace dwarfs
