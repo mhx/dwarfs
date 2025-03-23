@@ -56,9 +56,9 @@ TEST_F(entry_test, path) {
   using entry = writer::internal::entry;
 
   auto e1 = ef->create(*os, sep);
-  auto e2 = ef->create(*os, fs::path("somelink"), e1);
-  auto e3 = ef->create(*os, fs::path("somedir"), e1);
-  auto e4 = ef->create(*os, fs::path("somedir") / "ipsum.py", e3);
+  auto e2 = ef->create(*os, sep / "somelink", e1);
+  auto e3 = ef->create(*os, sep / "somedir", e1);
+  auto e4 = ef->create(*os, sep / "somedir" / "ipsum.py", e3);
 
   EXPECT_FALSE(e1->has_parent());
   EXPECT_TRUE(e1->is_directory());

@@ -33,11 +33,7 @@ class entry_factory_ : public entry_factory::impl {
   std::shared_ptr<entry>
   create(os_access const& os, std::filesystem::path const& path,
          std::shared_ptr<entry> parent) override {
-    // TODO: just use `path` directly (need to fix test helpers, tho)?
-    std::filesystem::path p =
-        parent ? parent->fs_path() / path.filename() : path;
-
-    auto st = os.symlink_info(p);
+    auto st = os.symlink_info(path);
 
     switch (st.type()) {
     case posix_file_type::regular:
