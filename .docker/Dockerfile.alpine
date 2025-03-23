@@ -16,6 +16,8 @@ RUN apk add --no-cache \
 RUN apk add --no-cache \
         gcc \
         g++ \
+        clang17 \
+        clang18 \
         clang19 \
         git \
         zstd \
@@ -54,6 +56,7 @@ RUN apk add --no-cache \
         xz-static \
         zstd-dev \
         zstd-static \
+        xxhash-dev \
         lz4-dev \
         range-v3-dev \
         libxml2-dev \
@@ -80,10 +83,9 @@ RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(ba
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
 RUN git config --global --add safe.directory /workspace
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-18 :alpine
 COPY install-mold.sh /usr/local/bin/install-mold.sh
 RUN bash /usr/local/bin/install-mold.sh
 RUN adduser -G users -s bash -u 1000 -D mhx
-RUN apk add --no-cache xxhash-dev
 USER mhx
 ENTRYPOINT /workspace/.docker/build-linux.sh
