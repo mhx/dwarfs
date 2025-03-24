@@ -32,7 +32,9 @@ echo "Using $GCC and $CLANG"
 if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,double-conversion,flac,fmt,glog,xxhash,lz4,brotli,cpptrace"
+    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,xxhash"
+    export CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
+    export CXXFLAGS="$CFLAGS"
 elif [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
