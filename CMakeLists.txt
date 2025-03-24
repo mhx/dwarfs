@@ -440,6 +440,7 @@ if(WITH_TESTS)
       integral_value_parser_test
       lazy_value_test
       metadata_requirements_test
+      nilsimsa_test
       options_test
       packed_int_vector_test
       packed_ptr_test
@@ -579,6 +580,11 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     add_executable(sorted_array_map_benchmark test/sorted_array_map_benchmark.cpp)
     target_link_libraries(sorted_array_map_benchmark PRIVATE benchmark::benchmark)
     list(APPEND BENCHMARK_TARGETS sorted_array_map_benchmark)
+
+    add_executable(nilsimsa_benchmark test/nilsimsa_benchmark.cpp)
+    target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
+    target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
+    list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
   endif()
 
   # TODO: migrate to benchmark?
