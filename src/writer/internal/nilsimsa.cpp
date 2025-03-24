@@ -149,14 +149,14 @@ class nilsimsa::impl {
     for (size_t i = 0; i < size; ++i) {
       uint8_t w0 = data[i];
 
-      ++acc_[tran3(w0, w1, w2, 0)];
-      ++acc_[tran3(w0, w1, w3, 1)];
+      ++acc_[tran3(w4, w3, w0, 7)];
+      ++acc_[tran3(w4, w1, w0, 6)];
+      ++acc_[tran3(w0, w3, w4, 5)];
+      ++acc_[tran3(w0, w2, w4, 4)];
       ++acc_[tran3(w0, w1, w4, 3)];
       ++acc_[tran3(w0, w2, w3, 2)];
-      ++acc_[tran3(w0, w2, w4, 4)];
-      ++acc_[tran3(w0, w3, w4, 5)];
-      ++acc_[tran3(w4, w1, w0, 6)];
-      ++acc_[tran3(w4, w3, w0, 7)];
+      ++acc_[tran3(w0, w1, w3, 1)];
+      ++acc_[tran3(w0, w1, w2, 0)];
 
       w4 = w3;
       w3 = w2;
