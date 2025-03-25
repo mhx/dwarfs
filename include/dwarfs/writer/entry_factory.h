@@ -38,11 +38,12 @@ class entry;
 
 class entry_factory {
  public:
+  using node = std::shared_ptr<internal::entry>;
+
   entry_factory();
 
-  std::shared_ptr<internal::entry>
-  create(os_access const& os, std::filesystem::path const& path,
-         std::shared_ptr<internal::entry> parent = nullptr) {
+  node create(os_access const& os, std::filesystem::path const& path,
+              node parent = {}) {
     return impl_->create(os, path, std::move(parent));
   }
 
@@ -50,9 +51,8 @@ class entry_factory {
    public:
     virtual ~impl() = default;
 
-    virtual std::shared_ptr<internal::entry>
-    create(os_access const& os, std::filesystem::path const& path,
-           std::shared_ptr<internal::entry> parent) = 0;
+    virtual node create(os_access const& os, std::filesystem::path const& path,
+                        node parent) = 0;
   };
 
  private:

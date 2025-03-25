@@ -30,9 +30,9 @@ namespace internal {
 
 class entry_factory_ : public entry_factory::impl {
  public:
-  std::shared_ptr<entry>
+  entry_factory::node
   create(os_access const& os, std::filesystem::path const& path,
-         std::shared_ptr<entry> parent) override {
+         entry_factory::node parent) override {
     auto st = os.symlink_info(path);
 
     switch (st.type()) {
