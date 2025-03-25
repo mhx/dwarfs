@@ -78,7 +78,7 @@ bool entry::has_parent() const { return static_cast<bool>(parent_.lock()); }
 
 std::shared_ptr<entry> entry::parent() const { return parent_.lock(); }
 
-void entry::set_name(std::string const& name) { name_ = name; }
+void entry::clear_name() { name_.clear(); }
 
 std::u8string entry::u8name() const { return string_to_u8string(name_); }
 
