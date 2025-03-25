@@ -899,7 +899,7 @@ void scanner_<LoggerPolicy>::scan(
   prog.current.store(nullptr);
 
   // this is actually needed
-  prog.run_sync([&] { root->set_name(std::string()); });
+  prog.run_sync([&] { root->clear_name(); });
 
   LOG_INFO << "saving chunks...";
   mv2.chunk_table()->resize(im.count() + 1);
