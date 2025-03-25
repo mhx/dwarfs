@@ -311,14 +311,14 @@ class scanner_ final : public scanner::impl {
             std::shared_ptr<file_access const> fa) override;
 
  private:
-  std::shared_ptr<entry> scan_tree(std::filesystem::path const& path,
-                                   progress& prog, file_scanner& fs);
+  entry_factory::node scan_tree(std::filesystem::path const& path,
+                                progress& prog, file_scanner& fs);
 
-  std::shared_ptr<entry> scan_list(std::filesystem::path const& path,
-                                   std::span<std::filesystem::path const> list,
-                                   progress& prog, file_scanner& fs);
+  entry_factory::node scan_list(std::filesystem::path const& path,
+                                std::span<std::filesystem::path const> list,
+                                progress& prog, file_scanner& fs);
 
-  std::shared_ptr<entry>
+  entry_factory::node
   add_entry(std::filesystem::path const& name,
             std::shared_ptr<dir> const& parent, progress& prog,
             file_scanner& fs, bool debug_filter = false);
@@ -366,7 +366,7 @@ FOLLY_PUSH_WARNING
 FOLLY_GCC_DISABLE_WARNING("-Wnrvo")
 
 template <typename LoggerPolicy>
-std::shared_ptr<entry>
+entry_factory::node
 scanner_<LoggerPolicy>::add_entry(std::filesystem::path const& name,
                                   std::shared_ptr<dir> const& parent,
                                   progress& prog, file_scanner& fs,
@@ -521,7 +521,7 @@ void scanner_<LoggerPolicy>::dump_state(
 }
 
 template <typename LoggerPolicy>
-std::shared_ptr<entry>
+entry_factory::node
 scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
                                   progress& prog, file_scanner& fs) {
   auto root = entry_factory_.create(os_, path);
@@ -536,7 +536,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
     t->transform(*root);
   }
 
-  std::deque<std::shared_ptr<entry>> queue({root});
+  std::deque<entry_factory::node> queue({root});
   prog.dirs_found++;
 
   while (!queue.empty()) {
@@ -550,7 +550,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
     try {
       auto d = os_.opendir(ppath);
       std::filesystem::path name;
-      std::vector<std::shared_ptr<entry>> subdirs;
+      std::vector<entry_factory::node> subdirs;
 
       while (d->read(name)) {
         if (auto pe = add_entry(name, parent, prog, fs, debug_filter)) {
@@ -575,7 +575,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 }
 
 template <typename LoggerPolicy>
-std::shared_ptr<entry>
+entry_factory::node
 scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, file_scanner& fs) {
@@ -597,7 +597,7 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
   }
 
   auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
-                                        std::shared_ptr<entry> root) {
+                                        entry_factory::node root) {
     for (auto const& p : path) {
       if (auto d = std::dynamic_pointer_cast<dir>(root)) {
         if (auto e = d->find(p.string())) {
