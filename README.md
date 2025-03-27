@@ -2519,6 +2519,18 @@ namely `compress` for compression, `scanner` for scanning, `ordering` for
 input ordering, and `blockify` for segmenting. `blockify` is what you would
 typically want to run on your "performance" cores.
 
+### Specifying file system offset and size
+
+You can specify the byte offset at which the filesystem is located in the file using the `-o offset=N` option.
+This can be useful when mounting images where there is some preceding data before the filesystem or when mounting merged/concatenated images.
+When combined with the `-o imagesize=N` option you can mount merged filesystems, i.e. multiple filesystems stored in a single file.
+
+Here is an example, you have two filesystems concatenated into a single file and you want to mount both of them, you can achieve this by running
+```sh
+dwarfs merged.dwarfs /mnt/fs1 -oimagesize=9231
+dwarfs merged.dwarfs /mnt/fs2 -ooffset=9231,imagesize=7999
+```
+
 ## Stargazers over Time
 
 [![Stargazers over Time](https://starchart.cc/mhx/dwarfs.svg?variant=adaptive)](https://starchart.cc/mhx/dwarfs)
