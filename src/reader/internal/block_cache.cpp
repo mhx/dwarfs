@@ -333,14 +333,9 @@ class block_cache_ final : public block_cache::impl {
     cache_.~lru_type();
     new (&cache_) lru_type(max_blocks);
     cache_.setPruneHook(
-        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
         [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
-          LOG_DEBUG << "evicting block " << block_no
-                    << " from cache, decompression ratio = "
-                    << double(block->range_end()) /
-                           double(block->uncompressed_size());
+          on_block_removed("evicted", block_no, std::move(block));
           blocks_evicted_.fetch_add(1, std::memory_order_relaxed);
-          update_block_stats(*block);
         });
   }
 
@@ -547,6 +542,17 @@ class block_cache_ final : public block_cache::impl {
   }
 
  private:
+  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved)
+  void on_block_removed(std::string_view action, size_t block_no,
+                        std::shared_ptr<cached_block>&& block) {
+    // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
+    LOG_DEBUG << "block " << block_no << " " << action
+              << " from cache, decompression ratio = "
+              << double(block->range_end()) /
+                     double(block->uncompressed_size());
+    update_block_stats(*block);
+  }
+
   static std::unique_ptr<sequential_access_detector>
   create_seq_access_detector(size_t threshold) {
     if (threshold == 0) {
@@ -714,9 +720,14 @@ class block_cache_ final : public block_cache::impl {
 
     while (it != cache_.end()) {
       if (predicate(*it->second)) {
-        it = cache_.erase(it);
-        blocks_tidied_.fetch_add(1, std::memory_order_relaxed);
+        LOG_TRACE << "tidying block " << it->first;
+        it = cache_.erase(
+            it, [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
+              on_block_removed("tidied", block_no, std::move(block));
+              blocks_tidied_.fetch_add(1, std::memory_order_relaxed);
+            });
       } else {
+        LOG_TRACE << "keeping block " << it->first;
         ++it;
       }
     }
@@ -732,6 +743,7 @@ class block_cache_ final : public block_cache::impl {
           std::cv_status::timeout) {
         switch (tidy_config_.strategy) {
         case cache_tidy_strategy::EXPIRY_TIME:
+          LOG_DEBUG << "tidying cache by expiry time";
           remove_block_if(
               [tp = std::chrono::steady_clock::now() -
                     tidy_config_.expiry_time](cached_block const& blk) {
@@ -740,6 +752,7 @@ class block_cache_ final : public block_cache::impl {
           break;
 
         case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
+          LOG_DEBUG << "tidying cache by swapped out blocks";
           std::vector<uint8_t> tmp;
           remove_block_if([&tmp](cached_block const& blk) {
             return blk.any_pages_swapped_out(tmp);
