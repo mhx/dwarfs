@@ -1,4 +1,6 @@
-- Case-insensitive mounting? (github #232)
+- More "real" benchmarks
+
+- Entry v2
 
 - Mounting lots of images with shared cache?
   - Communication could be implemented using xattrs
