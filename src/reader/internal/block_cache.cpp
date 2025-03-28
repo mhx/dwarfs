@@ -383,7 +383,8 @@ class block_cache_ final : public block_cache::impl {
       if (auto next = seq_access_detector_->prefetch()) {
         std::lock_guard lock(mx_);
 
-        if (cache_.findWithoutPromotion(*next) == cache_.end()) {
+        if (cache_.findWithoutPromotion(*next) == cache_.end() &&
+            active_.find(*next) == active_.end()) {
           sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
           LOG_TRACE << "prefetching block " << *next;
           create_cached_block(*next, std::promise<block_range>{}, 0,
