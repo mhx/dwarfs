@@ -1,4 +1,21 @@
-- Case-insensitive mounting? (github #232)
+- Figure out memory issues (https://github.com/VHSgunzo/uruntime/issues/7#issuecomment-2759889644)
+
+- Look into why `no_cache_files` causes crashes :)
+
+- Figure out why static `dwarfs` is the same size as the universal binary
+
+- Simple FUSE driver to gather list of hot files (so we don't have to build dwarfs first)
+
+- Hotness categorizer with single subcategory (so blocks can be identified by FUSE driver)
+  - Pass relative paths to categorizers
+  - What about ordering?
+    - Maybe make this a distinct feature instead of a categorizer?
+    - Or also pass relative paths to ordering algo?
+
+- Entry v2
+
+
+
 
 - Mounting lots of images with shared cache?
   - Communication could be implemented using xattrs
