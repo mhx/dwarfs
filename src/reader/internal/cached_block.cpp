@@ -42,6 +42,8 @@ namespace {
 template <typename LoggerPolicy>
 class cached_block_ final : public cached_block {
  public:
+  static inline std::atomic<size_t> instance_count_{0};
+
   cached_block_(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
                 bool release, bool disable_integrity_check)
       : decompressor_(std::make_unique<block_decompressor>(
@@ -54,9 +56,16 @@ class cached_block_ final : public cached_block {
     if (!disable_integrity_check && !section_.check(*mm_)) {
       DWARFS_THROW(runtime_error, "block data integrity check failed");
     }
+    std::atomic_fetch_add(&instance_count_, 1U);
+    LOG_TRACE << "create cached block " << section_.section_number().value()
+              << " [" << instance_count_
+              << "], release=" << (release ? "true" : "false");
   }
 
   ~cached_block_() override {
+    std::atomic_fetch_sub(&instance_count_, 1U);
+    LOG_TRACE << "delete cached block " << section_.section_number().value()
+              << " [" << instance_count_ << "]";
     if (decompressor_) {
       try_release();
     }
@@ -116,6 +125,8 @@ class cached_block_ final : public cached_block {
  private:
   void try_release() {
     if (release_) {
+      LOG_TRACE << "releasing mapped memory for block "
+                << section_.section_number().value();
       if (auto ec = mm_->release(section_.start(), section_.length())) {
         LOG_INFO << "madvise() failed: " << ec.message();
       }

@@ -386,6 +386,7 @@ class block_cache_ final : public block_cache::impl {
         if (cache_.findWithoutPromotion(*next) == cache_.end() &&
             active_.find(*next) == active_.end()) {
           sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
+          LOG_TRACE << "prefetching block " << *next;
           create_cached_block(*next, std::promise<block_range>{}, 0,
                               std::numeric_limits<size_t>::max());
         }
