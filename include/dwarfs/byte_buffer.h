@@ -25,6 +25,7 @@
 #include <concepts>
 #include <memory>
 #include <span>
+#include <vector>
 
 namespace dwarfs {
 
@@ -45,15 +46,23 @@ class byte_buffer_interface {
  public:
   virtual ~byte_buffer_interface() = default;
 
+  virtual uint8_t const* data() const = 0;
+  virtual size_t size() const = 0;
   virtual std::span<uint8_t const> span() const = 0;
 };
 
 class mutable_byte_buffer_interface : public byte_buffer_interface {
  public:
+  virtual uint8_t* mutable_data() = 0;
   virtual std::span<uint8_t> mutable_span() = 0;
   virtual void clear() = 0;
   virtual void reserve(size_t size) = 0;
   virtual void resize(size_t size) = 0;
+  virtual void shrink_to_fit() = 0;
+
+  // TODO: See if we can do without this. This will *only* be implemented
+  //       in the vector_byte_buffer, other implementations will throw.
+  virtual std::vector<uint8_t>& raw_vector() = 0;
 };
 
 class shared_byte_buffer {
@@ -63,13 +72,15 @@ class shared_byte_buffer {
   explicit shared_byte_buffer(std::shared_ptr<byte_buffer_interface const> bb)
       : bb_{std::move(bb)} {}
 
-  uint8_t const* data() const { return span().data(); }
+  uint8_t const* data() const { return bb_->data(); }
 
-  size_t size() const { return span().size(); }
+  size_t size() const { return bb_->size(); }
 
-  bool empty() const { return span().empty(); }
+  bool empty() const { return bb_->size() == 0; }
 
   std::span<uint8_t const> span() const { return bb_->span(); }
+
+  void swap(shared_byte_buffer& other) noexcept { std::swap(bb_, other.bb_); }
 
   template <detail::byte_range T>
   friend bool operator==(shared_byte_buffer const& lhs, T const& rhs) {
@@ -78,6 +89,7 @@ class shared_byte_buffer {
   }
 
   template <detail::byte_range T>
+    requires(!std::same_as<T, shared_byte_buffer>)
   friend bool operator==(T const& lhs, shared_byte_buffer const& rhs) {
     return detail::compare_spans({lhs.data(), lhs.size()}, rhs.span()) ==
            std::strong_ordering::equal;
@@ -90,6 +102,7 @@ class shared_byte_buffer {
   }
 
   template <detail::byte_range T>
+    requires(!std::same_as<T, shared_byte_buffer>)
   friend std::strong_ordering
   operator<=>(T const& lhs, shared_byte_buffer const& rhs) {
     return detail::compare_spans({lhs.data(), lhs.size()}, rhs.span());
@@ -105,13 +118,13 @@ class mutable_byte_buffer {
       std::shared_ptr<mutable_byte_buffer_interface> bb)
       : bb_{std::move(bb)} {}
 
-  uint8_t const* data() const { return span().data(); }
+  uint8_t const* data() const { return bb_->data(); }
 
-  uint8_t* data() { return span().data(); }
+  uint8_t* data() { return bb_->mutable_data(); }
 
-  size_t size() const { return span().size(); }
+  size_t size() const { return bb_->size(); }
 
-  bool empty() const { return span().empty(); }
+  bool empty() const { return bb_->size() == 0; }
 
   std::span<uint8_t const> span() const { return bb_->span(); }
 
@@ -123,6 +136,12 @@ class mutable_byte_buffer {
 
   void resize(size_t size) { bb_->resize(size); }
 
+  void shrink_to_fit() { bb_->shrink_to_fit(); }
+
+  std::vector<uint8_t>& raw_vector() { return bb_->raw_vector(); }
+
+  void swap(mutable_byte_buffer& other) noexcept { std::swap(bb_, other.bb_); }
+
   template <detail::byte_range T>
   friend bool operator==(mutable_byte_buffer const& lhs, T const& rhs) {
     return detail::compare_spans(lhs.span(), {rhs.data(), rhs.size()}) ==
@@ -130,6 +149,7 @@ class mutable_byte_buffer {
   }
 
   template <detail::byte_range T>
+    requires(!std::same_as<T, mutable_byte_buffer>)
   friend bool operator==(T const& lhs, mutable_byte_buffer const& rhs) {
     return detail::compare_spans({lhs.data(), lhs.size()}, rhs.span()) ==
            std::strong_ordering::equal;
@@ -142,6 +162,7 @@ class mutable_byte_buffer {
   }
 
   template <detail::byte_range T>
+    requires(!std::same_as<T, mutable_byte_buffer>)
   friend std::strong_ordering
   operator<=>(T const& lhs, mutable_byte_buffer const& rhs) {
     return detail::compare_spans({lhs.data(), lhs.size()}, rhs.span());

@@ -29,6 +29,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/zstd_context_manager.h>
 
 #if ZSTD_VERSION_MAJOR > 1 ||                                                  \
@@ -54,8 +55,8 @@ class zstd_block_compressor final : public block_compressor::impl {
     return std::make_unique<zstd_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::span<uint8_t const> data,
-                                std::string const* metadata) const override;
+  shared_byte_buffer compress(shared_byte_buffer const& data,
+                              std::string const* metadata) const override;
 
   compression_type type() const override { return compression_type::ZSTD; }
 
@@ -87,10 +88,11 @@ class zstd_block_compressor final : public block_compressor::impl {
   int const level_;
 };
 
-std::vector<uint8_t>
-zstd_block_compressor::compress(std::span<uint8_t const> data,
+shared_byte_buffer
+zstd_block_compressor::compress(shared_byte_buffer const& data,
                                 std::string const* /*metadata*/) const {
-  std::vector<uint8_t> compressed(ZSTD_compressBound(data.size()));
+  auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+  compressed.resize(ZSTD_compressBound(data.size()));
   auto ctx = ctxmgr_->make_context();
   auto size = ZSTD_compressCCtx(ctx.get(), compressed.data(), compressed.size(),
                                 data.data(), data.size(), level_);
@@ -103,7 +105,7 @@ zstd_block_compressor::compress(std::span<uint8_t const> data,
   }
   compressed.resize(size);
   compressed.shrink_to_fit();
-  return compressed;
+  return compressed.share();
 }
 
 class zstd_block_decompressor final : public block_decompressor::impl {

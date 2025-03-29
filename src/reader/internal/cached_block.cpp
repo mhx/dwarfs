@@ -78,6 +78,9 @@ class cached_block_ final : public cached_block {
   // This can be called from any thread
   size_t range_end() const override { return range_end_.load(); }
 
+  // TODO: The code relies on the fact that the data_ buffer is never
+  // reallocated once block decompression has started. I would like to
+  // somehow enforce that this cannot happen.
   uint8_t const* data() const override { return data_.data(); }
 
   void decompress_until(size_t end) override {

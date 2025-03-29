@@ -38,6 +38,7 @@
 #include <dwarfs/option_map.h>
 #include <dwarfs/pcm_sample_transformer.h>
 #include <dwarfs/varint.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
 
@@ -53,7 +54,7 @@ constexpr size_t const kBlockSize{65536};
 
 class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
  public:
-  explicit dwarfs_flac_stream_encoder(std::vector<uint8_t>& data)
+  explicit dwarfs_flac_stream_encoder(mutable_byte_buffer& data)
       : data_{data}
       , pos_{data_.size()} {}
 
@@ -90,7 +91,7 @@ class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
   }
 
  private:
-  std::vector<uint8_t>& data_;
+  mutable_byte_buffer& data_;
   size_t pos_;
 };
 
@@ -208,8 +209,8 @@ class flac_block_compressor final : public block_compressor::impl {
     return std::make_unique<flac_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::span<uint8_t const> data,
-                                std::string const* metadata) const override {
+  shared_byte_buffer compress(shared_byte_buffer const& data,
+                              std::string const* metadata) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
                    "internal error: flac compression requires metadata");
@@ -265,7 +266,7 @@ class flac_block_compressor final : public block_compressor::impl {
       pcm_pad = pcm_sample_padding::Msb;
     }
 
-    std::vector<uint8_t> compressed;
+    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
 
     {
       using namespace ::apache::thrift;
@@ -286,7 +287,7 @@ class flac_block_compressor final : public block_compressor::impl {
       CompactSerializer::serialize(hdr, &hdrbuf);
 
       compressed.resize(pos + hdrbuf.size());
-      ::memcpy(&compressed[pos], hdrbuf.data(), hdrbuf.size());
+      ::memcpy(compressed.data() + pos, hdrbuf.data(), hdrbuf.size());
     }
 
     dwarfs_flac_stream_encoder encoder(compressed);
@@ -341,7 +342,7 @@ class flac_block_compressor final : public block_compressor::impl {
 
     compressed.shrink_to_fit();
 
-    return compressed;
+    return compressed.share();
   }
 
   compression_type type() const override { return compression_type::FLAC; }

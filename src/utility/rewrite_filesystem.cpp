@@ -28,7 +28,6 @@
 #include <dwarfs/writer/filesystem_writer.h>
 
 #include <dwarfs/reader/internal/filesystem_parser.h>
-#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 
 namespace dwarfs::utility {
@@ -38,7 +37,6 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
                         dwarfs::writer::category_resolver const& cat_resolver,
                         rewrite_options const& opts) {
   using dwarfs::writer::fragment_category;
-  using dwarfs::writer::internal::block_data;
 
   LOG_PROXY(debug_logger_policy, lgr);
 
@@ -174,7 +172,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
     case section_type::HISTORY:
       if (opts.enable_history) {
         history hist{opts.history};
-        hist.parse(fs.get_history().serialize());
+        hist.parse(fs.get_history().serialize().span());
         hist.append(opts.command_line_arguments);
 
         LOG_VERBOSE << "updating " << get_section_name(s->type()) << " ("
@@ -182,7 +180,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
                     << "), compressing using '"
                     << writer.get_compressor(s->type()).describe() << "'";
 
-        writer.write_history(std::make_shared<block_data>(hist.serialize()));
+        writer.write_history(hist.serialize());
       } else {
         LOG_VERBOSE << "removing " << get_section_name(s->type());
       }

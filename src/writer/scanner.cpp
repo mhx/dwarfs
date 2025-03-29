@@ -63,7 +63,6 @@
 #include <dwarfs/internal/features.h>
 #include <dwarfs/internal/string_table.h>
 #include <dwarfs/internal/worker_group.h>
-#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/entry.h>
 #include <dwarfs/writer/internal/file_scanner.h>
@@ -1107,13 +1106,13 @@ void scanner_<LoggerPolicy>::scan(
 
   LOG_VERBOSE << "uncompressed metadata size: " << size_with_unit(data.size());
 
-  fsw.write_metadata_v2_schema(std::make_shared<block_data>(std::move(schema)));
-  fsw.write_metadata_v2(std::make_shared<block_data>(std::move(data)));
+  fsw.write_metadata_v2_schema(schema);
+  fsw.write_metadata_v2(data);
 
   if (options_.enable_history) {
     history hist(options_.history);
     hist.append(options_.command_line_arguments);
-    fsw.write_history(std::make_shared<block_data>(hist.serialize()));
+    fsw.write_history(hist.serialize());
   }
 
   LOG_INFO << "waiting for compression to finish...";
