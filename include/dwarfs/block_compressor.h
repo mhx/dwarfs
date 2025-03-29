@@ -65,18 +65,9 @@ class block_compressor {
     return impl_->compress(data, nullptr);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data) const {
-    return impl_->compress(std::move(data), nullptr);
-  }
-
   std::vector<uint8_t>
   compress(std::span<uint8_t const> data, std::string const& metadata) const {
     return impl_->compress(data, &metadata);
-  }
-
-  std::vector<uint8_t>
-  compress(std::vector<uint8_t>&& data, std::string const& metadata) const {
-    return impl_->compress(std::move(data), &metadata);
   }
 
   compression_type type() const { return impl_->type(); }
@@ -102,9 +93,6 @@ class block_compressor {
 
     virtual std::vector<uint8_t>
     compress(std::span<uint8_t const> data,
-             std::string const* metadata) const = 0;
-    virtual std::vector<uint8_t>
-    compress(std::vector<uint8_t>&& data,
              std::string const* metadata) const = 0;
 
     virtual compression_type type() const = 0;
