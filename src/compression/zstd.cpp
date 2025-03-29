@@ -57,12 +57,6 @@ class zstd_block_compressor final : public block_compressor::impl {
   std::vector<uint8_t> compress(std::span<uint8_t const> data,
                                 std::string const* metadata) const override;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data,
-                                std::string const* metadata) const override {
-    return compress(data, metadata);
-  }
-
   compression_type type() const override { return compression_type::ZSTD; }
 
   std::string describe() const override {
