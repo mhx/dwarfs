@@ -111,7 +111,7 @@ class lzma_block_compressor final : public block_compressor::impl {
     return std::make_unique<lzma_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
+  std::vector<uint8_t> compress(std::span<uint8_t const> data,
                                 std::string const* metadata) const override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
@@ -133,7 +133,7 @@ class lzma_block_compressor final : public block_compressor::impl {
 
  private:
   std::vector<uint8_t>
-  compress(std::vector<uint8_t> const& data, lzma_filter const* filters) const;
+  compress(std::span<uint8_t const> data, lzma_filter const* filters) const;
 
   static uint32_t get_preset(unsigned level, bool extreme) {
     uint32_t preset = level;
@@ -204,7 +204,7 @@ lzma_block_compressor::lzma_block_compressor(option_map& om) {
 }
 
 std::vector<uint8_t>
-lzma_block_compressor::compress(std::vector<uint8_t> const& data,
+lzma_block_compressor::compress(std::span<uint8_t const> data,
                                 lzma_filter const* filters) const {
   lzma_stream s = LZMA_STREAM_INIT;
 
@@ -244,7 +244,7 @@ lzma_block_compressor::compress(std::vector<uint8_t> const& data,
 }
 
 std::vector<uint8_t>
-lzma_block_compressor::compress(std::vector<uint8_t> const& data,
+lzma_block_compressor::compress(std::span<uint8_t const> data,
                                 std::string const* /*metadata*/) const {
   auto lzma_opts = opt_lzma_;
   std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
@@ -266,13 +266,13 @@ lzma_block_compressor::compress(std::vector<uint8_t> const& data,
 
 class lzma_block_decompressor final : public block_decompressor::impl {
  public:
-  lzma_block_decompressor(uint8_t const* data, size_t size,
-                          std::vector<uint8_t>& target)
+  lzma_block_decompressor(std::span<uint8_t const> data,
+                          mutable_byte_buffer target)
       : stream_(LZMA_STREAM_INIT)
-      , decompressed_(target)
-      , uncompressed_size_(get_uncompressed_size(data, size)) {
-    stream_.next_in = data;
-    stream_.avail_in = size;
+      , decompressed_(std::move(target))
+      , uncompressed_size_(get_uncompressed_size(data.data(), data.size())) {
+    stream_.next_in = data.data();
+    stream_.avail_in = data.size();
     if (auto ret = lzma_stream_decoder(&stream_, UINT64_MAX, LZMA_CONCATENATED);
         ret != LZMA_OK) {
       DWARFS_THROW(runtime_error, fmt::format("lzma_stream_decoder: {}",
@@ -337,7 +337,7 @@ class lzma_block_decompressor final : public block_decompressor::impl {
   static size_t get_uncompressed_size(uint8_t const* data, size_t size);
 
   lzma_stream stream_;
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   std::string error_;
 };
@@ -431,9 +431,8 @@ class lzma_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<lzma_block_decompressor>(data.data(), data.size(),
-                                                     target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<lzma_block_decompressor>(data, std::move(target));
   }
 
  private:

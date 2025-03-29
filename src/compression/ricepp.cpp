@@ -52,7 +52,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
     return std::make_unique<ricepp_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
+  std::vector<uint8_t> compress(std::span<uint8_t const> data,
                                 std::string const* metadata) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
@@ -173,13 +173,9 @@ class ricepp_block_compressor final : public block_compressor::impl {
 
 class ricepp_block_decompressor final : public block_decompressor::impl {
  public:
-  ricepp_block_decompressor(uint8_t const* data, size_t size,
-                            std::vector<uint8_t>& target)
-      : ricepp_block_decompressor(std::span{data, size}, target) {}
-
   ricepp_block_decompressor(std::span<uint8_t const> data,
-                            std::vector<uint8_t>& target)
-      : decompressed_{target}
+                            mutable_byte_buffer target)
+      : decompressed_{std::move(target)}
       , uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , data_{data}
@@ -253,7 +249,7 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
     return hdr;
   }
 
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   thrift::compression::ricepp_block_header const header_;
   std::span<uint8_t const> data_;
@@ -288,9 +284,8 @@ class ricepp_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<ricepp_block_decompressor>(data.data(), data.size(),
-                                                       target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<ricepp_block_decompressor>(data, std::move(target));
   }
 
  private:

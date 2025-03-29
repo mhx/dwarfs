@@ -97,9 +97,9 @@ class dwarfs_flac_stream_encoder final : public FLAC::Encoder::Stream {
 class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
  public:
   dwarfs_flac_stream_decoder(
-      std::vector<uint8_t>& target, std::span<uint8_t const> data,
+      mutable_byte_buffer target, std::span<uint8_t const> data,
       thrift::compression::flac_block_header const& header)
-      : target_{target}
+      : target_{std::move(target)}
       , data_{data}
       , header_{header}
       , bytes_per_sample_{(header_.flags().value() & kBytesPerSampleMask) + 1}
@@ -151,7 +151,7 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
 
     target_.resize(pos + size);
 
-    xfm_.pack(std::span<uint8_t>(&target_[pos], size), tmp_);
+    xfm_.pack(target_.span().subspan(pos, size), tmp_);
 
     return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
   }
@@ -187,7 +187,7 @@ class dwarfs_flac_stream_decoder final : public FLAC::Decoder::Stream {
   bool eof_callback() override { return pos_ >= data_.size(); }
 
  private:
-  std::vector<uint8_t>& target_;
+  mutable_byte_buffer target_;
   std::vector<FLAC__int32> tmp_;
   std::span<uint8_t const> data_;
   thrift::compression::flac_block_header const& header_;
@@ -208,7 +208,7 @@ class flac_block_compressor final : public block_compressor::impl {
     return std::make_unique<flac_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
+  std::vector<uint8_t> compress(std::span<uint8_t const> data,
                                 std::string const* metadata) const override {
     if (!metadata) {
       DWARFS_THROW(runtime_error,
@@ -391,13 +391,9 @@ class flac_block_compressor final : public block_compressor::impl {
 
 class flac_block_decompressor final : public block_decompressor::impl {
  public:
-  flac_block_decompressor(uint8_t const* data, size_t size,
-                          std::vector<uint8_t>& target)
-      : flac_block_decompressor(std::span{data, size}, target) {}
-
   flac_block_decompressor(std::span<uint8_t const> data,
-                          std::vector<uint8_t>& target)
-      : decompressed_{target}
+                          mutable_byte_buffer target)
+      : decompressed_{std::move(target)}
       , uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , decoder_{std::make_unique<dwarfs_flac_stream_decoder>(decompressed_,
@@ -480,7 +476,7 @@ class flac_block_decompressor final : public block_decompressor::impl {
     return hdr;
   }
 
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   thrift::compression::flac_block_header const header_;
   std::unique_ptr<dwarfs_flac_stream_decoder> decoder_;
@@ -518,9 +514,8 @@ class flac_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<flac_block_decompressor>(data.data(), data.size(),
-                                                     target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<flac_block_decompressor>(data, std::move(target));
   }
 
  private:
