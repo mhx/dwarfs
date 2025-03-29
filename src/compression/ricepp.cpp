@@ -130,12 +130,6 @@ class ricepp_block_compressor final : public block_compressor::impl {
     return compressed;
   }
 
-  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
-  std::vector<uint8_t> compress(std::vector<uint8_t>&& data,
-                                std::string const* metadata) const override {
-    return compress(data, metadata);
-  }
-
   compression_type type() const override { return compression_type::RICEPP; }
 
   std::string describe() const override {
