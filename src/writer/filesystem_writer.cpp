@@ -386,22 +386,21 @@ class rewritten_fsblock : public fsblock::impl {
 
             {
               // TODO: we don't have to do this for uncompressed blocks
-              auto data = vector_byte_buffer::create();
-              block_decompressor bd(data_comp_type_, data_.data(), data_.size(),
-                                    data);
+              auto buffer = vector_byte_buffer::create();
+              block_decompressor bd(data_comp_type_, data_, buffer);
               bd.decompress_frame(bd.uncompressed_size());
 
               if (!meta) {
                 meta = bd.metadata();
               }
 
-              pctx_->bytes_in += data.size(); // TODO: data_.size()?
+              pctx_->bytes_in += buffer.size(); // TODO: data_.size()?
 
               try {
                 if (meta) {
-                  block = bc_.compress(data.span(), *meta);
+                  block = bc_.compress(buffer.span(), *meta);
                 } else {
-                  block = bc_.compress(data.span());
+                  block = bc_.compress(buffer.span());
                 }
               } catch (bad_compression_ratio_error const&) {
                 comp_type_ = compression_type::NONE;
@@ -883,7 +882,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
     auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
     auto tmp = vector_byte_buffer::create();
-    block_decompressor bd(compression, data.data(), data.size(), tmp);
+    block_decompressor bd(compression, data, tmp);
 
     try {
       req.check(bd.metadata());

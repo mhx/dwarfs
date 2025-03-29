@@ -49,7 +49,7 @@ class cached_block_ final : public cached_block {
                 bool release, bool disable_integrity_check)
       : data_{vector_byte_buffer::create()}
       , decompressor_{std::make_unique<block_decompressor>(
-            b.compression(), mm->as<uint8_t>(b.start()), b.length(), data_)}
+            b.compression(), mm->span<uint8_t>(b.start(), b.length()), data_)}
       , mm_(std::move(mm))
       , section_(b)
       , LOG_PROXY_INIT(lgr)

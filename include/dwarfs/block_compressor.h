@@ -122,7 +122,7 @@ class block_compressor {
 
 class block_decompressor {
  public:
-  block_decompressor(compression_type type, uint8_t const* data, size_t size,
+  block_decompressor(compression_type type, std::span<uint8_t const> data,
                      mutable_byte_buffer target);
 
   bool decompress_frame(size_t frame_size = BUFSIZ) {
@@ -136,16 +136,11 @@ class block_decompressor {
   std::optional<std::string> metadata() const { return impl_->metadata(); }
 
   static shared_byte_buffer
-  decompress(compression_type type, uint8_t const* data, size_t size) {
+  decompress(compression_type type, std::span<uint8_t const> data) {
     auto target = vector_byte_buffer::create();
-    block_decompressor bd(type, data, size, target);
+    block_decompressor bd(type, data, target);
     bd.decompress_frame(bd.uncompressed_size());
     return target.share();
-  }
-
-  static shared_byte_buffer
-  decompress(compression_type type, std::span<uint8_t const> data) {
-    return decompress(type, data.data(), data.size());
   }
 
   class impl {

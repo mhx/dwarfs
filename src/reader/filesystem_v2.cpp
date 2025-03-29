@@ -106,7 +106,7 @@ block_decompressor get_block_decompressor(mmif& mm, fs_section const& sec) {
 
   auto tmp = vector_byte_buffer::create();
   auto span = sec.data(mm);
-  return {sec.compression(), span.data(), span.size(), tmp};
+  return {sec.compression(), span, tmp};
 }
 
 std::optional<block_decompressor>
