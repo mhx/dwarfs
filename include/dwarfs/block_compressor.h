@@ -61,12 +61,12 @@ class block_compressor {
   block_compressor(block_compressor&& bc) = default;
   block_compressor& operator=(block_compressor&& rhs) = default;
 
-  std::vector<uint8_t> compress(std::span<uint8_t const> data) const {
+  shared_byte_buffer compress(shared_byte_buffer const& data) const {
     return impl_->compress(data, nullptr);
   }
 
-  std::vector<uint8_t>
-  compress(std::span<uint8_t const> data, std::string const& metadata) const {
+  shared_byte_buffer
+  compress(shared_byte_buffer const& data, std::string const& metadata) const {
     return impl_->compress(data, &metadata);
   }
 
@@ -91,9 +91,8 @@ class block_compressor {
 
     virtual std::unique_ptr<impl> clone() const = 0;
 
-    virtual std::vector<uint8_t>
-    compress(std::span<uint8_t const> data,
-             std::string const* metadata) const = 0;
+    virtual shared_byte_buffer compress(shared_byte_buffer const& data,
+                                        std::string const* metadata) const = 0;
 
     virtual compression_type type() const = 0;
     virtual std::string describe() const = 0;
@@ -152,7 +151,7 @@ class compression_info {
 
   virtual std::string_view name() const = 0;
   virtual std::string_view description() const = 0;
-  virtual std::vector<std::string> const& options() const = 0;
+  virtual std::vector<std::string> const& options() const = 0; // TODO: span?
   virtual std::set<std::string> library_dependencies() const = 0;
 };
 

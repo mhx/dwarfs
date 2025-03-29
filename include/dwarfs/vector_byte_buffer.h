@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <dwarfs/byte_buffer.h>
 
 namespace dwarfs {
@@ -28,6 +30,10 @@ namespace dwarfs {
 class vector_byte_buffer {
  public:
   static mutable_byte_buffer create();
+  static mutable_byte_buffer create(size_t size);
+  static mutable_byte_buffer create(std::string_view data);
+  static mutable_byte_buffer create(std::span<uint8_t const> data);
+  static mutable_byte_buffer create(std::vector<uint8_t>&& data);
 };
 
 } // namespace dwarfs

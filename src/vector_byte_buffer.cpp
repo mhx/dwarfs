@@ -29,6 +29,22 @@ namespace {
 
 class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
  public:
+  vector_byte_buffer_impl() = default;
+  explicit vector_byte_buffer_impl(size_t size)
+      : data_(size) {}
+  explicit vector_byte_buffer_impl(std::string_view data)
+      : data_{data.begin(), data.end()} {}
+  explicit vector_byte_buffer_impl(std::span<uint8_t const> data)
+      : data_{data.begin(), data.end()} {}
+  explicit vector_byte_buffer_impl(std::vector<uint8_t>&& data)
+      : data_{std::move(data)} {}
+
+  size_t size() const override { return data_.size(); }
+
+  uint8_t const* data() const override { return data_.data(); }
+
+  uint8_t* mutable_data() override { return data_.data(); }
+
   std::span<uint8_t const> span() const override {
     return {data_.data(), data_.size()};
   }
@@ -43,6 +59,10 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
 
   void resize(size_t size) override { data_.resize(size); }
 
+  void shrink_to_fit() override { data_.shrink_to_fit(); }
+
+  std::vector<uint8_t>& raw_vector() override { return data_; }
+
  private:
   std::vector<uint8_t> data_;
 };
@@ -51,6 +71,23 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
 
 mutable_byte_buffer vector_byte_buffer::create() {
   return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>()};
+}
+
+mutable_byte_buffer vector_byte_buffer::create(size_t size) {
+  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(size)};
+}
+
+mutable_byte_buffer vector_byte_buffer::create(std::string_view data) {
+  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(data)};
+}
+
+mutable_byte_buffer vector_byte_buffer::create(std::span<uint8_t const> data) {
+  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(data)};
+}
+
+mutable_byte_buffer vector_byte_buffer::create(std::vector<uint8_t>&& data) {
+  return mutable_byte_buffer{
+      std::make_shared<vector_byte_buffer_impl>(std::move(data))};
 }
 
 } // namespace dwarfs

@@ -28,7 +28,6 @@
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 
@@ -145,13 +144,12 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
     dwarfs::writer::writer_progress prog;
     auto blkmgr = std::make_shared<dwarfs::writer::internal::block_manager>();
 
-    std::vector<std::shared_ptr<dwarfs::writer::internal::block_data>> written;
+    std::vector<dwarfs::shared_byte_buffer> written;
 
     dwarfs::writer::segmenter seg(
         lgr, prog, blkmgr, cfg, cc, total_size,
-        [&written,
-         blkmgr](std::shared_ptr<dwarfs::writer::internal::block_data> blk,
-                 auto logical_block_num) {
+        [&written, blkmgr](dwarfs::shared_byte_buffer blk,
+                           auto logical_block_num) {
           auto physical_block_num = written.size();
           written.push_back(blk);
           blkmgr->set_written_block(logical_block_num, physical_block_num, 0);
@@ -167,7 +165,7 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
     size_t segmented [[maybe_unused]]{0};
 
     for (auto const& blk : written) {
-      segmented += blk->size();
+      segmented += blk.size();
     }
 
     // std::cerr << total_size << " -> " << segmented << fmt::format("
