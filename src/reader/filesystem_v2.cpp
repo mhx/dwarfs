@@ -53,7 +53,6 @@
 #include <dwarfs/reader/internal/filesystem_parser.h>
 #include <dwarfs/reader/internal/inode_reader_v2.h>
 #include <dwarfs/reader/internal/metadata_v2.h>
-#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/filesystem_writer_detail.h>
 
 namespace dwarfs::reader {

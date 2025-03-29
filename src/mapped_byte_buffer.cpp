@@ -32,6 +32,10 @@ class mapped_byte_buffer_impl : public byte_buffer_interface {
       : data_{data}
       , mm_{std::move(mm)} {}
 
+  size_t size() const override { return data_.size(); }
+
+  uint8_t const* data() const override { return data_.data(); }
+
   std::span<uint8_t const> span() const override {
     return {data_.data(), data_.size()};
   }
