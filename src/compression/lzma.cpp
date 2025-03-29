@@ -37,6 +37,7 @@
 #include <dwarfs/option_map.h>
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/types.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -111,8 +112,8 @@ class lzma_block_compressor final : public block_compressor::impl {
     return std::make_unique<lzma_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::span<uint8_t const> data,
-                                std::string const* metadata) const override;
+  shared_byte_buffer
+  compress(shared_byte_buffer data, std::string const* metadata) const override;
 
   compression_type type() const override { return compression_type::LZMA; }
 
@@ -126,8 +127,8 @@ class lzma_block_compressor final : public block_compressor::impl {
   }
 
  private:
-  std::vector<uint8_t>
-  compress(std::span<uint8_t const> data, lzma_filter const* filters) const;
+  shared_byte_buffer
+  compress(shared_byte_buffer data, lzma_filter const* filters) const;
 
   static uint32_t get_preset(unsigned level, bool extreme) {
     uint32_t preset = level;
@@ -197,8 +198,8 @@ lzma_block_compressor::lzma_block_compressor(option_map& om) {
   }
 }
 
-std::vector<uint8_t>
-lzma_block_compressor::compress(std::span<uint8_t const> data,
+shared_byte_buffer
+lzma_block_compressor::compress(shared_byte_buffer data,
                                 lzma_filter const* filters) const {
   lzma_stream s = LZMA_STREAM_INIT;
 
@@ -210,7 +211,8 @@ lzma_block_compressor::compress(std::span<uint8_t const> data,
 
   lzma_action action = LZMA_FINISH;
 
-  std::vector<uint8_t> compressed(data.size() - 1);
+  auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+  compressed.resize(data.size() - 1);
 
   s.next_in = data.data();
   s.avail_in = data.size();
@@ -234,21 +236,21 @@ lzma_block_compressor::compress(std::span<uint8_t const> data,
                                             lzma_error_string(ret)));
   }
 
-  return compressed;
+  return compressed.share();
 }
 
-std::vector<uint8_t>
-lzma_block_compressor::compress(std::span<uint8_t const> data,
+shared_byte_buffer
+lzma_block_compressor::compress(shared_byte_buffer data,
                                 std::string const* /*metadata*/) const {
   auto lzma_opts = opt_lzma_;
   std::array<lzma_filter, 3> filters{{{binary_vli_, nullptr},
                                       {LZMA_FILTER_LZMA2, &lzma_opts},
                                       {LZMA_VLI_UNKNOWN, nullptr}}};
 
-  std::vector<uint8_t> best = compress(data, &filters[1]);
+  auto best = compress(data, &filters[1]);
 
   if (filters[0].id != LZMA_VLI_UNKNOWN) {
-    std::vector<uint8_t> compressed = compress(data, filters.data());
+    auto compressed = compress(data, filters.data());
 
     if (compressed.size() < best.size()) {
       best.swap(compressed);

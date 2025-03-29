@@ -26,6 +26,8 @@
 #include <memory>
 #include <vector>
 
+#include <dwarfs/byte_buffer.h>
+
 namespace dwarfs {
 
 struct compression_constraints;
@@ -38,7 +40,6 @@ class writer_progress;
 
 namespace internal {
 
-class block_data;
 class block_manager;
 class chunkable;
 
@@ -55,8 +56,8 @@ class segmenter {
     unsigned block_size_bits{22};
   };
 
-  using block_ready_cb = std::function<void(
-      std::shared_ptr<internal::block_data>, size_t logical_block_num)>;
+  using block_ready_cb =
+      std::function<void(shared_byte_buffer, size_t logical_block_num)>;
 
   segmenter(logger& lgr, writer_progress& prog,
             std::shared_ptr<internal::block_manager> blkmgr, config const& cfg,

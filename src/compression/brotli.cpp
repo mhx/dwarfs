@@ -31,6 +31,7 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -48,10 +49,9 @@ class brotli_block_compressor final : public block_compressor::impl {
     return std::make_unique<brotli_block_compressor>(*this);
   }
 
-  std::vector<uint8_t>
-  compress(std::span<uint8_t const> data,
-           std::string const* /*metadata*/) const override {
-    std::vector<uint8_t> compressed;
+  shared_byte_buffer compress(shared_byte_buffer data,
+                              std::string const* /*metadata*/) const override {
+    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
     compressed.resize(varint::max_size +
                       ::BrotliEncoderMaxCompressedSize(data.size()));
     size_t size_size = varint::encode(data.size(), compressed.data());
@@ -66,7 +66,7 @@ class brotli_block_compressor final : public block_compressor::impl {
       throw bad_compression_ratio_error();
     }
     compressed.shrink_to_fit();
-    return compressed;
+    return compressed.share();
   }
 
   compression_type type() const override { return compression_type::BROTLI; }

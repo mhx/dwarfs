@@ -23,7 +23,8 @@
 
 #include <cstdint>
 #include <utility>
-#include <vector>
+
+#include <dwarfs/byte_buffer.h>
 
 namespace dwarfs {
 
@@ -35,7 +36,7 @@ namespace writer::internal {
 
 class metadata_freezer {
  public:
-  static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+  static std::pair<shared_byte_buffer, shared_byte_buffer>
   freeze(thrift::metadata::metadata const& data);
 };
 

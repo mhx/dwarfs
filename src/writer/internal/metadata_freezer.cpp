@@ -22,6 +22,8 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
+#include <dwarfs/vector_byte_buffer.h>
+
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
 #include <dwarfs/gen-cpp2/metadata_layouts.h>
@@ -34,8 +36,7 @@ namespace dwarfs::writer::internal {
 namespace {
 
 template <class T>
-std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-freeze_to_buffer(T const& x) {
+std::pair<shared_byte_buffer, shared_byte_buffer> freeze_to_buffer(T const& x) {
   using namespace ::apache::thrift::frozen;
 
   Layout<T> layout;
@@ -44,24 +45,22 @@ freeze_to_buffer(T const& x) {
   std::string schema;
   serializeRootLayout(layout, schema);
 
-  size_t schema_size = schema.size();
-  auto schema_begin = reinterpret_cast<uint8_t const*>(schema.data());
-  std::vector<uint8_t> schema_buffer(schema_begin, schema_begin + schema_size);
+  auto schema_buffer = vector_byte_buffer::create(schema);
 
-  std::vector<uint8_t> data_buffer;
-  data_buffer.resize(content_size, 0);
+  auto data_buffer = vector_byte_buffer::create(content_size);
 
   folly::MutableByteRange content_range(data_buffer.data(), data_buffer.size());
   ByteRangeFreezer::freeze(layout, x, content_range);
 
   data_buffer.resize(data_buffer.size() - content_range.size());
+  data_buffer.shrink_to_fit();
 
-  return {schema_buffer, data_buffer};
+  return {schema_buffer.share(), data_buffer.share()};
 }
 
 } // namespace
 
-std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+std::pair<shared_byte_buffer, shared_byte_buffer>
 metadata_freezer::freeze(thrift::metadata::metadata const& data) {
   return freeze_to_buffer(data);
 }

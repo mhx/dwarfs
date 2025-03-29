@@ -46,10 +46,10 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
+#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
 
-#include <dwarfs/writer/internal/block_data.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 #include <dwarfs/writer/internal/cyclic_hash.h>
@@ -576,23 +576,23 @@ class active_block : private GranularityPolicy {
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
-      , data_{std::make_shared<block_data>()} {
+      , data_{vector_byte_buffer::create()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
-    data_->reserve(this->frames_to_bytes(capacity_in_frames_));
+    data_.reserve(this->frames_to_bytes(capacity_in_frames_));
   }
 
   DWARFS_FORCE_INLINE size_t num() const { return num_; }
 
   DWARFS_FORCE_INLINE size_t size_in_frames() const {
-    return this->bytes_to_frames(data_->size());
+    return this->bytes_to_frames(data_.size());
   }
 
   DWARFS_FORCE_INLINE bool full() const {
     return size_in_frames() == capacity_in_frames_;
   }
 
-  DWARFS_FORCE_INLINE std::shared_ptr<block_data> data() const { return data_; }
+  DWARFS_FORCE_INLINE mutable_byte_buffer data() const { return data_; }
 
   DWARFS_FORCE_INLINE void
   append_bytes(std::span<uint8_t const> data, bloom_filter& global_filter);
@@ -637,7 +637,7 @@ class active_block : private GranularityPolicy {
   fast_multimap<hash_t, offset_t, num_inline_offsets> offsets_;
   repeating_sequence_map_type const& repseqmap_;
   repeating_collisions_map_type& repeating_collisions_;
-  std::shared_ptr<block_data> data_;
+  mutable_byte_buffer data_;
 };
 
 class segmenter_progress : public progress::context {
@@ -841,7 +841,7 @@ DWARFS_FORCE_INLINE bool
 active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
     hash_t hashval, size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
-    auto& raw = data_->vec();
+    auto& raw = data_.raw_vector();
     auto winbeg = raw.begin() + frames_to_bytes(offset);
     auto winend = winbeg + frames_to_bytes(window_size_);
     auto byte = *winbeg;
@@ -881,7 +881,7 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
       granular_span_adapter<uint8_t const, GranularityPolicy>>(data);
 
   auto v = this->template create<
-      granular_vector_adapter<uint8_t, GranularityPolicy>>(data_->vec());
+      granular_vector_adapter<uint8_t, GranularityPolicy>>(data_.raw_vector());
 
   auto offset = v.size();
 
@@ -920,7 +920,7 @@ void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
     size_t pos, size_t len, size_t begin, size_t end) {
   auto v = this->template create<
       granular_vector_adapter<uint8_t, GranularityPolicy>>(
-      block_->data()->vec());
+      block_->data().raw_vector());
 
   // First, check if the regions actually match
   if (v.compare(offset_, data.subspan(pos, len)) == 0) {
@@ -1034,7 +1034,7 @@ DWARFS_FORCE_INLINE void
 segmenter_<LoggerPolicy, SegmentingPolicy>::block_ready() {
   auto& block = blocks_.back();
   block.finalize(stats_);
-  block_ready_(block.data(), block.num());
+  block_ready_(block.data().share(), block.num());
   ++prog_.block_count;
 }
 

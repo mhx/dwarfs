@@ -60,7 +60,7 @@ std::vector<T> multiplex(std::vector<std::vector<T>> const& in) {
 }
 
 template <typename T = int32_t>
-std::vector<uint8_t>
+shared_byte_buffer
 make_test_data(int channels, int samples, int bytes, int bits,
                pcm_sample_endianness end, pcm_sample_signedness sig,
                pcm_sample_padding pad) {
@@ -70,10 +70,11 @@ make_test_data(int channels, int samples, int bytes, int bits,
         make_sine<T>(bits, samples, 3.1 * ((599 * (c + 1)) % 256)));
   }
   auto muxed = multiplex(data);
-  std::vector<uint8_t> out(bytes * channels * samples);
+  auto out = vector_byte_buffer::create();
+  out.resize(bytes * channels * samples);
   pcm_sample_transformer<T> xfm(end, sig, pad, bytes, bits);
-  xfm.pack(out, muxed);
-  return out;
+  xfm.pack(out.span(), muxed);
+  return out.share();
 }
 
 struct data_params {
@@ -151,7 +152,7 @@ TEST(flac_compressor, basic) {
   EXPECT_LT(compressed.size(), data.size() / 2);
 
   auto decompressed =
-      block_decompressor::decompress(compression_type::FLAC, compressed);
+      block_decompressor::decompress(compression_type::FLAC, compressed.span());
 
   EXPECT_EQ(data, decompressed);
 }
@@ -184,7 +185,7 @@ TEST_P(flac_param, combinations) {
   EXPECT_LT(compressed.size(), data.size() / 2);
 
   auto decompressed =
-      block_decompressor::decompress(compression_type::FLAC, compressed);
+      block_decompressor::decompress(compression_type::FLAC, compressed.span());
 
   EXPECT_EQ(data, decompressed);
 }

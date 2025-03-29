@@ -37,6 +37,7 @@
 #include <range/v3/view/concat.hpp>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 using namespace dwarfs;
 
@@ -61,8 +62,7 @@ generate_random_data(std::mt19937_64& rng, size_t count,
 }
 
 template <std::unsigned_integral ValueType>
-std::vector<uint8_t>
-make_test_data(int components, int pixels, int unused_lsb) {
+shared_byte_buffer make_test_data(int components, int pixels, int unused_lsb) {
   std::mt19937_64 rng(42);
   std::uniform_int_distribution<ValueType> any_value(
       0, std::numeric_limits<ValueType>::max());
@@ -93,11 +93,11 @@ make_test_data(int components, int pixels, int unused_lsb) {
     }
   }
 
-  std::vector<uint8_t> out;
+  auto out = vector_byte_buffer::create();
   out.resize(tmp.size() * sizeof(ValueType));
   std::memcpy(out.data(), tmp.data(), out.size());
 
-  return out;
+  return out.share();
 }
 
 struct data_params {
@@ -151,8 +151,8 @@ TEST_P(ricepp_param, combinations) {
 
   EXPECT_LT(compressed.size(), 7 * data.size() / 10);
 
-  auto decompressed =
-      block_decompressor::decompress(compression_type::RICEPP, compressed);
+  auto decompressed = block_decompressor::decompress(compression_type::RICEPP,
+                                                     compressed.span());
 
   ASSERT_EQ(data.size(), decompressed.size());
   EXPECT_EQ(data, decompressed);

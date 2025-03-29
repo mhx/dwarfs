@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/byte_buffer.h>
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/writer/fragment_category.h>
@@ -44,8 +45,6 @@ class fs_section;
 }
 
 namespace writer::internal {
-
-class block_data;
 
 class filesystem_writer_detail {
  public:
@@ -71,14 +70,13 @@ class filesystem_writer_detail {
   virtual void
   configure_rewrite(size_t filesystem_size, size_t block_count) = 0;
   virtual void copy_header(std::span<uint8_t const> header) = 0;
-  virtual void
-  write_block(fragment_category cat, std::shared_ptr<block_data>&& data,
-              physical_block_cb_type physical_block_cb,
-              std::optional<std::string> meta = std::nullopt) = 0;
+  virtual void write_block(fragment_category cat, shared_byte_buffer data,
+                           physical_block_cb_type physical_block_cb,
+                           std::optional<std::string> meta = std::nullopt) = 0;
   virtual void finish_category(fragment_category cat) = 0;
-  virtual void write_metadata_v2_schema(std::shared_ptr<block_data>&& data) = 0;
-  virtual void write_metadata_v2(std::shared_ptr<block_data>&& data) = 0;
-  virtual void write_history(std::shared_ptr<block_data>&& data) = 0;
+  virtual void write_metadata_v2_schema(shared_byte_buffer data) = 0;
+  virtual void write_metadata_v2(shared_byte_buffer data) = 0;
+  virtual void write_history(shared_byte_buffer data) = 0;
   virtual void check_block_compression(
       compression_type compression, std::span<uint8_t const> data,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;

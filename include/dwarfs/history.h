@@ -30,6 +30,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <dwarfs/byte_buffer.h>
 #include <dwarfs/history_config.h>
 
 namespace dwarfs {
@@ -50,7 +51,7 @@ class history {
   thrift::history::history const& get() const { return *history_; }
   void append(std::optional<std::vector<std::string>> args);
   size_t size() const;
-  std::vector<uint8_t> serialize() const;
+  shared_byte_buffer serialize() const;
   void dump(std::ostream& os) const;
   nlohmann::json as_json() const;
 
