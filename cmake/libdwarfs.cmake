@@ -23,6 +23,7 @@ add_library(
 
   src/block_compressor.cpp
   src/block_compressor_parser.cpp
+  src/byte_buffer.cpp
   src/checksum.cpp
   src/conv.cpp
   src/error.cpp
@@ -34,6 +35,7 @@ add_library(
   src/history.cpp
   src/library_dependencies.cpp
   src/logger.cpp
+  src/mapped_byte_buffer.cpp
   src/mmap.cpp
   src/option_map.cpp
   src/os_access_generic.cpp
@@ -43,6 +45,7 @@ add_library(
   src/thread_pool.cpp
   src/util.cpp
   src/varint.cpp
+  src/vector_byte_buffer.cpp
   src/xattr.cpp
 
   src/internal/features.cpp

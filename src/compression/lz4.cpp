@@ -70,7 +70,7 @@ class lz4_block_compressor final : public block_compressor::impl {
   }
 
   std::vector<uint8_t>
-  compress(std::vector<uint8_t> const& data,
+  compress(std::span<uint8_t const> data,
            std::string const* /*metadata*/) const override {
     std::vector<uint8_t> compressed(sizeof(uint32_t) +
                                     LZ4_compressBound(to<int>(data.size())));
@@ -114,12 +114,11 @@ class lz4_block_compressor final : public block_compressor::impl {
 
 class lz4_block_decompressor final : public block_decompressor::impl {
  public:
-  lz4_block_decompressor(uint8_t const* data, size_t size,
-                         std::vector<uint8_t>& target)
-      : decompressed_(target)
-      , data_(data + sizeof(uint32_t))
-      , input_size_(size - sizeof(uint32_t))
-      , uncompressed_size_(get_uncompressed_size(data)) {
+  lz4_block_decompressor(std::span<uint8_t const> data,
+                         mutable_byte_buffer target)
+      : decompressed_(std::move(target))
+      , data_(data.subspan(sizeof(uint32_t)))
+      , uncompressed_size_(get_uncompressed_size(data.data())) {
     try {
       decompressed_.reserve(uncompressed_size_);
     } catch (std::bad_alloc const&) {
@@ -140,9 +139,9 @@ class lz4_block_decompressor final : public block_decompressor::impl {
     }
 
     decompressed_.resize(uncompressed_size_);
-    auto rv = LZ4_decompress_safe(reinterpret_cast<char const*>(data_),
+    auto rv = LZ4_decompress_safe(reinterpret_cast<char const*>(data_.data()),
                                   reinterpret_cast<char*>(decompressed_.data()),
-                                  static_cast<int>(input_size_),
+                                  static_cast<int>(data_.size()),
                                   static_cast<int>(uncompressed_size_));
 
     if (rv < 0) {
@@ -164,9 +163,8 @@ class lz4_block_decompressor final : public block_decompressor::impl {
     return size;
   }
 
-  std::vector<uint8_t>& decompressed_;
-  uint8_t const* const data_;
-  size_t const input_size_;
+  mutable_byte_buffer decompressed_;
+  std::span<uint8_t const> data_;
   size_t const uncompressed_size_;
   std::string error_;
 };
@@ -196,9 +194,8 @@ class lz4_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<lz4_block_decompressor>(data.data(), data.size(),
-                                                    target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<lz4_block_decompressor>(data, std::move(target));
   }
 
  private:
@@ -234,9 +231,8 @@ class lz4hc_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<lz4_block_decompressor>(data.data(), data.size(),
-                                                    target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<lz4_block_decompressor>(data, std::move(target));
   }
 
  private:

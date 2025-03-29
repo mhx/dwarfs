@@ -40,6 +40,7 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
+#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -381,26 +382,30 @@ class rewritten_fsblock : public fsblock::impl {
     wg.add_job(
         [this, prom = std::move(prom), meta = std::move(meta)]() mutable {
           try {
-            // TODO: we don't have to do this for uncompressed blocks
             std::vector<uint8_t> block;
-            block_decompressor bd(data_comp_type_, data_.data(), data_.size(),
-                                  block);
-            bd.decompress_frame(bd.uncompressed_size());
 
-            if (!meta) {
-              meta = bd.metadata();
-            }
+            {
+              // TODO: we don't have to do this for uncompressed blocks
+              auto data = vector_byte_buffer::create();
+              block_decompressor bd(data_comp_type_, data_.data(), data_.size(),
+                                    data);
+              bd.decompress_frame(bd.uncompressed_size());
 
-            pctx_->bytes_in += block.size(); // TODO: data_.size()?
-
-            try {
-              if (meta) {
-                block = bc_.compress(block, *meta);
-              } else {
-                block = bc_.compress(block);
+              if (!meta) {
+                meta = bd.metadata();
               }
-            } catch (bad_compression_ratio_error const&) {
-              comp_type_ = compression_type::NONE;
+
+              pctx_->bytes_in += data.size(); // TODO: data_.size()?
+
+              try {
+                if (meta) {
+                  block = bc_.compress(data.span(), *meta);
+                } else {
+                  block = bc_.compress(data.span());
+                }
+              } catch (bad_compression_ratio_error const&) {
+                comp_type_ = compression_type::NONE;
+              }
             }
 
             pctx_->bytes_out += block.size();
@@ -877,7 +882,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
   if (auto reqstr = bc->metadata_requirements(); !reqstr.empty()) {
     auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
-    std::vector<uint8_t> tmp;
+    auto tmp = vector_byte_buffer::create();
     block_decompressor bd(compression, data.data(), data.size(), tmp);
 
     try {

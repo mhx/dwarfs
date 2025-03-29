@@ -37,6 +37,7 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/mapped_byte_buffer.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/os_access.h>
 #include <dwarfs/performance_monitor.h>
@@ -44,6 +45,7 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/util.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
@@ -102,7 +104,7 @@ block_decompressor get_block_decompressor(mmif& mm, fs_section const& sec) {
         fmt::format("attempt to access damaged {} section", sec.name()));
   }
 
-  std::vector<uint8_t> tmp;
+  auto tmp = vector_byte_buffer::create();
   auto span = sec.data(mm);
   return {sec.compression(), span.data(), span.size(), tmp};
 }
@@ -127,32 +129,26 @@ size_t get_uncompressed_section_size(mmif& mm, fs_section const& sec) {
   return get_block_decompressor(mm, sec).uncompressed_size();
 }
 
-std::span<uint8_t const>
-get_section_data(mmif& mm, fs_section const& section,
-                 std::vector<uint8_t>& buffer, bool force_buffer) {
+shared_byte_buffer
+get_section_data(std::shared_ptr<mmif> const& mm, fs_section const& section) {
   DWARFS_CHECK(
-      section.check_fast(mm),
+      section.check_fast(*mm),
       fmt::format("attempt to access damaged {} section", section.name()));
 
-  auto span = section.data(mm);
+  auto span = section.data(*mm);
   auto compression = section.compression();
 
-  if (!force_buffer && compression == compression_type::NONE) {
-    return span;
+  if (compression == compression_type::NONE) {
+    return mapped_byte_buffer::create(span, mm);
   }
 
-  buffer =
-      block_decompressor::decompress(compression, span.data(), span.size());
-
-  return buffer;
+  return block_decompressor::decompress(compression, span);
 }
 
-metadata_v2
-make_metadata(logger& lgr, mmif& mm, section_map const& sections,
-              std::vector<uint8_t>& schema_buffer,
-              std::vector<uint8_t>& meta_buffer,
-              metadata_options const& options, int inode_offset,
-              bool force_buffers, mlock_mode lock_mode,
+std::tuple<shared_byte_buffer, metadata_v2>
+make_metadata(logger& lgr, std::shared_ptr<mmif> const& mm,
+              section_map const& sections, metadata_options const& options,
+              int inode_offset, mlock_mode lock_mode,
               bool force_consistency_check,
               std::shared_ptr<performance_monitor const> const& perfmon) {
   LOG_PROXY(debug_logger_policy, lgr);
@@ -177,11 +173,11 @@ make_metadata(logger& lgr, mmif& mm, section_map const& sections,
 
   auto& meta_section = meta_it->second.front();
 
-  auto meta_section_range =
-      get_section_data(mm, meta_section, meta_buffer, force_buffers);
+  auto meta_buffer = get_section_data(mm, meta_section);
+  auto schema_buffer = get_section_data(mm, schema_it->second.front());
 
   if (lock_mode != mlock_mode::NONE) {
-    if (auto ec = mm.lock(meta_section.start(), meta_section_range.size())) {
+    if (auto ec = mm->lock(meta_section.start(), meta_buffer.size())) {
       if (lock_mode == mlock_mode::MUST) {
         DWARFS_THROW(system_error, "mlock");
       }
@@ -191,19 +187,14 @@ make_metadata(logger& lgr, mmif& mm, section_map const& sections,
 
   // don't keep the compressed metadata in cache
   if (meta_section.compression() != compression_type::NONE) {
-    if (auto ec = mm.release(meta_section.start(), meta_section.length())) {
+    if (auto ec = mm->release(meta_section.start(), meta_section.length())) {
       LOG_INFO << "madvise() failed: " << ec.message();
     }
   }
 
-  return {lgr,
-          get_section_data(mm, schema_it->second.front(), schema_buffer,
-                           force_buffers),
-          meta_section_range,
-          options,
-          inode_offset,
-          force_consistency_check,
-          perfmon};
+  return {meta_buffer,
+          metadata_v2{lgr, schema_buffer.span(), meta_buffer.span(), options,
+                      inode_offset, force_consistency_check, perfmon}};
 }
 
 } // namespace
@@ -337,7 +328,7 @@ class filesystem_ final : public filesystem_v2::impl {
   metadata_v2 meta_;
   inode_reader_v2 ir_;
   mutable std::mutex mx_;
-  std::vector<uint8_t> meta_buffer_;
+  shared_byte_buffer meta_buffer_;
   std::optional<std::span<uint8_t const>> header_;
   mutable block_access_level fsinfo_block_access_level_{
       block_access_level::no_access};
@@ -510,11 +501,9 @@ filesystem_<LoggerPolicy>::filesystem_(
     }
   }
 
-  std::vector<uint8_t> schema_buffer;
-
-  meta_ = make_metadata(lgr, *mm_, sections, schema_buffer, meta_buffer_,
-                        options.metadata, options.inode_offset, false,
-                        options.lock_mode, !parser.has_checksums(), perfmon);
+  std::tie(meta_buffer_, meta_) =
+      make_metadata(lgr, mm_, sections, options.metadata, options.inode_offset,
+                    options.lock_mode, !parser.has_checksums(), perfmon);
 
   LOG_DEBUG << "read " << cache.block_count() << " blocks and " << meta_.size()
             << " bytes of metadata";
@@ -526,8 +515,8 @@ filesystem_<LoggerPolicy>::filesystem_(
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
     for (auto& section : it->second) {
       if (section.check_fast(*mm_)) {
-        std::vector<uint8_t> buffer;
-        history_.parse_append(get_section_data(*mm_, section, buffer, false));
+        auto buffer = get_section_data(mm_, section);
+        history_.parse_append(buffer.span());
       }
     }
   }

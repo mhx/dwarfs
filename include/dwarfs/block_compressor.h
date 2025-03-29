@@ -37,6 +37,7 @@
 
 #include <dwarfs/compression.h>
 #include <dwarfs/compression_constraints.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -60,7 +61,7 @@ class block_compressor {
   block_compressor(block_compressor&& bc) = default;
   block_compressor& operator=(block_compressor&& rhs) = default;
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data) const {
+  std::vector<uint8_t> compress(std::span<uint8_t const> data) const {
     return impl_->compress(data, nullptr);
   }
 
@@ -68,8 +69,8 @@ class block_compressor {
     return impl_->compress(std::move(data), nullptr);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
-                                std::string const& metadata) const {
+  std::vector<uint8_t>
+  compress(std::span<uint8_t const> data, std::string const& metadata) const {
     return impl_->compress(data, &metadata);
   }
 
@@ -100,7 +101,7 @@ class block_compressor {
     virtual std::unique_ptr<impl> clone() const = 0;
 
     virtual std::vector<uint8_t>
-    compress(std::vector<uint8_t> const& data,
+    compress(std::span<uint8_t const> data,
              std::string const* metadata) const = 0;
     virtual std::vector<uint8_t>
     compress(std::vector<uint8_t>&& data,
@@ -122,7 +123,7 @@ class block_compressor {
 class block_decompressor {
  public:
   block_decompressor(compression_type type, uint8_t const* data, size_t size,
-                     std::vector<uint8_t>& target);
+                     mutable_byte_buffer target);
 
   bool decompress_frame(size_t frame_size = BUFSIZ) {
     return impl_->decompress_frame(frame_size);
@@ -134,12 +135,17 @@ class block_decompressor {
 
   std::optional<std::string> metadata() const { return impl_->metadata(); }
 
-  static std::vector<uint8_t>
+  static shared_byte_buffer
   decompress(compression_type type, uint8_t const* data, size_t size) {
-    std::vector<uint8_t> target;
+    auto target = vector_byte_buffer::create();
     block_decompressor bd(type, data, size, target);
     bd.decompress_frame(bd.uncompressed_size());
-    return target;
+    return target.share();
+  }
+
+  static shared_byte_buffer
+  decompress(compression_type type, std::span<uint8_t const> data) {
+    return decompress(type, data.data(), data.size());
   }
 
   class impl {
@@ -173,7 +179,7 @@ class compression_factory : public compression_info {
   make_compressor(option_map& om) const = 0;
   virtual std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const = 0;
+                    mutable_byte_buffer target) const = 0;
 };
 
 namespace detail {
@@ -191,7 +197,7 @@ class compression_registry {
   make_compressor(std::string_view spec) const;
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(compression_type type, std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const;
+                    mutable_byte_buffer target) const;
 
   void for_each_algorithm(
       std::function<void(compression_type, compression_info const&)> const& fn)

@@ -49,7 +49,7 @@ class brotli_block_compressor final : public block_compressor::impl {
   }
 
   std::vector<uint8_t>
-  compress(std::vector<uint8_t> const& data,
+  compress(std::span<uint8_t const> data,
            std::string const* /*metadata*/) const override {
     std::vector<uint8_t> compressed;
     compressed.resize(varint::max_size +
@@ -95,13 +95,9 @@ class brotli_block_compressor final : public block_compressor::impl {
 
 class brotli_block_decompressor final : public block_decompressor::impl {
  public:
-  brotli_block_decompressor(uint8_t const* data, size_t size,
-                            std::vector<uint8_t>& target)
-      : brotli_block_decompressor(std::span{data, size}, target) {}
-
   brotli_block_decompressor(std::span<uint8_t const> data,
-                            std::vector<uint8_t>& target)
-      : decompressed_{target}
+                            mutable_byte_buffer target)
+      : decompressed_{std::move(target)}
       , uncompressed_size_{varint::decode(data)}
       , data_{data.data()}
       , size_{data.size()}
@@ -140,7 +136,7 @@ class brotli_block_decompressor final : public block_decompressor::impl {
     assert(frame_size > 0);
 
     decompressed_.resize(pos + frame_size);
-    uint8_t* next_out = &decompressed_[pos];
+    uint8_t* next_out = decompressed_.data() + pos;
 
     auto res = ::BrotliDecoderDecompressStream(decoder_.get(), &size_, &data_,
                                                &frame_size, &next_out, nullptr);
@@ -163,7 +159,7 @@ class brotli_block_decompressor final : public block_decompressor::impl {
         ::BrotliDecoderGetErrorCode(decoder_.get()));
   }
 
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   uint8_t const* data_;
   size_t size_;
@@ -210,9 +206,8 @@ class brotli_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
-    return std::make_unique<brotli_block_decompressor>(data.data(), data.size(),
-                                                       target);
+                    mutable_byte_buffer target) const override {
+    return std::make_unique<brotli_block_decompressor>(data, std::move(target));
   }
 
  private:
