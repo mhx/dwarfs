@@ -54,7 +54,7 @@ class zstd_block_compressor final : public block_compressor::impl {
     return std::make_unique<zstd_block_compressor>(*this);
   }
 
-  std::vector<uint8_t> compress(std::vector<uint8_t> const& data,
+  std::vector<uint8_t> compress(std::span<uint8_t const> data,
                                 std::string const* metadata) const override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
@@ -94,7 +94,7 @@ class zstd_block_compressor final : public block_compressor::impl {
 };
 
 std::vector<uint8_t>
-zstd_block_compressor::compress(std::vector<uint8_t> const& data,
+zstd_block_compressor::compress(std::span<uint8_t const> data,
                                 std::string const* /*metadata*/) const {
   std::vector<uint8_t> compressed(ZSTD_compressBound(data.size()));
   auto ctx = ctxmgr_->make_context();
@@ -115,7 +115,7 @@ zstd_block_compressor::compress(std::vector<uint8_t> const& data,
 class zstd_block_decompressor final : public block_decompressor::impl {
  public:
   zstd_block_decompressor(uint8_t const* data, size_t size,
-                          std::vector<uint8_t>& target)
+                          mutable_byte_buffer target)
       : decompressed_(target)
       , data_(data)
       , size_(size)
@@ -168,7 +168,7 @@ class zstd_block_decompressor final : public block_decompressor::impl {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   uint8_t const* const data_;
   size_t const size_;
   unsigned long long const uncompressed_size_;
@@ -205,7 +205,7 @@ class zstd_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
+                    mutable_byte_buffer target) const override {
     return std::make_unique<zstd_block_decompressor>(data.data(), data.size(),
                                                      target);
   }

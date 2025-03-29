@@ -42,9 +42,9 @@ class null_block_compressor final : public block_compressor::impl {
   }
 
   std::vector<uint8_t>
-  compress(std::vector<uint8_t> const& data,
+  compress(std::span<uint8_t const> data,
            std::string const* /*metadata*/) const override {
-    return data;
+    return std::vector<uint8_t>(data.begin(), data.end());
   }
 
   std::vector<uint8_t>
@@ -68,7 +68,7 @@ class null_block_compressor final : public block_compressor::impl {
 class null_block_decompressor final : public block_decompressor::impl {
  public:
   null_block_decompressor(uint8_t const* data, size_t size,
-                          std::vector<uint8_t>& target)
+                          mutable_byte_buffer target)
       : decompressed_(target)
       , data_(data)
       , uncompressed_size_(size) {
@@ -98,7 +98,7 @@ class null_block_decompressor final : public block_decompressor::impl {
     decompressed_.resize(offset + frame_size);
 
     std::copy(data_ + offset, data_ + offset + frame_size,
-              &decompressed_[offset]);
+              decompressed_.data() + offset);
 
     return decompressed_.size() == uncompressed_size_;
   }
@@ -106,7 +106,7 @@ class null_block_decompressor final : public block_decompressor::impl {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  std::vector<uint8_t>& decompressed_;
+  mutable_byte_buffer decompressed_;
   uint8_t const* const data_;
   size_t const uncompressed_size_;
 };
@@ -132,7 +132,7 @@ class null_compression_factory : public compression_factory {
 
   std::unique_ptr<block_decompressor::impl>
   make_decompressor(std::span<uint8_t const> data,
-                    std::vector<uint8_t>& target) const override {
+                    mutable_byte_buffer target) const override {
     return std::make_unique<null_block_decompressor>(data.data(), data.size(),
                                                      target);
   }

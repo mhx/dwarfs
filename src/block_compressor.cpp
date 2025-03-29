@@ -42,7 +42,7 @@ block_compressor::block_compressor(std::string const& spec) {
 
 block_decompressor::block_decompressor(compression_type type,
                                        uint8_t const* data, size_t size,
-                                       std::vector<uint8_t>& target) {
+                                       mutable_byte_buffer target) {
   impl_ = compression_registry::instance().make_decompressor(
       type, std::span<uint8_t const>(data, size), target);
 }
@@ -93,7 +93,7 @@ compression_registry::make_compressor(std::string_view spec) const {
 std::unique_ptr<block_decompressor::impl>
 compression_registry::make_decompressor(compression_type type,
                                         std::span<uint8_t const> data,
-                                        std::vector<uint8_t>& target) const {
+                                        mutable_byte_buffer target) const {
   auto fit = factories_.find(type);
 
   if (fit == factories_.end()) {
