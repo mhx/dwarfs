@@ -26,12 +26,11 @@
 
 #include <fmt/format.h>
 
-#include <folly/Varint.h>
-
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/varint.h>
 
 namespace dwarfs {
 
@@ -53,9 +52,9 @@ class brotli_block_compressor final : public block_compressor::impl {
   compress(std::vector<uint8_t> const& data,
            std::string const* /*metadata*/) const override {
     std::vector<uint8_t> compressed;
-    compressed.resize(folly::kMaxVarintLength64 +
+    compressed.resize(varint::max_size +
                       ::BrotliEncoderMaxCompressedSize(data.size()));
-    size_t size_size = folly::encodeVarint(data.size(), compressed.data());
+    size_t size_size = varint::encode(data.size(), compressed.data());
     size_t compressed_size = compressed.size() - size_size;
     if (!::BrotliEncoderCompress(quality_, window_bits_, BROTLI_DEFAULT_MODE,
                                  data.size(), data.data(), &compressed_size,
@@ -98,13 +97,12 @@ class brotli_block_decompressor final : public block_decompressor::impl {
  public:
   brotli_block_decompressor(uint8_t const* data, size_t size,
                             std::vector<uint8_t>& target)
-      : brotli_block_decompressor(folly::Range<uint8_t const*>(data, size),
-                                  target) {}
+      : brotli_block_decompressor(std::span{data, size}, target) {}
 
-  brotli_block_decompressor(folly::Range<uint8_t const*> data,
+  brotli_block_decompressor(std::span<uint8_t const> data,
                             std::vector<uint8_t>& target)
       : decompressed_{target}
-      , uncompressed_size_{folly::decodeVarint(data)}
+      , uncompressed_size_{varint::decode(data)}
       , data_{data.data()}
       , size_{data.size()}
       , decoder_{::BrotliDecoderCreateInstance(nullptr, nullptr, nullptr),

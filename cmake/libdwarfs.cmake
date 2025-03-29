@@ -42,6 +42,7 @@ add_library(
   src/terminal_ansi.cpp
   src/thread_pool.cpp
   src/util.cpp
+  src/varint.cpp
   src/xattr.cpp
 
   src/internal/features.cpp

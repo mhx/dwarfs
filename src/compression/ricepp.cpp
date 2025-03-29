@@ -19,8 +19,6 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <folly/Varint.h>
-
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
 #include <fmt/format.h>
@@ -33,6 +31,7 @@
 #include <dwarfs/compression.h>
 #include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/varint.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
 
@@ -94,10 +93,10 @@ class ricepp_block_compressor final : public block_compressor::impl {
     {
       using namespace ::apache::thrift;
 
-      compressed.resize(folly::kMaxVarintLength64);
+      compressed.resize(varint::max_size);
 
       size_t pos = 0;
-      pos += folly::encodeVarint(data.size(), compressed.data() + pos);
+      pos += varint::encode(data.size(), compressed.data() + pos);
       compressed.resize(pos);
 
       thrift::compression::ricepp_block_header hdr;
@@ -176,15 +175,14 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
  public:
   ricepp_block_decompressor(uint8_t const* data, size_t size,
                             std::vector<uint8_t>& target)
-      : ricepp_block_decompressor(folly::Range<uint8_t const*>(data, size),
-                                  target) {}
+      : ricepp_block_decompressor(std::span{data, size}, target) {}
 
-  ricepp_block_decompressor(folly::Range<uint8_t const*> data,
+  ricepp_block_decompressor(std::span<uint8_t const> data,
                             std::vector<uint8_t>& target)
       : decompressed_{target}
-      , uncompressed_size_{folly::decodeVarint(data)}
+      , uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
-      , data_{data.data(), data.size()}
+      , data_{data}
       , codec_{ricepp::create_codec<uint16_t>(
             {.block_size = header_.block_size().value(),
              .component_stream_count = header_.component_count().value(),
@@ -241,11 +239,12 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
 
  private:
   static thrift::compression::ricepp_block_header
-  decode_header(folly::Range<uint8_t const*>& range) {
+  decode_header(std::span<uint8_t const>& span) {
     using namespace ::apache::thrift;
     thrift::compression::ricepp_block_header hdr;
-    auto size = CompactSerializer::deserialize(range, hdr);
-    range.advance(size);
+    auto size = CompactSerializer::deserialize(
+        folly::ByteRange{span.data(), span.size()}, hdr);
+    span = span.subspan(size);
     if (hdr.ricepp_version().value() > RICEPP_VERSION) {
       DWARFS_THROW(runtime_error,
                    fmt::format("[RICEPP] unsupported version: {}",

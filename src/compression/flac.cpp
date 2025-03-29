@@ -30,8 +30,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/Varint.h>
-
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/block_compressor.h>
@@ -39,6 +37,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/pcm_sample_transformer.h>
+#include <dwarfs/varint.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
 
@@ -272,10 +271,10 @@ class flac_block_compressor final : public block_compressor::impl {
       using namespace ::apache::thrift;
 
       compressed.reserve(5 * data.size() / 8); // optimistic guess
-      compressed.resize(folly::kMaxVarintLength64);
+      compressed.resize(varint::max_size);
 
       size_t pos = 0;
-      pos += folly::encodeVarint(data.size(), compressed.data() + pos);
+      pos += varint::encode(data.size(), compressed.data() + pos);
       compressed.resize(pos);
 
       thrift::compression::flac_block_header hdr;
@@ -394,17 +393,15 @@ class flac_block_decompressor final : public block_decompressor::impl {
  public:
   flac_block_decompressor(uint8_t const* data, size_t size,
                           std::vector<uint8_t>& target)
-      : flac_block_decompressor(folly::Range<uint8_t const*>(data, size),
-                                target) {}
+      : flac_block_decompressor(std::span{data, size}, target) {}
 
-  flac_block_decompressor(folly::Range<uint8_t const*> data,
+  flac_block_decompressor(std::span<uint8_t const> data,
                           std::vector<uint8_t>& target)
       : decompressed_{target}
-      , uncompressed_size_{folly::decodeVarint(data)}
+      , uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
-      , decoder_{std::make_unique<dwarfs_flac_stream_decoder>(
-            decompressed_, std::span<uint8_t const>(data.data(), data.size()),
-            header_)} {
+      , decoder_{std::make_unique<dwarfs_flac_stream_decoder>(decompressed_,
+                                                              data, header_)} {
     decoder_->set_md5_checking(false);
     decoder_->set_metadata_ignore_all();
 
@@ -474,11 +471,12 @@ class flac_block_decompressor final : public block_decompressor::impl {
 
  private:
   static thrift::compression::flac_block_header
-  decode_header(folly::Range<uint8_t const*>& range) {
+  decode_header(folly::span<uint8_t const>& span) {
     using namespace ::apache::thrift;
     thrift::compression::flac_block_header hdr;
-    auto size = CompactSerializer::deserialize(range, hdr);
-    range.advance(size);
+    auto size = CompactSerializer::deserialize(
+        folly::ByteRange{span.data(), span.size()}, hdr);
+    span = span.subspan(size);
     return hdr;
   }
 
