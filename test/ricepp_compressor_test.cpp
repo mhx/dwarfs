@@ -151,8 +151,8 @@ TEST_P(ricepp_param, combinations) {
 
   EXPECT_LT(compressed.size(), 7 * data.size() / 10);
 
-  auto decompressed = block_decompressor::decompress(
-      compression_type::RICEPP, compressed.data(), compressed.size());
+  auto decompressed =
+      block_decompressor::decompress(compression_type::RICEPP, compressed);
 
   ASSERT_EQ(data.size(), decompressed.size());
   EXPECT_EQ(data, decompressed);

@@ -150,8 +150,8 @@ TEST(flac_compressor, basic) {
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 
-  auto decompressed = block_decompressor::decompress(
-      compression_type::FLAC, compressed.data(), compressed.size());
+  auto decompressed =
+      block_decompressor::decompress(compression_type::FLAC, compressed);
 
   EXPECT_EQ(data, decompressed);
 }
@@ -183,8 +183,8 @@ TEST_P(flac_param, combinations) {
 
   EXPECT_LT(compressed.size(), data.size() / 2);
 
-  auto decompressed = block_decompressor::decompress(
-      compression_type::FLAC, compressed.data(), compressed.size());
+  auto decompressed =
+      block_decompressor::decompress(compression_type::FLAC, compressed);
 
   EXPECT_EQ(data, decompressed);
 }

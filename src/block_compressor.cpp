@@ -41,10 +41,10 @@ block_compressor::block_compressor(std::string const& spec) {
 }
 
 block_decompressor::block_decompressor(compression_type type,
-                                       uint8_t const* data, size_t size,
+                                       std::span<uint8_t const> data,
                                        mutable_byte_buffer target) {
-  impl_ = compression_registry::instance().make_decompressor(
-      type, std::span<uint8_t const>(data, size), target);
+  impl_ = compression_registry::instance().make_decompressor(type, data,
+                                                             std::move(target));
 }
 
 compression_registry& compression_registry::instance() {
