@@ -841,8 +841,8 @@ DWARFS_FORCE_INLINE bool
 active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
     hash_t hashval, size_t offset) {
   if (auto it = repseqmap_.find(hashval); it != repseqmap_.end()) [[unlikely]] {
-    auto& raw = data_.raw_vector();
-    auto winbeg = raw.begin() + frames_to_bytes(offset);
+    auto pdata = data_.data();
+    auto winbeg = pdata + frames_to_bytes(offset);
     auto winend = winbeg + frames_to_bytes(window_size_);
     auto byte = *winbeg;
     static_assert(std::is_same_v<typename decltype(it->second)::value_type,
@@ -856,7 +856,7 @@ active_block<LoggerPolicy, GranularityPolicy>::is_existing_repeating_sequence(
     if (std::find_if(winbeg, winend, [byte](auto b) { return b != byte; }) ==
         winend) {
       return offsets_.any_value_is(hashval, [&, this](auto off) {
-        auto offbeg = raw.begin() + frames_to_bytes(off);
+        auto offbeg = pdata + frames_to_bytes(off);
         auto offend = offbeg + frames_to_bytes(window_size_);
 
         if (std::find_if(offbeg, offend,
