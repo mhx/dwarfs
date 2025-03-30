@@ -48,6 +48,7 @@ class byte_buffer_interface {
 
   virtual uint8_t const* data() const = 0;
   virtual size_t size() const = 0;
+  virtual size_t capacity() const = 0;
   virtual std::span<uint8_t const> span() const = 0;
 };
 
@@ -77,6 +78,8 @@ class shared_byte_buffer {
   uint8_t const* data() const { return bb_->data(); }
 
   size_t size() const { return bb_->size(); }
+
+  size_t capacity() const { return bb_->capacity(); }
 
   bool empty() const { return bb_->size() == 0; }
 
@@ -127,6 +130,8 @@ class mutable_byte_buffer {
   uint8_t* data() { return bb_->mutable_data(); }
 
   size_t size() const { return bb_->size(); }
+
+  size_t capacity() const { return bb_->capacity(); }
 
   bool empty() const { return bb_->size() == 0; }
 
