@@ -67,6 +67,8 @@ class mutable_byte_buffer_interface : public byte_buffer_interface {
 
 class shared_byte_buffer {
  public:
+  using value_type = uint8_t;
+
   shared_byte_buffer() = default;
 
   explicit shared_byte_buffer(std::shared_ptr<byte_buffer_interface const> bb)
@@ -114,6 +116,8 @@ class shared_byte_buffer {
 
 class mutable_byte_buffer {
  public:
+  using value_type = uint8_t;
+
   explicit mutable_byte_buffer(
       std::shared_ptr<mutable_byte_buffer_interface> bb)
       : bb_{std::move(bb)} {}
