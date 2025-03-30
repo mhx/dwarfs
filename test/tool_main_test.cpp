@@ -54,6 +54,7 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/reader/iovec_read_buf.h>
+#include <dwarfs/sorted_array_map.h>
 #include <dwarfs/string.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/util.h>
@@ -92,8 +93,10 @@ enum class input_mode {
   from_stdin,
 };
 
-constexpr std::array<input_mode, 2> const input_modes = {
-    input_mode::from_file, input_mode::from_stdin};
+constexpr std::array input_modes{
+    input_mode::from_file,
+    input_mode::from_stdin,
+};
 
 std::ostream& operator<<(std::ostream& os, input_mode m) {
   switch (m) {
@@ -102,6 +105,30 @@ std::ostream& operator<<(std::ostream& os, input_mode m) {
     break;
   case input_mode::from_stdin:
     os << "from_stdin";
+    break;
+  }
+  return os;
+}
+
+enum class path_type {
+  relative,
+  absolute,
+  mixed,
+};
+
+constexpr std::array path_types{path_type::relative, path_type::absolute,
+                                path_type::mixed};
+
+std::ostream& operator<<(std::ostream& os, path_type m) {
+  switch (m) {
+  case path_type::relative:
+    os << "relative";
+    break;
+  case path_type::absolute:
+    os << "absolute";
+    break;
+  case path_type::mixed:
+    os << "mixed";
     break;
   }
   return os;
@@ -595,13 +622,21 @@ TEST(dwarfsextract_test, perfmon_trace) {
 }
 #endif
 
-class mkdwarfs_input_list_test : public testing::TestWithParam<input_mode> {};
+class mkdwarfs_input_list_test
+    : public testing::TestWithParam<std::tuple<input_mode, path_type>> {};
 
 TEST_P(mkdwarfs_input_list_test, basic) {
-  auto mode = GetParam();
-  std::string const image_file = "test.dwarfs";
-  std::string const input_list = "somelink\nfoo.pl\nsomedir/ipsum.py\n";
+  using namespace std::string_view_literals;
+  static constexpr sorted_array_map input_lists{
+      std::pair{path_type::absolute,
+                "/somelink\n/foo.pl\n/somedir/ipsum.py\n"sv},
+      std::pair{path_type::relative, "somelink\nfoo.pl\nsomedir/ipsum.py\n"sv},
+      std::pair{path_type::mixed, "somelink\n/foo.pl\nsomedir/ipsum.py\n"sv},
+  };
 
+  auto [mode, type] = GetParam();
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list{input_lists.at(type)};
   mkdwarfs_tester t;
   std::string input_file;
 
@@ -613,7 +648,14 @@ TEST_P(mkdwarfs_input_list_test, basic) {
     t.iol->set_in(input_list);
   }
 
-  ASSERT_EQ(0, t.run({"--input-list", input_file, "-o", image_file}));
+  std::vector<std::string> args = {"--input-list", input_file, "-o", image_file,
+                                   "--log-level=trace"};
+  if (type != path_type::relative) {
+    args.push_back("-i");
+    args.push_back("/");
+  }
+
+  ASSERT_EQ(0, t.run(args)) << t.err();
 
   std::ostringstream oss;
   t.add_stream_logger(oss, logger::DEBUG);
@@ -642,8 +684,118 @@ TEST_P(mkdwarfs_input_list_test, basic) {
   EXPECT_EQ(expected, actual);
 }
 
+TEST_P(mkdwarfs_input_list_test, with_abs_input_dir) {
+  using namespace std::string_view_literals;
+  static constexpr sorted_array_map input_lists{
+      std::pair{path_type::absolute,
+                "/somedir/ipsum.py\n/somedir/empty\n/foo/bar\n"sv},
+      std::pair{path_type::relative, "ipsum.py\nempty\n"sv},
+      std::pair{path_type::mixed, "/somedir/ipsum.py\nempty\n"sv},
+  };
+
+  auto [mode, type] = GetParam();
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list{input_lists.at(type)};
+  mkdwarfs_tester t;
+  std::string input_file;
+
+  if (mode == input_mode::from_file) {
+    input_file = "input_list.txt";
+    t.fa->set_file(input_file, input_list);
+  } else {
+    input_file = "-";
+    t.iol->set_in(input_list);
+  }
+
+  ASSERT_EQ(0, t.run({"--input-list", input_file, "-i", "/somedir", "-o",
+                      image_file, "--log-level=trace"}))
+      << t.err();
+
+  if (type == path_type::absolute) {
+    EXPECT_THAT(
+        t.err(),
+        ::testing::HasSubstr(
+            "ignoring path '/foo/bar' not below input path '/somedir'"));
+  } else {
+    EXPECT_THAT(t.err(), ::testing::Not(::testing::HasSubstr("ignoring path")));
+  }
+
+  std::ostringstream oss;
+  t.add_stream_logger(oss, logger::DEBUG);
+
+  auto fs = t.fs_from_file(image_file);
+
+  auto ipsum = fs.find("/ipsum.py");
+  auto empty = fs.find("/empty");
+
+  ASSERT_TRUE(ipsum);
+  ASSERT_TRUE(empty);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
+  EXPECT_TRUE(empty->inode().is_regular_file());
+
+  std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
+  std::set<fs::path> actual;
+  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+  EXPECT_EQ(expected, actual);
+}
+
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_input_list_test,
-                         ::testing::ValuesIn(input_modes));
+                         ::testing::Combine(::testing::ValuesIn(input_modes),
+                                            ::testing::ValuesIn(path_types)));
+
+TEST(mkdwarfs_test, input_list_with_rel_input_dir) {
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list = "ipsum.py\nempty\n";
+  mkdwarfs_tester t;
+
+  t.iol->set_in(input_list);
+
+  ASSERT_EQ(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
+                      "--log-level=trace"}))
+      << t.err();
+
+  std::ostringstream oss;
+  t.add_stream_logger(oss, logger::DEBUG);
+
+  auto fs = t.fs_from_file(image_file);
+
+  auto ipsum = fs.find("/ipsum.py");
+  auto empty = fs.find("/empty");
+
+  ASSERT_TRUE(ipsum);
+  ASSERT_TRUE(empty);
+
+  EXPECT_FALSE(fs.find("/test.pl"));
+
+  EXPECT_TRUE(ipsum->inode().is_regular_file());
+  EXPECT_TRUE(empty->inode().is_regular_file());
+
+  std::set<fs::path> const expected = {"", "ipsum.py", "empty"};
+  std::set<fs::path> actual;
+  fs.walk([&](auto const& e) { actual.insert(e.fs_path()); });
+
+  EXPECT_EQ(expected, actual);
+}
+
+TEST(mkdwarfs_test, input_list_abs_list_path_requires_abs_root_dir) {
+  std::string const image_file = "test.dwarfs";
+  std::string const input_list = "/ipsum.py\n";
+  mkdwarfs_tester t;
+
+  t.iol->set_in(input_list);
+
+  EXPECT_NE(0, t.run({"--input-list", "-", "-i", "somedir", "-o", image_file,
+                      "--log-level=trace"}))
+      << t.err();
+
+  EXPECT_THAT(t.err(), ::testing::HasSubstr(
+                           "absolute paths in input list require absolute "
+                           "input path, but input path is 'somedir'"));
+}
 
 TEST(mkdwarfs_test, input_list_large) {
   auto t = mkdwarfs_tester::create_empty();

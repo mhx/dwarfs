@@ -60,6 +60,7 @@
 #include <dwarfs/conv.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/file_util.h>
+#include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
 #include <dwarfs/xattr.h>
 
@@ -1814,3 +1815,116 @@ TEST(tools_test, mkdwarfs_invalid_utf8_filename) {
   EXPECT_TRUE(fs::exists(ext2 / L"invalid\ufffd.txt"));
 }
 #endif
+
+namespace {
+
+enum class path_type {
+  relative,
+  absolute,
+};
+
+constexpr std::array path_types{path_type::relative, path_type::absolute};
+
+std::ostream& operator<<(std::ostream& os, path_type m) {
+  switch (m) {
+  case path_type::relative:
+    os << "relative";
+    break;
+  case path_type::absolute:
+    os << "absolute";
+    break;
+  }
+  return os;
+}
+
+} // namespace
+
+class mkdwarfs_tool_input_list
+    : public testing::TestWithParam<std::tuple<path_type, bool>> {};
+
+TEST_P(mkdwarfs_tool_input_list, basic) {
+  static constexpr std::string_view newline{
+#ifdef _WIN32
+      "\r\n"
+#else
+      "\n"
+#endif
+  };
+
+  auto [type, explicit_input] = GetParam();
+
+  dwarfs::temporary_directory tempdir("dwarfs");
+  auto td = tempdir.path();
+  auto input = td / "input";
+  auto output = td / "test.dwarfs";
+
+  auto cwd = fs::current_path();
+  fs::current_path(td);
+  dwarfs::scope_exit reset_cwd([&] { fs::current_path(cwd); });
+
+  ASSERT_TRUE(fs::create_directory(input));
+
+  ASSERT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", test_data_dwarfs,
+                                    "-o", input));
+
+  std::ostringstream files;
+
+  for (auto const& entry : fs::recursive_directory_iterator(input / "foo")) {
+    if (entry.is_regular_file()) {
+      auto const& p = entry.path();
+      if (p.extension() == ".sh") {
+        if (type == path_type::relative) {
+          if (explicit_input) {
+            files << p.lexically_relative(input).string() << newline;
+          } else {
+            files << p.lexically_relative(td).string() << newline;
+          }
+        } else {
+          files << p.string() << newline;
+        }
+      }
+    }
+  }
+
+  auto filelist = td / "filelist.txt";
+  dwarfs::write_file(filelist, files.str());
+
+  {
+    std::vector<std::string> args{"--input-list", filelist.string(), "-o",
+                                  output.string()};
+    if (explicit_input) {
+      args.push_back("-i");
+      args.push_back(input.lexically_relative(td).string());
+    }
+
+    auto [out, err, ec] = subprocess::run(mkdwarfs_bin, args);
+    ASSERT_EQ(0, ec) << out << err;
+  }
+
+  auto extracted = td / "extracted";
+  ASSERT_TRUE(fs::create_directory(extracted));
+  EXPECT_TRUE(subprocess::check_run(dwarfsextract_bin, "-i", output.string(),
+                                    "-o", extracted.string()));
+
+  std::set<fs::path> extracted_files;
+  for (auto const& entry : fs::recursive_directory_iterator(extracted)) {
+    if (entry.is_regular_file()) {
+      extracted_files.insert(entry.path().lexically_relative(extracted));
+    }
+  }
+
+  auto base = explicit_input ? fs::path{"foo"} : fs::path{"input"} / "foo";
+
+  std::set<fs::path> const expected_files{
+      base / "bla.sh",
+      base / "1" / "fmt.sh",
+      base / "1" / "2" / "xxx.sh",
+      base / "1" / "2" / "3" / "copy.sh",
+  };
+
+  EXPECT_EQ(extracted_files, expected_files) << files.str();
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_tool_input_list,
+                         ::testing::Combine(::testing::ValuesIn(path_types),
+                                            ::testing::Bool()));
