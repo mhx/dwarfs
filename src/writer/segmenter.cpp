@@ -507,11 +507,13 @@ using MultiBlockSegmentationPolicy =
     BasicSegmentationPolicy<GranularityPolicy, true, true>;
 
 template <typename T, typename GranularityPolicy>
-class granular_vector_adapter : private GranularityPolicy {
+class basic_granular_container_adapter : private GranularityPolicy {
  public:
+  using value_type = typename T::value_type;
+
   template <typename... PolicyArgs>
   DWARFS_FORCE_INLINE
-  granular_vector_adapter(std::vector<T>& v, PolicyArgs&&... args)
+  basic_granular_container_adapter(T& v, PolicyArgs&&... args)
       : GranularityPolicy(std::forward<PolicyArgs>(args)...)
       , v_{v} {}
 
@@ -519,8 +521,8 @@ class granular_vector_adapter : private GranularityPolicy {
     return this->bytes_to_frames(v_.size());
   }
 
-  DWARFS_FORCE_INLINE void
-  append(granular_span_adapter<T const, GranularityPolicy> const& span) {
+  DWARFS_FORCE_INLINE void append(
+      granular_span_adapter<value_type const, GranularityPolicy> const& span) {
     auto raw = span.raw();
     auto off = v_.size();
     v_.resize(off + raw.size());
@@ -529,7 +531,8 @@ class granular_vector_adapter : private GranularityPolicy {
 
   DWARFS_FORCE_INLINE int
   compare(size_t offset,
-          granular_span_adapter<T const, GranularityPolicy> const& span) const {
+          granular_span_adapter<value_type const, GranularityPolicy> const&
+              span) const {
     auto raw = span.raw();
     return std::memcmp(v_.data() + this->frames_to_bytes(offset), raw.data(),
                        raw.size());
@@ -537,21 +540,30 @@ class granular_vector_adapter : private GranularityPolicy {
 
   template <typename H>
   DWARFS_FORCE_INLINE void update_hash(H& hasher, size_t offset) const {
-    offset = this->frames_to_bytes(offset);
-    this->for_bytes_in_frame([&] { hasher.update(v_[offset++]); });
+    auto p = v_.data() + this->frames_to_bytes(offset);
+    this->for_bytes_in_frame([&] { hasher.update(*p++); });
   }
 
   template <typename H>
   DWARFS_FORCE_INLINE void
   update_hash(H& hasher, size_t from, size_t to) const {
-    from = this->frames_to_bytes(from);
-    to = this->frames_to_bytes(to);
-    this->for_bytes_in_frame([&] { hasher.update(v_[from++], v_[to++]); });
+    auto const p = v_.data();
+    auto pfrom = p + this->frames_to_bytes(from);
+    auto pto = p + this->frames_to_bytes(to);
+    this->for_bytes_in_frame([&] { hasher.update(*pfrom++, *pto++); });
   }
 
  private:
-  std::vector<T>& v_;
+  T& v_;
 };
+
+template <typename T, typename GranularityPolicy>
+using granular_vector_adapter =
+    basic_granular_container_adapter<std::vector<T>, GranularityPolicy>;
+
+template <typename GranularityPolicy>
+using granular_byte_buffer_adapter =
+    basic_granular_container_adapter<mutable_byte_buffer, GranularityPolicy>;
 
 template <typename LoggerPolicy, typename GranularityPolicy>
 class active_block : private GranularityPolicy {
@@ -882,6 +894,10 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
 
   auto v = this->template create<
       granular_vector_adapter<uint8_t, GranularityPolicy>>(data_.raw_vector());
+
+  // TODO: this works in theory, but slows down the segmenter by almost 10%
+  // auto v = this->template create<
+  //     granular_byte_buffer_adapter<GranularityPolicy>>(data_);
 
   auto offset = v.size();
 
