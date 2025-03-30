@@ -314,7 +314,7 @@ class scanner_ final : public scanner::impl {
   std::shared_ptr<entry> scan_tree(std::filesystem::path const& path,
                                    progress& prog, file_scanner& fs);
 
-  std::shared_ptr<entry> scan_list(std::filesystem::path const& path,
+  std::shared_ptr<entry> scan_list(std::filesystem::path const& rootpath,
                                    std::span<std::filesystem::path const> list,
                                    progress& prog, file_scanner& fs);
 
@@ -564,9 +564,9 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 
       prog.dirs_scanned++;
     } catch (std::system_error const& e) {
-      LOG_ERROR << "cannot read directory `"
+      LOG_ERROR << "cannot read directory '"
                 << path_to_utf8_string_sanitized(ppath)
-                << "`: " << exception_str(e);
+                << "': " << exception_str(e);
       prog.errors++;
     }
   }
@@ -576,7 +576,7 @@ scanner_<LoggerPolicy>::scan_tree(std::filesystem::path const& path,
 
 template <typename LoggerPolicy>
 std::shared_ptr<entry>
-scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
+scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& rootpath,
                                   std::span<std::filesystem::path const> list,
                                   progress& prog, file_scanner& fs) {
   if (!filters_.empty()) {
@@ -585,11 +585,15 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
   auto ti = LOG_TIMED_INFO;
 
-  auto root = entry_factory_.create(os_, path);
+  LOG_DEBUG << "creating root directory '"
+            << path_to_utf8_string_sanitized(rootpath) << "'";
+
+  auto root = entry_factory_.create(os_, rootpath);
 
   if (root->type() != entry::E_DIR) {
     DWARFS_THROW(runtime_error,
-                 fmt::format("'{}' must be a directory", path.string()));
+                 fmt::format("'{}' must be a directory",
+                             path_to_utf8_string_sanitized(rootpath)));
   }
 
   for (auto const& t : transformers_) {
@@ -598,22 +602,31 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
   auto ensure_path = [this, &prog, &fs](std::filesystem::path const& path,
                                         std::shared_ptr<entry> root) {
-    for (auto const& p : path) {
+    LOG_TRACE << "ensuring path '" << path_to_utf8_string_sanitized(path)
+              << "'";
+
+    for (auto const& component : path) {
+      LOG_TRACE << "checking '" << path_to_utf8_string_sanitized(component)
+                << "'";
       if (auto d = std::dynamic_pointer_cast<dir>(root)) {
-        if (auto e = d->find(p.string())) {
+        if (auto e = d->find(component.string())) {
           root = e;
         } else {
-          root = add_entry(p, d, prog, fs);
+          LOG_DEBUG << "adding directory '"
+                    << path_to_utf8_string_sanitized(component) << "'";
+          root = add_entry(d->fs_path() / component, d, prog, fs);
           if (root && root->type() == entry::E_DIR) {
             prog.dirs_scanned++;
           } else {
             DWARFS_THROW(runtime_error,
-                         fmt::format("invalid path '{}'", path.string()));
+                         fmt::format("invalid path '{}'",
+                                     path_to_utf8_string_sanitized(path)));
           }
         }
       } else {
         DWARFS_THROW(runtime_error,
-                     fmt::format("invalid path '{}'", path.string()));
+                     fmt::format("invalid path '{}'",
+                                 path_to_utf8_string_sanitized(path)));
       }
     }
 
@@ -622,28 +635,68 @@ scanner_<LoggerPolicy>::scan_list(std::filesystem::path const& path,
 
   std::unordered_map<std::string, std::shared_ptr<dir>> dir_cache;
 
-  for (auto const& p : list) {
-    auto pp = p.parent_path();
+  for (auto const& listpath : list) {
+    std::filesystem::path relpath;
+
+    if (listpath.has_root_directory()) {
+      if (!rootpath.has_root_directory()) {
+        std::string rootpath_str;
+        if (rootpath.empty()) {
+          rootpath_str = "empty";
+        } else {
+          rootpath_str = "'" + path_to_utf8_string_sanitized(rootpath) + "'";
+        }
+        DWARFS_THROW(runtime_error,
+                     fmt::format("absolute paths in input list require "
+                                 "absolute input path, but input path is {}",
+                                 rootpath_str));
+      }
+
+      auto mm = std::ranges::mismatch(listpath, rootpath);
+
+      if (mm.in2 == rootpath.end()) {
+        relpath = listpath.lexically_relative(rootpath);
+      } else {
+        LOG_ERROR << "ignoring path '"
+                  << path_to_utf8_string_sanitized(listpath)
+                  << "' not below input path '"
+                  << path_to_utf8_string_sanitized(rootpath) << "'";
+        continue;
+      }
+    } else {
+      relpath = listpath;
+    }
+
+    auto parent = relpath.parent_path();
     std::shared_ptr<dir> pd;
 
-    if (auto it = dir_cache.find(pp.string()); it != dir_cache.end()) {
+    LOG_TRACE << "adding path '" << path_to_utf8_string_sanitized(relpath)
+              << "' (parent: " << parent
+              << ", root: " << path_to_utf8_string_sanitized(rootpath)
+              << ", orig: " << path_to_utf8_string_sanitized(listpath) << ")";
+
+    if (auto it = dir_cache.find(parent.string()); it != dir_cache.end()) {
       pd = it->second;
     } else {
-      pd = std::dynamic_pointer_cast<dir>(ensure_path(pp, root));
+      pd = std::dynamic_pointer_cast<dir>(ensure_path(parent, root));
 
       if (pd) {
-        dir_cache.emplace(pp.string(), pd);
+        dir_cache.emplace(parent.string(), pd);
       } else {
         DWARFS_THROW(runtime_error,
-                     fmt::format("invalid path '{}'", p.string()));
+                     fmt::format("invalid path '{}'",
+                                 path_to_utf8_string_sanitized(listpath)));
       }
     }
 
-    if (auto pe = pd->find(p)) {
+    if (auto pe = pd->find(relpath)) {
       continue;
     }
 
-    if (auto pe = add_entry(p, pd, prog, fs)) {
+    LOG_TRACE << "adding entry '"
+              << path_to_utf8_string_sanitized(rootpath / relpath) << "'";
+
+    if (auto pe = add_entry(rootpath / relpath, pd, prog, fs)) {
       if (pe->type() == entry::E_DIR) {
         prog.dirs_scanned++;
       }

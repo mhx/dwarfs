@@ -846,7 +846,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     input_list.emplace();
 
     while (std::getline(*is, line)) {
-      input_list->emplace_back(line);
+      std::filesystem::path p(line);
+      if (p.has_root_directory()) {
+        p = iol.os->canonical(p);
+      }
+      input_list->emplace_back(std::move(p));
     }
   }
 
