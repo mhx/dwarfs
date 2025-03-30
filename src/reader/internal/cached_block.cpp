@@ -76,7 +76,9 @@ class cached_block_ final : public cached_block {
   // once the block is fully decompressed, we can reset the decompressor_
 
   // This can be called from any thread
-  size_t range_end() const override { return range_end_.load(); }
+  size_t range_end() const override {
+    return range_end_.load(std::memory_order_acquire);
+  }
 
   // TODO: The code relies on the fact that the data_ buffer is never
   // reallocated once block decompression has started. I would like to
@@ -84,7 +86,9 @@ class cached_block_ final : public cached_block {
   uint8_t const* data() const override { return data_.data(); }
 
   void decompress_until(size_t end) override {
-    while (data_.size() < end) {
+    auto pos = data_.size();
+
+    while (pos < end) {
       if (!decompressor_) {
         DWARFS_THROW(runtime_error, "no decompressor for block");
       }
@@ -97,7 +101,13 @@ class cached_block_ final : public cached_block {
         try_release();
       }
 
-      range_end_ = data_.size();
+      if (pos == 0) {
+        // Freeze the location of the data buffer
+        data_.freeze_location();
+      }
+
+      pos = data_.size();
+      range_end_.store(pos, std::memory_order_release);
     }
   }
 

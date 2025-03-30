@@ -61,6 +61,10 @@ class mutable_byte_buffer_interface : public byte_buffer_interface {
   virtual void resize(size_t size) = 0;
   virtual void shrink_to_fit() = 0;
 
+  // Freezes the location of the buffer in memory, i.e. all further calls
+  // that would reallocate the buffer will throw.
+  virtual void freeze_location() = 0;
+
   // TODO: See if we can do without this. This will *only* be implemented
   //       in the vector_byte_buffer, other implementations will throw.
   virtual std::vector<uint8_t>& raw_vector() = 0;
@@ -146,6 +150,8 @@ class mutable_byte_buffer {
   void resize(size_t size) { bb_->resize(size); }
 
   void shrink_to_fit() { bb_->shrink_to_fit(); }
+
+  void freeze_location() { bb_->freeze_location(); }
 
   std::vector<uint8_t>& raw_vector() { return bb_->raw_vector(); }
 
