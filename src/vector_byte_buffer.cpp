@@ -41,6 +41,8 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
 
   size_t size() const override { return data_.size(); }
 
+  size_t capacity() const override { return data_.capacity(); }
+
   uint8_t const* data() const override { return data_.data(); }
 
   uint8_t* mutable_data() override { return data_.data(); }
