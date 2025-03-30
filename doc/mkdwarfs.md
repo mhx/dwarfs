@@ -33,12 +33,17 @@ There are two mandatory options for specifying the input and output:
 
 - `--input-list=`*file*|`-`:
   Read list of file paths to add to the file system from this file or from stdin.
-  The path names will be interpreted relative to the path given with `--input`.
-  If `--input` is omitted, the path names will be interpreted relative to the
-  current directory. If you want files to be stored in the exact same order
-  as read from this list (because, for example, you have already sorted them
-  by similarity or access frequency), you must also pass `--order=none`.
-  This option implicitly enables both `--with-devices` and `--with-specials`.
+  If the paths in the file are relative, they will be interpreted relative to
+  the path given with `--input`. If `--input` is omitted, the path names will be
+  interpreted relative to the current directory. If the paths in the file are
+  absolute, `--input` must be an absolute path that is a prefix to all absolute
+  paths in the file. If `--input` is omitted, the absolute path to the current
+  directory will be used. Any absolute paths in the file for which the `--input`
+  path is not a prefix will be ignored with an error message. If you want files
+  to be stored in the exact same order as read from this list (because, for
+  example, you have already sorted them by similarity or access frequency), you
+  must also pass `--order=none`. This option implicitly enables both
+  `--with-devices` and `--with-specials`.
 
 - `-o`, `--output=`*file*|`-`:
   File name of the output filesystem or `-` to write the filesystem to stdout.
