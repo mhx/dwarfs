@@ -19,6 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <atomic>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <dwarfs/vector_byte_buffer.h>
@@ -55,18 +59,51 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
     return {data_.data(), data_.size()};
   }
 
-  void clear() override { data_.clear(); }
+  void clear() override {
+    assert_not_frozen("clear");
+    data_.clear();
+  }
 
-  void reserve(size_t size) override { data_.reserve(size); }
+  void reserve(size_t size) override {
+    assert_not_frozen("reserve");
+    data_.reserve(size);
+  }
 
-  void resize(size_t size) override { data_.resize(size); }
+  void resize(size_t size) override {
+    if (frozen() && size > data_.capacity()) {
+      frozen_error("resize beyond capacity");
+    }
+    data_.resize(size);
+  }
 
-  void shrink_to_fit() override { data_.shrink_to_fit(); }
+  void shrink_to_fit() override {
+    assert_not_frozen("shrink_to_fit");
+    data_.shrink_to_fit();
+  }
+
+  void freeze_location() override {
+    frozen_.store(true, std::memory_order_release);
+  }
 
   std::vector<uint8_t>& raw_vector() override { return data_; }
 
  private:
+  void assert_not_frozen(std::string_view what) const {
+    if (frozen()) {
+      frozen_error(what);
+    }
+  }
+
+  void frozen_error(std::string_view what) const {
+    throw std::runtime_error("operation not allowed on frozen buffer: " +
+                             std::string{what});
+  }
+
+  bool frozen() const { return frozen_.load(std::memory_order_acquire); }
+
   std::vector<uint8_t> data_;
+  std::atomic<bool> frozen_{false};
+  static_assert(std::atomic<bool>::is_always_lock_free);
 };
 
 } // namespace
