@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <dwarfs/byte_buffer.h>
+#include <dwarfs/byte_buffer_factory.h>
 #include <dwarfs/compression.h>
 #include <dwarfs/compression_constraints.h>
 
@@ -112,6 +113,7 @@ class block_decompressor {
   block_decompressor(compression_type type, std::span<uint8_t const> data);
 
   shared_byte_buffer start_decompression(mutable_byte_buffer target);
+  shared_byte_buffer start_decompression(byte_buffer_factory const& bbf);
 
   bool decompress_frame(size_t frame_size = BUFSIZ) {
     return impl_->decompress_frame(frame_size);

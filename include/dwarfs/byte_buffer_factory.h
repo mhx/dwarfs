@@ -21,44 +21,34 @@
 
 #pragma once
 
-#include <chrono>
-#include <cstdint>
 #include <memory>
-#include <vector>
+
+#include <dwarfs/byte_buffer.h>
 
 namespace dwarfs {
 
-class byte_buffer_factory;
-class logger;
-class mmif;
-
-namespace internal {
-
-class fs_section;
-
-}
-
-namespace reader::internal {
-
-class cached_block {
+class byte_buffer_factory_interface {
  public:
-  static std::unique_ptr<cached_block>
-  create(logger& lgr, dwarfs::internal::fs_section const& b,
-         std::shared_ptr<mmif> mm, byte_buffer_factory const& bbf, bool release,
-         bool disable_integrity_check);
+  virtual ~byte_buffer_factory_interface() = default;
 
-  virtual ~cached_block() = default;
-
-  virtual size_t range_end() const = 0;
-  virtual uint8_t const* data() const = 0;
-  virtual void decompress_until(size_t end) = 0;
-  virtual size_t uncompressed_size() const = 0;
-  virtual void touch() = 0;
-  virtual bool
-  last_used_before(std::chrono::steady_clock::time_point tp) const = 0;
-  virtual bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const = 0;
+  virtual mutable_byte_buffer
+  create_mutable_fixed_reserve(size_t size) const = 0;
 };
 
-} // namespace reader::internal
+class byte_buffer_factory {
+ public:
+  byte_buffer_factory() = default;
+
+  explicit byte_buffer_factory(
+      std::shared_ptr<byte_buffer_factory_interface> impl)
+      : impl_{std::move(impl)} {}
+
+  mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const {
+    return impl_->create_mutable_fixed_reserve(size);
+  }
+
+ private:
+  std::shared_ptr<byte_buffer_factory_interface> impl_;
+};
 
 } // namespace dwarfs

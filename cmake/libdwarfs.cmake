@@ -46,6 +46,7 @@ add_library(
   src/util.cpp
   src/varint.cpp
   src/vector_byte_buffer.cpp
+  src/vector_byte_buffer_factory.cpp
   src/xattr.cpp
 
   src/internal/features.cpp

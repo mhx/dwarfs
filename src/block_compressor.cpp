@@ -63,6 +63,12 @@ block_decompressor::start_decompression(mutable_byte_buffer target) {
   return target.share();
 }
 
+shared_byte_buffer
+block_decompressor::start_decompression(byte_buffer_factory const& bbf) {
+  auto target = bbf.create_mutable_fixed_reserve(impl_->uncompressed_size());
+  return start_decompression(target);
+}
+
 compression_registry& compression_registry::instance() {
   static compression_registry the_instance;
   return the_instance;

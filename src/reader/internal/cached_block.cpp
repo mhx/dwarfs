@@ -29,7 +29,6 @@
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/reader/internal/cached_block.h>
@@ -46,10 +45,11 @@ class cached_block_ final : public cached_block {
   static inline std::atomic<size_t> instance_count_{0};
 
   cached_block_(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-                bool release, bool disable_integrity_check)
+                byte_buffer_factory const& buffer_factory, bool release,
+                bool disable_integrity_check)
       : decompressor_{std::make_unique<block_decompressor>(
             b.compression(), mm->span<uint8_t>(b.start(), b.length()))}
-      , data_{decompressor_->start_decompression(vector_byte_buffer::create())}
+      , data_{decompressor_->start_decompression(buffer_factory)}
       , mm_(std::move(mm))
       , section_(b)
       , LOG_PROXY_INIT(lgr)
@@ -158,10 +158,11 @@ class cached_block_ final : public cached_block {
 
 std::unique_ptr<cached_block>
 cached_block::create(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
-                     bool release, bool disable_integrity_check) {
+                     byte_buffer_factory const& bbf, bool release,
+                     bool disable_integrity_check) {
   return make_unique_logging_object<cached_block, cached_block_,
                                     logger_policies>(
-      lgr, b, std::move(mm), release, disable_integrity_check);
+      lgr, b, std::move(mm), bbf, release, disable_integrity_check);
 }
 
 } // namespace dwarfs::reader::internal

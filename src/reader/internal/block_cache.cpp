@@ -48,6 +48,7 @@
 #include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
+#include <dwarfs/vector_byte_buffer_factory.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
@@ -223,6 +224,7 @@ class block_cache_ final : public block_cache::impl {
                [[maybe_unused]])
       : cache_(0)
       , mm_(std::move(mm))
+      , buffer_factory_{vector_byte_buffer_factory::create()}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "block_cache")
@@ -569,7 +571,8 @@ class block_cache_ final : public block_cache::impl {
     try {
       std::shared_ptr<cached_block> block = cached_block::create(
           LOG_GET_LOGGER, DWARFS_NOTHROW(block_.at(block_no)), mm_,
-          options_.mm_release, options_.disable_block_integrity_check);
+          buffer_factory_, options_.mm_release,
+          options_.disable_block_integrity_check);
       blocks_created_.fetch_add(1, std::memory_order_relaxed);
 
       // Make a new set for the block
@@ -804,6 +807,7 @@ class block_cache_ final : public block_cache::impl {
   mutable worker_group wg_;
   std::vector<fs_section> block_;
   std::shared_ptr<mmif> mm_;
+  byte_buffer_factory buffer_factory_;
   LOG_PROXY_DECL(LoggerPolicy);
   PERFMON_CLS_PROXY_DECL
   PERFMON_CLS_TIMER_DECL(get)
