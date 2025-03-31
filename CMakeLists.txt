@@ -585,15 +585,14 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
     target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
     list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
+
+    add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
+    target_link_libraries(segmenter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
+    target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
+    list(APPEND BENCHMARK_TARGETS segmenter_benchmark)
+
+    list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
   endif()
-
-  # TODO: migrate to benchmark?
-  add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
-  target_link_libraries(segmenter_benchmark PRIVATE dwarfs_follybenchmark_lite dwarfs_test_helpers)
-  target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
-  list(APPEND BENCHMARK_TARGETS segmenter_benchmark)
-
-  list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
 endif()
 
 if(WITH_LIBDWARFS AND WITH_FUZZ)
