@@ -27,8 +27,10 @@
 
 #if __has_include(<boost/process/v1/search_path.hpp>)
 #include <boost/process/v1/search_path.hpp>
+#define DWARFS_BOOST_PROCESS_SEARCH_PATH_V1 1
 #else
 #include <boost/process/search_path.hpp>
+#define DWARFS_BOOST_PROCESS_SEARCH_PATH_V1 0
 #endif
 
 #ifdef __APPLE__
@@ -224,7 +226,12 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
 
 std::filesystem::path
 os_access_generic::find_executable(std::filesystem::path const& name) const {
-  return boost::process::search_path(name.wstring()).wstring();
+#if DWARFS_BOOST_PROCESS_SEARCH_PATH_V1
+  using boost::process::v1::search_path;
+#else
+  using boost::process::search_path;
+#endif
+  return search_path(name.wstring()).wstring();
 }
 
 } // namespace dwarfs
