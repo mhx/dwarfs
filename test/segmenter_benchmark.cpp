@@ -22,7 +22,7 @@
 #include <random>
 #include <vector>
 
-#include <folly/Benchmark.h>
+#include <benchmark/benchmark.h>
 
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/writer/segmenter.h>
@@ -117,12 +117,10 @@ build_data(size_t total_size, size_t granularity, double dupe_fraction,
   return data;
 }
 
-void run_segmenter_test(unsigned iters, unsigned granularity,
-                        unsigned window_size, unsigned block_size,
-                        unsigned bloom_filter_size, unsigned lookback,
-                        double dupe_fraction) {
-  folly::BenchmarkSuspender suspender;
-
+void run_segmenter_benchmark(::benchmark::State& state, unsigned granularity,
+                             unsigned window_size, unsigned block_size,
+                             unsigned bloom_filter_size, unsigned lookback,
+                             double dupe_fraction) {
   dwarfs::writer::segmenter::config cfg;
   cfg.blockhash_window_size = window_size;
   cfg.window_increment_shift = 1;
@@ -139,12 +137,14 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
       build_data(total_size, granularity, dupe_fraction,
                  {2 * granularity * (size_t(1) << window_size)}));
 
-  for (unsigned i = 0; i < iters; ++i) {
+  std::vector<dwarfs::shared_byte_buffer> written;
+  size_t segmented{0};
+
+  for (auto _ : state) {
     dwarfs::test::test_logger lgr;
     dwarfs::writer::writer_progress prog;
     auto blkmgr = std::make_shared<dwarfs::writer::internal::block_manager>();
-
-    std::vector<dwarfs::shared_byte_buffer> written;
+    written.clear();
 
     dwarfs::writer::segmenter seg(
         lgr, prog, blkmgr, cfg, cc, total_size,
@@ -155,22 +155,22 @@ void run_segmenter_test(unsigned iters, unsigned granularity,
           blkmgr->set_written_block(logical_block_num, physical_block_num, 0);
         });
 
-    suspender.dismiss();
+    // begin benchmarking code
 
     seg.add_chunkable(bc);
     seg.finish();
 
-    suspender.rehire();
-
-    size_t segmented [[maybe_unused]]{0};
+    // end benchmarking code
 
     for (auto const& blk : written) {
       segmented += blk.size();
     }
-
-    // std::cerr << total_size << " -> " << segmented << fmt::format("
-    // ({:.1f}%)", 100.0*segmented/total_size) << std::endl;
   }
+
+  state.SetBytesProcessed(state.iterations() * total_size);
+  state.SetLabel(fmt::format(
+      "-- {:.1f} MiB -> {:.1f} MiB ({:.1f}%)", total_size / (1024.0 * 1024.0),
+      segmented / (1024.0 * 1024.0), 100.0 * segmented / total_size));
 }
 
 constexpr unsigned const kDefaultGranularity{1};
@@ -180,97 +180,86 @@ constexpr unsigned const kDefaultBloomFilterSize{4};
 constexpr unsigned const kDefaultLookback{1};
 constexpr double const kDefaultDupeFraction{0.3};
 
-void run_granularity(unsigned iters, unsigned granularity) {
-  run_segmenter_test(iters, granularity, kDefaultWindowSize, kDefaultBlockSize,
-                     kDefaultBloomFilterSize, kDefaultLookback,
-                     kDefaultDupeFraction);
+template <unsigned Granularity>
+void granularity(::benchmark::State& state) {
+  run_segmenter_benchmark(state, Granularity, kDefaultWindowSize,
+                          kDefaultBlockSize, kDefaultBloomFilterSize,
+                          kDefaultLookback, kDefaultDupeFraction);
 }
 
-void run_window_size(unsigned iters, unsigned window_size) {
-  run_segmenter_test(iters, kDefaultGranularity, window_size, kDefaultBlockSize,
-                     kDefaultBloomFilterSize, kDefaultLookback,
-                     kDefaultDupeFraction);
+template <unsigned WindowSize>
+void window_size(::benchmark::State& state) {
+  run_segmenter_benchmark(state, kDefaultGranularity, WindowSize,
+                          kDefaultBlockSize, kDefaultBloomFilterSize,
+                          kDefaultLookback, kDefaultDupeFraction);
 }
 
-void run_block_size(unsigned iters, unsigned block_size) {
-  run_segmenter_test(iters, kDefaultGranularity, kDefaultWindowSize, block_size,
-                     kDefaultBloomFilterSize, kDefaultLookback,
-                     kDefaultDupeFraction);
+template <unsigned BlockSize>
+void block_size(::benchmark::State& state) {
+  run_segmenter_benchmark(state, kDefaultGranularity, kDefaultWindowSize,
+                          BlockSize, kDefaultBloomFilterSize, kDefaultLookback,
+                          kDefaultDupeFraction);
 }
 
-void run_bloom_filter_size(unsigned iters, unsigned bloom_filter_size) {
-  run_segmenter_test(iters, kDefaultGranularity, kDefaultWindowSize,
-                     kDefaultBlockSize, bloom_filter_size, kDefaultLookback,
-                     kDefaultDupeFraction);
+template <unsigned BloomFilterSize>
+void bloom_filter_size(::benchmark::State& state) {
+  run_segmenter_benchmark(state, kDefaultGranularity, kDefaultWindowSize,
+                          kDefaultBlockSize, BloomFilterSize, kDefaultLookback,
+                          kDefaultDupeFraction);
 }
 
-void run_lookback(unsigned iters, unsigned lookback) {
-  run_segmenter_test(iters, kDefaultGranularity, kDefaultWindowSize,
-                     kDefaultBlockSize, kDefaultBloomFilterSize, lookback,
-                     kDefaultDupeFraction);
+template <unsigned Lookback>
+void lookback(::benchmark::State& state) {
+  run_segmenter_benchmark(state, kDefaultGranularity, kDefaultWindowSize,
+                          kDefaultBlockSize, kDefaultBloomFilterSize, Lookback,
+                          kDefaultDupeFraction);
 }
 
-void run_dupe_fraction(unsigned iters, unsigned dupe_fraction) {
-  run_segmenter_test(iters, kDefaultGranularity, kDefaultWindowSize,
-                     kDefaultBlockSize, kDefaultBloomFilterSize,
-                     kDefaultLookback, 0.01 * dupe_fraction);
+template <unsigned DupeFraction>
+void dupe_fraction(::benchmark::State& state) {
+  run_segmenter_benchmark(state, kDefaultGranularity, kDefaultWindowSize,
+                          kDefaultBlockSize, kDefaultBloomFilterSize,
+                          kDefaultLookback, 0.01 * DupeFraction);
 }
 
 } // namespace
 
-BENCHMARK_DRAW_LINE();
+BENCHMARK(granularity<1>)->Unit(benchmark::kMillisecond);
+BENCHMARK(granularity<2>)->Unit(benchmark::kMillisecond);
+BENCHMARK(granularity<3>)->Unit(benchmark::kMillisecond);
+BENCHMARK(granularity<4>)->Unit(benchmark::kMillisecond);
+BENCHMARK(granularity<5>)->Unit(benchmark::kMillisecond);
+BENCHMARK(granularity<6>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_PARAM(run_granularity, 1)
-BENCHMARK_RELATIVE_PARAM(run_granularity, 2)
-BENCHMARK_RELATIVE_PARAM(run_granularity, 3)
-BENCHMARK_RELATIVE_PARAM(run_granularity, 4)
-BENCHMARK_RELATIVE_PARAM(run_granularity, 5)
-BENCHMARK_RELATIVE_PARAM(run_granularity, 6)
+BENCHMARK(window_size<8>)->Unit(benchmark::kMillisecond);
+BENCHMARK(window_size<10>)->Unit(benchmark::kMillisecond);
+BENCHMARK(window_size<12>)->Unit(benchmark::kMillisecond);
+BENCHMARK(window_size<14>)->Unit(benchmark::kMillisecond);
+BENCHMARK(window_size<16>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_DRAW_LINE();
+BENCHMARK(block_size<18>)->Unit(benchmark::kMillisecond);
+BENCHMARK(block_size<20>)->Unit(benchmark::kMillisecond);
+BENCHMARK(block_size<22>)->Unit(benchmark::kMillisecond);
+BENCHMARK(block_size<24>)->Unit(benchmark::kMillisecond);
+BENCHMARK(block_size<26>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_PARAM(run_window_size, 8)
-BENCHMARK_RELATIVE_PARAM(run_window_size, 10)
-BENCHMARK_RELATIVE_PARAM(run_window_size, 12)
-BENCHMARK_RELATIVE_PARAM(run_window_size, 14)
-BENCHMARK_RELATIVE_PARAM(run_window_size, 16)
+BENCHMARK(bloom_filter_size<1>)->Unit(benchmark::kMillisecond);
+BENCHMARK(bloom_filter_size<2>)->Unit(benchmark::kMillisecond);
+BENCHMARK(bloom_filter_size<3>)->Unit(benchmark::kMillisecond);
+BENCHMARK(bloom_filter_size<4>)->Unit(benchmark::kMillisecond);
+BENCHMARK(bloom_filter_size<5>)->Unit(benchmark::kMillisecond);
+BENCHMARK(bloom_filter_size<6>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_DRAW_LINE();
+BENCHMARK(lookback<1>)->Unit(benchmark::kMillisecond);
+BENCHMARK(lookback<2>)->Unit(benchmark::kMillisecond);
+BENCHMARK(lookback<4>)->Unit(benchmark::kMillisecond);
+BENCHMARK(lookback<8>)->Unit(benchmark::kMillisecond);
+BENCHMARK(lookback<16>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_PARAM(run_block_size, 18)
-BENCHMARK_RELATIVE_PARAM(run_block_size, 20)
-BENCHMARK_RELATIVE_PARAM(run_block_size, 22)
-BENCHMARK_RELATIVE_PARAM(run_block_size, 24)
-BENCHMARK_RELATIVE_PARAM(run_block_size, 26)
+BENCHMARK(dupe_fraction<0>)->Unit(benchmark::kMillisecond);
+BENCHMARK(dupe_fraction<20>)->Unit(benchmark::kMillisecond);
+BENCHMARK(dupe_fraction<40>)->Unit(benchmark::kMillisecond);
+BENCHMARK(dupe_fraction<60>)->Unit(benchmark::kMillisecond);
+BENCHMARK(dupe_fraction<80>)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_DRAW_LINE();
-
-BENCHMARK_PARAM(run_bloom_filter_size, 1)
-BENCHMARK_RELATIVE_PARAM(run_bloom_filter_size, 2)
-BENCHMARK_RELATIVE_PARAM(run_bloom_filter_size, 3)
-BENCHMARK_RELATIVE_PARAM(run_bloom_filter_size, 4)
-BENCHMARK_RELATIVE_PARAM(run_bloom_filter_size, 5)
-BENCHMARK_RELATIVE_PARAM(run_bloom_filter_size, 6)
-
-BENCHMARK_DRAW_LINE();
-
-BENCHMARK_PARAM(run_lookback, 1)
-BENCHMARK_RELATIVE_PARAM(run_lookback, 2)
-BENCHMARK_RELATIVE_PARAM(run_lookback, 4)
-BENCHMARK_RELATIVE_PARAM(run_lookback, 8)
-BENCHMARK_RELATIVE_PARAM(run_lookback, 16)
-
-BENCHMARK_DRAW_LINE();
-
-BENCHMARK_PARAM(run_dupe_fraction, 0)
-BENCHMARK_RELATIVE_PARAM(run_dupe_fraction, 20)
-BENCHMARK_RELATIVE_PARAM(run_dupe_fraction, 40)
-BENCHMARK_RELATIVE_PARAM(run_dupe_fraction, 60)
-BENCHMARK_RELATIVE_PARAM(run_dupe_fraction, 80)
-
-BENCHMARK_DRAW_LINE();
-
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  folly::runBenchmarks();
-}
+BENCHMARK_MAIN();

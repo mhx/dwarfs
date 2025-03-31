@@ -155,63 +155,7 @@ endif()
 apply_folly_compile_options_to_target(dwarfs_folly_lite)
 target_link_libraries(dwarfs_folly_lite PUBLIC folly_deps)
 
-if(WITH_BENCHMARKS)
-  add_library(dwarfs_follybenchmark_lite OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Benchmark.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/SharedMutex.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/concurrency/CacheLocality.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/Futex.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/PerfScoped.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/StaticSingletonManager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ext/test_ext.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/FsUtil.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/dynamic.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json_pointer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/AsyncFileWriter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/AsyncLogWriter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/CustomLogFormatter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/FileWriterFactory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/GlogStyleFormatter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/ImmediateFileWriter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogCategory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogCategoryConfig.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogHandlerConfig.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogLevel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogMessage.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogName.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogStream.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LogStreamProcessor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/LoggerDB.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/ObjectToString.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/RateLimiter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StandardLogHandler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StandardLogHandlerFactory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/StreamHandlerFactory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/logging/xlog.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/memory/ReentrantAllocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/ParkingLot.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/synchronization/SanitizeThread.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/AtFork.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/Pid.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/system/ThreadId.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/testing/TestUtil.cpp
-  )
-  if(NOT WIN32)
-    target_sources(dwarfs_follybenchmark_lite PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Subprocess.cpp
-    )
-  endif()
-  set_property(TARGET dwarfs_follybenchmark_lite PROPERTY CXX_STANDARD 20)
-  apply_folly_compile_options_to_target(dwarfs_follybenchmark_lite)
-  target_link_libraries(dwarfs_follybenchmark_lite PUBLIC dwarfs_folly_lite)
-  find_package(Boost REQUIRED COMPONENTS regex)
-  target_link_libraries(dwarfs_follybenchmark_lite PUBLIC Boost::regex)
-endif()
-
-foreach(tgt dwarfs_folly_lite dwarfs_follybenchmark_lite)
+foreach(tgt dwarfs_folly_lite)
   if(TARGET ${tgt})
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
       # See: https://github.com/cpp-best-practices/cppbestpractices/blob/master/02-Use_the_Tools_Available.md
