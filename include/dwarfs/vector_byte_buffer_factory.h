@@ -21,44 +21,14 @@
 
 #pragma once
 
-#include <chrono>
-#include <cstdint>
-#include <memory>
-#include <vector>
+#include <dwarfs/byte_buffer_factory.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
-class byte_buffer_factory;
-class logger;
-class mmif;
-
-namespace internal {
-
-class fs_section;
-
-}
-
-namespace reader::internal {
-
-class cached_block {
+class vector_byte_buffer_factory {
  public:
-  static std::unique_ptr<cached_block>
-  create(logger& lgr, dwarfs::internal::fs_section const& b,
-         std::shared_ptr<mmif> mm, byte_buffer_factory const& bbf, bool release,
-         bool disable_integrity_check);
-
-  virtual ~cached_block() = default;
-
-  virtual size_t range_end() const = 0;
-  virtual uint8_t const* data() const = 0;
-  virtual void decompress_until(size_t end) = 0;
-  virtual size_t uncompressed_size() const = 0;
-  virtual void touch() = 0;
-  virtual bool
-  last_used_before(std::chrono::steady_clock::time_point tp) const = 0;
-  virtual bool any_pages_swapped_out(std::vector<uint8_t>& tmp) const = 0;
+  static byte_buffer_factory create();
 };
-
-} // namespace reader::internal
 
 } // namespace dwarfs
