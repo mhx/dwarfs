@@ -27,13 +27,15 @@
 
 #include <ricepp/ricepp.h>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/compression.h>
 #include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
+
+#include "base.h"
 
 namespace dwarfs {
 
@@ -165,12 +167,10 @@ class ricepp_block_compressor final : public block_compressor::impl {
   size_t const block_size_;
 };
 
-class ricepp_block_decompressor final : public block_decompressor::impl {
+class ricepp_block_decompressor final : public block_decompressor_base {
  public:
-  ricepp_block_decompressor(std::span<uint8_t const> data,
-                            mutable_byte_buffer target)
-      : decompressed_{std::move(target)}
-      , uncompressed_size_{varint::decode(data)}
+  ricepp_block_decompressor(std::span<uint8_t const> data)
+      : uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , data_{data}
       , codec_{ricepp::create_codec<uint16_t>(
@@ -183,16 +183,6 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
       DWARFS_THROW(runtime_error,
                    fmt::format("[RICEPP] unsupported bytes per sample: {}",
                                header_.bytes_per_sample().value()));
-    }
-
-    try {
-      decompressed_.reserve(uncompressed_size_);
-    } catch (std::bad_alloc const&) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format(
-              "[RICEPP] could not reserve {} bytes for decompressed block",
-              uncompressed_size_));
     }
   }
 
@@ -209,6 +199,8 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
   }
 
   bool decompress_frame(size_t) override {
+    DWARFS_CHECK(decompressed_, "decompression not started");
+
     if (!codec_) {
       return false;
     }
@@ -243,7 +235,6 @@ class ricepp_block_decompressor final : public block_decompressor::impl {
     return hdr;
   }
 
-  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   thrift::compression::ricepp_block_header const header_;
   std::span<uint8_t const> data_;
@@ -277,9 +268,8 @@ class ricepp_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<ricepp_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<ricepp_block_decompressor>(data);
   }
 
  private:

@@ -33,6 +33,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -41,10 +42,25 @@ block_compressor::block_compressor(std::string const& spec) {
 }
 
 block_decompressor::block_decompressor(compression_type type,
-                                       std::span<uint8_t const> data,
-                                       mutable_byte_buffer target) {
-  impl_ = compression_registry::instance().make_decompressor(type, data,
-                                                             std::move(target));
+                                       std::span<uint8_t const> data) {
+  impl_ = compression_registry::instance().make_decompressor(type, data);
+}
+
+shared_byte_buffer
+block_decompressor::decompress(compression_type type,
+                               std::span<uint8_t const> data) {
+  block_decompressor bd(type, data);
+  auto target = vector_byte_buffer::create_reserve(bd.uncompressed_size());
+  bd.start_decompression(target);
+  bd.decompress_frame(bd.uncompressed_size());
+  return target.share();
+}
+
+shared_byte_buffer
+block_decompressor::start_decompression(mutable_byte_buffer target) {
+  impl_->start_decompression(target);
+  target.freeze_location();
+  return target.share();
 }
 
 compression_registry& compression_registry::instance() {
@@ -92,8 +108,7 @@ compression_registry::make_compressor(std::string_view spec) const {
 
 std::unique_ptr<block_decompressor::impl>
 compression_registry::make_decompressor(compression_type type,
-                                        std::span<uint8_t const> data,
-                                        mutable_byte_buffer target) const {
+                                        std::span<uint8_t const> data) const {
   auto fit = factories_.find(type);
 
   if (fit == factories_.end()) {
@@ -101,7 +116,7 @@ compression_registry::make_decompressor(compression_type type,
                  "unsupported compression type: " + get_compression_name(type));
   }
 
-  return fit->second->make_decompressor(data, std::move(target));
+  return fit->second->make_decompressor(data);
 }
 
 void compression_registry::for_each_algorithm(

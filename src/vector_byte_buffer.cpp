@@ -116,6 +116,12 @@ mutable_byte_buffer vector_byte_buffer::create(size_t size) {
   return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(size)};
 }
 
+mutable_byte_buffer vector_byte_buffer::create_reserve(size_t size) {
+  auto rv = std::make_shared<vector_byte_buffer_impl>();
+  rv->reserve(size);
+  return mutable_byte_buffer{std::move(rv)};
+}
+
 mutable_byte_buffer vector_byte_buffer::create(std::string_view data) {
   return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(data)};
 }

@@ -31,13 +31,14 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/types.h>
 #include <dwarfs/vector_byte_buffer.h>
+
+#include "base.h"
 
 namespace dwarfs {
 
@@ -260,12 +261,10 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
   return best;
 }
 
-class lzma_block_decompressor final : public block_decompressor::impl {
+class lzma_block_decompressor final : public block_decompressor_base {
  public:
-  lzma_block_decompressor(std::span<uint8_t const> data,
-                          mutable_byte_buffer target)
+  lzma_block_decompressor(std::span<uint8_t const> data)
       : stream_(LZMA_STREAM_INIT)
-      , decompressed_(std::move(target))
       , uncompressed_size_(get_uncompressed_size(data.data(), data.size())) {
     stream_.next_in = data.data();
     stream_.avail_in = data.size();
@@ -274,23 +273,15 @@ class lzma_block_decompressor final : public block_decompressor::impl {
       DWARFS_THROW(runtime_error, fmt::format("lzma_stream_decoder: {}",
                                               lzma_error_string(ret)));
     }
-    try {
-      decompressed_.reserve(uncompressed_size_);
-    } catch (std::bad_alloc const&) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("could not reserve {} bytes for decompressed block",
-                      uncompressed_size_));
-    }
   }
 
   ~lzma_block_decompressor() override { lzma_end(&stream_); }
 
   compression_type type() const override { return compression_type::LZMA; }
 
-  std::optional<std::string> metadata() const override { return std::nullopt; }
-
   bool decompress_frame(size_t frame_size) override {
+    DWARFS_CHECK(decompressed_, "decompression not started");
+
     if (!error_.empty()) {
       DWARFS_THROW(runtime_error, error_);
     }
@@ -333,7 +324,6 @@ class lzma_block_decompressor final : public block_decompressor::impl {
   static size_t get_uncompressed_size(uint8_t const* data, size_t size);
 
   lzma_stream stream_;
-  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
   std::string error_;
 };
@@ -426,9 +416,8 @@ class lzma_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<lzma_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<lzma_block_decompressor>(data);
   }
 
  private:

@@ -25,12 +25,13 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/zstd_context_manager.h>
+
+#include "base.h"
 
 #if ZSTD_VERSION_MAJOR > 1 ||                                                  \
     (ZSTD_VERSION_MAJOR == 1 && ZSTD_VERSION_MINOR >= 4)
@@ -108,12 +109,10 @@ zstd_block_compressor::compress(shared_byte_buffer const& data,
   return compressed.share();
 }
 
-class zstd_block_decompressor final : public block_decompressor::impl {
+class zstd_block_decompressor final : public block_decompressor_base {
  public:
-  zstd_block_decompressor(std::span<uint8_t const> data,
-                          mutable_byte_buffer target)
-      : decompressed_(std::move(target))
-      , data_(data)
+  zstd_block_decompressor(std::span<uint8_t const> data)
+      : data_(data)
       , uncompressed_size_(ZSTD_getFrameContentSize(data.data(), data.size())) {
     switch (uncompressed_size_) {
     case ZSTD_CONTENTSIZE_UNKNOWN:
@@ -127,22 +126,13 @@ class zstd_block_decompressor final : public block_decompressor::impl {
     default:
       break;
     }
-
-    try {
-      decompressed_.reserve(uncompressed_size_);
-    } catch (std::bad_alloc const&) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("could not reserve {} bytes for decompressed block",
-                      uncompressed_size_));
-    }
   }
 
   compression_type type() const override { return compression_type::ZSTD; }
 
-  std::optional<std::string> metadata() const override { return std::nullopt; }
-
   bool decompress_frame(size_t /*frame_size*/) override {
+    DWARFS_CHECK(decompressed_, "decompression not started");
+
     if (!error_.empty()) {
       DWARFS_THROW(runtime_error, error_);
     }
@@ -163,7 +153,6 @@ class zstd_block_decompressor final : public block_decompressor::impl {
   size_t uncompressed_size() const override { return uncompressed_size_; }
 
  private:
-  mutable_byte_buffer decompressed_;
   std::span<uint8_t const> data_;
   unsigned long long const uncompressed_size_;
   std::string error_;
@@ -198,9 +187,8 @@ class zstd_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<zstd_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<zstd_block_decompressor>(data);
   }
 
  private:

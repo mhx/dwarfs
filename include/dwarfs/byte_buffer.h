@@ -125,9 +125,13 @@ class mutable_byte_buffer {
  public:
   using value_type = uint8_t;
 
+  mutable_byte_buffer() = default;
+
   explicit mutable_byte_buffer(
       std::shared_ptr<mutable_byte_buffer_interface> bb)
       : bb_{std::move(bb)} {}
+
+  explicit operator bool() const noexcept { return static_cast<bool>(bb_); }
 
   uint8_t const* data() const { return bb_->data(); }
 

@@ -61,6 +61,7 @@ add_library(
 
   $<IF:${DWARFS_GIT_BUILD},${CMAKE_CURRENT_BINARY_DIR},${CMAKE_CURRENT_SOURCE_DIR}>/src/version.cpp
 
+  src/compression/base.cpp
   src/compression/null.cpp
   src/compression/zstd.cpp
   $<$<BOOL:${LIBLZMA_FOUND}>:src/compression/lzma.cpp>

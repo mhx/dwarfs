@@ -26,12 +26,13 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
 #include <dwarfs/vector_byte_buffer.h>
+
+#include "base.h"
 
 namespace dwarfs {
 
@@ -87,14 +88,12 @@ class brotli_block_compressor final : public block_compressor::impl {
   uint32_t const window_bits_;
 };
 
-class brotli_block_decompressor final : public block_decompressor::impl {
+class brotli_block_decompressor final : public block_decompressor_base {
  public:
-  brotli_block_decompressor(std::span<uint8_t const> data,
-                            mutable_byte_buffer target)
-      : decompressed_{std::move(target)}
-      , uncompressed_size_{varint::decode(data)}
-      , data_{data.data()}
-      , size_{data.size()}
+  brotli_block_decompressor(std::span<uint8_t const> data)
+      : uncompressed_size_{varint::decode(data)}
+      , brotli_data_{data.data()}
+      , brotli_size_{data.size()}
       , decoder_{::BrotliDecoderCreateInstance(nullptr, nullptr, nullptr),
                  &::BrotliDecoderDestroyInstance} {
     if (!decoder_) {
@@ -104,21 +103,13 @@ class brotli_block_decompressor final : public block_decompressor::impl {
                                      BROTLI_DECODER_PARAM_LARGE_WINDOW, 1)) {
       DWARFS_THROW(runtime_error, "could not set brotli decoder parameter");
     }
-    try {
-      decompressed_.reserve(uncompressed_size_);
-    } catch (std::bad_alloc const&) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("could not reserve {} bytes for decompressed block",
-                      uncompressed_size_));
-    }
   }
 
   compression_type type() const override { return compression_type::BROTLI; }
 
-  std::optional<std::string> metadata() const override { return std::nullopt; }
-
   bool decompress_frame(size_t frame_size) override {
+    DWARFS_CHECK(decompressed_, "decompression not started");
+
     size_t pos = decompressed_.size();
 
     if (pos + frame_size > uncompressed_size_) {
@@ -132,8 +123,9 @@ class brotli_block_decompressor final : public block_decompressor::impl {
     decompressed_.resize(pos + frame_size);
     uint8_t* next_out = decompressed_.data() + pos;
 
-    auto res = ::BrotliDecoderDecompressStream(decoder_.get(), &size_, &data_,
-                                               &frame_size, &next_out, nullptr);
+    auto res = ::BrotliDecoderDecompressStream(decoder_.get(), &brotli_size_,
+                                               &brotli_data_, &frame_size,
+                                               &next_out, nullptr);
 
     if (res == BROTLI_DECODER_RESULT_ERROR) {
       DWARFS_THROW(runtime_error,
@@ -153,10 +145,9 @@ class brotli_block_decompressor final : public block_decompressor::impl {
         ::BrotliDecoderGetErrorCode(decoder_.get()));
   }
 
-  mutable_byte_buffer decompressed_;
   size_t const uncompressed_size_;
-  uint8_t const* data_;
-  size_t size_;
+  uint8_t const* brotli_data_;
+  size_t brotli_size_;
   std::unique_ptr<BrotliDecoderState, decltype(BrotliDecoderDestroyInstance)*>
       decoder_;
 };
@@ -199,9 +190,8 @@ class brotli_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<brotli_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<brotli_block_decompressor>(data);
   }
 
  private:

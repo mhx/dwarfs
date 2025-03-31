@@ -47,9 +47,9 @@ class cached_block_ final : public cached_block {
 
   cached_block_(logger& lgr, fs_section const& b, std::shared_ptr<mmif> mm,
                 bool release, bool disable_integrity_check)
-      : data_{vector_byte_buffer::create()}
-      , decompressor_{std::make_unique<block_decompressor>(
-            b.compression(), mm->span<uint8_t>(b.start(), b.length()), data_)}
+      : decompressor_{std::make_unique<block_decompressor>(
+            b.compression(), mm->span<uint8_t>(b.start(), b.length()))}
+      , data_{decompressor_->start_decompression(vector_byte_buffer::create())}
       , mm_(std::move(mm))
       , section_(b)
       , LOG_PROXY_INIT(lgr)
@@ -101,11 +101,6 @@ class cached_block_ final : public cached_block {
         try_release();
       }
 
-      if (pos == 0) {
-        // Freeze the location of the data buffer
-        data_.freeze_location();
-      }
-
       pos = data_.size();
       range_end_.store(pos, std::memory_order_release);
     }
@@ -149,8 +144,8 @@ class cached_block_ final : public cached_block {
   }
 
   std::atomic<size_t> range_end_{0};
-  mutable_byte_buffer data_;
   std::unique_ptr<block_decompressor> decompressor_;
+  shared_byte_buffer data_;
   std::shared_ptr<mmif> mm_;
   fs_section section_;
   LOG_PROXY_DECL(LoggerPolicy);
