@@ -1,5 +1,17 @@
 # Change Log
 
+## Version 0.11.3 - 2025-03-31
+
+- (fix) Handle absolute paths in `--input-list`. Fixes github #259.
+
+- (fix) Don't prefetch blocks that are already in the active list
+  within the block cache.
+
+- (fix) Ensure that statistics for block tidying are correctly
+  updated in the block cache.
+
+- (build) A few build fixes, mainly to simplify building on Alpine.
+
 ## Version 0.11.2 - 2025-03-20
 
 - (fix) macOS Ventura's version of clang appears to be missing an
