@@ -28,6 +28,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/pcm_sample_transformer.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 using namespace dwarfs;
 

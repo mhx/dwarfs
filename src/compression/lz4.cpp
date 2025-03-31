@@ -24,12 +24,13 @@
 
 #include <fmt/format.h>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/conv.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/vector_byte_buffer.h>
+
+#include "base.h"
 
 namespace dwarfs {
 
@@ -107,28 +108,17 @@ class lz4_block_compressor final : public block_compressor::impl {
   int const level_;
 };
 
-class lz4_block_decompressor final : public block_decompressor::impl {
+class lz4_block_decompressor final : public block_decompressor_base {
  public:
-  lz4_block_decompressor(std::span<uint8_t const> data,
-                         mutable_byte_buffer target)
-      : decompressed_(std::move(target))
-      , data_(data.subspan(sizeof(uint32_t)))
-      , uncompressed_size_(get_uncompressed_size(data.data())) {
-    try {
-      decompressed_.reserve(uncompressed_size_);
-    } catch (std::bad_alloc const&) {
-      DWARFS_THROW(
-          runtime_error,
-          fmt::format("could not reserve {} bytes for decompressed block",
-                      uncompressed_size_));
-    }
-  }
+  lz4_block_decompressor(std::span<uint8_t const> data)
+      : data_(data.subspan(sizeof(uint32_t)))
+      , uncompressed_size_(get_uncompressed_size(data.data())) {}
 
   compression_type type() const override { return compression_type::LZ4; }
 
-  std::optional<std::string> metadata() const override { return std::nullopt; }
-
   bool decompress_frame(size_t) override {
+    DWARFS_CHECK(decompressed_, "decompression not started");
+
     if (!error_.empty()) {
       DWARFS_THROW(runtime_error, error_);
     }
@@ -158,7 +148,6 @@ class lz4_block_decompressor final : public block_decompressor::impl {
     return size;
   }
 
-  mutable_byte_buffer decompressed_;
   std::span<uint8_t const> data_;
   size_t const uncompressed_size_;
   std::string error_;
@@ -188,9 +177,8 @@ class lz4_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<lz4_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<lz4_block_decompressor>(data);
   }
 
  private:
@@ -225,9 +213,8 @@ class lz4hc_compression_factory : public compression_factory {
   }
 
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const override {
-    return std::make_unique<lz4_block_decompressor>(data, std::move(target));
+  make_decompressor(std::span<uint8_t const> data) const override {
+    return std::make_unique<lz4_block_decompressor>(data);
   }
 
  private:

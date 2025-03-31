@@ -103,9 +103,7 @@ block_decompressor get_block_decompressor(mmif& mm, fs_section const& sec) {
         fmt::format("attempt to access damaged {} section", sec.name()));
   }
 
-  auto tmp = vector_byte_buffer::create();
-  auto span = sec.data(mm);
-  return {sec.compression(), span, tmp};
+  return {sec.compression(), sec.data(mm)};
 }
 
 std::optional<block_decompressor>

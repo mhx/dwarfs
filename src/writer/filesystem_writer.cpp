@@ -385,46 +385,46 @@ class rewritten_fsblock : public fsblock::impl {
     std::promise<void> prom;
     future_ = prom.get_future();
 
-    wg.add_job(
-        [this, prom = std::move(prom), meta = std::move(meta)]() mutable {
-          try {
-            shared_byte_buffer block;
+    wg.add_job([this, prom = std::move(prom),
+                meta = std::move(meta)]() mutable {
+      try {
+        shared_byte_buffer block;
 
-            {
-              // TODO: we don't have to do this for uncompressed blocks
-              auto buffer = vector_byte_buffer::create();
-              block_decompressor bd(data_comp_type_, data_, buffer);
-              bd.decompress_frame(bd.uncompressed_size());
+        {
+          // TODO: we don't have to do this for uncompressed blocks
+          block_decompressor bd(data_comp_type_, data_);
+          auto buffer = bd.start_decompression(vector_byte_buffer::create());
+          bd.decompress_frame(bd.uncompressed_size());
 
-              if (!meta) {
-                meta = bd.metadata();
-              }
-
-              pctx_->bytes_in += buffer.size(); // TODO: data_.size()?
-
-              try {
-                if (meta) {
-                  block = bc_.compress(buffer.share(), *meta);
-                } else {
-                  block = bc_.compress(buffer.share());
-                }
-              } catch (bad_compression_ratio_error const&) {
-                comp_type_ = compression_type::NONE;
-              }
-            }
-
-            pctx_->bytes_out += block.size();
-
-            {
-              std::lock_guard lock(mx_);
-              block_data_.emplace(std::move(block));
-            }
-
-            prom.set_value();
-          } catch (...) {
-            prom.set_exception(std::current_exception());
+          if (!meta) {
+            meta = bd.metadata();
           }
-        });
+
+          pctx_->bytes_in += buffer.size(); // TODO: data_.size()?
+
+          try {
+            if (meta) {
+              block = bc_.compress(buffer, *meta);
+            } else {
+              block = bc_.compress(buffer);
+            }
+          } catch (bad_compression_ratio_error const&) {
+            comp_type_ = compression_type::NONE;
+          }
+        }
+
+        pctx_->bytes_out += block.size();
+
+        {
+          std::lock_guard lock(mx_);
+          block_data_.emplace(std::move(block));
+        }
+
+        prom.set_value();
+      } catch (...) {
+        prom.set_exception(std::current_exception());
+      }
+    });
   }
 
   void wait_until_compressed() override { future_.get(); }
@@ -894,8 +894,7 @@ void filesystem_writer_<LoggerPolicy>::check_block_compression(
   if (auto reqstr = bc->metadata_requirements(); !reqstr.empty()) {
     auto req = compression_metadata_requirements<nlohmann::json>{reqstr};
 
-    auto tmp = vector_byte_buffer::create();
-    block_decompressor bd(compression, data, tmp);
+    block_decompressor bd(compression, data);
 
     try {
       req.check(bd.metadata());

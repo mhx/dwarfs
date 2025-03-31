@@ -19,22 +19,32 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <fmt/format.h>
 
-#include <string>
+#include <dwarfs/error.h>
 
-#include <dwarfs/byte_buffer.h>
+#include "base.h"
 
 namespace dwarfs {
 
-class vector_byte_buffer {
- public:
-  static mutable_byte_buffer create();
-  static mutable_byte_buffer create(size_t size);
-  static mutable_byte_buffer create_reserve(size_t size);
-  static mutable_byte_buffer create(std::string_view data);
-  static mutable_byte_buffer create(std::span<uint8_t const> data);
-  static mutable_byte_buffer create(std::vector<uint8_t>&& data);
-};
+void block_decompressor_base::start_decompression(mutable_byte_buffer target) {
+  DWARFS_CHECK(!decompressed_, "decompression already started");
+
+  decompressed_ = std::move(target);
+
+  auto size = this->uncompressed_size();
+
+  try {
+    decompressed_.reserve(size);
+  } catch (std::bad_alloc const&) {
+    DWARFS_THROW(
+        runtime_error,
+        fmt::format("could not reserve {} bytes for decompressed block", size));
+  }
+}
+
+std::optional<std::string> block_decompressor_base::metadata() const {
+  return std::nullopt;
+}
 
 } // namespace dwarfs

@@ -35,9 +35,9 @@
 #include <utility>
 #include <vector>
 
+#include <dwarfs/byte_buffer.h>
 #include <dwarfs/compression.h>
 #include <dwarfs/compression_constraints.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -109,8 +109,9 @@ class block_compressor {
 
 class block_decompressor {
  public:
-  block_decompressor(compression_type type, std::span<uint8_t const> data,
-                     mutable_byte_buffer target);
+  block_decompressor(compression_type type, std::span<uint8_t const> data);
+
+  shared_byte_buffer start_decompression(mutable_byte_buffer target);
 
   bool decompress_frame(size_t frame_size = BUFSIZ) {
     return impl_->decompress_frame(frame_size);
@@ -123,17 +124,13 @@ class block_decompressor {
   std::optional<std::string> metadata() const { return impl_->metadata(); }
 
   static shared_byte_buffer
-  decompress(compression_type type, std::span<uint8_t const> data) {
-    auto target = vector_byte_buffer::create();
-    block_decompressor bd(type, data, target);
-    bd.decompress_frame(bd.uncompressed_size());
-    return target.share();
-  }
+  decompress(compression_type type, std::span<uint8_t const> data);
 
   class impl {
    public:
     virtual ~impl() = default;
 
+    virtual void start_decompression(mutable_byte_buffer target) = 0;
     virtual bool decompress_frame(size_t frame_size) = 0;
     virtual size_t uncompressed_size() const = 0;
     virtual std::optional<std::string> metadata() const = 0;
@@ -160,8 +157,7 @@ class compression_factory : public compression_info {
   virtual std::unique_ptr<block_compressor::impl>
   make_compressor(option_map& om) const = 0;
   virtual std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const = 0;
+  make_decompressor(std::span<uint8_t const> data) const = 0;
 };
 
 namespace detail {
@@ -178,8 +174,7 @@ class compression_registry {
   std::unique_ptr<block_compressor::impl>
   make_compressor(std::string_view spec) const;
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(compression_type type, std::span<uint8_t const> data,
-                    mutable_byte_buffer target) const;
+  make_decompressor(compression_type type, std::span<uint8_t const> data) const;
 
   void for_each_algorithm(
       std::function<void(compression_type, compression_info const&)> const& fn)

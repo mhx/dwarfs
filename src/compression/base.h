@@ -19,22 +19,17 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include <string>
-
-#include <dwarfs/byte_buffer.h>
+#include <dwarfs/block_compressor.h>
 
 namespace dwarfs {
 
-class vector_byte_buffer {
+class block_decompressor_base : public block_decompressor::impl {
  public:
-  static mutable_byte_buffer create();
-  static mutable_byte_buffer create(size_t size);
-  static mutable_byte_buffer create_reserve(size_t size);
-  static mutable_byte_buffer create(std::string_view data);
-  static mutable_byte_buffer create(std::span<uint8_t const> data);
-  static mutable_byte_buffer create(std::vector<uint8_t>&& data);
+  void start_decompression(mutable_byte_buffer target) override;
+  std::optional<std::string> metadata() const override;
+
+ protected:
+  mutable_byte_buffer decompressed_;
 };
 
 } // namespace dwarfs
