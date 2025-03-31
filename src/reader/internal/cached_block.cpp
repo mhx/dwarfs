@@ -19,6 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <atomic>
 
 #ifndef _WIN32
