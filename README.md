@@ -2534,3 +2534,11 @@ dwarfs merged.dwarfs /mnt/fs2 -ooffset=9231,imagesize=7999
 ## Stargazers over Time
 
 [![Stargazers over Time](https://starchart.cc/mhx/dwarfs.svg?variant=adaptive)](https://starchart.cc/mhx/dwarfs)
+
+## Notable users
+
+[Conty: easy to use unprivileged Linux container packed into a single portable executable](https://github.com/Kron4ek/Conty)
+
+[Tebako: an executable packager for Ruby programs](https://github.com/tamatebako/tebako)
+
+[Runimage: portable single-file linux container](https://github.com/VHSgunzo/runimage)
