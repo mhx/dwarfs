@@ -90,14 +90,19 @@ add_library(dwarfs_folly_lite OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ExceptionString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/File.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/FileUtil.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Format.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/ScopeGuard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/String.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/Unicode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/container/detail/F14Table.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/FileUtilDetail.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/detail/SplitStringSimd.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/hash/SpookyHashV2.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBuf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/io/IOBufQueue.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/dynamic.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/json/json_pointer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/CString.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/Exception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/folly/folly/lang/SafeAssert.cpp
