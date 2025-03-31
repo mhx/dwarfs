@@ -22,7 +22,6 @@
 #pragma once
 
 #include <dwarfs/byte_buffer_factory.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs {
 

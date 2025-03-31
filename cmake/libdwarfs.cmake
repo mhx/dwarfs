@@ -75,6 +75,7 @@ add_library(
 add_library(
   dwarfs_reader
 
+  src/reader/block_cache_byte_buffer_factory.cpp
   src/reader/block_cache_options.cpp
   src/reader/block_range.cpp
   src/reader/filesystem_options.cpp

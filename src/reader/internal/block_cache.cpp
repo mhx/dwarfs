@@ -44,11 +44,11 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/performance_monitor.h>
+#include <dwarfs/reader/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/block_cache_options.h>
 #include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/scope_exit.h>
 #include <dwarfs/util.h>
-#include <dwarfs/vector_byte_buffer_factory.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
@@ -224,7 +224,7 @@ class block_cache_ final : public block_cache::impl {
                [[maybe_unused]])
       : cache_(0)
       , mm_(std::move(mm))
-      , buffer_factory_{vector_byte_buffer_factory::create()}
+      , buffer_factory_{block_cache_byte_buffer_factory::create()}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "block_cache")

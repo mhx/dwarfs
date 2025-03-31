@@ -19,25 +19,15 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/vector_byte_buffer.h>
-#include <dwarfs/vector_byte_buffer_factory.h>
+#pragma once
 
-namespace dwarfs {
+#include <dwarfs/byte_buffer_factory.h>
 
-namespace {
+namespace dwarfs::reader {
 
-class vector_byte_buffer_factory_impl : public byte_buffer_factory_interface {
+class block_cache_byte_buffer_factory {
  public:
-  mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const override {
-    return vector_byte_buffer::create_reserve(size);
-  }
+  static byte_buffer_factory create();
 };
 
-} // namespace
-
-byte_buffer_factory vector_byte_buffer_factory::create() {
-  return byte_buffer_factory{
-      std::make_shared<vector_byte_buffer_factory_impl>()};
-}
-
-} // namespace dwarfs
+} // namespace dwarfs::reader
