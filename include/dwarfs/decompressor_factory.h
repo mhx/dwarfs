@@ -19,13 +19,31 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/block_compressor.h>
-#include <dwarfs/compressor_registry.h>
+#pragma once
+
+#include <memory>
+#include <set>
+#include <span>
+#include <string>
+#include <string_view>
+
+#include <dwarfs/block_decompressor.h>
 
 namespace dwarfs {
 
-block_compressor::block_compressor(std::string const& spec) {
-  impl_ = compressor_registry::instance().create(spec);
-}
+class decompressor_info {
+ public:
+  virtual ~decompressor_info() = default;
+
+  virtual std::string_view name() const = 0;
+  virtual std::string_view description() const = 0;
+  virtual std::set<std::string> library_dependencies() const = 0;
+};
+
+class decompressor_factory : public decompressor_info {
+ public:
+  virtual std::unique_ptr<block_decompressor::impl>
+  create(std::span<uint8_t const> data) const = 0;
+};
 
 } // namespace dwarfs

@@ -31,6 +31,8 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/compressor_registry.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
@@ -392,7 +394,8 @@ size_t lzma_block_decompressor::get_uncompressed_size(uint8_t const* data,
   return usize;
 }
 
-class lzma_compression_factory : public compression_factory {
+template <typename Base>
+class lzma_compression_info : public Base {
  public:
   static constexpr compression_type type{compression_type::LZMA};
 
@@ -404,20 +407,19 @@ class lzma_compression_factory : public compression_factory {
     return s_desc;
   }
 
-  std::vector<std::string> const& options() const override { return options_; }
-
   std::set<std::string> library_dependencies() const override {
     return {fmt::format("liblzma-{}", ::lzma_version_string())};
   }
+};
+
+class lzma_compressor_factory final
+    : public lzma_compression_info<compressor_factory> {
+ public:
+  std::span<std::string const> options() const override { return options_; }
 
   std::unique_ptr<block_compressor::impl>
-  make_compressor(option_map& om) const override {
+  create(option_map& om) const override {
     return std::make_unique<lzma_block_compressor>(om);
-  }
-
-  std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data) const override {
-    return std::make_unique<lzma_block_decompressor>(data);
   }
 
  private:
@@ -433,8 +435,18 @@ class lzma_compression_factory : public compression_factory {
   };
 };
 
+class lzma_decompressor_factory final
+    : public lzma_compression_info<decompressor_factory> {
+ public:
+  std::unique_ptr<block_decompressor::impl>
+  create(std::span<uint8_t const> data) const override {
+    return std::make_unique<lzma_block_decompressor>(data);
+  }
+};
+
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(lzma_compression_factory)
+REGISTER_COMPRESSOR_FACTORY(lzma_compressor_factory)
+REGISTER_DECOMPRESSOR_FACTORY(lzma_decompressor_factory)
 
 } // namespace dwarfs

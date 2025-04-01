@@ -31,7 +31,6 @@
 
 #include <dwarfs/config.h>
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/library_dependencies.h>
 
 namespace dwarfs {
@@ -93,13 +92,6 @@ void library_dependencies::add_common_libraries() {
   add_library("libboost", BOOST_VERSION, version_format::boost);
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
               PHMAP_VERSION_PATCH);
-
-  compression_registry::instance().for_each_algorithm(
-      [this](compression_type, compression_info const& info) {
-        for (auto const& lib : info.library_dependencies()) {
-          add_library(lib);
-        }
-      });
 }
 
 std::string library_dependencies::as_string() const {

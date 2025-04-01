@@ -19,13 +19,42 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/block_compressor.h>
 #include <dwarfs/compressor_registry.h>
+#include <dwarfs/error.h>
+#include <dwarfs/option_map.h>
+
+#include "compression_registry.h"
 
 namespace dwarfs {
 
-block_compressor::block_compressor(std::string const& spec) {
-  impl_ = compressor_registry::instance().create(spec);
+namespace detail {
+
+template class compression_registry<compressor_factory, compressor_info>;
+
+} // namespace detail
+
+compressor_registry::compressor_registry() = default;
+compressor_registry::~compressor_registry() = default;
+
+compressor_registry& compressor_registry::instance() {
+  static compressor_registry the_instance;
+  return the_instance;
+}
+
+std::unique_ptr<block_compressor::impl>
+compressor_registry::create(std::string_view spec) const {
+  option_map om(spec);
+  auto nit = names_.find(om.choice());
+
+  if (nit == names_.end()) {
+    DWARFS_THROW(runtime_error, "unknown compression: " + om.choice());
+  }
+
+  auto obj = get_factory(nit->second).create(om);
+
+  om.report();
+
+  return obj;
 }
 
 } // namespace dwarfs

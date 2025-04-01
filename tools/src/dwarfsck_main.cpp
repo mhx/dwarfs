@@ -37,6 +37,7 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
@@ -256,7 +257,11 @@ int dwarfsck_main(int argc, sys_char** argv, iolayer const& iol) {
   auto constexpr usage = "Usage: dwarfsck [OPTIONS...]\n";
 
   if (vm.contains("help") or !vm.contains("input")) {
-    iol.out << tool::tool_header("dwarfsck") << usage << "\n" << opts << "\n";
+    auto extra_deps = [](library_dependencies& deps) {
+      decompressor_registry::instance().add_library_dependencies(deps);
+    };
+    iol.out << tool::tool_header("dwarfsck", extra_deps) << usage << "\n"
+            << opts << "\n";
     return 0;
   }
 

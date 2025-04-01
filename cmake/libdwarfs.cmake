@@ -21,10 +21,9 @@ cmake_minimum_required(VERSION 3.28.0)
 add_library(
   dwarfs_common
 
-  src/block_compressor.cpp
-  src/block_compressor_parser.cpp
   src/byte_buffer.cpp
   src/checksum.cpp
+  src/compression_registry.cpp
   src/conv.cpp
   src/error.cpp
   src/file_access_generic.cpp
@@ -70,6 +69,21 @@ add_library(
   $<$<AND:$<BOOL:${LIBBROTLIDEC_FOUND}>,$<BOOL:${LIBBROTLIENC_FOUND}>>:src/compression/brotli.cpp>
   $<$<BOOL:${FLAC_FOUND}>:src/compression/flac.cpp>
   $<$<BOOL:${ENABLE_RICEPP}>:src/compression/ricepp.cpp>
+)
+
+add_library(
+  dwarfs_compressor
+
+  src/block_compressor.cpp
+  src/block_compressor_parser.cpp
+  src/compressor_registry.cpp
+)
+
+add_library(
+  dwarfs_decompressor
+
+  src/block_decompressor.cpp
+  src/decompressor_registry.cpp
 )
 
 add_library(
@@ -170,8 +184,10 @@ add_cpp2_thrift_library(thrift/features.thrift
                         TARGET dwarfs_features_thrift OUTPUT_PATH dwarfs)
 
 target_link_libraries(dwarfs_common PRIVATE dwarfs_folly_lite PkgConfig::LIBCRYPTO PkgConfig::XXHASH PkgConfig::ZSTD)
-target_link_libraries(dwarfs_reader PUBLIC dwarfs_common)
-target_link_libraries(dwarfs_writer PUBLIC dwarfs_common PkgConfig::ZSTD)
+target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
+target_link_libraries(dwarfs_decompressor PRIVATE dwarfs_common)
+target_link_libraries(dwarfs_reader PUBLIC dwarfs_common dwarfs_decompressor)
+target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compressor dwarfs_decompressor)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
@@ -241,6 +257,8 @@ endif()
 
 list(APPEND LIBDWARFS_TARGETS
   dwarfs_common
+  dwarfs_compressor
+  dwarfs_decompressor
   dwarfs_reader
   dwarfs_writer
   dwarfs_extractor

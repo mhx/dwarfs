@@ -27,7 +27,8 @@
 
 #include <ricepp/ricepp.h>
 
-#include <dwarfs/compression.h>
+#include <dwarfs/compressor_registry.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
@@ -241,14 +242,10 @@ class ricepp_block_decompressor final : public block_decompressor_base {
   std::unique_ptr<ricepp::codec_interface<uint16_t>> codec_;
 };
 
-class ricepp_compression_factory : public compression_factory {
+template <typename Base>
+class ricepp_compression_info : public Base {
  public:
   static constexpr compression_type type{compression_type::RICEPP};
-
-  ricepp_compression_factory()
-      : options_{
-            fmt::format("block_size=[{}..{}]", 16, 512),
-        } {}
 
   std::string_view name() const override { return "ricepp"; }
 
@@ -257,27 +254,38 @@ class ricepp_compression_factory : public compression_factory {
     return s_desc;
   }
 
-  std::vector<std::string> const& options() const override { return options_; }
-
   std::set<std::string> library_dependencies() const override { return {}; }
+};
+
+class ricepp_compressor_factory final
+    : public ricepp_compression_info<compressor_factory> {
+ public:
+  std::span<std::string const> options() const override { return options_; }
 
   std::unique_ptr<block_compressor::impl>
-  make_compressor(option_map& om) const override {
+  create(option_map& om) const override {
     return std::make_unique<ricepp_block_compressor>(
         om.get<size_t>("block_size", 128));
   }
 
+ private:
+  std::vector<std::string> const options_{
+      fmt::format("block_size=[{}..{}]", 16, 512),
+  };
+};
+
+class ricepp_decompressor_factory final
+    : public ricepp_compression_info<decompressor_factory> {
+ public:
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data) const override {
+  create(std::span<uint8_t const> data) const override {
     return std::make_unique<ricepp_block_decompressor>(data);
   }
-
- private:
-  std::vector<std::string> const options_;
 };
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(ricepp_compression_factory)
+REGISTER_COMPRESSOR_FACTORY(ricepp_compressor_factory)
+REGISTER_DECOMPRESSOR_FACTORY(ricepp_decompressor_factory)
 
 } // namespace dwarfs

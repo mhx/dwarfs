@@ -82,6 +82,7 @@
 #endif
 
 #include <dwarfs/conv.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
@@ -1159,8 +1160,13 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 #endif
 
 void usage(std::ostream& os, std::filesystem::path const& progname) {
+  auto extra_deps = [](library_dependencies& deps) {
+    decompressor_registry::instance().add_library_dependencies(deps);
+  };
+
   os << tool::tool_header("dwarfs",
-                          fmt::format(", fuse version {}", FUSE_USE_VERSION))
+                          fmt::format(", fuse version {}", FUSE_USE_VERSION),
+                          extra_deps)
 #if !DWARFS_FUSE_LOWLEVEL
      << "USING HIGH-LEVEL FUSE API\n\n"
 #endif

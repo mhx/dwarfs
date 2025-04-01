@@ -26,7 +26,7 @@
 #include <sys/mman.h>
 #endif
 
-#include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
