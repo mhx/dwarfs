@@ -277,7 +277,7 @@ void file_scanner_<LoggerPolicy>::scan_dedupe(file* p) {
     if (!p->is_invalid()) {
       try {
         auto mm = os_.map_file(p->fs_path(), kLargeFileStartHashSize);
-        checksum cs(checksum::algorithm::XXH3_64);
+        checksum cs(checksum::xxh3_64);
         cs.update(mm->addr(), kLargeFileStartHashSize);
         cs.finalize(&start_hash);
       } catch (...) {

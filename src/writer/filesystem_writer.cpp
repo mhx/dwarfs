@@ -547,13 +547,13 @@ void fsblock::build_section_header(section_header_v2& sh,
     }
   }
 
-  checksum xxh(checksum::algorithm::XXH3_64);
+  checksum xxh(checksum::xxh3_64);
   xxh.update(&sh.number,
              sizeof(section_header_v2) - offsetof(section_header_v2, number));
   xxh.update(range.data(), range.size());
   DWARFS_CHECK(xxh.finalize(&sh.xxh3_64), "XXH3-64 checksum failed");
 
-  checksum sha(checksum::algorithm::SHA2_512_256);
+  checksum sha(checksum::sha2_512_256);
   sha.update(&sh.xxh3_64,
              sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64));
   sha.update(range.data(), range.size());

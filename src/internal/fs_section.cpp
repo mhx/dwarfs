@@ -186,7 +186,7 @@ class fs_section_v2 final : public fs_section::impl {
         sizeof(section_header_v2) - offsetof(section_header_v2, number);
 
     auto ok = checksum::verify(
-        checksum::algorithm::XXH3_64, mm.as<void>(start_ - kHdrCsLen),
+        checksum::xxh3_64, mm.as<void>(start_ - kHdrCsLen),
         hdr_.length + kHdrCsLen, &hdr_.xxh3_64, sizeof(hdr_.xxh3_64));
 
     auto state = check_state_.load();
@@ -202,7 +202,7 @@ class fs_section_v2 final : public fs_section::impl {
   bool verify(mmif const& mm) const override {
     auto hdr_sha_len =
         sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
-    return checksum::verify(checksum::algorithm::SHA2_512_256,
+    return checksum::verify(checksum::sha2_512_256,
                             mm.as<void>(start_ - hdr_sha_len),
                             hdr_.length + hdr_sha_len, hdr_.sha2_512_256.data(),
                             hdr_.sha2_512_256.size());
