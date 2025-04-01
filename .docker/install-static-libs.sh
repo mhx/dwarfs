@@ -18,7 +18,7 @@ FLAC_VERSION=1.5.0
 # TODO: https://github.com/libunwind/libunwind/issues/702
 LIBUNWIND_VERSION=1.7.2
 BENCHMARK_VERSION=1.9.1
-OPENSSL_VERSION=3.0.16
+OPENSSL_VERSION=3.3.3
 CPPTRACE_VERSION=0.8.2
 DOUBLE_CONVERSION_VERSION=3.3.1
 FMT_VERSION=11.1.4
@@ -32,7 +32,7 @@ echo "Using $GCC and $CLANG"
 if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,xxhash"
+    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,openssl,xxhash"
     export CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
     export CXXFLAGS="$CFLAGS"
 elif [[ "$PKGS" == ":none" ]]; then
@@ -141,7 +141,12 @@ for COMPILER in clang gcc; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${OPENSSL_TARBALL}
         cd openssl-${OPENSSL_VERSION}
-        ./Configure --prefix="$INSTALL_DIR" --libdir=lib threads no-fips no-shared no-pic no-dso
+        ./Configure --prefix="$INSTALL_DIR" --libdir=lib threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
+                no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
+                no-dgram no-dh no-dsa no-ec no-engine no-filenames no-idea no-ktls no-md4 no-multiblock \
+                no-nextprotoneg no-ocsp no-ocb no-poly1305 no-psk no-rc2 no-rc4 no-seed no-siphash no-siv no-sm3 no-sm4 \
+                no-srp no-srtp no-ssl3-method no-ssl-trace no-tfo no-ts no-ui-console no-whirlpool no-fips-securitychecks
+
         make -j$(nproc)
         make install_sw
     fi
