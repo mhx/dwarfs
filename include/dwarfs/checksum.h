@@ -34,21 +34,24 @@ namespace dwarfs {
 
 class checksum {
  public:
-  enum class algorithm {
-    SHA2_512_256,
-    XXH3_64,
-    XXH3_128,
-  };
-
   static bool is_available(std::string const& algo);
   static std::vector<std::string> available_algorithms();
 
-  static bool verify(algorithm alg, void const* data, size_t size,
+  struct xxh3_64_tag {};
+  struct sha2_512_256_tag {};
+
+  static constexpr xxh3_64_tag xxh3_64{};
+  static constexpr sha2_512_256_tag sha2_512_256{};
+
+  static bool verify(xxh3_64_tag, void const* data, size_t size,
+                     void const* digest, size_t digest_size);
+  static bool verify(sha2_512_256_tag, void const* data, size_t size,
                      void const* digest, size_t digest_size);
   static bool verify(std::string const& alg, void const* data, size_t size,
                      void const* digest, size_t digest_size);
 
-  checksum(algorithm alg);
+  checksum(xxh3_64_tag);
+  checksum(sha2_512_256_tag);
   checksum(std::string const& alg);
 
   checksum& update(void const* data, size_t size) {
@@ -75,7 +78,5 @@ class checksum {
  private:
   std::unique_ptr<impl> impl_;
 };
-
-std::ostream& operator<<(std::ostream& os, checksum::algorithm alg);
 
 } // namespace dwarfs

@@ -227,9 +227,14 @@ std::vector<std::string> checksum::available_algorithms() {
   return available;
 }
 
-bool checksum::verify(algorithm alg, void const* data, size_t size,
+bool checksum::verify(xxh3_64_tag, void const* data, size_t size,
                       void const* digest, size_t digest_size) {
-  return verify_impl(alg, data, size, digest, digest_size);
+  return verify_impl(xxh3_64, data, size, digest, digest_size);
+}
+
+bool checksum::verify(sha2_512_256_tag, void const* data, size_t size,
+                      void const* digest, size_t digest_size) {
+  return verify_impl(sha2_512_256, data, size, digest, digest_size);
 }
 
 bool checksum::verify(std::string const& alg, void const* data, size_t size,
@@ -237,22 +242,11 @@ bool checksum::verify(std::string const& alg, void const* data, size_t size,
   return verify_impl(alg, data, size, digest, digest_size);
 }
 
-checksum::checksum(algorithm alg) {
-  switch (alg) {
-  case algorithm::SHA2_512_256:
-    impl_ = std::make_unique<checksum_evp>(::EVP_sha512_256());
-    break;
-  case algorithm::XXH3_64:
-    impl_ = std::make_unique<checksum_xxh3_64>();
-    break;
-  case algorithm::XXH3_128:
-    impl_ = std::make_unique<checksum_xxh3_128>();
-    break;
-  default:
-    DWARFS_CHECK(false, "unknown algorithm");
-    break;
-  }
-}
+checksum::checksum(xxh3_64_tag)
+    : impl_(std::make_unique<checksum_xxh3_64>()) {}
+
+checksum::checksum(sha2_512_256_tag)
+    : impl_(std::make_unique<checksum_evp>(::EVP_sha512_256())) {}
 
 checksum::checksum(std::string const& alg) {
   if (alg == "xxh3-64") {
@@ -264,24 +258,6 @@ checksum::checksum(std::string const& alg) {
   } else {
     DWARFS_CHECK(false, "unknown algorithm");
   }
-}
-
-std::ostream& operator<<(std::ostream& os, checksum::algorithm alg) {
-  switch (alg) {
-  case checksum::algorithm::SHA2_512_256:
-    os << "SHA2_512_256";
-    break;
-  case checksum::algorithm::XXH3_64:
-    os << "XXH3_64";
-    break;
-  case checksum::algorithm::XXH3_128:
-    os << "XXH3_128";
-    break;
-  default:
-    os << "<unknown>";
-    break;
-  }
-  return os;
 }
 
 } // namespace dwarfs

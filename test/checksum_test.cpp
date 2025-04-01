@@ -38,13 +38,6 @@ namespace {
 
 constexpr std::string_view const payload{"Hello, World!"};
 
-std::unordered_map<checksum::algorithm, std::string> ref_digests_enum{
-    {checksum::algorithm::SHA2_512_256,
-     "0686F0A605973DC1BF035D1E2B9BAD1985A0BFF712DDD88ABD8D2593E5F99030"},
-    {checksum::algorithm::XXH3_64, "AA0266615F5D4160"},
-    {checksum::algorithm::XXH3_128, "9553D72C8403DB7750DD474484F21D53"},
-};
-
 std::unordered_map<std::string, std::string> ref_digests_str{
     {"blake2b512",
      "7DFDB888AF71EAE0E6A6B751E8E3413D767EF4FA52A7993DAA9EF097F7AA3D949199C113C"
@@ -130,16 +123,11 @@ TEST_P(checksum_test_str, end_to_end) {
 INSTANTIATE_TEST_SUITE_P(checksum_test, checksum_test_str,
                          ::testing::ValuesIn(checksum::available_algorithms()));
 
-class checksum_test_enum
-    : public ::testing::TestWithParam<checksum::algorithm> {};
-
-TEST_P(checksum_test_enum, end_to_end) {
-  auto alg = GetParam();
-
+TEST(checksum_test, xxh3_64) {
   std::vector<uint8_t> digest;
 
   {
-    checksum cs(alg);
+    checksum cs(checksum::xxh3_64);
     cs.update(payload.data(), payload.size());
     digest.resize(cs.digest_size());
     ASSERT_TRUE(cs.finalize(digest.data()));
@@ -151,17 +139,31 @@ TEST_P(checksum_test_enum, end_to_end) {
   boost::algorithm::hex(digest.begin(), digest.end(),
                         std::back_inserter(hexdigest));
 
-  auto it = ref_digests_enum.find(alg);
+  EXPECT_TRUE(checksum::verify(checksum::xxh3_64, payload.data(),
+                               payload.size(), digest.data(), digest.size()));
 
-  ASSERT_FALSE(it == ref_digests_enum.end());
-
-  EXPECT_TRUE(checksum::verify(alg, payload.data(), payload.size(),
-                               digest.data(), digest.size()));
-
-  EXPECT_EQ(it->second, hexdigest) << alg;
+  EXPECT_EQ("AA0266615F5D4160", hexdigest);
 }
 
-INSTANTIATE_TEST_SUITE_P(checksum_test, checksum_test_enum,
-                         ::testing::ValuesIn({checksum::algorithm::SHA2_512_256,
-                                              checksum::algorithm::XXH3_64,
-                                              checksum::algorithm::XXH3_128}));
+TEST(checksum_test, sha2_512_256) {
+  std::vector<uint8_t> digest;
+
+  {
+    checksum cs(checksum::sha2_512_256);
+    cs.update(payload.data(), payload.size());
+    digest.resize(cs.digest_size());
+    ASSERT_TRUE(cs.finalize(digest.data()));
+    std::vector<uint8_t> tmp(digest.size());
+    EXPECT_FALSE(cs.finalize(tmp.data()));
+  }
+
+  std::string hexdigest;
+  boost::algorithm::hex(digest.begin(), digest.end(),
+                        std::back_inserter(hexdigest));
+
+  EXPECT_TRUE(checksum::verify(checksum::sha2_512_256, payload.data(),
+                               payload.size(), digest.data(), digest.size()));
+
+  EXPECT_EQ("0686F0A605973DC1BF035D1E2B9BAD1985A0BFF712DDD88ABD8D2593E5F99030",
+            hexdigest);
+}
