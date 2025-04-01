@@ -34,7 +34,7 @@
 
 #include <folly/system/ThreadName.h>
 
-#include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>

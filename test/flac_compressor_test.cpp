@@ -27,6 +27,7 @@
 #include <nlohmann/json.hpp>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/pcm_sample_transformer.h>
 #include <dwarfs/vector_byte_buffer.h>
 

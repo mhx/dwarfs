@@ -56,8 +56,10 @@
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_compressor_parser.h>
 #include <dwarfs/checksum.h>
+#include <dwarfs/compressor_registry.h>
 #include <dwarfs/config.h>
 #include <dwarfs/conv.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/file_access.h>
 #include <dwarfs/integral_value_parser.h>
@@ -700,6 +702,10 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 #endif
 
   auto constexpr usage = "Usage: mkdwarfs [OPTIONS...]\n";
+  auto extra_deps = [](library_dependencies& deps) {
+    compressor_registry::instance().add_library_dependencies(deps);
+    decompressor_registry::instance().add_library_dependencies(deps);
+  };
 
   if (vm.contains("long-help")) {
     constexpr std::string_view block_data_hdr{"Block Data"};
@@ -716,7 +722,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     std::string sep(30 + l_dc + l_sc + l_mc + l_or, '-');
 
-    iol.out << tool::tool_header("mkdwarfs") << usage << opts << "\n"
+    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << opts
+            << "\n"
             << "Compression level defaults:\n"
             << "  " << sep << "\n"
             << fmt::format("  Level  Block  {:{}s} {:s}     Inode\n",
@@ -741,8 +748,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     iol.out << "\nCompression algorithms:\n";
 
-    compression_registry::instance().for_each_algorithm(
-        [&iol](compression_type, compression_info const& info) {
+    compressor_registry::instance().for_each_algorithm(
+        [&iol](compression_type, compressor_info const& info) {
           iol.out << fmt::format("  {:9}{}\n", info.name(), info.description());
           for (auto const& opt : info.options()) {
             iol.out << fmt::format("               {}\n", opt);
@@ -768,7 +775,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("help") or
       !(vm.contains("input") or vm.contains("input-list")) or
       (!vm.contains("output") and !vm.contains("debug-filter"))) {
-    iol.out << tool::tool_header("mkdwarfs") << usage << "\n"
+    iol.out << tool::tool_header("mkdwarfs", extra_deps) << usage << "\n"
             << basic_opts << "\n";
     return 0;
   }

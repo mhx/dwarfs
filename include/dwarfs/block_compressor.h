@@ -21,28 +21,15 @@
 
 #pragma once
 
-#include <cstdint>
-#include <cstdio>
-#include <functional>
 #include <memory>
-#include <optional>
-#include <set>
-#include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
 #include <dwarfs/byte_buffer.h>
-#include <dwarfs/byte_buffer_factory.h>
 #include <dwarfs/compression.h>
 #include <dwarfs/compression_constraints.h>
 
 namespace dwarfs {
-
-class option_map;
 
 class bad_compression_ratio_error : public std::runtime_error {
  public:
@@ -107,113 +94,5 @@ class block_compressor {
  private:
   std::unique_ptr<impl> impl_;
 };
-
-class block_decompressor {
- public:
-  block_decompressor(compression_type type, std::span<uint8_t const> data);
-
-  shared_byte_buffer start_decompression(mutable_byte_buffer target);
-  shared_byte_buffer start_decompression(byte_buffer_factory const& bbf);
-
-  bool decompress_frame(size_t frame_size = BUFSIZ) {
-    return impl_->decompress_frame(frame_size);
-  }
-
-  size_t uncompressed_size() const { return impl_->uncompressed_size(); }
-
-  compression_type type() const { return impl_->type(); }
-
-  std::optional<std::string> metadata() const { return impl_->metadata(); }
-
-  static shared_byte_buffer
-  decompress(compression_type type, std::span<uint8_t const> data);
-
-  class impl {
-   public:
-    virtual ~impl() = default;
-
-    virtual void start_decompression(mutable_byte_buffer target) = 0;
-    virtual bool decompress_frame(size_t frame_size) = 0;
-    virtual size_t uncompressed_size() const = 0;
-    virtual std::optional<std::string> metadata() const = 0;
-
-    virtual compression_type type() const = 0;
-  };
-
- private:
-  std::unique_ptr<impl> impl_;
-};
-
-class compression_info {
- public:
-  virtual ~compression_info() = default;
-
-  virtual std::string_view name() const = 0;
-  virtual std::string_view description() const = 0;
-  virtual std::vector<std::string> const& options() const = 0; // TODO: span?
-  virtual std::set<std::string> library_dependencies() const = 0;
-};
-
-class compression_factory : public compression_info {
- public:
-  virtual std::unique_ptr<block_compressor::impl>
-  make_compressor(option_map& om) const = 0;
-  virtual std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data) const = 0;
-};
-
-namespace detail {
-
-template <compression_type T>
-struct compression_factory_registrar;
-
-} // namespace detail
-
-class compression_registry {
- public:
-  static compression_registry& instance();
-
-  std::unique_ptr<block_compressor::impl>
-  make_compressor(std::string_view spec) const;
-  std::unique_ptr<block_decompressor::impl>
-  make_decompressor(compression_type type, std::span<uint8_t const> data) const;
-
-  void for_each_algorithm(
-      std::function<void(compression_type, compression_info const&)> const& fn)
-      const;
-
-  void register_factory(compression_type type,
-                        std::unique_ptr<compression_factory const>&& factory);
-
- private:
-  compression_registry();
-  ~compression_registry();
-
-  std::unordered_map<compression_type,
-                     std::unique_ptr<compression_factory const>>
-      factories_;
-  std::unordered_map<std::string, compression_type> names_;
-};
-
-namespace detail {
-
-#define DWARFS_COMPRESSION_TYPE_ENUMERATION_(name, value)                      \
-  template <>                                                                  \
-  struct compression_factory_registrar<compression_type::name> {               \
-    static void reg(compression_registry&);                                    \
-  };
-#define DWARFS_NO_SEPARATOR_
-DWARFS_COMPRESSION_TYPE_LIST(DWARFS_COMPRESSION_TYPE_ENUMERATION_,
-                             DWARFS_NO_SEPARATOR_)
-#undef DWARFS_COMPRESSION_TYPE_ENUMERATION_
-#undef DWARFS_NO_SEPARATOR_
-
-} // namespace detail
-
-#define REGISTER_COMPRESSION_FACTORY(factory)                                  \
-  void ::dwarfs::detail::compression_factory_registrar<factory::type>::reg(    \
-      ::dwarfs::compression_registry& cr) {                                    \
-    cr.register_factory(factory::type, std::make_unique<factory>());           \
-  }
 
 } // namespace dwarfs

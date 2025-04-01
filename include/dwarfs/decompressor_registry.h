@@ -19,13 +19,22 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/block_compressor.h>
-#include <dwarfs/compressor_registry.h>
+#pragma once
+
+#include <dwarfs/detail/compression_registry.h>
 
 namespace dwarfs {
 
-block_compressor::block_compressor(std::string const& spec) {
-  impl_ = compressor_registry::instance().create(spec);
-}
+class decompressor_registry final : public detail::decompressor_registry_base {
+ public:
+  static decompressor_registry& instance();
+
+  std::unique_ptr<block_decompressor::impl>
+  create(compression_type type, std::span<uint8_t const> data) const;
+
+ private:
+  decompressor_registry();
+  ~decompressor_registry();
+};
 
 } // namespace dwarfs

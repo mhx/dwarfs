@@ -19,7 +19,7 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 
 namespace dwarfs {
 

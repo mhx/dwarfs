@@ -37,6 +37,7 @@
 #include <range/v3/view/concat.hpp>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/block_decompressor.h>
 #include <dwarfs/vector_byte_buffer.h>
 
 using namespace dwarfs;

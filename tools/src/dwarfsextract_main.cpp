@@ -27,6 +27,7 @@
 #include <boost/program_options.hpp>
 
 #include <dwarfs/config.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/glob_matcher.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
@@ -143,6 +144,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   if (vm.contains("help") or !vm.contains("input")) {
     auto extra_deps = [](library_dependencies& deps) {
       utility::filesystem_extractor::add_library_dependencies(deps);
+      decompressor_registry::instance().add_library_dependencies(deps);
     };
 
     iol.out << tool::tool_header("dwarfsextract", extra_deps) << usage << "\n"

@@ -26,6 +26,8 @@
 
 #include <fmt/format.h>
 
+#include <dwarfs/compressor_registry.h>
+#include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/option_map.h>
@@ -152,58 +154,73 @@ class brotli_block_decompressor final : public block_decompressor_base {
       decoder_;
 };
 
-class brotli_compression_factory : public compression_factory {
+template <typename Base>
+class brotli_compression_info : public Base {
  public:
-  static constexpr compression_type type{compression_type::BROTLI};
-
-  brotli_compression_factory()
-      : options_{
-            fmt::format("quality=[{}..{}]", BROTLI_MIN_QUALITY,
-                        BROTLI_MAX_QUALITY),
-            fmt::format("lgwin=[{}..{}]", BROTLI_MIN_WINDOW_BITS, 30),
-        } {}
+  static constexpr auto type{compression_type::BROTLI};
 
   std::string_view name() const override { return "brotli"; }
 
+  static std::string version_string(uint32_t hex) {
+    return fmt::format("{}.{}.{}", hex >> 24, (hex >> 12) & 0xFFF, hex & 0xFFF);
+  }
+};
+
+class brotli_compressor_factory final
+    : public brotli_compression_info<compressor_factory> {
+ public:
   std::string_view description() const override {
     static std::string const s_desc{
-        fmt::format("Brotli compression (encoder {}, decoder {})",
-                    version_string(::BrotliEncoderVersion()),
-                    version_string(::BrotliDecoderVersion()))};
+        fmt::format("Brotli compressor (encoder {})",
+                    version_string(::BrotliEncoderVersion()))};
     return s_desc;
   }
 
-  std::vector<std::string> const& options() const override { return options_; }
+  std::span<std::string const> options() const override { return options_; }
 
   std::set<std::string> library_dependencies() const override {
     return {fmt::format("libbrotlienc-{}",
-                        version_string(::BrotliEncoderVersion())),
-            fmt::format("libbrotlidec-{}",
-                        version_string(::BrotliDecoderVersion()))};
+                        version_string(::BrotliEncoderVersion()))};
   }
 
   std::unique_ptr<block_compressor::impl>
-  make_compressor(option_map& om) const override {
+  create(option_map& om) const override {
     return std::make_unique<brotli_block_compressor>(
         om.get<uint32_t>("quality", BROTLI_DEFAULT_QUALITY),
         om.get<uint32_t>("lgwin", BROTLI_DEFAULT_WINDOW));
   }
 
+ private:
+  std::vector<std::string> const options_{
+      fmt::format("quality=[{}..{}]", BROTLI_MIN_QUALITY, BROTLI_MAX_QUALITY),
+      fmt::format("lgwin=[{}..{}]", BROTLI_MIN_WINDOW_BITS, 30),
+  };
+};
+
+class brotli_decompressor_factory final
+    : public brotli_compression_info<decompressor_factory> {
+ public:
+  std::string_view description() const override {
+    static std::string const s_desc{
+        fmt::format("Brotli decompressor (decoder {})",
+                    version_string(::BrotliDecoderVersion()))};
+    return s_desc;
+  }
+
+  std::set<std::string> library_dependencies() const override {
+    return {fmt::format("libbrotlidec-{}",
+                        version_string(::BrotliDecoderVersion()))};
+  }
+
   std::unique_ptr<block_decompressor::impl>
-  make_decompressor(std::span<uint8_t const> data) const override {
+  create(std::span<uint8_t const> data) const override {
     return std::make_unique<brotli_block_decompressor>(data);
   }
-
- private:
-  static std::string version_string(uint32_t hex) {
-    return fmt::format("{}.{}.{}", hex >> 24, (hex >> 12) & 0xFFF, hex & 0xFFF);
-  }
-
-  std::vector<std::string> const options_;
 };
 
 } // namespace
 
-REGISTER_COMPRESSION_FACTORY(brotli_compression_factory)
+REGISTER_COMPRESSOR_FACTORY(brotli_compressor_factory)
+REGISTER_DECOMPRESSOR_FACTORY(brotli_decompressor_factory)
 
 } // namespace dwarfs

@@ -19,13 +19,21 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <dwarfs/block_compressor.h>
-#include <dwarfs/compressor_registry.h>
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
-namespace dwarfs {
+#include <dwarfs/detail/compression_registry.h>
 
-block_compressor::block_compressor(std::string const& spec) {
-  impl_ = compressor_registry::instance().create(spec);
+namespace dwarfs::detail {
+
+void compression_registry_base::register_name(compression_type type,
+                                              std::string_view name) {
+  if (!names_.emplace(std::string{name}, type).second) {
+    std::cerr << "compression factory name conflict (" << name << ", "
+              << static_cast<int>(type) << ")\n";
+    ::abort();
+  }
 }
 
-} // namespace dwarfs
+} // namespace dwarfs::detail
