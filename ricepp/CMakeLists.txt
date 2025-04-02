@@ -162,10 +162,15 @@ if(WITH_BENCHMARKS)
     endif()
 
     add_executable(ricepp_benchmark ricepp_benchmark.cpp)
-    target_link_libraries(ricepp_benchmark ricepp benchmark::benchmark)
+    target_link_libraries(ricepp_benchmark PRIVATE ricepp benchmark::benchmark)
 
     add_executable(ricepp_benchmark_fits ricepp_benchmark_fits.cpp)
-    target_link_libraries(ricepp_benchmark_fits ricepp benchmark::benchmark)
+    target_link_libraries(ricepp_benchmark_fits PRIVATE ricepp benchmark::benchmark)
+
+    if (JEMALLOC_FOUND)
+      target_link_libraries(ricepp_benchmark PRIVATE PkgConfig::JEMALLOC)
+      target_link_libraries(ricepp_benchmark_fits PRIVATE PkgConfig::JEMALLOC)
+    endif()
   endif()
 endif()
 
@@ -191,6 +196,10 @@ if(WITH_TESTS)
   )
 
   target_link_libraries(ricepp_test PRIVATE ricepp gtest gmock gtest_main)
+
+  if (JEMALLOC_FOUND)
+    target_link_libraries(ricepp_test PRIVATE PkgConfig::JEMALLOC)
+  endif()
 
   if(ENABLE_COVERAGE)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
