@@ -26,15 +26,18 @@ GLOG_VERSION=0.7.1
 XXHASH_VERSION=0.8.3
 LZ4_VERSION=1.10.0
 BROTLI_VERSION=1.1.0
+ZSTD_VERSION=1.5.7
 
 echo "Using $GCC and $CLANG"
 
 if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
+    COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,openssl,xxhash"
-    export CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
-    export CXXFLAGS="$CFLAGS"
+    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,openssl,xxhash,zstd"
+    export COMMON_CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
+    export COMMON_CXXFLAGS="$COMMON_CFLAGS"
+    COMPILERS="clang gcc clang-lto gcc-lto clang-lto-thin"
 elif [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
@@ -54,6 +57,7 @@ GLOG_TARBALL="glog-${GLOG_VERSION}.tar.gz"
 XXHASH_TARBALL="xxHash-${XXHASH_VERSION}.tar.gz"
 LZ4_TARBALL="lz4-${LZ4_VERSION}.tar.gz"
 BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
+ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -102,23 +106,54 @@ fetch_lib glog https://github.com/google/glog/archive/refs/tags/v${GLOG_VERSION}
 fetch_lib xxhash https://github.com/Cyan4973/xxHash/archive/refs/tags/v${XXHASH_VERSION}.tar.gz ${XXHASH_TARBALL}
 fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4_TARBALL}
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
+fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
 
-for COMPILER in clang gcc; do
-    if [[ "$COMPILER" == "clang" ]]; then
-        export CC="$CLANG"
-        export CXX="${CLANG/clang/clang++}"
-    elif [[ "$COMPILER" == "gcc" ]]; then
-        export CC="$GCC"
-        export CXX="${GCC/gcc/g++}"
-    else
-        echo "Unknown compiler: $COMPILER"
-        exit 1
-    fi
+for COMPILER in $COMPILERS; do
+    case "$COMPILER" in
+        clang*)
+            export CC="$CLANG"
+            export CXX="${CLANG/clang/clang++}"
+            ;;
+        gcc*)
+            export CC="$GCC"
+            export CXX="${GCC/gcc/g++}"
+            ;;
+        *)
+            echo "Unknown compiler: $COMPILER"
+            exit 1
+            ;;
+    esac
+
+    case "$COMPILER" in
+        *-lto)
+            export CFLAGS="$COMMON_CFLAGS -flto"
+            export CXXFLAGS="$COMMON_CXXFLAGS -flto"
+            export LDFLAGS="$COMMON_LDFLAGS -flto"
+            ;;
+        *-lto-thin)
+            export CFLAGS="$COMMON_CFLAGS -flto=thin"
+            export CXXFLAGS="$COMMON_CXXFLAGS -flto=thin"
+            export LDFLAGS="$COMMON_LDFLAGS -flto=thin"
+            ;;
+        *)
+            unset CFLAGS
+            unset CXXFLAGS
+            unset LDFLAGS
+            ;;
+    esac
 
     cd "$HOME/pkgs"
     mkdir $COMPILER
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
+
+    if use_lib zstd; then
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${ZSTD_TARBALL}
+        cd zstd-${ZSTD_VERSION}
+        make -j$(nproc)
+        make install PREFIX="$INSTALL_DIR"
+    fi
 
     if use_lib libunwind; then
         cd "$HOME/pkgs/$COMPILER"
@@ -262,7 +297,6 @@ for COMPILER in clang gcc; do
         make -j$(nproc)
         make install
     fi
-
 done
 
 cd "$HOME"
