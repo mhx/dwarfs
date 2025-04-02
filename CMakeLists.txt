@@ -37,6 +37,7 @@ option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
 option(TRY_ENABLE_FLAC "build with FLAC support" ON)
 option(ENABLE_RICEPP "build with RICEPP compression support" ON)
 option(WITH_UNIVERSAL_BINARY "build with universal binary" OFF)
+option(WITH_FUSE_EXTRACT_BINARY "build with fuse-extract binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
 option(ENABLE_STACKTRACE "build with stack trace support" OFF)
@@ -282,11 +283,36 @@ if(WITH_TOOLS)
     add_executable(dwarfsuniversal tools/src/universal.cpp)
     list(APPEND BINARY_TARGETS dwarfsuniversal)
 
+    target_compile_definitions(dwarfsuniversal PRIVATE
+            DWARFS_UNIVERSAL_NAME=\"dwarfs-universal\"
+            DWARFS_UNIVERSAL_MKDWARFS
+            DWARFS_UNIVERSAL_DWARFSCK
+            DWARFS_UNIVERSAL_DWARFSEXTRACT
+    )
     target_link_libraries(dwarfsuniversal PRIVATE
-            mkdwarfs_main dwarfsck_main dwarfsextract_main)
+            mkdwarfs_main dwarfsck_main dwarfsextract_main
+    )
     set_target_properties(dwarfsuniversal PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY universal
-            OUTPUT_NAME dwarfs-universal)
+            OUTPUT_NAME dwarfs-universal
+    )
+  endif()
+
+  if(WITH_FUSE_EXTRACT_BINARY)
+    add_executable(dwarfsfuseextract tools/src/universal.cpp)
+    list(APPEND BINARY_TARGETS dwarfsfuseextract)
+
+    target_compile_definitions(dwarfsfuseextract PRIVATE
+            DWARFS_UNIVERSAL_NAME=\"dwarfs-fuse-extract\"
+            DWARFS_UNIVERSAL_DWARFSEXTRACT
+    )
+    target_link_libraries(dwarfsfuseextract PRIVATE
+            dwarfsextract_main
+    )
+    set_target_properties(dwarfsfuseextract PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY universal
+            OUTPUT_NAME dwarfs-fuse-extract
+    )
   endif()
 endif()
 
@@ -321,9 +347,15 @@ if(WITH_FUSE_DRIVER)
       target_link_libraries(dwarfs_main PRIVATE ${WINFSP})
       target_link_libraries(dwarfs-bin PRIVATE delayimp.lib)
       target_link_options(dwarfs-bin PRIVATE /DELAYLOAD:winfsp-x64.dll)
-      if(WITH_UNIVERSAL_BINARY)
+      if(TARGET dwarfsuniversal)
         target_link_libraries(dwarfsuniversal PRIVATE delayimp.lib)
         target_link_options(dwarfsuniversal PRIVATE /DELAYLOAD:winfsp-x64.dll)
+        target_compile_definitions(dwarfsuniversal PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
+      endif()
+      if(TARGET dwarfsfuseextract)
+        target_link_libraries(dwarfsfuseextract PRIVATE delayimp.lib)
+        target_link_options(dwarfsfuseextract PRIVATE /DELAYLOAD:winfsp-x64.dll)
+        target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
       endif()
     elseif(APPLE)
       target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=29)
@@ -332,8 +364,13 @@ if(WITH_FUSE_DRIVER)
       target_compile_definitions(dwarfs_main PRIVATE FUSE_USE_VERSION=35)
       target_link_libraries(dwarfs_main PRIVATE PkgConfig::FUSE3)
     endif()
-    if(WITH_UNIVERSAL_BINARY)
+    if(TARGET dwarfsuniversal)
       target_link_libraries(dwarfsuniversal PRIVATE dwarfs_main)
+      target_compile_definitions(dwarfsuniversal PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
+    endif()
+    if(TARGET dwarfsfuseextract)
+      target_link_libraries(dwarfsfuseextract PRIVATE dwarfs_main)
+      target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
     endif()
     if(WINFSP)
       install(TARGETS dwarfs-bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -358,8 +395,13 @@ if(WITH_FUSE_DRIVER)
     target_link_libraries(dwarfs2_main PRIVATE PkgConfig::FUSE)
     add_executable(dwarfs2-bin tools/src/dwarfs.cpp)
     target_link_libraries(dwarfs2-bin PRIVATE dwarfs2_main)
-    if(WITH_UNIVERSAL_BINARY AND (NOT FUSE3_FOUND))
+    if(TARGET dwarfsuniversal AND (NOT FUSE3_FOUND))
       target_link_libraries(dwarfsuniversal PRIVATE dwarfs2_main)
+      target_compile_definitions(dwarfsuniversal PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
+    endif()
+    if(TARGET dwarfsfuseextract AND (NOT FUSE3_FOUND))
+      target_link_libraries(dwarfsfuseextract PRIVATE dwarfs2_main)
+      target_compile_definitions(dwarfsfuseextract PRIVATE DWARFS_UNIVERSAL_FUSE_DRIVER)
     endif()
     set_target_properties(dwarfs2-bin PROPERTIES OUTPUT_NAME dwarfs2)
     add_custom_command(OUTPUT  mount.dwarfs2
@@ -959,15 +1001,26 @@ if(DWARFS_ARTIFACT_SUFFIX)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE OR WIN32)
-  if(WITH_UNIVERSAL_BINARY)
-    set(UNIVERSAL_OUT "dwarfs-universal-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX}")
+  if(TARGET dwarfsuniversal)
+    list(APPEND UNIVERSAL_TARGETS dwarfsuniversal)
+  endif()
+
+  if(TARGET dwarfsfuseextract)
+    list(APPEND UNIVERSAL_TARGETS dwarfsfuseextract)
+  endif()
+
+  foreach(tgt ${UNIVERSAL_TARGETS})
+    get_target_property(TARGET_FILENAME ${tgt} OUTPUT_NAME)
+    get_filename_component(TARGET_FILENAME ${TARGET_FILENAME} NAME_WLE)
+    set(UNIVERSAL_OUT ${TARGET_FILENAME}-${DWARFS_ARTIFACT_ID}${CMAKE_EXECUTABLE_SUFFIX})
+    message(STATUS "Creating universal binary for ${tgt} -> ${UNIVERSAL_OUT}")
 
     if(ENABLE_STACKTRACE)
       message(WARNING "UPX compression is disabled with ENABLE_STACKTRACE")
 
       add_custom_command(
         OUTPUT ${UNIVERSAL_OUT}
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:dwarfsuniversal> ${UNIVERSAL_OUT}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${UNIVERSAL_OUT}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     else()
@@ -978,13 +1031,15 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
       # executable significantly
       add_custom_command(
         OUTPUT ${UNIVERSAL_OUT}
-        COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:dwarfsuniversal>
+        COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:${tgt}>
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     endif()
 
-    add_custom_target(universal_upx DEPENDS ${UNIVERSAL_OUT})
-  endif()
+    list(APPEND UNIVERSAL_UPX_TARGETS ${UNIVERSAL_OUT})
+  endforeach()
+
+  add_custom_target(universal_upx DEPENDS ${UNIVERSAL_UPX_TARGETS})
 endif()
 
 if(DEFINED ENV{GITHUB_REF_TYPE})
