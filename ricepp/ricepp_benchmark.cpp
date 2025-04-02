@@ -25,7 +25,8 @@
 #include <benchmark/benchmark.h>
 
 #include <ricepp/byteswap.h>
-#include <ricepp/ricepp.h>
+#include <ricepp/create_decoder.h>
+#include <ricepp/create_encoder.h>
 
 namespace {
 
@@ -76,19 +77,23 @@ class ricepp_bm : public ::benchmark::Fixture {
             .full_freq = 1.0 / state.range(5),
         });
 
-    codec_ = ricepp::create_codec<uint16_t>({
+    auto config = ricepp::codec_config{
         .block_size = static_cast<size_t>(state.range(6)),
         .component_stream_count = static_cast<unsigned>(state.range(7)),
         .byteorder = state.range(1) ? std::endian::big : std::endian::little,
         .unused_lsb_count = static_cast<unsigned>(state.range(2)),
-    });
+    };
 
-    encoded_ = codec_->encode(data_);
+    encoder_ = ricepp::create_encoder<uint16_t>(config);
+    decoder_ = ricepp::create_decoder<uint16_t>(config);
+
+    encoded_ = encoder_->encode(data_);
   }
 
   void TearDown(::benchmark::State const&) {}
 
-  std::unique_ptr<ricepp::codec_interface<uint16_t>> codec_;
+  std::unique_ptr<ricepp::encoder_interface<uint16_t>> encoder_;
+  std::unique_ptr<ricepp::decoder_interface<uint16_t>> decoder_;
   std::vector<uint16_t> data_;
   std::vector<uint8_t> encoded_;
 };
@@ -119,9 +124,9 @@ void ricepp_params(benchmark::internal::Benchmark* b) {
 
 BENCHMARK_DEFINE_F(ricepp_bm, encode)(::benchmark::State& state) {
   std::vector<uint8_t> encoded;
-  encoded.resize(codec_->worst_case_encoded_bytes(data_));
+  encoded.resize(encoder_->worst_case_encoded_bytes(data_));
   for (auto _ : state) {
-    auto r = codec_->encode(encoded, data_);
+    auto r = encoder_->encode(encoded, data_);
     ::benchmark::DoNotOptimize(r);
   }
   state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
@@ -132,7 +137,7 @@ BENCHMARK_DEFINE_F(ricepp_bm, decode)(::benchmark::State& state) {
   std::vector<uint16_t> decoded;
   decoded.resize(data_.size());
   for (auto _ : state) {
-    codec_->decode(decoded, encoded_);
+    decoder_->decode(decoded, encoded_);
   }
   state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
                           data_.size() * sizeof(data_[0]));

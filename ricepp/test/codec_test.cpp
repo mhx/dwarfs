@@ -28,7 +28,8 @@
 #include <gtest/gtest.h>
 
 #include <ricepp/byteswap.h>
-#include <ricepp/ricepp.h>
+#include <ricepp/create_decoder.h>
+#include <ricepp/create_encoder.h>
 
 namespace {
 
@@ -55,46 +56,56 @@ generate_random_data(size_t count, unsigned unused_lsb_count = 0,
 } // namespace
 
 TEST(ricepp, codec_basic_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+  auto config = ricepp::codec_config{
       .block_size = 16,
       .component_stream_count = 1,
       .byteorder = std::endian::big,
       .unused_lsb_count = 0,
-  });
+  };
+
+  auto encoder = ricepp::create_encoder<uint16_t>(config);
 
   auto data = generate_random_data<uint16_t>(12345);
-  auto encoded = codec->encode(data);
+  auto encoded = encoder->encode(data);
+
+  auto decoder = ricepp::create_decoder<uint16_t>(config);
 
   std::vector<uint16_t> decoded(data.size());
-  codec->decode(decoded, encoded);
+  decoder->decode(decoded, encoded);
 
   EXPECT_THAT(decoded, ::testing::ContainerEq(data));
 }
 
 TEST(ricepp, codec_unused_lsb_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+  auto config = ricepp::codec_config{
       .block_size = 13, // because why not?
       .component_stream_count = 1,
       .byteorder = std::endian::big,
       .unused_lsb_count = 4,
-  });
+  };
+
+  auto encoder = ricepp::create_encoder<uint16_t>(config);
 
   auto data = generate_random_data<uint16_t>(4321, 4);
-  auto encoded = codec->encode(data);
+  auto encoded = encoder->encode(data);
+
+  auto decoder = ricepp::create_decoder<uint16_t>(config);
 
   std::vector<uint16_t> decoded(data.size());
-  codec->decode(decoded, encoded);
+  decoder->decode(decoded, encoded);
 
   EXPECT_THAT(decoded, ::testing::ContainerEq(data));
 }
 
 TEST(ricepp, codec_mixed_data_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+  auto config = ricepp::codec_config{
       .block_size = 32,
       .component_stream_count = 1,
       .byteorder = std::endian::big,
       .unused_lsb_count = 0,
-  });
+  };
+
+  auto encoder = ricepp::create_encoder<uint16_t>(config);
 
   auto data1 = generate_random_data<uint16_t>(500, 0);
   auto data2 = std::vector<uint16_t>(500, 25000);
@@ -102,59 +113,69 @@ TEST(ricepp, codec_mixed_data_test) {
 
   auto data = ranges::views::concat(data1, data2, data3) | ranges::to_vector;
 
-  auto encoded = codec->encode(data);
+  auto encoded = encoder->encode(data);
+
+  auto decoder = ricepp::create_decoder<uint16_t>(config);
 
   std::vector<uint16_t> decoded(data.size());
-  codec->decode(decoded, encoded);
+  decoder->decode(decoded, encoded);
 
   EXPECT_THAT(decoded, ::testing::ContainerEq(data));
 }
 
 TEST(ricepp, codec_multi_component_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+  auto config = ricepp::codec_config{
       .block_size = 29,
       .component_stream_count = 2,
       .byteorder = std::endian::big,
       .unused_lsb_count = 2,
-  });
+  };
+
+  auto encoder = ricepp::create_encoder<uint16_t>(config);
 
   auto data = generate_random_data<uint16_t>(23456, 2);
-  auto encoded = codec->encode(data);
+  auto encoded = encoder->encode(data);
+
+  auto decoder = ricepp::create_decoder<uint16_t>(config);
 
   std::vector<uint16_t> decoded(data.size());
-  codec->decode(decoded, encoded);
+  decoder->decode(decoded, encoded);
 
   EXPECT_THAT(decoded, ::testing::ContainerEq(data));
 }
 
 TEST(ricepp, codec_preallocated_buffer_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+  auto config = ricepp::codec_config{
       .block_size = 29,
       .component_stream_count = 1,
       .byteorder = std::endian::big,
       .unused_lsb_count = 0,
-  });
+  };
+
+  auto encoder = ricepp::create_encoder<uint16_t>(config);
 
   static constexpr size_t const kDataLen = 14443;
   auto data = generate_random_data<uint16_t>(kDataLen, 0, std::endian::big, 0);
-  auto worst_case_bytes = codec->worst_case_encoded_bytes(data);
+  auto worst_case_bytes = encoder->worst_case_encoded_bytes(data);
   static constexpr size_t const kWorstCaseBytes = 29138;
   EXPECT_EQ(kWorstCaseBytes, worst_case_bytes);
 
   std::vector<uint8_t> encoded(worst_case_bytes);
-  auto span = codec->encode(encoded, data);
+  auto span = encoder->encode(encoded, data);
   EXPECT_EQ(kWorstCaseBytes, span.size());
   encoded.resize(span.size());
   encoded.shrink_to_fit();
 
+  auto decoder = ricepp::create_decoder<uint16_t>(config);
+
   std::vector<uint16_t> decoded(data.size());
-  codec->decode(decoded, encoded);
+  decoder->decode(decoded, encoded);
 
   EXPECT_THAT(decoded, ::testing::ContainerEq(data));
 }
 
-TEST(ricepp, codec_worst_case_bytes_test) {
-  auto codec = ricepp::create_codec<uint16_t>({
+TEST(ricepp, encoder_worst_case_bytes_test) {
+  auto encoder = ricepp::create_encoder<uint16_t>({
       .block_size = 29,
       .component_stream_count = 2,
       .byteorder = std::endian::big,
@@ -162,7 +183,7 @@ TEST(ricepp, codec_worst_case_bytes_test) {
   });
 
   static constexpr size_t const kDataLen = 28886;
-  auto worst_case_bytes = codec->worst_case_encoded_bytes(kDataLen);
+  auto worst_case_bytes = encoder->worst_case_encoded_bytes(kDataLen);
   static constexpr size_t const kWorstCaseBytes = 58275;
   EXPECT_EQ(kWorstCaseBytes, worst_case_bytes);
 }
@@ -170,7 +191,7 @@ TEST(ricepp, codec_worst_case_bytes_test) {
 TEST(ricepp, codec_error_test) {
   EXPECT_THAT(
       [] {
-        auto codec = ricepp::create_codec<uint16_t>({
+        auto encoder = ricepp::create_encoder<uint16_t>({
             .block_size = 513,
             .component_stream_count = 2,
             .byteorder = std::endian::big,
@@ -182,7 +203,7 @@ TEST(ricepp, codec_error_test) {
 
   EXPECT_THAT(
       [] {
-        auto codec = ricepp::create_codec<uint16_t>({
+        auto decoder = ricepp::create_decoder<uint16_t>({
             .block_size = 128,
             .component_stream_count = 3,
             .byteorder = std::endian::big,

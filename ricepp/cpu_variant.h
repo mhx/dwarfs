@@ -19,25 +19,20 @@
  * along with ricepp.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ricepp/create_decoder.h>
-#include <ricepp/create_encoder.h>
+#pragma once
 
-#include "ricepp_cpuspecific.h"
+#include <string_view>
 
-namespace ricepp {
+namespace ricepp::detail {
 
-template <>
-std::unique_ptr<encoder_interface<uint16_t>>
-create_encoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      encoder_interface, detail::encoder_cpuspecific_, uint16_t>(config);
-}
+enum class cpu_variant {
+  fallback,
+  has_bmi2,
+  has_bmi2_avx512,
+};
 
-template <>
-std::unique_ptr<decoder_interface<uint16_t>>
-create_decoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      decoder_interface, detail::decoder_cpuspecific_, uint16_t>(config);
-}
+cpu_variant get_cpu_variant();
+void show_cpu_variant(std::string_view variant);
+void show_cpu_variant_once(std::string_view variant);
 
-} // namespace ricepp
+} // namespace ricepp::detail

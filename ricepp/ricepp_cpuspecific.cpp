@@ -19,110 +19,27 @@
  * along with ricepp.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <cassert>
-#include <cstdint>
-
-#include <iostream>
-
 #include <ricepp/bitstream_reader.h>
 #include <ricepp/bitstream_writer.h>
-#include <ricepp/byteswap.h>
 #include <ricepp/codec.h>
-#include <ricepp/detail/compiler.h>
-#include <ricepp/ricepp.h>
 
-#include "ricepp_cpuspecific.h"
+#include "ricepp_cpuspecific_traits.h"
 
-namespace ricepp {
+namespace ricepp::detail {
 
 namespace {
 
-template <std::unsigned_integral ValueType>
-class dynamic_pixel_traits {
- public:
-  using value_type = ValueType;
-  static constexpr size_t const kBitCount =
-      std::numeric_limits<value_type>::digits;
-  static constexpr value_type const kAllOnes =
-      std::numeric_limits<value_type>::max();
-
-  dynamic_pixel_traits(std::endian byteorder,
-                       unsigned unused_lsb_count) noexcept
-      : unused_lsb_count_{unused_lsb_count}
-      , byteorder_{byteorder}
-#ifndef NDEBUG
-      , lsb_mask_{static_cast<value_type>(~(kAllOnes << unused_lsb_count))}
-      , msb_mask_{static_cast<value_type>(~(kAllOnes >> unused_lsb_count))}
-#endif
-  {
-    assert(unused_lsb_count < kBitCount);
-  }
-
-  [[nodiscard]] RICEPP_FORCE_INLINE value_type
-  read(value_type value) const noexcept {
-    value_type tmp = byteswap(value, byteorder_);
-    assert((tmp & lsb_mask_) == 0);
-    return tmp >> unused_lsb_count_;
-  }
-
-  [[nodiscard]] RICEPP_FORCE_INLINE value_type
-  write(value_type value) const noexcept {
-    assert((value & msb_mask_) == 0);
-    return byteswap(static_cast<value_type>(value << unused_lsb_count_),
-                    byteorder_);
-  }
-
- private:
-  unsigned const unused_lsb_count_;
-  std::endian const byteorder_;
-#ifndef NDEBUG
-  value_type const lsb_mask_;
-  value_type const msb_mask_;
-#endif
-};
-
-template <std::unsigned_integral ValueType, std::endian ByteOrder,
-          unsigned UnusedLsbCount>
-class static_pixel_traits {
- public:
-  using value_type = ValueType;
-  static constexpr size_t const kBitCount =
-      std::numeric_limits<value_type>::digits;
-  static constexpr value_type const kAllOnes =
-      std::numeric_limits<value_type>::max();
-  static constexpr std::endian const kByteOrder = ByteOrder;
-  static constexpr unsigned const kUnusedLsbCount = UnusedLsbCount;
-  static constexpr value_type const kLsbMask =
-      static_cast<value_type>(~(kAllOnes << kUnusedLsbCount));
-  static constexpr value_type const kMsbMask =
-      static_cast<value_type>(~(kAllOnes >> kUnusedLsbCount));
-  static_assert(kUnusedLsbCount < kBitCount);
-
-  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
-  read(value_type value) noexcept {
-    value_type tmp = byteswap<kByteOrder>(value);
-    assert((tmp & kLsbMask) == 0);
-    return tmp >> kUnusedLsbCount;
-  }
-
-  [[nodiscard]] static RICEPP_FORCE_INLINE value_type
-  write(value_type value) noexcept {
-    assert((value & kMsbMask) == 0);
-    return byteswap<kByteOrder>(
-        static_cast<value_type>(value << kUnusedLsbCount));
-  }
-};
-
 template <size_t MaxBlockSize, size_t ComponentStreamCount,
           typename PixelTraits>
-class codec_impl final
-    : public codec_interface<typename PixelTraits::value_type>,
+class encoder_impl final
+    : public encoder_interface<typename PixelTraits::value_type>,
       public PixelTraits {
  public:
   using pixel_type = typename PixelTraits::value_type;
-  using codec_type = codec<MaxBlockSize, ComponentStreamCount, PixelTraits>;
+  using codec_type =
+      ricepp::codec<MaxBlockSize, ComponentStreamCount, PixelTraits>;
 
-  codec_impl(PixelTraits const& traits, size_t block_size)
+  encoder_impl(PixelTraits const& traits, size_t block_size)
       : PixelTraits{traits}
       , block_size_{block_size} {}
 
@@ -147,11 +64,6 @@ class codec_impl final
                        input.size());
   }
 
-  void decode(std::span<pixel_type> output,
-              std::span<uint8_t const> input) const override {
-    decode_impl(output.data(), output.size(), input.data(), input.size());
-  }
-
  private:
   size_t worst_case_encoded_bytes_impl(codec_type& codec, size_t size) const {
     return (codec.worst_case_bit_count(size) + 8 - 1) / 8;
@@ -167,12 +79,6 @@ class codec_impl final
               pixel_type const* __restrict input, size_t input_size) const {
     return encode_impl(std::span<uint8_t>{output, output_size},
                        std::span<pixel_type const>{input, input_size});
-  }
-
-  void decode_impl(pixel_type* __restrict output, size_t output_size,
-                   uint8_t const* __restrict input, size_t input_size) const {
-    return decode_impl(std::span<pixel_type>{output, output_size},
-                       std::span<uint8_t const>{input, input_size});
   }
 
   std::vector<uint8_t> encode_impl(std::span<pixel_type const> input) const {
@@ -194,6 +100,35 @@ class codec_impl final
     return std::span<uint8_t>{output.begin(), writer.iterator()};
   }
 
+ private:
+  size_t const block_size_;
+};
+
+template <size_t MaxBlockSize, size_t ComponentStreamCount,
+          typename PixelTraits>
+class decoder_impl final
+    : public decoder_interface<typename PixelTraits::value_type>,
+      public PixelTraits {
+ public:
+  using pixel_type = typename PixelTraits::value_type;
+  using codec_type = codec<MaxBlockSize, ComponentStreamCount, PixelTraits>;
+
+  decoder_impl(PixelTraits const& traits, size_t block_size)
+      : PixelTraits{traits}
+      , block_size_{block_size} {}
+
+  void decode(std::span<pixel_type> output,
+              std::span<uint8_t const> input) const override {
+    decode_impl(output.data(), output.size(), input.data(), input.size());
+  }
+
+ private:
+  void decode_impl(pixel_type* __restrict output, size_t output_size,
+                   uint8_t const* __restrict input, size_t input_size) const {
+    return decode_impl(std::span<pixel_type>{output, output_size},
+                       std::span<uint8_t const>{input, input_size});
+  }
+
   void decode_impl(std::span<pixel_type> output,
                    std::span<uint8_t const> input) const {
     bitstream_reader reader{input.begin(), input.end()};
@@ -205,90 +140,30 @@ class codec_impl final
   size_t const block_size_;
 };
 
-template <size_t ComponentStreamCount, typename PixelTraits>
-std::unique_ptr<codec_interface<typename PixelTraits::value_type>>
-create_codec_(size_t block_size, PixelTraits const& traits) {
-  if (block_size <= 512) {
-    return std::make_unique<codec_impl<512, ComponentStreamCount, PixelTraits>>(
-        traits, block_size);
-  }
-
-  return nullptr;
-}
-
-template <typename PixelTraits>
-std::unique_ptr<codec_interface<typename PixelTraits::value_type>>
-create_codec_(size_t block_size, size_t component_stream_count,
-              PixelTraits const& traits) {
-  switch (component_stream_count) {
-  case 1:
-    return create_codec_<1, PixelTraits>(block_size, traits);
-
-  case 2:
-    return create_codec_<2, PixelTraits>(block_size, traits);
-
-  default:
-    break;
-  }
-
-  return nullptr;
-}
-
-template <std::unsigned_integral PixelValueType, std::endian ByteOrder,
-          unsigned UnusedLsbCount>
-std::unique_ptr<codec_interface<PixelValueType>>
-create_codec_(size_t block_size, size_t component_stream_count) {
-  using pixel_traits =
-      static_pixel_traits<PixelValueType, ByteOrder, UnusedLsbCount>;
-
-  if (auto codec = create_codec_<pixel_traits>(
-          block_size, component_stream_count, pixel_traits{})) {
-    return codec;
-  }
-
-  return nullptr;
-}
-
-template <std::unsigned_integral PixelValueType>
-std::unique_ptr<codec_interface<PixelValueType>>
-create_codec_(codec_config const& config) {
-  if (config.byteorder == std::endian::big) {
-    switch (config.unused_lsb_count) {
-    case 0:
-      return create_codec_<PixelValueType, std::endian::big, 0>(
-          config.block_size, config.component_stream_count);
-
-    case 2:
-      return create_codec_<PixelValueType, std::endian::big, 2>(
-          config.block_size, config.component_stream_count);
-
-    case 4:
-      return create_codec_<PixelValueType, std::endian::big, 4>(
-          config.block_size, config.component_stream_count);
-    }
-  }
-
-  using pixel_traits = dynamic_pixel_traits<PixelValueType>;
-
-  return create_codec_<pixel_traits>(
-      config.block_size, config.component_stream_count,
-      pixel_traits{config.byteorder, config.unused_lsb_count});
-}
-
 } // namespace
 
-namespace detail {
-
 template <>
-std::unique_ptr<codec_interface<uint16_t>>
-create_codec_cpuspecific_<uint16_t, cpu_variant::RICEPP_CPU_VARIANT>(
+std::unique_ptr<encoder_interface<uint16_t>>
+encoder_cpuspecific_<uint16_t, cpu_variant::RICEPP_CPU_VARIANT>::create(
     codec_config const& config) {
-  if (auto codec = create_codec_<uint16_t>(config)) {
-    return codec;
+  if (auto encoder =
+          create_codec_<encoder_interface, encoder_impl, uint16_t>(config)) {
+    return encoder;
   }
 
   throw std::runtime_error("Unsupported configuration");
 }
 
-} // namespace detail
-} // namespace ricepp
+template <>
+std::unique_ptr<decoder_interface<uint16_t>>
+decoder_cpuspecific_<uint16_t, cpu_variant::RICEPP_CPU_VARIANT>::create(
+    codec_config const& config) {
+  if (auto decoder =
+          create_codec_<decoder_interface, decoder_impl, uint16_t>(config)) {
+    return decoder;
+  }
+
+  throw std::runtime_error("Unsupported configuration");
+}
+
+} // namespace ricepp::detail

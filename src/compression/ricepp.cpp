@@ -25,7 +25,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include <ricepp/ricepp.h>
+#include <ricepp/create_decoder.h>
+#include <ricepp/create_encoder.h>
 
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/decompressor_registry.h>
@@ -84,7 +85,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
     auto byteorder =
         endianness == "big" ? std::endian::big : std::endian::little;
 
-    auto codec = ricepp::create_codec<pixel_type>({
+    auto encoder = ricepp::create_encoder<pixel_type>({
         .block_size = block_size_,
         .component_stream_count = static_cast<size_t>(component_count),
         .byteorder = byteorder,
@@ -124,9 +125,10 @@ class ricepp_block_compressor final : public block_compressor::impl {
         data.size() / bytes_per_sample};
 
     size_t header_size = compressed.size();
-    compressed.resize(header_size + codec->worst_case_encoded_bytes(input));
+    compressed.resize(header_size + encoder->worst_case_encoded_bytes(input));
 
-    auto output = codec->encode(compressed.span().subspan(header_size), input);
+    auto output =
+        encoder->encode(compressed.span().subspan(header_size), input);
     compressed.resize(header_size + output.size());
     compressed.shrink_to_fit();
 
@@ -174,7 +176,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
       : uncompressed_size_{varint::decode(data)}
       , header_{decode_header(data)}
       , data_{data}
-      , codec_{ricepp::create_codec<uint16_t>(
+      , decoder_{ricepp::create_decoder<uint16_t>(
             {.block_size = header_.block_size().value(),
              .component_stream_count = header_.component_count().value(),
              .byteorder = header_.big_endian().value() ? std::endian::big
@@ -202,7 +204,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
   bool decompress_frame(size_t) override {
     DWARFS_CHECK(decompressed_, "decompression not started");
 
-    if (!codec_) {
+    if (!decoder_) {
       return false;
     }
 
@@ -211,9 +213,9 @@ class ricepp_block_decompressor final : public block_decompressor_base {
         reinterpret_cast<uint16_t*>(decompressed_.data()),
         decompressed_.size() / 2};
 
-    codec_->decode(output, data_);
+    decoder_->decode(output, data_);
 
-    codec_.reset();
+    decoder_.reset();
 
     return true;
   }
@@ -239,7 +241,7 @@ class ricepp_block_decompressor final : public block_decompressor_base {
   size_t const uncompressed_size_;
   thrift::compression::ricepp_block_header const header_;
   std::span<uint8_t const> data_;
-  std::unique_ptr<ricepp::codec_interface<uint16_t>> codec_;
+  std::unique_ptr<ricepp::decoder_interface<uint16_t>> decoder_;
 };
 
 template <typename Base>
