@@ -78,7 +78,7 @@ foreach(target ${RICEPP_LIBS_CPUSPECIFIC})
   list(APPEND RICEPP_OBJECT_TARGETS ${target})
 endforeach()
 
-add_library(ricepp-core OBJECT ricepp.cpp)
+add_library(ricepp-core OBJECT ricepp.cpp cpu_variant.cpp)
 # target_link_libraries(ricepp-core PUBLIC range-v3::range-v3)
 target_include_directories(ricepp-core SYSTEM PUBLIC
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:range-v3::range-v3,INTERFACE_INCLUDE_DIRECTORIES>>

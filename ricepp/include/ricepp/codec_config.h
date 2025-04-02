@@ -19,25 +19,18 @@
  * along with ricepp.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ricepp/create_decoder.h>
-#include <ricepp/create_encoder.h>
+#pragma once
 
-#include "ricepp_cpuspecific.h"
+#include <bit>
+#include <cstddef>
 
 namespace ricepp {
 
-template <>
-std::unique_ptr<encoder_interface<uint16_t>>
-create_encoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      encoder_interface, detail::encoder_cpuspecific_, uint16_t>(config);
-}
-
-template <>
-std::unique_ptr<decoder_interface<uint16_t>>
-create_decoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      decoder_interface, detail::decoder_cpuspecific_, uint16_t>(config);
-}
+struct codec_config {
+  size_t block_size;
+  size_t component_stream_count;
+  std::endian byteorder;
+  unsigned unused_lsb_count;
+};
 
 } // namespace ricepp

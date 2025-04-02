@@ -19,25 +19,23 @@
  * along with ricepp.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <ricepp/create_decoder.h>
-#include <ricepp/create_encoder.h>
+#pragma once
 
-#include "ricepp_cpuspecific.h"
+#include <concepts>
+#include <cstdint>
+#include <span>
 
 namespace ricepp {
 
-template <>
-std::unique_ptr<encoder_interface<uint16_t>>
-create_encoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      encoder_interface, detail::encoder_cpuspecific_, uint16_t>(config);
-}
+template <std::unsigned_integral PixelT>
+class decoder_interface {
+ public:
+  using pixel_type = PixelT;
 
-template <>
-std::unique_ptr<decoder_interface<uint16_t>>
-create_decoder<uint16_t>(codec_config const& config) {
-  return detail::create_codec_cpuspecific<
-      decoder_interface, detail::decoder_cpuspecific_, uint16_t>(config);
-}
+  virtual ~decoder_interface() = default;
+
+  virtual void decode(std::span<pixel_type> output,
+                      std::span<uint8_t const> input) const = 0;
+};
 
 } // namespace ricepp

@@ -30,7 +30,8 @@
 #include <benchmark/benchmark.h>
 
 #include <ricepp/byteswap.h>
-#include <ricepp/ricepp.h>
+#include <ricepp/create_decoder.h>
+#include <ricepp/create_encoder.h>
 
 namespace {
 
@@ -72,12 +73,15 @@ class ricepp_bm : public ::benchmark::Fixture {
 
     auto const& camera_info = g_camera_info.at(camera);
 
-    codec_ = ricepp::create_codec<uint16_t>({
+    auto config = ricepp::codec_config{
         .block_size = 128,
         .component_stream_count = camera_info.component_stream_count,
         .byteorder = std::endian::big,
         .unused_lsb_count = camera_info.unused_lsb_count,
-    });
+    };
+
+    encoder_ = ricepp::create_encoder<uint16_t>(config);
+    decoder_ = ricepp::create_decoder<uint16_t>(config);
 
     if (data_.empty()) {
       std::filesystem::path testdata_dir;
@@ -89,7 +93,7 @@ class ricepp_bm : public ::benchmark::Fixture {
 
       data_ = load_fits_data(testdata_dir / camera / (test + ".fit"));
 
-      encoded_ = codec_->encode(data_);
+      encoded_ = encoder_->encode(data_);
     }
 
     latch_->count_down();
@@ -124,7 +128,8 @@ class ricepp_bm : public ::benchmark::Fixture {
     return data;
   }
 
-  std::unique_ptr<ricepp::codec_interface<uint16_t>> codec_;
+  std::unique_ptr<ricepp::encoder_interface<uint16_t>> encoder_;
+  std::unique_ptr<ricepp::decoder_interface<uint16_t>> decoder_;
   std::vector<uint16_t> data_;
   std::vector<uint8_t> encoded_;
   std::optional<std::latch> latch_{1};
@@ -136,9 +141,9 @@ class ricepp_bm : public ::benchmark::Fixture {
   BENCHMARK_DEFINE_F(ricepp_bm, encode_##camera##_##test)                      \
   (::benchmark::State & state) {                                               \
     thread_local std::vector<uint8_t> encoded;                                 \
-    encoded.resize(codec_->worst_case_encoded_bytes(data_));                   \
+    encoded.resize(encoder_->worst_case_encoded_bytes(data_));                 \
     for (auto _ : state) {                                                     \
-      auto r = codec_->encode(encoded, data_);                                 \
+      auto r = encoder_->encode(encoded, data_);                               \
       ::benchmark::DoNotOptimize(r);                                           \
     }                                                                          \
     state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *         \
@@ -151,7 +156,7 @@ class ricepp_bm : public ::benchmark::Fixture {
     thread_local std::vector<uint16_t> decoded;                                \
     decoded.resize(data_.size());                                              \
     for (auto _ : state) {                                                     \
-      codec_->decode(decoded, encoded_);                                       \
+      decoder_->decode(decoded, encoded_);                                     \
     }                                                                          \
     state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *         \
                             data_.size() * sizeof(data_[0]));                  \

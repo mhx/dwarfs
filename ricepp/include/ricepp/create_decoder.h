@@ -22,32 +22,15 @@
 #pragma once
 
 #include <concepts>
-#include <span>
-#include <vector>
+#include <memory>
+
+#include <ricepp/codec_config.h>
+#include <ricepp/decoder_interface.h>
 
 namespace ricepp {
 
 template <std::unsigned_integral PixelT>
-class codec_interface {
- public:
-  using pixel_type = PixelT;
-
-  virtual ~codec_interface() = default;
-
-  [[nodiscard]] virtual std::vector<uint8_t>
-  encode(std::span<pixel_type const> input) const = 0;
-
-  virtual size_t worst_case_encoded_bytes(size_t pixel_count) const = 0;
-
-  virtual size_t
-  worst_case_encoded_bytes(std::span<pixel_type const> input) const = 0;
-
-  virtual std::span<uint8_t>
-  encode(std::span<uint8_t> output,
-         std::span<pixel_type const> input) const = 0;
-
-  virtual void decode(std::span<pixel_type> output,
-                      std::span<uint8_t const> input) const = 0;
-};
+std::unique_ptr<decoder_interface<PixelT>>
+create_decoder(codec_config const& config);
 
 } // namespace ricepp
