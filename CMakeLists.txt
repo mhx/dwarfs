@@ -978,7 +978,7 @@ if(STATIC_BUILD_DO_NOT_USE OR WIN32)
       # executable significantly
       add_custom_command(
         OUTPUT ${UNIVERSAL_OUT}
-        COMMAND ${UPX_EXE} -9 -o ${UNIVERSAL_OUT} $<TARGET_FILE:dwarfsuniversal>
+        COMMAND ${UPX_EXE} -9 --best -o ${UNIVERSAL_OUT} $<TARGET_FILE:dwarfsuniversal>
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       )
     endif()
