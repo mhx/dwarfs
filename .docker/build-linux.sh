@@ -97,7 +97,7 @@ case "-$BUILD_TYPE-" in
     ;;
   *-clang-*)
     case "-$BUILD_DIST-" in
-      *-ubuntu-*)
+      *-ubuntu-*|*-alpine-*)
         export CC=clang$CLANG_VERSION CXX=clang++$CLANG_VERSION
         ;;
       *)
@@ -126,7 +126,7 @@ case "-$BUILD_TYPE-" in
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
     export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
-    export CXXFLAGS="$CFLAGS"
+    export CXXFLAGS="${CFLAGS}"
     export LDFLAGS="-Wl,--gc-sections"
     ;;
   *-reldbg-*)
@@ -135,6 +135,16 @@ case "-$BUILD_TYPE-" in
   *)
     echo "missing build type: $BUILD_TYPE"
     exit 1
+esac
+
+case "-$BUILD_TYPE-" in
+  *-lto-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
+    export CFLAGS="${CFLAGS} -flto"
+    export CXXFLAGS="${CXXFLAGS} -flto"
+    export LDFLAGS="${LDFLAGS} -flto"
+    export COMPILER="${COMPILER}-lto"
+    ;;
 esac
 
 case "-$BUILD_TYPE-" in
@@ -196,7 +206,7 @@ fi
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
   export LDFLAGS="-L/opt/static-libs/$COMPILER/lib"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_PXATTR=1"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DWITH_PXATTR=1"
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
 fi
 
