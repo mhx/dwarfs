@@ -45,10 +45,18 @@ using namespace dwarfs::tool;
 using namespace std::string_view_literals;
 
 constexpr dwarfs::sorted_array_map functions{
+#ifdef DWARFS_UNIVERSAL_FUSE_DRIVER
     std::pair{"dwarfs"sv, &dwarfs_main},
+#endif
+#ifdef DWARFS_UNIVERSAL_MKDWARFS
     std::pair{"mkdwarfs"sv, &mkdwarfs_main},
+#endif
+#ifdef DWARFS_UNIVERSAL_DWARFSCK
     std::pair{"dwarfsck"sv, &dwarfsck_main},
+#endif
+#ifdef DWARFS_UNIVERSAL_DWARFSEXTRACT
     std::pair{"dwarfsextract"sv, &dwarfsextract_main},
+#endif
 };
 
 bool looks_like_executable(std::filesystem::path const& path) {
@@ -107,7 +115,7 @@ int SYS_MAIN(int argc, sys_char** argv) {
                ranges::to<std::string>;
 
   // clang-format off
-  std::cout << tool_header_nodeps("dwarfs-universal")
+  std::cout << tool_header_nodeps(DWARFS_UNIVERSAL_NAME)
             << "Command line options:\n"
             << "  --tool=<name>                     "
                  "which tool to run; available tools are:\n"
