@@ -196,7 +196,11 @@ fi
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
 if [[ "$BUILD_DIST" == "alpine" ]]; then
-  CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl"
+  if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl-lto"
+  else
+    CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl"
+  fi
 fi
 
 if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
