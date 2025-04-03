@@ -93,6 +93,7 @@
 #include <dwarfs/error.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
 #include <dwarfs/os_access.h>
@@ -1169,6 +1170,9 @@ int op_rename(char const* from, char const* to, unsigned int flags) {
 void usage(std::ostream& os, std::filesystem::path const& progname) {
   auto extra_deps = [](library_dependencies& deps) {
     decompressor_registry::instance().add_library_dependencies(deps);
+#if FUSE_USE_VERSION >= 30
+    deps.add_library("libfuse", ::fuse_pkgversion());
+#endif
   };
 
   os << tool::tool_header("dwarfs",
