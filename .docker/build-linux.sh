@@ -121,6 +121,9 @@ case "-$BUILD_TYPE-" in
   *-release-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
+    export CXXFLAGS="${CFLAGS}"
+    export LDFLAGS="-Wl,--gc-sections"
     ;;
   *-relsize-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
