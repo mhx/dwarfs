@@ -36,7 +36,9 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
     PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
-    export COMMON_CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
+    export CLANG_OPTIMIZE="-Os"
+    export GCC_OPTIMIZE="-O2" # gcc -Os is painfully slow
+    export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang gcc clang-lto gcc-lto"
 elif [[ "$PKGS" == ":none" ]]; then
@@ -112,14 +114,26 @@ fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSIO
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/${FUSE_TARBALL}
 
 for COMPILER in $COMPILERS; do
+    export CFLAGS="$COMMON_CFLAGS"
+    export CXXFLAGS="$COMMON_CXXFLAGS"
+    export LDFLAGS="$COMMON_LDFLAGS"
+
     case "$COMPILER" in
         clang*)
             export CC="$CLANG"
             export CXX="${CLANG/clang/clang++}"
+            if [[ -n "$CLANG_OPTIMIZE" ]]; then
+                export CFLAGS="$CFLAGS $CLANG_OPTIMIZE"
+                export CXXFLAGS="$CXXFLAGS $CLANG_OPTIMIZE"
+            fi
             ;;
         gcc*)
             export CC="$GCC"
             export CXX="${GCC/gcc/g++}"
+            if [[ -n "$GCC_OPTIMIZE" ]]; then
+                export CFLAGS="$CFLAGS $GCC_OPTIMIZE"
+                export CXXFLAGS="$CXXFLAGS $GCC_OPTIMIZE"
+            fi
             ;;
         *)
             echo "Unknown compiler: $COMPILER"
@@ -129,21 +143,37 @@ for COMPILER in $COMPILERS; do
 
     case "$COMPILER" in
         *-lto)
-            export CFLAGS="$COMMON_CFLAGS -flto"
-            export CXXFLAGS="$COMMON_CXXFLAGS -flto"
-            export LDFLAGS="$COMMON_LDFLAGS -flto"
+            export CFLAGS="$CFLAGS -flto"
+            export CXXFLAGS="$CXXFLAGS -flto"
+            export LDFLAGS="$LDFLAGS -flto"
             ;;
         *-lto-thin)
-            export CFLAGS="$COMMON_CFLAGS -flto=thin"
-            export CXXFLAGS="$COMMON_CXXFLAGS -flto=thin"
-            export LDFLAGS="$COMMON_LDFLAGS -flto=thin"
-            ;;
-        *)
-            unset CFLAGS
-            unset CXXFLAGS
-            unset LDFLAGS
+            export CFLAGS="$CFLAGS -flto=thin"
+            export CXXFLAGS="$CXXFLAGS -flto=thin"
+            export LDFLAGS="$LDFLAGS -flto=thin"
             ;;
     esac
+
+    if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
+        echo "unsetting CFLAGS"
+        unset CFLAGS
+    else
+        echo "setting CFLAGS: $CFLAGS"
+    fi
+
+    if [[ $CXXFLAGS =~ ^[[:space:]]*$ ]]; then
+        echo "unsetting CXXFLAGS"
+        unset CXXFLAGS
+    else
+        echo "setting CXXFLAGS: $CXXFLAGS"
+    fi
+
+    if [[ $LDFLAGS =~ ^[[:space:]]*$ ]]; then
+        echo "unsetting LDFLAGS"
+        unset LDFLAGS
+    else
+        echo "setting LDFLAGS: $LDFLAGS"
+    fi
 
     cd "$HOME/pkgs"
     mkdir $COMPILER
