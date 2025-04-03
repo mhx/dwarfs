@@ -334,22 +334,16 @@ jobs:
             build_type: clang-release-ninja-static
           - arch: amd64
             dist: alpine
-            build_type: gcc-relsize-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: gcc-relsize-ninja-static
-          - arch: amd64
-            dist: alpine
             build_type: clang-relsize-ninja-static
           - arch: arm64v8
             dist: alpine
             build_type: clang-relsize-ninja-static
           - arch: amd64
             dist: alpine
-            build_type: gcc-relsize-lto-ninja-static
+            build_type: gcc-release-lto-ninja-static
           - arch: arm64v8
             dist: alpine
-            build_type: gcc-relsize-lto-ninja-static
+            build_type: gcc-release-lto-ninja-static
           - arch: amd64
             dist: alpine
             build_type: clang-relsize-lto-ninja-static
