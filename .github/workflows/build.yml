@@ -183,19 +183,19 @@ jobs:
           - arch: amd64
             dist: ubuntu
             build_type: oldgcc-debug-shared-make-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: gcc-debug-shared-noperfmon-ninja-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu
             build_type: oldclang-debug-shared-make-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu-2204
             build_type: gcc-release-shared-ninja-split
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu-2204
             build_type: gcc-debug-shared-ninja-full
-          - arch: arm64v8
+          - arch: amd64
             dist: ubuntu-2204
             build_type: clang-release-ninja-split
 
@@ -256,7 +256,7 @@ jobs:
         build_type:
           - gcc-release-shared-ninja
         exclude:
-          - arch: amd64
+          - arch: arm64v8
             dist: ubuntu
             build_type: gcc-release-shared-ninja
           - arch: amd64
