@@ -27,6 +27,7 @@ XXHASH_VERSION=0.8.3
 LZ4_VERSION=1.10.0
 BROTLI_VERSION=1.1.0
 ZSTD_VERSION=1.5.7
+FUSE_VERSION=3.17.1
 
 echo "Using $GCC and $CLANG"
 
@@ -34,7 +35,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,glog,libarchive,lz4,openssl,xxhash,zstd"
+    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
     export COMMON_CFLAGS="-Os -ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang gcc clang-lto gcc-lto"
@@ -58,6 +59,7 @@ XXHASH_TARBALL="xxHash-${XXHASH_VERSION}.tar.gz"
 LZ4_TARBALL="lz4-${LZ4_VERSION}.tar.gz"
 BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
 ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
+FUSE_TARBALL="fuse-${FUSE_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -107,6 +109,7 @@ fetch_lib xxhash https://github.com/Cyan4973/xxHash/archive/refs/tags/v${XXHASH_
 fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4_TARBALL}
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
 fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
+fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/${FUSE_TARBALL}
 
 for COMPILER in $COMPILERS; do
     case "$COMPILER" in
@@ -146,6 +149,19 @@ for COMPILER in $COMPILERS; do
     mkdir $COMPILER
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
+
+    if use_lib fuse; then
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${FUSE_TARBALL}
+        cd fuse-${FUSE_VERSION}
+        mkdir build
+        cd build
+        meson setup .. --default-library=static --prefix="$INSTALL_DIR"
+        meson configure -D utils=false -D tests=false -D examples=false
+        meson setup --reconfigure ..
+        ninja
+        ninja install
+    fi
 
     if use_lib zstd; then
         cd "$HOME/pkgs/$COMPILER"
