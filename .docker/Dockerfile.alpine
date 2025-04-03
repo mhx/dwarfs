@@ -76,7 +76,9 @@ RUN apk add --no-cache \
         libogg-static \
         icu-static \
         expat-static \
-        nlohmann-json
+        nlohmann-json \
+        meson \
+        gdb
 
 ARG ARCH
 RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
