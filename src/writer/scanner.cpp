@@ -73,7 +73,6 @@
 #include <dwarfs/writer/internal/global_entry_data.h>
 #include <dwarfs/writer/internal/inode.h>
 #include <dwarfs/writer/internal/inode_manager.h>
-#include <dwarfs/writer/internal/inode_ordering.h>
 #include <dwarfs/writer/internal/metadata_freezer.h>
 #include <dwarfs/writer/internal/progress.h>
 
