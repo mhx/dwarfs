@@ -361,6 +361,8 @@ class filesystem_v2 {
     return impl_->cache_blocks_by_category(category);
   }
 
+  void cache_all_blocks() const { impl_->cache_all_blocks(); }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -457,6 +459,7 @@ class filesystem_v2 {
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
     virtual void cache_blocks_by_category(std::string_view category) const = 0;
+    virtual void cache_all_blocks() const = 0;
   };
 
  private:

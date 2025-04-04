@@ -158,6 +158,12 @@ class inode_reader_ final : public inode_reader_v2::impl {
     }
   }
 
+  void cache_all_blocks() const override {
+    for (size_t i = 0; i < cache_.block_count(); ++i) {
+      cache_.get(i, 0, 1);
+    }
+  }
+
  private:
   using offset_cache_type =
       basic_offset_cache<uint32_t, file_off_t, size_t,

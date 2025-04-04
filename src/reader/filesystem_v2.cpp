@@ -316,6 +316,8 @@ class filesystem_ final : public filesystem_v2::impl {
     ir_.cache_blocks(meta_.get_block_numbers_by_category(category));
   }
 
+  void cache_all_blocks() const override { ir_.cache_all_blocks(); }
+
  private:
   filesystem_info const* get_info(fsinfo_options const& opts) const;
   void check_section(fs_section const& section) const;
