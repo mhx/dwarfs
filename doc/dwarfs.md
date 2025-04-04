@@ -115,6 +115,11 @@ options:
   system contains directories with entries that only differ in
   case.
 
+- `-o preload_category=`*category*:
+  Preload all blocks from this category when mounting the file
+  system. This is typically used together with the `mkdwarfs`
+  "hotness" categorizer.
+
 - `-o (no_)cache_image`:
   By default, `dwarfs` tries to ensure that the compressed file
   system image will not be cached by the kernel (i.e. the default

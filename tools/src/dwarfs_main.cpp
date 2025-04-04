@@ -169,6 +169,7 @@ struct options {
   char const* cachesize_str{nullptr};           // TODO: const?? -> use string?
   char const* blocksize_str{nullptr};           // TODO: const?? -> use string?
   char const* readahead_str{nullptr};           // TODO: const?? -> use string?
+  char const* preload_category_str{nullptr};    // TODO: const?? -> use string?
   char const* debuglevel_str{nullptr};          // TODO: const?? -> use string?
   char const* workers_str{nullptr};             // TODO: const?? -> use string?
   char const* mlock_str{nullptr};               // TODO: const?? -> use string?
@@ -267,6 +268,7 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
     DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
     DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
+    DWARFS_OPT("preload_category=%s", preload_category_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
@@ -396,6 +398,10 @@ void op_init_common(void* data) {
 
   // we must do this *after* the fuse driver has forked into background
   userdata.fs.set_cache_tidy_config(tidy);
+
+  if (userdata.opts.preload_category_str) {
+    userdata.fs.cache_blocks_by_category(userdata.opts.preload_category_str);
+  }
 }
 
 #if DWARFS_FUSE_LOWLEVEL
@@ -1199,6 +1205,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o enable_nlink        show correct hardlink numbers\n"
      << "    -o readonly            show read-only file system\n"
      << "    -o case_insensitive    perform case-insensitive lookups\n"
+     << "    -o preload_category=NAME  preload blocks from this category\n"
      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
