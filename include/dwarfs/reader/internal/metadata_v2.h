@@ -184,6 +184,11 @@ class metadata_v2 {
     return impl_->get_all_gids();
   }
 
+  std::vector<size_t>
+  get_block_numbers_by_category(std::string_view category) const {
+    return impl_->get_block_numbers_by_category(category);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -255,6 +260,9 @@ class metadata_v2 {
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
 
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
+
+    virtual std::vector<size_t>
+    get_block_numbers_by_category(std::string_view category) const = 0;
   };
 
  private:

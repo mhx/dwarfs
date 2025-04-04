@@ -152,6 +152,12 @@ class inode_reader_ final : public inode_reader_v2::impl {
   }
   size_t num_blocks() const override { return cache_.block_count(); }
 
+  void cache_blocks(std::span<size_t const> blocks) const override {
+    for (auto b : blocks) {
+      cache_.get(b, 0, 1);
+    }
+  }
+
  private:
   using offset_cache_type =
       basic_offset_cache<uint32_t, file_off_t, size_t,

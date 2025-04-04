@@ -563,6 +563,9 @@ class metadata_ final : public metadata_v2::impl {
   std::vector<file_stat::uid_type> get_all_uids() const override;
   std::vector<file_stat::gid_type> get_all_gids() const override;
 
+  std::vector<size_t>
+  get_block_numbers_by_category(std::string_view category) const override;
+
  private:
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
@@ -2200,6 +2203,35 @@ std::vector<file_stat::gid_type> metadata_<LoggerPolicy>::get_all_gids() const {
   std::vector<file_stat::gid_type> rv;
   rv.resize(meta_.gids().size());
   std::copy(meta_.gids().begin(), meta_.gids().end(), rv.begin());
+  return rv;
+}
+
+template <typename LoggerPolicy>
+std::vector<size_t> metadata_<LoggerPolicy>::get_block_numbers_by_category(
+    std::string_view category) const {
+  std::vector<size_t> rv;
+
+  if (auto catnames = meta_.category_names()) {
+    if (auto categories = meta_.block_categories()) {
+      std::optional<size_t> category_num;
+
+      for (size_t catnum = 0; catnum < catnames.value().size(); ++catnum) {
+        if (catnames.value()[catnum] == category) {
+          category_num = catnum;
+          break;
+        }
+      }
+
+      if (category_num) {
+        for (size_t blknum = 0; blknum < categories.value().size(); ++blknum) {
+          if (categories.value()[blknum] == *category_num) {
+            rv.push_back(blknum);
+          }
+        }
+      }
+    }
+  }
+
   return rv;
 }
 

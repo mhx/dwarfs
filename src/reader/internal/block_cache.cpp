@@ -722,6 +722,8 @@ class block_cache_ final : public block_cache::impl {
         block->touch();
       }
 
+      LOG_VERBOSE << "inserting block " << block_no << " into cache";
+
       cache_.set(block_no, std::move(block));
     }
   }

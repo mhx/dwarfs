@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <iosfwd>
 #include <memory>
+#include <span>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -100,6 +101,10 @@ class inode_reader_v2 {
 
   size_t num_blocks() const { return impl_->num_blocks(); }
 
+  void cache_blocks(std::span<size_t const> blocks) const {
+    impl_->cache_blocks(blocks);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -121,6 +126,7 @@ class inode_reader_v2 {
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
+    virtual void cache_blocks(std::span<size_t const> blocks) const = 0;
   };
 
  private:
