@@ -27,12 +27,15 @@
  */
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <cstddef>
@@ -180,6 +183,7 @@ struct options {
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
   char const* seq_detector_thresh_str{nullptr}; // TODO: const?? -> use string?
+  char const* analysis_file_str{nullptr};       // TODO: const?? -> use string?
 #ifndef _WIN32
   char const* uid_str{nullptr}; // TODO: const?? -> use string?
   char const* gid_str{nullptr}; // TODO: const?? -> use string?
@@ -217,6 +221,68 @@ struct options {
 
 static_assert(std::is_standard_layout_v<options>);
 
+class dwarfs_analysis {
+ public:
+  explicit dwarfs_analysis(std::filesystem::path const& path)
+      : path_{path} {}
+
+  ~dwarfs_analysis() {
+    if (!path_.empty()) {
+      write_analysis();
+    }
+  }
+
+  void write_analysis() {
+    std::cerr << "Writing analysis to " << path_ << '\n';
+
+    std::ofstream ofs{path_};
+
+    if (!ofs) {
+      throw std::system_error{errno, std::system_category()};
+    }
+
+    std::unordered_set<fuse_ino_t> opened_inodes;
+    std::vector<std::string> opened;
+
+    {
+      std::lock_guard lock{mx_};
+
+      std::cerr << "Opened inodes: " << open_.size() << '\n';
+      std::cerr << "Lookup inodes: " << lookup_.size() << '\n';
+
+      for (auto ino : open_) {
+        if (opened_inodes.insert(ino).second) {
+          opened.push_back(lookup_.at(ino));
+        }
+      }
+    }
+
+    for (auto const& path : opened) {
+      ofs << path << '\n';
+    }
+
+    path_.clear();
+  }
+
+  void add_lookup(fuse_ino_t ino, std::string const& path) {
+    std::lock_guard lock{mx_};
+    std::cerr << "Lookup: " << ino << " -> " << path << '\n';
+    lookup_.try_emplace(ino, path);
+  }
+
+  void add_open(fuse_ino_t ino) {
+    std::lock_guard lock{mx_};
+    std::cerr << "Open: " << ino << '\n';
+    open_.push_back(ino);
+  }
+
+ private:
+  std::filesystem::path path_;
+  std::mutex mx_;
+  std::unordered_map<fuse_ino_t, std::string> lookup_;
+  std::vector<fuse_ino_t> open_;
+};
+
 struct dwarfs_userdata {
   explicit dwarfs_userdata(iolayer const& iol)
       : lgr{iol.term, iol.err}
@@ -230,6 +296,7 @@ struct dwarfs_userdata {
   stream_logger lgr;
   reader::filesystem_v2 fs;
   iolayer const& iol;
+  std::optional<dwarfs_analysis> analysis;
   std::shared_ptr<performance_monitor> perfmon;
   PERFMON_EXT_PROXY_DECL
   PERFMON_EXT_TIMER_DECL(op_init)
@@ -268,6 +335,7 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
     DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
     DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
+    DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
@@ -436,6 +504,13 @@ void op_lookup(fuse_req_t req, fuse_ino_t parent, char const* name) {
       return ENOENT;
     }
 
+    if (userdata.analysis) {
+      auto iv = dev->inode();
+      if (iv.is_regular_file()) {
+        userdata.analysis->add_lookup(iv.inode_num(), dev->path());
+      }
+    }
+
     std::error_code ec;
     auto stbuf = userdata.fs.getattr(dev->inode(), ec);
 
@@ -602,6 +677,10 @@ int op_open_common(LogProxy& log_, dwarfs_userdata& userdata,
     if ((fi->flags & O_ACCMODE) != O_RDONLY ||
         (fi->flags & (O_APPEND | O_TRUNC)) != 0) {
       return EACCES;
+    }
+
+    if (userdata.analysis) {
+      userdata.analysis->add_open(iv->inode_num());
     }
 
     fi->fh = iv->inode_num();
@@ -1209,6 +1288,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
+     << "    -o analysis_file=FILE  write accessed files to this file\n"
      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
@@ -1482,6 +1562,12 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_statfs)
   PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr, "inode")
+
+  if (opts.analysis_file_str) {
+    auto file = userdata.iol.os->canonical(std::filesystem::path(
+        reinterpret_cast<char8_t const*>(opts.analysis_file_str)));
+    userdata.analysis.emplace(file);
+  }
 
   auto fsimage = userdata.iol.os->canonical(std::filesystem::path(
       reinterpret_cast<char8_t const*>(opts.fsimage->data())));

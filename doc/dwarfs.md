@@ -151,6 +151,13 @@ options:
   in particular will slow down the driver. This defaults to `info`
   in foreground mode (`-f`, `-d`) and to `warn` in background mode.
 
+- `-o analysis_file=`*file*:
+  Write the paths of all files that were opened while the file system
+  image was mounted to this file. This can be used as a set of "hot"
+  files for the `hotness` categorizer in `mkdwarfs`. See the `mkdwarfs`
+  documentation for details on producing images optimized for fast
+  access times after mounting.
+
 - `-o tidy_strategy=none`|`time`|`swap`:
   Use one of the following strategies to tidy the block cache.
   `none` is the default strategy that never tidies the cache. Blocks
