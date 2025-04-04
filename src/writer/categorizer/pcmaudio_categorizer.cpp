@@ -528,7 +528,7 @@ class pcmaudio_categorizer_ final : public pcmaudio_categorizer_base {
   }
 
   inode_fragments
-  categorize(fs::path const& path, std::span<uint8_t const> data,
+  categorize(file_path_info const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
   std::string category_metadata(std::string_view category_name,
@@ -1114,7 +1114,7 @@ void pcmaudio_categorizer_<LoggerPolicy>::add_fragments(
 
 template <typename LoggerPolicy>
 inode_fragments pcmaudio_categorizer_<LoggerPolicy>::categorize(
-    fs::path const& path, std::span<uint8_t const> data,
+    file_path_info const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
   inode_fragments fragments;
 
@@ -1127,7 +1127,7 @@ inode_fragments pcmaudio_categorizer_<LoggerPolicy>::categorize(
              &pcmaudio_categorizer_::check_wav64,
              // clang-format on
          }) {
-      if ((this->*f)(fragments, path, data, mapper)) {
+      if ((this->*f)(fragments, path.full_path(), data, mapper)) {
         break;
       }
 

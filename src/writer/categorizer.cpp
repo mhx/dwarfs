@@ -45,6 +45,8 @@
 
 namespace dwarfs::writer {
 
+namespace fs = std::filesystem;
+
 namespace internal {
 
 using namespace std::placeholders;
@@ -61,9 +63,10 @@ template <typename LoggerPolicy>
 class categorizer_job_ final : public categorizer_job::impl {
  public:
   categorizer_job_(logger& lgr, categorizer_manager_private const& mgr,
-                   std::filesystem::path const& path)
+                   fs::path const& root_path, fs::path const& path)
       : LOG_PROXY_INIT(lgr)
       , mgr_{mgr}
+      , root_path_{root_path}
       , path_{path}
       , cat_mapper_{// NOLINTNEXTLINE(modernize-avoid-bind)
                     std::bind(&categorizer_manager_private::category,
@@ -85,7 +88,8 @@ class categorizer_job_ final : public categorizer_job::impl {
   size_t total_size_{0};
   std::vector<std::pair<int, std::unique_ptr<sequential_categorizer_job>>>
       seq_jobs_;
-  std::filesystem::path const path_;
+  fs::path const& root_path_;
+  fs::path const path_;
   category_mapper cat_mapper_;
 };
 
@@ -104,9 +108,11 @@ void categorizer_job_<LoggerPolicy>::categorize_random_access(
 
   bool global_best = true;
 
+  file_path_info path_info{root_path_, path_};
+
   for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
     if (auto p = dynamic_cast<random_access_categorizer*>(cat.get())) {
-      if (auto c = p->categorize(path_, data, cat_mapper_)) {
+      if (auto c = p->categorize(path_info, data, cat_mapper_)) {
         best_ = c;
         index_ = index;
         is_global_best_ = global_best;
@@ -126,13 +132,15 @@ void categorizer_job_<LoggerPolicy>::categorize_sequential(
   }
 
   if (seq_jobs_.empty()) [[unlikely]] {
+    file_path_info path_info{root_path_, path_};
+
     for (auto&& [index, cat] : ranges::views::enumerate(mgr_.categorizers())) {
       if (index_ >= 0 && std::cmp_greater_equal(index, index_)) {
         break;
       }
 
       if (auto p = dynamic_cast<sequential_categorizer*>(cat.get())) {
-        if (auto job = p->job(path_, total_size_, cat_mapper_)) {
+        if (auto job = p->job(path_info, total_size_, cat_mapper_)) {
           seq_jobs_.emplace_back(index, std::move(job));
         }
       }
@@ -174,15 +182,16 @@ bool categorizer_job_<LoggerPolicy>::best_result_found() const {
 template <typename LoggerPolicy>
 class categorizer_manager_ final : public categorizer_manager_private {
  public:
-  explicit categorizer_manager_(logger& lgr)
+  explicit categorizer_manager_(logger& lgr, fs::path root)
       : lgr_{lgr}
-      , LOG_PROXY_INIT(lgr) {
+      , LOG_PROXY_INIT(lgr)
+      , root_path_{std::move(root)} {
     add_category(categorizer::DEFAULT_CATEGORY,
                  std::numeric_limits<size_t>::max());
   }
 
   void add(std::shared_ptr<categorizer> c) override;
-  categorizer_job job(std::filesystem::path const& path) const override;
+  categorizer_job job(fs::path const& path) const override;
   std::string_view
   category_name(fragment_category::value_type c) const override;
 
@@ -229,6 +238,7 @@ class categorizer_manager_ final : public categorizer_manager_private {
   // TODO: category descriptions?
   std::vector<std::pair<std::string_view, size_t>> categories_;
   std::unordered_map<std::string_view, fragment_category::value_type> catmap_;
+  fs::path root_path_;
 };
 
 template <typename LoggerPolicy>
@@ -241,11 +251,12 @@ void categorizer_manager_<LoggerPolicy>::add(std::shared_ptr<categorizer> c) {
 }
 
 template <typename LoggerPolicy>
-categorizer_job categorizer_manager_<LoggerPolicy>::job(
-    std::filesystem::path const& path) const {
+categorizer_job
+categorizer_manager_<LoggerPolicy>::job(fs::path const& path) const {
   return categorizer_job(
       make_unique_logging_object<categorizer_job::impl, categorizer_job_,
-                                 logger_policies>(lgr_, *this, path));
+                                 logger_policies>(lgr_, *this, root_path_,
+                                                  path));
 }
 
 template <typename LoggerPolicy>
@@ -307,6 +318,10 @@ bool categorizer_manager_<LoggerPolicy>::deterministic_less(
 
 namespace po = boost::program_options;
 
+fs::path file_path_info::relative_path() const {
+  return full_path_.lexically_relative(root_path_);
+}
+
 std::string category_prefix(std::shared_ptr<categorizer_manager> const& mgr,
                             fragment_category cat) {
   return category_prefix(mgr.get(), cat);
@@ -361,9 +376,10 @@ categorizer_job::categorizer_job() = default;
 categorizer_job::categorizer_job(std::unique_ptr<impl> impl)
     : impl_{std::move(impl)} {}
 
-categorizer_manager::categorizer_manager(logger& lgr)
+categorizer_manager::categorizer_manager(logger& lgr, fs::path root)
     : impl_(make_unique_logging_object<impl, internal::categorizer_manager_,
-                                       logger_policies>(lgr)) {}
+                                       logger_policies>(lgr, std::move(root))) {
+}
 
 fragment_category categorizer_manager::default_category() {
   return fragment_category(0);
