@@ -192,6 +192,7 @@ struct options {
   char const* perfmon_enabled_str{nullptr};    // TODO: const?? -> use string?
   char const* perfmon_trace_file_str{nullptr}; // TODO: const?? -> use string?
 #endif
+  int preload_all{0};
   int enable_nlink{0};
   int readonly{0};
   int case_insensitive{0};
@@ -337,6 +338,7 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
     DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
+    DWARFS_OPT("preload_all", preload_all, 1),
     DWARFS_OPT("enable_nlink", enable_nlink, 1),
     DWARFS_OPT("readonly", readonly, 1),
     DWARFS_OPT("case_insensitive", case_insensitive, 1),
@@ -469,6 +471,8 @@ void op_init_common(void* data) {
 
   if (userdata.opts.preload_category_str) {
     userdata.fs.cache_blocks_by_category(userdata.opts.preload_category_str);
+  } else if (userdata.opts.preload_all) {
+    userdata.fs.cache_all_blocks();
   }
 }
 
@@ -1285,6 +1289,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o readonly            show read-only file system\n"
      << "    -o case_insensitive    perform case-insensitive lookups\n"
      << "    -o preload_category=NAME  preload blocks from this category\n"
+     << "    -o preload_all         preload all file system blocks\n"
      << "    -o (no_)cache_image    (don't) keep image in kernel cache\n"
      << "    -o (no_)cache_files    (don't) keep files in kernel cache\n"
      << "    -o debuglevel=NAME     " << logger::all_level_names() << "\n"
