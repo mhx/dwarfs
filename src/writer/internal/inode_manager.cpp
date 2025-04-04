@@ -68,6 +68,7 @@
 namespace dwarfs::writer::internal {
 
 using namespace dwarfs::internal;
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -430,6 +431,7 @@ class inode_ : public inode {
       case fragment_order_mode::NONE:
       case fragment_order_mode::PATH:
       case fragment_order_mode::REVPATH:
+      case fragment_order_mode::EXPLICIT:
         break;
       case fragment_order_mode::SIMILARITY:
         sc.try_emplace(cat);
@@ -493,6 +495,7 @@ class inode_ : public inode {
     case fragment_order_mode::NONE:
     case fragment_order_mode::PATH:
     case fragment_order_mode::REVPATH:
+    case fragment_order_mode::EXPLICIT:
       break;
 
     case fragment_order_mode::SIMILARITY: {
@@ -545,9 +548,11 @@ class inode_ : public inode {
 template <typename LoggerPolicy>
 class inode_manager_ final : public inode_manager::impl {
  public:
-  inode_manager_(logger& lgr, progress& prog, inode_options const& opts)
+  inode_manager_(logger& lgr, progress& prog, fs::path const& root_path,
+                 inode_options const& opts)
       : LOG_PROXY_INIT(lgr)
       , prog_(prog)
+      , root_path_{root_path}
       , opts_{opts}
       , inodes_need_scanning_{inodes_need_scanning(opts_)} {}
 
@@ -657,6 +662,7 @@ class inode_manager_ final : public inode_manager::impl {
   LOG_PROXY_DECL(LoggerPolicy);
   std::vector<std::shared_ptr<inode>> inodes_;
   progress& prog_;
+  fs::path const root_path_;
   inode_options opts_;
   bool const inodes_need_scanning_;
   std::atomic<size_t> mutable num_invalid_inodes_{0};
@@ -816,14 +822,25 @@ auto inode_manager_<LoggerPolicy>::ordered_span(fragment_category cat,
     tv << prefix << span.size() << " inodes ordered";
     break;
   }
+
+  case fragment_order_mode::EXPLICIT: {
+    LOG_VERBOSE << prefix << "ordering " << span.size()
+                << " inodes by explicit order...";
+    auto tv = LOG_CPU_TIMED_VERBOSE;
+    order.by_explicit_order(span, root_path_, opts);
+    tv << prefix << span.size() << " inodes ordered";
+    break;
+  }
   }
 
   return span;
 }
 
 inode_manager::inode_manager(logger& lgr, progress& prog,
+                             fs::path const& root_path,
                              inode_options const& opts)
     : impl_(make_unique_logging_object<impl, internal::inode_manager_,
-                                       logger_policies>(lgr, prog, opts)) {}
+                                       logger_policies>(lgr, prog, root_path,
+                                                        opts)) {}
 
 } // namespace dwarfs::writer::internal

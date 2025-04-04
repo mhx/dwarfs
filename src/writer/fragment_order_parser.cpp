@@ -22,6 +22,7 @@
  */
 
 #include <array>
+#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -47,6 +48,7 @@ constexpr std::array order_choices{
     std::pair{"revpath"sv, fragment_order_mode::REVPATH},
     std::pair{"similarity"sv, fragment_order_mode::SIMILARITY},
     std::pair{"nilsimsa"sv, fragment_order_mode::NILSIMSA},
+    std::pair{"explicit"sv, fragment_order_mode::EXPLICIT},
 };
 
 } // namespace
@@ -95,6 +97,21 @@ fragment_order_parser::parse(std::string_view arg) const {
       }
       break;
 
+    case fragment_order_mode::EXPLICIT: {
+      auto file = om.get<std::string>("file");
+      std::ifstream ifs{file};
+      if (!ifs) {
+        throw std::runtime_error(
+            fmt::format("failed to open explicit order file '{}'", file));
+      }
+      std::string line;
+      while (std::getline(ifs, line)) {
+        auto const path = std::filesystem::path{line}.relative_path();
+        rv.explicit_order[path] = rv.explicit_order.size();
+      }
+      rv.explicit_order_file = std::move(file);
+    } break;
+
     default:
       throw std::runtime_error(
           fmt::format("inode order mode '{}' does not support options", algo));
@@ -125,6 +142,9 @@ fragment_order_parser::to_string(fragment_order_options const& opts) const {
     return fmt::format("nilsimsa:max_children={}:max_cluster_size={}",
                        opts.nilsimsa_max_children,
                        opts.nilsimsa_max_cluster_size);
+
+  case fragment_order_mode::EXPLICIT:
+    return fmt::format("explicit:file={}", opts.explicit_order_file);
   }
   return "<unknown>";
 }

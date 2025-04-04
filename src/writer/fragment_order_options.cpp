@@ -50,6 +50,9 @@ std::ostream& operator<<(std::ostream& os, fragment_order_mode mode) {
   case fragment_order_mode::NILSIMSA:
     modestr = "nilsimsa";
     break;
+  case fragment_order_mode::EXPLICIT:
+    modestr = "explicit";
+    break;
   }
 
   return os << modestr;
