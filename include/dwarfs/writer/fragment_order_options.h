@@ -23,14 +23,22 @@
 
 #pragma once
 
+#include <filesystem>
 #include <iosfwd>
+#include <string>
+#include <unordered_map>
 
 namespace dwarfs::writer {
 
-// TODO: rename? -> inode_order_mode / fragment_order_mode
-enum class fragment_order_mode { NONE, PATH, REVPATH, SIMILARITY, NILSIMSA };
+enum class fragment_order_mode {
+  NONE,
+  PATH,
+  REVPATH,
+  SIMILARITY,
+  NILSIMSA,
+  EXPLICIT
+};
 
-// TODO: rename? -> inode_order_options / fragment_order_options
 struct fragment_order_options {
   static constexpr int const kDefaultNilsimsaMaxChildren{16384};
   static constexpr int const kDefaultNilsimsaMaxClusterSize{16384};
@@ -38,6 +46,8 @@ struct fragment_order_options {
   fragment_order_mode mode{fragment_order_mode::NONE};
   int nilsimsa_max_children{kDefaultNilsimsaMaxChildren};
   int nilsimsa_max_cluster_size{kDefaultNilsimsaMaxClusterSize};
+  std::string explicit_order_file{};
+  std::unordered_map<std::filesystem::path, size_t> explicit_order{};
 };
 
 std::ostream& operator<<(std::ostream& os, fragment_order_mode mode);

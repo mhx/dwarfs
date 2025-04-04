@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 #include <functional>
 #include <iosfwd>
 #include <memory>
@@ -77,7 +78,9 @@ class inode_manager {
     size_t total_size{0};
   };
 
-  inode_manager(logger& lgr, progress& prog, inode_options const& opts);
+  inode_manager(logger& lgr, progress& prog,
+                std::filesystem::path const& root_path,
+                inode_options const& opts);
 
   std::shared_ptr<inode> create_inode() { return impl_->create_inode(); }
 

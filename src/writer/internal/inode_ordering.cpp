@@ -36,6 +36,7 @@
 namespace dwarfs::writer::internal {
 
 using namespace dwarfs::internal;
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -63,6 +64,8 @@ class inode_ordering_ final : public inode_ordering::impl {
   void
   by_nilsimsa(worker_group& wg, similarity_ordering_options const& opts,
               sortable_inode_span& sp, fragment_category cat) const override;
+  void by_explicit_order(sortable_inode_span& sp, fs::path const& root_path,
+                         fragment_order_options const& opts) const override;
 
  private:
   void
@@ -205,6 +208,46 @@ void inode_ordering_<LoggerPolicy>::by_nilsimsa_impl(
   sim_order.order_nilsimsa(ev, make_receiver(std::move(promise)),
                            std::move(index));
   future.get().swap(index);
+}
+
+template <typename LoggerPolicy>
+void inode_ordering_<LoggerPolicy>::by_explicit_order(
+    sortable_inode_span& sp, fs::path const& root_path,
+    fragment_order_options const& opts) const {
+  auto raw = sp.raw();
+  auto& index = sp.index();
+  auto const& order = opts.explicit_order;
+
+  if (order.empty()) {
+    LOG_WARN << "empty explicit order file set";
+  }
+
+  std::vector<std::filesystem::path> paths;
+  std::vector<std::optional<size_t>> path_order;
+  paths.resize(raw.size());
+  path_order.resize(raw.size());
+
+  for (auto i : index) {
+    paths[i] = fs::relative(raw[i]->any()->fs_path(), root_path);
+
+    if (auto it = order.find(paths[i]); it != order.end()) {
+      path_order[i] = it->second;
+    } else {
+      LOG_DEBUG << "explicit order: " << paths[i]
+                << " not found in explicit order file";
+    }
+  }
+
+  std::sort(index.begin(), index.end(), [&](auto a, auto b) {
+    auto const& ai = path_order[a];
+    auto const& bi = path_order[b];
+    return ai.has_value() && bi.has_value() ? *ai < *bi
+                                            : raw[a]->num() < raw[b]->num();
+  });
+
+  for (auto i : index) {
+    LOG_DEBUG << "explicit order: " << paths[i];
+  }
 }
 
 inode_ordering::inode_ordering(logger& lgr, progress& prog,

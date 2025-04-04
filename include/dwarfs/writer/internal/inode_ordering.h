@@ -23,7 +23,9 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
+#include <unordered_map>
 
 #include <dwarfs/writer/internal/inode.h>
 
@@ -40,6 +42,7 @@ class worker_group;
 namespace writer {
 
 struct inode_options;
+struct fragment_order_options;
 
 namespace internal {
 
@@ -71,6 +74,12 @@ class inode_ordering {
     impl_->by_nilsimsa(wg, opts, sp, cat);
   }
 
+  void by_explicit_order(sortable_inode_span& sp,
+                         std::filesystem::path const& root_path,
+                         fragment_order_options const& opts) const {
+    impl_->by_explicit_order(sp, root_path, opts);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -84,6 +93,10 @@ class inode_ordering {
     by_nilsimsa(dwarfs::internal::worker_group& wg,
                 similarity_ordering_options const& opts,
                 sortable_inode_span& sp, fragment_category cat) const = 0;
+    virtual void
+    by_explicit_order(sortable_inode_span& sp,
+                      std::filesystem::path const& root_path,
+                      fragment_order_options const& opts) const = 0;
   };
 
  private:
