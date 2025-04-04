@@ -312,6 +312,10 @@ class filesystem_ final : public filesystem_v2::impl {
     return meta_.get_block_category(block_no);
   }
 
+  void cache_blocks_by_category(std::string_view category) const override {
+    ir_.cache_blocks(meta_.get_block_numbers_by_category(category));
+  }
+
  private:
   filesystem_info const* get_info(fsinfo_options const& opts) const;
   void check_section(fs_section const& section) const;
