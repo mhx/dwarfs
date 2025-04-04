@@ -253,6 +253,7 @@ namespace detail {
 
 void binary_categorizer_factory_registrar(categorizer_registry&);
 void fits_categorizer_factory_registrar(categorizer_registry&);
+void hotness_categorizer_factory_registrar(categorizer_registry&);
 void incompressible_categorizer_factory_registrar(categorizer_registry&);
 void libmagic_categorizer_factory_registrar(categorizer_registry&);
 void pcmaudio_categorizer_factory_registrar(categorizer_registry&);

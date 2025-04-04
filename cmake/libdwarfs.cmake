@@ -146,6 +146,7 @@ add_library(
 
   # src/writer/categorizer/binary_categorizer.cpp
   src/writer/categorizer/fits_categorizer.cpp
+  src/writer/categorizer/hotness_categorizer.cpp
   src/writer/categorizer/incompressible_categorizer.cpp
   src/writer/categorizer/pcmaudio_categorizer.cpp
 

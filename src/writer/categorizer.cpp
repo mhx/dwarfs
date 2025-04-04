@@ -429,6 +429,7 @@ categorizer_registry::categorizer_registry() {
 
   // binary_categorizer_factory_registrar(*this);
   fits_categorizer_factory_registrar(*this);
+  hotness_categorizer_factory_registrar(*this);
   incompressible_categorizer_factory_registrar(*this);
   // libmagic_categorizer_factory_registrar(*this);
   pcmaudio_categorizer_factory_registrar(*this);

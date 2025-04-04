@@ -401,6 +401,11 @@ Most other options are concerned with compression tuning:
   you can switch to `ascii`, which is like `unicode`, but looks less
   fancy.
 
+- `--hotness-list=`*file*:
+  A file containing the paths of all "hot" files for the "hotness"
+  categorizer. The paths must be relative to the `--input` path, but
+  may start with a leading `/`.
+
 - `--incompressible-min-input-size=`*value*:
   The minimum size of a file to be checked for incompressibility when
   the `incompressible` categorizer is active.
