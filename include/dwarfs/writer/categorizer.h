@@ -65,10 +65,26 @@ class categorizer {
   subcategory_less(fragment_category a, fragment_category b) const = 0;
 };
 
+class file_path_info {
+ public:
+  file_path_info(std::filesystem::path const& root_path,
+                 std::filesystem::path const& full_path)
+      : root_path_{root_path}
+      , full_path_{full_path} {}
+
+  std::filesystem::path const& root_path() const { return root_path_; }
+  std::filesystem::path const& full_path() const { return full_path_; }
+  std::filesystem::path relative_path() const;
+
+ private:
+  std::filesystem::path const& root_path_;
+  std::filesystem::path const& full_path_;
+};
+
 class random_access_categorizer : public categorizer {
  public:
   virtual inode_fragments
-  categorize(std::filesystem::path const& path, std::span<uint8_t const> data,
+  categorize(file_path_info const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const = 0;
 };
 
@@ -85,7 +101,7 @@ class sequential_categorizer_job {
 class sequential_categorizer : public categorizer {
  public:
   virtual std::unique_ptr<sequential_categorizer_job>
-  job(std::filesystem::path const& path, size_t total_size,
+  job(file_path_info const& path, size_t total_size,
       category_mapper const& mapper) const = 0;
 };
 
@@ -129,7 +145,7 @@ class categorizer_job {
 
 class categorizer_manager : public category_resolver {
  public:
-  categorizer_manager(logger& lgr);
+  categorizer_manager(logger& lgr, std::filesystem::path root);
 
   static fragment_category default_category();
 

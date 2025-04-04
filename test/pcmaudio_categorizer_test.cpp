@@ -215,7 +215,7 @@ TEST(pcmaudio_categorizer, requirements) {
   test::test_logger logger(logger::INFO);
   boost::program_options::variables_map vm;
   auto& catreg = writer::categorizer_registry::instance();
-  auto catmgr = writer::categorizer_manager(logger);
+  auto catmgr = writer::categorizer_manager(logger, "/");
 
   catmgr.add(catreg.create(logger, "pcmaudio", vm));
 
@@ -294,7 +294,7 @@ TEST(pcmaudio_categorizer, requirements) {
 class pcmaudio_error_test : public testing::Test {
  public:
   test::test_logger logger{logger::VERBOSE};
-  writer::categorizer_manager catmgr{logger};
+  writer::categorizer_manager catmgr{logger, "/"};
 
   auto categorize(pcmfile_builder const& builder) {
     // std::cout << folly::hexDump(builder.data.data(), builder.data.size());

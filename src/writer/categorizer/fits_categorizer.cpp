@@ -336,7 +336,7 @@ class fits_categorizer_ final : public fits_categorizer_base {
   }
 
   inode_fragments
-  categorize(fs::path const& path, std::span<uint8_t const> data,
+  categorize(file_path_info const& path, std::span<uint8_t const> data,
              category_mapper const& mapper) const override;
 
   std::string category_metadata(std::string_view category_name,
@@ -392,7 +392,7 @@ bool fits_categorizer_<LoggerPolicy>::check_metadata(
 
 template <typename LoggerPolicy>
 inode_fragments fits_categorizer_<LoggerPolicy>::categorize(
-    fs::path const& path, std::span<uint8_t const> data,
+    file_path_info const& path, std::span<uint8_t const> data,
     category_mapper const& mapper) const {
   inode_fragments fragments;
 
@@ -406,7 +406,7 @@ inode_fragments fits_categorizer_<LoggerPolicy>::categorize(
         meta.unused_lsb_count = fi->unused_lsb_count;
         meta.component_count = fi->component_count;
 
-        if (check_metadata(meta, path)) {
+        if (check_metadata(meta, path.full_path())) {
           auto subcategory = meta_.wlock()->add(meta);
           fragments.emplace_back(fragment_category(mapper(METADATA_CATEGORY)),
                                  fi->header.size());

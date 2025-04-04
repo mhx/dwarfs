@@ -1184,7 +1184,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         split_to<std::vector<std::string>>(categorizer_list.value(), ',');
 
     options.inode.categorizer_mgr =
-        std::make_shared<writer::categorizer_manager>(lgr);
+        std::make_shared<writer::categorizer_manager>(lgr, path);
 
     for (auto const& name : categorizers) {
       options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));

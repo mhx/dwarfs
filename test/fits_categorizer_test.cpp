@@ -68,7 +68,7 @@ class fits_categorizer_fixture : public Base {
     po::store(parsed, vm);
     po::notify(vm);
 
-    catmgr = std::make_shared<writer::categorizer_manager>(lgr);
+    catmgr = std::make_shared<writer::categorizer_manager>(lgr, "/");
 
     catmgr->add(catreg.create(lgr, "fits", vm));
   }

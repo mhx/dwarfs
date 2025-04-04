@@ -208,7 +208,7 @@ class incompressible_categorizer_ final : public sequential_categorizer {
 
   std::span<std::string_view const> categories() const override;
   std::unique_ptr<sequential_categorizer_job>
-  job(std::filesystem::path const& path, size_t total_size,
+  job(file_path_info const& path, size_t total_size,
       category_mapper const& mapper) const override;
 
   bool
@@ -235,8 +235,7 @@ incompressible_categorizer_::categories() const {
 }
 
 std::unique_ptr<sequential_categorizer_job>
-incompressible_categorizer_::job(std::filesystem::path const& path,
-                                 size_t total_size,
+incompressible_categorizer_::job(file_path_info const& path, size_t total_size,
                                  category_mapper const& mapper) const {
   if (total_size < config_.min_input_size) {
     return nullptr;
@@ -244,8 +243,8 @@ incompressible_categorizer_::job(std::filesystem::path const& path,
 
   return make_unique_logging_object<sequential_categorizer_job,
                                     incompressible_categorizer_job_,
-                                    logger_policies>(lgr_, config_, ctxmgr_,
-                                                     path, total_size, mapper);
+                                    logger_policies>(
+      lgr_, config_, ctxmgr_, path.full_path(), total_size, mapper);
 }
 
 bool incompressible_categorizer_::subcategory_less(fragment_category,
