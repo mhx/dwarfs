@@ -32,7 +32,6 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <vector>
 
 #include <dwarfs/fstypes.h>
 
@@ -57,10 +56,17 @@ class fs_section {
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
   bool check_fast(mmif const& mm) const { return impl_->check_fast(mm); }
-  bool check(mmif const& mm) const { return impl_->check(mm); }
-  bool verify(mmif const& mm) const { return impl_->verify(mm); }
+
   std::span<uint8_t const> data(mmif const& mm) const {
     return impl_->data(mm);
+  }
+
+  std::optional<std::span<uint8_t const>> checksum_span(mmif const& mm) const {
+    return impl_->checksum_span(mm);
+  }
+
+  std::optional<std::span<uint8_t const>> integrity_span(mmif const& mm) const {
+    return impl_->integrity_span(mm);
   }
 
   size_t end() const { return start() + length(); }
@@ -73,7 +79,7 @@ class fs_section {
     return impl_->xxh3_64_value();
   }
 
-  std::optional<std::vector<uint8_t>> sha2_512_256_value() const {
+  std::optional<std::span<uint8_t const>> sha2_512_256_value() const {
     return impl_->sha2_512_256_value();
   }
 
@@ -90,12 +96,15 @@ class fs_section {
     virtual std::string name() const = 0;
     virtual std::string description() const = 0;
     virtual bool check_fast(mmif const& mm) const = 0;
-    virtual bool check(mmif const& mm) const = 0;
-    virtual bool verify(mmif const& mm) const = 0;
     virtual std::span<uint8_t const> data(mmif const& mm) const = 0;
+    virtual std::optional<std::span<uint8_t const>>
+    checksum_span(mmif const& mm) const = 0;
+    virtual std::optional<std::span<uint8_t const>>
+    integrity_span(mmif const& mm) const = 0;
     virtual std::optional<uint32_t> section_number() const = 0;
     virtual std::optional<uint64_t> xxh3_64_value() const = 0;
-    virtual std::optional<std::vector<uint8_t>> sha2_512_256_value() const = 0;
+    virtual std::optional<std::span<uint8_t const>>
+    sha2_512_256_value() const = 0;
   };
 
  private:

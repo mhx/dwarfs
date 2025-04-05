@@ -37,6 +37,7 @@
 #include <dwarfs/mmif.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/fs_section_checker.h>
 
 namespace dwarfs::internal {
 
@@ -108,11 +109,19 @@ class fs_section_v1 final : public fs_section::impl {
   }
 
   bool check_fast(mmif const&) const override { return true; }
-  bool check(mmif const&) const override { return true; }
-  bool verify(mmif const&) const override { return true; }
 
   std::span<uint8_t const> data(mmif const& mm) const override {
     return mm.span(start_, hdr_.length);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  checksum_span(mmif const&) const override {
+    return std::nullopt;
+  }
+
+  std::optional<std::span<uint8_t const>>
+  integrity_span(mmif const&) const override {
+    return std::nullopt;
   }
 
   std::optional<uint32_t> section_number() const override {
@@ -123,7 +132,7 @@ class fs_section_v1 final : public fs_section::impl {
     return std::nullopt;
   }
 
-  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
+  std::optional<std::span<uint8_t const>> sha2_512_256_value() const override {
     return std::nullopt;
   }
 
@@ -181,24 +190,11 @@ class fs_section_v2 final : public fs_section::impl {
       return state == check_state::passed;
     }
 
-    return check(mm);
-  }
+    auto ok = fs_section_checker(mm).check(*this);
 
-  bool check(mmif const& mm) const override {
-    if (check_state_.load() == check_state::failed) {
-      return false;
-    }
-
-    static constexpr auto kHdrCsLen =
-        sizeof(section_header_v2) - offsetof(section_header_v2, number);
-
-    auto ok = checksum::verify(
-        checksum::xxh3_64, mm.as<void>(start_ - kHdrCsLen),
-        hdr_.length + kHdrCsLen, &hdr_.xxh3_64, sizeof(hdr_.xxh3_64));
-
-    auto state = check_state_.load();
-
-    if (state != check_state::failed) {
+    if (auto state = check_state_.load(); state == check_state::failed) {
+      ok = false;
+    } else {
       auto desired = ok ? check_state::passed : check_state::failed;
       check_state_.compare_exchange_strong(state, desired);
     }
@@ -206,17 +202,24 @@ class fs_section_v2 final : public fs_section::impl {
     return ok;
   }
 
-  bool verify(mmif const& mm) const override {
-    auto hdr_sha_len =
-        sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
-    return checksum::verify(checksum::sha2_512_256,
-                            mm.as<void>(start_ - hdr_sha_len),
-                            hdr_.length + hdr_sha_len, hdr_.sha2_512_256.data(),
-                            hdr_.sha2_512_256.size());
-  }
-
   std::span<uint8_t const> data(mmif const& mm) const override {
     return mm.span(start_, hdr_.length);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  checksum_span(mmif const& mm) const override {
+    static constexpr auto kHdrCsLen =
+        sizeof(section_header_v2) - offsetof(section_header_v2, number);
+
+    return mm.span(start_ - kHdrCsLen, hdr_.length + kHdrCsLen);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  integrity_span(mmif const& mm) const override {
+    static constexpr auto kHdrShaLen =
+        sizeof(section_header_v2) - offsetof(section_header_v2, xxh3_64);
+
+    return mm.span(start_ - kHdrShaLen, hdr_.length + kHdrShaLen);
   }
 
   std::optional<uint32_t> section_number() const override {
@@ -227,9 +230,8 @@ class fs_section_v2 final : public fs_section::impl {
     return hdr_.xxh3_64;
   }
 
-  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
-    return std::vector<uint8_t>(hdr_.sha2_512_256.begin(),
-                                hdr_.sha2_512_256.end());
+  std::optional<std::span<uint8_t const>> sha2_512_256_value() const override {
+    return std::span{hdr_.sha2_512_256.data(), hdr_.sha2_512_256.size()};
   }
 
  private:
@@ -270,12 +272,18 @@ class fs_section_v2_lazy final : public fs_section::impl {
     return section().check_fast(mm);
   }
 
-  bool check(mmif const& mm) const override { return section().check(mm); }
-
-  bool verify(mmif const& mm) const override { return section().verify(mm); }
-
   std::span<uint8_t const> data(mmif const& mm) const override {
     return section().data(mm);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  checksum_span(mmif const& mm) const override {
+    return section().checksum_span(mm);
+  }
+
+  std::optional<std::span<uint8_t const>>
+  integrity_span(mmif const& mm) const override {
+    return section().integrity_span(mm);
   }
 
   std::optional<uint32_t> section_number() const override {
@@ -286,7 +294,7 @@ class fs_section_v2_lazy final : public fs_section::impl {
     return section().xxh3_64_value();
   }
 
-  std::optional<std::vector<uint8_t>> sha2_512_256_value() const override {
+  std::optional<std::span<uint8_t const>> sha2_512_256_value() const override {
     return section().sha2_512_256_value();
   }
 

@@ -55,6 +55,7 @@
 #include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/internal/fs_section.h>
+#include <dwarfs/internal/fs_section_checker.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/filesystem_parser.h>
@@ -539,13 +540,16 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
   worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
 
+  fs_section_checker section_checker(*mm_);
+
   while (auto sp = parser.next_section()) {
     check_section(*sp);
 
-    std::packaged_task<fs_section()> task{[this, level, s = std::move(*sp)] {
+    std::packaged_task<fs_section()> task{[this, level, &section_checker,
+                                           s = std::move(*sp)] {
       if (level == filesystem_check_level::INTEGRITY ||
           level == filesystem_check_level::FULL) {
-        if (!s.verify(*mm_)) {
+        if (!section_checker.verify(s)) {
           DWARFS_THROW(runtime_error,
                        "integrity check error in section: " + s.name());
         }
