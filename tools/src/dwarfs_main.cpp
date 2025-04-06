@@ -295,7 +295,7 @@ struct dwarfs_userdata {
   std::filesystem::path progname;
   options opts;
   stream_logger lgr;
-  reader::filesystem_v2 fs;
+  reader::filesystem_v2_lite fs;
   iolayer const& iol;
   std::optional<dwarfs_analysis> analysis;
   std::shared_ptr<performance_monitor> perfmon;
@@ -365,7 +365,7 @@ constexpr std::string_view inodeinfo_xattr{"user.dwarfs.inodeinfo"};
 
 #if !DWARFS_FUSE_LOWLEVEL
 std::optional<reader::inode_view>
-find_inode(PERFMON_SECTION_PARAM_ reader::filesystem_v2& fs,
+find_inode(PERFMON_SECTION_PARAM_ reader::filesystem_v2_lite& fs,
            std::string_view path) {
   auto dev = fs.find(path);
   if (dev) {
@@ -793,7 +793,7 @@ class readdir_lowlevel_policy {
     buf_.resize(size);
   }
 
-  auto find(reader::filesystem_v2& fs) const { return fs.find(ino_); }
+  auto find(reader::filesystem_v2_lite& fs) const { return fs.find(ino_); }
 
   bool keep_going() const { return written_ < buf_.size(); }
 
@@ -828,7 +828,7 @@ class readdir_policy {
       , buf_{buf}
       , filler_{filler} {}
 
-  auto find(reader::filesystem_v2& fs) const {
+  auto find(reader::filesystem_v2_lite& fs) const {
     std::optional<reader::inode_view> iv;
     if (auto dev = fs.find(path_)) {
       iv = dev->inode();
@@ -853,8 +853,8 @@ class readdir_policy {
 #endif
 
 template <typename Policy, typename OnInode>
-int op_readdir_common(reader::filesystem_v2& fs, Policy& policy, file_off_t off,
-                      OnInode&& on_inode) {
+int op_readdir_common(reader::filesystem_v2_lite& fs, Policy& policy,
+                      file_off_t off, OnInode&& on_inode) {
   auto iv = policy.find(fs);
 
   if (!iv) {
@@ -1579,8 +1579,8 @@ void load_filesystem(dwarfs_userdata& userdata) {
 
   LOG_DEBUG << "attempting to load filesystem from " << fsimage;
 
-  userdata.fs = reader::filesystem_v2(userdata.lgr, *userdata.iol.os, fsimage,
-                                      fsopts, userdata.perfmon);
+  userdata.fs = reader::filesystem_v2_lite(userdata.lgr, *userdata.iol.os,
+                                           fsimage, fsopts, userdata.perfmon);
 
   ti << "file system initialized";
 }
