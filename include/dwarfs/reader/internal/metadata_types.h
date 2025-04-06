@@ -52,8 +52,7 @@ class logger;
 
 namespace reader::internal {
 
-template <typename T>
-class metadata_;
+class metadata_v2_data;
 
 class global_metadata {
  public:
@@ -208,8 +207,7 @@ class chunk_range {
   using Meta =
       ::apache::thrift::frozen::MappedFrozen<thrift::metadata::metadata>;
 
-  template <typename T>
-  friend class internal::metadata_;
+  friend class internal::metadata_v2_data;
 
  public:
   class iterator

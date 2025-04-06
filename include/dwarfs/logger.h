@@ -347,6 +347,10 @@ class log_proxy {
 
 #define LOG_PROXY(policy, lgr) ::dwarfs::log_proxy<policy> log_(lgr)
 #define LOG_PROXY_DECL(policy) ::dwarfs::log_proxy<policy> log_
+#define LOG_PROXY_REF(policy) ::dwarfs::log_proxy<policy> const& log_
+#define LOG_PROXY_REF_(policy) LOG_PROXY_REF(policy),
+#define LOG_PROXY_ARG log_
+#define LOG_PROXY_ARG_ log_,
 #define LOG_PROXY_INIT(lgr) log_(lgr)
 #define LOG_GET_LOGGER log_.get_logger()
 #define LOG_FATAL log_.fatal(DWARFS_CURRENT_SOURCE_LOCATION)

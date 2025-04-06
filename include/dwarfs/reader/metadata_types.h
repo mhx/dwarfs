@@ -43,8 +43,7 @@ namespace dwarfs::reader {
 
 namespace internal {
 
-template <typename T>
-class metadata_;
+class metadata_v2_data;
 
 class inode_view_impl;
 class dir_entry_view_impl;
@@ -146,9 +145,7 @@ class directory_iterator {
 static_assert(std::input_iterator<directory_iterator>);
 
 class directory_view {
-  template <typename T>
-  friend class internal::metadata_;
-
+  friend class internal::metadata_v2_data;
   friend class dir_entry_view;
 
  public:
