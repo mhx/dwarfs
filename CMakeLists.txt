@@ -157,9 +157,9 @@ include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 
 set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
 set(FBTHRIFT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/fbthrift")
-include_directories(${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
+include_directories(BEFORE ${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
 
-link_directories(${DEPS_LIB_DIR})
+link_directories(BEFORE ${DEPS_LIB_DIR})
 
 set(IS_MSYS OFF)
 add_compile_definitions(GLOG_USE_GLOG_EXPORT)
