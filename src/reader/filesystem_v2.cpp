@@ -204,122 +204,116 @@ make_metadata(logger& lgr, std::shared_ptr<mmif> const& mm,
 } // namespace
 
 template <typename LoggerPolicy>
-class filesystem_ final : public filesystem_v2::impl {
+class filesystem_ final {
  public:
   filesystem_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
               filesystem_options const& options,
               std::shared_ptr<performance_monitor const> const& perfmon);
 
-  int check(filesystem_check_level level, size_t num_threads) const override;
-  void dump(std::ostream& os, fsinfo_options const& opts) const override;
-  std::string dump(fsinfo_options const& opts) const override;
-  nlohmann::json info_as_json(fsinfo_options const& opts) const override;
-  nlohmann::json metadata_as_json() const override;
-  std::string serialize_metadata_as_json(bool simple) const override;
-  void walk(std::function<void(dir_entry_view)> const& func) const override;
-  void walk_data_order(
-      std::function<void(dir_entry_view)> const& func) const override;
-  dir_entry_view root() const override;
-  std::optional<dir_entry_view> find(std::string_view path) const override;
-  std::optional<inode_view> find(int inode) const override;
-  std::optional<dir_entry_view>
-  find(int inode, std::string_view name) const override;
-  file_stat getattr(inode_view entry, std::error_code& ec) const override;
+  int check(filesystem_check_level level, size_t num_threads) const;
+  void dump(std::ostream& os, fsinfo_options const& opts) const;
+  std::string dump(fsinfo_options const& opts) const;
+  nlohmann::json info_as_json(fsinfo_options const& opts) const;
+  nlohmann::json metadata_as_json() const;
+  std::string serialize_metadata_as_json(bool simple) const;
+  void walk(std::function<void(dir_entry_view)> const& func) const;
+  void walk_data_order(std::function<void(dir_entry_view)> const& func) const;
+  dir_entry_view root() const;
+  std::optional<dir_entry_view> find(std::string_view path) const;
+  std::optional<inode_view> find(int inode) const;
+  std::optional<dir_entry_view> find(int inode, std::string_view name) const;
+  file_stat getattr(inode_view entry, std::error_code& ec) const;
   file_stat getattr(inode_view entry, getattr_options const& opts,
-                    std::error_code& ec) const override;
-  file_stat getattr(inode_view entry) const override;
-  file_stat
-  getattr(inode_view entry, getattr_options const& opts) const override;
+                    std::error_code& ec) const;
+  file_stat getattr(inode_view entry) const;
+  file_stat getattr(inode_view entry, getattr_options const& opts) const;
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
-              file_stat::gid_type gid) const override;
+              file_stat::gid_type gid) const;
   void access(inode_view entry, int mode, file_stat::uid_type uid,
-              file_stat::gid_type gid, std::error_code& ec) const override;
-  std::optional<directory_view> opendir(inode_view entry) const override;
+              file_stat::gid_type gid, std::error_code& ec) const;
+  std::optional<directory_view> opendir(inode_view entry) const;
   std::optional<dir_entry_view>
-  readdir(directory_view dir, size_t offset) const override;
-  size_t dirsize(directory_view dir) const override;
-  std::string readlink(inode_view entry, readlink_mode mode,
-                       std::error_code& ec) const override;
-  std::string readlink(inode_view entry, readlink_mode mode) const override;
-  void statvfs(vfs_stat* stbuf) const override;
-  int open(inode_view entry) const override;
-  int open(inode_view entry, std::error_code& ec) const override;
-  std::string read_string(uint32_t inode) const override;
-  std::string read_string(uint32_t inode, std::error_code& ec) const override;
+  readdir(directory_view dir, size_t offset) const;
+  size_t dirsize(directory_view dir) const;
   std::string
-  read_string(uint32_t inode, size_t size, file_off_t offset) const override;
+  readlink(inode_view entry, readlink_mode mode, std::error_code& ec) const;
+  std::string readlink(inode_view entry, readlink_mode mode) const;
+  void statvfs(vfs_stat* stbuf) const;
+  int open(inode_view entry) const;
+  int open(inode_view entry, std::error_code& ec) const;
+  std::string read_string(uint32_t inode) const;
+  std::string read_string(uint32_t inode, std::error_code& ec) const;
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset) const;
   std::string read_string(uint32_t inode, size_t size, file_off_t offset,
-                          std::error_code& ec) const override;
-  size_t read(uint32_t inode, char* buf, size_t size,
-              file_off_t offset) const override;
+                          std::error_code& ec) const;
+  size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset) const;
   size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
-              std::error_code& ec) const override;
-  size_t readv(uint32_t inode, iovec_read_buf& buf) const override;
-  size_t readv(uint32_t inode, iovec_read_buf& buf,
-               std::error_code& ec) const override;
+              std::error_code& ec) const;
+  size_t readv(uint32_t inode, iovec_read_buf& buf) const;
+  size_t readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-               file_off_t offset, std::error_code& ec) const override;
+               file_off_t offset, std::error_code& ec) const;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-               file_off_t offset) const override;
-  size_t
-  readv(uint32_t inode, iovec_read_buf& buf, size_t size, file_off_t offset,
-        size_t maxiov, std::error_code& ec) const override;
+               file_off_t offset) const;
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
-               file_off_t offset, size_t maxiov) const override;
-  std::vector<std::future<block_range>> readv(uint32_t inode) const override;
+               file_off_t offset, size_t maxiov, std::error_code& ec) const;
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, size_t maxiov) const;
+  std::vector<std::future<block_range>> readv(uint32_t inode) const;
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, std::error_code& ec) const override;
+  readv(uint32_t inode, std::error_code& ec) const;
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, size_t size, file_off_t offset) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset) const;
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset,
-        std::error_code& ec) const override;
+        std::error_code& ec) const;
   std::vector<std::future<block_range>>
-  readv(uint32_t inode, size_t size, file_off_t offset,
-        size_t maxiov) const override;
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov) const;
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
-        std::error_code& ec) const override;
-  std::optional<std::span<uint8_t const>> header() const override;
-  void set_num_workers(size_t num) override { ir_.set_num_workers(num); }
-  void set_cache_tidy_config(cache_tidy_config const& cfg) override {
+        std::error_code& ec) const;
+  std::optional<std::span<uint8_t const>> header() const;
+  void set_num_workers(size_t num) { ir_.set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) {
     ir_.set_cache_tidy_config(cfg);
   }
-  size_t num_blocks() const override { return ir_.num_blocks(); }
-  bool has_symlinks() const override { return meta_.has_symlinks(); }
-  history const& get_history() const override { return history_; }
-  nlohmann::json get_inode_info(inode_view entry) const override {
+  size_t num_blocks() const { return ir_.num_blocks(); }
+  bool has_symlinks() const { return meta_.has_symlinks(); }
+  history const& get_history() const { return history_; }
+  nlohmann::json get_inode_info(inode_view entry) const {
     return meta_.get_inode_info(entry, std::numeric_limits<size_t>::max());
   }
-  nlohmann::json
-  get_inode_info(inode_view entry, size_t max_chunks) const override {
+  nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
     return meta_.get_inode_info(entry, max_chunks);
   }
-  std::vector<std::string> get_all_block_categories() const override {
+  std::vector<std::string> get_all_block_categories() const {
     return meta_.get_all_block_categories();
   }
-  std::vector<file_stat::uid_type> get_all_uids() const override {
+  std::vector<file_stat::uid_type> get_all_uids() const {
     return meta_.get_all_uids();
   }
-  std::vector<file_stat::gid_type> get_all_gids() const override {
+  std::vector<file_stat::gid_type> get_all_gids() const {
     return meta_.get_all_gids();
   }
-  std::shared_ptr<filesystem_parser> get_parser() const override {
-    return std::make_unique<filesystem_parser>(mm_, image_offset_,
+  std::shared_ptr<filesystem_parser> get_parser() const {
+    return std::make_shared<filesystem_parser>(mm_, image_offset_,
                                                options_.image_size);
   }
-  std::optional<std::string>
-  get_block_category(size_t block_no) const override {
+  std::optional<std::string> get_block_category(size_t block_no) const {
     return meta_.get_block_category(block_no);
   }
 
-  void cache_blocks_by_category(std::string_view category) const override {
+  void cache_blocks_by_category(std::string_view category) const {
     ir_.cache_blocks(meta_.get_block_numbers_by_category(category));
   }
 
-  void cache_all_blocks() const override { ir_.cache_all_blocks(); }
+  void cache_all_blocks() const { ir_.cache_all_blocks(); }
 
  private:
+  filesystem_parser make_fs_parser() const {
+    return filesystem_parser(mm_, image_offset_, options_.image_size);
+  }
+
   filesystem_info const* get_info(fsinfo_options const& opts) const;
   void check_section(fs_section const& section) const;
   std::string read_string_ec(uint32_t inode, size_t size, file_off_t offset,
@@ -385,7 +379,7 @@ filesystem_<LoggerPolicy>::get_info(fsinfo_options const& opts) const {
   std::lock_guard lock(mx_);
 
   if (!fsinfo_ || opts.block_access > fsinfo_block_access_level_) {
-    filesystem_parser parser(mm_, image_offset_, options_.image_size);
+    auto parser = make_fs_parser();
     filesystem_info info;
 
     parser.rewind();
@@ -471,7 +465,7 @@ filesystem_<LoggerPolicy>::filesystem_(
     PERFMON_CLS_TIMER_INIT(readv_future_ec) // clang-format on
 {
   block_cache cache(lgr, os_, mm_, options.block_cache, perfmon);
-  filesystem_parser parser(mm_, image_offset_, options.image_size);
+  auto parser = make_fs_parser();
 
   if (parser.has_index()) {
     LOG_DEBUG << "found valid section index";
@@ -535,7 +529,7 @@ filesystem_<LoggerPolicy>::filesystem_(
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
                                      size_t num_threads) const {
-  filesystem_parser parser(mm_, image_offset_, options_.image_size);
+  auto parser = make_fs_parser();
 
   worker_group wg(LOG_GET_LOGGER, os_, "fscheck", num_threads);
   std::vector<std::future<fs_section>> sections;
@@ -600,7 +594,7 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os,
                                      fsinfo_options const& opts) const {
-  filesystem_parser parser(mm_, image_offset_, options_.image_size);
+  auto parser = make_fs_parser();
 
   if (opts.features.has(fsinfo_feature::version)) {
     os << "DwarFS version " << parser.version();
@@ -678,7 +672,7 @@ std::string filesystem_<LoggerPolicy>::dump(fsinfo_options const& opts) const {
 template <typename LoggerPolicy>
 nlohmann::json
 filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
-  filesystem_parser parser(mm_, image_offset_, options_.image_size);
+  auto parser = make_fs_parser();
 
   auto info = nlohmann::json::object();
 
@@ -1098,7 +1092,249 @@ filesystem_<LoggerPolicy>::header() const {
   return header_;
 }
 
+template <typename LoggerPolicy, typename Base>
+class filesystem_common_ : public Base {
+ public:
+  filesystem_common_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+                     filesystem_options const& options,
+                     std::shared_ptr<performance_monitor const> const& perfmon)
+      : fs_{lgr, os, std::move(mm), options, perfmon} {}
+
+  void walk(std::function<void(dir_entry_view)> const& func) const override {
+    fs_.walk(func);
+  }
+  void walk_data_order(
+      std::function<void(dir_entry_view)> const& func) const override {
+    fs_.walk_data_order(func);
+  }
+  dir_entry_view root() const override { return fs_.root(); }
+  std::optional<dir_entry_view> find(std::string_view path) const override {
+    return fs_.find(path);
+  }
+  std::optional<inode_view> find(int inode) const override {
+    return fs_.find(inode);
+  }
+  std::optional<dir_entry_view>
+  find(int inode, std::string_view name) const override {
+    return fs_.find(inode, name);
+  }
+  file_stat getattr(inode_view entry, std::error_code& ec) const override {
+    return fs_.getattr(entry, ec);
+  }
+  file_stat getattr(inode_view entry, getattr_options const& opts,
+                    std::error_code& ec) const override {
+    return fs_.getattr(entry, opts, ec);
+  }
+  file_stat getattr(inode_view entry) const override {
+    return fs_.getattr(entry);
+  }
+  file_stat
+  getattr(inode_view entry, getattr_options const& opts) const override {
+    return fs_.getattr(entry, opts);
+  }
+  bool access(inode_view entry, int mode, file_stat::uid_type uid,
+              file_stat::gid_type gid) const override {
+    return fs_.access(entry, mode, uid, gid);
+  }
+  void access(inode_view entry, int mode, file_stat::uid_type uid,
+              file_stat::gid_type gid, std::error_code& ec) const override {
+    return fs_.access(entry, mode, uid, gid, ec);
+  }
+  std::optional<directory_view> opendir(inode_view entry) const override {
+    return fs_.opendir(entry);
+  }
+  std::optional<dir_entry_view>
+  readdir(directory_view dir, size_t offset) const override {
+    return fs_.readdir(dir, offset);
+  }
+  size_t dirsize(directory_view dir) const override { return fs_.dirsize(dir); }
+  std::string readlink(inode_view entry, readlink_mode mode,
+                       std::error_code& ec) const override {
+    return fs_.readlink(entry, mode, ec);
+  }
+  std::string readlink(inode_view entry, readlink_mode mode) const override {
+    return fs_.readlink(entry, mode);
+  }
+  void statvfs(vfs_stat* stbuf) const override { fs_.statvfs(stbuf); }
+  int open(inode_view entry) const override { return fs_.open(entry); }
+  int open(inode_view entry, std::error_code& ec) const override {
+    return fs_.open(entry, ec);
+  }
+  std::string read_string(uint32_t inode) const override {
+    return fs_.read_string(inode);
+  }
+  std::string read_string(uint32_t inode, std::error_code& ec) const override {
+    return fs_.read_string(inode, ec);
+  }
+  std::string
+  read_string(uint32_t inode, size_t size, file_off_t offset) const override {
+    return fs_.read_string(inode, size, offset);
+  }
+  std::string read_string(uint32_t inode, size_t size, file_off_t offset,
+                          std::error_code& ec) const override {
+    return fs_.read_string(inode, size, offset, ec);
+  }
+  size_t read(uint32_t inode, char* buf, size_t size,
+              file_off_t offset) const override {
+    return fs_.read(inode, buf, size, offset);
+  }
+  size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
+              std::error_code& ec) const override {
+    return fs_.read(inode, buf, size, offset, ec);
+  }
+  size_t readv(uint32_t inode, iovec_read_buf& buf) const override {
+    return fs_.readv(inode, buf);
+  }
+  size_t readv(uint32_t inode, iovec_read_buf& buf,
+               std::error_code& ec) const override {
+    return fs_.readv(inode, buf, ec);
+  }
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, std::error_code& ec) const override {
+    return fs_.readv(inode, buf, size, offset, ec);
+  }
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset) const override {
+    return fs_.readv(inode, buf, size, offset);
+  }
+  size_t
+  readv(uint32_t inode, iovec_read_buf& buf, size_t size, file_off_t offset,
+        size_t maxiov, std::error_code& ec) const override {
+    return fs_.readv(inode, buf, size, offset, maxiov, ec);
+  }
+  size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
+               file_off_t offset, size_t maxiov) const override {
+    return fs_.readv(inode, buf, size, offset, maxiov);
+  }
+  std::vector<std::future<block_range>> readv(uint32_t inode) const override {
+    return fs_.readv(inode);
+  }
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, std::error_code& ec) const override {
+    return fs_.readv(inode, ec);
+  }
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset) const override {
+    return fs_.readv(inode, size, offset);
+  }
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        std::error_code& ec) const override {
+    return fs_.readv(inode, size, offset, ec);
+  }
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset,
+        size_t maxiov) const override {
+    return fs_.readv(inode, size, offset, maxiov);
+  }
+  std::vector<std::future<block_range>>
+  readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
+        std::error_code& ec) const override {
+    return fs_.readv(inode, size, offset, maxiov, ec);
+  }
+  void set_num_workers(size_t num) override { fs_.set_num_workers(num); }
+  void set_cache_tidy_config(cache_tidy_config const& cfg) override {
+    fs_.set_cache_tidy_config(cfg);
+  }
+  size_t num_blocks() const override { return fs_.num_blocks(); }
+  bool has_symlinks() const override { return fs_.has_symlinks(); }
+  nlohmann::json get_inode_info(inode_view entry) const override {
+    return fs_.get_inode_info(entry);
+  }
+  nlohmann::json
+  get_inode_info(inode_view entry, size_t max_chunks) const override {
+    return fs_.get_inode_info(entry, max_chunks);
+  }
+  std::vector<std::string> get_all_block_categories() const override {
+    return fs_.get_all_block_categories();
+  }
+  std::vector<file_stat::uid_type> get_all_uids() const override {
+    return fs_.get_all_uids();
+  }
+  std::vector<file_stat::gid_type> get_all_gids() const override {
+    return fs_.get_all_gids();
+  }
+  std::shared_ptr<filesystem_parser> get_parser() const override {
+    return fs_.get_parser();
+  }
+  std::optional<std::string>
+  get_block_category(size_t block_no) const override {
+    return fs_.get_block_category(block_no);
+  }
+
+  void cache_blocks_by_category(std::string_view category) const override {
+    fs_.cache_blocks_by_category(category);
+  }
+
+  void cache_all_blocks() const override { fs_.cache_all_blocks(); }
+
+ protected:
+  filesystem_<LoggerPolicy> fs_;
+};
+
+template <typename LoggerPolicy>
+using filesystem_lite_ =
+    filesystem_common_<LoggerPolicy, filesystem_v2_lite::impl_lite>;
+
+template <typename LoggerPolicy>
+class filesystem_full_
+    : public filesystem_common_<LoggerPolicy, filesystem_v2::impl> {
+ public:
+  using filesystem_common_<LoggerPolicy,
+                           filesystem_v2::impl>::filesystem_common_;
+
+  int check(filesystem_check_level level, size_t num_threads) const override {
+    return this->fs_.check(level, num_threads);
+  }
+  void dump(std::ostream& os, fsinfo_options const& opts) const override {
+    this->fs_.dump(os, opts);
+  }
+  std::string dump(fsinfo_options const& opts) const override {
+    return this->fs_.dump(opts);
+  }
+  nlohmann::json info_as_json(fsinfo_options const& opts) const override {
+    return this->fs_.info_as_json(opts);
+  }
+  nlohmann::json metadata_as_json() const override {
+    return this->fs_.metadata_as_json();
+  }
+  std::string serialize_metadata_as_json(bool simple) const override {
+    return this->fs_.serialize_metadata_as_json(simple);
+  }
+  std::optional<std::span<uint8_t const>> header() const override {
+    return this->fs_.header();
+  }
+  history const& get_history() const override {
+    return this->fs_.get_history();
+  }
+};
+
 } // namespace internal
+
+filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
+                                       std::filesystem::path const& path)
+    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path))) {}
+
+filesystem_v2_lite::filesystem_v2_lite(
+    logger& lgr, os_access const& os, std::filesystem::path const& path,
+    filesystem_options const& options,
+    std::shared_ptr<performance_monitor const> const& perfmon)
+    : filesystem_v2_lite(lgr, os, os.map_file(os.canonical(path)), options,
+                         perfmon) {}
+
+filesystem_v2_lite::filesystem_v2_lite(logger& lgr, os_access const& os,
+                                       std::shared_ptr<mmif> mm)
+    : filesystem_v2_lite(lgr, os, std::move(mm), filesystem_options()) {}
+
+filesystem_v2_lite::filesystem_v2_lite(
+    logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+    filesystem_options const& options,
+    std::shared_ptr<performance_monitor const> const& perfmon)
+    : filesystem_v2_lite(
+          make_unique_logging_object<filesystem_v2_lite::impl_lite,
+                                     internal::filesystem_lite_,
+                                     logger_policies>(lgr, os, std::move(mm),
+                                                      options, perfmon)) {}
 
 filesystem_v2::filesystem_v2(logger& lgr, os_access const& os,
                              std::filesystem::path const& path)
@@ -1119,9 +1355,10 @@ filesystem_v2::filesystem_v2(
     logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
     filesystem_options const& options,
     std::shared_ptr<performance_monitor const> const& perfmon)
-    : impl_(make_unique_logging_object<filesystem_v2::impl,
-                                       internal::filesystem_, logger_policies>(
-          lgr, os, std::move(mm), options, perfmon)) {}
+    : filesystem_v2_lite(
+          make_unique_logging_object<
+              filesystem_v2::impl, internal::filesystem_full_, logger_policies>(
+              lgr, os, std::move(mm), options, perfmon)) {}
 
 int filesystem_v2::identify(logger& lgr, os_access const& os,
                             std::shared_ptr<mmif> mm, std::ostream& output,
@@ -1150,5 +1387,40 @@ std::optional<std::span<uint8_t const>>
 filesystem_v2::header(std::shared_ptr<mmif> mm, file_off_t image_offset) {
   return internal::filesystem_parser(std::move(mm), image_offset).header();
 }
+
+int filesystem_v2::check(filesystem_check_level level,
+                         size_t num_threads) const {
+  return full_().check(level, num_threads);
+}
+
+void filesystem_v2::dump(std::ostream& os, fsinfo_options const& opts) const {
+  full_().dump(os, opts);
+}
+
+std::string filesystem_v2::dump(fsinfo_options const& opts) const {
+  return full_().dump(opts);
+}
+
+nlohmann::json filesystem_v2::info_as_json(fsinfo_options const& opts) const {
+  return full_().info_as_json(opts);
+}
+
+nlohmann::json filesystem_v2::metadata_as_json() const {
+  return full_().metadata_as_json();
+}
+
+std::string filesystem_v2::serialize_metadata_as_json(bool simple) const {
+  return full_().serialize_metadata_as_json(simple);
+}
+
+std::optional<std::span<uint8_t const>> filesystem_v2::header() const {
+  return full_().header();
+}
+
+history const& filesystem_v2::get_history() const {
+  return full_().get_history();
+}
+
+auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }
 
 } // namespace dwarfs::reader

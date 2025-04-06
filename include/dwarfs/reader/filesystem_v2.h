@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -75,305 +76,260 @@ class filesystem_parser;
 
 } // namespace internal
 
-class filesystem_v2 {
+class filesystem_v2_lite {
  public:
-  filesystem_v2() = default;
+  filesystem_v2_lite() = default;
 
-  filesystem_v2(logger& lgr, os_access const& os,
-                std::filesystem::path const& path);
+  filesystem_v2_lite(logger& lgr, os_access const& os,
+                     std::filesystem::path const& path);
 
-  filesystem_v2(
+  filesystem_v2_lite(
       logger& lgr, os_access const& os, std::filesystem::path const& path,
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
-  filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm);
+  filesystem_v2_lite(logger& lgr, os_access const& os,
+                     std::shared_ptr<mmif> mm);
 
-  filesystem_v2(
+  filesystem_v2_lite(
       logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
       filesystem_options const& options,
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
-  static int
-  identify(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
-           std::ostream& output, int detail_level = 0, size_t num_readers = 1,
-           bool check_integrity = false, file_off_t image_offset = 0);
-
-  static std::optional<std::span<uint8_t const>>
-  header(std::shared_ptr<mmif> mm);
-
-  static std::optional<std::span<uint8_t const>>
-  header(std::shared_ptr<mmif> mm, file_off_t image_offset);
-
-  int check(filesystem_check_level level, size_t num_threads = 0) const {
-    return impl_->check(level, num_threads);
-  }
-
-  void dump(std::ostream& os, fsinfo_options const& opts) const {
-    impl_->dump(os, opts);
-  }
-
-  std::string dump(fsinfo_options const& opts) const {
-    return impl_->dump(opts);
-  }
-
-  nlohmann::json info_as_json(fsinfo_options const& opts) const {
-    return impl_->info_as_json(opts);
-  }
-
-  nlohmann::json metadata_as_json() const { return impl_->metadata_as_json(); }
-
-  std::string serialize_metadata_as_json(bool simple) const {
-    return impl_->serialize_metadata_as_json(simple);
-  }
-
   void walk(std::function<void(dir_entry_view)> const& func) const {
-    impl_->walk(func);
+    lite_->walk(func);
   }
 
   void walk_data_order(std::function<void(dir_entry_view)> const& func) const {
-    impl_->walk_data_order(func);
+    lite_->walk_data_order(func);
   }
 
-  dir_entry_view root() const { return impl_->root(); }
+  dir_entry_view root() const { return lite_->root(); }
 
   std::optional<dir_entry_view> find(std::string_view path) const {
-    return impl_->find(path);
+    return lite_->find(path);
   }
 
-  std::optional<inode_view> find(int inode) const { return impl_->find(inode); }
+  std::optional<inode_view> find(int inode) const { return lite_->find(inode); }
 
   std::optional<dir_entry_view> find(int inode, std::string_view name) const {
-    return impl_->find(inode, name);
+    return lite_->find(inode, name);
   }
 
   file_stat getattr(inode_view entry, std::error_code& ec) const {
-    return impl_->getattr(std::move(entry), ec);
+    return lite_->getattr(std::move(entry), ec);
   }
 
   file_stat getattr(inode_view entry) const {
-    return impl_->getattr(std::move(entry));
+    return lite_->getattr(std::move(entry));
   }
 
   file_stat getattr(inode_view entry, getattr_options const& opts,
                     std::error_code& ec) const {
-    return impl_->getattr(std::move(entry), opts, ec);
+    return lite_->getattr(std::move(entry), opts, ec);
   }
 
   file_stat getattr(inode_view entry, getattr_options const& opts) const {
-    return impl_->getattr(std::move(entry), opts);
+    return lite_->getattr(std::move(entry), opts);
   }
 
   bool access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid) const {
-    return impl_->access(std::move(entry), mode, uid, gid);
+    return lite_->access(std::move(entry), mode, uid, gid);
   }
 
   void access(inode_view entry, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const {
-    impl_->access(std::move(entry), mode, uid, gid, ec);
+    lite_->access(std::move(entry), mode, uid, gid, ec);
   }
 
   std::optional<directory_view> opendir(inode_view entry) const {
-    return impl_->opendir(std::move(entry));
+    return lite_->opendir(std::move(entry));
   }
 
   std::optional<dir_entry_view>
   readdir(directory_view dir, size_t offset) const {
-    return impl_->readdir(dir, offset);
+    return lite_->readdir(dir, offset);
   }
 
-  size_t dirsize(directory_view dir) const { return impl_->dirsize(dir); }
+  size_t dirsize(directory_view dir) const { return lite_->dirsize(dir); }
 
   std::string
   readlink(inode_view entry, readlink_mode mode, std::error_code& ec) const {
-    return impl_->readlink(std::move(entry), mode, ec);
+    return lite_->readlink(std::move(entry), mode, ec);
   }
 
   std::string readlink(inode_view entry, std::error_code& ec) const {
-    return impl_->readlink(std::move(entry), readlink_mode::preferred, ec);
+    return lite_->readlink(std::move(entry), readlink_mode::preferred, ec);
   }
 
   std::string readlink(inode_view entry,
                        readlink_mode mode = readlink_mode::preferred) const {
-    return impl_->readlink(std::move(entry), mode);
+    return lite_->readlink(std::move(entry), mode);
   }
 
-  void statvfs(vfs_stat* stbuf) const { impl_->statvfs(stbuf); }
+  void statvfs(vfs_stat* stbuf) const { lite_->statvfs(stbuf); }
 
-  int open(inode_view entry) const { return impl_->open(std::move(entry)); }
+  int open(inode_view entry) const { return lite_->open(std::move(entry)); }
 
   int open(inode_view entry, std::error_code& ec) const {
-    return impl_->open(std::move(entry), ec);
+    return lite_->open(std::move(entry), ec);
   }
 
   std::string read_string(uint32_t inode) const {
-    return impl_->read_string(inode);
+    return lite_->read_string(inode);
   }
 
   std::string read_string(uint32_t inode, std::error_code& ec) const {
-    return impl_->read_string(inode, ec);
+    return lite_->read_string(inode, ec);
   }
 
   std::string
   read_string(uint32_t inode, size_t size, file_off_t offset = 0) const {
-    return impl_->read_string(inode, size, offset);
+    return lite_->read_string(inode, size, offset);
   }
 
   std::string
   read_string(uint32_t inode, size_t size, std::error_code& ec) const {
-    return impl_->read_string(inode, size, 0, ec);
+    return lite_->read_string(inode, size, 0, ec);
   }
 
   std::string read_string(uint32_t inode, size_t size, file_off_t offset,
                           std::error_code& ec) const {
-    return impl_->read_string(inode, size, offset, ec);
+    return lite_->read_string(inode, size, offset, ec);
   }
 
   size_t
   read(uint32_t inode, char* buf, size_t size, file_off_t offset = 0) const {
-    return impl_->read(inode, buf, size, offset);
+    return lite_->read(inode, buf, size, offset);
   }
 
   size_t read(uint32_t inode, char* buf, size_t size, file_off_t offset,
               std::error_code& ec) const {
-    return impl_->read(inode, buf, size, offset, ec);
+    return lite_->read(inode, buf, size, offset, ec);
   }
 
   size_t
   read(uint32_t inode, char* buf, size_t size, std::error_code& ec) const {
-    return impl_->read(inode, buf, size, 0, ec);
+    return lite_->read(inode, buf, size, 0, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf) const {
-    return impl_->readv(inode, buf);
+    return lite_->readv(inode, buf);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, std::error_code& ec) const {
-    return impl_->readv(inode, buf, ec);
+    return lite_->readv(inode, buf, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, std::error_code& ec) const {
-    return impl_->readv(inode, buf, size, offset, ec);
+    return lite_->readv(inode, buf, size, offset, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, size_t maxiov, std::error_code& ec) const {
-    return impl_->readv(inode, buf, size, offset, maxiov, ec);
+    return lite_->readv(inode, buf, size, offset, maxiov, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                std::error_code& ec) const {
-    return impl_->readv(inode, buf, size, 0, ec);
+    return lite_->readv(inode, buf, size, 0, ec);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset = 0) const {
-    return impl_->readv(inode, buf, size, offset);
+    return lite_->readv(inode, buf, size, offset);
   }
 
   size_t readv(uint32_t inode, iovec_read_buf& buf, size_t size,
                file_off_t offset, size_t maxiov) const {
-    return impl_->readv(inode, buf, size, offset, maxiov);
+    return lite_->readv(inode, buf, size, offset, maxiov);
   }
 
   std::vector<std::future<block_range>> readv(uint32_t inode) const {
-    return impl_->readv(inode);
+    return lite_->readv(inode);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, std::error_code& ec) const {
-    return impl_->readv(inode, ec);
+    return lite_->readv(inode, ec);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset = 0) const {
-    return impl_->readv(inode, size, offset);
+    return lite_->readv(inode, size, offset);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov) const {
-    return impl_->readv(inode, size, offset, maxiov);
+    return lite_->readv(inode, size, offset, maxiov);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, std::error_code& ec) const {
-    return impl_->readv(inode, size, 0, ec);
+    return lite_->readv(inode, size, 0, ec);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset,
         std::error_code& ec) const {
-    return impl_->readv(inode, size, offset, ec);
+    return lite_->readv(inode, size, offset, ec);
   }
 
   std::vector<std::future<block_range>>
   readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
         std::error_code& ec) const {
-    return impl_->readv(inode, size, offset, maxiov, ec);
+    return lite_->readv(inode, size, offset, maxiov, ec);
   }
 
-  std::optional<std::span<uint8_t const>> header() const {
-    return impl_->header();
-  }
-
-  void set_num_workers(size_t num) { impl_->set_num_workers(num); }
+  void set_num_workers(size_t num) { lite_->set_num_workers(num); }
   void set_cache_tidy_config(cache_tidy_config const& cfg) {
-    impl_->set_cache_tidy_config(cfg);
+    lite_->set_cache_tidy_config(cfg);
   }
 
-  size_t num_blocks() const { return impl_->num_blocks(); }
+  size_t num_blocks() const { return lite_->num_blocks(); }
 
-  bool has_symlinks() const { return impl_->has_symlinks(); }
-
-  history const& get_history() const { return impl_->get_history(); }
+  bool has_symlinks() const { return lite_->has_symlinks(); }
 
   nlohmann::json get_inode_info(inode_view entry) const {
-    return impl_->get_inode_info(std::move(entry));
+    return lite_->get_inode_info(std::move(entry));
   }
 
   nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
-    return impl_->get_inode_info(std::move(entry), max_chunks);
+    return lite_->get_inode_info(std::move(entry), max_chunks);
   }
 
   std::vector<std::string> get_all_block_categories() const {
-    return impl_->get_all_block_categories();
+    return lite_->get_all_block_categories();
   }
 
   std::vector<file_stat::uid_type> get_all_uids() const {
-    return impl_->get_all_uids();
+    return lite_->get_all_uids();
   }
 
   std::vector<file_stat::gid_type> get_all_gids() const {
-    return impl_->get_all_gids();
-  }
-
-  std::shared_ptr<internal::filesystem_parser> get_parser() const {
-    return impl_->get_parser();
+    return lite_->get_all_gids();
   }
 
   std::optional<std::string> get_block_category(size_t block_number) const {
-    return impl_->get_block_category(block_number);
+    return lite_->get_block_category(block_number);
   }
 
   void cache_blocks_by_category(std::string_view category) const {
-    return impl_->cache_blocks_by_category(category);
+    lite_->cache_blocks_by_category(category);
   }
 
-  void cache_all_blocks() const { impl_->cache_all_blocks(); }
+  void cache_all_blocks() const { lite_->cache_all_blocks(); }
 
-  class impl {
+  std::shared_ptr<internal::filesystem_parser> get_parser() const {
+    return lite_->get_parser();
+  }
+
+  class impl_lite {
    public:
-    virtual ~impl() = default;
+    virtual ~impl_lite() = default;
 
-    virtual int
-    check(filesystem_check_level level, size_t num_threads) const = 0;
-    virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
-    virtual std::string dump(fsinfo_options const& opts) const = 0;
-    virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
-    virtual nlohmann::json metadata_as_json() const = 0;
-    virtual std::string serialize_metadata_as_json(bool simple) const = 0;
     virtual void
     walk(std::function<void(dir_entry_view)> const& func) const = 0;
     virtual void
@@ -443,27 +399,95 @@ class filesystem_v2 {
     virtual std::vector<std::future<block_range>>
     readv(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
           std::error_code& ec) const = 0;
-    virtual std::optional<std::span<uint8_t const>> header() const = 0;
     virtual void set_num_workers(size_t num) = 0;
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual bool has_symlinks() const = 0;
-    virtual history const& get_history() const = 0;
     virtual nlohmann::json get_inode_info(inode_view entry) const = 0;
     virtual nlohmann::json
     get_inode_info(inode_view entry, size_t max_chunks) const = 0;
     virtual std::vector<std::string> get_all_block_categories() const = 0;
     virtual std::vector<file_stat::uid_type> get_all_uids() const = 0;
     virtual std::vector<file_stat::gid_type> get_all_gids() const = 0;
-    virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
     virtual std::optional<std::string>
     get_block_category(size_t block_number) const = 0;
     virtual void cache_blocks_by_category(std::string_view category) const = 0;
     virtual void cache_all_blocks() const = 0;
+    virtual std::shared_ptr<internal::filesystem_parser> get_parser() const = 0;
+  };
+
+ protected:
+  explicit filesystem_v2_lite(std::unique_ptr<impl_lite> impl)
+      : lite_{std::move(impl)} {}
+
+  template <typename T>
+    requires std::derived_from<T, impl_lite>
+  T const& as_() const {
+    return dynamic_cast<T const&>(*lite_);
+  }
+
+ private:
+  std::unique_ptr<impl_lite> lite_;
+};
+
+class filesystem_v2 final : public filesystem_v2_lite {
+ public:
+  filesystem_v2() = default;
+
+  filesystem_v2(logger& lgr, os_access const& os,
+                std::filesystem::path const& path);
+
+  filesystem_v2(
+      logger& lgr, os_access const& os, std::filesystem::path const& path,
+      filesystem_options const& options,
+      std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
+
+  filesystem_v2(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm);
+
+  filesystem_v2(
+      logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+      filesystem_options const& options,
+      std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
+
+  static int
+  identify(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+           std::ostream& output, int detail_level = 0, size_t num_readers = 1,
+           bool check_integrity = false, file_off_t image_offset = 0);
+
+  static std::optional<std::span<uint8_t const>>
+  header(std::shared_ptr<mmif> mm);
+
+  static std::optional<std::span<uint8_t const>>
+  header(std::shared_ptr<mmif> mm, file_off_t image_offset);
+
+  int check(filesystem_check_level level, size_t num_threads = 0) const;
+
+  void dump(std::ostream& os, fsinfo_options const& opts) const;
+  std::string dump(fsinfo_options const& opts) const;
+
+  nlohmann::json info_as_json(fsinfo_options const& opts) const;
+  nlohmann::json metadata_as_json() const;
+  std::string serialize_metadata_as_json(bool simple) const;
+
+  std::optional<std::span<uint8_t const>> header() const;
+
+  history const& get_history() const;
+
+  class impl : public impl_lite {
+   public:
+    virtual int
+    check(filesystem_check_level level, size_t num_threads) const = 0;
+    virtual void dump(std::ostream& os, fsinfo_options const& opts) const = 0;
+    virtual std::string dump(fsinfo_options const& opts) const = 0;
+    virtual nlohmann::json info_as_json(fsinfo_options const& opts) const = 0;
+    virtual nlohmann::json metadata_as_json() const = 0;
+    virtual std::string serialize_metadata_as_json(bool simple) const = 0;
+    virtual std::optional<std::span<uint8_t const>> header() const = 0;
+    virtual history const& get_history() const = 0;
   };
 
  private:
-  std::unique_ptr<impl> impl_;
+  impl const& full_() const;
 };
 
 } // namespace reader
