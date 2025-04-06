@@ -2214,24 +2214,6 @@ class metadata_ final : public metadata_v2::impl {
     data_.check_consistency(LOG_PROXY_ARG);
   }
 
-  void dump(std::ostream& os, fsinfo_options const& opts,
-            filesystem_info const* fsinfo,
-            std::function<void(std::string const&, uint32_t)> const& icb)
-      const override {
-    data_.dump(os, opts, fsinfo, icb);
-  }
-
-  nlohmann::json info_as_json(fsinfo_options const& opts,
-                              filesystem_info const* fsinfo) const override {
-    return data_.info_as_json(opts, fsinfo);
-  }
-
-  nlohmann::json as_json() const override { return data_.as_json(); }
-
-  std::string serialize_as_json(bool simple) const override {
-    return data_.serialize_as_json(simple);
-  }
-
   size_t size() const override { return data_.size(); }
 
   void walk(std::function<void(dir_entry_view)> const& func) const override {
@@ -2357,10 +2339,33 @@ class metadata_ final : public metadata_v2::impl {
     return data_.get_block_numbers_by_category(category);
   }
 
+  metadata_v2_data const& internal_data() const override { return data_; }
+
  private:
   LOG_PROXY_DECL(LoggerPolicy);
   metadata_v2_data const data_;
 };
+
+metadata_v2_utils::metadata_v2_utils(metadata_v2 const& meta)
+    : data_{meta.internal_data()} {}
+
+void metadata_v2_utils::dump(
+    std::ostream& os, fsinfo_options const& opts, filesystem_info const* fsinfo,
+    std::function<void(std::string const&, uint32_t)> const& icb) const {
+  data_.dump(os, opts, fsinfo, icb);
+}
+
+nlohmann::json
+metadata_v2_utils::info_as_json(fsinfo_options const& opts,
+                                filesystem_info const* fsinfo) const {
+  return data_.info_as_json(opts, fsinfo);
+}
+
+nlohmann::json metadata_v2_utils::as_json() const { return data_.as_json(); }
+
+std::string metadata_v2_utils::serialize_as_json(bool simple) const {
+  return data_.serialize_as_json(simple);
+}
 
 metadata_v2::metadata_v2(
     logger& lgr, std::span<uint8_t const> schema, std::span<uint8_t const> data,

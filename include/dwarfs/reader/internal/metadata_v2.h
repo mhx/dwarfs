@@ -66,6 +66,8 @@ struct metadata_options;
 
 namespace internal {
 
+class metadata_v2_data;
+
 class metadata_v2 {
  public:
   metadata_v2() = default;
@@ -79,24 +81,6 @@ class metadata_v2 {
       std::shared_ptr<performance_monitor const> const& perfmon = nullptr);
 
   void check_consistency() const { impl_->check_consistency(); }
-
-  void
-  dump(std::ostream& os, fsinfo_options const& opts,
-       filesystem_info const* fsinfo,
-       std::function<void(std::string const&, uint32_t)> const& icb) const {
-    impl_->dump(os, opts, fsinfo, icb);
-  }
-
-  nlohmann::json info_as_json(fsinfo_options const& opts,
-                              filesystem_info const* fsinfo) const {
-    return impl_->info_as_json(opts, fsinfo);
-  }
-
-  nlohmann::json as_json() const { return impl_->as_json(); }
-
-  std::string serialize_as_json(bool simple) const {
-    return impl_->serialize_as_json(simple);
-  }
 
   size_t size() const { return impl_->size(); }
 
@@ -189,23 +173,15 @@ class metadata_v2 {
     return impl_->get_block_numbers_by_category(category);
   }
 
+  metadata_v2_data const& internal_data() const {
+    return impl_->internal_data();
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
 
     virtual void check_consistency() const = 0;
-
-    virtual void dump(
-        std::ostream& os, fsinfo_options const& opts,
-        filesystem_info const* fsinfo,
-        std::function<void(std::string const&, uint32_t)> const& icb) const = 0;
-
-    virtual nlohmann::json
-    info_as_json(fsinfo_options const& opts,
-                 filesystem_info const* fsinfo) const = 0;
-
-    virtual nlohmann::json as_json() const = 0;
-    virtual std::string serialize_as_json(bool simple) const = 0;
 
     virtual size_t size() const = 0;
 
@@ -263,10 +239,31 @@ class metadata_v2 {
 
     virtual std::vector<size_t>
     get_block_numbers_by_category(std::string_view category) const = 0;
+
+    virtual metadata_v2_data const& internal_data() const = 0;
   };
 
  private:
   std::unique_ptr<impl> impl_;
+};
+
+class metadata_v2_utils {
+ public:
+  metadata_v2_utils(metadata_v2 const& meta);
+
+  void dump(std::ostream& os, fsinfo_options const& opts,
+            filesystem_info const* fsinfo,
+            std::function<void(std::string const&, uint32_t)> const& icb) const;
+
+  nlohmann::json
+  info_as_json(fsinfo_options const& opts, filesystem_info const* fsinfo) const;
+
+  nlohmann::json as_json() const;
+
+  std::string serialize_as_json(bool simple) const;
+
+ private:
+  metadata_v2_data const& data_;
 };
 
 } // namespace internal

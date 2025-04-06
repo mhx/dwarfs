@@ -648,7 +648,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
     history_.dump(os);
   }
 
-  meta_.dump(
+  metadata_v2_utils(meta_).dump(
       os, opts, get_info(opts), [&](std::string const& indent, uint32_t inode) {
         std::error_code ec;
         auto chunks = meta_.get_chunks(inode, ec);
@@ -726,20 +726,20 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
     }
   }
 
-  info.update(meta_.info_as_json(opts, get_info(opts)));
+  info.update(metadata_v2_utils(meta_).info_as_json(opts, get_info(opts)));
 
   return info;
 }
 
 template <typename LoggerPolicy>
 nlohmann::json filesystem_<LoggerPolicy>::metadata_as_json() const {
-  return meta_.as_json();
+  return metadata_v2_utils(meta_).as_json();
 }
 
 template <typename LoggerPolicy>
 std::string
 filesystem_<LoggerPolicy>::serialize_metadata_as_json(bool simple) const {
-  return meta_.serialize_as_json(simple);
+  return metadata_v2_utils(meta_).serialize_as_json(simple);
 }
 
 template <typename LoggerPolicy>
