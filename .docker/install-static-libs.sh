@@ -237,7 +237,9 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBARCHIVE_TARBALL}
         cd libarchive-${LIBARCHIVE_VERSION}
-        ./configure --prefix="$INSTALL_DIR" --without-iconv --without-xml2 --without-expat
+        # TODO: once DwarFS supports ACLs / xattrs, we need to update this
+        ./configure --prefix="$INSTALL_DIR" --without-iconv --without-xml2 --without-expat --without-openssl \
+                                            --without-bz2lib --without-zlib --disable-acl --disable-xattr
         make -j$(nproc)
         make install
     fi
