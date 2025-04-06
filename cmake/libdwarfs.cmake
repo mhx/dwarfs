@@ -140,6 +140,7 @@ add_library(
   src/writer/internal/inode_element_view.cpp
   src/writer/internal/inode_manager.cpp
   src/writer/internal/inode_ordering.cpp
+  src/writer/internal/metadata_builder.cpp
   src/writer/internal/metadata_freezer.cpp
   src/writer/internal/nilsimsa.cpp
   src/writer/internal/progress.cpp
