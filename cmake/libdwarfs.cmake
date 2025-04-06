@@ -53,6 +53,7 @@ add_library(
   src/internal/fs_section.cpp
   src/internal/fs_section_checker.cpp
   src/internal/glob_to_regex.cpp
+  src/internal/metadata_utils.cpp
   src/internal/string_table.cpp
   src/internal/unicode_case_folding.cpp
   src/internal/wcwidth.c
