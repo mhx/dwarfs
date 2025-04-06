@@ -57,13 +57,11 @@ std::vector<T> global_entry_data::get_vector(map_type<T, U> const& map) const {
 }
 
 auto global_entry_data::get_uids() const -> std::vector<uid_type> {
-  return options_.uid ? std::vector<uid_type>{*options_.uid}
-                      : get_vector(uids_);
+  return get_vector(uids_);
 }
 
 auto global_entry_data::get_gids() const -> std::vector<gid_type> {
-  return options_.gid ? std::vector<gid_type>{*options_.gid}
-                      : get_vector(gids_);
+  return get_vector(gids_);
 }
 
 auto global_entry_data::get_modes() const -> std::vector<mode_type> {
