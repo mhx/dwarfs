@@ -19,6 +19,10 @@
  * along with dwarfs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+
+#include <boost/range/irange.hpp>
+
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
@@ -26,7 +30,25 @@
 
 #include <dwarfs/internal/metadata_utils.h>
 
+#include <dwarfs/gen-cpp2/metadata_types.h>
+
 namespace dwarfs::internal {
+
+namespace {
+
+size_t find_inode_rank_offset_impl(inode_rank rank, size_t size,
+                                   auto&& get_inode_mode) {
+  auto range = boost::irange<size_t>(0, size);
+
+  auto it = std::lower_bound(range.begin(), range.end(), rank,
+                             [&](auto inode, inode_rank r) {
+                               return get_inode_rank(get_inode_mode(inode)) < r;
+                             });
+
+  return *it;
+}
+
+} // namespace
 
 inode_rank get_inode_rank(uint32_t mode) {
   switch (posix_file_type::from_mode(mode)) {
@@ -46,6 +68,43 @@ inode_rank get_inode_rank(uint32_t mode) {
     DWARFS_THROW(runtime_error,
                  fmt::format("unknown file type: {:#06x}", mode));
   }
+}
+
+size_t find_inode_rank_offset(
+    ::apache::thrift::frozen::Layout<thrift::metadata::metadata>::View meta,
+    inode_rank rank) {
+  auto get_mode = [&](auto index) {
+    return meta.modes()[meta.inodes()[index].mode_index()];
+  };
+
+  if (meta.dir_entries()) {
+    return find_inode_rank_offset_impl(
+        rank, meta.inodes().size(),
+        [&](auto inode) { return get_mode(inode); });
+  }
+
+  return find_inode_rank_offset_impl(
+      rank, meta.entry_table_v2_2().size(),
+      [&](auto inode) { return get_mode(meta.entry_table_v2_2()[inode]); });
+}
+
+size_t find_inode_rank_offset(thrift::metadata::metadata const& meta,
+                              inode_rank rank) {
+  auto get_mode = [&](auto index) {
+    return meta.modes().value().at(
+        meta.inodes().value().at(index).mode_index().value());
+  };
+
+  if (meta.dir_entries().has_value()) {
+    return find_inode_rank_offset_impl(
+        rank, meta.inodes()->size(),
+        [&](auto inode) { return get_mode(inode); });
+  }
+
+  return find_inode_rank_offset_impl(
+      rank, meta.entry_table_v2_2()->size(), [&](auto inode) {
+        return get_mode(meta.entry_table_v2_2().value().at(inode));
+      });
 }
 
 } // namespace dwarfs::internal

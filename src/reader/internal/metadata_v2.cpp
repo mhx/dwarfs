@@ -533,7 +533,9 @@ class metadata_v2_data {
   template <typename K>
   using set_type = folly::F14ValueSet<K>;
 
-  int find_inode_offset(inode_rank rank) const;
+  int find_inode_offset(inode_rank rank) const {
+    return find_inode_rank_offset(meta_, rank);
+  }
 
   thrift::metadata::metadata unpack_metadata() const;
 
@@ -829,29 +831,6 @@ metadata_v2_data::metadata_v2_data(
                       other_offset - dev_inode_offset_));
     }
   }
-}
-
-int metadata_v2_data::find_inode_offset(inode_rank rank) const {
-  if (meta_.dir_entries()) {
-    auto range = boost::irange(size_t(0), meta_.inodes().size());
-
-    auto it = std::lower_bound(
-        range.begin(), range.end(), rank, [&](auto inode, inode_rank r) {
-          auto mode = meta_.modes()[meta_.inodes()[inode].mode_index()];
-          return get_inode_rank(mode) < r;
-        });
-
-    return *it;
-  }
-  auto range = boost::irange(size_t(0), meta_.entry_table_v2_2().size());
-
-  auto it = std::lower_bound(range.begin(), range.end(), rank,
-                             [&](auto inode, inode_rank r) {
-                               auto iv = make_inode_view_impl(inode);
-                               return get_inode_rank(iv.mode()) < r;
-                             });
-
-  return *it;
 }
 
 template <typename LoggerPolicy>
