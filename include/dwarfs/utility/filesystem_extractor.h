@@ -44,7 +44,7 @@ class os_access;
 
 namespace reader {
 
-class filesystem_v2;
+class filesystem_v2_lite;
 
 }
 
@@ -77,15 +77,16 @@ class filesystem_extractor {
 
   void close() { impl_->close(); }
 
-  bool extract(reader::filesystem_v2 const& fs,
+  bool extract(reader::filesystem_v2_lite const& fs,
                filesystem_extractor_options const& opts =
                    filesystem_extractor_options()) {
     return impl_->extract(fs, nullptr, opts);
   }
 
-  bool extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
-               filesystem_extractor_options const& opts =
-                   filesystem_extractor_options()) {
+  bool
+  extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
+          filesystem_extractor_options const& opts =
+              filesystem_extractor_options()) {
     return impl_->extract(fs, matcher, opts);
   }
 
@@ -99,7 +100,7 @@ class filesystem_extractor {
     virtual void open_disk(std::filesystem::path const& output) = 0;
     virtual void close() = 0;
     virtual bool
-    extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
+    extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
             filesystem_extractor_options const& opts) = 0;
   };
 

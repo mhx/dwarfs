@@ -198,8 +198,9 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  bool extract(reader::filesystem_v2 const& fs, glob_matcher const* matcher,
-               filesystem_extractor_options const& opts) override;
+  bool
+  extract(reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
+          filesystem_extractor_options const& opts) override;
 
  private:
   void closefd(int& fd) {
@@ -260,7 +261,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
 
 template <typename LoggerPolicy>
 bool filesystem_extractor_<LoggerPolicy>::extract(
-    reader::filesystem_v2 const& fs, glob_matcher const* matcher,
+    reader::filesystem_v2_lite const& fs, glob_matcher const* matcher,
     filesystem_extractor_options const& opts) {
   DWARFS_CHECK(a_, "filesystem not opened");
 
