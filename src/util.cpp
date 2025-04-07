@@ -525,7 +525,10 @@ void fatal_signal_handler_posix(int signal) {
   std::cerr << "Caught signal " << *signame << "\n";
   cpptrace::generate_trace().print();
 
-  ::raise(signal);
+  if (::raise(signal) != 0) {
+    std::cerr << "Failed to re-raise signal " << *signame << "\n";
+    std::abort();
+  }
 }
 
 #endif
