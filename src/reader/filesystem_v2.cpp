@@ -1273,6 +1273,9 @@ class filesystem_common_ : public Base {
   void cache_all_blocks() const override { fs_.cache_all_blocks(); }
 
  protected:
+  filesystem_<LoggerPolicy> const& fs() const { return fs_; }
+
+ private:
   filesystem_<LoggerPolicy> fs_;
 };
 
@@ -1286,31 +1289,30 @@ class filesystem_full_
  public:
   using filesystem_common_<LoggerPolicy,
                            filesystem_v2::impl>::filesystem_common_;
+  using filesystem_common_<LoggerPolicy, filesystem_v2::impl>::fs;
 
   int check(filesystem_check_level level, size_t num_threads) const override {
-    return this->fs_.check(level, num_threads);
+    return fs().check(level, num_threads);
   }
   void dump(std::ostream& os, fsinfo_options const& opts) const override {
-    this->fs_.dump(os, opts);
+    fs().dump(os, opts);
   }
   std::string dump(fsinfo_options const& opts) const override {
-    return this->fs_.dump(opts);
+    return fs().dump(opts);
   }
   nlohmann::json info_as_json(fsinfo_options const& opts) const override {
-    return this->fs_.info_as_json(opts);
+    return fs().info_as_json(opts);
   }
   nlohmann::json metadata_as_json() const override {
-    return this->fs_.metadata_as_json();
+    return fs().metadata_as_json();
   }
   std::string serialize_metadata_as_json(bool simple) const override {
-    return this->fs_.serialize_metadata_as_json(simple);
+    return fs().serialize_metadata_as_json(simple);
   }
   std::optional<std::span<uint8_t const>> header() const override {
-    return this->fs_.header();
+    return fs().header();
   }
-  history const& get_history() const override {
-    return this->fs_.get_history();
-  }
+  history const& get_history() const override { return fs().get_history(); }
 };
 
 } // namespace internal
