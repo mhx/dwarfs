@@ -975,6 +975,13 @@ add_custom_target(
               -header-filter='.*/include/dwarfs/.*'
   USES_TERMINAL)
 
+add_custom_target(
+  tidy-fix
+  COMMAND run-clang-tidy -p ${CMAKE_BINARY_DIR} -quiet -use-color -fix
+              -source-filter='.*/src/.*'
+              -header-filter='.*/include/dwarfs/.*'
+  USES_TERMINAL)
+
 if(STATIC_BUILD_DO_NOT_USE OR APPLE)
   if(CMAKE_BUILD_TYPE MATCHES "Release|MinSizeRel")
     foreach(tgt ${BINARY_TARGETS})
