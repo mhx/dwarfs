@@ -30,11 +30,14 @@
 
 #include <dwarfs/byte_buffer_factory.h>
 
+#include <dwarfs/reader/block_cache_options.h>
+
 namespace dwarfs::reader {
 
 class block_cache_byte_buffer_factory {
  public:
   static byte_buffer_factory create();
+  static byte_buffer_factory create(block_cache_allocation_mode mode);
 };
 
 } // namespace dwarfs::reader

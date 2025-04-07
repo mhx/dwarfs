@@ -28,23 +28,52 @@
 
 #include <cassert>
 #include <stdexcept>
+#include <system_error>
 
 #ifdef _WIN32
-#include <dwarfs/vector_byte_buffer.h>
+#include <folly/portability/Windows.h>
 #else
 #include <sys/mman.h>
 #endif
 
 #include <dwarfs/reader/block_cache_byte_buffer_factory.h>
+#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs::reader {
 
 namespace {
 
-#ifndef _WIN32
-class mmap_file {
+#ifdef _WIN32
+class mmap_block {
  public:
-  mmap_file(size_t size)
+  mmap_block(size_t size)
+      : data_{::VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT,
+                             PAGE_READWRITE)}
+      , size_{size} {
+    if (!data_) {
+      std::error_code ec(::GetLastError(), std::system_category());
+      throw std::runtime_error("VirtualAlloc failed: " + ec.message());
+    }
+  }
+
+  size_t size() const { return size_; }
+
+  uint8_t* data() { return static_cast<uint8_t*>(data_); }
+  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
+
+  ~mmap_block() {
+    auto rv [[maybe_unused]] = ::VirtualFree(data_, 0, MEM_RELEASE);
+    assert(rv);
+  }
+
+ private:
+  void* data_;
+  size_t size_;
+};
+#else
+class mmap_block {
+ public:
+  mmap_block(size_t size)
       : data_{::mmap(nullptr, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)}
       , size_{size} {
@@ -58,7 +87,7 @@ class mmap_file {
   uint8_t* data() { return static_cast<uint8_t*>(data_); }
   uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
 
-  ~mmap_file() {
+  ~mmap_block() {
     auto rv [[maybe_unused]] = ::munmap(data_, size_);
     assert(rv == 0);
   }
@@ -67,6 +96,7 @@ class mmap_file {
   void* data_;
   size_t size_;
 };
+#endif
 
 class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
  public:
@@ -119,28 +149,39 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
                              std::string{what});
   }
 
-  mmap_file data_;
+  mmap_block data_;
   size_t size_{0};
 };
-#endif
 
 class block_cache_byte_buffer_factory_impl
     : public byte_buffer_factory_interface {
  public:
+  block_cache_byte_buffer_factory_impl(block_cache_allocation_mode mode)
+      : mode_{mode} {}
+
   mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const override {
-#ifdef _WIN32
+    if (mode_ == block_cache_allocation_mode::MMAP) {
+      return mutable_byte_buffer{std::make_shared<mmap_byte_buffer_impl>(size)};
+    }
     return vector_byte_buffer::create_reserve(size);
-#else
-    return mutable_byte_buffer{std::make_shared<mmap_byte_buffer_impl>(size)};
-#endif
   }
+
+ private:
+  block_cache_allocation_mode mode_;
 };
 
 } // namespace
 
 byte_buffer_factory block_cache_byte_buffer_factory::create() {
   return byte_buffer_factory{
-      std::make_shared<block_cache_byte_buffer_factory_impl>()};
+      std::make_shared<block_cache_byte_buffer_factory_impl>(
+          block_cache_allocation_mode::MALLOC)};
+}
+
+byte_buffer_factory
+block_cache_byte_buffer_factory::create(block_cache_allocation_mode mode) {
+  return byte_buffer_factory{
+      std::make_shared<block_cache_byte_buffer_factory_impl>(mode)};
 }
 
 } // namespace dwarfs::reader
