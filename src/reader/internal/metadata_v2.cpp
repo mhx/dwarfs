@@ -462,7 +462,7 @@ class metadata_v2_data {
     return getattr_impl(LOG_PROXY_ARG_ iv, opts);
   }
 
-  void access(inode_view iv, int mode, file_stat::uid_type uid,
+  void access(inode_view const& iv, int mode, file_stat::uid_type uid,
               file_stat::gid_type gid, std::error_code& ec) const;
 
   template <typename LoggerPolicy>
@@ -521,7 +521,7 @@ class metadata_v2_data {
   nlohmann::json
   info_as_json(fsinfo_options const& opts, filesystem_info const* fsinfo) const;
 
-  nlohmann::json get_inode_info(inode_view iv, size_t max_chunks) const;
+  nlohmann::json get_inode_info(inode_view const& iv, size_t max_chunks) const;
 
   std::string serialize_as_json(bool simple) const;
 
@@ -1999,8 +1999,8 @@ metadata_v2_data::readdir(directory_view dir, size_t offset) const {
   return std::nullopt;
 }
 
-void metadata_v2_data::access(inode_view iv, int mode, file_stat::uid_type uid,
-                              file_stat::gid_type gid,
+void metadata_v2_data::access(inode_view const& iv, int mode,
+                              file_stat::uid_type uid, file_stat::gid_type gid,
                               std::error_code& ec) const {
   if (mode == F_OK) {
     // easy; we're only interested in the file's existence
@@ -2064,8 +2064,8 @@ void metadata_v2_data::access(inode_view iv, int mode, file_stat::uid_type uid,
   }
 }
 
-nlohmann::json
-metadata_v2_data::get_inode_info(inode_view iv, size_t max_chunks) const {
+nlohmann::json metadata_v2_data::get_inode_info(inode_view const& iv,
+                                                size_t max_chunks) const {
   nlohmann::json obj;
 
   if (iv.is_regular_file()) {
