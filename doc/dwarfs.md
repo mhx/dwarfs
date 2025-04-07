@@ -197,7 +197,11 @@ options:
   that `malloc` is implemented on your system, you may find that memory
   used by `dwarfs` isn't released despite using cache tidying. In this
   case, using the `mmap` block allocator is much more likely to release
-  the memory.
+  the memory. Note, however, that the `mmap` allocator can be slower than
+  the `malloc` allocator. If your use case causes large numbers of blocks
+  to be constantly created/evicted (e.g. you have a hugh image and are
+  randomly accessing a large fraction of the files), this may impact the
+  performance.
 
 - `-o seq_detector=`*num*:
   Threshold, in blocks, for the sequential access detector. If the most
@@ -318,6 +322,132 @@ sudo mount -t overlay overlay -o lowerdir=install-ro:install-modules install
 
 If you want *this* merged overlay to be writable, just add in the
 `upperdir` and `workdir` options from before again.
+
+### Optimizing Performance and Memory Usage
+
+Depending on your use case, you may want to ensure that `dwarfs` isn't
+constantly consuming large amounts of memory. Or you may want to make
+sure the file system can always be accessed as quickly as possible.
+There are several options to tune performance based on your use case.
+
+If you don't care much about memory, use the `cachesize` option to make
+sure as many decompressed file system blocks as possible can be kept in
+memory.
+
+If your file system image is relatively small, you can also use the
+`preload_all` option to immediately populate the cache after mounting.
+
+The more interesting use case is if you want to be conservative about
+memory, but still don't want to sacrifice performance too much. Maybe
+you only need to access a lot of files directly after mounting and then
+only infrequently need to access other files. If this is the case, you
+can use the `tidy_strategy`, `tidy_interval` and `tidy_max_age` options.
+With these options, you can usually keep the `cachesize` relatively large
+in order to maintain good throughput when accessing files, but the cache
+will be tidied up quickly, releasing the memory again if it is no longer
+accessed. A useful configuration could look like this:
+
+```
+dwarfs image mountpoint -otidy_strategy=time,tidy_interval=5s,tidy_max_age=10s
+```
+
+This will check the cache every 5 seconds and evict any blocks from the
+cache that haven't been accessed for more than 10 seconds. What sounds
+good in theory can be tricky in practice: just because `dwarfs` has freed
+the memory doesn't necessarily mean that the memory allocator will *really*
+return the memory to the system.
+
+If `dwarfs` is built with `jemalloc`, the memory allocator can be tuned
+to return memory to the system quickly by setting the `MALLOC_CONF`
+environment variable, for example:
+
+```
+MALLOC_CONF="background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000"
+```
+
+If `dwarfs` is *not* build with `jemalloc`, it is still possible to run it
+with `jemalloc` by using `LD_PRELOAD`:
+
+```
+LD_PRELOAD=/usr/lib/libjemalloc.so dwarfs image mountpoint ...
+```
+
+The exact location of the `jemalloc` shared object depends on your system.
+If that is *also* not an option, you can use the `block_allocator` option
+to `dwarfs`:
+
+```
+dwarfs image mountpoint -oblock_allocator=mmap,tidy_strategy=time,...
+```
+
+This will instruct `dwarfs` to *not* use `malloc` for allocating blocks,
+but rather use `mmap`. This should work nicely, albeit with some potential
+impact on performance, especially with smaller block sizes.
+
+### Optimizing Application Startup Time
+
+If you're using DwarFS as storage for an application container, you may
+want to optimize startup time. There are different ways to do that.
+
+If the application is going to read most of the file system image data
+during startup, and the image is relatively small, it's worth trying to
+just use the `preload_all` option. This will fill the cache with blocks
+from the file system image as soon as it is mounted and can already have
+a significant impact on startup time.
+
+If the application is only using a small subset of the data in the image
+during startup, you can use "hotness" analysis and build an image that
+is optimized to improve startup speed. It's basically profile guide
+optimization for file systems.
+
+First you have to build an initial image you can use to perform the
+analysis. Then, you use the `analysis_file` option to mount the image:
+
+```
+dwarfs image mountpoint -oanalysis_file=/tmp/image.prof
+```
+
+While the image is mounted, you start the application (or perform
+whichever task you want to optimize the file system for). Then, when
+you unmount the image, the file you have specified will contain a list
+of all paths in the image that have been accessed, in the order in
+which the access happened.
+
+You can then use the `hotness` categorizer in `mkdwarfs`, potentially
+along with `explicit` ordering, to build the optimized image:
+
+```
+mkdwarfs -i input -o image --categorize=hotness --hotness-list=/tmp/image.prof
+```
+
+Or, with additional explicit ordering:
+
+```
+mkdwarfs -i input -o image --categorize=hotness --hotness-list=/tmp/image.prof \
+         --order hotness::explicit:file=/tmp/image.prof
+```
+
+This will order the files in the `hotness` category using the same order
+as in the profile. Otherwise, they will be ordered by similarity.
+
+Once you have built this optimized image, you can mount it using the
+`preload_category` option:
+
+```
+dwarfs image mountpoint -opreload_category=hotness
+```
+
+This will preload all `hotness` blocks into the cache immediately after
+mounting and hopefully speed up application startup significantly.
+
+There are plenty of other ways you can tune how the image is generated.
+For example, if the input data already contains compressed files, you
+may want to add the `incompressible` categorizer. This will not only
+speed up the creation of the file system image as `mkdwarfs` won't waste
+time trying to compress incompressible data, but also speed up access as
+the data won't need to be decompressed. Also, you could think about using
+different compression algorithms for the "hot" and "cold" files, e.g.
+something fast like `zstd` for the hot files and `lzma` for the cold files.
 
 ## AUTHOR
 
