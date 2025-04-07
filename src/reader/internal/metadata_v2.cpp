@@ -1236,13 +1236,12 @@ metadata_v2_data::reg_file_size_impl(inode_view_impl const& iv, bool use_cache,
 }
 
 std::string metadata_v2_data::serialize_as_json(bool simple) const {
+  using namespace apache::thrift;
   std::string json;
   if (simple) {
-    apache::thrift::SimpleJSONSerializer serializer;
-    serializer.serialize(unpack_metadata(), &json);
+    SimpleJSONSerializer::serialize(unpack_metadata(), &json);
   } else {
-    apache::thrift::JSONSerializer serializer;
-    serializer.serialize(unpack_metadata(), &json);
+    JSONSerializer::serialize(unpack_metadata(), &json);
   }
   return json;
 }
