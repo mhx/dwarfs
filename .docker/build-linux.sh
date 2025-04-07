@@ -151,9 +151,9 @@ esac
 case "-$BUILD_TYPE-" in
   *-lto-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
-    export CFLAGS="${CFLAGS} -flto"
-    export CXXFLAGS="${CXXFLAGS} -flto"
-    export LDFLAGS="${LDFLAGS} -flto"
+    export CFLAGS="${CFLAGS} -flto=auto"
+    export CXXFLAGS="${CXXFLAGS} -flto=auto"
+    export LDFLAGS="${LDFLAGS} -flto=auto"
     export COMPILER="${COMPILER}-lto"
     ;;
 esac
