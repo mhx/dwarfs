@@ -89,7 +89,7 @@ RUN bash /usr/local/bin/install-mold.sh
 COPY install-bloaty.sh /usr/local/bin/install-bloaty.sh
 RUN bash /usr/local/bin/install-bloaty.sh
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
-RUN bash /usr/local/bin/install-static-libs.sh gcc clang-18 :alpine
+RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 RUN adduser -G users -s bash -u 1000 -D mhx
 USER mhx
 ENTRYPOINT /workspace/.docker/build-linux.sh
