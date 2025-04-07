@@ -35,7 +35,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,bzip2,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
+    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
     export CLANG_OPTIMIZE="-Os"
     export GCC_OPTIMIZE="-O2" # gcc -Os is painfully slow
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
