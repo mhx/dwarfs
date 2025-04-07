@@ -229,7 +229,11 @@ class dwarfs_analysis {
 
   ~dwarfs_analysis() {
     if (!path_.empty()) {
-      write_analysis();
+      try {
+        write_analysis();
+      } catch (std::exception const& e) {
+        std::cerr << "Failed to write analysis: " << e.what() << '\n';
+      }
     }
   }
 
