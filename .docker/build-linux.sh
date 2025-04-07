@@ -139,6 +139,7 @@ case "-$BUILD_TYPE-" in
       export CXXFLAGS="${CFLAGS}"
       export LDFLAGS="-Wl,--gc-sections"
     fi
+    export COMPILER="${COMPILER}-minsize"
     ;;
   *-reldbg-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=RelWithDebInfo"

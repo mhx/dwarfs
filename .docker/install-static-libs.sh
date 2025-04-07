@@ -37,11 +37,9 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
     PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
-    export CLANG_OPTIMIZE="-Os"
-    export GCC_OPTIMIZE="-O2" # gcc -Os is painfully slow
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-    COMPILERS="clang gcc clang-lto gcc-lto"
+    COMPILERS="clang clang-lto clang-minsize-lto gcc"
 elif [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
@@ -123,22 +121,21 @@ for COMPILER in $COMPILERS; do
         clang*)
             export CC="$CLANG"
             export CXX="${CLANG/clang/clang++}"
-            if [[ -n "$CLANG_OPTIMIZE" ]]; then
-                export CFLAGS="$CFLAGS $CLANG_OPTIMIZE"
-                export CXXFLAGS="$CXXFLAGS $CLANG_OPTIMIZE"
-            fi
             ;;
         gcc*)
             export CC="$GCC"
             export CXX="${GCC/gcc/g++}"
-            if [[ -n "$GCC_OPTIMIZE" ]]; then
-                export CFLAGS="$CFLAGS $GCC_OPTIMIZE"
-                export CXXFLAGS="$CXXFLAGS $GCC_OPTIMIZE"
-            fi
             ;;
         *)
             echo "Unknown compiler: $COMPILER"
             exit 1
+            ;;
+    esac
+
+    case "-$COMPILER-" in
+        *-minsize-*)
+            export CFLAGS="$CFLAGS -Os"
+            export CXXFLAGS="$CXXFLAGS -Os"
             ;;
     esac
 
