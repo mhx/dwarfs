@@ -120,7 +120,9 @@ case "-$BUILD_TYPE-" in
     ;;
   *-release-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
-    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
+      CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    fi
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
       export CXXFLAGS="${CFLAGS}"
@@ -129,7 +131,9 @@ case "-$BUILD_TYPE-" in
     ;;
   *-relsize-*)
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
-    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
+      CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+    fi
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
       export CXXFLAGS="${CFLAGS}"
@@ -151,6 +155,13 @@ case "-$BUILD_TYPE-" in
     export CXXFLAGS="${CXXFLAGS} -flto"
     export LDFLAGS="${LDFLAGS} -flto"
     export COMPILER="${COMPILER}-lto"
+    ;;
+esac
+
+case "-$BUILD_TYPE-" in
+  *-minimal-*)
+    CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0 -DENABLE_RICEPP=0"
+    CMAKE_ARGS="${CMAKE_ARGS} -DTRY_ENABLE_BROTLI=0 -DTRY_ENABLE_LZ4=0 -DTRY_ENABLE_FLAC=0"
     ;;
 esac
 
@@ -202,12 +213,22 @@ fi
 
 CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACTS_DIR=/artifacts"
 
+SUFFIX=""
+
 if [[ "$BUILD_DIST" == "alpine" ]]; then
-  if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then
-    CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl-lto"
-  else
-    CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=-musl"
+  SUFFIX="-musl"
+
+  if [[ "-$BUILD_TYPE-" == *-minimal-* ]]; then
+    SUFFIX="${SUFFIX}-minimal"
   fi
+
+  if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then
+    SUFFIX="${SUFFIX}-lto"
+  fi
+fi
+
+if [[ -n "$SUFFIX" ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DDWARFS_ARTIFACT_SUFFIX=$SUFFIX"
 fi
 
 if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
@@ -217,7 +238,10 @@ fi
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
   export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1 -DWITH_PXATTR=1"
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
+  if [[ "$BUILD_TYPE" != *-minimal-* ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
+  fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
 fi
 
