@@ -1,5 +1,52 @@
 # Change Log
 
+## Version 0.12.0 - 2025-04-08
+
+- (fix) Build release binaries against an up-to-date `libfuse`.
+  Fixes github #252.
+
+- (fix) Changes for compatibility with Boost.Process v2.
+
+- (feature) Re-licensed all libraries required for *reading* DwarFS
+  images under the MIT license. The source of all tools that just
+  *read* DwarFS images (i.e. everything except for `mkdwarfs`) are
+  also under the MIT license now. Everything else is still GPL-3.0.
+  Addresses github #255.
+
+- (feature) Significantly reduced binary size in the static release
+  builds. This is the result of refactoring code that unconditionally
+  pulled in code-heavy dependencies such as `libcrypto`, as well as
+  optimizing the build pipeline (e.g. building dependencies with only
+  the necessary set of features) and turning on link time optimization.
+
+- (feature) A new kind of "universal" binary `dwarfs-fuse-extract` is
+  part of the release now. This combines the FUSE driver (`dwarfs`)
+  and `dwarfsextract` into a single binary, but does not include the
+  `mkdwarfs` and `dwarfsck` tools that are also part of the regular
+  universal binary. `dwarfs-fuse-extract` is much smaller than the
+  regular universal binary and especially suitable to AppImage-like
+  applications.
+
+- (feature) New `hotness` categorizer in `mkdwarfs` that allows a list
+  of "hot" files to be stored in distinct file system blocks.
+
+- (feature) New `explicit` ordering mode in `mkdwarfs` that allows
+  files to be ordered accoring to the order in a given list file.
+
+- (feature) `dwarfs` now shows the version of the FUSE library used.
+
+- (feature) New `dwarfs` options `preload_all` and `preload_category`
+  to populate the block cache immediately after mounting.
+
+- (feature) New `dwarfs` option `analysis_file` that can be used for
+  profiling and as input to `mkdwarfs` new `hotness` categorizer and
+  `explicit` ordering mode.
+
+- (feature) New `dwarfs` option `block_allocator` that allows the user
+  to switch from a `malloc`-based block allocator to an `mmap`-based
+  one. This can help with returning memory back to the system if the
+  blocks are evicted from the cache.
+
 ## Version 0.11.3 - 2025-03-31
 
 - (fix) Handle absolute paths in `--input-list`. Fixes github #259.
