@@ -1,1 +1,30 @@
 MIT WITH GPL-3.0-only
+
+Parts of the DwarFS project are licensed under the MIT license, while others are
+licensed under the GPL-3.0 license. In general, the code used to *read* DwarFS
+images is licensed under the MIT license, while the code used to *write* DwarFS
+images is licensed under the GPL-3.0 license. Also, all testing/benchmarking
+code is currently licensed under the GPL-3.0 license.
+
+That means you can use `mkdwarfs` to create images and then use these images
+with only the MIT-licensed code.
+
+The following libraries and associated header files are licensed under the
+MIT license:
+
+- `dwarfs_common`
+- `dwarfs_compressor`
+- `dwarfs_decompressor`
+- `dwarfs_extractor`
+- `dwarfs_reader`
+
+The following libraries and associated header files are licensed under the
+GPL-3.0 license:
+
+- `dwarfs_rewrite`
+- `dwarfs_writer`
+
+Each header and source file should contain an SPDX identifier near the top
+of the file.
+
+Please also check the licenses of the projects that DwarFS depends on.
