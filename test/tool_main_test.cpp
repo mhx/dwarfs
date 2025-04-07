@@ -2912,7 +2912,9 @@ TEST_P(segmenter_repeating_sequence_test, github161) {
   t.add_root_dir();
   t.os->add_file("/bug", content);
 
-  ASSERT_EQ(0, t.run("-i / -o - -C lz4 -W12 --log-level=verbose --no-progress"))
+  ASSERT_EQ(
+      0,
+      t.run("-i / -o - -C zstd:level=3 -W12 --log-level=verbose --no-progress"))
       << t.err();
 
   auto log = t.err();
