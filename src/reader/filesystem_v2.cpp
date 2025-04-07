@@ -34,6 +34,7 @@
 #include <mutex>
 #include <sstream>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <version>
 
@@ -281,10 +282,11 @@ class filesystem_ final {
   bool has_symlinks() const { return meta_.has_symlinks(); }
   history const& get_history() const { return history_; }
   nlohmann::json get_inode_info(inode_view entry) const {
-    return meta_.get_inode_info(entry, std::numeric_limits<size_t>::max());
+    return meta_.get_inode_info(std::move(entry),
+                                std::numeric_limits<size_t>::max());
   }
   nlohmann::json get_inode_info(inode_view entry, size_t max_chunks) const {
-    return meta_.get_inode_info(entry, max_chunks);
+    return meta_.get_inode_info(std::move(entry), max_chunks);
   }
   std::vector<std::string> get_all_block_categories() const {
     return meta_.get_all_block_categories();
@@ -783,14 +785,14 @@ template <typename LoggerPolicy>
 file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                              std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(getattr_ec)
-  return meta_.getattr(entry, ec);
+  return meta_.getattr(std::move(entry), ec);
 }
 
 template <typename LoggerPolicy>
 file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(getattr)
   return call_ec_throw(
-      [&](std::error_code& ec) { return meta_.getattr(entry, ec); });
+      [&](std::error_code& ec) { return meta_.getattr(std::move(entry), ec); });
 }
 
 template <typename LoggerPolicy>
@@ -798,7 +800,7 @@ file_stat filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                              getattr_options const& opts,
                                              std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(getattr_opts_ec)
-  return meta_.getattr(entry, opts, ec);
+  return meta_.getattr(std::move(entry), opts, ec);
 }
 
 template <typename LoggerPolicy>
@@ -806,8 +808,9 @@ file_stat
 filesystem_<LoggerPolicy>::getattr(inode_view entry,
                                    getattr_options const& opts) const {
   PERFMON_CLS_SCOPED_SECTION(getattr_opts)
-  return call_ec_throw(
-      [&](std::error_code& ec) { return meta_.getattr(entry, opts, ec); });
+  return call_ec_throw([&](std::error_code& ec) {
+    return meta_.getattr(std::move(entry), opts, ec);
+  });
 }
 
 template <typename LoggerPolicy>
@@ -816,7 +819,7 @@ bool filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
                                        file_stat::gid_type gid) const {
   PERFMON_CLS_SCOPED_SECTION(access)
   std::error_code ec;
-  meta_.access(entry, mode, uid, gid, ec);
+  meta_.access(std::move(entry), mode, uid, gid, ec);
   return !ec;
 }
 
@@ -826,14 +829,14 @@ void filesystem_<LoggerPolicy>::access(inode_view entry, int mode,
                                        file_stat::gid_type gid,
                                        std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(access_ec)
-  meta_.access(entry, mode, uid, gid, ec);
+  meta_.access(std::move(entry), mode, uid, gid, ec);
 }
 
 template <typename LoggerPolicy>
 std::optional<directory_view>
 filesystem_<LoggerPolicy>::opendir(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(opendir)
-  return meta_.opendir(entry);
+  return meta_.opendir(std::move(entry));
 }
 
 template <typename LoggerPolicy>
@@ -854,15 +857,16 @@ std::string
 filesystem_<LoggerPolicy>::readlink(inode_view entry, readlink_mode mode,
                                     std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(readlink_ec)
-  return meta_.readlink(entry, mode, ec);
+  return meta_.readlink(std::move(entry), mode, ec);
 }
 
 template <typename LoggerPolicy>
 std::string filesystem_<LoggerPolicy>::readlink(inode_view entry,
                                                 readlink_mode mode) const {
   PERFMON_CLS_SCOPED_SECTION(readlink)
-  return call_ec_throw(
-      [&](std::error_code& ec) { return meta_.readlink(entry, mode, ec); });
+  return call_ec_throw([&](std::error_code& ec) {
+    return meta_.readlink(std::move(entry), mode, ec);
+  });
 }
 
 template <typename LoggerPolicy>
@@ -876,14 +880,14 @@ template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::open(inode_view entry,
                                     std::error_code& ec) const {
   PERFMON_CLS_SCOPED_SECTION(open_ec)
-  return meta_.open(entry, ec);
+  return meta_.open(std::move(entry), ec);
 }
 
 template <typename LoggerPolicy>
 int filesystem_<LoggerPolicy>::open(inode_view entry) const {
   PERFMON_CLS_SCOPED_SECTION(open)
   return call_ec_throw(
-      [&](std::error_code& ec) { return meta_.open(entry, ec); });
+      [&](std::error_code& ec) { return meta_.open(std::move(entry), ec); });
 }
 
 template <typename LoggerPolicy>
