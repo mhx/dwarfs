@@ -1037,7 +1037,7 @@ TEST_P(tools_test, end_to_end) {
 
     std::vector<std::string> all_options{
         "-s",
-        "-ocase_insensitive",
+        "-ocase_insensitive,block_allocator=mmap",
 #ifndef _WIN32
         "-oenable_nlink",
         "-oreadonly",
@@ -1067,14 +1067,14 @@ TEST_P(tools_test, end_to_end) {
       for (size_t i = 0; i < all_options.size(); ++i) {
         if ((1 << i) & bitmask) {
           auto const& opt = all_options[i];
-          if (opt == "-ocase_insensitive") {
+          if (opt.find("-ocase_insensitive") != std::string::npos) {
             case_insensitive = true;
           }
 #ifndef _WIN32
-          if (opt == "-oreadonly") {
+          if (opt.find("-oreadonly") != std::string::npos) {
             readonly = true;
           }
-          if (opt == "-oenable_nlink") {
+          if (opt.find("-oenable_nlink") != std::string::npos) {
             enable_nlink = true;
           }
           if (opt.find("-ouid=") != std::string::npos) {

@@ -182,6 +182,7 @@ struct options {
   char const* cache_tidy_strategy_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_interval_str{nullptr}; // TODO: const?? -> use string?
   char const* cache_tidy_max_age_str{nullptr};  // TODO: const?? -> use string?
+  char const* block_alloc_mode_str{nullptr};    // TODO: const?? -> use string?
   char const* seq_detector_thresh_str{nullptr}; // TODO: const?? -> use string?
   char const* analysis_file_str{nullptr};       // TODO: const?? -> use string?
 #ifndef _WIN32
@@ -209,6 +210,8 @@ struct options {
       reader::cache_tidy_strategy::NONE};
   std::chrono::milliseconds block_cache_tidy_interval{std::chrono::minutes(5)};
   std::chrono::milliseconds block_cache_tidy_max_age{std::chrono::minutes{10}};
+  reader::block_cache_allocation_mode block_allocator{
+      reader::block_cache_allocation_mode::MALLOC};
   size_t seq_detector_threshold{kDefaultSeqDetectorThreshold};
 #ifndef _WIN32
   std::optional<file_stat::uid_type> fs_uid;
@@ -339,6 +342,7 @@ constexpr std::array dwarfs_opts{
     DWARFS_OPT("tidy_strategy=%s", cache_tidy_strategy_str, 0),
     DWARFS_OPT("tidy_interval=%s", cache_tidy_interval_str, 0),
     DWARFS_OPT("tidy_max_age=%s", cache_tidy_max_age_str, 0),
+    DWARFS_OPT("block_allocator=%s", block_alloc_mode_str, 0),
     DWARFS_OPT("seq_detector=%s", seq_detector_thresh_str, 0),
     DWARFS_OPT("analysis_file=%s", analysis_file_str, 0),
     DWARFS_OPT("preload_category=%s", preload_category_str, 0),
@@ -361,6 +365,11 @@ constexpr sorted_array_map cache_tidy_strategy_map{
     std::pair{"none"sv, reader::cache_tidy_strategy::NONE},
     std::pair{"time"sv, reader::cache_tidy_strategy::EXPIRY_TIME},
     std::pair{"swap"sv, reader::cache_tidy_strategy::BLOCK_SWAPPED_OUT},
+};
+
+constexpr sorted_array_map block_allocator_map{
+    std::pair{"malloc"sv, reader::block_cache_allocation_mode::MALLOC},
+    std::pair{"mmap"sv, reader::block_cache_allocation_mode::MMAP},
 };
 
 constexpr std::string_view pid_xattr{"user.dwarfs.driver.pid"};
@@ -1301,6 +1310,7 @@ void usage(std::ostream& os, std::filesystem::path const& progname) {
      << "    -o tidy_strategy=NAME  (none)|time|swap\n"
      << "    -o tidy_interval=TIME  interval for cache tidying (5m)\n"
      << "    -o tidy_max_age=TIME   tidy blocks after this time (10m)\n"
+     << "    -o block_allocator=NAME  (malloc)|mmap\n"
      << "    -o seq_detector=NUM    sequential access detector threshold (4)\n"
 #if DWARFS_PERFMON_ENABLED
      << "    -o perfmon=name[+...]  enable performance monitor\n"
@@ -1526,6 +1536,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   fsopts.block_cache.init_workers = false;
   fsopts.block_cache.sequential_access_detector_threshold =
       opts.seq_detector_threshold;
+  fsopts.block_cache.allocation_mode = opts.block_allocator;
   fsopts.inode_reader.readahead = opts.readahead;
   fsopts.metadata.enable_nlink = bool(opts.enable_nlink);
   fsopts.metadata.readonly = bool(opts.readonly);
@@ -1735,6 +1746,19 @@ int dwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (opts.decompress_ratio < 0.0 || opts.decompress_ratio > 1.0) {
     iol.err << "error: decratio must be between 0.0 and 1.0\n";
     return 1;
+  }
+
+  if (opts.block_alloc_mode_str) {
+    if (auto it = block_allocator_map.find(opts.block_alloc_mode_str);
+        it != block_allocator_map.end()) {
+      opts.block_allocator = it->second;
+    } else {
+      iol.err << "error: no such block allocator: " << opts.block_alloc_mode_str
+              << "\n";
+      return 1;
+    }
+  } else {
+    opts.block_allocator = reader::block_cache_allocation_mode::MALLOC;
   }
 
   opts.seq_detector_threshold = opts.seq_detector_thresh_str

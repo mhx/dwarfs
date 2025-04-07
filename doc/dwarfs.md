@@ -189,6 +189,14 @@ options:
   be an integer value. Suffixes `ms`, `s`, `m`, `h` are supported.
   If no suffix is given, the value will be assumed to be in seconds.
 
+- `-o block_allocator=malloc`|`mmap`:
+  Select the allocator for decompressed file system blocks. By default,
+  blocks will be allocated using `malloc`. However, depending on the way
+  that `malloc` is implemented on your system, you may find that memory
+  used by `dwarfs` isn't released despite using cache tidying. In this
+  case, using the `mmap` block allocator is much more likely to release
+  the memory.
+
 - `-o seq_detector=`*num*:
   Threshold, in blocks, for the sequential access detector. If the most
   recently accessed *num* blocks are sequential, then the block following
