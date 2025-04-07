@@ -44,16 +44,6 @@
 
 #include <fcntl.h>
 
-#ifndef _WIN32
-#if __has_include(<boost/process/v2/environment.hpp>) && defined(DWARFS_HAVE_CLOSE_RANGE)
-#define BOOST_PROCESS_VERSION 2
-#include <boost/process/v2/environment.hpp>
-#else
-#define BOOST_PROCESS_VERSION 1
-#include <boost/process/search_path.hpp>
-#endif
-#endif
-
 #include <fmt/format.h>
 
 #include <dwarfs/config.h>
@@ -99,7 +89,7 @@
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
-#include <dwarfs/os_access.h>
+#include <dwarfs/os_access_generic.h>
 #include <dwarfs/performance_monitor.h>
 #include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/reader/filesystem_options.h>
@@ -435,14 +425,10 @@ void check_fusermount(dwarfs_userdata& userdata) {
   static constexpr std::string_view const fuse_pkg = "fuse/fuse2";
 #endif
 
-#if BOOST_PROCESS_VERSION == 2
   auto fusermount =
-      boost::process::v2::environment::find_executable(fusermount_name);
-#else
-  auto fusermount = boost::process::search_path(std::string(fusermount_name));
-#endif
+      dwarfs::os_access_generic().find_executable(fusermount_name);
 
-  if (fusermount.empty() || !boost::filesystem::exists(fusermount)) {
+  if (fusermount.empty() || !std::filesystem::exists(fusermount)) {
     LOG_PROXY(prod_logger_policy, userdata.lgr);
     LOG_ERROR << "Could not find `" << fusermount_name << "' in PATH";
     LOG_WARN << "Do you need to install the `" << fuse_pkg << "' package?";

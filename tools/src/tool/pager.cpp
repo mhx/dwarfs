@@ -31,7 +31,15 @@
 #include <vector>
 
 #include <boost/asio/io_context.hpp>
+#if __has_include(<boost/process/v1/args.hpp>)
+#define BOOST_PROCESS_VERSION 1
+#include <boost/process/v1/args.hpp>
+#include <boost/process/v1/async.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#else
 #include <boost/process.hpp>
+#endif
 
 #include <dwarfs/os_access.h>
 #include <dwarfs/tool/pager.h>

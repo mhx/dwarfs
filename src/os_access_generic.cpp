@@ -32,12 +32,14 @@
 #include <folly/portability/PThread.h>
 #include <folly/portability/Unistd.h>
 
-#if __has_include(<boost/process/v1/search_path.hpp>)
+#if __has_include(<boost/process/v2/environment.hpp>) && defined(DWARFS_HAVE_CLOSE_RANGE)
+#define BOOST_PROCESS_VERSION 2
+#include <boost/process/v2/environment.hpp>
+#elif __has_include(<boost/process/v1/search_path.hpp>)
+#define BOOST_PROCESS_VERSION 1
 #include <boost/process/v1/search_path.hpp>
-#define DWARFS_BOOST_PROCESS_SEARCH_PATH_V1 1
 #else
 #include <boost/process/search_path.hpp>
-#define DWARFS_BOOST_PROCESS_SEARCH_PATH_V1 0
 #endif
 
 #ifdef __APPLE__
@@ -233,12 +235,12 @@ os_access_generic::thread_get_cpu_time(std::thread::id tid,
 
 std::filesystem::path
 os_access_generic::find_executable(std::filesystem::path const& name) const {
-#if DWARFS_BOOST_PROCESS_SEARCH_PATH_V1
-  using boost::process::v1::search_path;
+#if BOOST_PROCESS_VERSION == 2
+  return boost::process::v2::environment::find_executable(name.wstring())
+      .wstring();
 #else
-  using boost::process::search_path;
+  return boost::process::search_path(name.wstring()).wstring();
 #endif
-  return search_path(name.wstring()).wstring();
 }
 
 } // namespace dwarfs

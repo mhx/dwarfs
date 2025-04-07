@@ -27,6 +27,7 @@
 #include <cerrno>
 #include <chrono>
 #include <concepts>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -49,7 +50,15 @@
 #endif
 
 #include <boost/asio/io_context.hpp>
+#if __has_include(<boost/process/v1/args.hpp>)
+#define BOOST_PROCESS_VERSION 1
+#include <boost/process/v1/args.hpp>
+#include <boost/process/v1/async.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#else
 #include <boost/process.hpp>
+#endif
 
 #include <fmt/format.h>
 #if FMT_VERSION >= 110000
