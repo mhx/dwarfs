@@ -56,7 +56,7 @@
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
-#include <signal.h>
+#include <csignal>
 
 #ifdef _WIN32
 #include <tlhelp32.h>
