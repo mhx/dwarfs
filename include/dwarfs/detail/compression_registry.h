@@ -47,7 +47,9 @@ struct compression_registrar;
 class compression_registry_base {
  protected:
   void register_name(compression_type type, std::string_view name);
+  compression_type get_type(std::string const& name) const;
 
+ private:
   std::unordered_map<std::string, compression_type> names_;
 };
 

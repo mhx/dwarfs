@@ -27,7 +27,6 @@
  */
 
 #include <dwarfs/compressor_registry.h>
-#include <dwarfs/error.h>
 #include <dwarfs/option_map.h>
 
 #include "compression_registry.h"
@@ -51,13 +50,8 @@ compressor_registry& compressor_registry::instance() {
 std::unique_ptr<block_compressor::impl>
 compressor_registry::create(std::string_view spec) const {
   option_map om(spec);
-  auto nit = names_.find(om.choice());
 
-  if (nit == names_.end()) {
-    DWARFS_THROW(runtime_error, "unknown compression: " + om.choice());
-  }
-
-  auto obj = get_factory(nit->second).create(om);
+  auto obj = get_factory(get_type(om.choice())).create(om);
 
   om.report();
 

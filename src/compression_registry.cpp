@@ -31,6 +31,7 @@
 #include <string>
 
 #include <dwarfs/detail/compression_registry.h>
+#include <dwarfs/error.h>
 
 namespace dwarfs::detail {
 
@@ -41,6 +42,17 @@ void compression_registry_base::register_name(compression_type type,
               << static_cast<int>(type) << ")\n";
     ::abort();
   }
+}
+
+compression_type
+compression_registry_base::get_type(std::string const& name) const {
+  auto nit = names_.find(name);
+
+  if (nit == names_.end()) {
+    DWARFS_THROW(runtime_error, "unknown compression: " + name);
+  }
+
+  return nit->second;
 }
 
 } // namespace dwarfs::detail
