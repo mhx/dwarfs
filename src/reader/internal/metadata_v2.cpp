@@ -857,7 +857,7 @@ void metadata_v2_data::check_inode_size_cache(
 
       auto index = file_inode_to_chunk_index(inode);
 
-      if (seen.find(index) != seen.end()) {
+      if (seen.contains(index)) {
         continue;
       }
 
