@@ -13,21 +13,22 @@ PKGS="${3:-:none}"
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 BZIP2_VERSION=1.0.8
-LIBARCHIVE_VERSION=3.7.7
-FLAC_VERSION=1.5.0
+
+LIBARCHIVE_VERSION=3.7.9                 # 2025-03-30
+FLAC_VERSION=1.5.0                       # 2025-02-11
 # TODO: https://github.com/libunwind/libunwind/issues/702
-LIBUNWIND_VERSION=1.7.2
-BENCHMARK_VERSION=1.9.1
-OPENSSL_VERSION=3.3.3
-CPPTRACE_VERSION=0.8.2
-DOUBLE_CONVERSION_VERSION=3.3.1
-FMT_VERSION=11.1.4
-GLOG_VERSION=0.7.1
-XXHASH_VERSION=0.8.3
-LZ4_VERSION=1.10.0
-BROTLI_VERSION=1.1.0
-ZSTD_VERSION=1.5.7
-FUSE_VERSION=3.17.1
+LIBUNWIND_VERSION=1.7.2                  # 2023-07-30
+BENCHMARK_VERSION=1.9.2                  # 2025-03-25
+OPENSSL_VERSION=3.4.1                    # 2025-02-11
+CPPTRACE_VERSION=0.8.2                   # 2025-02-23
+DOUBLE_CONVERSION_VERSION=3.3.1          # 2025-02-14
+FMT_VERSION=11.1.4                       # 2025-02-26
+GLOG_VERSION=0.7.1                       # 2024-06-08
+XXHASH_VERSION=0.8.3                     # 2024-12-30
+LZ4_VERSION=1.10.0                       # 2024-07-22
+BROTLI_VERSION=1.1.0                     # 2023-08-31
+ZSTD_VERSION=1.5.7                       # 2025-02-19
+LIBFUSE_VERSION=3.17.1                   # 2025-03-24
 
 echo "Using $GCC and $CLANG"
 
@@ -61,7 +62,7 @@ XXHASH_TARBALL="xxHash-${XXHASH_VERSION}.tar.gz"
 LZ4_TARBALL="lz4-${LZ4_VERSION}.tar.gz"
 BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
 ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
-FUSE_TARBALL="fuse-${FUSE_VERSION}.tar.gz"
+LIBFUSE_TARBALL="fuse-${LIBFUSE_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -111,7 +112,7 @@ fetch_lib xxhash https://github.com/Cyan4973/xxHash/archive/refs/tags/v${XXHASH_
 fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4_TARBALL}
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
 fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
-fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/${FUSE_TARBALL}
+fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
 
 for COMPILER in $COMPILERS; do
     export CFLAGS="$COMMON_CFLAGS"
@@ -182,8 +183,8 @@ for COMPILER in $COMPILERS; do
 
     if use_lib fuse; then
         cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${FUSE_TARBALL}
-        cd fuse-${FUSE_VERSION}
+        tar xf ../${LIBFUSE_TARBALL}
+        cd fuse-${LIBFUSE_VERSION}
         mkdir build
         cd build
         meson setup .. --default-library=static --prefix="$INSTALL_DIR"
