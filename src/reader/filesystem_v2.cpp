@@ -306,14 +306,37 @@ class filesystem_ final {
   }
 
   void cache_blocks_by_category(std::string_view category) const {
-    ir_.cache_blocks(meta_.get_block_numbers_by_category(category));
+    auto const max_blocks = get_max_cache_blocks();
+    auto block_numbers = meta_.get_block_numbers_by_category(category);
+    if (block_numbers.size() > max_blocks) {
+      LOG_WARN << "too many blocks in category " << category
+               << ", caching only the first " << max_blocks << " out of "
+               << block_numbers.size() << " blocks";
+      block_numbers.resize(max_blocks);
+    }
+    ir_.cache_blocks(block_numbers);
   }
 
-  void cache_all_blocks() const { ir_.cache_all_blocks(); }
+  void cache_all_blocks() const {
+    auto const max_blocks = get_max_cache_blocks();
+    auto num_blocks = ir_.num_blocks();
+    if (num_blocks > max_blocks) {
+      LOG_WARN << "too many blocks in filesystem, caching only the first "
+               << max_blocks << " out of " << num_blocks << " blocks";
+      num_blocks = max_blocks;
+    }
+    std::vector<size_t> block_numbers(num_blocks);
+    std::iota(block_numbers.begin(), block_numbers.end(), 0);
+    ir_.cache_blocks(block_numbers);
+  }
 
  private:
   filesystem_parser make_fs_parser() const {
     return filesystem_parser(mm_, image_offset_, options_.image_size);
+  }
+
+  size_t get_max_cache_blocks() const {
+    return options_.block_cache.max_bytes / meta_.block_size();
   }
 
   filesystem_info const* get_info(fsinfo_options const& opts) const;

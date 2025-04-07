@@ -118,13 +118,15 @@ options:
 - `-o preload_category=`*category*:
   Preload all blocks from this category when mounting the file
   system. This is typically used together with the `mkdwarfs`
-  "hotness" categorizer.
+  "hotness" categorizer. If the cache size is too small, only as
+  many blocks as will fit in the cache will be preloaded.
 
 - `-o preload_all`
   Preload *all* blocks from the file system. This is only useful
   for file systems where all uncompressed blocks fit fully into
   the configured cache size. To see the uncompressed block size,
-  you can use `dwarfsck`.
+  you can use `dwarfsck`. If the cache size is too small, only as
+  many blocks as will fit in the cache will be preloaded.
 
 - `-o (no_)cache_image`:
   By default, `dwarfs` tries to ensure that the compressed file
