@@ -228,7 +228,7 @@ void inode_ordering_<LoggerPolicy>::by_explicit_order(
   path_order.resize(raw.size());
 
   for (auto i : index) {
-    paths[i] = fs::relative(raw[i]->any()->fs_path(), root_path);
+    paths[i] = raw[i]->any()->fs_path().lexically_relative(root_path);
 
     if (auto it = order.find(paths[i]); it != order.end()) {
       path_order[i] = it->second;
