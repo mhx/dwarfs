@@ -218,67 +218,30 @@ static_assert(std::is_standard_layout_v<options>);
 class dwarfs_analysis {
  public:
   explicit dwarfs_analysis(std::filesystem::path const& path)
-      : path_{path} {}
-
-  ~dwarfs_analysis() {
-    if (!path_.empty()) {
-      try {
-        write_analysis();
-      } catch (std::exception const& e) {
-        std::cerr << "Failed to write analysis: " << e.what() << '\n';
-      }
-    }
-  }
-
-  void write_analysis() {
-    std::cerr << "Writing analysis to " << path_ << '\n';
-
-    std::ofstream ofs{path_};
-
-    if (!ofs) {
+      : ofs_{path} {
+    if (!ofs_) {
       throw std::system_error{errno, std::system_category()};
     }
-
-    std::unordered_set<fuse_ino_t> opened_inodes;
-    std::vector<std::string> opened;
-
-    {
-      std::lock_guard lock{mx_};
-
-      std::cerr << "Opened inodes: " << open_.size() << '\n';
-      std::cerr << "Lookup inodes: " << lookup_.size() << '\n';
-
-      for (auto ino : open_) {
-        if (opened_inodes.insert(ino).second) {
-          opened.push_back(lookup_.at(ino));
-        }
-      }
-    }
-
-    for (auto const& path : opened) {
-      ofs << path << '\n';
-    }
-
-    path_.clear();
   }
 
   void add_lookup(fuse_ino_t ino, std::string const& path) {
     std::lock_guard lock{mx_};
-    std::cerr << "Lookup: " << ino << " -> " << path << '\n';
     lookup_.try_emplace(ino, path);
   }
 
   void add_open(fuse_ino_t ino) {
     std::lock_guard lock{mx_};
-    std::cerr << "Open: " << ino << '\n';
-    open_.push_back(ino);
+    if (opened_.insert(ino).second) {
+      ofs_ << lookup_.at(ino) << '\n';
+      ofs_.flush();
+    }
   }
 
  private:
-  std::filesystem::path path_;
   std::mutex mx_;
+  std::ofstream ofs_;
   std::unordered_map<fuse_ino_t, std::string> lookup_;
-  std::vector<fuse_ino_t> open_;
+  std::unordered_set<fuse_ino_t> opened_;
 };
 
 struct dwarfs_userdata {
@@ -721,6 +684,16 @@ int op_open(char const* path, struct fuse_file_info* fi) {
   LOG_PROXY(LoggerPolicy, userdata.lgr);
 
   LOG_DEBUG << __func__ << "(" << path << ")" << get_caller_context();
+
+  if (userdata.analysis) {
+    auto dev = userdata.fs.find(path);
+    if (dev) {
+      auto iv = dev->inode();
+      if (iv.is_regular_file()) {
+        userdata.analysis->add_lookup(iv.inode_num(), dev->path());
+      }
+    }
+  }
 
   return -op_open_common(log_, userdata, fi, [&] {
     return find_inode(PERFMON_SECTION_ARG_ userdata.fs, path);
