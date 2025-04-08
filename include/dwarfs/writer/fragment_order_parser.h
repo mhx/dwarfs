@@ -28,14 +28,25 @@
 
 #include <dwarfs/writer/fragment_order_options.h>
 
-namespace dwarfs::writer {
+namespace dwarfs {
+
+class file_access;
+
+namespace writer {
 
 struct fragment_order_parser {
  public:
   static std::string choices();
 
+  fragment_order_parser(std::shared_ptr<file_access const> const& fa)
+      : fa_{fa} {}
+
   fragment_order_options parse(std::string_view arg) const;
   std::string to_string(fragment_order_options const& opts) const;
+
+ private:
+  std::shared_ptr<file_access const> fa_;
 };
 
-} // namespace dwarfs::writer
+} // namespace writer
+} // namespace dwarfs

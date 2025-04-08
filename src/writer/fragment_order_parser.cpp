@@ -33,6 +33,7 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/file_access.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/writer/fragment_order_parser.h>
 
@@ -99,13 +100,16 @@ fragment_order_parser::parse(std::string_view arg) const {
 
     case fragment_order_mode::EXPLICIT: {
       auto file = om.get<std::string>("file");
-      std::ifstream ifs{file};
-      if (!ifs) {
-        throw std::runtime_error(
-            fmt::format("failed to open explicit order file '{}'", file));
+      std::error_code ec;
+      auto input = fa_->open_input(file, ec);
+
+      if (ec) {
+        throw std::runtime_error(fmt::format(
+            "failed to open explicit order file '{}': {}", file, ec.message()));
       }
+
       std::string line;
-      while (std::getline(ifs, line)) {
+      while (std::getline(input->is(), line)) {
         auto const path = std::filesystem::path{line}.relative_path();
         rv.explicit_order[path] = rv.explicit_order.size();
       }
