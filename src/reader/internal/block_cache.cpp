@@ -231,7 +231,8 @@ class block_cache_ final : public block_cache::impl {
                [[maybe_unused]])
       : cache_(0)
       , mm_(std::move(mm))
-      , buffer_factory_{block_cache_byte_buffer_factory::create()}
+      , buffer_factory_{block_cache_byte_buffer_factory::create(
+            options.allocation_mode)}
       , LOG_PROXY_INIT(lgr)
       // clang-format off
       PERFMON_CLS_PROXY_INIT(perfmon, "block_cache")
