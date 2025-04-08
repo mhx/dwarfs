@@ -17,6 +17,7 @@ repositories = [
     "google/brotli",
     "facebook/zstd",
     "libfuse/libfuse",
+    "microsoft/mimalloc",
 ]
 
 # Function to fetch the latest release information for a repository

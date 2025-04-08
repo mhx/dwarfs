@@ -43,6 +43,11 @@ if(USE_JEMALLOC AND JEMALLOC_FOUND)
   target_compile_definitions(dwarfs_tool PRIVATE DWARFS_USE_JEMALLOC)
 endif()
 
+if(USE_MIMALLOC AND mimalloc_FOUND)
+  target_link_libraries(dwarfs_tool PRIVATE mimalloc-static)
+  target_compile_definitions(dwarfs_tool PRIVATE DWARFS_USE_MIMALLOC)
+endif()
+
 target_compile_definitions(
   dwarfs_tool PRIVATE DWARFS_BUILD_ID="${CMAKE_SYSTEM_PROCESSOR}, ${CMAKE_SYSTEM}, ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
 )

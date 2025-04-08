@@ -47,6 +47,10 @@
 #include <jemalloc/jemalloc.h>
 #endif
 
+#ifdef DWARFS_USE_MIMALLOC
+#include <mimalloc.h>
+#endif
+
 namespace po = boost::program_options;
 
 namespace boost {
@@ -82,6 +86,16 @@ std::string get_jemalloc_version() {
 }
 #endif
 
+#ifdef DWARFS_USE_MIMALLOC
+std::string get_mimalloc_version() {
+  auto v = mi_version();
+  auto major = v / 100;
+  auto minor = (v % 100) / 10;
+  auto patch = v % 10;
+  return fmt::format("{}.{}.{}", major, minor, patch);
+}
+#endif
+
 std::string
 tool_header_impl(std::string_view tool_name, std::string_view extra_info = {}) {
   std::string date;
@@ -110,6 +124,10 @@ std::string tool_header(std::string_view tool_name, std::string_view extra_info,
 
 #ifdef DWARFS_USE_JEMALLOC
   deps.add_library("libjemalloc", get_jemalloc_version());
+#endif
+
+#ifdef DWARFS_USE_MIMALLOC
+  deps.add_library("libmimalloc", get_mimalloc_version());
 #endif
 
   if (extra_deps) {

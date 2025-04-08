@@ -55,6 +55,7 @@ if(NOT WIN32)
   option(ENABLE_UBSAN "enable undefined behaviour sanitizer" OFF)
   option(ENABLE_COVERAGE "enable code coverage" OFF)
   option(USE_JEMALLOC "build with jemalloc if available" ON)
+  option(USE_MIMALLOC "build with mimalloc if available" OFF)
   option(PREFER_SYSTEM_FAST_FLOAT "use system fast_float if available" OFF)
   option(PREFER_SYSTEM_GTEST "use system gtest if available" OFF)
   option(DISABLE_CCACHE "disable ccache" OFF)
@@ -64,6 +65,10 @@ endif()
 
 if(STATIC_BUILD_DO_NOT_USE AND NOT(WITH_LIBDWARFS AND WITH_TOOLS AND WITH_FUSE_DRIVER))
   message(FATAL_ERROR "STATIC_BUILD_DO_NOT_USE requires WITH_LIBDWARFS, WITH_TOOLS and WITH_FUSE_DRIVER")
+endif()
+
+if(USE_JEMALLOC AND USE_MIMALLOC)
+  message(FATAL_ERROR "USE_JEMALLOC and USE_MIMALLOC are mutually exclusive")
 endif()
 
 # Libraries that we can fetch on demand if necessary
@@ -98,6 +103,7 @@ set(ZSTD_REQUIRED_VERSION 1.4.8)
 set(XXHASH_REQUIRED_VERSION 0.8.1)
 set(FLAC_REQUIRED_VERSION 1.4.2)
 set(JEMALLOC_REQUIRED_VERSION 5.2.1)
+set(MIMALLOC_REQUIRED_VERSION 2.0.0)
 
 if(DEFINED ENV{DWARFS_LOCAL_REPO_PATH})
   set(LIBFMT_GIT_REPO $ENV{DWARFS_LOCAL_REPO_PATH}/fmt)
@@ -226,6 +232,10 @@ if(WITH_LIBDWARFS)
 
   if(USE_JEMALLOC)
     pkg_check_modules(JEMALLOC IMPORTED_TARGET jemalloc>=${JEMALLOC_REQUIRED_VERSION})
+  endif()
+
+  if(USE_MIMALLOC)
+    find_package(mimalloc ${MIMALLOC_REQUIRED_VERSION} REQUIRED CONFIG)
   endif()
 
   include(${CMAKE_SOURCE_DIR}/cmake/thrift_library.cmake)

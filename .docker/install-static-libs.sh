@@ -29,6 +29,7 @@ LZ4_VERSION=1.10.0                       # 2024-07-22
 BROTLI_VERSION=1.1.0                     # 2023-08-31
 ZSTD_VERSION=1.5.7                       # 2025-02-19
 LIBFUSE_VERSION=3.17.1                   # 2025-03-24
+MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 
 echo "Using $GCC and $CLANG"
 
@@ -36,7 +37,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,openssl,xxhash,zstd"
+    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,mimalloc,openssl,xxhash,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -61,6 +62,7 @@ LZ4_TARBALL="lz4-${LZ4_VERSION}.tar.gz"
 BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
 ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
 LIBFUSE_TARBALL="fuse-${LIBFUSE_VERSION}.tar.gz"
+MIMALLOC_TARBALL="mimalloc-${MIMALLOC_VERSION}.tar.gz"
 
 use_lib() {
     local lib="$1"
@@ -111,6 +113,7 @@ fetch_lib lz4 https://github.com/lz4/lz4/releases/download/v${LZ4_VERSION}/${LZ4
 fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz ${BROTLI_TARBALL}
 fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
+fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz ${MIMALLOC_TARBALL}
 
 for COMPILER in $COMPILERS; do
     export CFLAGS="$COMMON_CFLAGS"
@@ -177,6 +180,17 @@ for COMPILER in $COMPILERS; do
     mkdir $COMPILER
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
+
+    if use_lib mimalloc; then
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${MIMALLOC_TARBALL}
+        cd mimalloc-${MIMALLOC_VERSION}
+        mkdir build
+        cd build
+        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+        make -j$(nproc)
+        make install
+    fi
 
     if use_lib fuse; then
         cd "$HOME/pkgs/$COMPILER"

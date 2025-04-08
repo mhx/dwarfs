@@ -190,6 +190,10 @@ if [[ "-$BUILD_TYPE-" == *-nojemalloc-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DUSE_JEMALLOC=0"
 fi
 
+if [[ "-$BUILD_TYPE-" == *-mimalloc-* ]]; then
+  CMAKE_ARGS="${CMAKE_ARGS} -DUSE_JEMALLOC=0 -DUSE_MIMALLOC=1"
+fi
+
 if [[ "-$BUILD_TYPE-" == *-noperfmon-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DENABLE_PERFMON=0 -DWITH_MAN_OPTION=0"
 fi
@@ -221,6 +225,10 @@ if [[ "$BUILD_DIST" == "alpine" ]]; then
 
   if [[ "-$BUILD_TYPE-" == *-minimal-* ]]; then
     SUFFIX="${SUFFIX}-minimal"
+  fi
+
+  if [[ "-$BUILD_TYPE-" == *-mimalloc-* ]]; then
+    SUFFIX="${SUFFIX}-mimalloc"
   fi
 
   if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then

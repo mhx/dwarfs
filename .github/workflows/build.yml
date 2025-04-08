@@ -364,10 +364,10 @@ jobs:
             build_type: clang-relsize-minimal-lto-ninja-static
           - arch: amd64
             dist: alpine
-            build_type: clang-relsize-minimal-nojemalloc-lto-ninja-static
+            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
           - arch: arm64v8
             dist: alpine
-            build_type: clang-relsize-minimal-nojemalloc-lto-ninja-static
+            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
           - arch: amd64
             dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
