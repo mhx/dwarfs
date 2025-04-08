@@ -94,7 +94,7 @@ class incompressible_categorizer_fixture : public Base {
 
     catmgr = std::make_shared<writer::categorizer_manager>(lgr, "/");
 
-    catmgr->add(catreg.create(lgr, "incompressible", vm));
+    catmgr->add(catreg.create(lgr, "incompressible", vm, nullptr));
   }
 
   // void TearDown() override {

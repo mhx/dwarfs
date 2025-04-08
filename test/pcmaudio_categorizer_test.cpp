@@ -217,7 +217,7 @@ TEST(pcmaudio_categorizer, requirements) {
   auto& catreg = writer::categorizer_registry::instance();
   auto catmgr = writer::categorizer_manager(logger, "/");
 
-  catmgr.add(catreg.create(logger, "pcmaudio", vm));
+  catmgr.add(catreg.create(logger, "pcmaudio", vm, nullptr));
 
   try {
     catmgr.set_metadata_requirements(
@@ -307,7 +307,7 @@ class pcmaudio_error_test : public testing::Test {
   void SetUp() override {
     boost::program_options::variables_map vm;
     auto& catreg = writer::categorizer_registry::instance();
-    catmgr.add(catreg.create(logger, "pcmaudio", vm));
+    catmgr.add(catreg.create(logger, "pcmaudio", vm, nullptr));
 
     catmgr.set_metadata_requirements(
         catmgr.category_value("pcmaudio/waveform").value(),

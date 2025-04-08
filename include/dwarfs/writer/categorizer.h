@@ -43,6 +43,7 @@ class variables_map;
 
 namespace dwarfs {
 
+class file_access;
 class logger;
 
 namespace writer {
@@ -224,8 +225,8 @@ class categorizer_info {
 class categorizer_factory : public categorizer_info {
  public:
   virtual std::unique_ptr<categorizer>
-  create(logger& lgr,
-         boost::program_options::variables_map const& vm) const = 0;
+  create(logger& lgr, boost::program_options::variables_map const& vm,
+         std::shared_ptr<file_access const> const& fa) const = 0;
 };
 
 class categorizer_registry {
@@ -234,7 +235,8 @@ class categorizer_registry {
 
   std::unique_ptr<categorizer>
   create(logger& lgr, std::string const& name,
-         boost::program_options::variables_map const& vm) const;
+         boost::program_options::variables_map const& vm,
+         std::shared_ptr<file_access const> const& fa) const;
 
   void add_options(boost::program_options::options_description& opts) const;
 

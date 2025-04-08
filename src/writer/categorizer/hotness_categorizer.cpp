@@ -23,7 +23,6 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
-#include <fstream>
 #include <numeric>
 #include <unordered_set>
 #include <vector>
@@ -33,6 +32,7 @@
 #include <fmt/format.h>
 
 #include <dwarfs/error.h>
+#include <dwarfs/file_access.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
@@ -52,7 +52,8 @@ struct hotness_categorizer_config {
 template <typename LoggerPolicy>
 class hotness_categorizer_ final : public random_access_categorizer {
  public:
-  hotness_categorizer_(logger& lgr, hotness_categorizer_config const& cfg);
+  hotness_categorizer_(logger& lgr, hotness_categorizer_config const& cfg,
+                       std::shared_ptr<file_access const> const& fa);
 
   std::span<std::string_view const> categories() const override;
 
@@ -72,20 +73,23 @@ class hotness_categorizer_ final : public random_access_categorizer {
 
 template <typename LoggerPolicy>
 hotness_categorizer_<LoggerPolicy>::hotness_categorizer_(
-    logger& lgr, hotness_categorizer_config const& cfg)
+    logger& lgr, hotness_categorizer_config const& cfg,
+    std::shared_ptr<file_access const> const& fa)
     : LOG_PROXY_INIT(lgr)
     , cfg_{cfg} {
   auto const& file = cfg_.hotness_list;
 
   if (!file.empty()) {
-    std::ifstream ifs{file};
-    if (!ifs) {
-      DWARFS_THROW(runtime_error,
-                   fmt::format("failed to open file '{}'", file));
+    std::error_code ec;
+    auto input = fa->open_input(file, ec);
+
+    if (ec) {
+      DWARFS_THROW(runtime_error, fmt::format("failed to open file '{}': {}",
+                                              file, ec.message()));
     }
 
     std::string line;
-    while (std::getline(ifs, line)) {
+    while (std::getline(input->is(), line)) {
       auto const path = std::filesystem::path{line}.relative_path();
       LOG_DEBUG << "hotness categorizer: adding path '" << path << "'";
       if (!hotness_set_.emplace(path.string()).second) {
@@ -118,7 +122,8 @@ inode_fragments hotness_categorizer_<LoggerPolicy>::categorize(
   if (!hotness_set_.empty()) {
     auto const rel_path = path.relative_path();
 
-    LOG_DEBUG << "hotness categorizer: checking path '" << rel_path << "'";
+    LOG_DEBUG << "hotness categorizer: checking path '" << rel_path << "' ('"
+              << path.full_path() << "')";
 
     if (auto it = hotness_set_.find(rel_path.string());
         it != hotness_set_.end()) {
@@ -163,9 +168,10 @@ class hotness_categorizer_factory : public categorizer_factory {
   }
 
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/) const override {
+  create(logger& lgr, po::variables_map const& /*vm*/,
+         std::shared_ptr<file_access const> const& fa) const override {
     return make_unique_logging_object<categorizer, hotness_categorizer_,
-                                      logger_policies>(lgr, cfg_);
+                                      logger_policies>(lgr, cfg_, fa);
   }
 
  private:

@@ -400,16 +400,16 @@ void categorizer_registry::register_factory(
   }
 }
 
-std::unique_ptr<categorizer>
-categorizer_registry::create(logger& lgr, std::string const& name,
-                             po::variables_map const& vm) const {
+std::unique_ptr<categorizer> categorizer_registry::create(
+    logger& lgr, std::string const& name, po::variables_map const& vm,
+    std::shared_ptr<file_access const> const& fa) const {
   auto it = factories_.find(name);
 
   if (it == factories_.end()) {
     DWARFS_THROW(runtime_error, "unknown categorizer: " + name);
   }
 
-  return it->second->create(lgr, vm);
+  return it->second->create(lgr, vm, fa);
 }
 
 void categorizer_registry::add_options(po::options_description& opts) const {

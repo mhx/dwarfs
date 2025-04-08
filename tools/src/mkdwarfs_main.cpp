@@ -762,7 +762,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
     for (auto const& name : catreg.categorizer_names()) {
       stream_logger lgr(iol.term, iol.err);
-      auto categorizer = catreg.create(lgr, name, vm);
+      auto categorizer = catreg.create(lgr, name, vm, iol.file);
       iol.out << "  [" << name << "]\n";
       for (auto cat : categorizer->categories()) {
         iol.out << "    " << cat << "\n";
@@ -1187,7 +1187,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         std::make_shared<writer::categorizer_manager>(lgr, path);
 
     for (auto const& name : categorizers) {
-      options.inode.categorizer_mgr->add(catreg.create(lgr, name, vm));
+      options.inode.categorizer_mgr->add(
+          catreg.create(lgr, name, vm, iol.file));
     }
   }
 

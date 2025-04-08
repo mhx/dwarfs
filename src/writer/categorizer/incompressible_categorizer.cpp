@@ -291,7 +291,8 @@ class incompressible_categorizer_factory : public categorizer_factory {
   }
 
   std::unique_ptr<categorizer>
-  create(logger& lgr, po::variables_map const& /*vm*/) const override {
+  create(logger& lgr, po::variables_map const& /*vm*/,
+         std::shared_ptr<file_access const> const& /*fa*/) const override {
     auto cfg = cfg_;
     cfg.min_input_size = parse_size_with_unit(min_input_size_str_);
     cfg.block_size = parse_size_with_unit(block_size_str_);
