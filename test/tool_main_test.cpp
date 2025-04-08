@@ -3319,3 +3319,41 @@ TEST(mkdwarfs_test, file_scanner_dump) {
 
   EXPECT_NE(*raw, *finalized);
 }
+
+TEST(mkdwarfs_test, hotness_categorizer) {
+  std::string const image_file = "test.dwarfs";
+
+  std::ostringstream hot_files;
+  hot_files << "foo.pl" << '\n' << "ipsum.txt" << '\n';
+
+  mkdwarfs_tester t;
+
+  t.fa->set_file("hot", hot_files.str());
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize=hotness",
+                      "--hotness-list=hot", "-B0"}))
+      << t.err();
+
+  auto fs = t.fs_from_file(image_file);
+
+  {
+    auto dev = fs.find("/foo.pl");
+    ASSERT_TRUE(dev) << t.err();
+    auto info = fs.get_inode_info(dev->inode());
+    EXPECT_EQ(info["chunks"][0]["category"].get<std::string>(), "hotness");
+  }
+
+  {
+    auto dev = fs.find("/ipsum.txt");
+    ASSERT_TRUE(dev) << t.err();
+    auto info = fs.get_inode_info(dev->inode());
+    EXPECT_EQ(info["chunks"][0]["category"].get<std::string>(), "hotness");
+  }
+
+  {
+    auto dev = fs.find("/somedir/ipsum.py");
+    ASSERT_TRUE(dev) << t.err();
+    auto info = fs.get_inode_info(dev->inode());
+    EXPECT_EQ(info["chunks"][0]["category"].get<std::string>(), "<default>");
+  }
+}
