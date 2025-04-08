@@ -1048,7 +1048,7 @@ TEST_P(tools_test, end_to_end) {
         "-s",
         "-ocase_insensitive,block_allocator=mmap",
 #ifndef _WIN32
-        "-oenable_nlink",
+        "-oenable_nlink,preload_all",
         "-oreadonly",
         "-ouid=2345,gid=3456",
 #endif
