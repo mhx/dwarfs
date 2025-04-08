@@ -289,7 +289,7 @@ Most other options are concerned with compression tuning:
   "normalize" the permissions across the file system; this is equivalent to
   using `--chmod=ug-st,=Xr`.
 
-- `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]:
+- `--order=`[*category*`::`]`none`|`path`|`revpath`|`similarity`|`nilsimsa`[`:`*opt*[`=`*value*][`:`...]]|`explicit:file=`*file*:
   The order in which inodes will be written to the file system. Choosing `none`,
   the inodes will be stored in the order in which they are discovered. With
   `path`, they will be sorted asciibetically by path name of the first file
@@ -310,6 +310,9 @@ Most other options are concerned with compression tuning:
   Unlike the old implementation, `nilsimsa` ordering is now completely
   deterministic. See [Nilsimsa Ordering](#nilsimsa-ordering) for a detailed
   description of the algorithm.
+  `explicit` ordering allows you to specify a file that contains the paths in
+  the desired order. The paths must be relative to the `--input` path, but
+  may start with a leading `/`.
 
 - `--max-similarity-size=`*value*:
   Don't perform similarity ordering for fragments (or files if they are not split
