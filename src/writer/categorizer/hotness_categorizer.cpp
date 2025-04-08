@@ -24,6 +24,7 @@
 #include <cassert>
 #include <cstring>
 #include <numeric>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
