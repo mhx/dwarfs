@@ -32,6 +32,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <string_view>
 #include <thread>
@@ -192,6 +193,18 @@ bool read_file(fs::path const& path, std::string& out) {
   std::stringstream tmp;
   tmp << ifs.rdbuf();
   out = tmp.str();
+  return true;
+}
+
+bool read_lines(fs::path const& path, std::vector<std::string>& out) {
+  std::ifstream ifs(path);
+  if (!ifs.is_open()) {
+    return false;
+  }
+  std::string line;
+  while (std::getline(ifs, line)) {
+    out.push_back(line);
+  }
   return true;
 }
 
@@ -1583,6 +1596,82 @@ TEST_P(tools_test, categorize) {
         << runner.cmdline() << ": " << cdr;
 
     EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+  }
+
+  if (!skip_fuse_tests()) {
+    auto mountpoint = td / "mnt";
+    fs::path driver;
+
+    switch (mode) {
+    case binary_mode::standalone:
+      driver = fuse3_bin;
+      break;
+
+    case binary_mode::universal_tool:
+      driver = universal_bin;
+      break;
+
+    case binary_mode::universal_symlink:
+      driver = universal_symlink_dwarfs_bin;
+      break;
+    }
+
+    auto analysis_file = td / "analysis.dat";
+
+    {
+      scoped_no_leak_check no_leak_check;
+
+      // TODO: WinFSP seems to mangle backslashes in driver options
+      auto analysis_file_str = std::regex_replace(analysis_file.string(),
+                                                  std::regex(R"(\\)"), R"(\\)");
+
+      driver_runner runner(driver_runner::foreground, driver,
+                           mode == binary_mode::universal_tool, image,
+                           mountpoint, "-opreload_category=pcmaudio/waveform",
+                           "-oanalysis_file=" + analysis_file_str);
+
+      ASSERT_TRUE(wait_until_file_ready(mountpoint / "random", timeout))
+          << runner.cmdline();
+
+      std::array const files_to_read{
+          fs::path{"random"},
+          fs::path{"audio"} / "test24-4.w64",
+          fs::path{"pcmaudio"} / "test16.aiff",
+          fs::path{"dwarfsextract.md"},
+          fs::path{"audio"} / "test8-3.caf",
+          fs::path{"random"},
+          fs::path{"dwarfsextract.md"},
+          fs::path{"audio"} / "test16-1.wav",
+      };
+
+      for (auto const& file : files_to_read) {
+        std::string contents;
+        EXPECT_TRUE(read_file(mountpoint / file, contents)) << runner.cmdline();
+        EXPECT_GT(contents.size(), 0) << runner.cmdline();
+      }
+
+      EXPECT_TRUE(runner.unmount()) << runner.cmdline();
+    }
+
+    std::array const expected_files_accessed{
+        fs::path{"random"},
+        fs::path{"audio"} / "test24-4.w64",
+        fs::path{"pcmaudio"} / "test16.aiff",
+        fs::path{"dwarfsextract.md"},
+        fs::path{"audio"} / "test8-3.caf",
+        fs::path{"audio"} / "test16-1.wav",
+    };
+
+    ASSERT_TRUE(fs::exists(analysis_file));
+    std::vector<std::string> analysis_results;
+    ASSERT_TRUE(read_lines(analysis_file, analysis_results));
+    std::vector<fs::path> files_accessed;
+    for (auto const& line : analysis_results) {
+      files_accessed.push_back(line);
+    }
+
+    EXPECT_THAT(files_accessed,
+                ::testing::ElementsAreArray(expected_files_accessed));
   }
 
 #endif
