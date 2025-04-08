@@ -46,7 +46,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include <range/v3/range/conversion.hpp>
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 
 #include <dwarfs/config.h>
 #include <dwarfs/file_util.h>
@@ -3357,3 +3360,66 @@ TEST(mkdwarfs_test, hotness_categorizer) {
     EXPECT_EQ(info["chunks"][0]["category"].get<std::string>(), "<default>");
   }
 }
+
+namespace {
+
+using namespace std::literals::string_view_literals;
+
+std::array const fragment_orders{
+    std::pair{"path"sv, "a/c,b,c/a,c/d,e"sv},
+    std::pair{"revpath"sv, "c/a,b,a/c,c/d,e"sv},
+    std::pair{"explicit:file=order.dat"sv, "c/d,b,a/c,e,c/a"sv},
+};
+
+} // namespace
+
+class fragment_order_test : public testing::TestWithParam<
+                                std::pair<std::string_view, std::string_view>> {
+};
+
+TEST_P(fragment_order_test, basic) {
+  auto [option, expected] = GetParam();
+  std::string const image_file = "test.dwarfs";
+
+  auto t = mkdwarfs_tester::create_empty();
+
+  t.fa->set_file("order.dat", "c/d\nb\na/c\ne\nc/a\n");
+
+  t.add_root_dir();
+  t.os->add_dir("a");
+  t.os->add_file("a/c", 2, true);
+  t.os->add_file("b", 4, true);
+  t.os->add_dir("c");
+  t.os->add_file("c/a", 8, true);
+  t.os->add_file("c/d", 16, true);
+  t.os->add_file("e", 32, true);
+
+  ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file,
+                      "--order=" + std::string{option}, "-B0"}))
+      << t.err();
+
+  auto fs = t.fs_from_file(image_file);
+
+  std::vector<std::pair<std::string, size_t>> file_offsets;
+
+  fs.walk([&](auto const& dev) {
+    auto iv = dev.inode();
+    if (iv.is_regular_file()) {
+      auto info = fs.get_inode_info(iv);
+      file_offsets.emplace_back(
+          dev.unix_path(), info["chunks"][0]["offset"].template get<size_t>());
+    }
+  });
+
+  EXPECT_EQ(file_offsets.size(), 5);
+
+  std::ranges::sort(file_offsets, std::less{},
+                    &std::pair<std::string, size_t>::second);
+  auto got = file_offsets | ranges::views::keys | ranges::views::join(","sv) |
+             ranges::to<std::string>();
+
+  EXPECT_EQ(expected, got) << option;
+}
+
+INSTANTIATE_TEST_SUITE_P(dwarfs, fragment_order_test,
+                         ::testing::ValuesIn(fragment_orders));
