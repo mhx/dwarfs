@@ -464,7 +464,7 @@ os_access_mock::map_file(fs::path const& path, size_t size) const {
                   throw std::runtime_error("oops in match");
                 },
             },
-        size);
+        size, path);
   }
 
   throw std::runtime_error(fmt::format("oops in map_file: {}", path.string()));
