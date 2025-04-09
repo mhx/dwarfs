@@ -301,8 +301,7 @@ class flac_block_compressor final : public block_compressor::impl {
       std::string hdrbuf;
       CompactSerializer::serialize(hdr, &hdrbuf);
 
-      compressed.resize(pos + hdrbuf.size());
-      ::memcpy(compressed.data() + pos, hdrbuf.data(), hdrbuf.size());
+      compressed.append(hdrbuf.data(), hdrbuf.size());
     }
 
     dwarfs_flac_stream_encoder encoder(compressed);
