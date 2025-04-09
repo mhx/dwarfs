@@ -527,9 +527,7 @@ class basic_granular_container_adapter : private GranularityPolicy {
   DWARFS_FORCE_INLINE void append(
       granular_span_adapter<value_type const, GranularityPolicy> const& span) {
     auto raw = span.raw();
-    auto off = v_.size();
-    v_.resize(off + raw.size());
-    ::memcpy(v_.data() + off, raw.data(), raw.size());
+    v_.append(raw.data(), raw.size());
   }
 
   DWARFS_FORCE_INLINE int
