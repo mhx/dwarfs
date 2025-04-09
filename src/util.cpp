@@ -515,8 +515,7 @@ void fatal_signal_handler_posix(int signal) {
   }
 
   if (!signame) {
-    struct ::sigaction sa_dfl;
-    ::memset(&sa_dfl, 0, sizeof(sa_dfl));
+    struct ::sigaction sa_dfl{};
     sa_dfl.sa_handler = SIG_DFL;
     ::sigaction(signal, &sa_dfl, nullptr);
     signame = std::to_string(signal);
@@ -538,8 +537,7 @@ void install_signal_handlers_impl() {
 #ifdef _WIN32
     ::signal(kFatalSignals[i].signum, fatal_signal_handler_win);
 #else
-    struct ::sigaction new_sa;
-    ::memset(&new_sa, 0, sizeof(new_sa));
+    struct ::sigaction new_sa{};
     // this is potentially implemented as a macro
     sigfillset(&new_sa.sa_mask);
     new_sa.sa_handler = fatal_signal_handler_posix;

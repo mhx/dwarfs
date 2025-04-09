@@ -417,9 +417,8 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     auto ae = ::archive_entry_new();
     auto stbuf = fs.getattr(inode);
 
-    struct stat st;
+    struct stat st{};
 
-    ::memset(&st, 0, sizeof(st));
 #ifdef _WIN32
     stbuf.copy_to_without_block_info(&st);
 #else
