@@ -30,6 +30,7 @@ BROTLI_VERSION=1.1.0                     # 2023-08-31
 ZSTD_VERSION=1.5.7                       # 2025-02-19
 LIBFUSE_VERSION=3.17.1                   # 2025-03-24
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
+JEMALLOC_VERSION=5.3.0                   # 2022-05-02
 
 echo "Using $GCC and $CLANG"
 
@@ -37,7 +38,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,libarchive,lz4,mimalloc,openssl,xxhash,zstd"
+    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -63,6 +64,7 @@ BROTLI_TARBALL="brotli-${BROTLI_VERSION}.tar.gz"
 ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
 LIBFUSE_TARBALL="fuse-${LIBFUSE_VERSION}.tar.gz"
 MIMALLOC_TARBALL="mimalloc-${MIMALLOC_VERSION}.tar.gz"
+JEMALLOC_TARBALL="jemalloc-${JEMALLOC_VERSION}.tar.bz2"
 
 use_lib() {
     local lib="$1"
@@ -114,6 +116,7 @@ fetch_lib brotli https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VE
 fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/${ZSTD_TARBALL}
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
 fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz ${MIMALLOC_TARBALL}
+fetch_lib jemalloc https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/${JEMALLOC_TARBALL}
 
 set_build_flags() {
     if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
@@ -202,6 +205,19 @@ for COMPILER in $COMPILERS; do
         tar xf ../${LIBUNWIND_TARBALL}
         cd libunwind-${LIBUNWIND_VERSION}
         ./configure --prefix="$INSTALL_DIR"
+        make -j$(nproc)
+        make install
+    fi
+
+    if use_lib jemalloc; then
+        opt_size
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${JEMALLOC_TARBALL}
+        cd jemalloc-${JEMALLOC_VERSION}
+        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
+        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
+        ./autogen.sh
+        ./configure --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
         make -j$(nproc)
         make install
     fi

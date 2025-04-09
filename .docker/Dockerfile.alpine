@@ -78,6 +78,7 @@ RUN apk add --no-cache \
         expat-static \
         nlohmann-json \
         meson \
+        autoconf \
         gdb
 
 ARG ARCH
