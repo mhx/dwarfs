@@ -1,5 +1,25 @@
 # Change Log
 
+## Version 0.12.1 - 2025-04-10
+
+- (fix) Attempt to fix linking issue in Homebrew build.
+
+- (feature) Added `--memory-limit=auto` to `mkdwarfs` to use a more
+  reasonably (hopefully) default for the block queue. The old default
+  of 1 GiB was quite arbitrary and definitely not suitable for low-end
+  systems. The new `auto` default will determine the limit based on the
+  number of workers (which in turn is based on the number of CPUs), the
+  block size, and the amount of physical memory of the system.
+
+- (feature) Replace `vector_byte_buffer` with `malloc_byte_buffer`,
+  which is internally based around a simple buffer that doesn't incur
+  the cost of initializing each element like `std::vector`. Especially
+  for large blocks which are known to be overwritten immediately, this
+  can save a few CPU cycles.
+
+- (feature) In the `x86_64` release binaries, use an optimized `memcpy`
+  implementation if supported by the CPU.
+
 ## Version 0.12.0 - 2025-04-08
 
 - (fix) Build release binaries against an up-to-date `libfuse`.
