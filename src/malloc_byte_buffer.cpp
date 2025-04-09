@@ -27,27 +27,29 @@
  */
 
 #include <atomic>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
 
-#include <dwarfs/vector_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer.h>
+
+#include <dwarfs/internal/malloc_buffer.h>
 
 namespace dwarfs {
 
 namespace {
 
-class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
+class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
  public:
-  vector_byte_buffer_impl() = default;
-  explicit vector_byte_buffer_impl(size_t size)
+  malloc_byte_buffer_impl() = default;
+  explicit malloc_byte_buffer_impl(size_t size)
       : data_(size) {}
-  explicit vector_byte_buffer_impl(std::string_view data)
-      : data_{data.begin(), data.end()} {}
-  explicit vector_byte_buffer_impl(std::span<uint8_t const> data)
-      : data_{data.begin(), data.end()} {}
-  explicit vector_byte_buffer_impl(std::vector<uint8_t>&& data)
+  explicit malloc_byte_buffer_impl(std::string_view data)
+      : data_{data.data(), data.size()} {}
+  explicit malloc_byte_buffer_impl(std::span<uint8_t const> data)
+      : data_{data} {}
+  explicit malloc_byte_buffer_impl(internal::malloc_buffer&& data)
       : data_{std::move(data)} {}
 
   size_t size() const override { return data_.size(); }
@@ -92,7 +94,7 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
     frozen_.store(true, std::memory_order_release);
   }
 
-  std::vector<uint8_t>& raw_vector() override { return data_; }
+  internal::malloc_buffer& raw_buffer() override { return data_; }
 
  private:
   void assert_not_frozen(std::string_view what) const {
@@ -108,38 +110,44 @@ class vector_byte_buffer_impl : public mutable_byte_buffer_interface {
 
   bool frozen() const { return frozen_.load(std::memory_order_acquire); }
 
-  std::vector<uint8_t> data_;
+  internal::malloc_buffer data_;
   std::atomic<bool> frozen_{false};
   static_assert(std::atomic<bool>::is_always_lock_free);
 };
 
 } // namespace
 
-mutable_byte_buffer vector_byte_buffer::create() {
-  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>()};
+mutable_byte_buffer malloc_byte_buffer::create() {
+  return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>()};
 }
 
-mutable_byte_buffer vector_byte_buffer::create(size_t size) {
-  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(size)};
+mutable_byte_buffer malloc_byte_buffer::create(size_t size) {
+  return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>(size)};
 }
 
-mutable_byte_buffer vector_byte_buffer::create_reserve(size_t size) {
-  auto rv = std::make_shared<vector_byte_buffer_impl>();
+mutable_byte_buffer malloc_byte_buffer::create_zeroed(size_t size) {
+  auto buffer = std::make_shared<malloc_byte_buffer_impl>(size);
+  std::memset(buffer->mutable_data(), 0, size);
+  return mutable_byte_buffer{std::move(buffer)};
+}
+
+mutable_byte_buffer malloc_byte_buffer::create_reserve(size_t size) {
+  auto rv = std::make_shared<malloc_byte_buffer_impl>();
   rv->reserve(size);
   return mutable_byte_buffer{std::move(rv)};
 }
 
-mutable_byte_buffer vector_byte_buffer::create(std::string_view data) {
-  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(data)};
+mutable_byte_buffer malloc_byte_buffer::create(std::string_view data) {
+  return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>(data)};
 }
 
-mutable_byte_buffer vector_byte_buffer::create(std::span<uint8_t const> data) {
-  return mutable_byte_buffer{std::make_shared<vector_byte_buffer_impl>(data)};
+mutable_byte_buffer malloc_byte_buffer::create(std::span<uint8_t const> data) {
+  return mutable_byte_buffer{std::make_shared<malloc_byte_buffer_impl>(data)};
 }
 
-mutable_byte_buffer vector_byte_buffer::create(std::vector<uint8_t>&& data) {
+mutable_byte_buffer malloc_byte_buffer::create(internal::malloc_buffer&& data) {
   return mutable_byte_buffer{
-      std::make_shared<vector_byte_buffer_impl>(std::move(data))};
+      std::make_shared<malloc_byte_buffer_impl>(std::move(data))};
 }
 
 } // namespace dwarfs

@@ -30,8 +30,8 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_decompressor.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/pcm_sample_transformer.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 using namespace dwarfs;
 
@@ -74,7 +74,7 @@ make_test_data(int channels, int samples, int bytes, int bits,
         make_sine<T>(bits, samples, 3.1 * ((599 * (c + 1)) % 256)));
   }
   auto muxed = multiplex(data);
-  auto out = vector_byte_buffer::create();
+  auto out = malloc_byte_buffer::create();
   out.resize(bytes * channels * samples);
   pcm_sample_transformer<T> xfm(end, sig, pad, bytes, bits);
   xfm.pack(out.span(), muxed);

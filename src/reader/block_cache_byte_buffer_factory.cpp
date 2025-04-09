@@ -36,8 +36,8 @@
 #include <sys/mman.h>
 #endif
 
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/reader/block_cache_byte_buffer_factory.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 namespace dwarfs::reader {
 
@@ -138,9 +138,9 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
     // always frozen
   }
 
-  std::vector<uint8_t>& raw_vector() override {
+  internal::malloc_buffer& raw_buffer() override {
     throw std::runtime_error(
-        "operation not allowed on mmap buffer: raw_vector");
+        "operation not allowed on mmap buffer: raw_buffer");
   }
 
  private:
@@ -163,7 +163,7 @@ class block_cache_byte_buffer_factory_impl
     if (mode_ == block_cache_allocation_mode::MMAP) {
       return mutable_byte_buffer{std::make_shared<mmap_byte_buffer_impl>(size)};
     }
-    return vector_byte_buffer::create_reserve(size);
+    return malloc_byte_buffer::create_reserve(size);
   }
 
  private:

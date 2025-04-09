@@ -36,8 +36,8 @@
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include "base.h"
 
@@ -82,7 +82,7 @@ class lz4_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer compress(shared_byte_buffer const& data,
                               std::string const* /*metadata*/) const override {
-    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
     compressed.resize(sizeof(uint32_t) +
                       LZ4_compressBound(to<int>(data.size())));
     // TODO: this should have been a varint; also, if we ever support

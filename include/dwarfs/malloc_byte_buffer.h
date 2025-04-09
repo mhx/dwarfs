@@ -28,13 +28,25 @@
 
 #pragma once
 
-#include <dwarfs/byte_buffer_factory.h>
+#include <string>
+
+#include <dwarfs/byte_buffer.h>
 
 namespace dwarfs {
 
-class vector_byte_buffer_factory {
+namespace internal {
+class malloc_buffer;
+}
+
+class malloc_byte_buffer {
  public:
-  static byte_buffer_factory create();
+  static mutable_byte_buffer create();
+  static mutable_byte_buffer create(size_t size);
+  static mutable_byte_buffer create_zeroed(size_t size);
+  static mutable_byte_buffer create_reserve(size_t size);
+  static mutable_byte_buffer create(std::string_view data);
+  static mutable_byte_buffer create(std::span<uint8_t const> data);
+  static mutable_byte_buffer create(internal::malloc_buffer&& data);
 };
 
 } // namespace dwarfs

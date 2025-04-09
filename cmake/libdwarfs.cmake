@@ -34,6 +34,7 @@ add_library(
   src/history.cpp
   src/library_dependencies.cpp
   src/logger.cpp
+  src/malloc_byte_buffer.cpp
   src/mapped_byte_buffer.cpp
   src/mmap.cpp
   src/option_map.cpp
@@ -44,8 +45,6 @@ add_library(
   src/thread_pool.cpp
   src/util.cpp
   src/varint.cpp
-  src/vector_byte_buffer.cpp
-  src/vector_byte_buffer_factory.cpp
   src/xattr.cpp
 
   src/internal/features.cpp
@@ -53,6 +52,7 @@ add_library(
   src/internal/fs_section.cpp
   src/internal/fs_section_checker.cpp
   src/internal/glob_to_regex.cpp
+  src/internal/malloc_buffer.cpp
   src/internal/metadata_utils.cpp
   src/internal/string_table.cpp
   src/internal/unicode_case_folding.cpp

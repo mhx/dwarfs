@@ -40,9 +40,9 @@
 #include <dwarfs/checksum.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/util.h>
-#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/writer/compression_metadata_requirements.h>
 #include <dwarfs/writer/filesystem_writer.h>
 #include <dwarfs/writer/filesystem_writer_options.h>
@@ -395,7 +395,7 @@ class rewritten_fsblock : public fsblock::impl {
         {
           // TODO: we don't have to do this for uncompressed blocks
           block_decompressor bd(data_comp_type_, data_);
-          auto buffer = bd.start_decompression(vector_byte_buffer::create());
+          auto buffer = bd.start_decompression(malloc_byte_buffer::create());
           bd.decompress_frame(bd.uncompressed_size());
 
           if (!meta) {

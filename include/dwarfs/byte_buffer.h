@@ -49,6 +49,12 @@ compare_spans(std::span<uint8_t const> lhs, std::span<uint8_t const> rhs);
 
 } // namespace detail
 
+namespace internal {
+
+class malloc_buffer;
+
+}
+
 class byte_buffer_interface {
  public:
   virtual ~byte_buffer_interface() = default;
@@ -72,9 +78,7 @@ class mutable_byte_buffer_interface : public byte_buffer_interface {
   // that would reallocate the buffer will throw.
   virtual void freeze_location() = 0;
 
-  // TODO: See if we can do without this. This will *only* be implemented
-  //       in the vector_byte_buffer, other implementations will throw.
-  virtual std::vector<uint8_t>& raw_vector() = 0;
+  virtual internal::malloc_buffer& raw_buffer() = 0;
 };
 
 class shared_byte_buffer {
@@ -164,7 +168,7 @@ class mutable_byte_buffer {
 
   void freeze_location() { bb_->freeze_location(); }
 
-  std::vector<uint8_t>& raw_vector() { return bb_->raw_vector(); }
+  internal::malloc_buffer& raw_buffer() { return bb_->raw_buffer(); }
 
   void swap(mutable_byte_buffer& other) noexcept { std::swap(bb_, other.bb_); }
 

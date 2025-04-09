@@ -42,10 +42,10 @@
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/sorted_array_map.h>
 #include <dwarfs/types.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include "base.h"
 
@@ -221,7 +221,7 @@ lzma_block_compressor::compress(shared_byte_buffer const& data,
 
   lzma_action action = LZMA_FINISH;
 
-  auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+  auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
   compressed.resize(data.size() - 1);
 
   s.next_in = data.data();

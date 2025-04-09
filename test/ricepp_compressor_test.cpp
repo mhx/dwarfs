@@ -40,7 +40,7 @@
 
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/block_decompressor.h>
-#include <dwarfs/vector_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer.h>
 
 using namespace dwarfs;
 
@@ -96,7 +96,7 @@ shared_byte_buffer make_test_data(int components, int pixels, int unused_lsb) {
     }
   }
 
-  auto out = vector_byte_buffer::create();
+  auto out = malloc_byte_buffer::create();
   out.resize(tmp.size() * sizeof(ValueType));
   std::memcpy(out.data(), tmp.data(), out.size());
 

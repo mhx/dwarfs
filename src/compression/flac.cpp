@@ -42,10 +42,10 @@
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/pcm_sample_transformer.h>
 #include <dwarfs/varint.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
 
@@ -281,7 +281,7 @@ class flac_block_compressor final : public block_compressor::impl {
       pcm_pad = pcm_sample_padding::Msb;
     }
 
-    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
 
     {
       using namespace ::apache::thrift;

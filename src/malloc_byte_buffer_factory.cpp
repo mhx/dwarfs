@@ -26,25 +26,25 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <dwarfs/vector_byte_buffer.h>
-#include <dwarfs/vector_byte_buffer_factory.h>
+#include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer_factory.h>
 
 namespace dwarfs {
 
 namespace {
 
-class vector_byte_buffer_factory_impl : public byte_buffer_factory_interface {
+class malloc_byte_buffer_factory_impl : public byte_buffer_factory_interface {
  public:
   mutable_byte_buffer create_mutable_fixed_reserve(size_t size) const override {
-    return vector_byte_buffer::create_reserve(size);
+    return malloc_byte_buffer::create_reserve(size);
   }
 };
 
 } // namespace
 
-byte_buffer_factory vector_byte_buffer_factory::create() {
+byte_buffer_factory malloc_byte_buffer_factory::create() {
   return byte_buffer_factory{
-      std::make_shared<vector_byte_buffer_factory_impl>()};
+      std::make_shared<malloc_byte_buffer_factory_impl>()};
 }
 
 } // namespace dwarfs

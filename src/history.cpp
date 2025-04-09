@@ -36,7 +36,7 @@
 #include <dwarfs/config.h>
 #include <dwarfs/history.h>
 #include <dwarfs/library_dependencies.h>
-#include <dwarfs/vector_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/version.h>
 
 #include <dwarfs/gen-cpp2/history_types.h>
@@ -91,7 +91,7 @@ size_t history::size() const { return history_->entries()->size(); }
 shared_byte_buffer history::serialize() const {
   std::string buf;
   ::apache::thrift::CompactSerializer::serialize(*history_, &buf);
-  return vector_byte_buffer::create(buf).share();
+  return malloc_byte_buffer::create(buf).share();
 }
 
 void history::dump(std::ostream& os) const {

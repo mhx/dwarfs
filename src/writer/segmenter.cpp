@@ -47,11 +47,12 @@
 #include <dwarfs/compression_constraints.h>
 #include <dwarfs/error.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/util.h>
-#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/writer/segmenter.h>
 #include <dwarfs/writer/writer_progress.h>
 
+#include <dwarfs/internal/malloc_buffer.h>
 #include <dwarfs/writer/internal/block_manager.h>
 #include <dwarfs/writer/internal/chunkable.h>
 #include <dwarfs/writer/internal/cyclic_hash.h>
@@ -559,13 +560,10 @@ class basic_granular_container_adapter : private GranularityPolicy {
   T& v_;
 };
 
-template <typename T, typename GranularityPolicy>
-using granular_vector_adapter =
-    basic_granular_container_adapter<std::vector<T>, GranularityPolicy>;
-
 template <typename GranularityPolicy>
-using granular_byte_buffer_adapter =
-    basic_granular_container_adapter<mutable_byte_buffer, GranularityPolicy>;
+using granular_buffer_adapter =
+    basic_granular_container_adapter<dwarfs::internal::malloc_buffer,
+                                     GranularityPolicy>;
 
 template <typename LoggerPolicy, typename GranularityPolicy>
 class active_block : private GranularityPolicy {
@@ -590,7 +588,7 @@ class active_block : private GranularityPolicy {
       , filter_(bloom_filter_size)
       , repseqmap_{repseqmap}
       , repeating_collisions_{repcoll}
-      , data_{vector_byte_buffer::create()} {
+      , data_{malloc_byte_buffer::create()} {
     DWARFS_CHECK((window_step & window_step_mask_) == 0,
                  "window step size not a power of two");
     data_.reserve(this->frames_to_bytes(capacity_in_frames_));
@@ -894,8 +892,8 @@ active_block<LoggerPolicy, GranularityPolicy>::append_bytes(
   auto src = this->template create<
       granular_span_adapter<uint8_t const, GranularityPolicy>>(data);
 
-  auto v = this->template create<
-      granular_vector_adapter<uint8_t, GranularityPolicy>>(data_.raw_vector());
+  auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
+      data_.raw_buffer());
 
   // TODO: this works in theory, but slows down the segmenter by almost 10%
   // auto v = this->template create<
@@ -936,9 +934,8 @@ template <typename LoggerPolicy, typename GranularityPolicy>
 void segment_match<LoggerPolicy, GranularityPolicy>::verify_and_extend(
     granular_span_adapter<uint8_t const, GranularityPolicy> const& data,
     size_t pos, size_t len, size_t begin, size_t end) {
-  auto v = this->template create<
-      granular_vector_adapter<uint8_t, GranularityPolicy>>(
-      block_->data().raw_vector());
+  auto v = this->template create<granular_buffer_adapter<GranularityPolicy>>(
+      block_->data().raw_buffer());
 
   // First, check if the regions actually match
   if (v.compare(offset_, data.subspan(pos, len)) == 0) {

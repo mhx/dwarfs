@@ -45,6 +45,7 @@
 #include <dwarfs/fstypes.h>
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/mapped_byte_buffer.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/os_access.h>
@@ -53,7 +54,6 @@
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/reader/fsinfo_options.h>
 #include <dwarfs/util.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/fs_section_checker.h>

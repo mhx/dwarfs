@@ -29,7 +29,7 @@
 #include <dwarfs/block_decompressor.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/fstypes.h>
-#include <dwarfs/vector_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer.h>
 
 namespace dwarfs {
 
@@ -42,7 +42,7 @@ shared_byte_buffer
 block_decompressor::decompress(compression_type type,
                                std::span<uint8_t const> data) {
   block_decompressor bd(type, data);
-  auto target = vector_byte_buffer::create_reserve(bd.uncompressed_size());
+  auto target = malloc_byte_buffer::create_reserve(bd.uncompressed_size());
   bd.start_decompression(target);
   bd.decompress_frame(bd.uncompressed_size());
   return target.share();

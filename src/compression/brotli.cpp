@@ -37,9 +37,9 @@
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include "base.h"
 
@@ -61,7 +61,7 @@ class brotli_block_compressor final : public block_compressor::impl {
 
   shared_byte_buffer compress(shared_byte_buffer const& data,
                               std::string const* /*metadata*/) const override {
-    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
     compressed.resize(varint::max_size +
                       ::BrotliEncoderMaxCompressedSize(data.size()));
     size_t size_size = varint::encode(data.size(), compressed.data());

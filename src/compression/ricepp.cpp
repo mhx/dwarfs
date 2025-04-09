@@ -38,9 +38,9 @@
 #include <dwarfs/compressor_registry.h>
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
 #include <dwarfs/varint.h>
-#include <dwarfs/vector_byte_buffer.h>
 
 #include <dwarfs/gen-cpp2/compression_types.h>
 
@@ -99,7 +99,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
         .unused_lsb_count = static_cast<unsigned>(unused_lsb_count),
     });
 
-    auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+    auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
 
     // TODO: see if we can resize just once...
     // TODO: maybe the mutable_byte_buffer interface can have .append()?

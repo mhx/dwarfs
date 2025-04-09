@@ -24,7 +24,7 @@
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
 
-#include <dwarfs/vector_byte_buffer.h>
+#include <dwarfs/malloc_byte_buffer.h>
 
 #include <dwarfs/writer/internal/metadata_freezer.h>
 
@@ -47,9 +47,9 @@ std::pair<shared_byte_buffer, shared_byte_buffer> freeze_to_buffer(T const& x) {
   std::string schema;
   serializeRootLayout(layout, schema);
 
-  auto schema_buffer = vector_byte_buffer::create(schema);
+  auto schema_buffer = malloc_byte_buffer::create(schema);
 
-  auto data_buffer = vector_byte_buffer::create(content_size);
+  auto data_buffer = malloc_byte_buffer::create_zeroed(content_size);
 
   folly::MutableByteRange content_range(data_buffer.data(), data_buffer.size());
   ByteRangeFreezer::freeze(layout, x, content_range);

@@ -36,8 +36,8 @@
 #include <dwarfs/decompressor_registry.h>
 #include <dwarfs/error.h>
 #include <dwarfs/fstypes.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/option_map.h>
-#include <dwarfs/vector_byte_buffer.h>
 #include <dwarfs/zstd_context_manager.h>
 
 #include "base.h"
@@ -101,7 +101,7 @@ class zstd_block_compressor final : public block_compressor::impl {
 shared_byte_buffer
 zstd_block_compressor::compress(shared_byte_buffer const& data,
                                 std::string const* /*metadata*/) const {
-  auto compressed = vector_byte_buffer::create(); // TODO: make configurable
+  auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
   compressed.resize(ZSTD_compressBound(data.size()));
   auto ctx = ctxmgr_->make_context();
   auto size = ZSTD_compressCCtx(ctx.get(), compressed.data(), compressed.size(),
