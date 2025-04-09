@@ -102,7 +102,6 @@ class ricepp_block_compressor final : public block_compressor::impl {
     auto compressed = malloc_byte_buffer::create(); // TODO: make configurable
 
     // TODO: see if we can resize just once...
-    // TODO: maybe the mutable_byte_buffer interface can have .append()?
     {
       using namespace ::apache::thrift;
 
@@ -123,8 +122,7 @@ class ricepp_block_compressor final : public block_compressor::impl {
       std::string hdrbuf;
       CompactSerializer::serialize(hdr, &hdrbuf);
 
-      compressed.resize(pos + hdrbuf.size());
-      ::memcpy(compressed.data() + pos, hdrbuf.data(), hdrbuf.size());
+      compressed.append(hdrbuf.data(), hdrbuf.size());
     }
 
     std::span<pixel_type const> input{
