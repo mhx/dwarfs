@@ -27,6 +27,7 @@
  */
 
 #include <cassert>
+#include <cstring>
 #include <stdexcept>
 #include <system_error>
 
@@ -136,6 +137,14 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
 
   void freeze_location() override {
     // always frozen
+  }
+
+  void append(void const* data, size_t size) override {
+    if (size_ + size > data_.size()) {
+      frozen_error("append beyond capacity");
+    }
+    std::memcpy(data_.data() + size_, data, size);
+    size_ += size;
   }
 
   internal::malloc_buffer& raw_buffer() override {

@@ -78,6 +78,8 @@ class mutable_byte_buffer_interface : public byte_buffer_interface {
   // that would reallocate the buffer will throw.
   virtual void freeze_location() = 0;
 
+  virtual void append(void const* data, size_t size) = 0;
+
   virtual internal::malloc_buffer& raw_buffer() = 0;
 };
 
@@ -167,6 +169,13 @@ class mutable_byte_buffer {
   void shrink_to_fit() { bb_->shrink_to_fit(); }
 
   void freeze_location() { bb_->freeze_location(); }
+
+  void append(void const* data, size_t size) { bb_->append(data, size); }
+
+  template <detail::byte_range T>
+  void append(T const& data) {
+    append(data.data(), data.size());
+  }
 
   internal::malloc_buffer& raw_buffer() { return bb_->raw_buffer(); }
 

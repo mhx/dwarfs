@@ -94,6 +94,13 @@ class malloc_byte_buffer_impl : public mutable_byte_buffer_interface {
     frozen_.store(true, std::memory_order_release);
   }
 
+  void append(void const* data, size_t size) override {
+    if (frozen() && data_.size() + size > data_.capacity()) {
+      frozen_error("append beyond capacity");
+    }
+    data_.append(data, size);
+  }
+
   internal::malloc_buffer& raw_buffer() override { return data_; }
 
  private:
