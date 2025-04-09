@@ -25,7 +25,6 @@
 #include <cassert>
 #include <cstring>
 #include <numeric>
-#include <vector>
 
 #include <boost/program_options.hpp>
 
@@ -38,6 +37,8 @@
 #include <dwarfs/util.h>
 #include <dwarfs/writer/categorizer.h>
 #include <dwarfs/zstd_context_manager.h>
+
+#include <dwarfs/internal/malloc_buffer.h>
 
 namespace dwarfs::writer {
 
@@ -125,10 +126,8 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
 
  private:
   void add_input(std::span<uint8_t const> data) {
-    auto current_size = input_.size();
-    assert(current_size + data.size() <= cfg_.block_size);
-    input_.resize(current_size + data.size());
-    ::memcpy(&input_[current_size], data.data(), data.size());
+    assert(input_.size() + data.size() <= cfg_.block_size);
+    input_.append(data.data(), data.size());
     if (input_.size() == cfg_.block_size) {
       compress();
     }
@@ -187,8 +186,8 @@ class incompressible_categorizer_job_ : public sequential_categorizer_job {
   }
 
   LOG_PROXY_DECL(LoggerPolicy);
-  std::vector<uint8_t> input_;
-  std::vector<uint8_t> output_;
+  dwarfs::internal::malloc_buffer input_;
+  dwarfs::internal::malloc_buffer output_;
   size_t total_input_size_{0};
   size_t total_output_size_{0};
   size_t total_blocks_{0};
