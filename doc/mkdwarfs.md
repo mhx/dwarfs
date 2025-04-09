@@ -171,7 +171,7 @@ Most other options are concerned with compression tuning:
   be able to see some improvement. If your system is tight on memory, then
   decreasing this will potentially save a few MiBs.
 
-- `-L`, `--memory-limit=`*value*:
+- `-L`, `--memory-limit=auto|`*value*:
   Approximately how much memory you want `mkdwarfs` to use during filesystem
   creation. Note that currently this will only affect the block manager
   component, i.e. the number of filesystem blocks that are in flight but
@@ -180,7 +180,9 @@ Most other options are concerned with compression tuning:
   good option when building large filesystems with expensive compression
   algorithms. Also note that most memory is likely used by the compression
   algorithms, so if you're short on memory it might be worth tweaking the
-  compression options.
+  compression options. The default `auto` mode will take into account the
+  number of workers, the block size, and the amount of system memory to try
+  to compute a reasonable limit.
 
 - `-C`, `--compression=`[*category*`::`]*algorithm*[`:`*algopt*[`=`*value*][`:`...]]:
   The compression algorithm and configuration used for file system data.

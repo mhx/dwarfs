@@ -25,6 +25,7 @@ add_library(
   tools/src/tool/main_adapter.cpp
   tools/src/tool/safe_main.cpp
   tools/src/tool/sys_char.cpp
+  tools/src/tool/sysinfo.cpp
   tools/src/tool/tool.cpp
 )
 

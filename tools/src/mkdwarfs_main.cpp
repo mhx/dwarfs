@@ -77,6 +77,7 @@
 #include <dwarfs/thread_pool.h>
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/program_options_helpers.h>
+#include <dwarfs/tool/sysinfo.h>
 #include <dwarfs/tool/tool.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/rewrite_filesystem.h>
@@ -383,6 +384,19 @@ void validate(boost::any& v, std::vector<std::string> const& values,
   v = categorize_optval{po::validators::get_single_string(values), true};
 }
 
+uint64_t
+compute_memory_limit(uint64_t const block_size, uint64_t const num_cpu) {
+  auto const sys_mem =
+      std::max(tool::sysinfo::get_total_memory(), UINT64_C(256) << 20);
+  auto wanted_mem = num_cpu * block_size;
+  if (wanted_mem < sys_mem / 32) {
+    wanted_mem *= 2;
+  } else {
+    wanted_mem += std::min(num_cpu, UINT64_C(8)) * block_size;
+  }
+  return std::min(wanted_mem, sys_mem / 8);
+}
+
 } // namespace
 
 int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
@@ -507,7 +521,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
           ->value_name(dep_def_val("num-workers")),
         "number of segmenter worker threads")
     ("memory-limit,L",
-        po::value<std::string>(&memory_limit)->default_value("1g"),
+        po::value<std::string>(&memory_limit)->default_value("auto"),
         "block manager memory limit")
     ("recompress",
         po::value<std::string>(&recompress_opts)->implicit_value("all"),
@@ -909,8 +923,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
   }
 
-  size_t mem_limit = parse_size_with_unit(memory_limit);
-
   if (!vm.contains("num-scanner-workers")) {
     num_scanner_workers = num_workers;
   }
@@ -1087,12 +1099,6 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
                       ? 2000ms
                       : 200ms;
 
-  writer::filesystem_writer_options fswopts;
-  fswopts.max_queue_size = mem_limit;
-  fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
-  fswopts.remove_header = remove_header;
-  fswopts.no_section_index = no_section_index;
-
   std::unique_ptr<input_stream> header_ifs;
 
   if (!header_str.empty()) {
@@ -1122,6 +1128,16 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   // No more streaming to iol.err after this point as this would
   // cause a race with the progress thread.
+
+  size_t mem_limit = 0;
+
+  if (memory_limit == "auto") {
+    mem_limit = compute_memory_limit(UINT64_C(1) << sf_config.block_size_bits,
+                                     num_workers);
+    LOG_VERBOSE << "using memory limit of " << size_with_unit(mem_limit);
+  } else {
+    mem_limit = parse_size_with_unit(memory_limit);
+  }
 
   auto min_memory_req =
       num_workers * (UINT64_C(1) << sf_config.block_size_bits);
@@ -1293,6 +1309,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   thread_pool compress_pool(lgr, *iol.os, "compress", num_workers,
                             std::numeric_limits<size_t>::max(),
                             compress_niceness);
+
+  writer::filesystem_writer_options fswopts;
+  fswopts.max_queue_size = mem_limit;
+  fswopts.worst_case_block_size = UINT64_C(1) << sf_config.block_size_bits;
+  fswopts.remove_header = remove_header;
+  fswopts.no_section_index = no_section_index;
 
   std::optional<writer::filesystem_writer> fsw;
 
