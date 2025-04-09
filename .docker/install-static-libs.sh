@@ -115,46 +115,7 @@ fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSIO
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
 fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz ${MIMALLOC_TARBALL}
 
-for COMPILER in $COMPILERS; do
-    export CFLAGS="$COMMON_CFLAGS"
-    export CXXFLAGS="$COMMON_CXXFLAGS"
-    export LDFLAGS="$COMMON_LDFLAGS"
-
-    case "$COMPILER" in
-        clang*)
-            export CC="$CLANG"
-            export CXX="${CLANG/clang/clang++}"
-            ;;
-        gcc*)
-            export CC="$GCC"
-            export CXX="${GCC/gcc/g++}"
-            ;;
-        *)
-            echo "Unknown compiler: $COMPILER"
-            exit 1
-            ;;
-    esac
-
-    case "-$COMPILER-" in
-        *-minsize-*)
-            export CFLAGS="$CFLAGS -Os"
-            export CXXFLAGS="$CXXFLAGS -Os"
-            ;;
-    esac
-
-    case "$COMPILER" in
-        *-lto)
-            export CFLAGS="$CFLAGS -flto"
-            export CXXFLAGS="$CXXFLAGS -flto"
-            export LDFLAGS="$LDFLAGS -flto"
-            ;;
-        *-lto-thin)
-            export CFLAGS="$CFLAGS -flto=thin"
-            export CXXFLAGS="$CXXFLAGS -flto=thin"
-            export LDFLAGS="$LDFLAGS -flto=thin"
-            ;;
-    esac
-
+set_build_flags() {
     if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
         echo "unsetting CFLAGS"
         unset CFLAGS
@@ -175,6 +136,60 @@ for COMPILER in $COMPILERS; do
     else
         echo "setting LDFLAGS: $LDFLAGS"
     fi
+}
+
+opt_size() {
+    export CFLAGS="$SIZE_CFLAGS"
+    export CXXFLAGS="$SIZE_CXXFLAGS"
+    export CMAKE_BUILD_TYPE=MinSizeRel
+    set_build_flags
+}
+
+opt_perf() {
+    export CFLAGS="$PERF_CFLAGS"
+    export CXXFLAGS="$PERF_CXXFLAGS"
+    export CMAKE_BUILD_TYPE=Release
+    set_build_flags
+}
+
+for COMPILER in $COMPILERS; do
+    export SIZE_CFLAGS="$COMMON_CFLAGS"
+    export SIZE_CXXFLAGS="$COMMON_CXXFLAGS"
+    export PERF_CFLAGS="$COMMON_CFLAGS"
+    export PERF_CXXFLAGS="$COMMON_CXXFLAGS"
+    export LDFLAGS="$COMMON_LDFLAGS"
+
+    case "$COMPILER" in
+        clang*)
+            export CC="$CLANG"
+            export CXX="${CLANG/clang/clang++}"
+            ;;
+        gcc*)
+            export CC="$GCC"
+            export CXX="${GCC/gcc/g++}"
+            ;;
+        *)
+            echo "Unknown compiler: $COMPILER"
+            exit 1
+            ;;
+    esac
+
+    case "-$COMPILER-" in
+        *-minsize-*)
+            export SIZE_CFLAGS="$SIZE_CFLAGS -Os"
+            export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -Os"
+            ;;
+    esac
+
+    case "$COMPILER" in
+        *-lto)
+            export SIZE_CFLAGS="$SIZE_CFLAGS -flto"
+            export SIZE_CXXFLAGS="$SIZE_CXXFLAGS -flto"
+            export PERF_CFLAGS="$PERF_CFLAGS -flto"
+            export PERF_CXXFLAGS="$PERF_CXXFLAGS -flto"
+            export LDFLAGS="$LDFLAGS -flto"
+            ;;
+    esac
 
     cd "$HOME/pkgs"
     mkdir $COMPILER
@@ -182,17 +197,19 @@ for COMPILER in $COMPILERS; do
     INSTALL_DIR=/opt/static-libs/$COMPILER
 
     if use_lib mimalloc; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${MIMALLOC_TARBALL}
         cd mimalloc-${MIMALLOC_VERSION}
         mkdir build
         cd build
-        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib fuse; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBFUSE_TARBALL}
         cd fuse-${LIBFUSE_VERSION}
@@ -206,6 +223,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib zstd; then
+        opt_perf
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${ZSTD_TARBALL}
         cd zstd-${ZSTD_VERSION}
@@ -214,6 +232,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib libunwind; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBUNWIND_TARBALL}
         cd libunwind-${LIBUNWIND_VERSION}
@@ -223,6 +242,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib bzip2; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${BZIP2_TARBALL}
         cd bzip2-${BZIP2_VERSION}
@@ -231,6 +251,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib openssl; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${OPENSSL_TARBALL}
         cd openssl-${OPENSSL_VERSION}
@@ -246,6 +267,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib libarchive; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBARCHIVE_TARBALL}
         cd libarchive-${LIBARCHIVE_VERSION}
@@ -257,6 +279,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib file; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FILE_TARBALL}
         cd file-${FILE_VERSION}
@@ -266,6 +289,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib flac; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FLAC_TARBALL}
         cd flac-${FLAC_VERSION}
@@ -275,61 +299,67 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib benchmark; then
+        opt_perf
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${BENCHMARK_TARBALL}
         cd benchmark-${BENCHMARK_VERSION}
         mkdir build
         cd build
-        cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+        cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib cpptrace; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${CPPTRACE_TARBALL}
         cd cpptrace-${CPPTRACE_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib double-conversion; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${DOUBLE_CONVERSION_TARBALL}
         cd double-conversion-${DOUBLE_CONVERSION_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib fmt; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FMT_TARBALL}
         cd fmt-${FMT_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib glog; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${GLOG_TARBALL}
         cd glog-${GLOG_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib xxhash; then
+        opt_perf
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${XXHASH_TARBALL}
         cd xxHash-${XXHASH_VERSION}
@@ -338,23 +368,25 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib brotli; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${BROTLI_TARBALL}
         cd brotli-${BROTLI_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
 
     if use_lib lz4; then
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LZ4_TARBALL}
         cd lz4-${LZ4_VERSION}/build/cmake
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
         make -j$(nproc)
         make install
     fi
