@@ -191,6 +191,7 @@ target_link_libraries(dwarfs_compressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_decompressor PRIVATE dwarfs_common)
 target_link_libraries(dwarfs_reader PUBLIC dwarfs_common dwarfs_decompressor)
 target_link_libraries(dwarfs_writer PUBLIC dwarfs_common dwarfs_compressor dwarfs_decompressor)
+target_link_libraries(dwarfs_writer PRIVATE PkgConfig::ZSTD)
 target_link_libraries(dwarfs_extractor PUBLIC dwarfs_reader)
 target_link_libraries(dwarfs_rewrite PUBLIC dwarfs_reader dwarfs_writer)
 
