@@ -147,14 +147,16 @@ set_build_flags() {
 opt_size() {
     export CFLAGS="$SIZE_CFLAGS"
     export CXXFLAGS="$SIZE_CXXFLAGS"
-    export CMAKE_BUILD_TYPE=MinSizeRel
+    # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=MinSizeRel"
+    export CMAKE_ARGS=
     set_build_flags
 }
 
 opt_perf() {
     export CFLAGS="$PERF_CFLAGS"
     export CXXFLAGS="$PERF_CXXFLAGS"
-    export CMAKE_BUILD_TYPE=Release
+    # export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+    export CMAKE_ARGS=
     set_build_flags
 }
 
@@ -232,7 +234,7 @@ for COMPILER in $COMPILERS; do
         cd mimalloc-${MIMALLOC_VERSION}
         mkdir build
         cd build
-        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DMI_LIBC_MUSL=ON -DMI_BUILD_SHARED=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF -DMI_OPT_ARCH=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
@@ -244,7 +246,7 @@ for COMPILER in $COMPILERS; do
         cd double-conversion-${DOUBLE_CONVERSION_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
@@ -256,7 +258,7 @@ for COMPILER in $COMPILERS; do
         cd fmt-${FMT_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
@@ -282,19 +284,19 @@ for COMPILER in $COMPILERS; do
         cd glog-${GLOG_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
 
     if use_lib benchmark; then
-        opt_perf
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${BENCHMARK_TARBALL}
         cd benchmark-${BENCHMARK_VERSION}
         mkdir build
         cd build
-        cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DBENCHMARK_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
@@ -324,7 +326,7 @@ for COMPILER in $COMPILERS; do
         cd brotli-${BROTLI_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
@@ -336,13 +338,13 @@ for COMPILER in $COMPILERS; do
         cd lz4-${LZ4_VERSION}/build/cmake
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
 
     if use_lib xz; then
-        opt_perf
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${XZ_TARBALL}
         cd xz-${XZ_VERSION}
@@ -352,7 +354,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib zstd; then
-        opt_perf
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${ZSTD_TARBALL}
         cd zstd-${ZSTD_VERSION}
@@ -415,7 +417,7 @@ for COMPILER in $COMPILERS; do
         cd cpptrace-${CPPTRACE_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
