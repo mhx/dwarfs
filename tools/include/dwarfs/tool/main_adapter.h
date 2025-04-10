@@ -42,8 +42,7 @@ class main_adapter {
  public:
   using main_fn_type = int (*)(int, sys_char**, iolayer const&);
 
-  explicit main_adapter(main_fn_type main_fn)
-      : main_fn_(main_fn) {}
+  explicit main_adapter(main_fn_type main_fn);
 
   int operator()(int argc, sys_char** argv) const;
   int operator()(std::span<std::string const> args, iolayer const& iol) const;

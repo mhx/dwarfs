@@ -29,6 +29,15 @@ add_library(
   tools/src/tool/tool.cpp
 )
 
+# TODO: Try enabling folly memcpy also for ARM if we figure out how that works :-)
+if(STATIC_BUILD_DO_NOT_USE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  enable_language(ASM)
+  target_sources(dwarfs_tool PRIVATE folly/folly/memcpy.S)
+  set_property(SOURCE folly/folly/memcpy.S APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp" "-D__AVX2__")
+  target_link_options(dwarfs_tool PUBLIC -Wl,--wrap=memcpy)
+  target_compile_definitions(dwarfs_tool PRIVATE -DDWARFS_USE_FOLLY_MEMCPY)
+endif()
+
 if(WITH_MAN_OPTION)
   target_sources(dwarfs_tool PRIVATE
     tools/src/tool/pager.cpp

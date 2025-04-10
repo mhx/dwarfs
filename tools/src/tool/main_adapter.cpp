@@ -26,11 +26,47 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <iostream>
 #include <vector>
+
+#include <dwarfs/util.h>
 
 #include <dwarfs/tool/iolayer.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/safe_main.h>
+
+#ifdef DWARFS_USE_FOLLY_MEMCPY
+
+extern "C" {
+
+extern void* __real_memcpy(void* dest, void const* src, size_t size);
+extern void* __folly_memcpy(void* dest, void const* src, size_t size);
+}
+
+namespace {
+
+static void* (*the_memcpy)(void*, void const*, size_t) = &__real_memcpy;
+
+void select_memcpy() {
+  bool const debug = dwarfs::getenv_is_enabled("DWARFS_DEBUG_MEMCPY");
+  if (__builtin_cpu_supports("avx2")) {
+    the_memcpy = &__folly_memcpy;
+    if (debug) {
+      std::cerr << "Using AVX2 memcpy\n";
+    }
+  } else if (debug) {
+    std::cerr << "Using default memcpy\n";
+  }
+}
+
+} // namespace
+
+extern "C" void*
+__wrap_memcpy(void* __restrict dest, void const* __restrict src, size_t size) {
+  return the_memcpy(dest, src, size);
+}
+
+#endif // DWARFS_USE_FOLLY_MEMCPY
 
 namespace dwarfs::tool {
 
@@ -51,6 +87,13 @@ int call_sys_main_iolayer(std::span<T> args, iolayer const& iol,
 }
 
 } // namespace
+
+main_adapter::main_adapter(main_fn_type main_fn)
+    : main_fn_(main_fn) {
+#ifdef DWARFS_USE_FOLLY_MEMCPY
+  select_memcpy();
+#endif
+}
 
 int main_adapter::operator()(int argc, sys_char** argv) const {
   return main_fn_(argc, argv, iolayer::system_default());
