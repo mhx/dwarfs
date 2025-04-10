@@ -31,6 +31,7 @@ ZSTD_VERSION=1.5.7                       # 2025-02-19
 LIBFUSE_VERSION=3.17.1                   # 2025-03-24
 MIMALLOC_VERSION=2.1.7                   # 2024-05-21
 JEMALLOC_VERSION=5.3.0                   # 2022-05-02
+XZ_VERSION=5.8.1                         # 2025-04-03
 
 echo "Using $GCC and $CLANG"
 
@@ -38,7 +39,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,zstd"
+    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -65,6 +66,7 @@ ZSTD_TARBALL="zstd-${ZSTD_VERSION}.tar.gz"
 LIBFUSE_TARBALL="fuse-${LIBFUSE_VERSION}.tar.gz"
 MIMALLOC_TARBALL="mimalloc-${MIMALLOC_VERSION}.tar.gz"
 JEMALLOC_TARBALL="jemalloc-${JEMALLOC_VERSION}.tar.bz2"
+XZ_TARBALL="xz-${XZ_VERSION}.tar.xz"
 
 use_lib() {
     local lib="$1"
@@ -117,6 +119,7 @@ fetch_lib zstd https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSIO
 fetch_lib fuse https://github.com/libfuse/libfuse/releases/download/fuse-${LIBFUSE_VERSION}/${LIBFUSE_TARBALL}
 fetch_lib mimalloc https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz ${MIMALLOC_TARBALL}
 fetch_lib jemalloc https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/${JEMALLOC_TARBALL}
+fetch_lib xz https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/${XZ_TARBALL}
 
 set_build_flags() {
     if [[ $CFLAGS =~ ^[[:space:]]*$ ]]; then
@@ -334,6 +337,16 @@ for COMPILER in $COMPILERS; do
         mkdir build
         cd build
         cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+        make -j$(nproc)
+        make install
+    fi
+
+    if use_lib xz; then
+        opt_perf
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${XZ_TARBALL}
+        cd xz-${XZ_VERSION}
+        ./configure --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --disable-rpath --disable-werror --disable-doc --disable-shared --disable-nls
         make -j$(nproc)
         make install
     fi
