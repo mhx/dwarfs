@@ -128,9 +128,14 @@ Most other options are concerned with compression tuning:
   By default, only the current block will be scanned. The larger this number,
   the more duplicate segments will likely be found, which may further improve
   compression. Impact on compression speed is minimal, but this could cause
-  resulting filesystem to be slightly less efficient to use, as single small
-  files can now potentially span multiple filesystem blocks. Passing `-B0`
-  will completely disable duplicate segment search.
+  resulting filesystem to be less efficient to use, as single small files can
+  now potentially span multiple filesystem blocks. Definitely avoid passing
+  large values (i.e. larger than 10) here, especially in combination with
+  large block sizes, unless you know *exactly* what you are doing. To give
+  give you an idea, using `-S 26` (i.e. 64 MiB blocks) with `-B 32` means
+  that in the worst case, to read a single file of less than 1 MiB in size,
+  the file system may have to decompress 2 GiB of data. You have been warned.
+  Passing `-B0` will completely disable duplicate segment search.
 
 - `-W`, `--window-size=[*category*`::`]`*value*:
   Window size of cyclic hash used for segmenting. This is an exponent
