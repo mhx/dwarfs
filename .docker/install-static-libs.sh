@@ -300,7 +300,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib xxhash; then
-        opt_perf
+        opt_size
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${XXHASH_TARBALL}
         cd xxHash-${XXHASH_VERSION}
