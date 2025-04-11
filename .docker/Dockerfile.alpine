@@ -79,6 +79,7 @@ RUN apk add --no-cache \
         nlohmann-json \
         meson \
         autoconf \
+        lld \
         gdb
 
 ARG ARCH
