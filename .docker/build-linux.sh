@@ -151,10 +151,10 @@ esac
 
 case "-$BUILD_TYPE-" in
   *-lto-*)
-    CMAKE_ARGS="${CMAKE_ARGS} -DDISABLE_MOLD=1"
     export CFLAGS="${CFLAGS} -flto=auto"
     export CXXFLAGS="${CXXFLAGS} -flto=auto"
-    export LDFLAGS="${LDFLAGS} -flto=auto"
+    # The -L option is needed so that boost_iostreams finds the right libzstd...
+    export LDFLAGS="${LDFLAGS} -fuse-ld=mold -flto=auto -Wl,--icf=all -L/opt/static-libs/$COMPILER/lib"
     export COMPILER="${COMPILER}-lto"
     ;;
 esac
