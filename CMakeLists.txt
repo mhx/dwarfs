@@ -873,7 +873,6 @@ if(STATIC_BUILD_DO_NOT_USE)
 
   import_static_lib(static_libglog "libglog.a")
   import_static_lib(static_libdoubleconv "libdouble-conversion.a")
-  import_static_lib(static_libgflags "libgflags.a")
   import_static_lib(static_libcrypto "libcrypto.a")
   import_static_lib(static_libz "libz.a")
   import_static_lib(static_libpthread "libpthread.a")
@@ -886,8 +885,6 @@ if(STATIC_BUILD_DO_NOT_USE)
 
   set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
                                                     "${LIBLZMA_LIBRARIES};static_libz")
-  set_target_properties(static_libglog PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                  static_libgflags)
   if(LIBMAGIC_FOUND)
     import_static_lib(static_libmagic "libmagic.a")
     set_target_properties(static_libmagic PROPERTIES INTERFACE_LINK_LIBRARIES
@@ -904,7 +901,6 @@ if(STATIC_BUILD_DO_NOT_USE)
       PRIVATE
       static_libdoubleconv
       static_libglog
-      static_libgflags
       static_libarchive
       static_libcrypto
       static_libpthread
