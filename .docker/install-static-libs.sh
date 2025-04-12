@@ -19,6 +19,7 @@ FLAC_VERSION=1.5.0                       # 2025-02-11
 # TODO: https://github.com/libunwind/libunwind/issues/702
 LIBUNWIND_VERSION=1.7.2                  # 2023-07-30
 BENCHMARK_VERSION=1.9.2                  # 2025-03-25
+BOOST_VERSION=1.88.0                     # 2025-04-11
 OPENSSL_VERSION=3.4.1                    # 2025-02-11
 CPPTRACE_VERSION=0.8.2                   # 2025-02-23
 DOUBLE_CONVERSION_VERSION=3.3.1          # 2025-02-14
@@ -39,7 +40,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -50,6 +51,7 @@ fi
 
 FILE_TARBALL="file-${FILE_VERSION}.tar.gz"
 BZIP2_TARBALL="bzip2-${BZIP2_VERSION}.tar.gz"
+BOOST_TARBALL="boost-${BOOST_VERSION}.tar.xz"
 LIBARCHIVE_TARBALL="libarchive-${LIBARCHIVE_VERSION}.tar.xz"
 FLAC_TARBALL="flac-${FLAC_VERSION}.tar.xz"
 LIBUNWIND_TARBALL="libunwind-${LIBUNWIND_VERSION}.tar.gz"
@@ -103,6 +105,7 @@ fetch_lib() {
 }
 
 fetch_lib bzip2 https://sourceware.org/pub/bzip2/${BZIP2_TARBALL}
+fetch_lib boost https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz ${BOOST_TARBALL}
 fetch_lib libarchive https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/${LIBARCHIVE_TARBALL}
 fetch_lib flac https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/${FLAC_TARBALL}
 fetch_lib libunwind https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/${LIBUNWIND_TARBALL}
@@ -203,6 +206,21 @@ for COMPILER in $COMPILERS; do
     mkdir $COMPILER
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
+
+    if use_lib boost; then
+        opt_size
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${BOOST_TARBALL}
+        cd boost-${BOOST_VERSION}
+        mkdir build
+        cd build
+        cmake .. -DBOOST_ENABLE_MPI=OFF -DBOOST_ENABLE_PYTHON=OFF -DBUILD_SHARED_LIBS=OFF \
+                 -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
+                 -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
+                 -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
+        make -j$(nproc)
+        make install
+    fi
 
     if use_lib libunwind; then
         opt_size

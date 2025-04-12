@@ -18,6 +18,7 @@ repositories = [
     "facebook/zstd",
     "libfuse/libfuse",
     "microsoft/mimalloc",
+    "boostorg/boost",
 ]
 
 # Function to fetch the latest release information for a repository
