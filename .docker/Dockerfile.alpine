@@ -16,11 +16,9 @@ RUN apk add --no-cache \
 RUN apk add --no-cache \
         gcc \
         g++ \
-        clang17 \
         clang18 \
         clang19 \
         git \
-        zstd \
         ccache \
         samurai \
         cmake \
@@ -36,50 +34,20 @@ RUN apk add --no-cache \
         fuse3-static \
         pkgconf \
         binutils-dev \
-        acl-dev \
-        acl-static \
-        libarchive-dev \
-        libarchive-static \
-        boost1.84-dev \
-        boost1.84-dev \
-        boost1.84-static \
-        brotli-dev \
         libevent-dev \
         libevent-static \
+        linux-headers \
         date-dev \
-        jemalloc-dev \
-        jemalloc-static \
-        double-conversion-dev \
-        bzip2-dev \
-        bzip2-static \
-        xz-dev \
-        xz-static \
-        zstd-dev \
-        zstd-static \
-        xxhash-dev \
-        lz4-dev \
         range-v3-dev \
-        libxml2-dev \
-        libxml2-static \
         zlib-static \
-        libmagic-static \
-        openssl-dev \
-        openssl-libs-static \
-        libunwind-dev \
-        libunwind-static \
+        libucontext-dev \
         libdwarf-dev \
         elfutils-dev \
-        fmt-dev \
-        glog-dev \
         utfcpp \
-        flac-dev \
-        libogg-static \
-        icu-static \
-        expat-static \
         nlohmann-json \
         meson \
         autoconf \
-        lld \
+        strace \
         gdb
 
 ARG ARCH
