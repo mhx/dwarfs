@@ -305,7 +305,7 @@ for COMPILER in $COMPILERS; do
         cd glog-${GLOG_VERSION}
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF ${CMAKE_ARGS}
+        cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF ${CMAKE_ARGS}
         make -j$(nproc)
         make install
     fi
