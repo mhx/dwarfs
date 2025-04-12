@@ -16,8 +16,7 @@ BZIP2_VERSION=1.0.8
 
 LIBARCHIVE_VERSION=3.7.9                 # 2025-03-30
 FLAC_VERSION=1.5.0                       # 2025-02-11
-# TODO: https://github.com/libunwind/libunwind/issues/702
-LIBUNWIND_VERSION=1.7.2                  # 2023-07-30
+LIBUNWIND_VERSION=1.8.1                  # 2024-02-22
 BENCHMARK_VERSION=1.9.2                  # 2025-03-25
 BOOST_VERSION=1.88.0                     # 2025-04-11
 OPENSSL_VERSION=3.4.1                    # 2025-02-11
@@ -40,7 +39,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,lz4,mimalloc,openssl,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,lz4,mimalloc,openssl,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -207,6 +206,20 @@ for COMPILER in $COMPILERS; do
 
     INSTALL_DIR=/opt/static-libs/$COMPILER
 
+    if use_lib libunwind; then
+        opt_size
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${LIBUNWIND_TARBALL}
+        cd libunwind-${LIBUNWIND_VERSION}
+        curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/1f17e0b0fb8eae34ffbe82649edffcd476f5d960/main/libunwind/fix-libunwind-pc-in.patch | patch -p1
+        # This fixes https://github.com/libunwind/libunwind/issues/702
+        curl https://github.com/libunwind/libunwind/commit/a69d0f14c9e6c46e82ba6e02fcdedb2eb63b7f7f.diff | patch -p1
+        LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" ./configure \
+            --prefix="$INSTALL_DIR" --enable-cxx-exceptions --disable-tests
+        make -j$(nproc)
+        make install
+    fi
+
     if use_lib boost; then
         opt_size
         cd "$HOME/pkgs/$COMPILER"
@@ -218,16 +231,6 @@ for COMPILER in $COMPILERS; do
                  -DBOOST_IOSTREAMS_ENABLE_ZLIB=OFF -DBOOST_IOSTREAMS_ENABLE_BZIP2=OFF \
                  -DBOOST_IOSTREAMS_ENABLE_LZMA=OFF -DBOOST_IOSTREAMS_ENABLE_ZSTD=OFF \
                  -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ${CMAKE_ARGS}
-        make -j$(nproc)
-        make install
-    fi
-
-    if use_lib libunwind; then
-        opt_size
-        cd "$HOME/pkgs/$COMPILER"
-        tar xf ../${LIBUNWIND_TARBALL}
-        cd libunwind-${LIBUNWIND_VERSION}
-        ./configure --prefix="$INSTALL_DIR"
         make -j$(nproc)
         make install
     fi
