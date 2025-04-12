@@ -376,8 +376,13 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${ZSTD_TARBALL}
         cd zstd-${ZSTD_VERSION}
-        make -j$(nproc)
-        make install PREFIX="$INSTALL_DIR"
+        mkdir meson-build
+        cd meson-build
+        meson setup ../build/meson --default-library=static --prefix="$INSTALL_DIR"
+        meson configure -D zlib=disabled -D lzma=disabled -D lz4=disabled
+        meson setup --reconfigure ../build/meson
+        ninja
+        ninja install
     fi
 
     if use_lib openssl; then
