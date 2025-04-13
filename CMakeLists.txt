@@ -907,40 +907,6 @@ foreach(tgt ${TEST_TARGETS})
   target_link_libraries(${tgt} PRIVATE dwarfs_writer dwarfs_rewrite dwarfs_extractor)
 endforeach()
 
-if(STATIC_BUILD_DO_NOT_USE)
-  # ...................................................................
-  # Each library name given to the NAMES option is first considered as a library
-  # file name and then considered with platform-specific prefixes (e.g. lib) and
-  # suffixes (e.g. .so).
-  # ...................................................................
-
-  function(IMPORT_STATIC_LIB TARGET NAME)
-    find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
-    add_library(${TARGET} STATIC IMPORTED)
-    set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION
-                                               ${_TMP_LIB_LOC_${TARGET}})
-  endfunction()
-
-  # import_static_lib(static_libdl "libdl.a")
-  # import_static_lib(static_libm "libm.a")
-  # import_static_lib(static_librt "librt.a")
-
-  foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
-    # ...................................................................
-    # -static-libgcc above and gcc_eh below is all together an ugly trick to
-    # enforce static linking
-    # ...................................................................
-    target_link_libraries(
-      ${tgt}
-      PRIVATE
-      # static_libdl
-      # static_libm
-      # static_librt
-      gcc_eh
-    )
-  endforeach()
-endif(STATIC_BUILD_DO_NOT_USE)
-
 foreach(tgt ${TEST_TARGETS})
   list(APPEND REALCLEAN_FILES "${tgt}[1]_include.cmake")
 endforeach()

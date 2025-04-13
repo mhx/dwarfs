@@ -258,7 +258,7 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
   if [[ "$ARCH" == "aarch64" ]]; then
     # For some reason, this dependency of libunwind is not resolved on aarch64
-    export LDFLAGS="${LDFLAGS} -lz"
+    export LDFLAGS="${LDFLAGS} -lz -lgcc_eh"
   fi
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_DO_NOT_USE=1 -DWITH_UNIVERSAL_BINARY=1 -DWITH_FUSE_EXTRACT_BINARY=1"
   if [[ "$BUILD_TYPE" != *-minimal-* ]]; then
