@@ -921,25 +921,9 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                ${_TMP_LIB_LOC_${TARGET}})
   endfunction()
 
-  import_static_lib(static_libglog "libglog.a")
-  import_static_lib(static_libdoubleconv "libdouble-conversion.a")
-  import_static_lib(static_libcrypto "libcrypto.a")
-  import_static_lib(static_libz "libz.a")
-  import_static_lib(static_libpthread "libpthread.a")
   import_static_lib(static_libdl "libdl.a")
   import_static_lib(static_libm "libm.a")
   import_static_lib(static_librt "librt.a")
-  import_static_lib(static_libunwind "libunwind.a")
-  import_static_lib(static_libarchive "libarchive.a")
-  import_static_lib(static_libflac "libFLAC++.a")
-
-  set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                    "${LIBLZMA_LIBRARIES};static_libz")
-  if(LIBMAGIC_FOUND)
-    import_static_lib(static_libmagic "libmagic.a")
-    set_target_properties(static_libmagic PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                  static_libz)
-  endif()
 
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
     # ...................................................................
@@ -949,17 +933,11 @@ if(STATIC_BUILD_DO_NOT_USE)
     target_link_libraries(
       ${tgt}
       PRIVATE
-      static_libdoubleconv
-      static_libglog
-      static_libarchive
-      static_libcrypto
-      static_libpthread
       static_libdl
-      static_libz
       static_libm
       static_librt
       gcc_eh
-      static_libunwind)
+    )
   endforeach()
 endif(STATIC_BUILD_DO_NOT_USE)
 
