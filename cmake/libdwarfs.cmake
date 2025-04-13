@@ -40,7 +40,7 @@ add_library(
   src/option_map.cpp
   src/os_access_generic.cpp
   src/pcm_sample_transformer.cpp
-  src/performance_monitor.cpp
+  $<IF:$<BOOL:${ENABLE_PERFMON}>,src/performance_monitor.cpp,>
   src/terminal_ansi.cpp
   src/thread_pool.cpp
   src/util.cpp

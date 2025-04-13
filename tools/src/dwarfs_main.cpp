@@ -1525,7 +1525,6 @@ void load_filesystem(dwarfs_userdata& userdata) {
     perfmon_trace_file = userdata.iol.os->canonical(std::filesystem::path(
         reinterpret_cast<char8_t const*>(opts.perfmon_trace_file_str)));
   }
-#endif
 
   userdata.perfmon = performance_monitor::create(
       perfmon_enabled, userdata.iol.file, perfmon_trace_file);
@@ -1541,6 +1540,7 @@ void load_filesystem(dwarfs_userdata& userdata) {
   PERFMON_EXT_TIMER_SETUP(userdata, op_statfs)
   PERFMON_EXT_TIMER_SETUP(userdata, op_getxattr, "inode")
   PERFMON_EXT_TIMER_SETUP(userdata, op_listxattr, "inode")
+#endif
 
   if (opts.analysis_file_str) {
     auto file = userdata.iol.os->canonical(std::filesystem::path(

@@ -191,18 +191,23 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     fsopts.block_cache.disable_block_integrity_check = disable_integrity_check;
     fsopts.metadata.enable_nlink = true;
 
+    std::shared_ptr<performance_monitor> perfmon;
+
+#if DWARFS_PERFMON_ENABLED
     std::unordered_set<std::string> perfmon_enabled;
     std::optional<std::filesystem::path> perfmon_trace_file;
-#if DWARFS_PERFMON_ENABLED
+
     if (!perfmon_str.empty()) {
       split_to(perfmon_str, ',', perfmon_enabled);
     }
+
     if (!trace_file.empty()) {
       perfmon_trace_file = iol.os->canonical(trace_file);
     }
+
+    perfmon = performance_monitor::create(perfmon_enabled, iol.file,
+                                          perfmon_trace_file);
 #endif
-    std::shared_ptr<performance_monitor> perfmon = performance_monitor::create(
-        perfmon_enabled, iol.file, perfmon_trace_file);
 
     reader::filesystem_v2_lite fs(lgr, *iol.os, fs_image, fsopts, perfmon);
     utility::filesystem_extractor fsx(lgr, *iol.os);
