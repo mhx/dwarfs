@@ -212,9 +212,11 @@ class filesystem_ final {
               std::shared_ptr<performance_monitor const> const& perfmon);
 
   int check(filesystem_check_level level, size_t num_threads) const;
-  void dump(std::ostream& os, fsinfo_options const& opts) const;
-  std::string dump(fsinfo_options const& opts) const;
-  nlohmann::json info_as_json(fsinfo_options const& opts) const;
+  void
+  dump(std::ostream& os, fsinfo_options const& opts, history const& hist) const;
+  std::string dump(fsinfo_options const& opts, history const& hist) const;
+  nlohmann::json
+  info_as_json(fsinfo_options const& opts, history const& hist) const;
   nlohmann::json metadata_as_json() const;
   std::string serialize_metadata_as_json(bool simple) const;
   void walk(std::function<void(dir_entry_view)> const& func) const;
@@ -280,7 +282,7 @@ class filesystem_ final {
   }
   size_t num_blocks() const { return ir_.num_blocks(); }
   bool has_symlinks() const { return meta_.has_symlinks(); }
-  history const& get_history() const { return history_; }
+  history get_history() const;
   nlohmann::json get_inode_info(inode_view entry) const {
     return meta_.get_inode_info(std::move(entry),
                                 std::numeric_limits<size_t>::max());
@@ -362,7 +364,7 @@ class filesystem_ final {
   mutable block_access_level fsinfo_block_access_level_{
       block_access_level::no_access};
   mutable std::unique_ptr<filesystem_info const> fsinfo_;
-  history history_;
+  std::vector<fs_section> history_sections_;
   file_off_t const image_offset_;
   filesystem_options const options_;
   PERFMON_CLS_PROXY_DECL
@@ -458,7 +460,6 @@ filesystem_<LoggerPolicy>::filesystem_(
     : LOG_PROXY_INIT(lgr)
     , os_{os}
     , mm_{std::move(mm)}
-    , history_({.with_timestamps = true})
     , image_offset_{filesystem_parser::find_image_offset(*mm_,
                                                          options.image_offset)}
     , options_{options} // clang-format off
@@ -542,13 +543,22 @@ filesystem_<LoggerPolicy>::filesystem_(
   ir_ = inode_reader_v2(lgr, std::move(cache), options.inode_reader, perfmon);
 
   if (auto it = sections.find(section_type::HISTORY); it != sections.end()) {
-    for (auto& section : it->second) {
-      if (section.check_fast(*mm_)) {
-        auto buffer = get_section_data(mm_, section);
-        history_.parse_append(buffer.span());
-      }
+    history_sections_ = std::move(it->second);
+  }
+}
+
+template <typename LoggerPolicy>
+history filesystem_<LoggerPolicy>::get_history() const {
+  history hist({.with_timestamps = true});
+
+  for (auto& section : history_sections_) {
+    if (section.check_fast(*mm_)) {
+      auto buffer = get_section_data(mm_, section);
+      hist.parse_append(buffer.span());
     }
   }
+
+  return hist;
 }
 
 template <typename LoggerPolicy>
@@ -618,7 +628,8 @@ int filesystem_<LoggerPolicy>::check(filesystem_check_level level,
 
 template <typename LoggerPolicy>
 void filesystem_<LoggerPolicy>::dump(std::ostream& os,
-                                     fsinfo_options const& opts) const {
+                                     fsinfo_options const& opts,
+                                     history const& hist) const {
   auto parser = make_fs_parser();
 
   if (opts.features.has(fsinfo_feature::version)) {
@@ -670,7 +681,7 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
   }
 
   if (opts.features.has(fsinfo_feature::history)) {
-    history_.dump(os);
+    hist.dump(os);
   }
 
   metadata_v2_utils(meta_).dump(
@@ -688,15 +699,17 @@ void filesystem_<LoggerPolicy>::dump(std::ostream& os,
 }
 
 template <typename LoggerPolicy>
-std::string filesystem_<LoggerPolicy>::dump(fsinfo_options const& opts) const {
+std::string filesystem_<LoggerPolicy>::dump(fsinfo_options const& opts,
+                                            history const& hist) const {
   std::ostringstream oss;
-  dump(oss, opts);
+  dump(oss, opts, hist);
   return oss.str();
 }
 
 template <typename LoggerPolicy>
 nlohmann::json
-filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
+filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
+                                        history const& hist) const {
   auto parser = make_fs_parser();
 
   auto info = nlohmann::json::object();
@@ -711,7 +724,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts) const {
   }
 
   if (opts.features.has(fsinfo_feature::history)) {
-    info["history"] = history_.as_json();
+    info["history"] = hist.as_json();
   }
 
   if (opts.features.has(fsinfo_feature::section_details)) {
@@ -1310,21 +1323,26 @@ template <typename LoggerPolicy>
 class filesystem_full_
     : public filesystem_common_<LoggerPolicy, filesystem_v2::impl> {
  public:
-  using filesystem_common_<LoggerPolicy,
-                           filesystem_v2::impl>::filesystem_common_;
   using filesystem_common_<LoggerPolicy, filesystem_v2::impl>::fs;
+
+  filesystem_full_(logger& lgr, os_access const& os, std::shared_ptr<mmif> mm,
+                   filesystem_options const& options,
+                   std::shared_ptr<performance_monitor const> const& perfmon)
+      : filesystem_common_<LoggerPolicy, filesystem_v2::impl>(
+            lgr, os, std::move(mm), options, perfmon)
+      , history_{fs().get_history()} {}
 
   int check(filesystem_check_level level, size_t num_threads) const override {
     return fs().check(level, num_threads);
   }
   void dump(std::ostream& os, fsinfo_options const& opts) const override {
-    fs().dump(os, opts);
+    fs().dump(os, opts, history_);
   }
   std::string dump(fsinfo_options const& opts) const override {
-    return fs().dump(opts);
+    return fs().dump(opts, history_);
   }
   nlohmann::json info_as_json(fsinfo_options const& opts) const override {
-    return fs().info_as_json(opts);
+    return fs().info_as_json(opts, history_);
   }
   nlohmann::json metadata_as_json() const override {
     return fs().metadata_as_json();
@@ -1335,7 +1353,10 @@ class filesystem_full_
   std::optional<std::span<uint8_t const>> header() const override {
     return fs().header();
   }
-  history const& get_history() const override { return fs().get_history(); }
+  history const& get_history() const override { return history_; }
+
+ private:
+  history history_;
 };
 
 } // namespace internal

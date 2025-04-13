@@ -47,7 +47,9 @@ history::history(history_config const& cfg)
     : history_{std::make_unique<thrift::history::history>()}
     , cfg_{cfg} {}
 
-history::~history() = default;
+history::history(history&&) noexcept = default;
+history::~history() noexcept = default;
+history& history::operator=(history&&) noexcept = default;
 
 void history::parse(std::span<uint8_t const> data) {
   history_->entries()->clear();

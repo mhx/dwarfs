@@ -51,7 +51,9 @@ class history;
 class history {
  public:
   explicit history(history_config const& cfg = {});
-  ~history();
+  history(history&&) noexcept;
+  history& operator=(history&&) noexcept;
+  ~history() noexcept;
 
   void parse(std::span<uint8_t const> data);
   void parse_append(std::span<uint8_t const> data);
@@ -64,7 +66,7 @@ class history {
 
  private:
   std::unique_ptr<thrift::history::history> history_;
-  history_config const cfg_;
+  history_config cfg_;
 };
 
 } // namespace dwarfs
