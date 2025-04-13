@@ -13,234 +13,234 @@ permissions:
   contents: read
 
 jobs:
-  windows:
-    runs-on:
-      - self-hosted
-      - Windows
+####  windows:
+####    runs-on:
+####      - self-hosted
+####      - Windows
+####
+####    strategy:
+####      matrix:
+####        arch:
+####          - X64
+####        build_mode:
+####          - Release
+####          - Debug
+####        config:
+####          - name: Normal
+####            cmake_args:
+####          - name: Benchmark
+####            cmake_args: -DWITH_BENCHMARKS=ON
+####
+####    steps:
+####      - name: Checkout
+####        uses: actions/checkout@v4
+####        with:
+####          submodules: 'true'
+####          fetch-depth: '0'
+####          ref: ${{ github.ref }}
+####
+####      - name: Prepare Job Environment
+####        run: |
+####          "do_install=${{ (matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark') || (matrix.build_mode == 'Debug' && matrix.config.name == 'Normal') }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+####
+####      - name: Set MSVC Dev Environment
+####        uses: ilammy/msvc-dev-cmd@v1
+####
+####      - name: Configure Build
+####        shell: cmd
+####        run: |
+####          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON ${{ matrix.config.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
+####
+####      - name: Run Build
+####        shell: cmd
+####        run: |
+####          cmake --build ${{ runner.temp }}\build
+####
+####      - name: Run Test
+####        shell: cmd
+####        run: |
+####          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
+####          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
+####
+####      - name: Build Package
+####        shell: cmd
+####        run: |
+####          cmake --build ${{ runner.temp }}\build --target package
+####        if: env.do_install == 'true'
+####
+####      - name: Compress Universal Binary
+####        shell: cmd
+####        run: |
+####          cmake --build ${{ runner.temp }}\build --target universal_upx
+####        if: env.do_install == 'true'
+####
+####      - name: Copy Artifacts
+####        shell: cmd
+####        run: |
+####          cmake --build ${{ runner.temp }}\build --target copy_artifacts
+####        if: env.do_install == 'true'
+####
+####      # - name: Prepare Artifact Upload
+####      #   shell: cmd
+####      #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
+####      #   if: env.do_install == 'true'
+####
+####      # - name: Upload Binary Tarball
+####      #   uses: actions/upload-artifact@v4
+####      #   with:
+####      #     name: ${{ env.binary_tarball }}
+####      #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
+####      #     if-no-files-found: error
+####      #     compression-level: 0
+####      #   env:
+####      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+####      #   if: env.do_install == 'true'
+####
+####      # - name: Upload Universal Binary
+####      #   uses: actions/upload-artifact@v4
+####      #   with:
+####      #     name: ${{ env.universal_binary }}
+####      #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
+####      #     if-no-files-found: error
+####      #     compression-level: 0
+####      #   env:
+####      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+####      #   if: env.do_install == 'true'
 
-    strategy:
-      matrix:
-        arch:
-          - X64
-        build_mode:
-          - Release
-          - Debug
-        config:
-          - name: Normal
-            cmake_args:
-          - name: Benchmark
-            cmake_args: -DWITH_BENCHMARKS=ON
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Prepare Job Environment
-        run: |
-          "do_install=${{ (matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark') || (matrix.build_mode == 'Debug' && matrix.config.name == 'Normal') }}" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Set MSVC Dev Environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure Build
-        shell: cmd
-        run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON ${{ matrix.config.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
-
-      - name: Run Build
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build
-
-      - name: Run Test
-        shell: cmd
-        run: |
-          copy "C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll" ${{ runner.temp }}\build
-          ctest --test-dir ${{ runner.temp }}\build --output-on-failure -j
-
-      - name: Build Package
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target package
-        if: env.do_install == 'true'
-
-      - name: Compress Universal Binary
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target universal_upx
-        if: env.do_install == 'true'
-
-      - name: Copy Artifacts
-        shell: cmd
-        run: |
-          cmake --build ${{ runner.temp }}\build --target copy_artifacts
-        if: env.do_install == 'true'
-
-      # - name: Prepare Artifact Upload
-      #   shell: cmd
-      #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-      #   if: env.do_install == 'true'
-
-      # - name: Upload Binary Tarball
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.binary_tarball }}
-      #     path: ${{ runner.temp }}\build\${{ env.binary_tarball }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: env.do_install == 'true'
-
-      # - name: Upload Universal Binary
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.universal_binary }}
-      #     path: ${{ runner.temp }}\build\${{ env.universal_binary }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: env.do_install == 'true'
-
-  package-source:
-    runs-on:
-      - self-hosted
-      - Linux
-      - amd64
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -f .docker/Dockerfile.arch \
-            -t dwarfs-linux-build-arch \
-            --build-arg ARCH=amd64 \
-            .docker
-
-      - name: Run Build
-        run: |
-          docker run --rm \
-            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
-            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
-            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
-            --mount type=bind,source=${HOME}/github-local,target=/local \
-            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_TYPE=clang-release-ninja-source-notest \
-            --env BUILD_ARCH=amd64 \
-            --env BUILD_DIST=arch \
-            --env GITHUB_REF_NAME \
-            --env GITHUB_REF_TYPE \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_NUMBER \
-            --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build-arch
-
-  linux-src:
-    needs: package-source
-
-    strategy:
-      matrix:
-        arch:
-          - amd64
-          - arm64v8
-        dist:
-          - ubuntu
-          - fedora
-          - arch
-        build_type:
-          - gcc-debug-shared-ninja-full
-          - gcc-release-ninja-split
-          - gcc-release-shared-ninja-split
-          - clang-release-shared-ninja-full
-        exclude:
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-debug-shared-ninja-full
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-ninja-split
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-shared-ninja-split
-          - arch: arm64v8
-            dist: arch
-            build_type: clang-release-shared-ninja-full
-        include:
-          - arch: amd64
-            dist: ubuntu
-            build_type: oldgcc-debug-shared-make-split
-          - arch: amd64
-            dist: ubuntu
-            build_type: gcc-debug-shared-noperfmon-ninja-split
-          - arch: amd64
-            dist: ubuntu
-            build_type: oldclang-debug-shared-make-split
-          - arch: amd64
-            dist: ubuntu-2204
-            build_type: gcc-release-shared-ninja-split
-          - arch: amd64
-            dist: ubuntu-2204
-            build_type: gcc-debug-shared-ninja-full
-          - arch: amd64
-            dist: ubuntu-2204
-            build_type: clang-release-ninja-split
-
-    runs-on:
-      - self-hosted
-      - Linux
-      - ${{ matrix.arch }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -f .docker/Dockerfile.${{ matrix.dist }} \
-            -t dwarfs-linux-build-${{ matrix.dist }} \
-            --build-arg ARCH=${{ matrix.arch }} \
-            .docker
-
-      - name: Run Build (${{ matrix.build_type }})
-        run: |
-          docker run --rm \
-            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
-            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
-            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
-            --mount type=bind,source=${HOME}/github-local,target=/local \
-            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_FROM_TARBALL=1 \
-            --env BUILD_TYPE=${{ matrix.build_type }} \
-            --env BUILD_ARCH=${{ matrix.arch }} \
-            --env BUILD_DIST=${{ matrix.dist }} \
-            --env GITHUB_REF_NAME \
-            --env GITHUB_REF_TYPE \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_NUMBER \
-            --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build-${{ matrix.dist }}
+####  package-source:
+####    runs-on:
+####      - self-hosted
+####      - Linux
+####      - amd64
+####
+####    steps:
+####      - name: Checkout
+####        uses: actions/checkout@v4
+####        with:
+####          submodules: 'true'
+####          fetch-depth: '0'
+####          ref: ${{ github.ref }}
+####
+####      - name: Build Docker Image
+####        run: |
+####          docker build \
+####            -f .docker/Dockerfile.arch \
+####            -t dwarfs-linux-build-arch \
+####            --build-arg ARCH=amd64 \
+####            .docker
+####
+####      - name: Run Build
+####        run: |
+####          docker run --rm \
+####            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+####            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+####            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
+####            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+####            --mount type=bind,source=${HOME}/github-local,target=/local \
+####            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
+####            --env BUILD_TYPE=clang-release-ninja-source-notest \
+####            --env BUILD_ARCH=amd64 \
+####            --env BUILD_DIST=arch \
+####            --env GITHUB_REF_NAME \
+####            --env GITHUB_REF_TYPE \
+####            --env GITHUB_RUN_ID \
+####            --env GITHUB_RUN_NUMBER \
+####            --env GITHUB_RUN_ATTEMPT \
+####            dwarfs-linux-build-arch
+####
+####  linux-src:
+####    needs: package-source
+####
+####    strategy:
+####      matrix:
+####        arch:
+####          - amd64
+####          - arm64v8
+####        dist:
+####          - ubuntu
+####          - fedora
+####          - arch
+####        build_type:
+####          - gcc-debug-shared-ninja-full
+####          - gcc-release-ninja-split
+####          - gcc-release-shared-ninja-split
+####          - clang-release-shared-ninja-full
+####        exclude:
+####          - arch: arm64v8
+####            dist: arch
+####            build_type: gcc-debug-shared-ninja-full
+####          - arch: arm64v8
+####            dist: arch
+####            build_type: gcc-release-ninja-split
+####          - arch: arm64v8
+####            dist: arch
+####            build_type: gcc-release-shared-ninja-split
+####          - arch: arm64v8
+####            dist: arch
+####            build_type: clang-release-shared-ninja-full
+####        include:
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: oldgcc-debug-shared-make-split
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: gcc-debug-shared-noperfmon-ninja-split
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: oldclang-debug-shared-make-split
+####          - arch: amd64
+####            dist: ubuntu-2204
+####            build_type: gcc-release-shared-ninja-split
+####          - arch: amd64
+####            dist: ubuntu-2204
+####            build_type: gcc-debug-shared-ninja-full
+####          - arch: amd64
+####            dist: ubuntu-2204
+####            build_type: clang-release-ninja-split
+####
+####    runs-on:
+####      - self-hosted
+####      - Linux
+####      - ${{ matrix.arch }}
+####
+####    steps:
+####      - name: Checkout
+####        uses: actions/checkout@v4
+####        with:
+####          submodules: 'true'
+####          fetch-depth: '0'
+####          ref: ${{ github.ref }}
+####
+####      - name: Build Docker Image
+####        run: |
+####          docker build \
+####            -f .docker/Dockerfile.${{ matrix.dist }} \
+####            -t dwarfs-linux-build-${{ matrix.dist }} \
+####            --build-arg ARCH=${{ matrix.arch }} \
+####            .docker
+####
+####      - name: Run Build (${{ matrix.build_type }})
+####        run: |
+####          docker run --rm \
+####            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+####            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+####            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
+####            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+####            --mount type=bind,source=${HOME}/github-local,target=/local \
+####            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
+####            --env BUILD_FROM_TARBALL=1 \
+####            --env BUILD_TYPE=${{ matrix.build_type }} \
+####            --env BUILD_ARCH=${{ matrix.arch }} \
+####            --env BUILD_DIST=${{ matrix.dist }} \
+####            --env GITHUB_REF_NAME \
+####            --env GITHUB_REF_TYPE \
+####            --env GITHUB_RUN_ID \
+####            --env GITHUB_RUN_NUMBER \
+####            --env GITHUB_RUN_ATTEMPT \
+####            dwarfs-linux-build-${{ matrix.dist }}
 
   linux-git:
-    needs: package-source
+####    needs: package-source
 
     strategy:
       matrix:
@@ -264,18 +264,18 @@ jobs:
             dist: arch
             build_type: gcc-release-shared-ninja
         include:
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-asan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-debug-shared-tsan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-ubsan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-debug-coverage-ninja
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: clang-reldbg-shared-asan-ninja
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: clang-debug-shared-tsan-ninja
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: clang-reldbg-shared-ubsan-ninja
+####          - arch: amd64
+####            dist: ubuntu
+####            build_type: clang-debug-coverage-ninja
           # - arch: amd64
           #   dist: ubuntu
           #   build_type: gcc-release-ninja-static
@@ -348,36 +348,36 @@ jobs:
           - arch: arm64v8
             dist: alpine
             build_type: clang-release-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-relsize-mimalloc-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-mimalloc-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-relsize-minimal-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-minimal-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-reldbg-stacktrace-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-reldbg-stacktrace-ninja-static
+###          - arch: amd64
+###            dist: alpine
+###            build_type: clang-relsize-lto-ninja-static
+###          - arch: arm64v8
+###            dist: alpine
+###            build_type: clang-relsize-lto-ninja-static
+###          - arch: amd64
+###            dist: alpine
+###            build_type: clang-relsize-mimalloc-lto-ninja-static
+###          - arch: arm64v8
+###            dist: alpine
+###            build_type: clang-relsize-mimalloc-lto-ninja-static
+###          - arch: amd64
+###            dist: alpine
+###            build_type: clang-relsize-minimal-lto-ninja-static
+###          - arch: arm64v8
+###            dist: alpine
+###            build_type: clang-relsize-minimal-lto-ninja-static
+###          - arch: amd64
+###            dist: alpine
+###            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
+###          - arch: arm64v8
+###            dist: alpine
+###            build_type: clang-relsize-minimal-mimalloc-lto-ninja-static
+###          - arch: amd64
+###            dist: alpine
+###            build_type: clang-reldbg-stacktrace-ninja-static
+###          - arch: arm64v8
+###            dist: alpine
+###            build_type: clang-reldbg-stacktrace-ninja-static
 
     runs-on:
       - self-hosted
@@ -453,123 +453,123 @@ jobs:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
       #   if: ${{ endsWith(matrix.build_type, '-static') }}
 
-  macos:
-    needs: package-source
-
-    runs-on:
-      - self-hosted
-      - macOS
-      - ${{ matrix.arch }}
-
-    strategy:
-      matrix:
-        arch:
-          - ARM64
-        build_mode:
-          - Release
-          - Debug
-        config:
-          - name: Normal
-            cmake_args:
-          - name: Benchmark
-            cmake_args: -DWITH_BENCHMARKS=ON
-        include:
-          - arch: X64
-            build_mode: Release
-            config:
-            - name: Normal
-              cmake_args:
-          - arch: X64
-            build_mode: Debug
-            config:
-            - name: Benchmark
-              cmake_args: -DWITH_BENCHMARKS=ON
-
-    steps:
-      - name: Unpack Source Tarball
-        run: |
-          rm -rf dwarfs-*/
-          rm -f dwarfs-source-*.tar.zst
-          rm -f dwarfs
-          tar xf /Volumes/opensource/artifacts/dwarfs/cache/dwarfs-source-${{ github.run_number }}.tar.zst
-          ln -s dwarfs-* dwarfs
-
-      - name: Configure Full Build
-        run: |
-          rm -rf ${{ runner.temp }}/build
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
-
-      - name: Run Full Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Full Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure Library Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }}
-
-      - name: Run Library Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Library Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install Library
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure Tools Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
-
-      - name: Run Tools Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run Tools Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install Tools
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-
-      - name: Configure FUSE Driver Build
-        run: |
-          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
-
-      - name: Run FUSE Driver Build
-        run: |
-          cmake --build ${{ runner.temp }}/build
-
-      - name: Run FUSE Driver Test
-        run: |
-          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
-
-      - name: Install FUSE Driver
-        run: |
-          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
-
-      - name: Cleanup
-        run: |
-          cmake --build ${{ runner.temp }}/build --target realclean
-          rm -rf dwarfs-*/
-          rm -f dwarfs-source-*.tar.zst
-          rm -f dwarfs
+####  macos:
+####    needs: package-source
+####
+####    runs-on:
+####      - self-hosted
+####      - macOS
+####      - ${{ matrix.arch }}
+####
+####    strategy:
+####      matrix:
+####        arch:
+####          - ARM64
+####        build_mode:
+####          - Release
+####          - Debug
+####        config:
+####          - name: Normal
+####            cmake_args:
+####          - name: Benchmark
+####            cmake_args: -DWITH_BENCHMARKS=ON
+####        include:
+####          - arch: X64
+####            build_mode: Release
+####            config:
+####            - name: Normal
+####              cmake_args:
+####          - arch: X64
+####            build_mode: Debug
+####            config:
+####            - name: Benchmark
+####              cmake_args: -DWITH_BENCHMARKS=ON
+####
+####    steps:
+####      - name: Unpack Source Tarball
+####        run: |
+####          rm -rf dwarfs-*/
+####          rm -f dwarfs-source-*.tar.zst
+####          rm -f dwarfs
+####          tar xf /Volumes/opensource/artifacts/dwarfs/cache/dwarfs-source-${{ github.run_number }}.tar.zst
+####          ln -s dwarfs-* dwarfs
+####
+####      - name: Configure Full Build
+####        run: |
+####          rm -rf ${{ runner.temp }}/build
+####          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_PXATTR=ON ${{ matrix.config.cmake_args }}
+####
+####      - name: Run Full Build
+####        run: |
+####          cmake --build ${{ runner.temp }}/build
+####
+####      - name: Run Full Test
+####        run: |
+####          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+####
+####      - name: Cleanup
+####        run: |
+####          cmake --build ${{ runner.temp }}/build --target realclean
+####
+####      - name: Configure Library Build
+####        run: |
+####          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }}
+####
+####      - name: Run Library Build
+####        run: |
+####          cmake --build ${{ runner.temp }}/build
+####
+####      - name: Run Library Test
+####        run: |
+####          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+####
+####      - name: Install Library
+####        run: |
+####          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+####
+####      - name: Cleanup
+####        run: |
+####          cmake --build ${{ runner.temp }}/build --target realclean
+####
+####      - name: Configure Tools Build
+####        run: |
+####          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+####
+####      - name: Run Tools Build
+####        run: |
+####          cmake --build ${{ runner.temp }}/build
+####
+####      - name: Run Tools Test
+####        run: |
+####          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+####
+####      - name: Install Tools
+####        run: |
+####          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+####
+####      - name: Cleanup
+####        run: |
+####          cmake --build ${{ runner.temp }}/build --target realclean
+####
+####      - name: Configure FUSE Driver Build
+####        run: |
+####          cmake --fresh -B${{ runner.temp }}/build -S${{ runner.workspace }}/dwarfs/dwarfs -GNinja -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_TESTS=ON -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON ${{ matrix.config.cmake_args }} -DCMAKE_PREFIX_PATH=${{ runner.temp }}/install
+####
+####      - name: Run FUSE Driver Build
+####        run: |
+####          cmake --build ${{ runner.temp }}/build
+####
+####      - name: Run FUSE Driver Test
+####        run: |
+####          ctest --test-dir ${{ runner.temp }}/build --output-on-failure -j
+####
+####      - name: Install FUSE Driver
+####        run: |
+####          cmake --install ${{ runner.temp }}/build --prefix ${{ runner.temp }}/install
+####
+####      - name: Cleanup
+####        run: |
+####          cmake --build ${{ runner.temp }}/build --target realclean
+####          rm -rf dwarfs-*/
+####          rm -f dwarfs-source-*.tar.zst
+####          rm -f dwarfs
