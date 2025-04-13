@@ -921,9 +921,9 @@ if(STATIC_BUILD_DO_NOT_USE)
                                                ${_TMP_LIB_LOC_${TARGET}})
   endfunction()
 
-  import_static_lib(static_libdl "libdl.a")
-  import_static_lib(static_libm "libm.a")
-  import_static_lib(static_librt "librt.a")
+  # import_static_lib(static_libdl "libdl.a")
+  # import_static_lib(static_libm "libm.a")
+  # import_static_lib(static_librt "librt.a")
 
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
     # ...................................................................
@@ -933,9 +933,9 @@ if(STATIC_BUILD_DO_NOT_USE)
     target_link_libraries(
       ${tgt}
       PRIVATE
-      static_libdl
-      static_libm
-      static_librt
+      # static_libdl
+      # static_libm
+      # static_librt
       gcc_eh
     )
   endforeach()
