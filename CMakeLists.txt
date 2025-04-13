@@ -61,6 +61,7 @@ if(NOT WIN32)
   option(DISABLE_CCACHE "disable ccache" OFF)
   option(DISABLE_MOLD "disable mold" OFF)
   option(STATIC_BUILD_DO_NOT_USE "try static build (experimental)" OFF)
+  option(MONOLITHIC_TEST_BINARY "build monolithic test binary (useful to reduce LTO build times)" OFF)
 endif()
 
 if(STATIC_BUILD_DO_NOT_USE AND NOT(WITH_LIBDWARFS AND WITH_TOOLS AND WITH_FUSE_DRIVER))
@@ -551,10 +552,15 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS ricepp_compressor_test)
   endif()
 
-  foreach (test ${DWARFS_TESTS})
-    add_executable(${test} test/${test}.cpp)
+  if(MONOLITHIC_TEST_BINARY)
+    add_executable(dwarfs_monolithic_test)
+
+    foreach (test ${DWARFS_TESTS})
+      target_sources(dwarfs_monolithic_test PRIVATE test/${test}.cpp)
+    endforeach()
+
     target_link_libraries(
-      ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
+      dwarfs_monolithic_test PRIVATE dwarfs_test_helpers gmock gtest gtest_main
     )
 
     if(NOT PREFER_SYSTEM_GTEST)
@@ -565,53 +571,97 @@ if(WITH_TESTS)
       ### include paths are searched first.
       get_target_property(gmock_include_dirs gmock INTERFACE_INCLUDE_DIRECTORIES)
       get_target_property(gtest_include_dirs gtest INTERFACE_INCLUDE_DIRECTORIES)
-      target_include_directories(${test} SYSTEM BEFORE PRIVATE ${gmock_include_dirs} ${gtest_include_dirs})
+      target_include_directories(dwarfs_monolithic_test SYSTEM BEFORE PRIVATE ${gmock_include_dirs} ${gtest_include_dirs})
     endif()
 
-    target_compile_definitions(${test}
+    target_compile_definitions(dwarfs_monolithic_test
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
-    list(APPEND TEST_TARGETS ${test})
-  endforeach()
+    list(APPEND TEST_TARGETS dwarfs_monolithic_test)
 
-  if(TARGET tool_main_test)
-    target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
-  endif()
-
-  if(TARGET manpage_test)
     if(WITH_TOOLS)
-      target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_TOOLS)
-      target_link_libraries(manpage_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+      target_compile_definitions(dwarfs_monolithic_test PRIVATE DWARFS_WITH_TOOLS)
+      target_link_libraries(dwarfs_monolithic_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
     endif()
+
     if(WITH_FUSE_DRIVER)
-      target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_FUSE_DRIVER)
-      target_link_libraries(manpage_test PRIVATE dwarfs_main)
+      target_compile_definitions(dwarfs_monolithic_test PRIVATE DWARFS_WITH_FUSE_DRIVER)
+      target_link_libraries(dwarfs_monolithic_test PRIVATE dwarfs_main)
     endif()
-  endif()
 
-  if(TARGET tools_test)
-    target_compile_definitions(tools_test PRIVATE
-      $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
-      $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>
-      $<$<BOOL:${WITH_FUSE_DRIVER}>:DWARFS_WITH_FUSE_DRIVER>
-      $<$<BOOL:${MKDWARFS_EXE}>:MKDWARFS_BINARY=\"${MKDWARFS_EXE}\">
-      $<$<BOOL:${DWARFSCK_EXE}>:DWARFSCK_BINARY=\"${DWARFSCK_EXE}\">
-      $<$<BOOL:${DWARFSEXTRACT_EXE}>:DWARFSEXTRACT_BINARY=\"${DWARFSEXTRACT_EXE}\">
-    )
-  endif()
-
-  if(TARGET block_cache_test)
-    target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
-  endif()
-
-  foreach(tgt fits_categorizer_test
-              incompressible_categorizer_test
-              pcmaudio_categorizer_test
-              tool_main_test)
-    if(TARGET ${tgt})
-      target_link_libraries(${tgt} PRIVATE dwarfs_writer)
+    if(WITH_TOOLS OR (MKDWARFS_EXE AND DWARFSCK_EXE AND DWARFSEXTRACT_EXE))
+      target_compile_definitions(dwarfs_monolithic_test PRIVATE
+        $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
+        $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>
+        $<$<BOOL:${WITH_FUSE_DRIVER}>:DWARFS_WITH_FUSE_DRIVER>
+        $<$<BOOL:${MKDWARFS_EXE}>:MKDWARFS_BINARY=\"${MKDWARFS_EXE}\">
+        $<$<BOOL:${DWARFSCK_EXE}>:DWARFSCK_BINARY=\"${DWARFSCK_EXE}\">
+        $<$<BOOL:${DWARFSEXTRACT_EXE}>:DWARFSEXTRACT_BINARY=\"${DWARFSEXTRACT_EXE}\">
+      )
     endif()
-  endforeach()
+  else()
+    foreach (test ${DWARFS_TESTS})
+      add_executable(${test} test/${test}.cpp)
+      target_link_libraries(
+        ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
+      )
+
+      if(NOT PREFER_SYSTEM_GTEST)
+        ### This is a wild hack. At least on macOS, gtest and basically everything
+        ### Homebrew is installed in /usr/local, and /usr/local/include can end up
+        ### in the compiler's include path *before* the include path of our local
+        ### gtest/gmock. The following code tries to ensure that the gtest/gmock
+        ### include paths are searched first.
+        get_target_property(gmock_include_dirs gmock INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property(gtest_include_dirs gtest INTERFACE_INCLUDE_DIRECTORIES)
+        target_include_directories(${test} SYSTEM BEFORE PRIVATE ${gmock_include_dirs} ${gtest_include_dirs})
+      endif()
+
+      target_compile_definitions(${test}
+        PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
+                TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+      list(APPEND TEST_TARGETS ${test})
+    endforeach()
+
+    if(TARGET tool_main_test)
+      target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
+    endif()
+
+    if(TARGET manpage_test)
+      if(WITH_TOOLS)
+        target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_TOOLS)
+        target_link_libraries(manpage_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main)
+      endif()
+      if(WITH_FUSE_DRIVER)
+        target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_FUSE_DRIVER)
+        target_link_libraries(manpage_test PRIVATE dwarfs_main)
+      endif()
+    endif()
+
+    if(TARGET tools_test)
+      target_compile_definitions(tools_test PRIVATE
+        $<$<AND:$<BOOL:${WITH_UNIVERSAL_BINARY}>,$<BOOL:${WITH_TOOLS}>>:DWARFS_HAVE_UNIVERSAL_BINARY>
+        $<$<BOOL:${WITH_TOOLS}>:DWARFS_WITH_TOOLS>
+        $<$<BOOL:${WITH_FUSE_DRIVER}>:DWARFS_WITH_FUSE_DRIVER>
+        $<$<BOOL:${MKDWARFS_EXE}>:MKDWARFS_BINARY=\"${MKDWARFS_EXE}\">
+        $<$<BOOL:${DWARFSCK_EXE}>:DWARFSCK_BINARY=\"${DWARFSCK_EXE}\">
+        $<$<BOOL:${DWARFSEXTRACT_EXE}>:DWARFSEXTRACT_BINARY=\"${DWARFSEXTRACT_EXE}\">
+      )
+    endif()
+
+    if(TARGET block_cache_test)
+      target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
+    endif()
+
+    foreach(tgt fits_categorizer_test
+                incompressible_categorizer_test
+                pcmaudio_categorizer_test
+                tool_main_test)
+      if(TARGET ${tgt})
+        target_link_libraries(${tgt} PRIVATE dwarfs_writer)
+      endif()
+    endforeach()
+  endif()
 
   foreach(tgt ${TEST_TARGETS})
     gtest_discover_tests(${tgt}
