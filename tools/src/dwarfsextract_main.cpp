@@ -57,18 +57,23 @@ namespace dwarfs::tool {
 
 namespace {
 
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 #ifdef _WIN32
 constexpr std::wstring_view kDash{L"-"};
 #else
 constexpr std::string_view kDash{"-"};
+#endif
 #endif
 
 } // namespace
 
 int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   sys_string fs_image, output, trace_file;
-  std::string format, cache_size_str, image_offset;
+  std::string cache_size_str, image_offset;
   logger_options logopts;
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  std::string format;
+#endif
 #if DWARFS_PERFMON_ENABLED
   std::string perfmon_str;
 #endif
@@ -85,15 +90,19 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("output,o",
         po_sys_value<sys_string>(&output),
         "output file or directory")
+#ifndef DWARFSEXTRACT_MINIMAL
     ("pattern",
         po::value<std::vector<std::string>>(),
         "only extract files matching these patterns")
+#endif
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     ("format,f",
         po::value<std::string>(&format),
         "output format")
+#endif
     ("continue-on-error",
         po::value<bool>(&continue_on_error)->zero_tokens(),
         "continue if errors are encountered")
@@ -123,7 +132,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   tool::add_common_options(opts, logopts);
 
   po::positional_options_description pos;
+#ifndef DWARFSEXTRACT_MINIMAL
   pos.add("pattern", -1);
+#endif
 
   po::variables_map vm;
 
@@ -161,10 +172,12 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::unique_ptr<glob_matcher> matcher;
 
+#ifndef DWARFSEXTRACT_MINIMAL
   if (vm.contains("pattern")) {
     matcher = std::make_unique<glob_matcher>(
         vm["pattern"].as<std::vector<std::string>>());
   }
+#endif
 
   int rv = 0;
 
@@ -194,8 +207,11 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     reader::filesystem_v2_lite fs(lgr, *iol.os, fs_image, fsopts, perfmon);
     utility::filesystem_extractor fsx(lgr, *iol.os);
 
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     if (format.empty()) {
+#endif
       fsx.open_disk(iol.os->canonical(output));
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     } else {
       std::ostream* stream{nullptr};
 
@@ -218,6 +234,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
         fsx.open_archive(iol.os->canonical(output), format);
       }
     }
+#endif
 
     utility::filesystem_extractor_options fsx_opts;
 

@@ -47,6 +47,7 @@
 #include <folly/portability/Unistd.h>
 #include <folly/system/ThreadName.h>
 
+#include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/glob_matcher.h>
@@ -121,8 +122,11 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     }
   }
 
-  void open_archive(std::filesystem::path const& output,
-                    std::string const& format) override {
+  void open_archive(std::filesystem::path const& output [[maybe_unused]],
+                    std::string const& format [[maybe_unused]]) override {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    DWARFS_THROW(runtime_error, "open_archive() not supported in this build");
+#else
     LOG_DEBUG << "opening archive file in " << format << " format";
 
     a_ = ::archive_write_new();
@@ -137,9 +141,14 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     check_result(::archive_write_open_filename(
         a_, output.empty() ? nullptr : output.string().c_str()));
 #endif
+#endif
   }
 
-  void open_stream(std::ostream& os, std::string const& format) override {
+  void open_stream(std::ostream& os [[maybe_unused]],
+                   std::string const& format [[maybe_unused]]) override {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    DWARFS_THROW(runtime_error, "open_stream() not supported in this build");
+#else
 #ifdef _WIN32
     if (::_pipe(pipefd_.data(), 8192, _O_BINARY) != 0) {
       DWARFS_THROW(system_error, "_pipe()");
@@ -160,6 +169,7 @@ class filesystem_extractor_ final : public filesystem_extractor::impl {
     check_result(::archive_write_set_format_by_name(a_, format.c_str()));
     check_result(::archive_write_set_bytes_in_last_block(a_, 1));
     check_result(::archive_write_open_fd(a_, pipefd_[1]));
+#endif
   }
 
   void open_disk(std::filesystem::path const& output) override {

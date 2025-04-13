@@ -44,6 +44,8 @@ option(WITH_FUSE_EXTRACT_BINARY "build with fuse-extract binary" OFF)
 option(WITH_PXATTR "build with pxattr binary" OFF)
 option(WITH_EXAMPLE "build with example binary" OFF)
 option(ENABLE_STACKTRACE "build with stack trace support" OFF)
+option(DWARFSEXTRACT_MINIMAL "disable patterns support in dwarfsextract" OFF)
+option(DISABLE_FILESYSTEM_EXTRACTOR_FORMAT "disable filesystem extractor format support" OFF)
 if(APPLE)
   option(USE_HOMEBREW_LIBARCHIVE "use libarchive from homebrew" ON)
 endif()
@@ -265,6 +267,7 @@ if(WITH_LIBDWARFS)
   set(DWARFS_BUILTIN_MANPAGE ${WITH_MAN_OPTION})
   set(DWARFS_PERFMON_ENABLED ${ENABLE_PERFMON})
   set(DWARFS_STACKTRACE_ENABLED ${ENABLE_STACKTRACE})
+  set(DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT ${DISABLE_FILESYSTEM_EXTRACTOR_FORMAT})
 
   configure_file(cmake/config.h.in include/dwarfs/config.h @ONLY)
 else()
@@ -297,6 +300,9 @@ if(WITH_TOOLS)
   target_link_libraries(mkdwarfs_main PRIVATE dwarfs_reader dwarfs_writer dwarfs_rewrite)
   target_link_libraries(dwarfsck_main PRIVATE dwarfs_reader)
   target_link_libraries(dwarfsextract_main PRIVATE dwarfs_extractor)
+  target_compile_definitions(dwarfsextract_main PRIVATE
+    $<$<BOOL:${DWARFSEXTRACT_MINIMAL}>:DWARFSEXTRACT_MINIMAL>
+  )
 
   if(WITH_UNIVERSAL_BINARY)
     add_executable(dwarfsuniversal tools/src/universal.cpp)
@@ -576,6 +582,9 @@ if(WITH_TESTS)
 
   if(TARGET tool_main_test)
     target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
+    target_compile_definitions(tool_main_test PRIVATE
+      $<$<BOOL:${DWARFSEXTRACT_MINIMAL}>:DWARFSEXTRACT_MINIMAL>
+    )
   endif()
 
   if(TARGET manpage_test)
@@ -587,6 +596,9 @@ if(WITH_TESTS)
       target_compile_definitions(manpage_test PRIVATE DWARFS_WITH_FUSE_DRIVER)
       target_link_libraries(manpage_test PRIVATE dwarfs_main)
     endif()
+    target_compile_definitions(manpage_test PRIVATE
+      $<$<BOOL:${DWARFSEXTRACT_MINIMAL}>:DWARFSEXTRACT_MINIMAL>
+    )
   endif()
 
   if(TARGET tools_test)

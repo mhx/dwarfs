@@ -35,6 +35,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/map.hpp>
 
+#include <dwarfs/config.h>
 #include <dwarfs/tool/main_adapter.h>
 #include <dwarfs/tool/pager.h>
 #include <dwarfs/tool/render_manpage.h>
@@ -188,6 +189,15 @@ TEST_P(manpage_coverage_test, options) {
       EXPECT_EQ(short_opt, it->second)
           << "short option mismatch for " << opt << " for " << tool_name;
     }
+  }
+
+  if (tool_name == "dwarfsextract") {
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+    man_opts.erase("format");
+#endif
+#ifdef DWARFSEXTRACT_MINIMAL
+    man_opts.erase("pattern");
+#endif
   }
 
   for (auto const& [opt, short_opt] : man_opts) {

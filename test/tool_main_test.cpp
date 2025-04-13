@@ -571,7 +571,8 @@ TEST_F(dwarfsextract_main_test, cmdline_help_arg) {
   EXPECT_THAT(out(), ::testing::HasSubstr("Usage: dwarfsextract"));
 }
 
-#if DWARFS_PERFMON_ENABLED
+#if DWARFS_PERFMON_ENABLED &&                                                  \
+    !defined(DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT)
 TEST(dwarfsextract_test, perfmon) {
   auto t = dwarfsextract_tester::create_with_image();
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree", "--perfmon",
@@ -2148,6 +2149,7 @@ constexpr std::array const progress_modes{
 INSTANTIATE_TEST_SUITE_P(dwarfs, mkdwarfs_progress_test,
                          ::testing::ValuesIn(progress_modes));
 
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 TEST(dwarfsextract_test, mtree) {
   auto t = dwarfsextract_tester::create_with_image();
   ASSERT_EQ(0, t.run({"-i", "image.dwarfs", "-f", "mtree"})) << t.err();
@@ -2157,6 +2159,7 @@ TEST(dwarfsextract_test, mtree) {
   EXPECT_THAT(out, ::testing::HasSubstr("type=file"));
 }
 
+#ifndef DWARFSEXTRACT_MINIMAL
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
@@ -2187,6 +2190,7 @@ TEST(dwarfsextract_test, patterns) {
   }
   EXPECT_EQ(expected, actual);
 }
+#endif
 
 TEST(dwarfsextract_test, stdout_progress_error) {
   auto t = dwarfsextract_tester::create_with_image();
@@ -2325,6 +2329,8 @@ TEST_P(dwarfsextract_format_test, basic) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, dwarfsextract_format_test,
                          ::testing::ValuesIn(libarchive_formats));
+
+#endif
 
 TEST(dwarfsck_test, check_exclusive) {
   auto t = dwarfsck_tester::create_with_image();

@@ -1813,14 +1813,20 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(tools_test, dwarfsextract_progress) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
+#ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
+  auto out = subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs,
+                                   "-o", td.string(), "--stdout-progress");
+  EXPECT_TRUE(fs::exists(td / "pcmaudio" / "test12.aiff"));
+#else
   auto tarfile = td / "output.tar";
 
   auto out =
       subprocess::check_run(dwarfsextract_bin, "-i", test_catdata_dwarfs, "-o",
                             tarfile, "-f", "gnutar", "--stdout-progress");
-  ASSERT_TRUE(out);
   EXPECT_TRUE(fs::exists(tarfile));
+#endif
 
+  ASSERT_TRUE(out);
   EXPECT_GT(out->size(), 100) << *out;
 #ifdef _WIN32
   EXPECT_THAT(*out, ::testing::EndsWith("100%\r\n"));
@@ -1830,6 +1836,7 @@ TEST(tools_test, dwarfsextract_progress) {
 #endif
 }
 
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
 TEST(tools_test, dwarfsextract_stdout) {
   dwarfs::temporary_directory tempdir("dwarfs");
   auto td = tempdir.path();
@@ -1862,6 +1869,7 @@ TEST(tools_test, dwarfsextract_file_out) {
   EXPECT_THAT(mtree, ::testing::StartsWith("#mtree\n"));
   EXPECT_THAT(mtree, ::testing::HasSubstr("type=file"));
 }
+#endif
 
 #ifdef _WIN32
 TEST(tools_test, mkdwarfs_invalid_utf8_filename) {

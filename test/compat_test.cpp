@@ -39,6 +39,7 @@
 #include <folly/String.h>
 
 #include <dwarfs/block_compressor.h>
+#include <dwarfs/config.h>
 #include <dwarfs/file_stat.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/mmap.h>
@@ -869,7 +870,7 @@ void walk_tree(reader::filesystem_v2 const& fs, T& cb,
   }
 }
 
-void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
+void check_compat(logger& lgr [[maybe_unused]], reader::filesystem_v2 const& fs,
                   std::string const& version, bool enable_nlink) {
   bool const has_devices = not(version == "0.2.0" or version == "0.2.3");
   bool const has_ac_time = version == "0.2.0" or version == "0.2.3";
@@ -1079,6 +1080,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
     }
   }
 
+#ifndef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
   test::os_access_mock os;
   utility::filesystem_extractor ext(lgr, os);
   std::ostringstream oss;
@@ -1111,6 +1113,7 @@ void check_compat(logger& lgr, reader::filesystem_v2 const& fs,
   }
 
   EXPECT_EQ(ref_entries.size(), mtree.size());
+#endif
 
   std::map<std::string, std::vector<std::string>> testdirs{
       {"empty", {"empty/alsoempty"}},
