@@ -164,6 +164,7 @@ case "-$BUILD_TYPE-" in
     # The -L option is needed so that boost_iostreams finds the right libzstd...
     export LDFLAGS="${LDFLAGS} -flto=auto -Wl,--icf=all -L/opt/static-libs/$COMPILER/lib"
     export COMPILER="${COMPILER}-lto"
+    CMAKE_ARGS="${CMAKE_ARGS} -DMONOLITHIC_TEST_BINARY=1"
     ;;
 esac
 
