@@ -1863,11 +1863,11 @@ std::map<std::string_view, writer::debug_filter_mode> const debug_filter_modes{
 
 } // namespace
 
-class filter_test : public testing::TestWithParam<
-                        std::tuple<test::filter_test_data, std::string_view>> {
-};
+class tool_filter_test
+    : public testing::TestWithParam<
+          std::tuple<test::filter_test_data, std::string_view>> {};
 
-TEST_P(filter_test, debug_filter) {
+TEST_P(tool_filter_test, debug_filter) {
   auto [data, mode] = GetParam();
   auto t = mkdwarfs_tester::create_empty();
   t.add_test_file_tree();
@@ -1880,7 +1880,7 @@ TEST_P(filter_test, debug_filter) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    mkdwarfs_test, filter_test,
+    mkdwarfs_test, tool_filter_test,
     ::testing::Combine(::testing::ValuesIn(dwarfs::test::get_filter_tests()),
                        ::testing::ValuesIn(debug_filter_mode_names)));
 
