@@ -24,6 +24,7 @@
 #pragma once
 
 #include <iosfwd>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -55,7 +56,7 @@ class filter_test_data {
   std::unordered_set<std::string> expected_files_;
 };
 
-std::vector<filter_test_data> const& get_filter_tests();
+std::span<filter_test_data const> get_filter_tests();
 
 std::ostream& operator<<(std::ostream& os, filter_test_data const& data);
 

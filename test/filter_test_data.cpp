@@ -111,7 +111,7 @@ R"(
 
 }
 
-std::vector<filter_test_data> const& get_filter_tests() { return filter_tests; }
+std::span<filter_test_data const> get_filter_tests() { return filter_tests; }
 
 std::ostream& operator<<(std::ostream& os, filter_test_data const& data) {
   os << data.test_name();
