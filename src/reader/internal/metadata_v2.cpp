@@ -39,8 +39,6 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include <boost/sort/flat_stable_sort/flat_stable_sort.hpp>
-
 #include <thrift/lib/cpp2/frozen/FrozenUtil.h>
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 #include <thrift/lib/cpp2/protocol/Serializer.h>
@@ -955,9 +953,8 @@ metadata_v2_data::build_dir_icase_cache(logger& lgr) const {
       if (!std::ranges::is_sorted(names)) {
         std::vector<uint32_t> entries(range.size());
         std::iota(entries.begin(), entries.end(), 0);
-        boost::sort::flat_stable_sort(
-            entries.begin(), entries.end(),
-            [&](auto a, auto b) { return names[a] < names[b]; });
+        std::ranges::stable_sort(
+            entries, [&](auto a, auto b) { return names[a] < names[b]; });
         auto& pv = cache[inode];
         pv.reset(std::bit_width(entries.size()), entries.size());
         for (size_t i = 0; i < entries.size(); ++i) {
