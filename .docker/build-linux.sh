@@ -339,40 +339,7 @@ else
   fi
 
   if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-    if [[ "-$BUILD_TYPE-" == *-release-* ]]; then
-      # in the clang-release-static case, we also try to build from the source tarball
-      if [[ "-$BUILD_TYPE-" == *-clang-* ]] && [[ "-$BUILD_TYPE-" != *-O2-* ]]; then
-        $BUILD_TOOL package_source
-
-        $BUILD_TOOL realclean
-
-        cd "$HOME"
-
-        VERSION=$(git -C /workspace describe --tags --match "v*" --dirty --abbrev=10)
-        VERSION=${VERSION:1}
-
-        rm -rf dwarfs-*
-        rm -f dwarfs
-
-        mv "build/dwarfs-${VERSION}.tar.zst" .
-        rm -rf build
-
-        tar xvf "dwarfs-${VERSION}.tar.zst"
-        mv "dwarfs-${VERSION}" dwarfs
-
-        mkdir build
-        cd build
-
-        # shellcheck disable=SC2086
-        cmake ../dwarfs/ $CMAKE_ARGS
-
-        time $BUILD_TOOL
-
-        $RUN_TESTS
-      fi
-    fi
-
-    # for release and resize builds, strip the binaries
+    # for release and relsize builds, strip the binaries
     if [[ "-$BUILD_TYPE-" =~ -(release|relsize)- ]]; then
       $BUILD_TOOL strip
     fi
