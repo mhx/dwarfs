@@ -858,58 +858,17 @@ foreach(tgt ${TEST_TARGETS})
 endforeach()
 
 if(STATIC_BUILD_DO_NOT_USE)
-  # ...................................................................
-  # Each library name given to the NAMES option is first considered as a library
-  # file name and then considered with platform-specific prefixes (e.g. lib) and
-  # suffixes (e.g. .so).
-  # ...................................................................
-
-  function(IMPORT_STATIC_LIB TARGET NAME)
-    find_library(_TMP_LIB_LOC_${TARGET} ${NAME} NO_CACHE REQUIRED)
-    add_library(${TARGET} STATIC IMPORTED)
-    set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION
-                                               ${_TMP_LIB_LOC_${TARGET}})
-  endfunction()
-
-  import_static_lib(static_libglog "libglog.a")
-  import_static_lib(static_libdoubleconv "libdouble-conversion.a")
-  import_static_lib(static_libcrypto "libcrypto.a")
-  import_static_lib(static_libz "libz.a")
-  import_static_lib(static_libpthread "libpthread.a")
-  import_static_lib(static_libdl "libdl.a")
-  import_static_lib(static_libm "libm.a")
-  import_static_lib(static_librt "librt.a")
-  import_static_lib(static_libunwind "libunwind.a")
-  import_static_lib(static_libarchive "libarchive.a")
-  import_static_lib(static_libflac "libFLAC++.a")
-
-  set_target_properties(static_libunwind PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                    "${LIBLZMA_LIBRARIES};static_libz")
-  if(LIBMAGIC_FOUND)
-    import_static_lib(static_libmagic "libmagic.a")
-    set_target_properties(static_libmagic PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                  static_libz)
-  endif()
-
+  # I don't fully understand *why* exactly it is necessary to link against
+  # `gcc_eh`, but when building with `clang` on `aarch64`, *not* linking
+  # against it causes a subtle bug in the `check_index_range` test. Setting
+  # a zero value (e.g. `ino.owner_index() = 0;`) will somehow end up with
+  # the value *not* being set to zero, but to some other value. Complicating
+  # the expression (e.g. `ino.owner_index() = ino.owner_index().value() - 0;`)
+  # interestingly fixes the immediate problem, but it is not clear to me what
+  # the impact of *not* explicitly linking against `gcc_eh` would be for the
+  # rest of the code. So, for now, we just link against it.
   foreach(tgt ${BINARY_TARGETS} ${TEST_TARGETS})
-    # ...................................................................
-    # -static-libgcc above and gcc_eh below is all together an ugly trick to
-    # enforce static linking
-    # ...................................................................
-    target_link_libraries(
-      ${tgt}
-      PRIVATE
-      static_libdoubleconv
-      static_libglog
-      static_libarchive
-      static_libcrypto
-      static_libpthread
-      static_libdl
-      static_libz
-      static_libm
-      static_librt
-      gcc_eh
-      static_libunwind)
+    target_link_libraries(${tgt} PRIVATE gcc_eh)
   endforeach()
 endif(STATIC_BUILD_DO_NOT_USE)
 
