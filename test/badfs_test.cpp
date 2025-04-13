@@ -40,14 +40,19 @@ namespace {
 
 auto const testdata{std::filesystem::path{TEST_DATA_DIR} / "badfs"};
 
-std::vector<std::string> files;
-
-void find_all_filesystems() {
+std::vector<std::string> find_all_filesystems() {
+  std::vector<std::string> files;
   for (auto const& e : std::filesystem::directory_iterator(testdata)) {
     if (e.is_regular_file()) {
       files.push_back(e.path().filename().string());
     }
   }
+  return files;
+}
+
+std::vector<std::string> const get_files() {
+  static std::vector<std::string> files = find_all_filesystems();
+  return files;
 }
 
 class bad_fs : public ::testing::TestWithParam<std::string> {};
@@ -74,10 +79,4 @@ TEST_P(bad_fs, test) {
   EXPECT_GT(nerror, 0);
 }
 
-INSTANTIATE_TEST_SUITE_P(dwarfs, bad_fs, ::testing::ValuesIn(files));
-
-int main(int argc, char** argv) {
-  find_all_filesystems();
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+INSTANTIATE_TEST_SUITE_P(dwarfs, bad_fs, ::testing::ValuesIn(get_files()));
