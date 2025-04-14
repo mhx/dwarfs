@@ -49,7 +49,6 @@
 #include <fmt/ranges.h>
 #endif
 
-#include <folly/container/F14Set.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/Unistd.h>
 #include <folly/small_vector.h>
@@ -529,7 +528,7 @@ class metadata_v2_data {
 
  private:
   template <typename K>
-  using set_type = folly::F14ValueSet<K>;
+  using set_type = phmap::flat_hash_set<K>;
 
   int find_inode_offset(inode_rank rank) const {
     return find_inode_rank_offset(meta_, rank);
