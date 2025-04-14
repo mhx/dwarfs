@@ -44,9 +44,10 @@
 #include <fmt/format.h>
 
 #include <folly/container/EvictingCacheMap.h>
-#include <folly/container/F14Map.h>
 #include <folly/stats/Histogram.h>
 #include <folly/system/ThreadName.h>
+
+#include <parallel_hashmap/phmap.h>
 
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
@@ -783,18 +784,19 @@ class block_cache_ final : public block_cache::impl {
 
   using lru_type =
       folly::EvictingCacheMap<size_t, std::shared_ptr<cached_block>>;
+  template <typename Key, typename Value>
+  using fast_map_type = phmap::flat_hash_map<Key, Value>;
 
   mutable std::mutex mx_;
   mutable lru_type cache_;
-  mutable folly::F14FastMap<size_t,
-                            std::vector<std::weak_ptr<block_request_set>>>
+  mutable fast_map_type<size_t, std::vector<std::weak_ptr<block_request_set>>>
       active_;
   std::thread tidy_thread_;
   std::condition_variable tidy_cond_;
   bool tidy_running_{false};
 
   mutable std::mutex mx_dec_;
-  mutable folly::F14FastMap<size_t, std::weak_ptr<block_request_set>>
+  mutable fast_map_type<size_t, std::weak_ptr<block_request_set>>
       decompressing_;
 
   mutable std::atomic<size_t> blocks_created_{0};
