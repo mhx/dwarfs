@@ -28,9 +28,10 @@
 #include <vector>
 
 #include <folly/String.h>
-#include <folly/container/F14Map.h>
 
 #include <nlohmann/json.hpp>
+
+#include <parallel_hashmap/phmap.h>
 
 #include <range/v3/view/drop.hpp>
 
@@ -74,6 +75,9 @@ class file_scanner_ final : public file_scanner::impl {
   void dump(std::ostream& os) const override;
 
  private:
+  template <typename Key, typename Value>
+  using fast_map_type = phmap::flat_hash_map<Key, Value>;
+
   void scan_dedupe(file* p);
   void hash_file(file* p);
   void add_inode(file* p, int lineno);
@@ -82,7 +86,7 @@ class file_scanner_ final : public file_scanner::impl {
   void finalize_hardlinks(Lookup const& lookup);
 
   template <bool UniqueOnly = false, typename KeyType>
-  void finalize_files(folly::F14FastMap<KeyType, inode::files_vector>& fmap,
+  void finalize_files(fast_map_type<KeyType, inode::files_vector>& fmap,
                       uint32_t& inode_num, uint32_t& obj_num);
 
   template <bool Unique, typename KeyType>
@@ -128,20 +132,20 @@ class file_scanner_ final : public file_scanner::impl {
   progress& prog_;
   file_scanner::options const opts_;
   uint32_t num_unique_{0};
-  folly::F14FastMap<uint64_t, inode::files_vector> hardlinks_;
+  fast_map_type<uint64_t, inode::files_vector> hardlinks_;
   std::mutex mutable mx_;
   // The pair stores the file size and optionally a hash of the first
   // 4 KiB of the file. If there's a collision, the worst that can
   // happen is that we unnecessary hash a file that is not a duplicate.
-  folly::F14FastMap<std::pair<uint64_t, uint64_t>, inode::files_vector>
+  fast_map_type<std::pair<uint64_t, uint64_t>, inode::files_vector>
       unique_size_;
   // We need this lookup table to later find the unique_size_ entry
   // given just a file pointer.
-  folly::F14FastMap<file const*, uint64_t> file_start_hash_;
-  folly::F14FastMap<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
+  fast_map_type<file const*, uint64_t> file_start_hash_;
+  fast_map_type<std::pair<uint64_t, uint64_t>, std::shared_ptr<std::latch>>
       first_file_hashed_;
-  folly::F14FastMap<uint64_t, inode::files_vector> by_raw_inode_;
-  folly::F14FastMap<std::string_view, inode::files_vector> by_hash_;
+  fast_map_type<uint64_t, inode::files_vector> by_raw_inode_;
+  fast_map_type<std::string_view, inode::files_vector> by_hash_;
 
   struct inode_create_info {
     inode const* i;
@@ -468,22 +472,22 @@ void file_scanner_<LoggerPolicy>::finalize_hardlinks(Lookup const& lookup) {
 template <typename LoggerPolicy>
 template <bool UniqueOnly, typename KeyType>
 void file_scanner_<LoggerPolicy>::finalize_files(
-    folly::F14FastMap<KeyType, inode::files_vector>& fmap, uint32_t& inode_num,
+    fast_map_type<KeyType, inode::files_vector>& fmap, uint32_t& inode_num,
     uint32_t& obj_num) {
   std::vector<std::pair<KeyType, inode::files_vector>> ent;
 
   auto tv = LOG_TIMED_VERBOSE;
 
   ent.reserve(fmap.size());
-  fmap.eraseInto(
-      fmap.begin(), fmap.end(), [&ent](KeyType&& k, inode::files_vector&& fv) {
-        if (!fv.empty()) {
-          if constexpr (UniqueOnly) {
-            DWARFS_CHECK(fv.size() == fv.front()->refcount(), "internal error");
-          }
-          ent.emplace_back(std::move(k), std::move(fv));
-        }
-      });
+  for (auto& [k, fv] : fmap) {
+    if (!fv.empty()) {
+      if constexpr (UniqueOnly) {
+        DWARFS_CHECK(fv.size() == fv.front()->refcount(), "internal error");
+      }
+      ent.emplace_back(std::move(k), std::move(fv));
+    }
+  }
+  fmap.clear();
 
   std::sort(ent.begin(), ent.end(),
             [](auto& left, auto& right) { return left.first < right.first; });
