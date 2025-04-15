@@ -10,6 +10,8 @@ GCC="${1:-gcc}"
 CLANG="${2:-clang}"
 PKGS="${3:-:none}"
 
+ARCH="$(uname -m)"
+
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 BZIP2_VERSION=1.0.8
@@ -243,7 +245,17 @@ for COMPILER in $COMPILERS; do
         curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/musl-exception-specification-errors.patch | patch -p1
         curl https://gitlab.alpinelinux.org/alpine/aports/-/raw/abc0b4170e42e2a7d835e4490ecbae49e6f3d137/main/jemalloc/pkgconf.patch | patch -p1
         ./autogen.sh
-        ./configure --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --with-lg-hugepage=21 --disable-stats --disable-prof --enable-static --disable-shared --disable-log --disable-debug
+        case "$ARCH" in
+            x86_64)
+                _pgs=12
+                ;;
+            aarch64)
+                _pgs=16
+                ;;
+        esac
+        ./configure --prefix="$INSTALL_DIR" --localstatedir=/var --sysconfdir=/etc --without-export \
+                    --with-lg-page="$_pgs" --with-lg-hugepage=21 --enable-static --disable-shared \
+                    --disable-stats --disable-doc --disable-prof --disable-log --disable-debug --disable-fill
         make -j$(nproc)
         make install
     fi
