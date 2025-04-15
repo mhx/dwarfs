@@ -354,12 +354,12 @@ jobs:
           - arch: arm64v8
             dist: alpine
             build_type: clang-relsize-lto-ninja-static
-          - arch: amd64
-            dist: alpine
-            build_type: clang-relsize-mimalloc-lto-ninja-static
-          - arch: arm64v8
-            dist: alpine
-            build_type: clang-relsize-mimalloc-lto-ninja-static
+          # - arch: amd64
+          #   dist: alpine
+          #   build_type: clang-relsize-mimalloc-lto-ninja-static
+          # - arch: arm64v8
+          #   dist: alpine
+          #   build_type: clang-relsize-mimalloc-lto-ninja-static
           - arch: amd64
             dist: alpine
             build_type: clang-relsize-minimal-lto-ninja-static
