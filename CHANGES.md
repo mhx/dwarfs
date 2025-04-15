@@ -1,5 +1,14 @@
 # Change Log
 
+## Version 0.12.2 - 2025-04-15
+
+- (build) A few small refactoring changes to further reduce the size of
+  the `fuse-extract` binary. In particular, the performance monitor and
+  the history feature are now fully removed. Also, the functionality to
+  extract in different archive formats as well as to extract only files
+  matching a pattern have been removed, so the image can only be fully
+  extracted to disk.
+
 ## Version 0.12.1 - 2025-04-10
 
 - (fix) Attempt to fix linking issue in Homebrew build.
