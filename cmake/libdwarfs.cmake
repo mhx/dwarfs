@@ -91,7 +91,6 @@ add_library(
 add_library(
   dwarfs_reader
 
-  src/reader/block_cache_byte_buffer_factory.cpp
   src/reader/block_cache_options.cpp
   src/reader/block_range.cpp
   src/reader/filesystem_options.cpp
@@ -101,6 +100,7 @@ add_library(
   src/reader/mlock_mode.cpp
 
   src/reader/internal/block_cache.cpp
+  src/reader/internal/block_cache_byte_buffer_factory.cpp
   src/reader/internal/cached_block.cpp
   src/reader/internal/filesystem_parser.cpp
   src/reader/internal/inode_reader_v2.cpp

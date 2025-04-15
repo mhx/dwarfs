@@ -32,7 +32,7 @@
 
 #include <dwarfs/reader/block_cache_options.h>
 
-namespace dwarfs::reader {
+namespace dwarfs::reader::internal {
 
 class block_cache_byte_buffer_factory {
  public:
@@ -40,4 +40,4 @@ class block_cache_byte_buffer_factory {
   static byte_buffer_factory create(block_cache_allocation_mode mode);
 };
 
-} // namespace dwarfs::reader
+} // namespace dwarfs::reader::internal

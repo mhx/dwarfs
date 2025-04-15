@@ -52,7 +52,6 @@
 #include <dwarfs/logger.h>
 #include <dwarfs/mmif.h>
 #include <dwarfs/performance_monitor.h>
-#include <dwarfs/reader/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/block_cache_options.h>
 #include <dwarfs/reader/cache_tidy_config.h>
 #include <dwarfs/scope_exit.h>
@@ -61,6 +60,7 @@
 #include <dwarfs/internal/fs_section.h>
 #include <dwarfs/internal/worker_group.h>
 #include <dwarfs/reader/internal/block_cache.h>
+#include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/internal/cached_block.h>
 
 namespace dwarfs::reader::internal {

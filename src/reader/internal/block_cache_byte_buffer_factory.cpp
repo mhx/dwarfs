@@ -38,9 +38,10 @@
 #endif
 
 #include <dwarfs/malloc_byte_buffer.h>
-#include <dwarfs/reader/block_cache_byte_buffer_factory.h>
 
-namespace dwarfs::reader {
+#include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
+
+namespace dwarfs::reader::internal {
 
 namespace {
 
@@ -160,7 +161,7 @@ class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
     size_ += size;
   }
 
-  internal::malloc_buffer& raw_buffer() override {
+  dwarfs::internal::malloc_buffer& raw_buffer() override {
     throw std::runtime_error(
         "operation not allowed on mmap buffer: raw_buffer");
   }
@@ -206,4 +207,4 @@ block_cache_byte_buffer_factory::create(block_cache_allocation_mode mode) {
       std::make_shared<block_cache_byte_buffer_factory_impl>(mode)};
 }
 
-} // namespace dwarfs::reader
+} // namespace dwarfs::reader::internal
