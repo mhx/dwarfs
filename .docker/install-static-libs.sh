@@ -10,6 +10,8 @@ GCC="${1:-gcc}"
 CLANG="${2:-clang}"
 PKGS="${3:-:none}"
 
+ARCH="$(uname -m)"
+
 FILE_VERSION=5.46
 FILE_SHA512=a6cb7325c49fd4af159b7555bdd38149e48a5097207acbe5e36deb5b7493ad6ea94d703da6e0edece5bb32959581741f4213707e5cb0528cd46d75a97a5242dc
 BZIP2_VERSION=1.0.8
@@ -427,7 +429,13 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib flac; then
-        opt_size
+        if [[ "$ARCH" == "x86_64" ]]; then
+            # For some reason, size-optimized build of FLAC is *much* slower than
+            # the perf build on x86_64.
+            opt_perf
+        else
+            opt_size
+        fi
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FLAC_TARBALL}
         cd flac-${FLAC_VERSION}
