@@ -30,14 +30,12 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
-#include <condition_variable>
 #include <exception>
 #include <future>
 #include <iterator>
 #include <mutex>
 #include <new>
 #include <shared_mutex>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -62,6 +60,7 @@
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/internal/cached_block.h>
+#include <dwarfs/reader/internal/periodic_executor.h>
 
 namespace dwarfs::reader::internal {
 
@@ -231,6 +230,7 @@ class block_cache_ final : public block_cache::impl {
                std::shared_ptr<performance_monitor const> const& perfmon
                [[maybe_unused]])
       : cache_(0)
+      , tidy_runner_{mx_, {}, "tidy-blkcache", [this] { tidy_cache(); }}
       , mm_(std::move(mm))
       , buffer_factory_{block_cache_byte_buffer_factory::create(
             options.allocation_mode)}
@@ -256,9 +256,7 @@ class block_cache_ final : public block_cache::impl {
   ~block_cache_() noexcept override {
     LOG_DEBUG << "stopping cache workers";
 
-    if (tidy_running_) {
-      stop_tidy_thread();
-    }
+    tidy_runner_.stop();
 
     if (wg_) {
       wg_.stop();
@@ -362,23 +360,21 @@ class block_cache_ final : public block_cache::impl {
 
   void set_tidy_config(cache_tidy_config const& cfg) override {
     if (cfg.strategy == cache_tidy_strategy::NONE) {
-      if (tidy_running_) {
-        stop_tidy_thread();
-      }
+      tidy_runner_.stop();
     } else {
       if (cfg.interval == std::chrono::milliseconds::zero()) {
         DWARFS_THROW(runtime_error, "tidy interval is zero");
       }
 
-      std::lock_guard lock(mx_);
+      {
+        std::lock_guard lock(mx_);
+        tidy_config_ = cfg;
+      }
 
-      tidy_config_ = cfg;
+      tidy_runner_.set_period(cfg.interval);
 
-      if (tidy_running_) {
-        tidy_cond_.notify_all();
-      } else {
-        tidy_running_ = true;
-        tidy_thread_ = std::thread(&block_cache_::tidy_thread, this);
+      if (!tidy_runner_.running()) {
+        tidy_runner_.start();
       }
     }
   }
@@ -600,15 +596,6 @@ class block_cache_ final : public block_cache::impl {
     }
   }
 
-  void stop_tidy_thread() {
-    {
-      std::lock_guard lock(mx_);
-      tidy_running_ = false;
-    }
-    tidy_cond_.notify_all();
-    tidy_thread_.join();
-  }
-
   void update_block_stats(cached_block const& cb) {
     if (cb.range_end() < cb.uncompressed_size()) {
       partially_decompressed_.fetch_add(1, std::memory_order_relaxed);
@@ -749,36 +736,26 @@ class block_cache_ final : public block_cache::impl {
     }
   }
 
-  void tidy_thread() {
-    folly::setThreadName("cache-tidy");
+  void tidy_cache() {
+    switch (tidy_config_.strategy) {
+    case cache_tidy_strategy::EXPIRY_TIME:
+      LOG_DEBUG << "tidying cache by expiry time";
+      remove_block_if([tp = std::chrono::steady_clock::now() -
+                            tidy_config_.expiry_time](cached_block const& blk) {
+        return blk.last_used_before(tp);
+      });
+      break;
 
-    std::unique_lock lock(mx_);
+    case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
+      LOG_DEBUG << "tidying cache by swapped out blocks";
+      std::vector<uint8_t> tmp;
+      remove_block_if([&tmp](cached_block const& blk) {
+        return blk.any_pages_swapped_out(tmp);
+      });
+    } break;
 
-    while (tidy_running_) {
-      if (tidy_cond_.wait_for(lock, tidy_config_.interval) ==
-          std::cv_status::timeout) {
-        switch (tidy_config_.strategy) {
-        case cache_tidy_strategy::EXPIRY_TIME:
-          LOG_DEBUG << "tidying cache by expiry time";
-          remove_block_if(
-              [tp = std::chrono::steady_clock::now() -
-                    tidy_config_.expiry_time](cached_block const& blk) {
-                return blk.last_used_before(tp);
-              });
-          break;
-
-        case cache_tidy_strategy::BLOCK_SWAPPED_OUT: {
-          LOG_DEBUG << "tidying cache by swapped out blocks";
-          std::vector<uint8_t> tmp;
-          remove_block_if([&tmp](cached_block const& blk) {
-            return blk.any_pages_swapped_out(tmp);
-          });
-        } break;
-
-        default:
-          break;
-        }
-      }
+    default:
+      break;
     }
   }
 
@@ -791,9 +768,7 @@ class block_cache_ final : public block_cache::impl {
   mutable lru_type cache_;
   mutable fast_map_type<size_t, std::vector<std::weak_ptr<block_request_set>>>
       active_;
-  std::thread tidy_thread_;
-  std::condition_variable tidy_cond_;
-  bool tidy_running_{false};
+  periodic_executor tidy_runner_;
 
   mutable std::mutex mx_dec_;
   mutable fast_map_type<size_t, std::weak_ptr<block_request_set>>
