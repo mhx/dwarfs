@@ -141,9 +141,10 @@ release_binary "dwarfs-universal-$VERSION-Windows-AMD64.exe"
 
 for ARCH in aarch64 x86_64; do
   VA="$VERSION-Linux-$ARCH"
-  release_tarball "dwarfs-$VA-clang-minsize-musl-mimalloc-lto" "dwarfs-$VA"
-  release_binary "dwarfs-universal-$VA-clang-minsize-musl-mimalloc-lto" "dwarfs-universal-$VA"
-  release_binary "dwarfs-fuse-extract-$VA-clang-minsize-musl-minimal-mimalloc-lto" "dwarfs-fuse-extract-$VA"
+  release_tarball "dwarfs-$VA-clang-minsize-musl-lto" "dwarfs-$VA"
+  release_binary "dwarfs-universal-$VA-clang-minsize-musl-lto" "dwarfs-universal-$VA"
+  release_binary "dwarfs-fuse-extract-$VA-clang-minsize-musl-minimal-lto" "dwarfs-fuse-extract-$VA"
+  release_binary "dwarfs-fuse-extract-$VA-clang-minsize-musl-minimal-mimalloc-lto" "dwarfs-fuse-extract-mimalloc-$VA"
 done
 
 jobs -l
