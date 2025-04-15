@@ -44,60 +44,73 @@ namespace dwarfs::reader {
 
 namespace {
 
-#ifdef _WIN32
 class mmap_block {
  public:
   mmap_block(size_t size)
-      : data_{::VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT,
-                             PAGE_READWRITE)}
-      , size_{size} {
-    if (!data_) {
+      : data_{allocate(size)}
+      , size_{size} {}
+
+  mmap_block(mmap_block&& other) noexcept
+      : data_{other.data_}
+      , size_{other.size_} {
+    other.data_ = nullptr;
+    other.size_ = 0;
+  }
+
+  mmap_block& operator=(mmap_block&& other) noexcept {
+    if (this != &other) {
+      mmap_block tmp{std::move(*this)};
+      data_ = other.data_;
+      size_ = other.size_;
+      other.data_ = nullptr;
+      other.size_ = 0;
+    }
+    return *this;
+  }
+
+  size_t size() const { return size_; }
+
+  uint8_t* data() { return static_cast<uint8_t*>(data_); }
+  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
+
+  ~mmap_block() {
+    if (data_) {
+      deallocate(data_, size_);
+    }
+  }
+
+ private:
+  static void* allocate(size_t size) {
+#ifdef _WIN32
+    void* data =
+        ::VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!data) {
       std::error_code ec(::GetLastError(), std::system_category());
       throw std::runtime_error("VirtualAlloc failed: " + ec.message());
     }
-  }
-
-  size_t size() const { return size_; }
-
-  uint8_t* data() { return static_cast<uint8_t*>(data_); }
-  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
-
-  ~mmap_block() {
-    auto rv [[maybe_unused]] = ::VirtualFree(data_, 0, MEM_RELEASE);
-    assert(rv);
-  }
-
- private:
-  void* data_;
-  size_t size_;
-};
 #else
-class mmap_block {
- public:
-  mmap_block(size_t size)
-      : data_{::mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)}
-      , size_{size} {
-    if (data_ == MAP_FAILED) {
+    void* data = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (data == MAP_FAILED) {
       throw std::runtime_error("mmap failed");
     }
+#endif
+    return data;
   }
 
-  size_t size() const { return size_; }
-
-  uint8_t* data() { return static_cast<uint8_t*>(data_); }
-  uint8_t const* data() const { return static_cast<uint8_t const*>(data_); }
-
-  ~mmap_block() {
-    auto rv [[maybe_unused]] = ::munmap(data_, size_);
+  static void deallocate(void* data, size_t size) {
+#ifdef _WIN32
+    auto rv [[maybe_unused]] = ::VirtualFree(data, 0, MEM_RELEASE);
+    assert(rv);
+#else
+    auto rv [[maybe_unused]] = ::munmap(data, size);
     assert(rv == 0);
+#endif
   }
 
- private:
   void* data_;
   size_t size_;
 };
-#endif
 
 class mmap_byte_buffer_impl : public mutable_byte_buffer_interface {
  public:
