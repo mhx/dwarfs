@@ -1,6 +1,10 @@
 # Change Log
 
-## Version 0.12.2 - 2025-04-15
+## Version 0.12.2 - 2025-04-16
+
+- (fix) A performance regression introduced in v0.12.0 was fixed. This
+  caused pcmaudio compression in `mkdwarfs` to take more than twice as
+  long as in the previous releases.
 
 - (build) A few small refactoring changes to further reduce the size of
   the `fuse-extract` binary. In particular, the performance monitor and
