@@ -7,6 +7,8 @@
 /man/*.1.html
 *.log
 /.gdb_history
+/.benchmark/data/
+/.benchmark/*.db
 
 *~
 .*.swp
