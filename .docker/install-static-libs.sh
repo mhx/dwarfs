@@ -429,13 +429,7 @@ for COMPILER in $COMPILERS; do
     fi
 
     if use_lib flac; then
-        if [[ "$ARCH" == "x86_64" ]]; then
-            # For some reason, size-optimized build of FLAC is *much* slower than
-            # the perf build on x86_64.
-            opt_perf
-        else
-            opt_size
-        fi
+        opt_perf
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${FLAC_TARBALL}
         cd flac-${FLAC_VERSION}
