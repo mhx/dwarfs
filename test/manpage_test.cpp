@@ -195,9 +195,7 @@ TEST_P(manpage_coverage_test, options) {
 #ifdef DWARFS_FILESYSTEM_EXTRACTOR_NO_OPEN_FORMAT
     man_opts.erase("format");
 #endif
-#ifdef DWARFSEXTRACT_MINIMAL
     man_opts.erase("pattern");
-#endif
   }
 
   for (auto const& [opt, short_opt] : man_opts) {

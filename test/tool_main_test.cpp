@@ -2159,7 +2159,6 @@ TEST(dwarfsextract_test, mtree) {
   EXPECT_THAT(out, ::testing::HasSubstr("type=file"));
 }
 
-#ifndef DWARFSEXTRACT_MINIMAL
 TEST(dwarfsextract_test, patterns) {
   auto mkdt = mkdwarfs_tester::create_empty();
   mkdt.add_test_file_tree();
@@ -2190,7 +2189,6 @@ TEST(dwarfsextract_test, patterns) {
   }
   EXPECT_EQ(expected, actual);
 }
-#endif
 
 TEST(dwarfsextract_test, stdout_progress_error) {
   auto t = dwarfsextract_tester::create_with_image();
