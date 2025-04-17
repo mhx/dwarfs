@@ -90,11 +90,9 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
     ("output,o",
         po_sys_value<sys_string>(&output),
         "output file or directory")
-#ifndef DWARFSEXTRACT_MINIMAL
     ("pattern",
         po::value<std::vector<std::string>>(),
         "only extract files matching these patterns")
-#endif
     ("image-offset,O",
         po::value<std::string>(&image_offset)->default_value("auto"),
         "filesystem image offset in bytes")
@@ -132,9 +130,7 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
   tool::add_common_options(opts, logopts);
 
   po::positional_options_description pos;
-#ifndef DWARFSEXTRACT_MINIMAL
   pos.add("pattern", -1);
-#endif
 
   po::variables_map vm;
 
@@ -172,12 +168,10 @@ int dwarfsextract_main(int argc, sys_char** argv, iolayer const& iol) {
 
   std::unique_ptr<glob_matcher> matcher;
 
-#ifndef DWARFSEXTRACT_MINIMAL
   if (vm.contains("pattern")) {
     matcher = std::make_unique<glob_matcher>(
         vm["pattern"].as<std::vector<std::string>>());
   }
-#endif
 
   int rv = 0;
 
