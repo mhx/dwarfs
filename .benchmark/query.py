@@ -34,13 +34,21 @@ def import_data(db_path, *args):
             ]
         )
 
+    dbtimes = {doc['time'] for doc in table.all()}
+    skipped = 0
+
     for path in tqdm(files, desc="Importing JSON files", unit="file"):
         with open(path, "r") as f:
             data = json.load(f)
+            if data["time"] in dbtimes:
+                skipped += 1
+                continue
             if "exit_codes" in data:
                 del data["times"]
                 del data["exit_codes"]
             table.insert(data)
+
+    print(f"Skipped {skipped} files that were already in the database.")
 
 
 def query_and_bar_chart(db_path, arch, version, binary_type):
