@@ -162,7 +162,7 @@ case "-$BUILD_TYPE-" in
     export CFLAGS="${CFLAGS} -flto=auto"
     export CXXFLAGS="${CXXFLAGS} -flto=auto"
     # The -L option is needed so that boost_iostreams finds the right libzstd...
-    export LDFLAGS="${LDFLAGS} -flto=auto -Wl,--icf=all -L/opt/static-libs/$COMPILER/lib"
+    export LDFLAGS="${LDFLAGS} -flto=auto -Wl,--icf=all"
     export COMPILER="${COMPILER}-lto"
     ;;
 esac
