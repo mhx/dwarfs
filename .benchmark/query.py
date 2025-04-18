@@ -3,6 +3,8 @@
 import argparse
 import os
 import json
+import re
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -34,7 +36,7 @@ def import_data(db_path, *args):
             ]
         )
 
-    dbtimes = {doc['time'] for doc in table.all()}
+    dbtimes = {doc["time"] for doc in table.all()}
     skipped = 0
 
     for path in tqdm(files, desc="Importing JSON files", unit="file"):
@@ -51,13 +53,7 @@ def import_data(db_path, *args):
     print(f"Skipped {skipped} files that were already in the database.")
 
 
-def query_and_bar_chart(db_path, arch, version, binary_type):
-    """
-    Example query that:
-      - filters records by arch and version
-      - groups them by (name, config)
-      - plots a grouped bar chart of 'mean' times (with error bars using 'stddev').
-    """
+def walltime_chart(db_path, arch, binary_type, exclude):
     db = TinyDB(db_path)
     table = db.table(TABLE_NAME)
     Q = Query()
@@ -68,17 +64,16 @@ def query_and_bar_chart(db_path, arch, version, binary_type):
         "clang-minsize-musl-lto",
     }
 
-    # Fetch rows that match the arch, version, binary_type etc.
+    exclude_re = re.compile(exclude) if exclude else None
+
+    # Fetch rows that match the arch, binary_type etc.
     rows = table.search(
         (Q.arch == arch)
-        &
-        # (Q.version == version) &
-        (Q.config.test(lambda x: x in release_configs))
         & (Q.type == binary_type)
-        &
-        # (Q.name.test(lambda x: not x.endswith("_mmap"))) &
-        (Q.mean.exists())
+        & (Q.mean.exists())
         & (Q.stddev.exists())
+        & (Q.config.test(lambda x: x in release_configs))
+        & (Q.name.test(lambda x: exclude_re is None or not exclude_re.search(x)))
     )
 
     # Sort and create a DataFrame with the relevant columns.
@@ -91,7 +86,7 @@ def query_and_bar_chart(db_path, arch, version, binary_type):
         if row.commit:
             version += f"+{row.commit}"
         df.at[row.Index, "version_object"] = Version(version)
-    #df["version_object"] = df["version"].apply(Version)
+    # df["version_object"] = df["version"].apply(Version)
 
     # Pivot the DataFrame so that "name" becomes the row index and different "config"
     # values become separate columns for the "mean" and "stddev" values.
@@ -106,7 +101,9 @@ def query_and_bar_chart(db_path, arch, version, binary_type):
     # === Plotting ===
 
     # Plot the normalized horizontal grouped bar chart.
-    ax = mean_df.plot(kind="bar", yerr=stddev_df, capsize=3, figsize=(10, 10), log=True, width=0.8)
+    ax = mean_df.plot(
+        kind="bar", yerr=stddev_df, capsize=3, figsize=(10, 10), log=True, width=0.8
+    )
 
     for container in ax.containers:
         if isinstance(container, mplc.BarContainer):
@@ -136,7 +133,7 @@ def query_and_bar_chart(db_path, arch, version, binary_type):
     )
 
     for boundary in np.arange(len(df)) - 0.5:
-        plt.axvline(x=boundary, color='grey', linestyle='-', linewidth=0.5)
+        plt.axvline(x=boundary, color="grey", linestyle="-", linewidth=0.5)
 
     # Maximize the space for the figure.
     plt.subplots_adjust(left=0.06, right=0.94, top=0.97, bottom=0.12)
@@ -166,31 +163,29 @@ def main():
     )
 
     # Sub-command: bar
-    bar_parser = subparsers.add_parser("bar", help="Generate a grouped bar chart.")
+    bar_parser = subparsers.add_parser(
+        "walltime", help="Wallclock benchmark time by version."
+    )
     bar_parser.add_argument("db_path", help="TinyDB database file.")
-    bar_parser.add_argument("--arch", required=True, help="Architecture to filter by.")
-    bar_parser.add_argument("--version", required=True, help="Version to filter by.")
+    bar_parser.add_argument(
+        "--arch", default="x86_64", help="Architecture to filter by."
+    )
     bar_parser.add_argument(
         "--binary", default="standalone", help="Version to filter by."
     )
-
-    # Sub-command: line
-    line_parser = subparsers.add_parser("line", help="Generate a line chart over time.")
-    line_parser.add_argument("db_path", help="TinyDB database file.")
-    line_parser.add_argument("--arch", required=True, help="Architecture to filter by.")
-    line_parser.add_argument("--config", required=True, help="Config to filter by.")
-    line_parser.add_argument(
-        "--binary", default="standalone", help="Version to filter by."
+    bar_parser.add_argument(
+        "--exclude",
+        type=str,
+        default=None,
+        help="Regex matching the names of the benchmarks to exclude.",
     )
 
     args = parser.parse_args()
 
     if args.command == "import":
         import_data(args.db_path, *args.json_dirs)
-    elif args.command == "bar":
-        query_and_bar_chart(args.db_path, args.arch, args.version, args.binary)
-    elif args.command == "line":
-        query_and_line_chart(args.db_path, args.arch, args.config, args.binary)
+    elif args.command == "walltime":
+        walltime_chart(args.db_path, args.arch, args.binary, args.exclude)
 
 
 if __name__ == "__main__":
