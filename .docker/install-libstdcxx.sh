@@ -55,7 +55,8 @@ for p in 0001-posix_memalign.patch \
 done
 curl https://gcc.gnu.org/pipermail/gcc-patches/attachments/20250220/c6211b02/attachment.bin | patch -p1
 
-for opt in s 2; do
+# for opt in s 2; do
+for opt in s; do
     cd "${HOME}"/pkgs
     mkdir gcc-${GCC_VERSION}-build-O${opt}
     cd gcc-${GCC_VERSION}-build-O${opt}

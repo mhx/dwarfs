@@ -44,7 +44,8 @@ elif [[ "$PKGS" == ":alpine" ]]; then
     PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,lz4,mimalloc,openssl,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
-    COMPILERS="clang clang-lto clang-minsize-lto gcc"
+    # COMPILERS="clang clang-lto clang-minsize-lto gcc"
+    COMPILERS="clang clang-minsize-lto gcc"
 elif [[ "$PKGS" == ":none" ]]; then
     echo "No libraries to build"
     exit 0
