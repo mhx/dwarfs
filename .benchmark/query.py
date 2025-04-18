@@ -85,8 +85,13 @@ def query_and_bar_chart(db_path, arch, version, binary_type):
     # rows.sort(key=lambda r: (r.get("name"), r.get("config")))
     # df = pd.DataFrame(rows, columns=["name", "config", "mean", "stddev"])
     # rows.sort(key=lambda r: (r.get("name"), r.get("commit_time")))
-    df = pd.DataFrame(rows, columns=["name", "version", "mean", "stddev"])
-    df["version_object"] = df["version"].apply(Version)
+    df = pd.DataFrame(rows, columns=["name", "version", "commit", "mean", "stddev"])
+    for row in df.itertuples():
+        version = row.version
+        if row.commit:
+            version += f"+{row.commit}"
+        df.at[row.Index, "version_object"] = Version(version)
+    #df["version_object"] = df["version"].apply(Version)
 
     # Pivot the DataFrame so that "name" becomes the row index and different "config"
     # values become separate columns for the "mean" and "stddev" values.
