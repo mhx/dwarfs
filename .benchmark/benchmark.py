@@ -276,22 +276,32 @@ def make_script(filename, content):
     os.chmod(filename, 0o755)
 
 
-def mount_and_run_test(env, image, cmd, opts=None, **kwargs):
+def mount_and_run_test(env, image, cmd, opts=None, foreground=False, **kwargs):
     mnt = env.tmp("mnt")
     os.makedirs(mnt, exist_ok=True)
     script = env.tmp("script.sh")
     if opts is None:
         opts = ""
     cmd = cmd.format(**locals())
-    make_script(
-        script,
-        f"""#!/bin/bash
+    bg_bash = f"""#!/bin/bash
 set -e
 {env.config.binary("dwarfs")} {image} {mnt} {opts}
 trap 'fusermount -u {mnt}' EXIT
 {cmd}
-""",
-    )
+"""
+    fg_bash = f"""#!/bin/bash
+set -e
+{env.config.binary("dwarfs")} {image} {mnt} {opts} -f &
+trap 'fusermount -u {mnt}' EXIT
+while [[ "$(ls -1 {mnt} | wc -l)" -eq 0 ]]; do
+    sleep 0.001
+done
+{cmd}
+fusermount -u {mnt}
+trap - EXIT
+wait
+"""
+    make_script(script, fg_bash if foreground else bg_bash)
     env.sample(env.hyperfine(script, **kwargs))
 
 
@@ -317,9 +327,31 @@ def mount_and_run_emacs_l6_mmap(env):
 
 @benchmark
 @needs_binary("dwarfs")
+def mount_and_run_emacs_l6_foreground(env):
+    mount_and_run_test(
+        env,
+        env.data(f"emacs-{platform.machine()}-l6.dwarfs"),
+        "{mnt}/AppRun --help",
+        foreground=True,
+    )
+
+
+@benchmark
+@needs_binary("dwarfs")
 def mount_and_run_emacs_l9(env):
     mount_and_run_test(
         env, env.data(f"emacs-{platform.machine()}-l9.dwarfs"), "{mnt}/AppRun --help"
+    )
+
+
+@benchmark
+@needs_binary("dwarfs")
+def mount_and_run_emacs_l9_foreground(env):
+    mount_and_run_test(
+        env,
+        env.data(f"emacs-{platform.machine()}-l9.dwarfs"),
+        "{mnt}/AppRun --help",
+        foreground=True,
     )
 
 
@@ -343,6 +375,18 @@ def mount_and_cat_files_mmap(env):
         env.data(f"perl-install-1M-zstd.dwarfs"),
         "find {mnt}/default/perl-5.2[0-9].* -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M",
         "-oblock_allocator=mmap",
+        min_runs=5,
+    )
+
+
+@benchmark
+@needs_binary("dwarfs")
+def mount_and_cat_files_foreground(env):
+    mount_and_run_test(
+        env,
+        env.data(f"perl-install-1M-zstd.dwarfs"),
+        "find {mnt}/default/perl-5.2[0-9].* -type f -print0 | xargs -0 -P16 -n64 cat | dd of=/dev/null bs=1M",
+        foreground=True,
         min_runs=5,
     )
 
