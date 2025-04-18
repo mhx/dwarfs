@@ -255,7 +255,9 @@ fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
-    LDFLAGS="${LDFLAGS} -L/opt/static-libs/libstdc++-Os/lib"
+    _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
+    _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
+    LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
   fi
   CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
   export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
