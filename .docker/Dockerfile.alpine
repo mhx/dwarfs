@@ -12,8 +12,7 @@ RUN apk add --no-cache \
         tar \
         ripgrep \
         py3-pip \
-        less
-RUN apk add --no-cache \
+        less \
         gcc \
         g++ \
         clang18 \
@@ -50,16 +49,32 @@ RUN apk add --no-cache \
         strace \
         gdb
 
+# Install UPX
 ARG ARCH
 RUN wget -O - https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-$(bash -c "echo \${0//v8/}" $ARCH)_linux.tar.xz | tar -xJf - -C /usr/local/bin --strip-components=1 --wildcards "*/upx"
+
+# Install mistletoe
 RUN pip3 install --break-system-packages --root-user-action ignore mistletoe
-RUN git config --global --add safe.directory /workspace
+
+# Install size-optimized and static-link-optimized libstdc++
+RUN apk add --no-cache gmp-dev mpfr-dev mpc1-dev isl-dev
+COPY install-libstdcxx.sh /usr/local/bin/install-libstdcxx.sh
+RUN bash /usr/local/bin/install-libstdcxx.sh
+
+# Install mold
 COPY install-mold.sh /usr/local/bin/install-mold.sh
 RUN bash /usr/local/bin/install-mold.sh
+
+# Install bloaty
 COPY install-bloaty.sh /usr/local/bin/install-bloaty.sh
 RUN bash /usr/local/bin/install-bloaty.sh
+
+# Install all static libraries
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
+
+# Set up git & user
+RUN git config --global --add safe.directory /workspace
 RUN adduser -G users -s bash -u 1000 -D mhx
 USER mhx
 ENTRYPOINT /workspace/.docker/build-linux.sh

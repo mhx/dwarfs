@@ -254,6 +254,9 @@ if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
 fi
 
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+  if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
+    LDFLAGS="${LDFLAGS} -L/opt/static-libs/libstdc++-Os/lib"
+  fi
   CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
   export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
   if [[ "$ARCH" == "aarch64" ]]; then
