@@ -484,46 +484,63 @@ endif()
 
 if(WITH_TESTS)
   if(WITH_LIBDWARFS)
-    list(APPEND DWARFS_TESTS
-      badfs_test
-      block_merger_test
-      block_range_test
-      checksum_test
-      chmod_transformer_test
-      compat_test
-      dwarfs_test
-      entry_test
-      error_test
-      file_access_test
-      filesystem_test
-      filesystem_writer_test
-      fits_categorizer_test
-      fragment_category_test
-      glob_matcher_test
-      global_metadata_test
-      incompressible_categorizer_test
-      integral_value_parser_test
-      lazy_value_test
-      metadata_requirements_test
-      nilsimsa_test
-      options_test
-      packed_int_vector_test
-      packed_ptr_test
-      pcm_sample_transformer_test
-      pcmaudio_categorizer_test
-      sorted_array_map_test
-      speedometer_test
-      terminal_test
-      unicode_test
-      utils_test
-      file_utils_test
-      worker_group_test
+    add_executable(dwarfs_unit_tests
+      test/badfs_test.cpp
+      test/block_merger_test.cpp
+      test/block_range_test.cpp
+      test/checksum_test.cpp
+      test/chmod_transformer_test.cpp
+      test/entry_test.cpp
+      test/error_test.cpp
+      test/file_access_test.cpp
+      test/file_utils_test.cpp
+      test/filesystem_test.cpp
+      test/filesystem_writer_test.cpp
+      test/fragment_category_test.cpp
+      test/glob_matcher_test.cpp
+      test/global_metadata_test.cpp
+      test/integral_value_parser_test.cpp
+      test/lazy_value_test.cpp
+      test/metadata_requirements_test.cpp
+      test/nilsimsa_test.cpp
+      test/options_test.cpp
+      test/packed_int_vector_test.cpp
+      test/packed_ptr_test.cpp
+      test/pcm_sample_transformer_test.cpp
+      test/sorted_array_map_test.cpp
+      test/speedometer_test.cpp
+      test/terminal_test.cpp
+      test/unicode_test.cpp
+      test/utils_test.cpp
+      test/worker_group_test.cpp
     )
 
-    if(FLAC_FOUND)
-      list(APPEND DWARFS_TESTS
-        flac_compressor_test
-      )
+    add_executable(dwarfs_categorizer_tests
+      test/fits_categorizer_test.cpp
+      test/incompressible_categorizer_test.cpp
+      test/pcmaudio_categorizer_test.cpp
+    )
+
+    add_executable(dwarfs_expensive_tests
+      test/compat_test.cpp
+      test/dwarfs_test.cpp
+    )
+
+    list(APPEND DWARFS_TESTS
+      dwarfs_categorizer_tests
+      dwarfs_expensive_tests
+      dwarfs_unit_tests
+    )
+
+    if(FLAC_FOUND OR ENABLE_RICEPP)
+      add_executable(dwarfs_compressor_tests)
+      list(APPEND DWARFS_TESTS dwarfs_compressor_tests)
+      if(FLAC_FOUND)
+        target_sources(dwarfs_compressor_tests PRIVATE test/flac_compressor_test.cpp)
+      endif()
+      if(ENABLE_RICEPP)
+        target_sources(dwarfs_compressor_tests PRIVATE test/ricepp_compressor_test.cpp)
+      endif()
     endif()
   endif()
 
@@ -551,12 +568,11 @@ if(WITH_TESTS)
     list(APPEND DWARFS_TESTS manpage_test)
   endif()
 
-  if(WITH_LIBDWARFS AND ENABLE_RICEPP)
-    list(APPEND DWARFS_TESTS ricepp_compressor_test)
-  endif()
-
   foreach (test ${DWARFS_TESTS})
-    add_executable(${test} test/${test}.cpp)
+    if(NOT TARGET ${test})
+      add_executable(${test} test/${test}.cpp)
+    endif()
+
     target_link_libraries(
       ${test} PRIVATE dwarfs_test_helpers gmock gtest gtest_main
     )
@@ -608,9 +624,7 @@ if(WITH_TESTS)
     target_link_libraries(block_cache_test PRIVATE mkdwarfs_main)
   endif()
 
-  foreach(tgt fits_categorizer_test
-              incompressible_categorizer_test
-              pcmaudio_categorizer_test
+  foreach(tgt dwarfs_categorizer_tests
               tool_main_test)
     if(TARGET ${tgt})
       target_link_libraries(${tgt} PRIVATE dwarfs_writer)
