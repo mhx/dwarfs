@@ -240,6 +240,10 @@ if [[ "$BUILD_DIST" == "alpine" ]]; then
     SUFFIX="${SUFFIX}-mimalloc"
   fi
 
+  if [[ "-$BUILD_TYPE-" == *-libressl-* ]]; then
+    SUFFIX="${SUFFIX}-libressl"
+  fi
+
   if [[ "-$BUILD_TYPE-" == *-lto-* ]]; then
     SUFFIX="${SUFFIX}-lto"
   fi
@@ -279,7 +283,12 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   if [[ "$BUILD_TYPE" != *-minimal-* ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DWITH_PXATTR=1"
   fi
-  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER"
+  if [[ "$BUILD_TYPE" == *-libressl-* ]]; then
+    _sslprefix="/opt/static-libs/$COMPILER-libressl"
+  else
+    _sslprefix="/opt/static-libs/$COMPILER-openssl"
+  fi
+  CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix"
 fi
 
 if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then

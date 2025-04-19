@@ -42,7 +42,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,libressl,lz4,mimalloc,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,libressl,lz4,mimalloc,openssl,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -399,7 +399,7 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${OPENSSL_TARBALL}
         cd openssl-${OPENSSL_VERSION}
-        ./Configure --prefix="$INSTALL_DIR" --libdir=lib threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
+        ./Configure --prefix="$INSTALL_DIR-openssl" --libdir=lib threads no-fips no-shared no-pic no-dso no-aria no-async no-atexit \
                 no-autoload-config no-blake2 no-bf no-camellia no-cast no-chacha no-cmac no-cms no-cmp no-comp no-ct no-des \
                 no-dgram no-dh no-dsa no-ec no-engine no-filenames no-idea no-ktls no-md4 no-multiblock \
                 no-nextprotoneg no-ocsp no-ocb no-poly1305 no-psk no-rc2 no-rc4 no-seed no-siphash no-siv no-sm3 no-sm4 \
@@ -415,7 +415,7 @@ for COMPILER in $COMPILERS; do
         cd "$HOME/pkgs/$COMPILER"
         tar xf ../${LIBRESSL_TARBALL}
         cd libressl-${LIBRESSL_VERSION}
-        ./configure --prefix="$INSTALL_DIR" --enable-static --disable-shared --disable-tests
+        ./configure --prefix="$INSTALL_DIR-libressl" --enable-static --disable-shared --disable-tests
         make -j$(nproc)
         make install
     fi
