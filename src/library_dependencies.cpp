@@ -28,6 +28,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 
 #include <fmt/format.h>
 
@@ -55,6 +59,19 @@ std::string version_to_string(uint64_t version, version_format fmt) {
   }
 
   throw std::invalid_argument("unsupported version format");
+}
+
+std::string_view get_crypto_version() {
+  std::string_view version_str = ::OpenSSL_version(OPENSSL_VERSION);
+  if (version_str.starts_with("OpenSSL ")) {
+    version_str.remove_prefix(8);
+  } else if (version_str.starts_with("LibreSSL ")) {
+    version_str.remove_prefix(9);
+  }
+  if (auto pos = version_str.find(' '); pos != std::string_view::npos) {
+    version_str = version_str.substr(0, pos);
+  }
+  return version_str;
 }
 
 } // namespace
@@ -94,8 +111,7 @@ void library_dependencies::add_common_libraries() {
   add_library("libxxhash", ::XXH_versionNumber(),
               version_format::maj_min_patch_dec_100);
   add_library("libfmt", FMT_VERSION, version_format::maj_min_patch_dec_100);
-  add_library("libcrypto", OPENSSL_version_major(), OPENSSL_version_minor(),
-              OPENSSL_version_patch());
+  add_library(fmt::format("crypto-{}", get_crypto_version()));
   add_library("libboost", BOOST_VERSION, version_format::boost);
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
               PHMAP_VERSION_PATCH);
