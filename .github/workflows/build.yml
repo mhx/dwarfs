@@ -379,31 +379,42 @@ jobs:
           file: ${{ runner.temp }}/dwarfs-coverage.txt
           fail_ci_if_error: false
 
-      # - name: Prepare Artifact Upload
-      #   run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
-      #   if: ${{ endsWith(matrix.build_type, '-static') }}
+      - name: Prepare Artifact Upload
+        run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
+        if: ${{ endsWith(matrix.build_type, '-static') }}
 
-      # - name: Upload Binary Tarball
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.binary_tarball }}
-      #     path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: ${{ endsWith(matrix.build_type, '-static') }}
+      - name: Upload Binary Tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.binary_tarball }}
+          path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ endsWith(matrix.build_type, '-static') }}
 
-      # - name: Upload Universal Binary
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.universal_binary }}
-      #     path: ${{ runner.temp }}/artifacts/${{ env.universal_binary }}
-      #     if-no-files-found: error
-      #     compression-level: 0
-      #   env:
-      #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: ${{ endsWith(matrix.build_type, '-static') }}
+      - name: Upload Universal Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.dwarfsuniversal_binary }}
+          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsuniversal_binary }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ endsWith(matrix.build_type, '-static') }}
+
+      - name: Upload Fuse-Extract Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.dwarfsfuseextract_binary }}
+          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsfuseextract_binary }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ endsWith(matrix.build_type, '-static') }}
 
   macos:
     needs: package-source
