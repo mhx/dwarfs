@@ -256,7 +256,17 @@ fi
 if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   if [[ "-$BUILD_TYPE-" == *-relsize-* ]]; then
     _LIBSTDCXXDIR="/opt/static-libs/libstdc++-Os/lib"
-    _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
+    if [[ "$ARCH" == "aarch64" ]]; then
+      # Similar to the issue with *not* linking against `gcc_eh` in the CMakeLists.txt,
+      # if we link against the `gcc_eh` from the `-Os` build, we run into exactly the
+      # same issue. So we temporarily copy the size-optimized `libgcc.a` to a directory
+      # we then use for linking.
+      _GCCLIBDIR="/tmp/gcclib"
+      mkdir -p "$_GCCLIBDIR"
+      cp -a "$_LIBSTDCXXDIR"/gcc/*/*/libgcc.a "$_GCCLIBDIR"
+    else
+      _GCCLIBDIR=$(ls -d1 $_LIBSTDCXXDIR/gcc/*/*)
+    fi
     LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
   fi
   CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
