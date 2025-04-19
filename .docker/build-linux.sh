@@ -124,6 +124,9 @@ case "-$BUILD_TYPE-" in
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
     if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
       CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+      if [[ "-$BUILD_TYPE-" != *-lto-* ]]; then
+        CMAKE_ARGS="${CMAKE_ARGS} -DWITH_ALL_BENCHMARKS=1"
+      fi
     fi
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"
@@ -135,6 +138,9 @@ case "-$BUILD_TYPE-" in
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=MinSizeRel"
     if [[ "-$BUILD_TYPE-" != *-minimal-* ]]; then
       CMAKE_ARGS="${CMAKE_ARGS} -DWITH_BENCHMARKS=1"
+      if [[ "-$BUILD_TYPE-" != *-lto-* ]]; then
+        CMAKE_ARGS="${CMAKE_ARGS} -DWITH_ALL_BENCHMARKS=1"
+      fi
     fi
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       export CFLAGS="-ffunction-sections -fdata-sections -fvisibility=hidden -fmerge-all-constants"

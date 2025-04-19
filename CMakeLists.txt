@@ -31,6 +31,7 @@ option(WITH_TOOLS "build with tools" ON)
 option(WITH_FUSE_DRIVER "build with FUSE driver" ON)
 option(WITH_TESTS "build with tests" OFF)
 option(WITH_BENCHMARKS "build with benchmarks" OFF)
+option(WITH_ALL_BENCHMARKS "build with *all* benchmarks" OFF)
 option(WITH_FUZZ "build with fuzzing binaries" OFF)
 option(WITH_MAN_OPTION "build with --man option" ON)
 option(ENABLE_PERFMON "enable performance monitor in all tools" ON)
@@ -70,6 +71,10 @@ endif()
 
 if(USE_JEMALLOC AND USE_MIMALLOC)
   message(FATAL_ERROR "USE_JEMALLOC and USE_MIMALLOC are mutually exclusive")
+endif()
+
+if(WITH_ALL_BENCHMARKS)
+  set(WITH_BENCHMARKS ON)
 endif()
 
 # Libraries that we can fetch on demand if necessary
@@ -647,28 +652,30 @@ if(WITH_LIBDWARFS AND WITH_BENCHMARKS)
     target_link_libraries(dwarfs_benchmark PRIVATE dwarfs_reader dwarfs_writer)
     list(APPEND BENCHMARK_TARGETS dwarfs_benchmark)
 
-    add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
-    target_link_libraries(multiversioning_benchmark PRIVATE benchmark::benchmark)
-    target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_writer)
-    list(APPEND BENCHMARK_TARGETS multiversioning_benchmark)
-
-    add_executable(converter_benchmark test/converter_benchmark.cpp)
-    target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
-    list(APPEND BENCHMARK_TARGETS converter_benchmark)
-
-    add_executable(sorted_array_map_benchmark test/sorted_array_map_benchmark.cpp)
-    target_link_libraries(sorted_array_map_benchmark PRIVATE benchmark::benchmark)
-    list(APPEND BENCHMARK_TARGETS sorted_array_map_benchmark)
-
-    add_executable(nilsimsa_benchmark test/nilsimsa_benchmark.cpp)
-    target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
-    target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
-    list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
-
     add_executable(segmenter_benchmark test/segmenter_benchmark.cpp)
     target_link_libraries(segmenter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
     target_link_libraries(segmenter_benchmark PRIVATE dwarfs_writer)
     list(APPEND BENCHMARK_TARGETS segmenter_benchmark)
+
+    if(WITH_ALL_BENCHMARKS)
+      add_executable(multiversioning_benchmark test/multiversioning_benchmark.cpp)
+      target_link_libraries(multiversioning_benchmark PRIVATE benchmark::benchmark)
+      target_link_libraries(multiversioning_benchmark PRIVATE dwarfs_writer)
+      list(APPEND BENCHMARK_TARGETS multiversioning_benchmark)
+
+      add_executable(converter_benchmark test/converter_benchmark.cpp)
+      target_link_libraries(converter_benchmark PRIVATE dwarfs_test_helpers benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS converter_benchmark)
+
+      add_executable(sorted_array_map_benchmark test/sorted_array_map_benchmark.cpp)
+      target_link_libraries(sorted_array_map_benchmark PRIVATE benchmark::benchmark)
+      list(APPEND BENCHMARK_TARGETS sorted_array_map_benchmark)
+
+      add_executable(nilsimsa_benchmark test/nilsimsa_benchmark.cpp)
+      target_link_libraries(nilsimsa_benchmark PRIVATE benchmark::benchmark)
+      target_link_libraries(nilsimsa_benchmark PRIVATE dwarfs_writer)
+      list(APPEND BENCHMARK_TARGETS nilsimsa_benchmark)
+    endif()
 
     list(APPEND BINARY_TARGETS ${BENCHMARK_TARGETS})
   endif()
