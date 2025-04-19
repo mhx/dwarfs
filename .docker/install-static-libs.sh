@@ -22,6 +22,7 @@ LIBUNWIND_VERSION=1.8.1                  # 2024-02-22
 BENCHMARK_VERSION=1.9.2                  # 2025-03-25
 BOOST_VERSION=1.88.0                     # 2025-04-11
 OPENSSL_VERSION=3.5.0                    # 2025-04-08
+LIBRESSL_VERSION=4.0.0                   # 2024-10-15
 CPPTRACE_VERSION=0.8.3                   # 2025-04-08
 DOUBLE_CONVERSION_VERSION=3.3.1          # 2025-02-14
 FMT_VERSION=11.1.4                       # 2025-02-26
@@ -41,7 +42,7 @@ if [[ "$PKGS" == ":ubuntu" ]]; then
     PKGS="file,bzip2,libarchive,flac,libunwind,benchmark,openssl,cpptrace"
     COMPILERS="clang gcc"
 elif [[ "$PKGS" == ":alpine" ]]; then
-    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,lz4,mimalloc,openssl,xxhash,xz,zstd"
+    PKGS="benchmark,boost,brotli,cpptrace,double-conversion,flac,fmt,fuse,glog,jemalloc,libarchive,libunwind,libressl,lz4,mimalloc,xxhash,xz,zstd"
     export COMMON_CFLAGS="-ffunction-sections -fdata-sections -fmerge-all-constants"
     export COMMON_CXXFLAGS="$COMMON_CFLAGS"
     # COMPILERS="clang clang-lto clang-minsize-lto gcc"
@@ -59,6 +60,7 @@ FLAC_TARBALL="flac-${FLAC_VERSION}.tar.xz"
 LIBUNWIND_TARBALL="libunwind-${LIBUNWIND_VERSION}.tar.gz"
 BENCHMARK_TARBALL="benchmark-${BENCHMARK_VERSION}.tar.gz"
 OPENSSL_TARBALL="openssl-${OPENSSL_VERSION}.tar.gz"
+LIBRESSL_TARBALL="libressl-${LIBRESSL_VERSION}.tar.gz"
 CPPTRACE_TARBALL="cpptrace-${CPPTRACE_VERSION}.tar.gz"
 DOUBLE_CONVERSION_TARBALL="double-conversion-${DOUBLE_CONVERSION_VERSION}.tar.gz"
 FMT_TARBALL="fmt-${FMT_VERSION}.tar.gz"
@@ -113,6 +115,7 @@ fetch_lib flac https://github.com/xiph/flac/releases/download/${FLAC_VERSION}/${
 fetch_lib libunwind https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/${LIBUNWIND_TARBALL}
 fetch_lib benchmark https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VERSION}.tar.gz ${BENCHMARK_TARBALL}
 fetch_lib openssl https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/${OPENSSL_TARBALL}
+fetch_lib libressl https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/${LIBRESSL_TARBALL}
 fetch_lib cpptrace https://github.com/jeremy-rifkin/cpptrace/archive/refs/tags/v${CPPTRACE_VERSION}.tar.gz ${CPPTRACE_TARBALL}
 fetch_lib double-conversion https://github.com/google/double-conversion/archive/refs/tags/v${DOUBLE_CONVERSION_VERSION}.tar.gz ${DOUBLE_CONVERSION_TARBALL}
 fetch_lib fmt https://github.com/fmtlib/fmt/archive/refs/tags/${FMT_VERSION}.tar.gz ${FMT_TARBALL}
@@ -405,6 +408,16 @@ for COMPILER in $COMPILERS; do
 
         make -j$(nproc)
         make install_sw
+    fi
+
+    if use_lib libressl; then
+        opt_size
+        cd "$HOME/pkgs/$COMPILER"
+        tar xf ../${LIBRESSL_TARBALL}
+        cd libressl-${LIBRESSL_VERSION}
+        ./configure --prefix="$INSTALL_DIR" --enable-static --disable-shared --disable-tests
+        make -j$(nproc)
+        make install
     fi
 
     if use_lib libarchive; then
