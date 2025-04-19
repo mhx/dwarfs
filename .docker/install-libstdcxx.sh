@@ -8,6 +8,8 @@ cd pkgs
 
 GCC_VERSION=14.2.0
 
+ARCH="$(uname -m)"
+
 wget https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz
 tar xf gcc-${GCC_VERSION}.tar.xz
 cd gcc-${GCC_VERSION}
@@ -65,11 +67,18 @@ for opt in s; do
     export CXXFLAGS="-O${opt} -ffunction-sections -fdata-sections -fmerge-all-constants -fPIC"
     export LDFLAGS="-Wl,--gc-sections"
     INSTALLDIR=/opt/static-libs/libstdc++-O${opt}
+
+    case "$ARCH" in
+        aarch64)
+            _arch_config="--with-arch=armv8-a --with-abi=lp64"
+            ;;
+    esac
+
     "$HOME"/pkgs/gcc-${GCC_VERSION}/configure --prefix=${INSTALLDIR} --libdir=${INSTALLDIR}/lib \
         --disable-shared --enable-tls --disable-libstdcxx-pch --disable-multilib --disable-nls --disable-werror --disable-symvers \
         --enable-threads --enable-__cxa_atexit --enable-languages=c,c++ --enable-link-serialization=2 --enable-linker-build-id \
         --disable-libssp --disable-libsanitizer --with-system-zlib --enable-checking=release --disable-cet --disable-fixed-point \
-        --enable-default-pie --enable-default-ssp
+        --enable-default-pie --enable-default-ssp --with-linker-hash-style=gnu ${_arch_config}
     make -j"$(nproc)"
     make install
 done
