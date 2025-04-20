@@ -279,7 +279,6 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     fi
     LDFLAGS="${LDFLAGS} -L$_GCCLIBDIR -L$_LIBSTDCXXDIR"
   fi
-  CMAKE_ARGS_NONSTATIC="${CMAKE_ARGS}"
   export LDFLAGS="${LDFLAGS} -L/opt/static-libs/$COMPILER/lib"
   if [[ "$ARCH" == "aarch64" ]]; then
     # For some reason, this dependency of libunwind is not resolved on aarch64
