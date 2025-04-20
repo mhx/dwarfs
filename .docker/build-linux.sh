@@ -8,10 +8,23 @@ LOCAL_REPO_PATH=/local/repos
 mkdir -p "$LOCAL_REPO_PATH"
 LAST_UPDATE_FILE="$LOCAL_REPO_PATH/last-update"
 
+WORKFLOW_LOG_DIR="/artifacts/workflow-logs/${GITHUB_RUN_ID}"
+NINJA_LOG_FILE="${WORKFLOW_LOG_DIR}/ninja-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+BUILD_LOG_FILE="${WORKFLOW_LOG_DIR}/build-${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+mkdir -p "$WORKFLOW_LOG_DIR"
+
+log() {
+    local event="$1"
+    # log timestamp (with microsecond resolution) + tab + event
+    echo "$(date +%Y-%m-%dT%H:%M:%S.%6N)	$event" >> "$BUILD_LOG_FILE"
+}
+
 if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
     echo "Skipping git repo update because it already ran in the last three hours."
 else
     echo "Running git repo update."
+
+    log "begin:repo-update"
 
     for repo in "fmtlib/fmt" \
                 "google/googletest" \
@@ -26,6 +39,8 @@ else
         time git clone "https://github.com/$repo.git"
       fi
     done
+
+    log "end:repo-update"
 
     touch "$LAST_UPDATE_FILE"
 fi
@@ -46,8 +61,10 @@ cd "$HOME"
 rm -rf dwarfs dwarfs-*
 
 if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
+  log "begin:tarball-extract"
   tar xf "/artifacts/cache/dwarfs-source-${GITHUB_RUN_NUMBER}.tar.zst"
   ln -s dwarfs-* dwarfs
+  log "end:tarball-extract"
 else
   git config --global --add safe.directory /workspace
   ln -s /workspace dwarfs
@@ -69,9 +86,6 @@ else
   CLANG_VERSION=-18
 fi
 
-NINJA_LOG_DIR="/artifacts/ninja-logs/${GITHUB_RUN_ID}"
-NINJA_LOG_FILE="${NINJA_LOG_DIR}/${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
-
 case "-$BUILD_TYPE-" in
   *-ninja-*)
     if [[ "$BUILD_DIST" == "alpine" ]]; then
@@ -80,7 +94,6 @@ case "-$BUILD_TYPE-" in
       BUILD_TOOL=ninja
     fi
     CMAKE_TOOL_ARGS="-GNinja"
-    mkdir -p "$NINJA_LOG_DIR"
     SAVE_BUILD_LOG="cp -a .ninja_log $NINJA_LOG_FILE"
     ;;
   *-make-*)
@@ -319,10 +332,16 @@ fi
 
 case "-$BUILD_TYPE-" in
   *-full-*)
+    log "begin:cmake"
     cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
+    log "end:cmake"
+    log "begin:build"
     time $BUILD_TOOL
+    log "end:build"
     $SAVE_BUILD_LOG
+    log "begin:test"
     $RUN_TESTS
+    log "end:test"
     ;;
 
   *-split-*)
@@ -359,14 +378,20 @@ case "-$BUILD_TYPE-" in
     ;;
 
   *)
+    log "begin:cmake"
     if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
       cmake ../dwarfs/ $CMAKE_ARGS
     else
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
     fi
+    log "end:cmake"
+    log "begin:build"
     time $BUILD_TOOL
+    log "end:build"
     $SAVE_BUILD_LOG
+    log "begin:test"
     $RUN_TESTS
+    log "end:test"
     ;;
 esac
 
@@ -384,10 +409,16 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
     $BUILD_TOOL strip
   fi
 
+  log "begin:package"
   $BUILD_TOOL package
+  log "end:package"
+  log "begin:upx"
   $BUILD_TOOL universal_upx
+  log "end:upx"
 
+  log "begin:copy-artifacts"
   $BUILD_TOOL copy_artifacts
+  log "end:copy-artifacts"
 
   rm -rf /tmp-runner/artifacts
   mkdir -p /tmp-runner/artifacts
@@ -396,8 +427,12 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   cp dwarfs-fuse-extract-* /tmp-runner/artifacts
   cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
 elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
+  log "begin:package-source"
   $BUILD_TOOL package_source
+  log "end:package-source"
+  log "begin:copy-artifacts"
   $BUILD_TOOL copy_source_artifacts
+  log "end:copy-artifacts"
 fi
 
 if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
