@@ -384,6 +384,7 @@ else
     mkdir -p /tmp-runner/artifacts
     cp artifacts.env /tmp-runner
     cp dwarfs-universal-* /tmp-runner/artifacts
+    cp dwarfs-fuse-extract-* /tmp-runner/artifacts
     cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
   elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
     $BUILD_TOOL package_source
