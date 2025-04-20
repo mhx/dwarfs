@@ -73,6 +73,10 @@ RUN bash /usr/local/bin/install-bloaty.sh
 COPY install-static-libs.sh /usr/local/bin/install-static-libs.sh
 RUN bash /usr/local/bin/install-static-libs.sh gcc clang-19 :alpine
 
+# Install the *real* ninja...
+# TODO: move this up if we change anything
+RUN apk add --no-cache ninja-build
+
 # Set up git & user
 RUN git config --global --add safe.directory /workspace
 RUN adduser -G users -s bash -u 1000 -D mhx

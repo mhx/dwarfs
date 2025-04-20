@@ -74,7 +74,11 @@ NINJA_LOG_FILE="${NINJA_LOG_DIR}/${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
 
 case "-$BUILD_TYPE-" in
   *-ninja-*)
-    BUILD_TOOL=ninja
+    if [[ "$BUILD_DIST" == "alpine" ]]; then
+      BUILD_TOOL=/usr/lib/ninja-build/bin/ninja
+    else
+      BUILD_TOOL=ninja
+    fi
     CMAKE_TOOL_ARGS="-GNinja"
     mkdir -p "$NINJA_LOG_DIR"
     SAVE_BUILD_LOG="cp -a .ninja_log $NINJA_LOG_FILE"
