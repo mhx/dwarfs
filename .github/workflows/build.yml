@@ -25,11 +25,6 @@ jobs:
         build_mode:
           - Release
           - Debug
-        config:
-          - name: Normal
-            cmake_args:
-          - name: Benchmark
-            cmake_args: -DWITH_BENCHMARKS=ON
 
     steps:
       - name: Checkout
@@ -39,17 +34,13 @@ jobs:
           fetch-depth: '0'
           ref: ${{ github.ref }}
 
-      - name: Prepare Job Environment
-        run: |
-          "do_install=${{ (matrix.build_mode == 'Release' && matrix.config.name == 'Benchmark') || (matrix.build_mode == 'Debug' && matrix.config.name == 'Normal') }}" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Set MSVC Dev Environment
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure Build
         shell: cmd
         run: |
-          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON ${{ matrix.config.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
+          cmake -B${{ runner.temp }}\build -S${{ runner.workspace }}\dwarfs -GNinja -DCMAKE_MAKE_PROGRAM=C:\bin\ninja.exe -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DWITH_UNIVERSAL_BINARY=ON -DWITH_TESTS=ON -DWITH_BENCHMARKS=ON -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR=${{ runner.workspace }}\vcpkg-install-dwarfs -DDWARFS_ARTIFACTS_DIR=Z:\artifacts\dwarfs -DWITH_PXATTR=ON -DENABLE_STACKTRACE=${{ matrix.build_mode == 'Debug' && 'ON' || 'OFF' }}
 
       - name: Run Build
         shell: cmd
@@ -66,24 +57,20 @@ jobs:
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target package
-        if: env.do_install == 'true'
 
       - name: Compress Universal Binary
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target universal_upx
-        if: env.do_install == 'true'
 
       - name: Copy Artifacts
         shell: cmd
         run: |
           cmake --build ${{ runner.temp }}\build --target copy_artifacts
-        if: env.do_install == 'true'
 
       # - name: Prepare Artifact Upload
       #   shell: cmd
       #   run: cat ${{ runner.temp }}\build\artifacts.env >> %GITHUB_ENV%
-      #   if: env.do_install == 'true'
 
       # - name: Upload Binary Tarball
       #   uses: actions/upload-artifact@v4
@@ -94,7 +81,6 @@ jobs:
       #     compression-level: 0
       #   env:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: env.do_install == 'true'
 
       # - name: Upload Universal Binary
       #   uses: actions/upload-artifact@v4
@@ -105,7 +91,6 @@ jobs:
       #     compression-level: 0
       #   env:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-      #   if: env.do_install == 'true'
 
   package-source:
     runs-on:
