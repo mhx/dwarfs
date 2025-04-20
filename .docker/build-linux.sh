@@ -69,14 +69,20 @@ else
   CLANG_VERSION=-18
 fi
 
+NINJA_LOG_DIR="/artifacts/ninja-logs/${GITHUB_RUN_ID}"
+NINJA_LOG_FILE="${NINJA_LOG_DIR}/${BUILD_ARCH},${BUILD_DIST},${BUILD_TYPE}.log"
+
 case "-$BUILD_TYPE-" in
   *-ninja-*)
     BUILD_TOOL=ninja
     CMAKE_TOOL_ARGS="-GNinja"
+    mkdir -p "$NINJA_LOG_DIR"
+    SAVE_BUILD_LOG="cp -a .ninja_log $NINJA_LOG_FILE"
     ;;
   *-make-*)
     BUILD_TOOL="make -j$(nproc)"
     CMAKE_TOOL_ARGS=
+    SAVE_BUILD_LOG=
     ;;
   *)
     echo "missing build tool in: $BUILD_TYPE"
@@ -311,6 +317,7 @@ case "-$BUILD_TYPE-" in
   *-full-*)
     cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
     time $BUILD_TOOL
+    $SAVE_BUILD_LOG
     $RUN_TESTS
     ;;
 
@@ -354,6 +361,7 @@ case "-$BUILD_TYPE-" in
       cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
     fi
     time $BUILD_TOOL
+    $SAVE_BUILD_LOG
     $RUN_TESTS
     ;;
 esac
