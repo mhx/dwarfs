@@ -16,7 +16,7 @@ mkdir -p "$WORKFLOW_LOG_DIR"
 log() {
     local event="$1"
     # log timestamp (with microsecond resolution) + tab + event
-    echo "$(date +%Y-%m-%dT%H:%M:%S.%6N)	$event" >> "$BUILD_LOG_FILE"
+    echo "$(python3 - <<<'from datetime import datetime; print(datetime.now().isoformat())')	$event" >> "$BUILD_LOG_FILE"
 }
 
 if [ -f "$LAST_UPDATE_FILE" ] && [ $(find "$LAST_UPDATE_FILE" -mmin -180) ]; then
