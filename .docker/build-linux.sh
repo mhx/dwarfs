@@ -445,6 +445,4 @@ if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
   cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
   $BUILD_TOOL
   $BUILD_TOOL clean
-else
-  $BUILD_TOOL distclean
 fi
