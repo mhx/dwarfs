@@ -53,7 +53,7 @@ def import_data(db_path, *args):
     print(f"Skipped {skipped} files that were already in the database.")
 
 
-def walltime_chart(db_path, arch, binary_type, exclude):
+def walltime_chart(db_path, arch, binary_type, version, exclude):
     db = TinyDB(db_path)
     table = db.table(TABLE_NAME)
     Q = Query()
@@ -72,7 +72,11 @@ def walltime_chart(db_path, arch, binary_type, exclude):
         & (Q.type == binary_type)
         & (Q.mean.exists())
         & (Q.stddev.exists())
-        & (Q.config.test(lambda x: x in release_configs))
+        & (
+            Q.config.test(lambda x: x in release_configs)
+            if version is None
+            else Q.version == version
+        )
         & (Q.name.test(lambda x: exclude_re is None or not exclude_re.search(x)))
     )
 
@@ -80,12 +84,19 @@ def walltime_chart(db_path, arch, binary_type, exclude):
     # rows.sort(key=lambda r: (r.get("name"), r.get("config")))
     # df = pd.DataFrame(rows, columns=["name", "config", "mean", "stddev"])
     # rows.sort(key=lambda r: (r.get("name"), r.get("commit_time")))
-    df = pd.DataFrame(rows, columns=["name", "version", "commit", "mean", "stddev"])
+    df = pd.DataFrame(
+        rows, columns=["name", "version", "commit", "config", "mean", "stddev"]
+    )
     for row in df.itertuples():
-        version = row.version
+        suffix = []
         if row.commit:
-            version += f"+{row.commit}"
-        df.at[row.Index, "version_object"] = Version(version)
+            suffix.append(row.commit)
+        if version is not None:
+            suffix.append(row.config.replace("-", "_"))
+        v = row.version
+        if suffix:
+            v += "+" + "_".join(suffix)
+        df.at[row.Index, "version_object"] = Version(v)
     # df["version_object"] = df["version"].apply(Version)
 
     # Pivot the DataFrame so that "name" becomes the row index and different "config"
@@ -127,18 +138,16 @@ def walltime_chart(db_path, arch, binary_type, exclude):
     # Set y-axis range (1ms to 100s)
     ax.set_ylim(0.001, 100.0)
 
-    # Put the legend outside the plot area.
-    ax.legend(
-        title="Version", bbox_to_anchor=(1.005, 1), loc="upper left", frameon=False
-    )
+    # Maximize the space for the figure.
+    plt.subplots_adjust(left=0.06, right=0.99, top=0.97, bottom=0.12)
+
+    if version is None:
+        ax.legend(title="Version", ncol=8)
+    else:
+        ax.legend(title="Version/Config", ncol=4)
 
     for boundary in np.arange(len(df)) - 0.5:
         plt.axvline(x=boundary, color="grey", linestyle="-", linewidth=0.5)
-
-    # Maximize the space for the figure.
-    plt.subplots_adjust(left=0.06, right=0.94, top=0.97, bottom=0.12)
-
-    # ax.legend(title="Version")
 
     # plt.tight_layout()
     plt.show()
@@ -171,8 +180,9 @@ def main():
         "--arch", default="x86_64", help="Architecture to filter by."
     )
     bar_parser.add_argument(
-        "--binary", default="standalone", help="Version to filter by."
+        "--binary", default="standalone", help="Binary type to filter by."
     )
+    bar_parser.add_argument("--version", default=None, help="Version to filter by.")
     bar_parser.add_argument(
         "--exclude",
         type=str,
@@ -185,7 +195,7 @@ def main():
     if args.command == "import":
         import_data(args.db_path, *args.json_dirs)
     elif args.command == "walltime":
-        walltime_chart(args.db_path, args.arch, args.binary, args.exclude)
+        walltime_chart(args.db_path, args.arch, args.binary, args.version, args.exclude)
 
 
 if __name__ == "__main__":
