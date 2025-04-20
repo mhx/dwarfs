@@ -297,114 +297,108 @@ if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
   CMAKE_ARGS="${CMAKE_ARGS} -DSTATIC_BUILD_EXTRA_PREFIX=/opt/static-libs/$COMPILER;$_sslprefix"
 fi
 
-if [[ "$BUILD_FROM_TARBALL" == "1" ]]; then
-  INSTALLDIR="$HOME/install"
-  PREFIXPATH="$INSTALLDIR/usr/local"
-  rm -rf "$INSTALLDIR"
+INSTALLDIR="$HOME/install"
+PREFIXPATH="$INSTALLDIR/usr/local"
+rm -rf "$INSTALLDIR"
 
-  if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
-    LDLIBPATH="$(readlink -m "$PREFIXPATH/lib/$(gcc -print-multi-os-directory)")"
-    if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
-      export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
-    fi
+if [[ "-$BUILD_TYPE-" == *-shared-* ]]; then
+  LDLIBPATH="$(readlink -m "$PREFIXPATH/lib/$(gcc -print-multi-os-directory)")"
+  if [[ ":$LD_LIBRARY_PATH:" != *":$LDLIBPATH:"* ]]; then
+    export "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LDLIBPATH"
   fi
+fi
 
-  case "-$BUILD_TYPE-" in
-    *-full-*)
-      cmake ../dwarfs/ $CMAKE_ARGS
-      time $BUILD_TOOL
-      $RUN_TESTS
-      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-      $BUILD_TOOL distclean
-      ;;
+case "-$BUILD_TYPE-" in
+  *-full-*)
+    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
+    time $BUILD_TOOL
+    $RUN_TESTS
+    ;;
 
-    *-split-*)
-      # ==== libdwarfs ====
-      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
-      time $BUILD_TOOL
-      $RUN_TESTS
-      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-      $BUILD_TOOL distclean
-      rm -rf *
-
-      # ==== example binary ====
-      cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$PREFIXPATH"
-      time $BUILD_TOOL
-      rm -rf *
-
-      # ==== dwarfs tools ====
-      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
-      time $BUILD_TOOL
-      $RUN_TESTS
-      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-      $BUILD_TOOL distclean
-      rm -rf *
-
-      # ==== dwarfs fuse driver ====
-      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
-      time $BUILD_TOOL
-      $RUN_TESTS
-      DESTDIR="$INSTALLDIR" $BUILD_TOOL install
-      $BUILD_TOOL distclean
-      ;;
-
-    *)
-      echo "builds from source tarball must be 'full' or 'split'"
-      exit 1
-      ;;
-  esac
-else
-  # shellcheck disable=SC2086
-  cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
-
-  time $BUILD_TOOL
-
-  $RUN_TESTS
-
-  if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
-    rm -f /tmp-runner/dwarfs-coverage.txt
-    llvm-profdata$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
-    llvm-cov$CLANG_VERSION show -instr-profile=dwarfs.profdata \
-      $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
-      >/tmp-runner/dwarfs-coverage.txt
-  fi
-
-  if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
-    # for release and relsize builds, strip the binaries
-    if [[ "-$BUILD_TYPE-" =~ -(release|relsize)- ]]; then
-      $BUILD_TOOL strip
-    fi
-
-    $BUILD_TOOL package
-    $BUILD_TOOL universal_upx
-
-    $BUILD_TOOL copy_artifacts
-
-    rm -rf /tmp-runner/artifacts
-    mkdir -p /tmp-runner/artifacts
-    cp artifacts.env /tmp-runner
-    cp dwarfs-universal-* /tmp-runner/artifacts
-    cp dwarfs-fuse-extract-* /tmp-runner/artifacts
-    cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
-  elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
-    $BUILD_TOOL package_source
-    $BUILD_TOOL copy_source_artifacts
-  fi
-
-  if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
-     [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
-     [[ "-$BUILD_TYPE-" != *-source-* ]] && \
-     [[ "-$BUILD_TYPE-" != *-static-* ]]; then
-    INSTALLDIR="$HOME/install"
-    rm -rf "$INSTALLDIR"
+  *-split-*)
+    # ==== libdwarfs ====
+    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=ON -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=OFF
+    time $BUILD_TOOL
+    $RUN_TESTS
     DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+    $BUILD_TOOL distclean
+    rm -rf *
 
+    # ==== example binary ====
+    cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    time $BUILD_TOOL
+    rm -rf *
+
+    # ==== dwarfs tools ====
+    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=ON -DWITH_FUSE_DRIVER=OFF -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    time $BUILD_TOOL
+    $RUN_TESTS
+    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+    $BUILD_TOOL distclean
+    rm -rf *
+
+    # ==== dwarfs fuse driver ====
+    cmake ../dwarfs/ $CMAKE_ARGS -DWITH_LIBDWARFS=OFF -DWITH_TOOLS=OFF -DWITH_FUSE_DRIVER=ON -DCMAKE_PREFIX_PATH="$PREFIXPATH"
+    time $BUILD_TOOL
+    $RUN_TESTS
+    DESTDIR="$INSTALLDIR" $BUILD_TOOL install
     $BUILD_TOOL distclean
 
-    cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
-    $BUILD_TOOL
-    $BUILD_TOOL clean
-  else
-    $BUILD_TOOL distclean
+    # That's it for split builds, we are done
+    exit 0
+    ;;
+
+  *)
+    if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+      cmake ../dwarfs/ $CMAKE_ARGS
+    else
+      cmake ../dwarfs/ $CMAKE_ARGS -DWITH_EXAMPLE=1
+    fi
+    time $BUILD_TOOL
+    $RUN_TESTS
+    ;;
+esac
+
+if [[ "-$BUILD_TYPE-" == *-coverage-* ]]; then
+  rm -f /tmp-runner/dwarfs-coverage.txt
+  llvm-profdata$CLANG_VERSION merge -sparse profile/* -o dwarfs.profdata
+  llvm-cov$CLANG_VERSION show -instr-profile=dwarfs.profdata \
+    $(for i in mkdwarfs dwarfs dwarfsck dwarfsextract *_test ricepp/ricepp_test; do echo $i; done | sed -e's/^/-object=/') \
+    >/tmp-runner/dwarfs-coverage.txt
+fi
+
+if [[ "-$BUILD_TYPE-" == *-static-* ]]; then
+  # for release and relsize builds, strip the binaries
+  if [[ "-$BUILD_TYPE-" =~ -(release|relsize)- ]]; then
+    $BUILD_TOOL strip
   fi
+
+  $BUILD_TOOL package
+  $BUILD_TOOL universal_upx
+
+  $BUILD_TOOL copy_artifacts
+
+  rm -rf /tmp-runner/artifacts
+  mkdir -p /tmp-runner/artifacts
+  cp artifacts.env /tmp-runner
+  cp dwarfs-universal-* /tmp-runner/artifacts
+  cp dwarfs-fuse-extract-* /tmp-runner/artifacts
+  cp dwarfs-*-Linux*.tar.zst /tmp-runner/artifacts
+elif [[ "-$BUILD_TYPE-" == *-source-* ]]; then
+  $BUILD_TOOL package_source
+  $BUILD_TOOL copy_source_artifacts
+fi
+
+if [[ "-$BUILD_TYPE-" != *-[at]san-* ]] && \
+   [[ "-$BUILD_TYPE-" != *-ubsan-* ]] && \
+   [[ "-$BUILD_TYPE-" != *-source-* ]] && \
+   [[ "-$BUILD_TYPE-" != *-static-* ]]; then
+  DESTDIR="$INSTALLDIR" $BUILD_TOOL install
+  $BUILD_TOOL distclean
+
+  cmake ../dwarfs/example $CMAKE_TOOL_ARGS -DCMAKE_PREFIX_PATH="$INSTALLDIR/usr/local"
+  $BUILD_TOOL
+  $BUILD_TOOL clean
+else
+  $BUILD_TOOL distclean
 fi

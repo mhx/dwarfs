@@ -92,48 +92,18 @@ jobs:
       #   env:
       #     ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
 
+################################################################################
+
   package-source:
-    runs-on:
-      - self-hosted
-      - Linux
-      - amd64
+    uses: ./.github/workflows/docker-run-build.yml
+    with:
+      build_type: clang-release-ninja-source-notest
+      build_arch: amd64
+      build_dist: arch
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
+################################################################################
 
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -f .docker/Dockerfile.arch \
-            -t dwarfs-linux-build-arch \
-            --build-arg ARCH=amd64 \
-            .docker
-
-      - name: Run Build
-        run: |
-          docker run --rm \
-            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
-            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
-            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
-            --mount type=bind,source=${HOME}/github-local,target=/local \
-            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_TYPE=clang-release-ninja-source-notest \
-            --env BUILD_ARCH=amd64 \
-            --env BUILD_DIST=arch \
-            --env GITHUB_REF_NAME \
-            --env GITHUB_REF_TYPE \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_NUMBER \
-            --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build-arch
-
-  linux-src:
+  linux:
     needs: package-source
 
     strategy:
@@ -163,7 +133,28 @@ jobs:
           - arch: arm64v8
             dist: arch
             build_type: clang-release-shared-ninja-full
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-release-ninja-split
+          - arch: arm64v8
+            dist: ubuntu
+            build_type: gcc-release-shared-ninja-split
+          - arch: arm64v8
+            dist: fedora
+            build_type: gcc-release-ninja-split
+          - arch: arm64v8
+            dist: fedora
+            build_type: gcc-release-shared-ninja-split
         include:
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-reldbg-shared-asan-ninja
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-debug-shared-tsan-ninja
+          - arch: amd64
+            dist: ubuntu
+            build_type: clang-reldbg-shared-ubsan-ninja
           - arch: amd64
             dist: ubuntu
             build_type: oldgcc-debug-shared-make-split
@@ -182,82 +173,6 @@ jobs:
           - arch: amd64
             dist: ubuntu-2204
             build_type: clang-release-ninja-split
-
-    runs-on:
-      - self-hosted
-      - Linux
-      - ${{ matrix.arch }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -f .docker/Dockerfile.${{ matrix.dist }} \
-            -t dwarfs-linux-build-${{ matrix.dist }} \
-            --build-arg ARCH=${{ matrix.arch }} \
-            .docker
-
-      - name: Run Build (${{ matrix.build_type }})
-        run: |
-          docker run --rm \
-            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
-            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
-            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
-            --mount type=bind,source=${HOME}/github-local,target=/local \
-            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_FROM_TARBALL=1 \
-            --env BUILD_TYPE=${{ matrix.build_type }} \
-            --env BUILD_ARCH=${{ matrix.arch }} \
-            --env BUILD_DIST=${{ matrix.dist }} \
-            --env GITHUB_REF_NAME \
-            --env GITHUB_REF_TYPE \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_NUMBER \
-            --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build-${{ matrix.dist }}
-
-  linux-git:
-    needs: package-source
-
-    strategy:
-      matrix:
-        arch:
-          - amd64
-          - arm64v8
-        dist:
-          - ubuntu
-          - fedora
-          - arch
-        build_type:
-          - gcc-release-shared-ninja
-        exclude:
-          - arch: arm64v8
-            dist: ubuntu
-            build_type: gcc-release-shared-ninja
-          - arch: amd64
-            dist: fedora
-            build_type: gcc-release-shared-ninja
-          - arch: arm64v8
-            dist: arch
-            build_type: gcc-release-shared-ninja
-        include:
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-asan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-debug-shared-tsan-ninja
-          - arch: amd64
-            dist: ubuntu
-            build_type: clang-reldbg-shared-ubsan-ninja
           - arch: amd64
             dist: ubuntu
             build_type: clang-debug-coverage-ninja
@@ -316,90 +231,16 @@ jobs:
             dist: alpine
             build_type: clang-reldbg-stacktrace-ninja-static
 
-    runs-on:
-      - self-hosted
-      - Linux
-      - ${{ matrix.arch }}
+    uses: ./.github/workflows/docker-run-build.yml
+    with:
+      build_type: ${{ matrix.build_type }}
+      build_arch: ${{ matrix.arch }}
+      build_dist: ${{ matrix.dist }}
+      build_from_tarball: true
+      upload_coverage: ${{ matrix.build_type == 'clang-debug-coverage-ninja' }}
+      upload_artifacts: ${{ endsWith(matrix.build_type, '-static') }}
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-          fetch-depth: '0'
-          ref: ${{ github.ref }}
-
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -f .docker/Dockerfile.${{ matrix.dist }} \
-            -t dwarfs-linux-build-${{ matrix.dist }} \
-            --build-arg ARCH=${{ matrix.arch }} \
-            .docker
-
-      - name: Run Build (${{ matrix.build_type }})
-        run: |
-          docker run --rm \
-            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
-            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
-            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
-            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
-            --mount type=bind,source=${HOME}/github-local,target=/local \
-            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
-            --env BUILD_TYPE=${{ matrix.build_type }} \
-            --env BUILD_ARCH=${{ matrix.arch }} \
-            --env BUILD_DIST=${{ matrix.dist }} \
-            --env GITHUB_REF_NAME \
-            --env GITHUB_REF_TYPE \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_NUMBER \
-            --env GITHUB_RUN_ATTEMPT \
-            dwarfs-linux-build-${{ matrix.dist }}
-
-      - name: Upload Coverage Data
-        if: matrix.build_type == 'clang-debug-coverage-ninja'
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ${{ runner.temp }}/dwarfs-coverage.txt
-          fail_ci_if_error: false
-
-      - name: Prepare Artifact Upload
-        run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
-        if: ${{ endsWith(matrix.build_type, '-static') }}
-
-      - name: Upload Binary Tarball
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.binary_tarball }}
-          path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
-          if-no-files-found: error
-          compression-level: 0
-        env:
-          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ endsWith(matrix.build_type, '-static') }}
-
-      - name: Upload Universal Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.dwarfsuniversal_binary }}
-          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsuniversal_binary }}
-          if-no-files-found: error
-          compression-level: 0
-        env:
-          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ endsWith(matrix.build_type, '-static') }}
-
-      - name: Upload Fuse-Extract Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.dwarfsfuseextract_binary }}
-          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsfuseextract_binary }}
-          if-no-files-found: error
-          compression-level: 0
-        env:
-          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
-        if: ${{ endsWith(matrix.build_type, '-static') }}
+################################################################################
 
   macos:
     needs: package-source

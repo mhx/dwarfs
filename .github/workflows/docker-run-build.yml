@@ -1,0 +1,118 @@
+---
+name: Run Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
+      build_arch:
+        required: true
+        type: string
+      build_dist:
+        required: true
+        type: string
+      build_from_tarball:
+        required: false
+        type: boolean
+        default: false
+      upload_artifacts:
+        required: false
+        type: boolean
+        default: false
+      upload_coverage:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    runs-on:
+      - self-hosted
+      - Linux
+      - ${{ inputs.build_arch }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          fetch-depth: '0'
+          ref: ${{ github.ref }}
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -f .docker/Dockerfile.${{ inputs.build_dist }} \
+            -t dwarfs-linux-build-${{ inputs.build_dist }} \
+            --build-arg ARCH=${{ inputs.build_arch }} \
+            .docker
+
+      - name: Run Build
+        run: |
+          docker run --rm \
+            --cap-add SYS_ADMIN --device /dev/fuse --privileged \
+            --mount type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly \
+            --mount type=bind,source=${{ runner.temp }},target=/tmp-runner \
+            --mount type=bind,source=${HOME}/github-ccache,target=/ccache \
+            --mount type=bind,source=${HOME}/github-local,target=/local \
+            --mount type=bind,source=/mnt/opensource/artifacts/dwarfs,target=/artifacts \
+            ${{ inputs.build_from_tarball && '--env BUILD_FROM_TARBALL=1' || '' }} \
+            --env BUILD_TYPE=${{ inputs.build_type }} \
+            --env BUILD_ARCH=${{ inputs.build_arch }} \
+            --env BUILD_DIST=${{ inputs.build_dist }} \
+            --env GITHUB_REF_NAME \
+            --env GITHUB_REF_TYPE \
+            --env GITHUB_RUN_ID \
+            --env GITHUB_RUN_NUMBER \
+            --env GITHUB_RUN_ATTEMPT \
+            dwarfs-linux-build-${{ inputs.build_dist }}
+
+      - name: Upload Coverage Data
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ${{ runner.temp }}/dwarfs-coverage.txt
+          fail_ci_if_error: false
+        if: ${{ inputs.upload_coverage }}
+
+      - name: Prepare Artifact Upload
+        run: cat ${{ runner.temp }}/artifacts.env >> $GITHUB_ENV
+        if: ${{ inputs.upload_artifacts }}
+
+      - name: Upload Binary Tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.binary_tarball }}
+          path: ${{ runner.temp }}/artifacts/${{ env.binary_tarball }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ inputs.upload_artifacts }}
+
+      - name: Upload Universal Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.dwarfsuniversal_binary }}
+          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsuniversal_binary }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ inputs.upload_artifacts }}
+
+      - name: Upload Fuse-Extract Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.dwarfsfuseextract_binary }}
+          path: ${{ runner.temp }}/artifacts/${{ env.dwarfsfuseextract_binary }}
+          if-no-files-found: error
+          compression-level: 0
+        env:
+          ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: 5
+        if: ${{ inputs.upload_artifacts }}
