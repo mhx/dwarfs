@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import json
+import re
+import os
+import subprocess
 import argparse
 from datetime import datetime
-
-
-# Use:
-#   gh api --paginate /repos/mhx/dwarfs/actions/runs/14559408056/jobs > jobs.json
-#   python3 workflow-tracing.py -i jobs.json -o trace.json
 
 
 def parse_iso8601(ts: str) -> datetime:
@@ -26,8 +24,12 @@ def main():
     parser.add_argument(
         "-i",
         "--input",
-        default="jobs.json",
         help="Path to the input JSON from `gh api /actions/runs/.../jobs`",
+    )
+    parser.add_argument(
+        "-j",
+        "--job",
+        help="GitHub Actions job id to trace",
     )
     parser.add_argument(
         "-o",
@@ -35,11 +37,40 @@ def main():
         default="trace.json",
         help="Path to write the Chrome tracing JSON",
     )
+    parser.add_argument(
+        "-n",
+        "--ninja",
+        action="store_true",
+        help="Include ninja build logs in the trace",
+    )
+    parser.add_argument(
+        "--ninja-log-base",
+        default="/mnt/opensource/artifacts/dwarfs/ninja-logs",
+        help="Base path for ninja logs",
+    )
+    parser.add_argument(
+        "--ninjatracing",
+        default="/home/mhx/git/github/ninjatracing/ninjatracing",
+        help="Path to the ninjatracing tool",
+    )
     args = parser.parse_args()
 
-    # Load the GitHub API output
-    with open(args.input, "r") as f:
-        data = json.load(f)
+    if args.input is None and args.job is None:
+        parser.print_help()
+        exit(1)
+
+    if args.input:
+        # Load the GitHub API output
+        with open(args.input, "r") as f:
+            data = json.load(f)
+    else:
+        result = subprocess.run([
+            "gh",
+            "api",
+            "--paginate",
+            f"/repos/mhx/dwarfs/actions/runs/{args.job}/jobs",
+        ], check=True, capture_output=True)
+        data = json.loads(result.stdout)
 
     # The API may nest under 'jobs'
     jobs = data.get("jobs", data)
@@ -92,6 +123,32 @@ def main():
                                     "tid": 0,
                                 }
                             )
+
+                            if args.ninja and step.get("name") == "Run Build":
+                                run_id = job.get("run_id", 0)
+                                # get arch, dist, config from "linux (arm64v8, alpine, clang-release-ninja-static) / docker-build"
+                                m = re.match(r"linux \(([^,]+), ([^,]+), ([^,]+)\)", name)
+                                if m:
+                                    log_path = f"{args.ninja_log_base}/{run_id}/{m.group(1)},{m.group(2)},{m.group(3)}.log"
+                                    if os.path.exists(log_path):
+                                        # Read output from ninjatracing tool
+                                        result = subprocess.run(
+                                            [args.ninjatracing, log_path],
+                                            capture_output=True,
+                                            text=True,
+                                            check=True,
+                                        )
+                                        # Parse JSON output
+                                        ninja_json = json.loads(result.stdout)
+                                        # Add events to the trace
+                                        for event in ninja_json:
+                                            if event.get("dur") > 0:
+                                                # Adjust the timestamp to match the step
+                                                event["ts"] += ts_s
+                                                event["pid"] = runner_id
+                                                events.append(event)
+                                    else:
+                                        print(f"Log file not found: {log_path}")
             else:
                 print(
                     f"Job {name} has zero duration: {job['started_at']} -> {job['completed_at']}"
