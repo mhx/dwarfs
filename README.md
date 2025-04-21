@@ -14,6 +14,10 @@ A fast high compression read-only file system for Linux and Windows.
 
 ## Table of contents
 
+<a href="https://repology.org/project/dwarfs/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/dwarfs.svg" alt="Packaging status" align="right">
+</a>
+
 - [Overview](#overview)
 - [History](#history)
 - [Building and Installing](#building-and-installing)
