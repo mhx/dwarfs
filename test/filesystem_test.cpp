@@ -260,7 +260,7 @@ TEST(filesystem, find_image_offset) {
   EXPECT_NO_THROW(make_fs(prefix + valid_fs));
 
   EXPECT_THAT([&] { make_fs("dwarfs"); }, throws_no_fs_found);
-  EXPECT_THAT([&] { make_fs(v1_header + "X"); }, throws_no_schema);
+  EXPECT_THAT([&] { make_fs(v1_header + "X"); }, throws_no_fs_found);
   EXPECT_THAT([&] { make_fs(v2_header + "X"); }, throws_no_fs_found);
   EXPECT_THAT([&] { make_fs(v2_header + "X" + valid_v2_header(1) + "X"); },
               throws_no_schema);

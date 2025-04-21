@@ -81,34 +81,66 @@ filesystem_parser::find_image_offset(mmif& mm, file_off_t image_offset) {
     auto fh = mm.as<file_header>(pos);
 
     if (fh->minor < 2) {
-      // best we can do for older file systems
-      return pos;
-    }
-
-    // do a little more validation before we return
-    if (pos + sizeof(section_header_v2) >= mm.size()) {
-      break;
-    }
-
-    auto sh = mm.as<section_header_v2>(pos);
-
-    if (sh->number == 0) {
-      auto endpos = pos + sh->length + 2 * sizeof(section_header_v2);
-
-      if (endpos < sh->length) {
-        // overflow
+      // v1 section header, presumably
+      if (pos + sizeof(file_header) + sizeof(section_header) >= mm.size()) {
         break;
       }
 
-      if (endpos >= mm.size()) {
+      auto sh = mm.as<section_header>(pos + sizeof(file_header));
+
+      // The only compression types supported before v0.3.0
+      auto is_valid_compression = [](compression_type_v1 c) {
+        return c == compression_type_v1::NONE ||
+               c == compression_type_v1::LZMA ||
+               c == compression_type_v1::ZSTD ||
+               c == compression_type_v1::LZ4 || c == compression_type_v1::LZ4HC;
+      };
+
+      // First section must be either a block or the metadata schema,
+      // using a valid compression type.
+      if ((sh->type == section_type::BLOCK ||
+           sh->type == section_type::METADATA_V2_SCHEMA) &&
+          is_valid_compression(sh->compression) && sh->length > 0) {
+        auto nextshpos =
+            pos + sizeof(file_header) + sizeof(section_header) + sh->length;
+        if (nextshpos + sizeof(section_header) < mm.size()) {
+          auto nsh = mm.as<section_header>(nextshpos);
+          // the next section must be a block or a metadata schema if the first
+          // section was a block *or* a metadata block if the first section was
+          // a metadata schema
+          if ((sh->type == section_type::BLOCK
+                   ? nsh->type == section_type::BLOCK ||
+                         nsh->type == section_type::METADATA_V2_SCHEMA
+                   : nsh->type == section_type::METADATA_V2) &&
+              is_valid_compression(nsh->compression) && nsh->length > 0) {
+            // we can be somewhat sure that this is where the filesystem starts
+            return pos;
+          }
+        }
+      }
+    } else {
+      // do a little more validation before we return
+      if (pos + sizeof(section_header_v2) >= mm.size()) {
         break;
       }
 
-      auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
+      auto sh = mm.as<section_header_v2>(pos);
 
-      if (::memcmp(ps, magic.data(), magic.size()) == 0 and
-          reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
-        return pos;
+      if (sh->number == 0) {
+        auto endpos = pos + sh->length + 2 * sizeof(section_header_v2);
+
+        if (endpos >= sh->length) {
+          if (endpos >= mm.size()) {
+            break;
+          }
+
+          auto ps = mm.as<void>(pos + sh->length + sizeof(section_header_v2));
+
+          if (::memcmp(ps, magic.data(), magic.size()) == 0 and
+              reinterpret_cast<section_header_v2 const*>(ps)->number == 1) {
+            return pos;
+          }
+        }
       }
     }
 
