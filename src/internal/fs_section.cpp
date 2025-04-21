@@ -47,7 +47,9 @@ template <typename T>
 void read_section_header_common(T& header, size_t& start, mmif const& mm,
                                 size_t offset) {
   if (offset + sizeof(T) > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section header");
+    DWARFS_THROW(runtime_error,
+                 fmt::format("truncated section header: {} + {} > {}", offset,
+                             sizeof(T), mm.size()));
   }
 
   ::memcpy(&header, mm.as<void>(offset), sizeof(T));
@@ -57,11 +59,13 @@ void read_section_header_common(T& header, size_t& start, mmif const& mm,
   auto end = offset + header.length;
 
   if (end < offset) {
-    DWARFS_THROW(runtime_error, "offset/length overflow");
+    DWARFS_THROW(runtime_error,
+                 fmt::format("offset/length overflow: {} < {}", end, offset));
   }
 
   if (end > mm.size()) {
-    DWARFS_THROW(runtime_error, "truncated section data");
+    DWARFS_THROW(runtime_error, fmt::format("truncated section data: {} > {}",
+                                            end, mm.size()));
   }
 
   start = offset;
