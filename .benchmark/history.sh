@@ -36,3 +36,4 @@ COMMON_OPTIONS=(--output-dir="${OUTPUTDIR}" --only=extract_perl_zstd_gnutar_devn
 ./benchmark.py "${COMMON_OPTIONS[@]}" --input-dir "${RELEASESDIR}"/v0.12.0@* --commit-time 1744119300
 ./benchmark.py "${COMMON_OPTIONS[@]}" --input-dir "${RELEASESDIR}"/v0.12.1@* --commit-time 1744316824
 ./benchmark.py "${COMMON_OPTIONS[@]}" --input-dir "${RELEASESDIR}"/v0.12.2@* --commit-time 1744786952
+./benchmark.py "${COMMON_OPTIONS[@]}" --input-dir "${RELEASESDIR}"/v0.12.3@* --commit-time 1745252441
