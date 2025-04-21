@@ -1,5 +1,29 @@
 # Change Log
 
+## Version 0.12.3 - 2025-04-21
+
+- (fix) Automatic image offset detection (for images using a custom
+  header) did not work correctly if the header contained a string that
+  would be identified as the start of a v1 section header (these were
+  only used before dwarfs-0.3.0). If there was either `"DWARFS\x02\x00"`
+  or `"DWARFS\x02\x01"` in the header, offset detection would fail.
+  The check has been modified to peek further into the data and ensure
+  this *really* is a v1 section header, and also checking if the next
+  section header position can be derived from the length field. It is
+  still possible to construct a file system image where offset detection
+  will ultimately fail, but it is much less likely with the change.
+
+- (build) The build process for the release binaries has been further
+  tweaked to reduce binary size. The `dwarfs-fuse-extract` binary now
+  again supports extracting files by pattern; I didn't realize that
+  this was actually a widely used feature before dropping it in the
+  last release. `dwarfs-universal` is now linked against LibreSSL's
+  `libcrypto` instead of OpenSSL's. This significantly reduces the size
+  at the expense slightly slower cryptographic hash functions. However,
+  this will likely *only* be perceivable when using `--tool=dwarfsck`
+  with either `--check-integrity` or `--checksum`. The binaries from the
+  release tarballs are still linked against `libcrypto` from OpenSSL.
+
 ## Version 0.12.2 - 2025-04-16
 
 - (fix) A performance regression introduced in v0.12.0 was fixed. This
