@@ -44,9 +44,9 @@ def main():
         help="Include ninja build logs in the trace",
     )
     parser.add_argument(
-        "--ninja-log-base",
-        default="/mnt/opensource/artifacts/dwarfs/ninja-logs",
-        help="Base path for ninja logs",
+        "--log-base",
+        default="/mnt/opensource/artifacts/dwarfs/workflow-logs",
+        help="Base path for workflow logs",
     )
     parser.add_argument(
         "--ninjatracing",
@@ -77,6 +77,15 @@ def main():
     events = []
 
     job_events = 0
+    t0 = None
+
+    for job in jobs:
+        if job.get("started_at"):
+            t = parse_iso8601(job["started_at"])
+            if t0 is None or t < t0:
+                t0 = t
+
+    print(f"Trace start time: {t0.isoformat()}")
 
     for job in jobs:
         # Job-level event
@@ -129,11 +138,42 @@ def main():
                                 # get arch, dist, config from "linux (arm64v8, alpine, clang-release-ninja-static) / docker-build"
                                 m = re.match(r"linux \(([^,]+), ([^,]+), ([^,]+)\)", name)
                                 if m:
-                                    log_path = f"{args.ninja_log_base}/{run_id}/{m.group(1)},{m.group(2)},{m.group(3)}.log"
-                                    if os.path.exists(log_path):
+                                    build_log_path = f"{args.log_base}/{run_id}/build-{m.group(1)},{m.group(2)},{m.group(3)}.log"
+                                    ninja_log_path = f"{args.log_base}/{run_id}/ninja-{m.group(1)},{m.group(2)},{m.group(3)}.log"
+                                    build_events = {}
+                                    if os.path.exists(build_log_path):
+                                        with open(build_log_path, "r") as f:
+                                            for line in f:
+                                                ts, event = line.strip().split("\t", 1)
+                                                be, ename = event.split(":", 1)
+                                                time = parse_iso8601(ts)
+                                                if time < t0:
+                                                    continue
+                                                if be == "begin":
+                                                    build_events[ename] = time.timestamp() * 1e6
+                                                else:
+                                                    assert be == "end"
+                                                    build_events[ename] = {
+                                                        "start": build_events[ename],
+                                                        "duration": time.timestamp() * 1e6 - build_events[ename],
+                                                    }
+                                                    events.append(
+                                                        {
+                                                            "name": ename,
+                                                            "cat": "command",
+                                                            "ph": "X",
+                                                            "ts": build_events[ename]["start"],
+                                                            "dur": build_events[ename]["duration"],
+                                                            "pid": runner_id,
+                                                            "tid": 0,
+                                                        }
+                                                    )
+                                    else:
+                                        print(f"Log file not found: {build_log_path}")
+                                    if os.path.exists(ninja_log_path):
                                         # Read output from ninjatracing tool
                                         result = subprocess.run(
-                                            [args.ninjatracing, log_path],
+                                            [args.ninjatracing, ninja_log_path],
                                             capture_output=True,
                                             text=True,
                                             check=True,
@@ -144,11 +184,11 @@ def main():
                                         for event in ninja_json:
                                             if event.get("dur") > 0:
                                                 # Adjust the timestamp to match the step
-                                                event["ts"] += ts_s
+                                                event["ts"] += build_events.get("build", {}).get("start", ts_s)
                                                 event["pid"] = runner_id
                                                 events.append(event)
                                     else:
-                                        print(f"Log file not found: {log_path}")
+                                        print(f"Log file not found: {ninja_log_path}")
             else:
                 print(
                     f"Job {name} has zero duration: {job['started_at']} -> {job['completed_at']}"
