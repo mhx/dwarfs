@@ -25,7 +25,7 @@
 #include <stdexcept>
 
 #include <cxxabi.h>
-#include <execinfo.h>
+// #include <execinfo.h>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 
@@ -37,6 +37,7 @@ namespace dwarfs {
 
 namespace {
 
+#if 0
 void backtrace(std::ostream& os) {
   const int stack_size = 5;
   const int stack_offset = 2;
@@ -69,6 +70,8 @@ void backtrace(std::ostream& os) {
 
   ::free(strings);
 }
+#endif
+
 } // namespace
 
 logger::level_type logger::parse_level(std::string_view level) {
@@ -104,9 +107,9 @@ void stream_logger::write(level_type level, const std::string& output) {
     std::lock_guard<std::mutex> lock(mx_);
     os_ << t << " " << output << "\n";
 
-    if (threshold_ == TRACE) {
-      backtrace(os_);
-    }
+    // if (threshold_ == TRACE) {
+    //   backtrace(os_);
+    // }
   }
 }
 
