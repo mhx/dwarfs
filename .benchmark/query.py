@@ -56,29 +56,64 @@ def import_data(db_path, *args):
 def walltime_chart(db_path, arch, binary_type, version, exclude):
     db = TinyDB(db_path)
     table = db.table(TABLE_NAME)
-    Q = Query()
 
-    release_configs = {
-        None,
-        "clang",
-        "clang-minsize-musl-lto",
+    # Release configurations before 0.12.0
+    release_configs_old = {
+        k: {None, "clang"} for k in ("standalone", "universal", "fuse-extract")
+    }
+
+    release_configs_by_version = {
+        "0.12.0": {
+            "standalone": {"clang-minsize-musl-lto"},
+            "universal": {"clang-minsize-musl-lto"},
+            "fuse-extract": {"clang-minsize-musl-minimal-lto"},
+        },
+        "0.12.1": {
+            "standalone": {"clang-minsize-musl-mimalloc-lto"},
+            "universal": {"clang-minsize-musl-mimalloc-lto"},
+            "fuse-extract": {"clang-minsize-musl-minimal-mimalloc-lto"},
+        },
+        "0.12.2": {
+            "standalone": {"clang-minsize-musl-lto"},
+            "universal": {"clang-minsize-musl-lto"},
+            "fuse-extract": {"clang-minsize-musl-minimal-lto"},
+        },
+        "0.12.3": {
+            "standalone": {"clang-minsize-musl-lto"},
+            "universal": {"clang-minsize-musl-libressl-lto"},
+            "fuse-extract": {"clang-minsize-musl-minimal-lto"},
+        },
     }
 
     exclude_re = re.compile(exclude) if exclude else None
 
-    # Fetch rows that match the arch, binary_type etc.
-    rows = table.search(
-        (Q.arch == arch)
-        & (Q.type == binary_type)
-        & (Q.mean.exists())
-        & (Q.stddev.exists())
-        & (
-            Q.config.test(lambda x: x in release_configs)
-            if version is None
-            else Q.version == version
+    def include_config(qconfig, qversion):
+        s = release_configs_by_version.get(qversion, release_configs_old).get(
+            binary_type
         )
-        & (Q.name.test(lambda x: exclude_re is None or not exclude_re.search(x)))
-    )
+        # print(f"include_config: {qconfig} {qversion} {s}")
+        return qconfig in s
+
+    def query(doc):
+        if doc["arch"] != arch:
+            return False
+        if doc["type"] != binary_type:
+            return False
+        if "mean" not in doc:
+            return False
+        if "stddev" not in doc:
+            return False
+        if exclude_re and exclude_re.search(doc["name"]):
+            return False
+        if version is None:
+            if not include_config(doc["config"], doc["version"]):
+                return False
+        else:
+            if doc["version"] != version:
+                return False
+        return True
+
+    rows = table.search(lambda doc: query(doc))
 
     # Sort and create a DataFrame with the relevant columns.
     # rows.sort(key=lambda r: (r.get("name"), r.get("config")))
