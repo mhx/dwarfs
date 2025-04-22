@@ -41,6 +41,25 @@ set(DWARFS_VERSION
 
 find_package(PkgConfig REQUIRED)
 
+set(CMAKE_FIND_LIBRARY_SUFFIXES
+    ".a"
+    CACHE STRING "please look for static libs")
+set(Boost_USE_STATIC_LIBS
+    ON
+    CACHE BOOL "only static boost libs")
+set(BOOST_LINK_STATIC
+    "ON"
+    CACHE STRING "yes, really")
+set(USE_STATIC_DEPS_ON_UNIX
+    ON
+    CACHE BOOL "yes")
+set(GFLAGS_SHARED
+    OFF
+    CACHE BOOL "static")
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+list(APPEND PKG_CONFIG_EXECUTABLE "--static")
+
 find_package(Boost 1.67 REQUIRED COMPONENTS date_time filesystem
                                             program_options system)
 
@@ -53,37 +72,39 @@ set(compiler_only
     ON
     CACHE BOOL "only build thrift compiler")
 
+set(FOLLY_HAVE_ELF OFF CACHE BOOL "" FORCE)
+
 add_subdirectory(folly EXCLUDE_FROM_ALL)
 add_subdirectory(fbthrift EXCLUDE_FROM_ALL)
 
 if(WITH_TESTS)
-  # Download and unpack googletest at configure time
-  configure_file(CMakeLists.txt.gtest googletest-download/CMakeLists.txt)
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
-  if(result)
-    message(FATAL_ERROR "CMake step for googletest failed: ${result}")
-  endif()
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} --build .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
-  if(result)
-    message(FATAL_ERROR "Build step for googletest failed: ${result}")
-  endif()
+  # # Download and unpack googletest at configure time
+  # configure_file(CMakeLists.txt.gtest googletest-download/CMakeLists.txt)
+  # execute_process(
+  #   COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+  #   RESULT_VARIABLE result
+  #   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
+  # if(result)
+  #   message(FATAL_ERROR "CMake step for googletest failed: ${result}")
+  # endif()
+  # execute_process(
+  #   COMMAND ${CMAKE_COMMAND} --build .
+  #   RESULT_VARIABLE result
+  #   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download)
+  # if(result)
+  #   message(FATAL_ERROR "Build step for googletest failed: ${result}")
+  # endif()
 
-  # Prevent overriding the parent project's compiler/linker settings on Windows
-  set(gtest_force_shared_crt
-      ON
-      CACHE BOOL "" FORCE)
+  # # Prevent overriding the parent project's compiler/linker settings on Windows
+  # set(gtest_force_shared_crt
+  #     ON
+  #     CACHE BOOL "" FORCE)
 
-  # Add googletest directly to our build. This defines the gtest and gtest_main
-  # targets.
-  add_subdirectory(
-    ${CMAKE_CURRENT_BINARY_DIR}/googletest-src
-    ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
+  # # Add googletest directly to our build. This defines the gtest and gtest_main
+  # # targets.
+  # add_subdirectory(
+  #   ${CMAKE_CURRENT_BINARY_DIR}/googletest-src
+  #   ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
 
   enable_testing()
   include(GoogleTest)
@@ -125,6 +146,10 @@ add_executable(mkdwarfs src/mkdwarfs.cpp)
 add_executable(dwarfs-bin src/dwarfs.cpp)
 add_executable(dwarfsck src/dwarfsck.cpp)
 add_executable(dwarfsbench src/dwarfsbench.cpp)
+
+foreach(tgt mkdwarfs dwarfs-bin dwarfsck dwarfsbench)
+  target_link_options(${tgt} PRIVATE -static -static-libgcc)
+endforeach()
 
 list(APPEND BINARY_TARGETS mkdwarfs dwarfs-bin dwarfsck dwarfsbench)
 
@@ -273,10 +298,11 @@ install(
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
-install(FILES man/dwarfs.1 man/mkdwarfs.1 DESTINATION share/man/man1)
+# install(FILES man/dwarfs.1 man/mkdwarfs.1 DESTINATION share/man/man1)
 install(DIRECTORY include/dwarfs DESTINATION include)
 
 set(CPACK_SOURCE_GENERATOR "TBZ2")
+set(CPACK_GENERATOR "TXZ")
 set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
