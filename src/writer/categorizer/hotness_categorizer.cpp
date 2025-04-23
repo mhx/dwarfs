@@ -126,8 +126,7 @@ inode_fragments hotness_categorizer_<LoggerPolicy>::categorize(
     LOG_DEBUG << "hotness categorizer: checking path '" << rel_path << "' ('"
               << path.full_path() << "')";
 
-    if (auto it = hotness_set_.find(rel_path.string());
-        it != hotness_set_.end()) {
+    if (hotness_set_.contains(rel_path.string())) {
       fragments.emplace_back(fragment_category(mapper(HOTNESS_CATEGORY)),
                              data.size());
     }
