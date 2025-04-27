@@ -1267,7 +1267,7 @@ nlohmann::json metadata_v2_data::as_json(dir_entry_view const& entry) const {
   obj["inode"] = inode;
 
   if (inode > 0) {
-    obj["name"] = std::string(entry.name());
+    obj["name"] = entry.name();
   }
 
   switch (posix_file_type::from_mode(mode)) {
