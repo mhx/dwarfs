@@ -506,6 +506,7 @@ if(WITH_TESTS)
       test/global_metadata_test.cpp
       test/integral_value_parser_test.cpp
       test/lazy_value_test.cpp
+      test/lru_cache_test.cpp
       test/metadata_requirements_test.cpp
       test/nilsimsa_test.cpp
       test/options_test.cpp
@@ -601,6 +602,10 @@ if(WITH_TESTS)
 
   if(TARGET tool_main_test)
     target_link_libraries(tool_main_test PRIVATE mkdwarfs_main dwarfsck_main dwarfsextract_main PkgConfig::LIBARCHIVE)
+  endif()
+
+  if(TARGET dwarfs_unit_tests)
+    target_link_libraries(dwarfs_unit_tests PRIVATE phmap)
   endif()
 
   if(TARGET manpage_test)

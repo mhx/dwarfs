@@ -36,9 +36,9 @@
 #include <span>
 #include <vector>
 
-#include <folly/container/EvictingCacheMap.h>
-
 #include <dwarfs/small_vector.h>
+
+#include <dwarfs/reader/internal/lru_cache.h>
 
 namespace dwarfs::reader::internal {
 
@@ -205,7 +205,7 @@ class basic_offset_cache {
   }
 
  private:
-  using cache_type = folly::EvictingCacheMap<inode_type, value_type>;
+  using cache_type = lru_cache<inode_type, value_type>;
 
   cache_type mutable cache_;
   std::mutex mutable mx_;

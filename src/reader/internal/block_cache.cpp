@@ -41,7 +41,6 @@
 
 #include <fmt/format.h>
 
-#include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
 #include <folly/system/ThreadName.h>
 
@@ -60,6 +59,7 @@
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/block_cache_byte_buffer_factory.h>
 #include <dwarfs/reader/internal/cached_block.h>
+#include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/periodic_executor.h>
 
 namespace dwarfs::reader::internal {
@@ -100,7 +100,7 @@ class lru_sequential_access_detector : public sequential_access_detector {
   void touch(size_t block_no) override {
     std::lock_guard lock(mx_);
     lru_.set(
-        block_no, block_no, true,
+        block_no, block_no, /* true, */
         // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
         [this](size_t, size_t&&) { is_sequential_.reset(); });
   }
@@ -132,7 +132,7 @@ class lru_sequential_access_detector : public sequential_access_detector {
   }
 
  private:
-  using lru_type = folly::EvictingCacheMap<size_t, size_t>;
+  using lru_type = lru_cache<size_t, size_t>;
 
   std::mutex mutable mx_;
   lru_type lru_;
@@ -251,6 +251,11 @@ class block_cache_ final : public block_cache::impl {
                                       : hardware_concurrency(),
                                   static_cast<size_t>(1)));
     }
+    cache_.set_prune_hook(
+        [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
+          on_block_removed("evicted", block_no, std::move(block));
+          blocks_evicted_.fetch_add(1, std::memory_order_relaxed);
+        });
   }
 
   ~block_cache_() noexcept override {
@@ -328,7 +333,6 @@ class block_cache_ final : public block_cache::impl {
   }
 
   void set_block_size(size_t size) override {
-    // XXX: This currently inevitably clears the cache
     if (size == 0) {
       DWARFS_THROW(runtime_error, "block size is zero");
     }
@@ -339,13 +343,7 @@ class block_cache_ final : public block_cache::impl {
     }
 
     std::lock_guard lock(mx_);
-    cache_.~lru_type();
-    new (&cache_) lru_type(max_blocks);
-    cache_.setPruneHook(
-        [this](size_t block_no, std::shared_ptr<cached_block>&& block) {
-          on_block_removed("evicted", block_no, std::move(block));
-          blocks_evicted_.fetch_add(1, std::memory_order_relaxed);
-        });
+    cache_.set_max_size(max_blocks);
   }
 
   void set_num_workers(size_t num) override {
@@ -390,7 +388,7 @@ class block_cache_ final : public block_cache::impl {
       if (auto next = seq_access_detector_->prefetch()) {
         std::lock_guard lock(mx_);
 
-        if (cache_.findWithoutPromotion(*next) == cache_.end() &&
+        if (cache_.find(*next, false) == cache_.end() &&
             active_.find(*next) == active_.end()) {
           sequential_prefetches_.fetch_add(1, std::memory_order_relaxed);
           LOG_TRACE << "prefetching block " << *next;
@@ -759,8 +757,7 @@ class block_cache_ final : public block_cache::impl {
     }
   }
 
-  using lru_type =
-      folly::EvictingCacheMap<size_t, std::shared_ptr<cached_block>>;
+  using lru_type = lru_cache<size_t, std::shared_ptr<cached_block>>;
   template <typename Key, typename Value>
   using fast_map_type = phmap::flat_hash_map<Key, Value>;
 

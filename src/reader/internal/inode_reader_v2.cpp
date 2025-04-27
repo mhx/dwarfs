@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include <folly/container/EvictingCacheMap.h>
 #include <folly/stats/Histogram.h>
 
 #include <range/v3/view/enumerate.hpp>
@@ -50,6 +49,7 @@
 
 #include <dwarfs/reader/internal/block_cache.h>
 #include <dwarfs/reader/internal/inode_reader_v2.h>
+#include <dwarfs/reader/internal/lru_cache.h>
 #include <dwarfs/reader/internal/offset_cache.h>
 
 namespace dwarfs::reader::internal {
@@ -164,7 +164,7 @@ class inode_reader_ final : public inode_reader_v2::impl {
                          offset_cache_chunk_index_interval,
                          offset_cache_updater_max_inline_offsets>;
 
-  using readahead_cache_type = folly::EvictingCacheMap<uint32_t, file_off_t>;
+  using readahead_cache_type = lru_cache<uint32_t, file_off_t>;
 
   std::vector<std::future<block_range>>
   read_internal(uint32_t inode, size_t size, file_off_t offset, size_t maxiov,
