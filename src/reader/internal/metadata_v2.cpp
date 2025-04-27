@@ -538,6 +538,14 @@ class metadata_v2_data {
     return std::make_unique<thrift::metadata::metadata>(meta_.thaw());
   }
 
+  std::unique_ptr<thrift::metadata::fs_options> thaw_fs_options() const {
+    if (meta_.options().has_value()) {
+      return std::make_unique<thrift::metadata::fs_options>(
+          meta_.options()->thaw());
+    }
+    return nullptr;
+  }
+
  private:
   template <typename K>
   using set_type = phmap::flat_hash_set<K>;
@@ -1443,6 +1451,44 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
       meta["unique_files"] = unique_files_;
     }
 
+    if (auto history = meta_.metadata_version_history(); history.has_value()) {
+      nlohmann::json jhistory = nlohmann::json::array();
+
+      for (auto const& ent : *history) {
+        nlohmann::json jent;
+
+        jent["major"] = ent.major();
+        jent["minor"] = ent.minor();
+
+        if (ent.dwarfs_version().has_value()) {
+          jent["dwarfs_version"] = ent.dwarfs_version().value();
+        }
+
+        jent["block_size"] = ent.block_size();
+
+        if (auto entopts = ent.options(); entopts.has_value()) {
+          nlohmann::json options;
+
+          options["mtime_only"] = entopts->mtime_only();
+
+          if (auto res = entopts->time_resolution_sec(); res.has_value()) {
+            options["time_resolution"] = res.value();
+          }
+
+          options["packed_chunk_table"] = entopts->packed_chunk_table();
+          options["packed_directories"] = entopts->packed_directories();
+          options["packed_shared_files_table"] =
+              entopts->packed_shared_files_table();
+
+          jent["options"] = std::move(options);
+        }
+
+        jhistory.push_back(std::move(jent));
+      }
+
+      meta["metadata_version_history"] = std::move(jhistory);
+    }
+
     info["meta"] = std::move(meta);
   }
 
@@ -2329,6 +2375,11 @@ std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::thaw() const {
 
 std::unique_ptr<thrift::metadata::metadata> metadata_v2_utils::unpack() const {
   return data_.unpack();
+}
+
+std::unique_ptr<thrift::metadata::fs_options>
+metadata_v2_utils::thaw_fs_options() const {
+  return data_.thaw_fs_options();
 }
 
 metadata_v2::metadata_v2(
