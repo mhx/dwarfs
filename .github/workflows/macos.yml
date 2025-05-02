@@ -97,6 +97,7 @@ jobs:
         run: |
           brew install  \
           bison flex gnu-sed bash boost double-conversion jemalloc fmt glog ccache folly
+          brew reinstall --formula cmake
 
       - name: Checkout
         uses: actions/checkout@v4
