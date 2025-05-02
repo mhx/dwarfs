@@ -150,15 +150,21 @@ set(DEPS_LIB_DIR ${DEPS}/lib)
 set(DEPS_BIN_DIR ${DEPS}/bin)
 set(DEPS_SBIN_DIR ${DEPS}/sbin)
 
-set(TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+if (NOT TOOLS)
+  set(TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+  message(STATUS "Using local setting for TOOLS folder: ${TOOLS}")
+else()
+  message(STATUS "Using upstream setting for TOOLS folder: ${TOOLS}")
+endif()
 
 include(${TOOLS}/cmake-scripts/def-external-project.cmake)
 
 
 set(FOLLY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/folly")
 set(FBTHRIFT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/fbthrift")
-include_directories(BEFORE ${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
+set(ZSTD_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/zstd")
 
+include_directories(BEFORE ${DEPS_INCLUDE_DIR} ${FOLLY_ROOT} ${FBTHRIFT_ROOT})
 link_directories(BEFORE ${DEPS_LIB_DIR})
 
 set(IS_MSYS OFF)
@@ -193,8 +199,15 @@ else(MSVC)
   endif(OSTYPE_RES EQUAL 0)
 endif(MSVC)
 
-set(PATCH_FOLLY OFF)
-set(PATCH_FBTHRIFT OFF)
+if (NO_PATCH)
+  set(PATCH_FOLLY OFF)
+  set(PATCH_FBTHRIFT OFF)
+  set(PATCH_ZSTD OFF)
+else (NO_PATCH)
+  set(PATCH_FOLLY ON)
+  set(PATCH_FBTHRIFT ON)
+  set(PATCH_ZSTD ON)
+endif(NO_PATCH)
 
 if(DEFINED OPENSSL_ROOT_DIR)
 # This is required because dwarfs itself does not do FindOpenSSL
@@ -206,19 +219,12 @@ if("${OSTYPE_TXT}" MATCHES "^linux-musl.*")
   add_compile_definitions(__musl__)
   include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
-
-  if (NOT NO_PATCH)
-    set(PATCH_FOLLY ON)
-  endif(NOT NO_PATCH)
 endif()
 
 if ("${OSTYPE_TXT}" MATCHES "^darwin*")
   include(${TOOLS}/cmake-scripts/macos-environment.cmake)
   include(${TOOLS}/cmake-scripts/setup-libutfcpp.cmake)
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
-  if (NOT NO_PATCH)
-    set(PATCH_FOLLY ON)
-  endif(NOT NO_PATCH)
 endif()
 
 if ("${OSTYPE_TXT}" MATCHES "msys")
@@ -227,18 +233,13 @@ if ("${OSTYPE_TXT}" MATCHES "msys")
   add_dependencies(_LIBARCHIVE ${LIBUTFCPP_PRJ})
   find_library(WINSOCK ws2_32 REQUIRED)
   message(STATUS "Using winsock2 at ${WINSOCK}")
-
-  if (NOT NO_PATCH)
-    set(PATCH_FOLLY ON)
-    set(PATCH_FBTHRIFT ON)
-  endif(NOT NO_PATCH)
 endif()
 
-if (${PATCH_FOLLY})  
-  message(STATUS "Patching folly with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh ${FOLLY_ROOT}'")
+if (${PATCH_FOLLY})
+  message(STATUS "Patching folly with '${GNU_BASH} ${TOOLS}/ci-scripts/patch-folly.sh ${FOLLY_ROOT}'")
   execute_process(
     COMMAND "${GNU_BASH}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-folly.sh"
+            "${TOOLS}/ci-scripts/patch-folly.sh"
             "${FOLLY_ROOT}"
     RESULT_VARIABLE PATCH_FOLLY_RES
     OUTPUT_VARIABLE PATCH_FOLLY_TXT
@@ -254,10 +255,10 @@ if (${PATCH_FOLLY})
 endif(${PATCH_FOLLY})
 
 if (${PATCH_FBTHRIFT})
-  message(STATUS "Patching fbthrift with '${GNU_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-fbthrift.sh ${FBTHRIFT_ROOT}'")
+  message(STATUS "Patching fbthrift with '${GNU_BASH} ${TOOLS}/ci-scripts/patch-fbthrift.sh ${FBTHRIFT_ROOT}'")
   execute_process(
     COMMAND "${GNU_BASH}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci-scripts/patch-fbthrift.sh"
+            "${TOOLS}/ci-scripts/patch-fbthrift.sh"
             "${FBTHRIFT_ROOT}"
     RESULT_VARIABLE PATCH_FBTHRIFT_RES
     OUTPUT_VARIABLE PATCH_FBTHRIFT_TXT
@@ -271,6 +272,25 @@ if (${PATCH_FBTHRIFT})
     message(FATAL_ERROR "Failed to patch fbthrift at '${FBTHRIFT_ROOT}': ${PATCH_FBTHRIFT_TXT}")
   endif(PATCH_FBTHRIFT_RES EQUAL 0)
 endif(${PATCH_FBTHRIFT})
+
+if (${PATCH_ZSTD})
+  message(STATUS "Patching zstd with '${GNU_BASH} ${TOOLS}/ci-scripts/patch-zstd.sh ${ZSTD_ROOT}'")
+  execute_process(
+    COMMAND "${GNU_BASH}"
+            "${TOOLS}/ci-scripts/patch-zstd.sh"
+            "${ZSTD_ROOT}"
+    RESULT_VARIABLE PATCH_ZSTD_RES
+    OUTPUT_VARIABLE PATCH_ZSTD_TXT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(PATCH_ZSTD_RES EQUAL 0)
+    message(STATUS "Patched zstd at '${ZSTD_ROOT}'")
+  else(PATCH_ZSTD_RES EQUAL 0)
+    message(FATAL_ERROR "Failed to patch zstd at '${ZSTD_ROOT}': ${PATCH_ZSTD_TXT}")
+  endif(PATCH_ZSTD_RES EQUAL 0)
+endif(${PATCH_ZSTD})
 
 check_cxx_source_compiles(
   "#include <filesystem>
