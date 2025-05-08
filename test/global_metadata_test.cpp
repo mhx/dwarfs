@@ -43,7 +43,7 @@ class global_metadata_test : public ::testing::Test {
   }
 
   static auto throws_error(std::string_view msg) {
-    return testing::ThrowsMessage<dwarfs::error>(testing::StartsWith(msg));
+    return testing::ThrowsMessage<dwarfs::error>(testing::HasSubstr(msg));
   };
 
   test_logger lgr;

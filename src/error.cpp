@@ -35,8 +35,11 @@
 
 #include <dwarfs/config.h>
 
-#ifdef DWARFS_USE_EXCEPTION_TRACER
-#include <folly/experimental/exception_tracer/ExceptionTracer.h>
+#ifdef DWARFS_STACKTRACE_ENABLED
+#if __has_include(<cpptrace/formatting.hpp>)
+#include <cpptrace/formatting.hpp>
+#define DWARFS_CPPTRACE_HAS_FORMATTING
+#endif
 #endif
 
 #include <dwarfs/error.h>
@@ -55,40 +58,60 @@ namespace {
 #endif
 }
 
-} // namespace
-
-error::error(std::string_view s, source_location loc) noexcept
-    : what_{fmt::format("{} [{}:{}]", s, basename(loc.file_name()), loc.line())}
-    , loc_{loc} {}
-
-system_error::system_error(source_location loc) noexcept
-    : system_error(errno, loc) {}
-
-system_error::system_error(std::string_view s, source_location loc) noexcept
-    : system_error(s, errno, loc) {}
-
-system_error::system_error(std::string_view s, int err,
-                           source_location loc) noexcept
-    : std::system_error(err, std::generic_category(), std::string(s))
-    , loc_{loc} {}
-
-system_error::system_error(int err, source_location loc) noexcept
-    : std::system_error(err, std::generic_category())
-    , loc_{loc} {}
-
-void dump_exceptions() {
-#ifdef DWARFS_USE_EXCEPTION_TRACER
-  auto exceptions = ::folly::exception_tracer::getCurrentExceptions();
-  for (auto& exc : exceptions) {
-    std::cerr << exc << "\n";
-  }
+void print_stacktrace(std::ostream& os [[maybe_unused]]) {
+#ifdef DWARFS_STACKTRACE_ENABLED
+  auto trace = cpptrace::generate_trace();
+#ifdef DWARFS_CPPTRACE_HAS_FORMATTING
+  auto formatter = cpptrace::formatter{}.addresses(
+      cpptrace::formatter::address_mode::object);
+  formatter.print(os, trace, true);
+#else
+  trace.print(os, true);
+#endif
 #endif
 }
+
+} // namespace
+
+error::error(source_location loc) noexcept
+    : loc_{loc}
+#ifdef DWARFS_STACKTRACE_ENABLED
+    , trace_{cpptrace::generate_raw_trace()}
+#endif
+{
+}
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+cpptrace::stacktrace error::stacktrace() const { return trace_.resolve(); }
+#endif
+
+runtime_error::runtime_error(std::string_view s, source_location loc)
+    : error{loc}
+    , what_{fmt::format("[{}:{}] {}", basename(loc.file_name()), loc.line(),
+                        s)} {}
+
+system_error::system_error(source_location loc)
+    : system_error(errno, loc) {}
+
+system_error::system_error(std::string_view s, source_location loc)
+    : system_error(s, errno, loc) {}
+
+system_error::system_error(std::string_view s, int err, source_location loc)
+    : error{loc}
+    , syserr_{err, std::generic_category(),
+              fmt::format("[{}:{}] {}", basename(loc.file_name()), loc.line(),
+                          s)} {}
+
+system_error::system_error(int err, source_location loc)
+    : error{loc}
+    , syserr_{err, std::generic_category(),
+              fmt::format("[{}:{}]", basename(loc.file_name()), loc.line())} {}
 
 void handle_nothrow(std::string_view expr, source_location loc) {
   std::cerr << "Expression `" << expr << "` threw `"
             << exception_str(std::current_exception()) << "` in "
             << loc.file_name() << "(" << loc.line() << ")\n";
+  print_stacktrace(std::cerr);
   do_terminate();
 }
 
@@ -96,12 +119,14 @@ void assertion_failed(std::string_view expr, std::string_view msg,
                       source_location loc) {
   std::cerr << "Assertion `" << expr << "` failed in " << loc.file_name() << "("
             << loc.line() << "): " << msg << "\n";
+  print_stacktrace(std::cerr);
   do_terminate();
 }
 
 void handle_panic(std::string_view msg, source_location loc) {
   std::cerr << "Panic: " << msg << " in " << loc.file_name() << "("
             << loc.line() << ")\n";
+  print_stacktrace(std::cerr);
   do_terminate();
 }
 

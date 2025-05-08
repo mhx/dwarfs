@@ -1408,7 +1408,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
       options.inode.categorizer_mgr.reset();
     }
-  } catch (std::exception const& e) {
+  } catch (dwarfs::error const& e) {
     LOG_ERROR << exception_str(e);
     return 1;
   }

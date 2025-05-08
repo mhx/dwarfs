@@ -33,47 +33,58 @@
 #include <string_view>
 #include <system_error>
 
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <cpptrace/cpptrace.hpp>
+#endif
+
 #include <dwarfs/source_location.h>
 
 namespace dwarfs {
 
 class error : public std::exception {
  public:
-  char const* what() const noexcept override { return what_.c_str(); }
-
   auto location() const { return loc_; }
   auto file() const { return loc_.file_name(); }
   auto line() const { return loc_.line(); }
+#ifdef DWARFS_STACKTRACE_ENABLED
+  cpptrace::stacktrace stacktrace() const;
+#endif
 
  protected:
-  error(std::string_view s, source_location loc) noexcept;
+  error(source_location loc) noexcept;
 
  private:
-  std::string what_;
   source_location loc_;
+#ifdef DWARFS_STACKTRACE_ENABLED
+  cpptrace::raw_trace trace_;
+#endif
 };
 
 class runtime_error : public error {
  public:
-  runtime_error(std::string_view s, source_location loc) noexcept
-      : error(s, loc) {}
-};
+  runtime_error(std::string_view s, source_location loc);
 
-class system_error : public std::system_error {
- public:
-  system_error(source_location loc) noexcept;
-  system_error(std::string_view s, source_location loc) noexcept;
-  system_error(std::string_view s, int err, source_location loc) noexcept;
-  system_error(int err, source_location loc) noexcept;
-
-  auto get_errno() const { return code().value(); }
-
-  auto location() const { return loc_; }
-  auto file() const { return loc_.file_name(); }
-  auto line() const { return loc_.line(); }
+  char const* what() const noexcept override { return what_.c_str(); }
 
  private:
-  source_location loc_;
+  std::string what_;
+};
+
+class system_error : public error {
+ public:
+  system_error(source_location loc);
+  system_error(std::string_view s, source_location loc);
+  system_error(std::string_view s, int err, source_location loc);
+  system_error(int err, source_location loc);
+
+  char const* what() const noexcept override { return syserr_.what(); }
+  std::error_code const& code() const noexcept { return syserr_.code(); }
+  int get_errno() const { return code().value(); }
+
+ private:
+  std::system_error syserr_;
 };
 
 #define DWARFS_THROW(cls, ...)                                                 \
@@ -100,8 +111,6 @@ class system_error : public std::system_error {
       ::dwarfs::handle_nothrow(#expr, DWARFS_CURRENT_SOURCE_LOCATION);         \
     }                                                                          \
   }()
-
-void dump_exceptions();
 
 [[noreturn]] void handle_nothrow(std::string_view expr, source_location loc);
 
