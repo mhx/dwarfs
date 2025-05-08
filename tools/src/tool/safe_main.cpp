@@ -30,6 +30,21 @@
 #include <cstdlib>
 #include <iostream>
 
+#include <dwarfs/config.h>
+
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <cpptrace/from_current.hpp>
+#if __has_include(<cpptrace/formatting.hpp>)
+#include <cpptrace/formatting.hpp>
+#define DWARFS_CPPTRACE_HAS_FORMATTING
+#endif
+#define DWARFS_TRY CPPTRACE_TRYZ
+#define DWARFS_CATCH CPPTRACE_CATCHZ
+#else
+#define DWARFS_TRY try
+#define DWARFS_CATCH catch
+#endif
+
 #include <dwarfs/error.h>
 #include <dwarfs/tool/safe_main.h>
 #include <dwarfs/util.h>
@@ -37,7 +52,7 @@
 namespace dwarfs::tool {
 
 int safe_main(std::function<int(void)> const& fn) {
-  try {
+  DWARFS_TRY {
     install_signal_handlers();
     setup_default_locale();
 #ifdef _WIN32
@@ -45,9 +60,19 @@ int safe_main(std::function<int(void)> const& fn) {
 #endif
 
     return fn();
-  } catch (...) {
+  }
+  DWARFS_CATCH(...) {
     std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
-    dump_exceptions();
+#ifdef DWARFS_STACKTRACE_ENABLED
+    auto stacktrace = cpptrace::from_current_exception();
+#ifdef DWARFS_CPPTRACE_HAS_FORMATTING
+    auto formatter = cpptrace::formatter{}.addresses(
+        cpptrace::formatter::address_mode::object);
+    formatter.print(std::cerr, stacktrace, true);
+#else
+    stacktrace.print(std::cerr, true);
+#endif
+#endif
   }
   return 1;
 }

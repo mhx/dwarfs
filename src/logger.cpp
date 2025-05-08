@@ -43,6 +43,10 @@
 
 #ifdef DWARFS_STACKTRACE_ENABLED
 #include <cpptrace/cpptrace.hpp>
+#if __has_include(<cpptrace/formatting.hpp>)
+#include <cpptrace/formatting.hpp>
+#define DWARFS_CPPTRACE_HAS_FORMATTING
+#endif
 #endif
 
 #include <fmt/chrono.h>
@@ -214,11 +218,19 @@ void stream_logger::write(level_type level, std::string_view output,
     }
 
 #ifdef DWARFS_STACKTRACE_ENABLED
-    std::string stacktrace;
     std::vector<std::string_view> st_lines;
+    std::string stacktrace;
 
     if (enable_stack_trace_ || level == FATAL) {
+#ifdef DWARFS_CPPTRACE_HAS_FORMATTING
+      auto formatter = cpptrace::formatter{}
+                           .header({})
+                           .addresses(cpptrace::formatter::address_mode::object)
+                           .paths(cpptrace::formatter::path_mode::basename);
+      stacktrace = formatter.format(cpptrace::generate_trace(), true);
+#else
       stacktrace = cpptrace::generate_trace().to_string(true);
+#endif
       split_to(stacktrace, '\n', st_lines);
       if (st_lines.back().empty()) {
         st_lines.pop_back();
