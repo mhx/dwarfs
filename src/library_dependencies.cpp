@@ -42,6 +42,10 @@
 
 #include <dwarfs/config.h>
 
+#ifdef DWARFS_STACKTRACE_ENABLED
+#include <cpptrace/version.hpp>
+#endif
+
 #include <dwarfs/library_dependencies.h>
 
 namespace dwarfs {
@@ -115,6 +119,10 @@ void library_dependencies::add_common_libraries() {
   add_library("libboost", BOOST_VERSION, version_format::boost);
   add_library("phmap", PHMAP_VERSION_MAJOR, PHMAP_VERSION_MINOR,
               PHMAP_VERSION_PATCH);
+#ifdef DWARFS_STACKTRACE_ENABLED
+  add_library("cpptrace", CPPTRACE_VERSION_MAJOR, CPPTRACE_VERSION_MINOR,
+              CPPTRACE_VERSION_PATCH);
+#endif
 }
 
 std::string library_dependencies::as_string() const {
