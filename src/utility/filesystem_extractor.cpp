@@ -35,7 +35,7 @@
 
 // This is required to avoid Windows.h being pulled in by libarchive
 // and polluting our environment with all sorts of shit.
-#if _WIN32
+#ifdef _WIN32
 #include <folly/portability/Windows.h>
 #endif
 
@@ -398,6 +398,9 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     });
   }
 
+  // Workaround for weird MSVC bug...
+  using struct_stat = struct stat;
+
   fs.walk_data_order([&](auto const& entry) {
     // TODO: we can surely early abort walk() somehow
     if (entry.is_root() || hard_error) {
@@ -427,7 +430,7 @@ bool filesystem_extractor_<LoggerPolicy>::extract(
     auto ae = ::archive_entry_new();
     auto stbuf = fs.getattr(inode);
 
-    struct stat st{};
+    struct_stat st{};
 
 #ifdef _WIN32
     stbuf.copy_to_without_block_info(&st);
