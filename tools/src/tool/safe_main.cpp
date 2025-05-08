@@ -52,6 +52,7 @@
 namespace dwarfs::tool {
 
 int safe_main(std::function<int(void)> const& fn) {
+  int retval{1};
   DWARFS_TRY {
     install_signal_handlers();
     setup_default_locale();
@@ -59,7 +60,7 @@ int safe_main(std::function<int(void)> const& fn) {
     ::_set_abort_behavior(0, _WRITE_ABORT_MSG);
 #endif
 
-    return fn();
+    retval = fn();
   }
   DWARFS_CATCH(...) {
     std::cerr << "ERROR: " << exception_str(std::current_exception()) << "\n";
@@ -74,7 +75,7 @@ int safe_main(std::function<int(void)> const& fn) {
 #endif
 #endif
   }
-  return 1;
+  return retval;
 }
 
 } // namespace dwarfs::tool
