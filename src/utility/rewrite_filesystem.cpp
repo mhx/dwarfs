@@ -70,6 +70,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
   }
 
   size_t block_no{0};
+  bool seen_history{false};
 
   auto log_rewrite =
       [&](bool compressing, auto const& s,
@@ -172,6 +173,7 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
       break;
 
     case section_type::HISTORY:
+      seen_history = true;
       if (opts.enable_history) {
         history hist{opts.history};
         hist.parse(fs.get_history().serialize().span());
@@ -197,6 +199,18 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
       copy_compressed(s);
       break;
     }
+  }
+
+  if (!seen_history && opts.enable_history) {
+    history hist{opts.history};
+    hist.append(opts.command_line_arguments);
+
+    LOG_VERBOSE << "adding " << get_section_name(section_type::HISTORY)
+                << ", compressing using '"
+                << writer.get_compressor(section_type::HISTORY).describe()
+                << "'";
+
+    writer.write_history(hist.serialize());
   }
 
   writer.flush();

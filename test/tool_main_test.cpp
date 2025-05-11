@@ -1717,6 +1717,15 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_EQ(0, fs.get_history().size());
     EXPECT_EQ(1, fs.info_as_json(history_opts).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
+
+    auto t2 = tester(t.out());
+    EXPECT_EQ(0, t2.run({"-i", image_file, "-o", "-", "--recompress=none",
+                         "--log-level=verbose"}))
+        << t.err();
+    auto fs2 = t2.fs_from_stdout();
+    EXPECT_TRUE(fs2.find("/random"));
+    EXPECT_EQ(1, fs2.get_history().size());
+    EXPECT_THAT(t2.err(), ::testing::HasSubstr("adding HISTORY"));
   }
 
   {
