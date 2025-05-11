@@ -176,40 +176,50 @@ void analyze_frozen(std::ostream& os,
 #define DWARFS_FMT_L "n"
 #endif
 
-  auto fmt_size = [&](auto const& name, size_t count, size_t size) {
-    return fmt::format("{0:>14" DWARFS_FMT_L "} {1:.<20}{2:.>16" DWARFS_FMT_L
+  auto fmt_size = [&](std::string_view name, std::optional<size_t> count_opt,
+                      size_t size) {
+    auto count = count_opt.value_or(1);
+    std::string count_str;
+    if (count_opt.has_value()) {
+      count_str = fmt::format("{0:" DWARFS_FMT_L "}", count);
+    }
+    return fmt::format("{0:>14} {1:.<24}{2:.>16" DWARFS_FMT_L
                        "} bytes {3:5.1f}% {4:5.1f} bytes/item\n",
-                       count, name, size, 100.0 * size / total_size,
+                       count_str, name, size, 100.0 * size / total_size,
                        count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
-  auto fmt_detail = [&](auto const& name, size_t count, size_t size,
+  auto fmt_detail = [&](std::string_view name, size_t count, size_t size,
                         std::string num) {
     return fmt::format(
-        "               {0:<20}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
+        "               {0:<24}{1:>16" DWARFS_FMT_L "} bytes {2:>6} "
         "{3:5.1f} bytes/item\n",
         name, size, num, count > 0 ? static_cast<double>(size) / count : 0.0);
   };
 
-  auto fmt_detail_pct = [&](auto const& name, size_t count, size_t size) {
+  auto fmt_detail_pct = [&](std::string_view name, size_t count, size_t size) {
     return fmt_detail(name, count, size,
                       fmt::format("{0:5.1f}%", 100.0 * size / total_size));
   };
 
-  auto add_size = [&](auto const& name, size_t count, size_t size) {
+  auto add_size = [&](std::string_view name, size_t count, size_t size) {
     usage.emplace_back(size, fmt_size(name, count, size));
+  };
+
+  auto add_size_unique = [&](std::string_view name, size_t size) {
+    usage.emplace_back(size, fmt_size(name, std::nullopt, size));
   };
 
   auto list_size = [&](auto const& list, auto const& field) {
     return (list.size() * field.layout.itemField.layout.bits + 7) / 8;
   };
 
-  auto add_list_size = [&](auto const& name, auto const& list,
+  auto add_list_size = [&](std::string_view name, auto const& list,
                            auto const& field) {
     add_size(name, list.size(), list_size(list, field));
   };
 
-  auto add_string_list_size = [&](auto const& name, auto const& list,
+  auto add_string_list_size = [&](std::string_view name, auto const& list,
                                   auto const& field) {
     auto count = list.size();
     if (count > 0) {
@@ -223,7 +233,7 @@ void analyze_frozen(std::ostream& os,
     }
   };
 
-  auto add_string_table_size = [&](auto const& name, auto const& table,
+  auto add_string_table_size = [&](std::string_view name, auto const& table,
                                    auto const& field) {
     if (auto data_size = table.buffer().size(); data_size > 0) {
       auto dict_size =
@@ -274,9 +284,42 @@ void analyze_frozen(std::ostream& os,
     }                                                                          \
   } while (0)
 
+#define META_ADD_DETAIL_BITS(field, x)                                         \
+  do {                                                                         \
+    if (auto bits =                                                            \
+            l->field##Field.layout.itemField.layout.x##Field.layout.bits;      \
+        bits > 0) {                                                            \
+      detail_bits.emplace_back(#x, bits);                                      \
+    }                                                                          \
+  } while (0)
+
   META_LIST_SIZE(chunks);
   META_LIST_SIZE(directories);
-  META_LIST_SIZE(inodes);
+
+  {
+    std::vector<std::pair<std::string_view, size_t>> detail_bits;
+
+    META_ADD_DETAIL_BITS(inodes, mode_index);
+    META_ADD_DETAIL_BITS(inodes, owner_index);
+    META_ADD_DETAIL_BITS(inodes, group_index);
+    META_ADD_DETAIL_BITS(inodes, atime_offset);
+    META_ADD_DETAIL_BITS(inodes, mtime_offset);
+    META_ADD_DETAIL_BITS(inodes, ctime_offset);
+
+    auto count = meta.inodes().size();
+    auto size = list_size(meta.inodes(), l->inodesField);
+    auto fmt = fmt_size("inodes", count, size);
+
+    for (size_t i = 0; i < detail_bits.size(); ++i) {
+      auto [name, bits] = detail_bits[i];
+      auto tree = i == detail_bits.size() - 1 ? "'" : "|";
+      fmt += fmt_detail_pct(fmt::format("{}- {}", tree, name), count,
+                            (count * bits + 7) / 8);
+    }
+
+    usage.emplace_back(size, fmt);
+  }
+
   META_LIST_SIZE(chunk_table);
   if (!meta.entry_table_v2_2().empty()) {
     // deprecated, so only list if non-empty
@@ -308,6 +351,7 @@ void analyze_frozen(std::ostream& os,
 #undef META_STRING_LIST_SIZE
 #undef META_OPT_LIST_SIZE
 #undef META_OPT_STRING_TABLE_SIZE
+#undef META_ADD_DETAIL_BITS
 
   if (auto cache = meta.reg_file_size_cache()) {
     add_list_size(
@@ -315,12 +359,18 @@ void analyze_frozen(std::ostream& os,
         l->reg_file_size_cacheField.layout.valueField.layout.lookupField);
   }
 
+  if (auto version = meta.dwarfs_version()) {
+    add_size_unique("dwarfs_version", version->size());
+  }
+
+  add_size_unique("metadata_root", l->size);
+
   std::ranges::sort(usage, [](auto const& a, auto const& b) {
     return a.first > b.first || (a.first == b.first && a.second < b.second);
   });
 
   os << "metadata memory usage:\n";
-  os << fmt::format("               {0:.<20}{1:.>16" DWARFS_FMT_L
+  os << fmt::format("               {0:.<24}{1:.>16" DWARFS_FMT_L
                     "} bytes       {2:6.1f} bytes/inode\n",
                     "total metadata", total_size,
                     static_cast<double>(total_size) / meta.inodes().size());
