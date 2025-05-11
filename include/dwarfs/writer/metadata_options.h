@@ -42,7 +42,7 @@ struct metadata_options {
   std::optional<file_stat::gid_type> gid{};
   std::optional<uint64_t> timestamp{};
   bool keep_all_times{false};
-  uint32_t time_resolution_sec{1};
+  std::optional<uint32_t> time_resolution_sec{};
   bool pack_chunk_table{false};
   bool pack_directories{false};
   bool pack_shared_files_table{false};
