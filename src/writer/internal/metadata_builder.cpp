@@ -25,6 +25,7 @@
 
 #include <thrift/lib/cpp2/protocol/DebugProtocol.h>
 
+#include <dwarfs/file_stat.h>
 #include <dwarfs/fstypes.h>
 #include <dwarfs/logger.h>
 #include <dwarfs/version.h>
@@ -52,6 +53,9 @@ using namespace dwarfs::internal;
 template <typename LoggerPolicy>
 class metadata_builder_ final : public metadata_builder::impl {
  public:
+  using uid_type = file_stat::uid_type;
+  using gid_type = file_stat::gid_type;
+
   metadata_builder_(logger& lgr, metadata_options const& options)
       : LOG_PROXY_INIT(lgr)
       , options_{options} {}
@@ -64,6 +68,7 @@ class metadata_builder_ final : public metadata_builder::impl {
       , md_{md}
       , options_{options} {
     upgrade_metadata(orig_fs_options, orig_fs_version);
+    update_inodes();
   }
 
   metadata_builder_(logger& lgr, thrift::metadata::metadata&& md,
@@ -74,6 +79,7 @@ class metadata_builder_ final : public metadata_builder::impl {
       , md_{std::move(md)}
       , options_{options} {
     upgrade_metadata(orig_fs_options, orig_fs_version);
+    update_inodes();
   }
 
   void set_devices(std::vector<uint64_t> devices) override {
@@ -137,6 +143,18 @@ class metadata_builder_ final : public metadata_builder::impl {
   void upgrade_metadata(thrift::metadata::fs_options const* orig_fs_options,
                         filesystem_version const& orig_fs_version);
   void upgrade_from_pre_v2_2();
+
+  uint32_t get_time_resolution() const {
+    uint32_t resolution = 1;
+    if (md_.options()) {
+      if (auto res = md_.options()->time_resolution_sec()) {
+        resolution = *res;
+      }
+    }
+    return resolution;
+  }
+
+  void update_inodes();
 
   LOG_PROXY_DECL(LoggerPolicy);
   thrift::metadata::metadata md_;
@@ -252,13 +270,94 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
 }
 
 template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::update_inodes() {
+  bool const update_uid{options_.uid.has_value()};
+  bool const update_gid{options_.gid.has_value()};
+  bool const set_timestamp{options_.timestamp.has_value()};
+  bool const remove_atime_ctime{
+      !options_.keep_all_times &&
+      !(md_.options().has_value() && md_.options()->mtime_only().value())};
+  bool update_resolution{false};
+  auto orig_resolution = get_time_resolution();
+  auto new_resolution = orig_resolution;
+
+  if (options_.time_resolution_sec.has_value()) {
+    auto res = *options_.time_resolution_sec;
+    if (res > orig_resolution) {
+      new_resolution = res;
+      update_resolution = true;
+    } else if (res < orig_resolution) {
+      LOG_WARN << "cannot increase time resolution from " << orig_resolution
+               << "s to " << res << "s";
+    }
+  }
+
+  if (!update_uid && !update_gid && !set_timestamp && !remove_atime_ctime &&
+      !update_resolution) {
+    // nothing to do
+    return;
+  }
+
+  auto transform_timeval = [&](auto val) {
+    return (val * orig_resolution) / new_resolution;
+  };
+
+  for (auto& inode : md_.inodes().value()) {
+    if (update_uid) {
+      inode.owner_index() = 0;
+    }
+
+    if (update_gid) {
+      inode.group_index() = 0;
+    }
+
+    if (set_timestamp) {
+      inode.mtime_offset() = 0;
+    } else if (update_resolution) {
+      inode.mtime_offset() = transform_timeval(inode.mtime_offset().value());
+    }
+
+    if (set_timestamp || remove_atime_ctime) {
+      inode.atime_offset() = 0;
+      inode.ctime_offset() = 0;
+    } else if (update_resolution) {
+      inode.atime_offset() = transform_timeval(inode.atime_offset().value());
+      inode.ctime_offset() = transform_timeval(inode.ctime_offset().value());
+    }
+  }
+
+  if (update_uid) {
+    md_.uids() = std::vector<uid_type>{*options_.uid};
+  }
+
+  if (update_gid) {
+    md_.gids() = std::vector<gid_type>{*options_.gid};
+  }
+
+  if (set_timestamp) {
+    md_.timestamp_base() = *options_.timestamp / new_resolution;
+  } else if (update_resolution) {
+    md_.timestamp_base() = transform_timeval(md_.timestamp_base().value());
+  }
+
+  if (new_resolution > 1) {
+    md_.options().ensure();
+    md_.options()->time_resolution_sec() = new_resolution;
+  }
+
+  // TODO: also allow chmod? -> that's quite a lot more involved,
+  //       but we can probably get rid of scanner transformers
+}
+
+template <typename LoggerPolicy>
 thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
   LOG_VERBOSE << "building metadata";
 
   thrift::metadata::fs_options fsopts;
   fsopts.mtime_only() = !options_.keep_all_times;
-  if (options_.time_resolution_sec > 1) {
-    fsopts.time_resolution_sec() = options_.time_resolution_sec;
+  if (options_.time_resolution_sec.has_value() &&
+      options_.time_resolution_sec.value() > 1) {
+    fsopts.time_resolution_sec() = options_.time_resolution_sec.value();
   }
   fsopts.packed_chunk_table() = options_.pack_chunk_table;
   fsopts.packed_directories() = options_.pack_directories;
@@ -350,11 +449,9 @@ thrift::metadata::metadata const& metadata_builder_<LoggerPolicy>::build() {
     md_.block_category_metadata().reset();
   }
 
-  // TODO: don't overwrite all options when upgrading!
   md_.options() = fsopts;
   md_.features() = features_.get();
 
-  // TODO: try and keep metadata upgrade history
   md_.dwarfs_version() = std::string("libdwarfs ") + DWARFS_GIT_ID;
   if (!options_.no_create_timestamp) {
     md_.create_timestamp() = std::time(nullptr);
@@ -574,9 +671,6 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
 
     upgrade_from_pre_v2_2();
   }
-
-  // TODO: update uid, gid, timestamp, mtime_only, time_resolution_sec
-  // TODO: do we need to do this here???
 
   tv << "upgrading metadata...";
 
