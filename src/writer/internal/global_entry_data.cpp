@@ -82,7 +82,7 @@ void global_entry_data::index() {
 }
 
 uint64_t global_entry_data::get_time_offset(uint64_t time) const {
-  return (time - timestamp_base_) / options_.time_resolution_sec;
+  return (time - timestamp_base_) / options_.time_resolution_sec.value_or(1);
 }
 
 uint64_t global_entry_data::get_mtime_offset(uint64_t time) const {
@@ -101,7 +101,7 @@ uint64_t global_entry_data::get_ctime_offset(uint64_t time) const {
 
 uint64_t global_entry_data::get_timestamp_base() const {
   return (options_.timestamp ? *options_.timestamp : timestamp_base_) /
-         options_.time_resolution_sec;
+         options_.time_resolution_sec.value_or(1);
 }
 
 size_t global_entry_data::get_uid_index(uid_type uid) const {
