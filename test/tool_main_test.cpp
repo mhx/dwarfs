@@ -3453,3 +3453,360 @@ TEST_P(fragment_order_test, basic) {
 
 INSTANTIATE_TEST_SUITE_P(dwarfs, fragment_order_test,
                          ::testing::ValuesIn(fragment_orders));
+
+TEST(mkdwarfs_test, rebuild_metadata) {
+  std::string const image_file = "test.dwarfs";
+  std::string image;
+
+  {
+    mkdwarfs_tester t;
+    ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--with-devices",
+                        "--with-specials", "--keep-all-times", "-l3"}))
+        << t.err();
+    auto img = t.fa->get_file(image_file);
+    ASSERT_TRUE(img);
+    image = std::move(img.value());
+    auto fs = t.fs_from_file(image_file);
+
+    auto dev = fs.find("/somedir/ipsum.py");
+    ASSERT_TRUE(dev);
+    auto iv = dev->inode();
+    EXPECT_TRUE(iv.is_regular_file());
+    auto stat = fs.getattr(iv);
+    EXPECT_EQ(10'000, stat.size());
+    EXPECT_EQ(6001, stat.atime());
+    EXPECT_EQ(6002, stat.mtime());
+    EXPECT_EQ(6003, stat.ctime());
+    EXPECT_EQ(1000, stat.uid());
+    EXPECT_EQ(100, stat.gid());
+  }
+
+  auto rebuild_tester = [&image_file](std::string const& image_data) {
+    auto t = mkdwarfs_tester::create_empty();
+    t.add_root_dir();
+    t.os->add_file(image_file, image_data);
+    return t;
+  };
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--keep-all-times"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6001, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6003, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000010001, stat.atime());
+      EXPECT_EQ(4000020002, stat.mtime());
+      EXPECT_EQ(4000030003, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(8001, stat.atime());
+      EXPECT_EQ(8002, stat.mtime());
+      EXPECT_EQ(8003, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6002, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6002, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000020002, stat.atime());
+      EXPECT_EQ(4000020002, stat.mtime());
+      EXPECT_EQ(4000020002, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(8002, stat.atime());
+      EXPECT_EQ(8002, stat.mtime());
+      EXPECT_EQ(8002, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--time-resolution=min"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6000, stat.atime());
+      EXPECT_EQ(6000, stat.mtime());
+      EXPECT_EQ(6000, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000020000, stat.atime());
+      EXPECT_EQ(4000020000, stat.mtime());
+      EXPECT_EQ(4000020000, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(7980, stat.atime());
+      EXPECT_EQ(7980, stat.mtime());
+      EXPECT_EQ(7980, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--set-time=98765"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(98765, stat.atime());
+      EXPECT_EQ(98765, stat.mtime());
+      EXPECT_EQ(98765, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(98765, stat.atime());
+      EXPECT_EQ(98765, stat.mtime());
+      EXPECT_EQ(98765, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(98765, stat.atime());
+      EXPECT_EQ(98765, stat.mtime());
+      EXPECT_EQ(98765, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--set-owner=123"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6002, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6002, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(100, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000020002, stat.atime());
+      EXPECT_EQ(4000020002, stat.mtime());
+      EXPECT_EQ(4000020002, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(8002, stat.atime());
+      EXPECT_EQ(8002, stat.mtime());
+      EXPECT_EQ(8002, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(0, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--set-group=456"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6002, stat.atime());
+      EXPECT_EQ(6002, stat.mtime());
+      EXPECT_EQ(6002, stat.ctime());
+      EXPECT_EQ(1000, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000020002, stat.atime());
+      EXPECT_EQ(4000020002, stat.mtime());
+      EXPECT_EQ(4000020002, stat.ctime());
+      EXPECT_EQ(0, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(8002, stat.atime());
+      EXPECT_EQ(8002, stat.mtime());
+      EXPECT_EQ(8002, stat.ctime());
+      EXPECT_EQ(1337, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+  }
+
+  {
+    auto t = rebuild_tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--rebuild-metadata",
+                        "--set-owner=123", "--set-group=456",
+                        "--keep-all-times", "--time-resolution=min"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+
+    {
+      auto dev = fs.find("/somedir/ipsum.py");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      EXPECT_TRUE(iv.is_regular_file());
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(10'000, stat.size());
+      EXPECT_EQ(6000, stat.atime());
+      EXPECT_EQ(6000, stat.mtime());
+      EXPECT_EQ(6000, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/somedir/zero");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(4000009980, stat.atime());
+      EXPECT_EQ(4000020000, stat.mtime());
+      EXPECT_EQ(4000029960, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+
+    {
+      auto dev = fs.find("/baz.pl");
+      ASSERT_TRUE(dev);
+      auto iv = dev->inode();
+      auto stat = fs.getattr(iv);
+      EXPECT_EQ(7980, stat.atime());
+      EXPECT_EQ(7980, stat.mtime());
+      EXPECT_EQ(7980, stat.ctime());
+      EXPECT_EQ(123, stat.uid());
+      EXPECT_EQ(456, stat.gid());
+    }
+  }
+}
