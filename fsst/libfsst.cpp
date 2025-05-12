@@ -17,6 +17,7 @@
 // You can contact the authors via the FSST source repository : https://github.com/cwida/fsst
 #include "libfsst.hpp"
 
+namespace libfsst {
 Symbol concat(Symbol a, Symbol b) {
    Symbol s;
    u32 length = a.length()+b.length();
@@ -25,12 +26,13 @@ Symbol concat(Symbol a, Symbol b) {
    s.val.num = (b.val.num << (8*a.length())) | a.val.num;
    return s;
 }
+}  // namespace libfsst
 
 namespace std {
 template <>
-class hash<QSymbol> {
+class hash<libfsst::QSymbol> {
    public:
-   size_t operator()(const QSymbol& q) const {
+   size_t operator()(const libfsst::QSymbol& q) const {
       uint64_t k = q.symbol.val.num;
       const uint64_t m = 0xc6a4a7935bd1e995;
       const int r = 47;
@@ -48,6 +50,7 @@ class hash<QSymbol> {
 };
 }
 
+namespace libfsst {
 bool isEscapeCode(u16 pos) { return pos < FSST_CODE_BASE; }
 
 std::ostream& operator<<(std::ostream& out, const Symbol& s) {
@@ -289,7 +292,7 @@ static inline size_t compressSIMD(SymbolTable &symbolTable, u8* symbolBase, size
             if (++batchPos == 512) break;
          } while(curOff < len[curLine]);
    
-         if ((batchPos == 512) || (outOff > (1<<19)) || (++curLine >= nlines)) { // cannot accumulate more?
+         if ((batchPos == 512) || (outOff > (1<<19)) || (++curLine >= nlines) || (((len[curLine])*2 + 7) > budget)) { // cannot accumulate more?
             if (batchPos-empty >= 32) { // if we have enough work, fire off fsst_compressAVX512 (32 is due to max 4x8 unrolling)
                // radix-sort jobs on length (longest string first) 
                // -- this provides best load balancing and allows to skip empty jobs at the end
@@ -615,7 +618,9 @@ inline size_t _compressAuto(Encoder *e, size_t nlines, const size_t lenIn[], con
 size_t compressAuto(Encoder *e, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[], int simd) {
    return _compressAuto(e, nlines, lenIn, strIn, size, output, lenOut, strOut, simd);
 }
+}  // namespace libfsst
 
+using namespace libfsst;
 // the main compression function (everything automatic)
 extern "C" size_t fsst_compress(fsst_encoder_t *encoder, size_t nlines, const size_t lenIn[], const u8 *strIn[], size_t size, u8 *output, size_t *lenOut, u8 *strOut[]) {
    // to be faster than scalar, simd needs 64 lines or more of length >=12; or fewer lines, but big ones (totLen > 32KB)
@@ -626,7 +631,7 @@ extern "C" size_t fsst_compress(fsst_encoder_t *encoder, size_t nlines, const si
 
 /* deallocate encoder */
 extern "C" void fsst_destroy(fsst_encoder_t* encoder) {
-   Encoder *e = (Encoder*) encoder; 
+  Encoder *e = (Encoder*) encoder; 
    delete e;
 }
 

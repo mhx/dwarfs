@@ -19,6 +19,7 @@
 #include <math.h>
 #include <string.h>
 
+namespace libfsst {
 Symbol concat(Symbol a, Symbol b) {
    Symbol s;
    u32 length = min(8, a.length()+b.length());
@@ -26,12 +27,14 @@ Symbol concat(Symbol a, Symbol b) {
    *(u64*) s.symbol = ((*(u64*) b.symbol) << (8*a.length())) | *(u64*) a.symbol;
    return s;
 }
+}  // namespace libfsst
 
 namespace std {
 template <>
-class hash<Symbol> {
+class hash<libfsst::Symbol> {
    public:
-   size_t operator()(const Symbol& s) const {
+   size_t operator()(const libfsst::Symbol& s) const {
+      using namespace libfsst;
       uint64_t k = *(u64*) s.symbol;
       const uint64_t m = 0xc6a4a7935bd1e995;
       const int r = 47;
@@ -49,6 +52,7 @@ class hash<Symbol> {
 };
 }
 
+namespace libfsst {
 std::ostream& operator<<(std::ostream& out, const Symbol& s) {
    for (u32 i=0; i<s.length(); i++)
       out << s.symbol[i];
@@ -295,7 +299,9 @@ long makeSample(vector<ulong> &sample, ulong nlines, const ulong len[]) {
    assert(sampleLong > 0);
    return (sampleLong < FSST_SAMPLEMAXSZ)?sampleLong:FSST_SAMPLEMAXSZ-sampleLong; 
 }
+}  // namespace libfsst
 
+using namespace libfsst; 
 extern "C" fsst_encoder_t* fsst_create(ulong n, const ulong lenIn[], const u8 *strIn[], int dummy) {
    vector<ulong> sample;
    (void) dummy;
@@ -307,14 +313,14 @@ extern "C" fsst_encoder_t* fsst_create(ulong n, const ulong lenIn[], const u8 *s
 
 /* create another encoder instance, necessary to do multi-threaded encoding using the same dictionary */
 extern "C" fsst_encoder_t* fsst_duplicate(fsst_encoder_t *encoder) {
-   Encoder *e = new Encoder();
+  Encoder *e = new Encoder();
    e->symbolMap = ((Encoder*)encoder)->symbolMap; // it is a shared_ptr
    return (fsst_encoder_t*) e;
 }
 
 // export a dictionary in compact format. 
 extern "C" u32 fsst_export(fsst_encoder_t *encoder, u8 *buf) {
-   Encoder *e = (Encoder*) encoder;
+  Encoder *e = (Encoder*) encoder;
    // In ->version there is a versionnr, but we hide also suffixLim/terminator/symbolCount there.
    // This is sufficient in principle to *reconstruct* a fsst_encoder_t from a fsst_decoder_t
    // (such functionality could be useful to append compressed data to an existing block).
@@ -375,6 +381,7 @@ extern "C" u32 fsst_import(fsst_decoder_t *decoder, u8 *buf) {
    return pos;
 }
 
+namespace libfsst {
 // runtime check for simd
 inline ulong _compressImpl(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd) {
    (void) noSuffixOpt;
@@ -394,7 +401,9 @@ inline ulong _compressAuto(Encoder *e, ulong nlines, const ulong lenIn[], const 
 ulong compressAuto(Encoder *e, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[], int simd) {
    return _compressAuto(e, nlines, lenIn, strIn, size, output, lenOut, strOut, simd);
 }
+}  // namespace libfsst
 
+using namespace libfsst;
 // the main compression function (everything automatic)
 extern "C" ulong fsst_compress(fsst_encoder_t *encoder, ulong nlines, const ulong lenIn[], const u8 *strIn[], ulong size, u8 *output, ulong *lenOut, u8 *strOut[]) {
    // to be faster than scalar, simd needs 64 lines or more of length >=12; or fewer lines, but big ones (totLen > 32KB)
@@ -405,7 +414,7 @@ extern "C" ulong fsst_compress(fsst_encoder_t *encoder, ulong nlines, const ulon
 
 /* deallocate encoder */
 extern "C" void fsst_destroy(fsst_encoder_t* encoder) {
-   Encoder *e = (Encoder*) encoder; 
+  Encoder *e = (Encoder*) encoder; 
    delete e;
 }
 
