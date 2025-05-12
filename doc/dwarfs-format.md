@@ -388,6 +388,220 @@ string tables by 50%, using a dictionary that is only a few
 hundred bytes long. If a `symtab` is set for the string table,
 this compression is used.
 
+### Binary Metadata Format Details
+
+The binary metadata is stored using
+[Frozen2](https://github.com/facebook/fbthrift/blob/main/thrift/lib/cpp2/frozen/Frozen.h).
+This format is, unfortunately, not really documented. Also, as of now,
+there is only a C++ implementation to read or write this format.
+
+To interpret the binary data in the `METADATA_V2` block, both the thrift
+definitions in [`metadata.thrift`](../thrift/metadata.thrift) and the
+[schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
+from the `METADATA_V2_SCHEMA` block are needed.
+
+You can inspect the schema using `dwarfsck` in two different ways.
+First, as a "raw" schema dump:
+
+```
+$ dwarfsck image.dwarfs -d schema_raw_dump
+Schema {
+  4: fileVersion (i32) = 1,
+  1: relaxTypeChecks (bool) = true,
+  2: layouts (map) = map<i16,struct>[44] {
+    0 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 6,
+      3: fields (map) = map<i16,struct>[0] {
+      },
+      4: typeName (string) = "",
+    },
+    1 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 5,
+      3: fields (map) = map<i16,struct>[0] {
+      },
+      4: typeName (string) = "",
+    },
+    2 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 12,
+      3: fields (map) = map<i16,struct>[0] {
+      },
+      4: typeName (string) = "",
+    },
+    3 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 11,
+      3: fields (map) = map<i16,struct>[0] {
+      },
+      4: typeName (string) = "",
+    },
+    4 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 23,
+      3: fields (map) = map<i16,struct>[2] {
+        2 -> Field {
+          1: layoutId (i16) = 2,
+          2: offset (i16) = 0,
+        },
+        3 -> Field {
+          1: layoutId (i16) = 3,
+          2: offset (i16) = -12,
+        },
+      },
+      4: typeName (string) = "",
+    },
+    5 -> Layout {
+      1: size (i32) = 0,
+      2: bits (i16) = 11,
+      3: fields (map) = map<i16,struct>[3] {
+        1 -> Field {
+          1: layoutId (i16) = 0,
+          2: offset (i16) = -5,
+        },
+        2 -> Field {
+          1: layoutId (i16) = 1,
+          2: offset (i16) = 0,
+        },
+        3 -> Field {
+          1: layoutId (i16) = 4,
+          2: offset (i16) = 0,
+        },
+      },
+      4: typeName (string) = "",
+    },
+[...]
+    43 -> Layout {
+      1: size (i32) = 36,
+      2: bits (i16) = 282,
+      3: fields (map) = map<i16,struct>[19] {
+        1 -> Field {
+          1: layoutId (i16) = 5,
+          2: offset (i16) = 0,
+        },
+        2 -> Field {
+          1: layoutId (i16) = 8,
+          2: offset (i16) = -11,
+        },
+        3 -> Field {
+          1: layoutId (i16) = 12,
+          2: offset (i16) = -23,
+        },
+[...]
+      },
+      4: typeName (string) = "",
+    },
+  },
+  3: rootLayout (i16) = 43,
+}
+```
+
+To make *any* sense of this, you need to look at the
+[`metadata.thrift`](../thrift/metadata.thrift) with the explicit knowledge
+that the `rootLayout` in the schema refers to the `struct metadata` in the
+thrift IDL. With that in mind, you can now see that the `struct metadata`
+itself uses 36 bytes (or 282 bits) of storage. By definition, these bytes
+are located at the start of the `METADATA_V2` block data. Note that these
+sizes are *solely* defined by the schema; another DwarFS image may store
+the `struct metadata` in fewer or more bits.
+
+You can also line up the `fields` map in the `Layout` of `struct metadata`
+with the fields from the thrift IDL. While the *names* of the struct members
+can change, the numeric id *never* changes. So you can see that field `1`
+refers to the `chunks` member. You can also see that the layout for that
+field is `5`, which can be looked up again in the `layouts` map of the schema.
+
+The tricky bit is that layout `5` does *not* refer to the `struct chunk` in
+the IDL, but *actually* to the `list<chunk>`. A `list` (or an `ArrayLayout`
+in Frozen2) is represented using 3 fields: `distance` (`1`), `count` (`2`)
+and `item` (`3`). `count` is just the actual length of the list/array/vector.
+`distance` is the offset at which the data for the list starts. And `item`
+finally refers to the layout for the `struct chunk`, in this case `4`.
+
+Layout `4` contains 2 out of the 3 members of `struct chunk`: `offset` (`2`)
+and `size` (`3`). The first member, `block`, is missing simply because there
+is only one block in the DwarFS image we're looking at. Thus, no bits are
+used to represent the `block` member in `struct chunk`. For `offset`, 12 bits
+are allocated per item and for `size`, 11 bits are allocated.
+
+Now, if we look at a hex dump of the `METADATA_V2` block, we have enough
+context to navigate the data:
+
+```
+            v offset 0
+            91 ac 55 b6  3e 2b 1a b2 c8 24 69 92  |......U.>+...$i.|
+             |  |
+             |  `-- 0b10101100
+             |     vvv     ^^^ -> 0b100100 = distance = 36
+             `-- 0b10010001
+                      ^^^^^ count = 17
+
+be 82 f7 0b 00 00 73 fa  c3 2e db 6e 4b 7e 17 3e  |......s....nK~.>|
+
+                         v offset 36
+6c 0d 77 b9 51 ef eb 02  a6 2a 00 4b 15 40 2d d0  |l.w.Q....*.K.@-.|
+                          |  |  |
+                          |  |  `- 0b00000000
+                          |  `---- 0b00101010  0b00000000010 = size = 2
+                          `------- 0b10100110  0b101010100110 = offset = 2726
+
+0f 53 05 80 aa 02 70 55  04 88 aa 00 3c 55 00 aa  |.S....pU....<U..|
+```
+
+The bits are read starting from the LSB of the first byte (i.e. little-
+endian). We know that the data starts with the root layout, and the
+root layout starts with the `ArrayLayout` for `list<chunk>`. We know
+that the `count` is represented using 5 bits starting at offset 0.
+Reading the actual bits, we find that there are 17 chunks stored in
+the metadata. Reading the 6 `distance` bits starting at an offset of
+5 bits (negative offsets are "bits", while positive offsets are "bytes"),
+we find that the 17 chunks are stored starting at the 36th byte.
+
+If we move to that location and read 12 bits for the chunk `offset` and
+11 bits of the chunk `size`, we find that the first chunk is 2 bytes
+from offset 2726 in block 0.
+
+Another option to look at the schema is via `frozen_layout`:
+
+```
+$ dwarfsck image.dwarfs -d frozen_layout
+36 byte (with 282 bits) ::dwarfs::thrift::metadata::metadata
+  chunks @ start
+    11 bit range of std::vector<dwarfs::thrift::metadata::chunk, std::allocator<dwarfs::thrift::metadata::chunk> >
+      distance @ bit 5
+        6 bit packed unsigned unsigned long
+      count @ start
+        5 bit packed unsigned unsigned long
+      item @ start
+        23 bit ::dwarfs::thrift::metadata::chunk
+          block @ start
+            empty packed unsigned unsigned int
+          offset @ start
+            12 bit packed unsigned unsigned int
+          size @ bit 12
+            11 bit packed unsigned unsigned int
+  directories @ bit 11
+    12 bit range of std::vector<dwarfs::thrift::metadata::directory, std::allocator<dwarfs::thrift::metadata::directory> >
+      distance @ bit 5
+        7 bit packed unsigned unsigned long
+      count @ start
+        5 bit packed unsigned unsigned long
+      item @ start
+        12 bit ::dwarfs::thrift::metadata::directory
+          parent_entry @ start
+            6 bit packed unsigned unsigned int
+          first_entry @ bit 6
+            6 bit packed unsigned unsigned int
+          self_entry @ start
+            empty packed unsigned unsigned int
+[...]
+```
+
+This makes a lot more sense now that we've already looked at the raw schema
+dump. This representation already associates the types from the thrift IDL
+with the layouts in the schema.
+
 ## AUTHOR
 
 Written by Marcus Holland-Moritz.
