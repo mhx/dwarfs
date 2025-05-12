@@ -262,6 +262,22 @@ void analyze_frozen(std::ostream& os,
     }
   };
 
+  using detail_bits_t = std::pair<std::string_view, size_t>;
+
+  auto summarize_details = [&](std::string_view name, size_t count, size_t size,
+                               std::span<detail_bits_t> details) {
+    std::ranges::stable_sort(details, ranges::greater{},
+                             &detail_bits_t::second);
+    auto fmt = fmt_size(name, count, size);
+    for (size_t i = 0; i < details.size(); ++i) {
+      auto [member, bits] = details[i];
+      auto tree = i == details.size() - 1 ? "'" : "|";
+      fmt += fmt_detail_pct(fmt::format("{}- {} [{}]", tree, member, bits),
+                            count, (count * bits + 7) / 8);
+    }
+    usage.emplace_back(size, fmt);
+  };
+
 #define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l.x##Field)
 
 #define META_STRING_LIST_SIZE(x) add_string_list_size(#x, meta.x(), l.x##Field)
@@ -289,6 +305,10 @@ void analyze_frozen(std::ostream& os,
     }                                                                          \
   } while (0)
 
+#define META_LIST_SIZE_DETAIL_BEGIN                                            \
+  do {                                                                         \
+    std::vector<detail_bits_t> detail_bits;
+
 #define META_ADD_DETAIL_BITS(field, x)                                         \
   do {                                                                         \
     if (auto bits =                                                            \
@@ -298,32 +318,61 @@ void analyze_frozen(std::ostream& os,
     }                                                                          \
   } while (0)
 
-  META_LIST_SIZE(chunks);
-  META_LIST_SIZE(directories);
+#define META_LIST_SIZE_DETAIL_END(x)                                           \
+  summarize_details(#x, meta.x().size(), list_size(meta.x(), l.x##Field),      \
+                    detail_bits);                                              \
+  }                                                                            \
+  while (0)
 
-  {
-    std::vector<std::pair<std::string_view, size_t>> detail_bits;
+#define META_OPT_LIST_SIZE_DETAIL_BEGIN(x)                                     \
+  do {                                                                         \
+    if (auto list = meta.x()) {                                                \
+      std::vector<detail_bits_t> detail_bits;
 
-    META_ADD_DETAIL_BITS(inodes, mode_index);
-    META_ADD_DETAIL_BITS(inodes, owner_index);
-    META_ADD_DETAIL_BITS(inodes, group_index);
-    META_ADD_DETAIL_BITS(inodes, atime_offset);
-    META_ADD_DETAIL_BITS(inodes, mtime_offset);
-    META_ADD_DETAIL_BITS(inodes, ctime_offset);
+#define META_OPT_ADD_DETAIL_BITS(field, x)                                     \
+  do {                                                                         \
+    if (auto bits = l.field##Field.layout.valueField.layout.itemField.layout   \
+                        .x##Field.layout.bits;                                 \
+        bits > 0) {                                                            \
+      detail_bits.emplace_back(#x, bits);                                      \
+    }                                                                          \
+  } while (0)
 
-    auto count = meta.inodes().size();
-    auto size = list_size(meta.inodes(), l.inodesField);
-    auto fmt = fmt_size("inodes", count, size);
+#define META_OPT_LIST_SIZE_DETAIL_END(x)                                       \
+  summarize_details(#x, list->size(),                                          \
+                    list_size(*list, l.x##Field.layout.valueField),            \
+                    detail_bits);                                              \
+  }                                                                            \
+  }                                                                            \
+  while (0)
 
-    for (size_t i = 0; i < detail_bits.size(); ++i) {
-      auto [name, bits] = detail_bits[i];
-      auto tree = i == detail_bits.size() - 1 ? "'" : "|";
-      fmt += fmt_detail_pct(fmt::format("{}- {}", tree, name), count,
-                            (count * bits + 7) / 8);
-    }
+  META_LIST_SIZE_DETAIL_BEGIN;
+  META_ADD_DETAIL_BITS(chunks, block);
+  META_ADD_DETAIL_BITS(chunks, offset);
+  META_ADD_DETAIL_BITS(chunks, size);
+  META_LIST_SIZE_DETAIL_END(chunks);
 
-    usage.emplace_back(size, fmt);
-  }
+  META_LIST_SIZE_DETAIL_BEGIN;
+  META_ADD_DETAIL_BITS(directories, parent_entry);
+  META_ADD_DETAIL_BITS(directories, first_entry);
+  META_ADD_DETAIL_BITS(directories, self_entry);
+  META_LIST_SIZE_DETAIL_END(directories);
+
+  META_LIST_SIZE_DETAIL_BEGIN;
+  META_ADD_DETAIL_BITS(inodes, mode_index);
+  META_ADD_DETAIL_BITS(inodes, owner_index);
+  META_ADD_DETAIL_BITS(inodes, group_index);
+  META_ADD_DETAIL_BITS(inodes, atime_offset);
+  META_ADD_DETAIL_BITS(inodes, mtime_offset);
+  META_ADD_DETAIL_BITS(inodes, ctime_offset);
+  META_ADD_DETAIL_BITS(inodes, name_index_v2_2);
+  META_ADD_DETAIL_BITS(inodes, inode_v2_2);
+  META_LIST_SIZE_DETAIL_END(inodes);
+
+  META_OPT_LIST_SIZE_DETAIL_BEGIN(dir_entries);
+  META_OPT_ADD_DETAIL_BITS(dir_entries, name_index);
+  META_OPT_ADD_DETAIL_BITS(dir_entries, inode_num);
+  META_OPT_LIST_SIZE_DETAIL_END(dir_entries);
 
   META_LIST_SIZE(chunk_table);
   if (!meta.entry_table_v2_2().empty()) {
@@ -336,7 +385,6 @@ void analyze_frozen(std::ostream& os,
   META_LIST_SIZE(modes);
 
   META_OPT_LIST_SIZE(devices);
-  META_OPT_LIST_SIZE(dir_entries);
   META_OPT_LIST_SIZE(shared_files_table);
 
   META_OPT_STRING_TABLE_SIZE(compact_names);
@@ -356,7 +404,12 @@ void analyze_frozen(std::ostream& os,
 #undef META_STRING_LIST_SIZE
 #undef META_OPT_LIST_SIZE
 #undef META_OPT_STRING_TABLE_SIZE
+#undef META_LIST_SIZE_DETAIL_BEGIN
 #undef META_ADD_DETAIL_BITS
+#undef META_LIST_SIZE_DETAIL_END
+#undef META_OPT_LIST_SIZE_DETAIL_BEGIN
+#undef META_OPT_ADD_DETAIL_BITS
+#undef META_OPT_LIST_SIZE_DETAIL_END
 
   if (auto cache = meta.reg_file_size_cache()) {
     add_list_size(
