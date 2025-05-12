@@ -19,8 +19,9 @@ with a non-zero exit code.
 
 - `-d`, `--detail=`*value*:
   Level of filesystem information detail. This can be a numeric level
-  between 0 and 6, or a comma-separated list of feature names. The
-  default corresponds to a level of 2.
+  between 0 and 7, or a comma-separated list of feature names. The
+  default corresponds to a level of 2. The feature names are shown
+  in the command help.
 
 - `-q`, `--quiet`:
   Don't produce any output unless there is an error.
