@@ -7,8 +7,10 @@ This document describes the DwarFS file system format, version 2.5.
 ## FILE STRUCTURE
 
 A DwarFS file system image is just a sequence of blocks, optionally
-prefixed by a "header", which is typically some sort of shell script.
-Each block has the following format:
+prefixed by a "header", which is typically some sort of shell script
+or other executable that intends to use the "bundled" DwarFS image.
+
+Each block in the DwarFS image has the following format:
 
          ┌───┬───┬───┬───┬───┬───┬───┬───┐
     0x00 │'D'│'W'│'A'│'R'│'F'│'S'│MAJ│MIN│  MAJ=0x02, MIN=0x05 for v2.5
@@ -61,8 +63,9 @@ A couple of notes:
 
 - A minor version number change will be backwards compatible, i.e. an
   old program will refuse to read a file system with a minor version
-  larger than the one it supports. However, a new program will still
-  read all file systems with a smaller minor version number.
+  larger than the one it supports. However, a new program can still
+  read all file systems with a smaller minor version number, although
+  very old versions may at some point no longer be supported.
 
 ### Header Detection
 
@@ -81,21 +84,32 @@ without any problems.
 
 ### Section Types
 
-There are currently 4 different section types.
+Currently, the following different section types are defined:
 
 - `BLOCK` (0):
   A block of data. This is where all file data is stored. There can be
-  an arbitrary number of blocks of this type.
+  an arbitrary number of blocks of this type. The file data can only be
+  interpreted using the metadata blocks. The metadata contains a list
+  of chunks for each file, each of which references a small part of the
+  data in a single `BLOCK`.
 
 - `METADATA_V2_SCHEMA` (7):
-  The schema used to layout the `METADATA_V2` block contents. This is
-  stored in "compact" thrift encoding.
+  The [schema](https://github.com/facebook/fbthrift/blob/main/thrift/lib/thrift/frozen.thrift)
+  used to layout the `METADATA_V2` block contents. This is stored in
+  "compact" thrift encoding. The metadata cannot be read without the
+  schema, as it defines the exact bit widths used to store each metadata
+  field.
 
 - `METADATA_V2` (8):
   This section contains the bulk of the metadata. It's essentially just
   a collection of bit-packed arrays and structures. The exact layout of
   each list and structure depends on the actual data and is stored
-  separately in `METADATA_V2_SCHEMA`.
+  separately in `METADATA_V2_SCHEMA`. The metadata format is defined in
+  [metadata.thrift](../thrift/metadata.thrift) and the binary format that
+  derives from that definition uses
+  [Frozen2](https://github.com/facebook/fbthrift/blob/main/thrift/lib/cpp2/frozen/Frozen.h).
+  Frozen2 is not only extremely space efficient, it also allows accessing
+  huge data structures directly through memory-mapping.
 
 - `SECTION_INDEX` (9):
   The section index is, well, an index of all sections in the file
@@ -117,7 +131,19 @@ There are currently 4 different section types.
 - `HISTORY` (10):
   File system history information as defined `thrift/history.thrift`.
   This is stored in "compact" thrift encoding. Zero or more history
-  sections are supported.
+  sections are supported. This section type is purely informational
+  and not needed to read the DwarFS image.
+
+### Compression Algorithms
+
+DwarFS supports a wide range of block compression algorithms, some of
+which require additional metadata. The full list of supported algorithms
+is defined in [`dwarfs/compression.h`](../include/dwarfs/compression.h).
+
+For compression algorithms with metadata, the metadata is defined in
+[`thrift/compression.thrift`](../thrift/compression.thrift). The metadata
+is stored in "compact" thrift encoding at the beginning of the block, just
+after the header.
 
 ## METADATA FORMAT
 
