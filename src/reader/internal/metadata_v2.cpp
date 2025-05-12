@@ -158,16 +158,21 @@ check_metadata_consistency(logger& lgr, global_metadata::Meta const& meta,
   return meta; // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
+::apache::thrift::frozen::Layout<thrift::metadata::metadata> const&
+get_layout(MappedFrozen<thrift::metadata::metadata> const& meta) {
+  auto layout = meta.findFirstOfType<std::unique_ptr<
+      ::apache::thrift::frozen::Layout<thrift::metadata::metadata>>>();
+  DWARFS_CHECK(layout, "no layout found");
+  return **layout;
+}
+
 void analyze_frozen(std::ostream& os,
                     MappedFrozen<thrift::metadata::metadata> const& meta,
-                    size_t total_size, fsinfo_options const& opts) {
+                    size_t total_size) {
   using namespace ::apache::thrift::frozen;
   null_logger lgr;
 
-  auto layout = meta.findFirstOfType<
-      std::unique_ptr<Layout<thrift::metadata::metadata>>>();
-
-  auto& l = *layout;
+  auto& l = get_layout(meta);
   std::vector<std::pair<size_t, std::string>> usage;
 
 #if FMT_VERSION >= 70000
@@ -257,21 +262,21 @@ void analyze_frozen(std::ostream& os,
     }
   };
 
-#define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l->x##Field)
+#define META_LIST_SIZE(x) add_list_size(#x, meta.x(), l.x##Field)
 
-#define META_STRING_LIST_SIZE(x) add_string_list_size(#x, meta.x(), l->x##Field)
+#define META_STRING_LIST_SIZE(x) add_string_list_size(#x, meta.x(), l.x##Field)
 
 #define META_OPT_LIST_SIZE(x)                                                  \
   do {                                                                         \
     if (auto list = meta.x()) {                                                \
-      add_list_size(#x, *list, l->x##Field.layout.valueField);                 \
+      add_list_size(#x, *list, l.x##Field.layout.valueField);                  \
     }                                                                          \
   } while (0)
 
 #define META_OPT_STRING_LIST_SIZE(x)                                           \
   do {                                                                         \
     if (auto list = meta.x()) {                                                \
-      add_string_list_size(#x, *list, l->x##Field.layout.valueField);          \
+      add_string_list_size(#x, *list, l.x##Field.layout.valueField);           \
     }                                                                          \
   } while (0)
 
@@ -280,14 +285,14 @@ void analyze_frozen(std::ostream& os,
 #define META_OPT_STRING_TABLE_SIZE(x)                                          \
   do {                                                                         \
     if (auto table = meta.x()) {                                               \
-      add_string_table_size(#x, *table, l->x##Field.layout.valueField);        \
+      add_string_table_size(#x, *table, l.x##Field.layout.valueField);         \
     }                                                                          \
   } while (0)
 
 #define META_ADD_DETAIL_BITS(field, x)                                         \
   do {                                                                         \
     if (auto bits =                                                            \
-            l->field##Field.layout.itemField.layout.x##Field.layout.bits;      \
+            l.field##Field.layout.itemField.layout.x##Field.layout.bits;       \
         bits > 0) {                                                            \
       detail_bits.emplace_back(#x, bits);                                      \
     }                                                                          \
@@ -307,7 +312,7 @@ void analyze_frozen(std::ostream& os,
     META_ADD_DETAIL_BITS(inodes, ctime_offset);
 
     auto count = meta.inodes().size();
-    auto size = list_size(meta.inodes(), l->inodesField);
+    auto size = list_size(meta.inodes(), l.inodesField);
     auto fmt = fmt_size("inodes", count, size);
 
     for (size_t i = 0; i < detail_bits.size(); ++i) {
@@ -356,14 +361,14 @@ void analyze_frozen(std::ostream& os,
   if (auto cache = meta.reg_file_size_cache()) {
     add_list_size(
         "inode_size_cache", cache->lookup(),
-        l->reg_file_size_cacheField.layout.valueField.layout.lookupField);
+        l.reg_file_size_cacheField.layout.valueField.layout.lookupField);
   }
 
   if (auto version = meta.dwarfs_version()) {
     add_size_unique("dwarfs_version", version->size());
   }
 
-  add_size_unique("metadata_root", l->size);
+  add_size_unique("metadata_root", l.size);
 
   std::ranges::sort(usage, [](auto const& a, auto const& b) {
     return a.first > b.first || (a.first == b.first && a.second < b.second);
@@ -379,11 +384,6 @@ void analyze_frozen(std::ostream& os,
 
   for (auto const& u : usage) {
     os << u.second;
-  }
-
-  if (opts.features.has(fsinfo_feature::frozen_layout)) {
-    l->print(os, 0);
-    os << '\n';
   }
 }
 
@@ -1603,7 +1603,12 @@ void metadata_v2_data::dump(
   }
 
   if (opts.features.has(fsinfo_feature::frozen_analysis)) {
-    analyze_frozen(os, meta_, data_.size(), opts);
+    analyze_frozen(os, meta_, data_.size());
+  }
+
+  if (opts.features.has(fsinfo_feature::frozen_layout)) {
+    get_layout(meta_).print(os, 0);
+    os << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::metadata_details)) {
