@@ -55,6 +55,7 @@ constexpr std::array level_features{
         {fsinfo_feature::directory_tree, fsinfo_feature::frozen_layout}),
     /* 5 */ fsinfo_features({fsinfo_feature::chunk_details}),
     /* 6 */ fsinfo_features({fsinfo_feature::metadata_full_dump}),
+    /* 7 */ fsinfo_features({fsinfo_feature::schema_raw_dump}),
 };
 
 constexpr std::array<std::pair<fsinfo_feature, std::string_view>,
@@ -68,6 +69,7 @@ constexpr std::array<std::pair<fsinfo_feature, std::string_view>,
         FSINFO_FEATURE_PAIR_(metadata_full_dump),
         FSINFO_FEATURE_PAIR_(frozen_analysis),
         FSINFO_FEATURE_PAIR_(frozen_layout),
+        FSINFO_FEATURE_PAIR_(schema_raw_dump),
         FSINFO_FEATURE_PAIR_(directory_tree),
         FSINFO_FEATURE_PAIR_(section_details),
         FSINFO_FEATURE_PAIR_(chunk_details),

@@ -47,6 +47,7 @@ enum class fsinfo_feature {
   metadata_full_dump,
   frozen_analysis,
   frozen_layout,
+  schema_raw_dump,
   directory_tree,
   section_details,
   chunk_details,

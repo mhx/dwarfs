@@ -91,14 +91,19 @@ namespace {
 
 using ::apache::thrift::frozen::MappedFrozen;
 
-void check_schema(std::span<uint8_t const> data) {
-  using namespace ::apache::thrift;
-  frozen::schema::Schema schema;
-  size_t schemaSize = CompactSerializer::deserialize(data, schema);
-  // std::cerr << debugString(schema) << '\n';
-  if (schemaSize != data.size()) {
+::apache::thrift::frozen::schema::Schema
+deserialize_schema(std::span<uint8_t const> data) {
+  ::apache::thrift::frozen::schema::Schema schema;
+  size_t schema_size =
+      ::apache::thrift::CompactSerializer::deserialize(data, schema);
+  if (schema_size != data.size()) {
     DWARFS_THROW(runtime_error, "invalid schema size");
   }
+  return schema;
+}
+
+void check_schema(std::span<uint8_t const> data) {
+  auto schema = deserialize_schema(data);
   if (!schema.layouts()->contains(*schema.rootLayout())) {
     DWARFS_THROW(runtime_error, "invalid rootLayout in schema");
   }
@@ -818,6 +823,7 @@ class metadata_v2_data {
                 : 0);
   }
 
+  std::vector<uint8_t> schema_;
   std::span<uint8_t const> data_;
   MappedFrozen<thrift::metadata::metadata> meta_;
   global_metadata const global_;
@@ -850,7 +856,8 @@ metadata_v2_data::metadata_v2_data(
     std::span<uint8_t const> data, metadata_options const& options,
     int inode_offset, bool force_consistency_check,
     std::shared_ptr<performance_monitor const> const& perfmon [[maybe_unused]])
-    : data_{data}
+    : schema_{schema.begin(), schema.end()}
+    , data_{data}
     , meta_{check_frozen(map_frozen<thrift::metadata::metadata>(schema, data_))}
     , global_{lgr, check_metadata_consistency(lgr, meta_,
                                               options.check_consistency ||
@@ -1662,6 +1669,10 @@ void metadata_v2_data::dump(
   if (opts.features.has(fsinfo_feature::frozen_layout)) {
     get_layout(meta_).print(os, 0);
     os << '\n';
+  }
+
+  if (opts.features.has(fsinfo_feature::schema_raw_dump)) {
+    os << ::apache::thrift::debugString(deserialize_schema(schema_)) << '\n';
   }
 
   if (opts.features.has(fsinfo_feature::metadata_details)) {
