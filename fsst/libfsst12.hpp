@@ -36,6 +36,7 @@ using namespace std;
 
 #include "fsst12.h" // the official FSST API -- also usable by C mortals
 
+namespace libfsst {
 /* workhorse type for string and buffer lengths: 64-bits on 64-bits platforms and 32-bits on 32-bits platforms */
 typedef unsigned long ulong; 
 
@@ -44,6 +45,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+} // namespace libfsst
 
 #define FSST_ENDIAN_MARKER ((u64) 1)
 #define FSST_VERSION_20190218 20190218
@@ -54,6 +56,7 @@ typedef uint64_t u64;
 #define FSST_CODE_MAX 4096
 #define FSST_CODE_MASK      ((u16) (FSST_CODE_MAX-1)) 
 
+namespace libfsst {
 inline uint64_t fsst_unaligned_load(u8 const* V) {
     uint64_t Ret;
     memcpy(&Ret, V, sizeof(uint64_t)); // compiler will generate efficient code (unaligned load, where possible)
@@ -309,3 +312,4 @@ struct Encoder {
 // C++ fsst-compress function with some more control of how the compression happens (algorithm flavor, simd unroll degree)
 ulong compressImpl(Encoder *encoder, ulong n, ulong lenIn[], u8 *strIn[], ulong size, u8 * output, ulong *lenOut, u8 *strOut[], bool noSuffixOpt, bool avoidBranch, int simd);
 ulong compressAuto(Encoder *encoder, ulong n, ulong lenIn[], u8 *strIn[], ulong size, u8 * output, ulong *lenOut, u8 *strOut[], int simd);
+}  // namespace libfsst

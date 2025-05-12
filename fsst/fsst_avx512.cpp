@@ -21,22 +21,30 @@
 #include <immintrin.h>
 
 #ifdef _WIN32
+namespace libfsst {
 bool fsst_hasAVX512() {
    int info[4];
    __cpuidex(info, 0x00000007, 0);
    return (info[1]>>16)&1;
 }
+}  // namespace libfsst
 #else
 #include <cpuid.h>
+namespace libfsst {
 bool fsst_hasAVX512() {
    int info[4];
     __cpuid_count(0x00000007, 0, info[0], info[1], info[2], info[3]);
    return (info[1]>>16)&1;
 }
+}  // namespace libfsst
 #endif
 #else
+namespace libfsst {
 bool fsst_hasAVX512() { return false; }
+}  // namespace libfsst
 #endif
+
+namespace libfsst {
 
 // BULK COMPRESSION OF STRINGS
 //
@@ -138,3 +146,5 @@ size_t fsst_compressAVX512(SymbolTable &symbolTable, u8* codeBase, u8* symbolBas
 #endif
    return processed;
 }
+}  // namespace libfsst
+
