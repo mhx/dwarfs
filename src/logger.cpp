@@ -381,8 +381,9 @@ std::string get_logger_context(source_location loc) {
 
 std::string get_current_time_string() {
   using namespace std::chrono;
-  auto now = floor<microseconds>(system_clock::now());
-  return fmt::format("{:%H:%M:%S}", now);
+  auto const now = floor<microseconds>(system_clock::now());
+  auto const local = safe_localtime(system_clock::to_time_t(now));
+  return fmt::format("{:%H:%M}:{:%S}", local, now);
 }
 
 } // namespace dwarfs
