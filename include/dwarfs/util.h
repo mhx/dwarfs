@@ -83,4 +83,6 @@ int get_current_umask();
 
 void install_signal_handlers();
 
+std::tm safe_localtime(std::time_t t);
+
 } // namespace dwarfs

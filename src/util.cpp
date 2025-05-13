@@ -556,4 +556,19 @@ void install_signal_handlers() {
 #endif
 }
 
+std::tm safe_localtime(std::time_t t) {
+  std::tm buf{};
+#ifdef _WIN32
+  if (auto r = ::localtime_s(&buf, &t); r != 0) {
+    DWARFS_THROW(runtime_error, fmt::format("localtime_s: error code {}", r));
+  }
+#else
+  if (!::localtime_r(&t, &buf)) {
+    DWARFS_THROW(runtime_error,
+                 fmt::format("localtime_r: error code {}", errno));
+  }
+#endif
+  return buf;
+}
+
 } // namespace dwarfs

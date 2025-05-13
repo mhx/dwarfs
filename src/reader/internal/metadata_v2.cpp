@@ -1335,8 +1335,7 @@ metadata_v2_data::info_as_json(fsinfo_options const& opts,
   }
 
   if (auto ts = meta_.create_timestamp()) {
-    info["created_on"] =
-        fmt::format("{:%Y-%m-%dT%H:%M:%S}", fmt::localtime(ts.value()));
+    info["created_on"] = fmt::format("{:%FT%T}", safe_localtime(ts.value()));
   }
 
   if (opts.features.has(fsinfo_feature::metadata_summary)) {
@@ -1468,11 +1467,8 @@ void metadata_v2_data::dump(
   }
 
   if (auto ts = meta_.create_timestamp()) {
-    time_t tp = *ts;
-    std::string str(32, '\0');
-    str.resize(
-        std::strftime(str.data(), str.size(), "%F %T", std::localtime(&tp)));
-    os << "created on: " << str << "\n";
+    os << "created on: " << fmt::format("{:%F %T}", safe_localtime(*ts))
+       << "\n";
   }
 
   if (opts.features.has(fsinfo_feature::metadata_summary)) {

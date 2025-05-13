@@ -2631,16 +2631,17 @@ TEST(dwarfsck_test, list_files_verbose) {
 
   auto num_lines = std::count(out.begin(), out.end(), '\n');
   EXPECT_EQ(12, num_lines);
+  auto format_time = [](time_t t) {
+    return fmt::format("{:%F %H:%M}", safe_localtime(t));
+  };
 
   std::vector<std::string> expected_re{
-      fmt::format("drwxrwxrwx\\s+1000/100\\s+8\\s+{:%Y-%m-%d %H:%M}\\s*\n",
-                  fmt::localtime(2)),
-      fmt::format(
-          "-rw-------\\s+1337/  0\\s+{:L}\\s+{:%Y-%m-%d %H:%M}\\s+baz.pl\n",
-          23456, fmt::localtime(8002)),
-      fmt::format("lrwxrwxrwx\\s+1000/100\\s+16\\s+{:%Y-%m-%d "
-                  "%H:%M}\\s+somelink -> somedir/ipsum.py\n",
-                  fmt::localtime(2002)),
+      fmt::format("drwxrwxrwx\\s+1000/100\\s+8\\s+{}\\s*\n", format_time(2)),
+      fmt::format("-rw-------\\s+1337/  0\\s+{:L}\\s+{}\\s+baz.pl\n", 23456,
+                  format_time(8002)),
+      fmt::format("lrwxrwxrwx\\s+1000/100\\s+16\\s+{}\\s+somelink -> "
+                  "somedir/ipsum.py\n",
+                  format_time(2002)),
   };
 
   for (auto const& str : expected_re) {
