@@ -879,6 +879,13 @@ foreach(tgt dwarfs_test_helpers dwarfs_follybenchmark_lite
                                             -fno-omit-frame-pointer)
       target_link_options(${tgt} PRIVATE -fsanitize=undefined)
     endif()
+
+    if(ENABLE_SANITIZER)
+      target_compile_options(${tgt} PRIVATE -fsanitize=${ENABLE_SANITIZER}
+                                            -fno-omit-frame-pointer)
+      target_link_options(${tgt} PRIVATE -fsanitize=${ENABLE_SANITIZER})
+    endif()
+
   endif()
 endforeach()
 
