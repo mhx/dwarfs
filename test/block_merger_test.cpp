@@ -363,7 +363,9 @@ do_run(std::mutex& out_mx, size_t run, std::mt19937& delay_rng) {
       if constexpr (PartialRelease) {
         std::this_thread::sleep_until(next);
       } else {
+#ifndef _WIN32
         std::this_thread::sleep_for(std::chrono::microseconds(10));
+#endif
       }
     }
   });
