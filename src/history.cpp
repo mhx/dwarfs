@@ -37,6 +37,7 @@
 #include <dwarfs/history.h>
 #include <dwarfs/library_dependencies.h>
 #include <dwarfs/malloc_byte_buffer.h>
+#include <dwarfs/util.h>
 #include <dwarfs/version.h>
 
 #include <dwarfs/gen-cpp2/history_types.h>
@@ -105,10 +106,9 @@ void history::dump(std::ostream& os) const {
     for (auto const& histent : *history_->entries()) {
       os << "  " << fmt::format("{:>{}}:", i++, iwidth);
 
-      if (histent.timestamp().has_value()) {
-        os << " "
-           << fmt::format("[{:%Y-%m-%d %H:%M:%S}]",
-                          fmt::localtime(histent.timestamp().value()));
+      if (auto ts = histent.timestamp(); ts.has_value()) {
+        os << " [" << fmt::format("{:%F %T}", safe_localtime(ts.value()))
+           << "]";
       }
 
       auto const& version = histent.version().value();
@@ -172,11 +172,10 @@ nlohmann::json history::as_json() const {
       }
     }
 
-    if (histent.timestamp().has_value()) {
+    if (auto ts = histent.timestamp(); ts.has_value()) {
       entry["timestamp"] = {
-          {"epoch", histent.timestamp().value()},
-          {"local", fmt::format("{:%Y-%m-%dT%H:%M:%S}",
-                                fmt::localtime(histent.timestamp().value()))},
+          {"epoch", ts.value()},
+          {"local", fmt::format("%FT%T", safe_localtime(ts.value()))},
       };
     }
 

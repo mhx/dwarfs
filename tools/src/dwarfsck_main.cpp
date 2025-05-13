@@ -103,10 +103,10 @@ void do_list_files(reader::filesystem_v2& fs, iolayer const& iol,
 
       auto st = fs.getattr(iv);
 
-      iol.out << fmt::format(
-          "{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%Y-%m-%d %H:%M} {8}\n", uid_width,
-          gid_width, inode_size_width, iv.mode_string(), iv.getuid(),
-          iv.getgid(), st.size(), fmt::localtime(st.mtime()), name);
+      iol.out << fmt::format("{3} {4:{0}}/{5:{1}} {6:{2}L} {7:%F %H:%M} {8}\n",
+                             uid_width, gid_width, inode_size_width,
+                             iv.mode_string(), iv.getuid(), iv.getgid(),
+                             st.size(), safe_localtime(st.mtime()), name);
     } else if (!name.empty()) {
       iol.out << name << "\n";
     }
