@@ -1,5 +1,40 @@
 # Change Log
 
+## Version 0.12.4 - 2025-05-14
+
+- (fix) Segfault on `bad_compression_ratio_error`. When recompressing a
+  filesystem where some blocks cannot be compressed using the selected
+  algorithm because of a `bad_compression_ratio_error`, the resulting
+  `block` was left empty after the refactoring done in 06f8728cc.
+
+- (fix) Add history unless `--no-history` is given when rewriting a file
+  system image.
+
+- (fix) Allow dumping `frozen_layout` w/o `frozen_analysis` in `dwarfsck`.
+
+- (fix) Logging timestamps should show local time.
+
+- (fix) Workaround a weird MSVC bug.
+
+- (fix) Remove useless cast causing compiler warning.
+
+- (feat) More complete breakdown of metadata in `dwarfsck`.
+
+- (feat) Add `schema_raw_dump` flag to `dwarfsck --detail`.
+
+- (build) Switch static build to libressl on Windows.
+
+- (build) Update static build libraries.
+
+- (build) Update folly/fbthrift/fsst.
+
+- (refactor) Use `unordered_set::contains` to simplify check.
+
+- (refactor) Introduce and use `safe_localtime()` to prevent issues
+  with `fmt` deprecating `fmt::localtime`.
+
+- (test) Speed up a few slow tests on Windows.
+
 ## Version 0.12.3 - 2025-04-21
 
 - (fix) Automatic image offset detection (for images using a custom
