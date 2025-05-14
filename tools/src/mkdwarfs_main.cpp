@@ -259,6 +259,8 @@ categorize_defaults_type const& categorize_defaults_common() {
 }
 
 categorize_defaults_type const& categorize_defaults_level(unsigned level) {
+  static categorize_defaults_type const defaults_off;
+
   static categorize_defaults_type const defaults_fast{
       // clang-format off
       {"--order",       {"pcmaudio/waveform::revpath", "fits/image::revpath"}},
@@ -319,7 +321,7 @@ categorize_defaults_type const& categorize_defaults_level(unsigned level) {
   static constexpr std::array<categorize_defaults_type const*, 10>
       defaults_level{{
           // clang-format off
-          /* 0 */ &defaults_fast,
+          /* 0 */ &defaults_off,
           /* 1 */ &defaults_fast,
           /* 2 */ &defaults_fast,
           /* 3 */ &defaults_fast,
@@ -347,12 +349,11 @@ class categorize_optval {
   bool empty() const { return value_.empty(); }
   std::string const& value() const { return value_; }
 
-  bool is_implicit_default() const { return !empty() && !is_explicit_; }
   bool is_explicit() const { return is_explicit_; }
 
   template <typename T>
   void add_implicit_defaults(T& cop) const {
-    if (is_implicit_default()) {
+    if (cop.has_category_resolver()) {
       if (auto it = defaults_.find(cop.name()); it != defaults_.end()) {
         for (auto const& v : it->second) {
           cop.parse_fallback(v);
@@ -1262,7 +1263,17 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     cat_resolver = options.inode.categorizer_mgr;
   }
 
-  writer::category_parser cp(cat_resolver);
+  std::unordered_set<std::string_view> accepted_categories;
+
+  for (auto const& name : catreg.categorizer_names()) {
+    stream_logger lgr(iol.term, iol.err);
+    auto categorizer = catreg.create(lgr, name, vm, iol.file);
+    for (auto cat : categorizer->categories()) {
+      accepted_categories.insert(cat);
+    }
+  }
+
+  writer::category_parser cp(cat_resolver, accepted_categories);
 
   try {
     {

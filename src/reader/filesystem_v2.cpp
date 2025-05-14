@@ -752,6 +752,7 @@ filesystem_<LoggerPolicy>::info_as_json(fsinfo_options const& opts,
 
       nlohmann::json section_info{
           {"type", s.name()},
+          {"compression", s.compression_name()},
           {"compressed_size", s.length()},
           {"checksum_ok", checksum_ok},
       };
