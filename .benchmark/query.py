@@ -83,6 +83,11 @@ def walltime_chart(db_path, arch, binary_type, version, exclude):
             "universal": {"clang-minsize-musl-libressl-lto"},
             "fuse-extract": {"clang-minsize-musl-minimal-lto"},
         },
+        "0.12.4": {
+            "standalone": {"clang-minsize-musl-lto"},
+            "universal": {"clang-minsize-musl-libressl-lto"},
+            "fuse-extract": {"clang-minsize-musl-minimal-lto"},
+        },
     }
 
     exclude_re = re.compile(exclude) if exclude else None
