@@ -1579,8 +1579,9 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
   std::string compression_type = compression;
   std::string const image_file = "test.dwarfs";
   std::string image;
-  reader::fsinfo_options const history_opts{
-      .features = {reader::fsinfo_feature::history}};
+  reader::fsinfo_options const info_opts{
+      .features = {reader::fsinfo_feature::history,
+                   reader::fsinfo_feature::section_details}};
 
   if (auto pos = compression_type.find(':'); pos != std::string::npos) {
     compression_type.erase(pos);
@@ -1590,11 +1591,47 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     compression_type = "NONE";
   }
 
+  auto get_block_compression = [](nlohmann::json const& info) {
+    std::map<std::string, std::set<std::string>> ccmap;
+    for (auto const& sec : info["sections"]) {
+      if (sec["type"] == "BLOCK") {
+        ccmap[sec["category"].get<std::string>()].insert(
+            sec["compression"].get<std::string>());
+      }
+    }
+    return ccmap;
+  };
+
+  std::set<std::string> const waveform_compressions{
+#ifdef DWARFS_HAVE_FLAC
+      "FLAC",
+#else
+      "ZSTD",
+      "NONE",
+#endif
+  };
+
+  std::string const fits_compression{
+#ifdef DWARFS_HAVE_RICEPP
+      "RICEPP",
+#else
+      "ZSTD",
+#endif
+  };
+
+  std::string const l1_compression{
+#ifdef DWARFS_HAVE_LIBLZ4
+      "LZ4",
+#else
+      "ZSTD",
+#endif
+  };
+
   {
     mkdwarfs_tester t;
     t.os->add_local_files(audio_data_dir);
     t.os->add_local_files(fits_data_dir);
-    t.os->add_file("random", 4096, true);
+    t.os->add_file("random", test::create_random_string(4096));
     ASSERT_EQ(0, t.run({"-i", "/", "-o", image_file, "--categorize", "-C",
                         compression}))
         << t.err();
@@ -1602,8 +1639,20 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     EXPECT_TRUE(img);
     image = std::move(img.value());
     auto fs = t.fs_from_file(image_file);
-    auto history = fs.info_as_json(history_opts)["history"];
+    auto info = fs.info_as_json(info_opts);
+    auto history = info["history"];
     EXPECT_EQ(1, history.size());
+
+    auto ccmap = get_block_compression(info);
+    std::map<std::string, std::set<std::string>> const expected_ccmap{
+        {"<default>", {compression_type}},
+        {"incompressible", {"NONE"}},
+        {"pcmaudio/waveform", waveform_compressions},
+        {"pcmaudio/metadata", {compression_type}},
+        {"fits/image", {fits_compression}},
+        {"fits/metadata", {compression_type}},
+    };
+    EXPECT_EQ(expected_ccmap, ccmap);
   }
 
   auto tester = [&image_file](std::string const& image_data) {
@@ -1619,8 +1668,17 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
-    auto history = fs.info_as_json(history_opts)["history"];
+    auto info = fs.info_as_json(info_opts);
+    auto history = info["history"];
     EXPECT_EQ(2, history.size());
+
+    auto ccmap = get_block_compression(info);
+    std::map<std::string, std::set<std::string>> const expected_ccmap{
+        {"<default>", {"NONE"}},         {"incompressible", {"NONE"}},
+        {"pcmaudio/waveform", {"NONE"}}, {"pcmaudio/metadata", {"NONE"}},
+        {"fits/image", {"NONE"}},        {"fits/metadata", {"NONE"}},
+    };
+    EXPECT_EQ(expected_ccmap, ccmap);
   }
 
   {
@@ -1629,8 +1687,20 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
-    auto history = fs.info_as_json(history_opts)["history"];
+    auto info = fs.info_as_json(info_opts);
+    auto history = info["history"];
     EXPECT_EQ(2, history.size());
+
+    auto ccmap = get_block_compression(info);
+    std::map<std::string, std::set<std::string>> const expected_ccmap{
+        {"<default>", {l1_compression}},
+        {"incompressible", {"NONE"}},
+        {"pcmaudio/waveform", waveform_compressions},
+        {"pcmaudio/metadata", {l1_compression}},
+        {"fits/image", {fits_compression}},
+        {"fits/metadata", {l1_compression}},
+    };
+    EXPECT_EQ(expected_ccmap, ccmap);
   }
 
   {
@@ -1651,10 +1721,22 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     auto t = tester(image);
     ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress=block",
                         "--recompress-categories=!pcmaudio/waveform", "-C",
-                        "pcmaudio/metadata::null"}))
+                        "pcmaudio/metadata::null", "-l1"}))
         << t.err();
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
+
+    auto info = fs.info_as_json(info_opts);
+    auto ccmap = get_block_compression(info);
+    std::map<std::string, std::set<std::string>> const expected_ccmap{
+        {"<default>", {l1_compression}},
+        {"incompressible", {"NONE"}},
+        {"pcmaudio/waveform", waveform_compressions},
+        {"pcmaudio/metadata", {"NONE"}},
+        {"fits/image", {fits_compression}},
+        {"fits/metadata", {l1_compression}},
+    };
+    EXPECT_EQ(expected_ccmap, ccmap);
   }
 
 #ifdef DWARFS_HAVE_FLAC
@@ -1715,7 +1797,7 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
     auto fs = t.fs_from_stdout();
     EXPECT_TRUE(fs.find("/random"));
     EXPECT_EQ(0, fs.get_history().size());
-    EXPECT_EQ(1, fs.info_as_json(history_opts).count("history"));
+    EXPECT_EQ(1, fs.info_as_json(info_opts).count("history"));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("removing HISTORY"));
 
     auto t2 = tester(t.out());
