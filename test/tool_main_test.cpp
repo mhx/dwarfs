@@ -1625,6 +1625,16 @@ TEST_P(mkdwarfs_recompress_test, recompress) {
 
   {
     auto t = tester(image);
+    ASSERT_EQ(0, t.run({"-i", image_file, "-o", "-", "--recompress", "-l1"}))
+        << t.err();
+    auto fs = t.fs_from_stdout();
+    EXPECT_TRUE(fs.find("/random"));
+    auto history = fs.info_as_json(history_opts)["history"];
+    EXPECT_EQ(2, history.size());
+  }
+
+  {
+    auto t = tester(image);
     EXPECT_NE(0, t.run({"-i", image_file, "-o", "-", "--recompress=foo"}));
     EXPECT_THAT(t.err(), ::testing::HasSubstr("invalid recompress mode"));
   }
