@@ -597,6 +597,11 @@ if(WITH_TESTS)
     target_compile_definitions(${test}
       PRIVATE TEST_DATA_DIR=\"${CMAKE_SOURCE_DIR}/test\"
               TOOLS_BIN_DIR=\"${CMAKE_CURRENT_BINARY_DIR}\")
+
+    if(WIN32)
+      target_compile_options(${test} PRIVATE /bigobj)
+    endif()
+
     list(APPEND TEST_TARGETS ${test})
   endforeach()
 
