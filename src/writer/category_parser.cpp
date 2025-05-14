@@ -30,8 +30,10 @@
 namespace dwarfs::writer {
 
 category_parser::category_parser(
-    std::shared_ptr<category_resolver const> resolver)
-    : resolver_{std::move(resolver)} {}
+    std::shared_ptr<category_resolver const> resolver,
+    std::unordered_set<std::string_view> const& accepted_categories)
+    : resolver_{std::move(resolver)}
+    , accepted_categories_{accepted_categories} {}
 
 std::vector<fragment_category::value_type>
 category_parser::parse(std::string_view arg) const {
@@ -43,12 +45,10 @@ category_parser::parse(std::string_view arg) const {
   std::vector<fragment_category::value_type> rv;
   auto categories = split_to<std::vector<std::string_view>>(arg, ',');
 
-  rv.reserve(categories.size());
-
   for (auto const& name : categories) {
     if (auto val = resolver_->category_value(name)) {
       rv.emplace_back(*val);
-    } else {
+    } else if (!accepted_categories_.contains(name)) {
       throw std::range_error(fmt::format("unknown category: '{}'", name));
     }
   }
@@ -59,6 +59,10 @@ category_parser::parse(std::string_view arg) const {
 std::string
 category_parser::to_string(fragment_category::value_type const& val) const {
   return std::string(resolver_->category_name(val));
+}
+
+bool category_parser::has_resolver() const {
+  return static_cast<bool>(resolver_);
 }
 
 } // namespace dwarfs::writer

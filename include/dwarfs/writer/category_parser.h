@@ -24,6 +24,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include <dwarfs/writer/fragment_category.h>
@@ -34,13 +35,17 @@ class category_resolver;
 
 class category_parser {
  public:
-  category_parser(std::shared_ptr<category_resolver const> resolver);
+  category_parser(
+      std::shared_ptr<category_resolver const> resolver,
+      std::unordered_set<std::string_view> const& accepted_categories);
 
   std::vector<fragment_category::value_type> parse(std::string_view arg) const;
   std::string to_string(fragment_category::value_type const& val) const;
+  bool has_resolver() const;
 
  private:
   std::shared_ptr<category_resolver const> resolver_;
+  std::unordered_set<std::string_view> accepted_categories_;
 };
 
 } // namespace dwarfs::writer

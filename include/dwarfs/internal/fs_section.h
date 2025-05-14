@@ -52,6 +52,9 @@ class fs_section {
   bool is_known_compression() const { return impl_->is_known_compression(); }
   bool is_known_type() const { return impl_->is_known_type(); }
   compression_type compression() const { return impl_->compression(); }
+  std::string compression_name() const {
+    return get_compression_name(compression());
+  }
   section_type type() const { return impl_->type(); }
   std::string name() const { return impl_->name(); }
   std::string description() const { return impl_->description(); }
