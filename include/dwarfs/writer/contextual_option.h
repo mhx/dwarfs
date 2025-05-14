@@ -151,15 +151,8 @@ class contextual_option_parser {
       } else {
         auto ctx = arg.substr(0, pos);
         auto val = op_.parse(arg.substr(pos + 2));
-        if constexpr (std::is_same_v<
-                          std::invoke_result_t<decltype(&ContextParser::parse),
-                                               ContextParser, decltype(ctx)>,
-                          typename option_type::context_type>) {
-          add_contextual(cp_.parse(ctx), val, policy);
-        } else {
-          for (auto c : cp_.parse(ctx)) {
-            add_contextual(c, val, policy);
-          }
+        for (auto c : cp_.parse(ctx)) {
+          add_contextual(c, val, policy);
         }
       }
     } catch (std::exception const& e) {
@@ -205,6 +198,8 @@ class contextual_option_parser {
   }
 
   std::string const& name() const { return name_; }
+
+  bool has_category_resolver() const { return cp_.has_resolver(); }
 
  private:
   void add_contextual(typename option_type::context_type const& ctx,
