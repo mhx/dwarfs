@@ -1048,8 +1048,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   if (auto it = time_resolutions.find(time_resolution);
       it != time_resolutions.end()) {
     options.metadata.time_resolution_sec = it->second;
-  } else if (auto val = try_to<uint32_t>(time_resolution)) {
-    options.metadata.time_resolution_sec = *val;
+  } else if (auto val = try_to<uint32_t>(time_resolution); val && *val != 1) {
+    options.metadata.time_resolution_sec = val;
     if (options.metadata.time_resolution_sec == 0) {
       iol.err << "error: the argument to '--time-resolution' must be nonzero\n";
       return 1;
