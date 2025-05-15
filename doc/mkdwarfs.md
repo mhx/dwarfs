@@ -242,13 +242,19 @@ Most other options are concerned with compression tuning:
 - `--rebuild-metadata`:
   Completely rebuild the metadata block. This will upgrade the internal format
   of the metadata to the latest version instead of just recompressing the
-  metadata block.
+  metadata block. Implies `--recompress=metadata`.
+
+- `--change-block-size`:
+  Change the block size while recompressing. This will change the block size
+  according to the size given in `--block-size-bits`. Even if the block size
+  is unchanged, this will still re-order and re-compress *all* blocks. Implies
+  `--recompress=all` and `--rebuild-metadata`.
 
 - `--recompress-categories=`[`!`]*category*[`,`...]:
   When `--recompress` is set to `all` or `block`, this option controls
   which categories of blocks will be recompressed. Adding a `!` in front
   of the list allows you to specify which categories will *not* be
-  recompressed.
+  recompressed. Cannot be used with `--change-block-size`.
 
 - `-P`, `--pack-metadata=auto`|`none`|[`all`|`chunk_table`|`directories`|`shared_files`|`names`|`names_index`|`symlinks`|`symlinks_index`|`force`|`plain`[`,`...]]:
   Which metadata information to store in packed format. This is primarily
