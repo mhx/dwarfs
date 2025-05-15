@@ -32,6 +32,8 @@
 #include <utility>
 #include <vector>
 
+#include <folly/Function.h>
+
 #include <dwarfs/block_compressor.h>
 #include <dwarfs/byte_buffer.h>
 #include <dwarfs/compression_constraints.h>
@@ -47,6 +49,15 @@ class fs_section;
 }
 
 namespace writer::internal {
+
+struct block_compression_info {
+  size_t uncompressed_size{};
+  std::optional<std::string> metadata;
+  std::optional<compression_constraints> constraints;
+};
+
+using delayed_data_fn_type = folly::Function<
+    std::pair<shared_byte_buffer, std::optional<std::string>>()>;
 
 class filesystem_writer_detail {
  public:
@@ -81,10 +92,14 @@ class filesystem_writer_detail {
   virtual void write_history(shared_byte_buffer data) = 0;
   virtual void check_block_compression(
       compression_type compression, std::span<uint8_t const> data,
-      std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
+      std::optional<fragment_category::value_type> cat = std::nullopt,
+      block_compression_info* info = nullptr) = 0;
   virtual void write_section(
       section_type type, compression_type compression,
       std::span<uint8_t const> data,
+      std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
+  virtual void rewrite_block(
+      delayed_data_fn_type data, size_t uncompressed_size,
       std::optional<fragment_category::value_type> cat = std::nullopt) = 0;
   virtual void write_compressed_section(dwarfs::internal::fs_section const& sec,
                                         std::span<uint8_t const> data) = 0;
