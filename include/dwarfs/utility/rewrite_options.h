@@ -36,6 +36,7 @@ namespace dwarfs::utility {
 struct rewrite_options {
   bool recompress_block{false};
   bool recompress_metadata{false};
+  std::optional<size_t> change_block_size;
   std::optional<writer::metadata_options> rebuild_metadata;
   std::unordered_set<std::string> recompress_categories;
   bool recompress_categories_exclude{false};

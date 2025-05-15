@@ -21,8 +21,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+#include <vector>
+
 #include <dwarfs/history.h>
 #include <dwarfs/logger.h>
+#include <dwarfs/malloc_byte_buffer.h>
 #include <dwarfs/reader/filesystem_v2.h>
 #include <dwarfs/util.h>
 #include <dwarfs/utility/rewrite_options.h>
@@ -38,6 +41,217 @@
 
 namespace dwarfs::utility {
 
+namespace {
+
+/*
+
+In order to be able to change the block size, we need to first build a list
+of all blocks, along with their categories *and* category-specific metadata.
+Only blocks in the same category and with the same metadata are eligible for
+merging. While category/metadata is mostly irrelevant for splitting, splitting
+requires us to know the compression constraints (i.e. the granularity of the
+data) so we can split at the correct boundaries.
+
+Granularity also makes splitting/merging more complicated, as we potentially
+cannot simply split a block because one of the new blocks would be larger than
+the block size. In which case we must move the excess data to the next block,
+and so on. Simpilarly, when merging blocks, we can potentially fill up the
+block with data from the next block.
+
+So, ultimately, we need to define for each block in the rewritten filesystem
+image the chunks of which it is made up. This mapping will not only be used
+to build the new blocks, but also to rebuild the metadata. In the metadata,
+both the chunks *and* the chunk table must be updated, since individual chunks
+can be either merged or split as well. If we want to be super accurate, we
+would also need to update the inode size cache; but this would only be relevant
+if we go from a really large block size to a really small one. Then again, it
+shouldn't be too hard to update the cache. What we *definitely* need to update
+is the `block_categories` as well as the `block_category_metadata` tables in
+the metadata.
+
+So, what we need:
+
+- A list of all blocks, along with their categories and metadata
+
+*/
+
+struct block_info {
+  size_t block{};
+  size_t uncompressed_size{};
+  std::optional<dwarfs::internal::fs_section> section;
+  std::optional<std::string> category_name;
+  std::optional<std::string> metadata;
+  std::optional<compression_constraints> constraints;
+};
+
+/*
+
+- An algorithm for splitting/merging that outputs the new block positions
+  (numbers) and the chunks that make up each block
+
+    struct block_chunk {  // see metadata_builder.h
+      size_t block;
+      size_t offset;
+      size_t size;
+    };
+
+*/
+
+struct new_block_mapping {
+  size_t block{};
+  size_t size{};
+  std::vector<dwarfs::writer::internal::block_chunk> chunks{};
+  std::optional<std::string> category_name;
+  std::optional<std::string> metadata;
+};
+
+/*
+
+- The algorithm should be deterministic. It doesn't have to be reversible,
+  i.e. splitting then merging or merging then splitting doesn't have to
+  yield the same result (or even the original filesystem image). But when
+  splitting or merging, the result should *always* be the same given the
+  same input. That means we *could* actually consider grouping blocks by
+  category and metadata in the output.
+
+  TODO: Check if we've gone from a compression with constraints to one
+        without (i.e. granularity 3 -> 1) and want to go back to the
+        original compression *without* a block size change, that should
+        fail early.
+
+We need two new features to support this:
+
+- `filesystem_v2` must allow reading raw block data (i.e. not file-based).
+  That way, we can easily make use of the block cache while re-composing
+  the blocks.
+
+- `filesystem_writer` must allow delayed reading of the block data. We
+  can hopefully refactor the `rewritten_fsblock` to support this.
+
+How does the remapping process work in the metadata builder?
+
+The chunk_table is just a list of the first chunk of each regular file
+inode, plus a sentinel at the end. Basically, we need to traverse the
+chunk_table and the chunks it references and build new versions of the
+chunk_table and chunks using the new blocks.
+
+To build a new chunk from an old chunk, we must be able figure out which
+new blocks an old block is mapped to. This is sort of the opposite of
+`mapped_block_info`, where we have stored which chunks of old blocks
+make up a new block. So we need a second mapping:
+
+    struct block_mapping {  // see metadata_builder.h
+      size_t old_block;
+      std::vector<block_chunk> chunks;
+    };
+
+*/
+
+struct rw_block_mappings {
+  std::vector<new_block_mapping> new_to_old;
+  std::vector<dwarfs::writer::internal::block_mapping> old_to_new;
+};
+
+rw_block_mappings build_block_mappings(std::span<block_info const> blocks,
+                                       size_t const block_size) {
+  using stream_id =
+      std::pair<std::optional<std::string>, std::optional<std::string>>;
+  std::vector<std::vector<size_t>> streams;
+  std::map<stream_id, size_t> stream_map;
+
+  for (auto const& b : blocks) {
+    stream_id id{b.category_name, b.metadata};
+    auto [it, inserted] = stream_map.try_emplace(id, streams.size());
+    if (inserted) {
+      streams.emplace_back();
+    }
+    streams[it->second].push_back(b.block);
+  }
+
+  rw_block_mappings result;
+
+  for (auto const& stream : streams) {
+    size_t granularity{1};
+
+    if (auto const& cc = blocks[stream[0]].constraints; cc && cc->granularity) {
+      granularity = cc->granularity.value();
+    }
+
+    size_t const max_stream_block_size{granularity *
+                                       (block_size / granularity)};
+
+    std::vector<new_block_mapping> mapped;
+
+    for (size_t block : stream) {
+      result.old_to_new.push_back({.old_block = block});
+      auto& old_to_new = result.old_to_new.back();
+      auto const& b = blocks[block];
+      size_t offset{0};
+
+      while (offset < b.uncompressed_size) {
+        if (mapped.empty() || mapped.back().size == max_stream_block_size) {
+          mapped.push_back({.block = result.new_to_old.size() + mapped.size(),
+                            .category_name = b.category_name,
+                            .metadata = b.metadata});
+        }
+
+        auto& m = mapped.back();
+        size_t const chunk_size{std::min(b.uncompressed_size - offset,
+                                         max_stream_block_size - m.size)};
+
+        DWARFS_CHECK(chunk_size % granularity == 0,
+                     fmt::format("chunk_size ({}) % granularity ({}) != 0",
+                                 chunk_size, granularity));
+
+        old_to_new.chunks.push_back(
+            {.block = m.block, .offset = m.size, .size = chunk_size});
+
+        m.chunks.push_back(
+            {.block = block, .offset = offset, .size = chunk_size});
+
+        m.size += chunk_size;
+        offset += chunk_size;
+      }
+    }
+
+    std::ranges::move(mapped, std::back_inserter(result.new_to_old));
+  }
+
+  std::ranges::sort(result.old_to_new, [](auto const& a, auto const& b) {
+    return a.old_block < b.old_block;
+  });
+
+  return result;
+}
+
+std::string block_mappings_to_string(rw_block_mappings const& mapped) {
+  std::ostringstream oss;
+  for (auto const& m : mapped.new_to_old) {
+    oss << "new block " << m.block << " (size " << m.size;
+    if (m.category_name) {
+      oss << ", category " << *m.category_name;
+    }
+    if (m.metadata) {
+      oss << ", metadata " << *m.metadata;
+    }
+    oss << "):\n";
+    for (auto const& c : m.chunks) {
+      oss << "  chunk: old block " << c.block << ", offset " << c.offset
+          << ", size " << c.size << "\n";
+    }
+  }
+  for (auto const& m : mapped.old_to_new) {
+    oss << "old block " << m.old_block << ":\n";
+    for (auto const& c : m.chunks) {
+      oss << "  chunk: new block " << c.block << ", offset " << c.offset
+          << ", size " << c.size << "\n";
+    }
+  }
+  return oss.str();
+}
+
+} // namespace
+
 void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
                         dwarfs::writer::filesystem_writer& fs_writer,
                         dwarfs::writer::category_resolver const& cat_resolver,
@@ -45,6 +259,18 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
   using dwarfs::writer::fragment_category;
 
   LOG_PROXY(debug_logger_policy, lgr);
+
+  if (opts.change_block_size) {
+    DWARFS_CHECK(opts.recompress_block,
+                 "change_block_size requires recompress_block");
+    DWARFS_CHECK(opts.recompress_metadata,
+                 "change_block_size requires recompress_metadata");
+    DWARFS_CHECK(opts.rebuild_metadata,
+                 "change_block_size requires rebuild_metadata");
+  }
+
+  std::vector<block_info> blocks;
+  rw_block_mappings mapped_blocks;
 
   auto parser = fs.get_parser();
 
@@ -54,20 +280,64 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
     size_t block_no{0};
     parser->rewind();
 
-    while (auto s = parser->next_section()) {
-      if (s->type() == section_type::BLOCK) {
-        if (auto catstr = fs.get_block_category(block_no)) {
-          if (auto cat = cat_resolver.category_value(catstr.value())) {
-            writer.check_block_compression(s->compression(),
-                                           parser->section_data(*s), cat);
+    {
+      auto tv = LOG_TIMED_VERBOSE;
+
+      while (auto s = parser->next_section()) {
+        if (s->type() == section_type::BLOCK) {
+          dwarfs::writer::internal::block_compression_info bci;
+          auto catstr = fs.get_block_category(block_no);
+          std::optional<fragment_category::value_type> cat;
+
+          if (catstr) {
+            cat = cat_resolver.category_value(catstr.value());
           }
+
+          writer.check_block_compression(
+              s->compression(), parser->section_data(*s), cat,
+              opts.change_block_size ? &bci : nullptr);
+
+          if (opts.change_block_size) {
+            DWARFS_CHECK(block_no == blocks.size(),
+                         fmt::format("block_no ({}) != blocks.size() ({})",
+                                     block_no, blocks.size()));
+            LOG_DEBUG << "adding block " << block_no
+                      << " uncompressed size: " << bci.uncompressed_size;
+            auto& info = blocks.emplace_back();
+            info.block = block_no;
+            info.uncompressed_size = bci.uncompressed_size;
+            info.section = s;
+            info.category_name = catstr;
+            info.metadata = bci.metadata;
+            info.constraints = bci.constraints;
+          }
+
+          ++block_no;
         }
-        ++block_no;
       }
+
+      tv << "checked compression for " << block_no << " blocks";
+    }
+
+    if (opts.change_block_size) {
+      {
+        auto tv = LOG_TIMED_VERBOSE;
+
+        mapped_blocks =
+            build_block_mappings(blocks, opts.change_block_size.value());
+
+        tv << "mapped " << blocks.size() << " source blocks to "
+           << mapped_blocks.new_to_old.size() << " target blocks";
+      }
+
+      LOG_DEBUG << block_mappings_to_string(mapped_blocks);
     }
   }
 
-  writer.configure_rewrite(parser->filesystem_size(), fs.num_blocks());
+  writer.configure_rewrite(parser->filesystem_size(),
+                           opts.change_block_size
+                               ? mapped_blocks.new_to_old.size()
+                               : fs.num_blocks());
 
   if (auto header = parser->header()) {
     writer.copy_header(*header);
@@ -121,49 +391,77 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
         return false;
       };
 
+  if (opts.change_block_size) {
+    for (auto const& m : mapped_blocks.new_to_old) {
+      std::optional<fragment_category::value_type> cat;
+
+      if (m.category_name) {
+        cat = cat_resolver.category_value(m.category_name.value());
+      }
+
+      writer.rewrite_block(
+          [&] {
+            auto data = malloc_byte_buffer::create_reserve(m.size);
+            for (auto const& c : m.chunks) {
+              auto range =
+                  fs.read_raw_block_data(c.block, c.offset, c.size).get();
+              data.append(range.data(), range.size());
+            }
+            DWARFS_CHECK(data.size() == m.size,
+                         fmt::format("data size {} != expected size {}",
+                                     data.size(), m.size));
+            return std::pair{data.share(), m.metadata};
+          },
+          m.size, cat);
+    }
+  }
+
   parser->rewind();
 
   while (auto s = parser->next_section()) {
     switch (s->type()) {
-    case section_type::BLOCK: {
-      std::optional<fragment_category::value_type> cat;
-      bool recompress_block{opts.recompress_block};
+    case section_type::BLOCK:
+      if (!opts.change_block_size) {
+        std::optional<fragment_category::value_type> cat;
+        bool recompress_block{opts.recompress_block};
 
-      if (recompress_block) {
-        auto catstr = fs.get_block_category(block_no);
+        if (recompress_block) {
+          auto catstr = fs.get_block_category(block_no);
 
-        if (catstr) {
-          cat = cat_resolver.category_value(catstr.value());
+          if (catstr) {
+            cat = cat_resolver.category_value(catstr.value());
 
-          if (!cat) {
-            LOG_ERROR << "unknown category '" << catstr.value()
-                      << "' for block " << block_no;
-          }
+            if (!cat) {
+              LOG_ERROR << "unknown category '" << catstr.value()
+                        << "' for block " << block_no;
+            }
 
-          if (!opts.recompress_categories.empty()) {
-            bool is_in_set{opts.recompress_categories.contains(catstr.value())};
+            if (!opts.recompress_categories.empty()) {
+              bool is_in_set{
+                  opts.recompress_categories.contains(catstr.value())};
 
-            recompress_block =
-                opts.recompress_categories_exclude ? !is_in_set : is_in_set;
+              recompress_block =
+                  opts.recompress_categories_exclude ? !is_in_set : is_in_set;
+            }
           }
         }
+
+        if (recompress_block && from_none_to_none(s, cat)) {
+          recompress_block = false;
+        }
+
+        if (recompress_block) {
+          log_recompress(s, cat);
+
+          writer.write_section(section_type::BLOCK, s->compression(),
+                               parser->section_data(*s), cat);
+        } else {
+          copy_compressed(s, cat);
+        }
+
+        ++block_no;
       }
-
-      if (recompress_block && from_none_to_none(s, cat)) {
-        recompress_block = false;
-      }
-
-      if (recompress_block) {
-        log_recompress(s, cat);
-
-        writer.write_section(section_type::BLOCK, s->compression(),
-                             parser->section_data(*s), cat);
-      } else {
-        copy_compressed(s, cat);
-      }
-
-      ++block_no;
-    } break;
+      break;
 
     case section_type::METADATA_V2_SCHEMA:
     case section_type::METADATA_V2:
@@ -178,6 +476,12 @@ void rewrite_filesystem(logger& lgr, dwarfs::reader::filesystem_v2 const& fs,
           auto builder =
               metadata_builder(lgr, std::move(*md), fsopts.get(), fs.version(),
                                opts.rebuild_metadata.value());
+
+          if (opts.change_block_size) {
+            builder.set_block_size(opts.change_block_size.value());
+            builder.remap_blocks(mapped_blocks.old_to_new);
+          }
+
           auto [schema, data] =
               metadata_freezer(LOG_GET_LOGGER).freeze(builder.build());
 

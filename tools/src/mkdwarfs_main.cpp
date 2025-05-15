@@ -420,7 +420,7 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
   bool no_progress = false, remove_header = false, no_section_index = false,
        force_overwrite = false, no_history = false,
        no_history_timestamps = false, no_history_command_line = false,
-       rebuild_metadata = false;
+       rebuild_metadata = false, change_block_size = false;
   unsigned level;
   int compress_niceness;
   uint16_t uid, gid;
@@ -531,6 +531,9 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     ("rebuild-metadata",
         po::value<bool>(&rebuild_metadata)->zero_tokens(),
         "fully rebuild metadata")
+    ("change-block-size",
+        po::value<bool>(&change_block_size)->zero_tokens(),
+        "change block size when recompressing")
     ("recompress-categories",
         po::value<std::string>(&recompress_categories),
         "only recompress blocks of these categories")
@@ -890,7 +893,8 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   path = iol.os->canonical(path);
 
-  bool recompress = vm.contains("recompress") || rebuild_metadata;
+  bool recompress =
+      vm.contains("recompress") || rebuild_metadata || change_block_size;
   utility::rewrite_options rw_opts;
   if (recompress) {
     std::unordered_map<std::string, unsigned> const modes{
@@ -900,8 +904,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
         {"none", 0},
     };
 
-    if (recompress_opts.empty() && rebuild_metadata) {
-      recompress_opts = "metadata";
+    if (recompress_opts.empty()) {
+      if (change_block_size) {
+        recompress_opts = "all";
+      } else if (rebuild_metadata) {
+        recompress_opts = "metadata";
+      }
     }
 
     if (auto it = modes.find(recompress_opts); it != modes.end()) {
@@ -913,6 +921,12 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
     }
 
     if (!recompress_categories.empty()) {
+      if (change_block_size) {
+        iol.err
+            << "cannot use --recompress-categories with --change-block-size\n";
+        return 1;
+      }
+
       std::string_view input = recompress_categories;
       if (input.front() == '!') {
         rw_opts.recompress_categories_exclude = true;
@@ -1412,8 +1426,11 @@ int mkdwarfs_main(int argc, sys_char** argv, iolayer const& iol) {
 
   try {
     if (recompress) {
-      if (rebuild_metadata) {
+      if (rebuild_metadata || change_block_size) {
         rw_opts.rebuild_metadata = options.metadata;
+      }
+      if (change_block_size) {
+        rw_opts.change_block_size = UINT64_C(1) << sf_config.block_size_bits;
       }
       utility::rewrite_filesystem(lgr, *input_filesystem, *fsw, *cat_resolver,
                                   rw_opts);

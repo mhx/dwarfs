@@ -135,6 +135,7 @@ class metadata_builder_ final : public metadata_builder::impl {
                       uint32_t num_inodes) override;
 
   void gather_global_entry_data(global_entry_data const& ge_data) override;
+  void remap_blocks(std::span<block_mapping const> mapping) override;
 
   thrift::metadata::metadata const& build() override;
 
@@ -267,6 +268,103 @@ void metadata_builder_<LoggerPolicy>::gather_global_entry_data(
   md_.modes() = ge_data.get_modes();
 
   md_.timestamp_base() = ge_data.get_timestamp_base();
+}
+
+template <typename LoggerPolicy>
+void metadata_builder_<LoggerPolicy>::remap_blocks(
+    std::span<block_mapping const> mapping) {
+  using chunks_t = typename decltype(md_.chunks())::value_type;
+  using chunk_table_t = typename decltype(md_.chunk_table())::value_type;
+  using categories_t = typename decltype(md_.block_categories())::value_type;
+  using category_metadata_t =
+      typename decltype(md_.block_category_metadata())::value_type;
+
+  auto tv = LOG_TIMED_VERBOSE;
+
+  std::span<typename chunks_t::value_type> old_chunks = md_.chunks().value();
+  std::span<typename chunk_table_t::value_type> old_chunk_table =
+      md_.chunk_table().value();
+
+  DWARFS_CHECK(!old_chunk_table.empty(), "chunk table must not be empty");
+
+  chunks_t new_chunks;
+  chunk_table_t new_chunk_table;
+
+  new_chunk_table.push_back(0);
+
+  for (size_t i = 0; i < old_chunk_table.size() - 1; ++i) {
+    auto chunks = old_chunks.subspan(
+        old_chunk_table[i], old_chunk_table[i + 1] - old_chunk_table[i]);
+
+    std::vector<block_chunk> mapped_chunks;
+
+    for (auto const& chunk : chunks) {
+      DWARFS_CHECK(chunk.block().value() < mapping.size(),
+                   "chunk block out of range");
+      auto mapped = mapping[chunk.block().value()].map_chunk(
+          chunk.offset().value(), chunk.size().value());
+      DWARFS_CHECK(!mapped.empty(), "mapped chunk list is empty");
+
+      auto first = mapped.begin();
+
+      if (!mapped_chunks.empty() &&
+          mapped_chunks.back().block == mapped.front().block &&
+          mapped_chunks.back().offset + mapped_chunks.back().size ==
+              mapped.front().offset) {
+        // merge with previous chunk
+        mapped_chunks.back().size += mapped.front().size;
+        ++first;
+      }
+
+      mapped_chunks.insert(mapped_chunks.end(), first, mapped.end());
+    }
+
+    for (auto const& chunk : mapped_chunks) {
+      auto& nc = new_chunks.emplace_back();
+      nc.block() = chunk.block;
+      nc.offset() = chunk.offset;
+      nc.size() = chunk.size;
+    }
+
+    new_chunk_table.push_back(new_chunks.size());
+  }
+
+  auto const& old_categories = md_.block_categories();
+  auto const& old_category_metadata = md_.block_category_metadata();
+
+  if (old_categories.has_value() || old_category_metadata.has_value()) {
+    std::unordered_map<uint32_t, uint32_t> block_map;
+    for (auto const& m : mapping) {
+      for (auto const& c : m.chunks) {
+        block_map[c.block] = m.old_block;
+      }
+    }
+
+    if (old_categories.has_value()) {
+      categories_t new_categories;
+      new_categories.resize(block_map.size());
+      for (auto const& [new_block, old_block] : block_map) {
+        new_categories[new_block] = old_categories.value().at(old_block);
+      }
+      md_.block_categories() = std::move(new_categories);
+    }
+
+    if (old_category_metadata.has_value()) {
+      category_metadata_t new_category_metadata;
+      for (auto const& [new_block, old_block] : block_map) {
+        auto it = old_category_metadata.value().find(old_block);
+        if (it != old_category_metadata.value().end()) {
+          new_category_metadata[new_block] = it->second;
+        }
+      }
+      md_.block_category_metadata() = std::move(new_category_metadata);
+    }
+  }
+
+  md_.chunks() = std::move(new_chunks);
+  md_.chunk_table() = std::move(new_chunk_table);
+
+  tv << "remapping blocks...";
 }
 
 template <typename LoggerPolicy>
@@ -679,6 +777,33 @@ void metadata_builder_<LoggerPolicy>::upgrade_metadata(
 }
 
 } // namespace
+
+std::vector<block_chunk>
+block_mapping::map_chunk(size_t offset, size_t size) const {
+  std::vector<block_chunk> mapped;
+
+  size_t pos{0};
+
+  for (auto const& chunk : chunks) {
+    if (pos + chunk.size > offset) {
+      auto mapped_offset = offset - pos;
+      auto mapped_size = std::min(size, chunk.size - mapped_offset);
+      mapped.push_back(
+          {chunk.block, chunk.offset + mapped_offset, mapped_size});
+      size -= mapped_size;
+      if (size == 0) {
+        break;
+      }
+      offset += mapped_size;
+    }
+
+    pos += chunk.size;
+  }
+
+  DWARFS_CHECK(size == 0, "failed to map chunk, size mismatch");
+
+  return mapped;
+}
 
 metadata_builder::metadata_builder(logger& lgr, metadata_options const& options)
     : impl_{

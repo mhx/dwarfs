@@ -487,6 +487,9 @@ class filesystem_v2 final : public filesystem_v2_lite {
 
   std::unique_ptr<thrift::metadata::fs_options> thawed_fs_options() const;
 
+  std::future<block_range>
+  read_raw_block_data(size_t block_no, size_t offset, size_t size) const;
+
   class impl : public impl_lite {
    public:
     virtual int
@@ -504,6 +507,8 @@ class filesystem_v2 final : public filesystem_v2_lite {
     unpacked_metadata() const = 0;
     virtual std::unique_ptr<thrift::metadata::fs_options>
     thawed_fs_options() const = 0;
+    virtual std::future<block_range>
+    read_raw_block_data(size_t block, size_t offset, size_t size) const = 0;
   };
 
  private:

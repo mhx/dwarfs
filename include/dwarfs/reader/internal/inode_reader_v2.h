@@ -105,6 +105,11 @@ class inode_reader_v2 {
     impl_->cache_blocks(blocks);
   }
 
+  std::future<block_range>
+  read_raw_block_data(size_t block_no, size_t offset, size_t size) const {
+    return impl_->read_raw_block_data(block_no, offset, size);
+  }
+
   class impl {
    public:
     virtual ~impl() = default;
@@ -127,6 +132,8 @@ class inode_reader_v2 {
     virtual void set_cache_tidy_config(cache_tidy_config const& cfg) = 0;
     virtual size_t num_blocks() const = 0;
     virtual void cache_blocks(std::span<size_t const> blocks) const = 0;
+    virtual std::future<block_range>
+    read_raw_block_data(size_t block_no, size_t offset, size_t size) const = 0;
   };
 
  private:
