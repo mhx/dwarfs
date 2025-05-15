@@ -69,14 +69,14 @@ class lru_cache {
 
   // Insert or update an item in the cache, promoting it
   void set(key_type const& key, mapped_type value,
-           prune_hook_type custom_prune_hook = {}) {
+           prune_hook_type const& custom_prune_hook = {}) {
     auto it = index_.find(key);
     if (it != index_.end()) {
       it->second->second = std::move(value);
       move_to_front(it->second);
     } else {
       if (index_.size() >= max_size_) {
-        evict_lru(std::move(custom_prune_hook));
+        evict_lru(custom_prune_hook);
       }
       cache_.push_front(value_type(key, std::move(value)));
       index_[key] = cache_.begin();
@@ -95,7 +95,7 @@ class lru_cache {
     return it->second;
   }
 
-  iterator erase(iterator pos, prune_hook_type custom_prune_hook = {}) {
+  iterator erase(iterator pos, prune_hook_type const& custom_prune_hook = {}) {
     auto& key = pos->first;
     auto& value = pos->second;
     if (custom_prune_hook) {
@@ -127,9 +127,9 @@ class lru_cache {
   void move_to_front(iterator it) { cache_.splice(cache_.begin(), cache_, it); }
 
   // Evict the least recently used item
-  void evict_lru(prune_hook_type custom_prune_hook = {}) {
+  void evict_lru(prune_hook_type const& custom_prune_hook = {}) {
     if (auto it = cache_.end(); it != cache_.begin()) {
-      erase(--it, std::move(custom_prune_hook));
+      erase(--it, custom_prune_hook);
     }
   }
 
