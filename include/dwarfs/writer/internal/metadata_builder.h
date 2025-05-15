@@ -49,6 +49,19 @@ class inode_manager;
 class block_manager;
 class dir;
 
+struct block_chunk {
+  size_t block{};
+  size_t offset{};
+  size_t size{};
+};
+
+struct block_mapping {
+  size_t old_block{};
+  std::vector<block_chunk> chunks{};
+
+  std::vector<block_chunk> map_chunk(size_t offset, size_t size) const;
+};
+
 class metadata_builder {
  public:
   // Start with empty metadata
@@ -125,6 +138,10 @@ class metadata_builder {
     impl_->gather_global_entry_data(ge_data);
   }
 
+  void remap_blocks(std::span<block_mapping const> mapping) {
+    impl_->remap_blocks(mapping);
+  }
+
   thrift::metadata::metadata const& build() { return impl_->build(); }
 
   class impl {
@@ -152,6 +169,7 @@ class metadata_builder {
     gather_entries(std::span<dir*> dirs, global_entry_data const& ge_data,
                    uint32_t num_inodes) = 0;
     virtual void gather_global_entry_data(global_entry_data const& ge_data) = 0;
+    virtual void remap_blocks(std::span<block_mapping const> mapping) = 0;
 
     virtual thrift::metadata::metadata const& build() = 0;
   };

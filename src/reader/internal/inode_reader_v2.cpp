@@ -158,6 +158,9 @@ class inode_reader_ final : public inode_reader_v2::impl {
     }
   }
 
+  std::future<block_range> read_raw_block_data(size_t block_no, size_t offset,
+                                               size_t size) const override;
+
  private:
   using offset_cache_type =
       basic_offset_cache<uint32_t, file_off_t, size_t,
@@ -247,6 +250,13 @@ void inode_reader_<LoggerPolicy>::do_readahead(uint32_t inode,
 
     ++it;
   }
+}
+
+template <typename LoggerPolicy>
+std::future<block_range>
+inode_reader_<LoggerPolicy>::read_raw_block_data(size_t block_no, size_t offset,
+                                                 size_t size) const {
+  return cache_.get(block_no, offset, size);
 }
 
 template <typename LoggerPolicy>

@@ -345,6 +345,11 @@ class filesystem_ final {
     return metadata_v2_utils(meta_).thaw_fs_options();
   }
 
+  std::future<block_range>
+  read_raw_block_data(size_t block_no, size_t offset, size_t size) const {
+    return ir_.read_raw_block_data(block_no, offset, size);
+  }
+
  private:
   filesystem_parser make_fs_parser() const {
     return filesystem_parser(mm_, image_offset_, options_.image_size);
@@ -1387,6 +1392,10 @@ class filesystem_full_
   thawed_fs_options() const override {
     return fs().thawed_fs_options();
   }
+  std::future<block_range> read_raw_block_data(size_t block_no, size_t offset,
+                                               size_t size) const override {
+    return fs().read_raw_block_data(block_no, offset, size);
+  }
 
  private:
   history history_;
@@ -1517,6 +1526,12 @@ filesystem_v2::unpacked_metadata() const {
 std::unique_ptr<thrift::metadata::fs_options>
 filesystem_v2::thawed_fs_options() const {
   return full_().thawed_fs_options();
+}
+
+std::future<block_range>
+filesystem_v2::read_raw_block_data(size_t block_no, size_t offset,
+                                   size_t size) const {
+  return full_().read_raw_block_data(block_no, offset, size);
 }
 
 auto filesystem_v2::full_() const -> impl const& { return this->as_<impl>(); }
