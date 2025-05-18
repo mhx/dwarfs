@@ -263,15 +263,19 @@ void filesystem_parser::find_index() {
 
   auto section = fs_section(*mm_, index_pos, version_);
 
-  if (!section.check_fast(*mm_)) {
-    return;
-  }
-
   if (section.type() != section_type::SECTION_INDEX) {
     return;
   }
 
+  if (section.compression() != compression_type::NONE) {
+    return;
+  }
+
   if (section.length() % sizeof(uint64_t) != 0) {
+    return;
+  }
+
+  if (!section.check_fast(*mm_)) {
     return;
   }
 
@@ -298,6 +302,12 @@ void filesystem_parser::find_index() {
       })) {
     // remove the index again if it is not sorted
     index_.clear();
+    return;
+  }
+
+  if ((index_.at(0) & section_offset_mask) != 0) {
+    index_.clear();
+    return;
   }
 }
 
