@@ -120,12 +120,14 @@ Currently, the following different section types are defined:
   offset relative to the first section. That is, the section index
   is independent of whether or not a header is present before the
   first section. The whole point of the section index is to avoid
-  having to build an index by visiting all section headers.
-  In order to find the start of the section index, you only have
-  to read the last 64-bit value from the file, check if the upper
-  16 bits match the `SECTION_INDEX`, then add the image offset
-  (header size) to the lower 48 bits. At that position in the
-  file, you should find a valid section header for the section
+  having to build an index by visiting all section headers. Since
+  the offsets in the index are sorted, the section index is *always*
+  stored uncompressed, and the section infex *must* be the last
+  section, you can find the start of the section index by reading
+  the last 64-bit value from the image file, checking if the upper
+  16 bits match the `SECTION_INDEX` type, and then add the image
+  offset (header size) to the lower 48 bits. At that position in
+  the file, you should find a valid section header for the section
   index.
 
 - `HISTORY` (10):
