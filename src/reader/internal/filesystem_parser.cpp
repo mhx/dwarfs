@@ -250,18 +250,54 @@ void filesystem_parser::find_index() {
            mm_->as<void>(image_offset_ + image_size_ - sizeof(uint64_t)),
            sizeof(uint64_t));
 
-  if ((index_pos >> 48) == static_cast<uint16_t>(section_type::SECTION_INDEX)) {
-    index_pos &= section_offset_mask;
-    index_pos += image_offset_;
+  if ((index_pos >> 48) != static_cast<uint16_t>(section_type::SECTION_INDEX)) {
+    return;
+  }
 
-    if (std::cmp_less(index_pos, image_offset_ + image_size_)) {
-      auto section = fs_section(*mm_, index_pos, version_);
+  index_pos &= section_offset_mask;
+  index_pos += image_offset_;
 
-      if (section.check_fast(*mm_)) {
-        index_.resize(section.length() / sizeof(uint64_t));
-        ::memcpy(index_.data(), section.data(*mm_).data(), section.length());
-      }
-    }
+  if (std::cmp_greater_equal(index_pos, image_offset_ + image_size_)) {
+    return;
+  }
+
+  auto section = fs_section(*mm_, index_pos, version_);
+
+  if (!section.check_fast(*mm_)) {
+    return;
+  }
+
+  if (section.type() != section_type::SECTION_INDEX) {
+    return;
+  }
+
+  if (section.length() % sizeof(uint64_t) != 0) {
+    return;
+  }
+
+  auto const section_count = section.length() / sizeof(uint64_t);
+
+  // at least METADATA_V2_SCHEMA, METADATA_V2, and SECTION_INDEX
+  if (section_count < 3) {
+    return;
+  }
+
+  // the section index must be the last section
+  if (std::cmp_not_equal(section.end(), image_offset_ + image_size_)) {
+    return;
+  }
+
+  auto const index = section.data(*mm_);
+
+  index_.resize(section_count);
+  ::memcpy(index_.data(), index.data(), index.size());
+
+  // index entries must be sorted by offset
+  if (!std::ranges::is_sorted(index_, [](auto const a, auto const b) {
+        return (a & section_offset_mask) < (b & section_offset_mask);
+      })) {
+    // remove the index again if it is not sorted
+    index_.clear();
   }
 }
 
